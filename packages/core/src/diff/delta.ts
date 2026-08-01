@@ -38,6 +38,17 @@ export interface Delta {
   readonly owners?: readonly OwnerFrame[];
 
   /**
+   * The component whose JSX created this element.
+   *
+   * Distinct from `owners[0]`, which is the nearest *enclosing* component, and
+   * the two diverge exactly where structural attribution needs them to. When a
+   * list reorders, the nodes that moved are `Chip`s enclosed by a `Stack` — but
+   * neither decided the order. The component that wrote the JSX did, and this is
+   * the only field that names it.
+   */
+  readonly createdBy?: string;
+
+  /**
    * Custom property the changed value resolved through.
    *
    * Present only when the token's own value moved. A node whose colour changed

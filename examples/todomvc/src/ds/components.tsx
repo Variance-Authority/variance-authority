@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { codeMutationIs } from '../code-mutation.js';
 
 /**
  * The design system: seven components, each a thin wrapper over a token-driven
@@ -92,22 +93,17 @@ export interface ToggleProps {
   readonly id: string;
   readonly checked: boolean;
   readonly label: string;
-  /**
-   * Render as a bare `<div>` instead of a checkbox.
-   *
-   * This exists to be *wrong*. It is pixel-identical to the correct rendering
-   * and semantically broken: no role, no checked state, no label association,
-   * unreachable by keyboard. It is the mutation the head-to-head comparison
-   * turns on, because a tool whose only signal is the rendered image cannot see
-   * it at all.
-   */
-  readonly asDiv?: boolean;
 }
 
-export function Toggle({ id, checked, label, asDiv = false }: ToggleProps): ReactNode {
+export function Toggle({ id, checked, label }: ToggleProps): ReactNode {
   const className = `va-toggle ${checked ? 'va-toggle--on' : ''}`;
 
-  if (asDiv) return <div className={className} />;
+  // The accidental accessibility regression, expressed as what it is: an edit to
+  // *this component's source*, with its incoming props unchanged. Pixel-identical
+  // to the correct rendering — same classes, so the same box, background, border
+  // and radius — and semantically gone: no role, no checked state, no label
+  // association, unreachable by keyboard.
+  if (codeMutationIs('broken-toggle')) return <div className={className} />;
 
   return <input id={id} className={className} type="checkbox" checked={checked} aria-label={label} readOnly />;
 }

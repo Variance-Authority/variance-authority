@@ -140,6 +140,7 @@ function wholeNode(kind: 'node-added' | 'node-removed' | 'node-moved', node: Sem
     path: node.path,
     to: describe(node),
     ...(node.provenance ? { owners: node.provenance.owners } : {}),
+    ...(node.provenance?.createdBy ? { createdBy: node.provenance.createdBy } : {}),
   };
 }
 
@@ -157,11 +158,13 @@ function compareNodes(
   hasLayout: boolean,
 ): void {
   const owners = after.provenance?.owners;
+  const createdBy = after.provenance?.createdBy;
   const base = (kind: Parameters<typeof bandOf>[0]) => ({
     kind,
     band: bandOf(kind),
     path: after.path,
     ...(owners ? { owners } : {}),
+    ...(createdBy ? { createdBy } : {}),
   });
 
   if (before.role !== after.role) {
@@ -423,10 +426,37 @@ function attribute(
     const boundary = changedBoundary(owners, propsBefore, propsAfter);
 
     if (boundary === null) {
-      // Every incoming props digest held, so the change originated inside the
-      // innermost component. That component is the root.
+      // Every incoming props digest held, so the change originated inside a
+      // component rather than arriving from outside.
+      //
+      // *Which* component depends on what kind of change it is. A style change
+      // belongs to the component the styled node sits in. A node appearing,
+      // vanishing, or moving belongs to whoever *decided it is there* — the
+      // component whose JSX created the element, not the component the element
+      // is. When a filter list reorders, the nodes that moved are `Chip`s
+      // enclosed by a `Stack`, and naming either reports the thing that was
+      // rearranged instead of the code that rearranged it.
       const owner = owners[0]!;
-      return { id: `component:${owner.name}`, kind: 'component', label: owner.name };
+
+      // A node that *moved* is the only case where the responsible component is
+      // not the one the node belongs to. Ordering is decided by whoever wrote the
+      // JSX that placed the element, so a reordered filter list is `TodoFooter`'s
+      // change even though every node that moved is a `Chip`.
+      //
+      // Appearing and disappearing are deliberately *not* treated this way. A
+      // component that swaps its own output — `Toggle` rendering a `<div>` where
+      // it used to render an `<input>` — produces an added and a removed node
+      // whose creator is `Toggle` itself, and crediting whoever placed `<Toggle>`
+      // would blame `TodoItem` for a change it did not make.
+      //
+      // Known cost: when a component element is added or removed wholesale, this
+      // names the component that appeared rather than the one that decided to
+      // render it. Distinguishing those needs to know whether the component still
+      // exists on the other side, which is a question about the change set rather
+      // than about the delta.
+      const name = (delta.kind === 'node-moved' ? owner.createdBy : undefined) ?? owner.name;
+
+      return { id: `component:${name}`, kind: 'component', label: name };
     }
 
     // Props moved at a boundary, so the change arrived from outside. The root is

@@ -163,9 +163,14 @@ function ownerChain(fiber: Fiber): readonly OwnerFrame[] {
     if (node.tag === FiberTag.HostRoot) break;
 
     if (isOwnerFrame(node)) {
+      const authoredBy = debugOwnerName(node._debugOwner);
       frames.push({
         name: fiberComponentName(node),
         propsDigest: propsDigest(digestableProps(node.memoizedProps)),
+        // Development-only, like every `_debugOwner` read. Absent in a
+        // production build, which degrades structural attribution to the
+        // enclosing component rather than breaking it.
+        ...(authoredBy ? { createdBy: authoredBy } : {}),
       });
     }
 

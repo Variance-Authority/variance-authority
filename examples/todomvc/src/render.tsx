@@ -4,6 +4,7 @@ import { act } from 'react';
 import { DS_CSS } from './ds/styles.js';
 import { TOKENS_CSS } from './tokens/foundation.js';
 import type { Mutation } from './mutations.js';
+import { setCodeMutation } from './code-mutation.js';
 import { storyById } from './stories.js';
 
 /**
@@ -46,12 +47,10 @@ export function renderStory(
   const mutation = options.mutation;
 
   installSheets(document, mutation);
+  setCodeMutation(mutation?.code ? mutation.id : null);
 
   const story = storyById(storyId);
-  const element = story.render({
-    brokenToggle: mutation?.brokenToggle ?? false,
-    reversedFilters: mutation?.reversedFilters ?? false,
-  });
+  const element = story.render();
 
   let root = ROOTS.get(container);
   if (!root) {

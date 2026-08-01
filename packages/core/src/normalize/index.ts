@@ -64,8 +64,17 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
     });
   }
 
+  // Custom properties go into the resolution scope, never into `inherited`.
+  //
+  // The seed arrives with both mixed together, and injecting the whole thing as
+  // inherited style put every ancestor-declared token into the subject root's
+  // `style` map as if it were a rendered value. Two consequences, both bad: a
+  // token nothing in the subject consumes still changed that subject's hash — so
+  // editing any token invalidated every baseline in the repository — and the
+  // resulting delta had no owner chain, producing an `unattributed` root on a
+  // change that was perfectly well understood.
   const seed: InheritContext = {
-    inherited: { ...capture.inheritedSeed },
+    inherited: renderableOnly(capture.inheritedSeed),
     customProperties: customPropertiesOf(capture.inheritedSeed),
   };
 
@@ -430,6 +439,15 @@ function normalizeSelector(selector: string): string {
     .replace(/\[data-(?:styled|emotion|v)-[^\]]*\]/gi, '[«generated»]')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** The seed minus its custom properties: values that actually render. */
+function renderableOnly(seed: Readonly<Record<string, string>>): Record<string, string> {
+  const renderable: Record<string, string> = {};
+  for (const [property, value] of Object.entries(seed)) {
+    if (!property.startsWith('--')) renderable[property] = value;
+  }
+  return renderable;
 }
 
 function customPropertiesOf(seed: Readonly<Record<string, string>>): Record<string, string> {

@@ -21,12 +21,7 @@ const TODOS: readonly Todo[] = [
 export interface Story {
   readonly id: string;
   readonly layer: 'ds' | 'page';
-  readonly render: (options: StoryOptions) => ReactNode;
-}
-
-export interface StoryOptions {
-  readonly brokenToggle: boolean;
-  readonly reversedFilters: boolean;
+  readonly render: () => ReactNode;
 }
 
 export const STORIES: readonly Story[] = [
@@ -48,10 +43,10 @@ export const STORIES: readonly Story[] = [
   {
     id: 'ds/toggle--states',
     layer: 'ds',
-    render: ({ brokenToggle }) => (
+    render: () => (
       <Stack direction="row" gap={3}>
-        <Toggle id="t-off" checked={false} label="Off" asDiv={brokenToggle} />
-        <Toggle id="t-on" checked label="On" asDiv={brokenToggle} />
+        <Toggle id="t-off" checked={false} label="Off" />
+        <Toggle id="t-on" checked label="On" />
       </Stack>
     ),
   },
@@ -77,39 +72,37 @@ export const STORIES: readonly Story[] = [
   {
     id: 'page/todos--empty',
     layer: 'page',
-    render: (options) => <TodoApp todos={[]} {...options} />,
+    render: () => <TodoApp todos={[]} />,
   },
   {
     id: 'page/todos--populated',
     layer: 'page',
-    render: (options) => <TodoApp todos={TODOS} {...options} />,
+    render: () => <TodoApp todos={TODOS} />,
   },
   {
     id: 'page/todos--active-filter',
     layer: 'page',
-    render: (options) => <TodoApp todos={TODOS} filter="active" {...options} />,
+    render: () => <TodoApp todos={TODOS} filter="active" />,
   },
   {
     id: 'page/todos--completed-filter',
     layer: 'page',
-    render: (options) => <TodoApp todos={TODOS} filter="completed" {...options} />,
+    render: () => <TodoApp todos={TODOS} filter="completed" />,
   },
   {
     id: 'page/todos--drafting',
     layer: 'page',
-    render: (options) => <TodoApp todos={TODOS} draft="Buy milk" {...options} />,
+    render: () => <TodoApp todos={TODOS} draft="Buy milk" />,
   },
   {
     id: 'page/item--done',
     layer: 'page',
-    render: ({ brokenToggle }) => <TodoItem todo={TODOS[0]!} brokenToggle={brokenToggle} />,
+    render: () => <TodoItem todo={TODOS[0]!} />,
   },
   {
     id: 'page/footer--counts',
     layer: 'page',
-    render: ({ reversedFilters }) => (
-      <TodoFooter remaining={2} filter="all" reversedFilters={reversedFilters} />
-    ),
+    render: () => <TodoFooter remaining={2} filter="all" />,
   },
 ];
 

@@ -31,9 +31,16 @@ export interface Mutation {
 
   /** CSS appended to the document, as a theme or component file edit would be. */
   readonly css?: string;
-  /** Render-time switches, for edits that are code rather than style. */
-  readonly brokenToggle?: boolean;
-  readonly reversedFilters?: boolean;
+  /**
+   * A source edit, read by the component itself rather than passed to it.
+   *
+   * Modelled this way because a prop change and a source change are different
+   * causes with different correct attributions (§6.2), and threading the switch
+   * as a prop made every source edit look like a composition change — attributed
+   * to whichever component happened to be a story's entry point, so one edit
+   * produced a different root in each story. See `code-mutation.ts`.
+   */
+  readonly code?: boolean;
   /** Insert inert wrappers and churn generated class names. */
   readonly noop?: boolean;
 
@@ -61,7 +68,10 @@ export const MUTATIONS: readonly Mutation[] = [
     intent: 'Round the corners a little more across the product.',
     css: TOKEN_OVERRIDES['token-radius']!,
     visible: true,
-    expect: { roots: 1, rootKind: 'token', impact: 'paint', structureIntact: true },
+    // Two roots for one pull request, and correctly so: the edit moves two
+    // tokens, and a docket that merged them would be claiming a shared cause
+    // that does not exist. One *edit* is not always one *cause*.
+    expect: { roots: 2, rootKind: 'token', impact: 'paint', structureIntact: true },
   },
   {
     id: 'token-space',
@@ -103,7 +113,7 @@ export const MUTATIONS: readonly Mutation[] = [
     id: 'filter-reorder',
     layer: 'page',
     intent: 'Show the completed filter first.',
-    reversedFilters: true,
+    code: true,
     visible: true,
     expect: { roots: 1, rootKind: 'component', impact: 'structural', structureIntact: false },
   },
@@ -111,7 +121,7 @@ export const MUTATIONS: readonly Mutation[] = [
     id: 'broken-toggle',
     layer: 'page',
     intent: 'Refactor the toggle to a styled div (accidental accessibility regression).',
-    brokenToggle: true,
+    code: true,
     // Pixel-identical by construction: the `<div>` carries the same classes and
     // therefore the same box, the same background, the same border, the same
     // radius. A camera sees nothing. A user with a keyboard or a screen reader

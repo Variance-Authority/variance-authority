@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { codeMutationIs } from '../code-mutation.js';
 import { Button, Card, Chip, Stack, Text, TextField, Toggle } from '../ds/components.js';
 
 /**
@@ -24,20 +25,13 @@ export type Filter = 'all' | 'active' | 'completed';
 
 export interface TodoItemProps {
   readonly todo: Todo;
-  /** Passed through to `Toggle`; see its documentation for why this exists. */
-  readonly brokenToggle?: boolean;
 }
 
-export function TodoItem({ todo, brokenToggle = false }: TodoItemProps): ReactNode {
+export function TodoItem({ todo }: TodoItemProps): ReactNode {
   return (
     <div className="va-row">
       <Stack direction="row" gap={3}>
-        <Toggle
-          id={`toggle-${todo.id}`}
-          checked={todo.done}
-          label={`Mark "${todo.title}" as done`}
-          asDiv={brokenToggle}
-        />
+        <Toggle id={`toggle-${todo.id}`} checked={todo.done} label={`Mark "${todo.title}" as done`} />
         <Text tone={todo.done ? 'done' : 'default'}>{todo.title}</Text>
       </Stack>
     </div>
@@ -46,10 +40,9 @@ export function TodoItem({ todo, brokenToggle = false }: TodoItemProps): ReactNo
 
 export interface TodoListProps {
   readonly todos: readonly Todo[];
-  readonly brokenToggle?: boolean;
 }
 
-export function TodoList({ todos, brokenToggle = false }: TodoListProps): ReactNode {
+export function TodoList({ todos }: TodoListProps): ReactNode {
   if (todos.length === 0) {
     return (
       <Text tone="muted" as="p">
@@ -61,7 +54,7 @@ export function TodoList({ todos, brokenToggle = false }: TodoListProps): ReactN
   return (
     <Stack gap={1}>
       {todos.map((todo) => (
-        <TodoItem key={todo.id} todo={todo} brokenToggle={brokenToggle} />
+        <TodoItem key={todo.id} todo={todo} />
       ))}
     </Stack>
   );
@@ -85,18 +78,13 @@ export function TodoHeader({ draft }: TodoHeaderProps): ReactNode {
 export interface TodoFooterProps {
   readonly remaining: number;
   readonly filter: Filter;
-  /**
-   * Reverse the filter order.
-   *
-   * A page-layer change with no design-system involvement — the control case
-   * that shows composition variance being attributed to the page rather than to
-   * the components it arranges (spec §6.4).
-   */
-  readonly reversedFilters?: boolean;
 }
 
-export function TodoFooter({ remaining, filter, reversedFilters = false }: TodoFooterProps): ReactNode {
-  const filters: readonly Filter[] = reversedFilters
+export function TodoFooter({ remaining, filter }: TodoFooterProps): ReactNode {
+  // A page-layer source edit: this component decides its own filter order, so
+  // reordering it is an internal change here and not a composition change
+  // anywhere above.
+  const filters: readonly Filter[] = codeMutationIs('filter-reorder')
     ? ['completed', 'active', 'all']
     : ['all', 'active', 'completed'];
 
@@ -117,17 +105,9 @@ export interface TodoAppProps {
   readonly todos: readonly Todo[];
   readonly filter?: Filter;
   readonly draft?: string;
-  readonly brokenToggle?: boolean;
-  readonly reversedFilters?: boolean;
 }
 
-export function TodoApp({
-  todos,
-  filter = 'all',
-  draft = '',
-  brokenToggle = false,
-  reversedFilters = false,
-}: TodoAppProps): ReactNode {
+export function TodoApp({ todos, filter = 'all', draft = '' }: TodoAppProps): ReactNode {
   const visible = todos.filter((todo) =>
     filter === 'active' ? !todo.done : filter === 'completed' ? todo.done : true,
   );
@@ -137,8 +117,8 @@ export function TodoApp({
     <Card>
       <Stack gap={3}>
         <TodoHeader draft={draft} />
-        <TodoList todos={visible} brokenToggle={brokenToggle} />
-        <TodoFooter remaining={remaining} filter={filter} reversedFilters={reversedFilters} />
+        <TodoList todos={visible} />
+        <TodoFooter remaining={remaining} filter={filter} />
       </Stack>
     </Card>
   );
