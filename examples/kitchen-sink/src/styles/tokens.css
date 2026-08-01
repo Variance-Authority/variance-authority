@@ -1,0 +1,43 @@
+/*
+ * Design tokens for the kitchen-sink corpus.
+ *
+ * Why this file exists as a real `.css` file rather than a string in TypeScript:
+ * the attribution side-channel of ADR-0003 promises sentences of the form
+ * "padding 8→12 on `Card`, source: `tokens.css:41`". A token that has no file and
+ * no line cannot be named that way, so the corpus needs a named sheet with stable
+ * line numbers for the attributor to point at. `styles/sheets.ts` carries a
+ * byte-identical copy so the fixtures can inject it without a bundler or an async
+ * fetch; `sheets.test.ts` fails the build if the two ever drift.
+ *
+ * Every declaration below is deliberately consumed by more than one component, so
+ * that a single-line edit here produces one root with counted collateral (spec
+ * §6.2) rather than one isolated diff. A token nothing shares proves nothing.
+ */
+:root {
+  --va-space-1: 4px;
+  --va-space-2: 8px;
+  --va-space-3: 12px;
+  --va-space-4: 16px;
+  --va-space-5: 24px;
+
+  --va-radius-sm: 2px;
+  --va-radius-md: 6px;
+  --va-radius-lg: 12px;
+
+  --va-color-surface: #ffffff;
+  --va-color-ink: #101418;
+  --va-color-muted: #5b6670;
+  --va-color-border: #d4dae0;
+  --va-color-accent: #2f6feb;
+  --va-color-accent-ink: #ffffff;
+  --va-color-danger: #b3261e;
+
+  --va-shadow-1: 0 1px 2px rgba(16, 20, 24, 0.12);
+  --va-shadow-2: 0 4px 12px rgba(16, 20, 24, 0.18);
+
+  --va-font-sans: system-ui, sans-serif;
+  --va-font-size-sm: 12px;
+  --va-font-size-md: 14px;
+  --va-font-size-lg: 20px;
+  --va-line-height: 1.4;
+}
