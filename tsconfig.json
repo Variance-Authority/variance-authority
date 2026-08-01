@@ -6,6 +6,7 @@
     { "path": "./packages/collector-dom" },
     { "path": "./packages/session" },
     { "path": "./packages/harness-playwright" },
-    { "path": "./examples/kitchen-sink" }
+    { "path": "./examples/kitchen-sink" },
+    { "path": "./examples/todomvc" }
   ]
 }

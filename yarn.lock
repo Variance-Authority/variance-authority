@@ -768,6 +768,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-todomvc@workspace:examples/todomvc":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-todomvc@workspace:examples/todomvc"
+  dependencies:
+    "@variance-authority/collector-dom": "workspace:^"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/provenance-react": "workspace:^"
+    react: "npm:^19"
+    react-dom: "npm:^19"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/harness-playwright@workspace:^, @variance-authority/harness-playwright@workspace:packages/harness-playwright":
   version: 0.0.0-use.local
   resolution: "@variance-authority/harness-playwright@workspace:packages/harness-playwright"
