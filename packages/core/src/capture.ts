@@ -55,6 +55,17 @@ export interface RawCapture {
    */
   readonly portals?: readonly RawNode[];
 
+  /**
+   * Shared root state this subject is *latently* coupled to.
+   *
+   * Rules like `html.dark .card` contribute nothing today and everything the
+   * moment `dark` lands on `<html>`. In a session that reuses one document across
+   * subjects, that moment may arrive because a *different* subject put it there —
+   * turning this subject's baseline order-dependent with no visible cause.
+   * Recorded so the coupling can be reported before it bites.
+   */
+  readonly couplings?: readonly string[];
+
   /** Anything the collector could not do. Empty is the expected case. */
   readonly diagnostics: readonly Diagnostic[];
 }

@@ -1,7 +1,9 @@
 import {
   CHROMIUM_PROFILE,
   JSDOM_PROFILE,
+  EMPTY_CONTEXT,
   admits,
+  resolveStyle,
   type Diagnostic,
   type ObservationProfile,
   type Provenance,
@@ -111,6 +113,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
   }
 
   const portalRoots = options.portalsOf?.(root) ?? [];
+  const couplings = new Set<string>();
 
   if (options.portalsOf === undefined) {
     diagnostics.push({
@@ -134,10 +137,15 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
       conditions: { ...(options.features ?? {}) },
       assets: options.assets ?? {},
     },
-    root: captureNode(root, profile, index, view, options),
-    inheritedSeed: inheritedSeed(root, profile, view),
+    root: captureNode(root, profile, index, view, options, couplings),
+    inheritedSeed: inheritedSeed(root, profile, view, index),
+    ...(couplings.size > 0 ? { couplings: [...couplings].sort() } : {}),
     ...(portalRoots.length > 0
-      ? { portals: portalRoots.map((host) => captureNode(host, profile, index, view, options)) }
+      ? {
+          portals: portalRoots.map((host) =>
+            captureNode(host, profile, index, view, options, couplings),
+          ),
+        }
       : {}),
     diagnostics,
   };
@@ -151,6 +159,7 @@ function captureNode(
   index: StyleIndex,
   view: Window | null,
   options: CollectOptions,
+  couplingSink: Set<string>,
 ): RawNode {
   const attributes = attributesOf(element);
 
@@ -161,11 +170,13 @@ function captureNode(
   }
 
   const provenance = options.provenanceOf?.(element);
+  const { matched, couplings } = matchRulesFor(element, index);
+  for (const coupling of couplings) couplingSink.add(coupling);
 
   const children: RawNode[] = [];
   for (const child of childNodesOf(element)) {
     if (child.nodeType === 1) {
-      children.push(captureNode(child as Element, profile, index, view, options));
+      children.push(captureNode(child as Element, profile, index, view, options, couplingSink));
       continue;
     }
 
@@ -184,7 +195,7 @@ function captureNode(
   const shadowChildren: RawNode[] = [];
   if (shadow) {
     for (const child of elements(shadow.children)) {
-      shadowChildren.push(captureNode(child, profile, index, view, options));
+      shadowChildren.push(captureNode(child, profile, index, view, options, couplingSink));
     }
   }
 
@@ -192,7 +203,7 @@ function captureNode(
     tag: element.tagName.toLowerCase(),
     attributes,
     aria: ariaOf(element),
-    matchedRules: matchRulesFor(element, index),
+    matchedRules: matched,
     ...(Object.keys(inlineStyle).length > 0 ? { inlineStyle } : {}),
     ...(profile.computedStyle && view ? { computedStyle: computedStyleOf(element, view) } : {}),
     ...(profile.layout ? { rect: rectOf(element) } : {}),
@@ -269,22 +280,64 @@ function inheritedSeed(
   root: Element,
   profile: ObservationProfile,
   view: Window | null,
+  index: StyleIndex,
 ): Record<string, string> {
-  if (!profile.computedStyle || !view || !root.parentElement) return {};
+  if (!root.parentElement) return {};
 
-  const parent = view.getComputedStyle(root.parentElement);
-  const seed: Record<string, string> = {};
+  if (profile.computedStyle && view) {
+    const parent = view.getComputedStyle(root.parentElement);
+    const seed: Record<string, string> = {};
 
-  for (const property of INHERITABLE) {
-    const value = parent.getPropertyValue(property);
-    if (value) seed[property] = value;
+    for (const property of INHERITABLE) {
+      const value = parent.getPropertyValue(property);
+      if (value) seed[property] = value;
+    }
+    for (const property of propertyNames(parent)) {
+      if (property.startsWith('--')) seed[property] = parent.getPropertyValue(property);
+    }
+
+    return seed;
   }
 
-  for (const property of propertyNames(parent)) {
-    if (property.startsWith('--')) seed[property] = parent.getPropertyValue(property);
+  return declaredAncestorSeed(root, index);
+}
+
+/**
+ * Resolve the ancestor cascade by hand, for profiles with no computed style.
+ *
+ * Returning `{}` here — which this did — quietly disabled the entire token
+ * dimension under JSDOM. Design tokens are declared on `:root`, `:root` is
+ * outside every subject's subtree, so applicability pruning correctly drops the
+ * rule that defines them; with no seed to carry them in, `var(--brand)` resolved
+ * to nothing and every token-driven value in the snapshot was empty. The corpus
+ * missed it because its overrides are inline on the subject root; a real project
+ * declares them on `:root` and would have found the token band inert.
+ *
+ * The fix walks `documentElement → …  → root.parentElement`, matching rules and
+ * running `core`'s cascade at each step, threading the inherit context down. It
+ * is the same resolver the subject itself uses, so the seed cannot drift from the
+ * ruleset that consumes it — the ADR-0001 property, applied one level up.
+ */
+function declaredAncestorSeed(root: Element, index: StyleIndex): Record<string, string> {
+  const chain: Element[] = [];
+  for (let node = root.parentElement; node; node = node.parentElement) chain.unshift(node);
+
+  let context = EMPTY_CONTEXT;
+  for (const ancestor of chain) {
+    const inline = (ancestor as HTMLElement).style;
+    const inlineStyle: Record<string, string> = {};
+    for (const property of propertyNames(inline)) {
+      inlineStyle[property] = inline.getPropertyValue(property);
+    }
+
+    context = resolveStyle({
+      matchedRules: matchRulesFor(ancestor, index).matched,
+      ...(Object.keys(inlineStyle).length > 0 ? { inlineStyle } : {}),
+      context,
+    }).childContext;
   }
 
-  return seed;
+  return { ...context.inherited, ...context.customProperties };
 }
 
 const INHERITABLE: readonly string[] = [

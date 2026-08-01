@@ -4,6 +4,7 @@
     { "path": "./packages/core" },
     { "path": "./packages/provenance-react" },
     { "path": "./packages/collector-dom" },
+    { "path": "./packages/session" },
     { "path": "./examples/kitchen-sink" }
   ]
 }

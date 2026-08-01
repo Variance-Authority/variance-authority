@@ -780,6 +780,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/session@workspace:packages/session":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/session@workspace:packages/session"
+  dependencies:
+    "@variance-authority/collector-dom": "workspace:^"
+    "@variance-authority/core": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@vitest/expect@npm:2.1.9":
   version: 2.1.9
   resolution: "@vitest/expect@npm:2.1.9"
