@@ -20,6 +20,7 @@
     "@variance-authority/collector-dom": "workspace:^",
     "@variance-authority/core": "workspace:^",
     "@variance-authority/harness-playwright": "workspace:^",
+    "@variance-authority/mcp": "workspace:^",
     "@variance-authority/provenance-react": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "react": "^19",

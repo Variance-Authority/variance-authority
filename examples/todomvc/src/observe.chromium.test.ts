@@ -18,10 +18,12 @@ import {
   type SemanticSnapshot,
 } from '@variance-authority/core';
 import { comparePngs } from '@variance-authority/raster';
+import { handle, writeRunReport, type RunReport } from '@variance-authority/mcp';
 import { createHarness, type Harness } from '@variance-authority/harness-playwright';
 import { AGENT_GLOBAL } from '@variance-authority/harness-playwright/agent';
 import { BASELINE_VARIANT } from './pixel/protocol.js';
 import { buildSourceIndex } from './source-index.js';
+import { mkdtemp, rm } from 'node:fs/promises';
 
 /**
  * The pixel tier, made observable: **pixels → region → node → component → file.**
@@ -290,5 +292,72 @@ chromium_('reading a pixel diff further than a number', () => {
     );
 
     expect(lines.length).toBeGreaterThan(0);
+  });
+
+  it('hands the finding to an agent through the MCP tools', async () => {
+    // The last hop, and the one the whole chain is for. The change was sensed in
+    // a browser that has since closed, in a process that is about to end. An
+    // agent asked to fix it arrives afterwards with none of that — so the run
+    // writes a report, and the tools answer from the file.
+    const report: RunReport = {
+      runVersion: 1,
+      at: '2026-08-01T00:00:00.000Z',
+      identity: {
+        renderer: 'playwright-chromium',
+        engine: harness!.engine,
+        platform: `${process.platform}/${process.arch}`,
+        deviceScaleFactor: VIEWPORT.deviceScaleFactor,
+        fonts: ['system-ui/400/normal/todomvc'],
+      },
+      retention: 'ephemeral',
+      intent: `${MUTATION} applied to the design system`,
+      observations: [
+        {
+          subject: STORY,
+          verdict: 'changed',
+          because: `${changedPixels} pixel(s) differ across ${regionCount} region(s)`,
+          changedPixels,
+          regions: regions.map((region) => {
+            const file = region.component === undefined ? null : resolveSource(region.component, SOURCE);
+            return {
+              x: region.region.x,
+              y: region.region.y,
+              width: region.region.width,
+              height: region.region.height,
+              pixels: region.region.pixels,
+              cause: region.cause,
+              ...(region.component !== undefined ? { component: region.component } : {}),
+              ...(region.where !== undefined ? { where: region.where } : {}),
+              ...(file !== null ? { file: formatSource(file) } : {}),
+            };
+          }),
+        },
+      ],
+    };
+
+    const directory = await mkdtemp(join(tmpdir(), 'va-observe-'));
+    try {
+      await writeRunReport(join(directory, 'run.json'), report);
+
+      const answer = handle(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'variance_describe', arguments: { subject: STORY } },
+        },
+        () => report,
+      );
+      const text = (answer!.result as { content: { text: string }[] }).content[0]!.text;
+
+      console.log(`\n--- what an agent is handed\n${text}`);
+
+      // The three things a finding needs to become an edit.
+      expect(text).toContain('Toggle');
+      expect(text).toContain('src/ds/components.tsx:');
+      expect(text.indexOf('cause')).toBeLessThan(text.indexOf('collateral'));
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });

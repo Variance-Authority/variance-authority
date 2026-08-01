@@ -20,6 +20,9 @@
       "path": "./packages/raster"
     },
     {
+      "path": "./packages/mcp"
+    },
+    {
       "path": "./examples/kitchen-sink"
     },
     {

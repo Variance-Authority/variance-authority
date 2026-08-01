@@ -796,6 +796,7 @@ __metadata:
     "@variance-authority/collector-dom": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/harness-playwright": "workspace:^"
+    "@variance-authority/mcp": "workspace:^"
     "@variance-authority/provenance-react": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     esbuild: "npm:^0.25.0"
@@ -812,6 +813,16 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     playwright: "npm:^1.49.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/mcp@workspace:^, @variance-authority/mcp@workspace:packages/mcp":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/mcp@workspace:packages/mcp"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+  bin:
+    variance-authority-mcp: ./dist/bin.js
   languageName: unknown
   linkType: soft
 
