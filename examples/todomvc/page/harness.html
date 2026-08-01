@@ -1,0 +1,41 @@
+<!doctype html>
+<!--
+  The page a persistent harness navigates to, once, for a whole run.
+
+  Deliberately inert, for the same reason kitchen-sink's harness page is: no
+  reset, no fonts, no meta viewport, nothing that would contribute style the
+  stories did not ask for. Every stylesheet a story sees is installed by
+  `renderStory`, so the pixel arm and the semantic arm render the same document
+  and a difference between them cannot be blamed on this file.
+
+  It loads no script. The harness injects the page agent itself and switches
+  stories by calling into the page, because a reload would re-evaluate the bundle
+  and reset React's id counter on every story — which is the cost the persistent
+  harness exists to avoid (journal 0007).
+
+  `<div id="subject">` is both the mount point and the **screenshot clip**. The
+  pixel arm shoots this element rather than the viewport, which is the strongest
+  honest version of component VR: a viewport shot would charge every story for
+  the empty page below it and would make two stories of different heights differ
+  in pixels that belong to neither.
+
+  Build the bundle first (`yarn workspace @variance-authority/example-todomvc
+  bundle`) if you want to open this by hand; the measurement path builds it in
+  memory and never reads a file.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Pins the UA canvas to light. Not a style contribution — the tokens declare
+      every colour the stories use — but without it the browser picks a canvas
+      from the operating system's theme, and a pixel arm that inherited the host
+      theme would report every story as changed on a reviewer's dark-mode laptop.
+    -->
+    <meta name="color-scheme" content="light" />
+    <title>variance-authority todomvc harness</title>
+  </head>
+  <body>
+    <div id="subject"></div>
+  </body>
+</html>
