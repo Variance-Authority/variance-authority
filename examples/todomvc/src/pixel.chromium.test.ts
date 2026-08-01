@@ -12,6 +12,7 @@ import { MUTATIONS } from './mutations.js';
 import { STORY_IDS } from './stories.js';
 import { comparePngs } from './pixel/diff.js';
 import { PROBES } from './pixel/probes.js';
+import { INSTABILITY_PROBES } from './pixel/instability.js';
 import { BASELINE_VARIANT, PROBE_PREFIX, type RenderResult } from './pixel/protocol.js';
 
 /**
@@ -84,8 +85,25 @@ const FLAKE: Array<readonly [number, number]> = [];
 /** Probe id -> what each arm saw. */
 const BLIND = new Map<string, { pixels: number; renderHeld: boolean }>();
 
-async function mount(subject: string, variant: string): Promise<RenderResult> {
-  const json = await harness!.page.evaluate(
+interface Instability {
+  readonly pixels: number;
+  /**
+   * Structure and style, *not* the render hash.
+   *
+   * The render hash folds in the environment key, so a legitimate environment
+   * change moves it by construction — which would make "did the page's
+   * representation change?" unanswerable for the probes that ask it.
+   */
+  readonly contentMoved: boolean;
+  /** The two runs landed in different baseline slots, so they never meet. */
+  readonly envKeyDiffers: boolean;
+}
+
+/** Instability probe id -> what each arm did across two runs of one commit. */
+const INSTABILITY = new Map<string, Instability>();
+
+async function mountOn(target: Harness, subject: string, variant: string): Promise<RenderResult> {
+  const json = await target.page.evaluate(
     ([global, request]) =>
       (window as unknown as Record<string, { render: (r: unknown) => string }>)[
         global as string
@@ -95,8 +113,16 @@ async function mount(subject: string, variant: string): Promise<RenderResult> {
   return JSON.parse(json) as RenderResult;
 }
 
+async function mount(subject: string, variant: string): Promise<RenderResult> {
+  return mountOn(harness!, subject, variant);
+}
+
+async function shootOn(target: Harness): Promise<Buffer> {
+  return target.page.locator(CLIP).screenshot();
+}
+
 async function shoot(): Promise<Buffer> {
-  return harness!.page.locator(CLIP).screenshot();
+  return shootOn(harness!);
 }
 
 /**
@@ -171,7 +197,52 @@ beforeAll(async () => {
       renderHeld: beforeSnapshot.renderHash === afterSnapshot.renderHash,
     });
   }
-}, 180_000);
+  // Instability: two runs of the *same code*, differing only in something a
+  // pipeline does not control. This is what makes visual regression flaky in
+  // practice, and it is the measurement the earlier "shoot twice, touch nothing"
+  // round could not produce because it had removed every cause.
+  for (const probe of INSTABILITY_PROBES) {
+    const subject = PROBE_PREFIX + probe.id;
+
+    const before = await mountAndShoot(subject, 'before');
+    const beforeSnapshot = normalize(await harness.capture(subject, 'before'));
+
+    let after: Buffer;
+    let afterSnapshot: ReturnType<typeof normalize>;
+
+    if (probe.secondHarnessDpr) {
+      // A device pixel ratio belongs to the browser context, so the second run
+      // needs its own browser. That is what makes it a faithful model of a
+      // different CI runner rather than a CSS trick — and it is the only probe
+      // here that cannot be expressed as a change to the page.
+      const retina = await createHarness({
+        url: HARNESS_PAGE_URL,
+        bundle: agentBundle(),
+        viewport: { ...VIEWPORT, deviceScaleFactor: 2 },
+        fonts: ['system-ui/400/normal/todomvc'],
+      });
+
+      try {
+        await mountOn(retina, subject, 'before');
+        after = await shootOn(retina);
+        afterSnapshot = normalize(await retina.capture(subject, 'before'));
+      } finally {
+        await retina.close();
+      }
+    } else {
+      after = await mountAndShoot(subject, 'after');
+      afterSnapshot = normalize(await harness.capture(subject, 'after'));
+    }
+
+    INSTABILITY.set(probe.id, {
+      pixels: comparePngs(before, after).changed['default']!,
+      contentMoved:
+        beforeSnapshot.structureHash !== afterSnapshot.structureHash ||
+        beforeSnapshot.styleHash !== afterSnapshot.styleHash,
+      envKeyDiffers: beforeSnapshot.environment.digest !== afterSnapshot.environment.digest,
+    });
+  }
+}, 300_000);
 
 afterAll(async () => {
   await harness?.close();
@@ -298,6 +369,116 @@ describe.skipIf(!BROWSER_AVAILABLE)('pixel arm — what it catches that we do no
       return;
     }
     expect(observed.renderHeld).toBe(true);
+  });
+});
+
+describe.skipIf(!BROWSER_AVAILABLE)('instability — two runs of the same commit', () => {
+  /**
+   * The correction to "the camera is not flaky".
+   *
+   * That claim came from shooting one mounted story twice, which is a statement
+   * about a sensor and answers a question nobody has. Screenshots in a real
+   * pipeline do not differ because the camera drifted; they differ because the
+   * same commit rendered twice does not render identically — a font substitutes,
+   * a runner is retina, a scrollbar appears, a clock advances.
+   *
+   * Each probe declares what *should* happen to both arms before it is measured,
+   * so this is a scored prediction rather than a recording.
+   */
+  it.each(INSTABILITY_PROBES.map((probe) => probe.id))('%s behaves as declared', (id) => {
+    const probe = INSTABILITY_PROBES.find((candidate) => candidate.id === id)!;
+    const observed = INSTABILITY.get(id)!;
+
+    expect(
+      observed.pixels > 0 ? 'moves' : 'holds',
+      `${id}: pixels — ${probe.rationale}`,
+    ).toBe(probe.expect.pixels);
+
+    expect(
+      observed.contentMoved ? 'moves' : 'holds',
+      `${id}: content — ${probe.rationale}`,
+    ).toBe(probe.expect.content);
+
+    if (probe.expectEnvKeyDiffers !== undefined) {
+      expect(observed.envKeyDiffers, `${id}: environment key`).toBe(probe.expectEnvKeyDiffers);
+    }
+  });
+
+  it('shows the pixel arm disturbed by things the semantic arm cannot see', () => {
+    // Not a general claim that we are steadier. A specific one: rasterization
+    // and device pixel ratio cannot reach a representation built from the box
+    // tree, so they are absorbed by construction rather than by a threshold.
+    const smoothing = INSTABILITY.get('text-smoothing')!;
+    const dpr = INSTABILITY.get('device-pixel-ratio')!;
+
+    expect(smoothing.pixels).toBeGreaterThan(0);
+    expect(smoothing.contentMoved).toBe(false);
+    expect(dpr.pixels).toBeGreaterThan(0);
+    expect(dpr.contentMoved).toBe(false);
+  });
+
+  it('does not let the device-pixel-ratio case pass by accident', () => {
+    // A 2x render genuinely *is* a different artifact, so "the hash held" would
+    // be a false `unchanged` on its own. It is correct only because the two runs
+    // address different baselines and never meet.
+    expect(INSTABILITY.get('device-pixel-ratio')!.envKeyDiffers).toBe(true);
+  });
+
+  it('shows the semantic arm disturbed by something the camera ignores', () => {
+    // The other direction, kept because a comparison that only ever finds in its
+    // own favour is an advertisement. Reindenting JSX inside a block element
+    // renders identically and moves our hash: distinguishing a block context from
+    // an inline one needs layout, and the normalizer does not consult it.
+    const whitespace = INSTABILITY.get('block-whitespace')!;
+
+    expect(whitespace.pixels).toBe(0);
+    expect(whitespace.contentMoved).toBe(true);
+  });
+
+  it('shows both arms disturbed where the change is real', () => {
+    // A timestamp advancing is a genuine content change, and neither arm should
+    // absorb it silently. What differs is the cost of a policy that does: a pixel
+    // differ masks a coordinate region, which silences whatever else lands there;
+    // the semantic arm masks the text node, which follows the content.
+    const clock = INSTABILITY.get('clock')!;
+
+    expect(clock.pixels).toBeGreaterThan(0);
+    expect(clock.contentMoved).toBe(true);
+  });
+
+  it('records that headless cannot see a scrollbar reflow at all', () => {
+    // Written expecting both arms to move; headless Chromium uses overlay
+    // scrollbars, so growing the page leaves the subject exactly as wide. The
+    // finding belongs to both arms: a headless pipeline is blind to a reflow
+    // every headed user experiences, which inverts the usual "it only flakes in
+    // CI" story for this cause.
+    const scrollbar = INSTABILITY.get('scrollbar')!;
+
+    expect(scrollbar.pixels).toBe(0);
+    expect(scrollbar.contentMoved).toBe(false);
+  });
+
+  it('reports the instability table', () => {
+    const rows = INSTABILITY_PROBES.map((probe) => {
+      const observed = INSTABILITY.get(probe.id)!;
+      const pixels = observed.pixels > 0 ? `moves (${observed.pixels}px)` : 'holds';
+      const semantic = observed.contentMoved ? 'moves' : 'holds';
+
+      return `  ${probe.id.padEnd(20)} ${pixels.padEnd(18)} ${semantic.padEnd(8)} ${probe.absorbedBy}`;
+    });
+
+    console.log(
+      [
+        '',
+        'INSTABILITY — two runs of the same commit, one thing a pipeline cannot control',
+        `  ${'source'.padEnd(20)} ${'pixel arm'.padEnd(18)} ${'ours'.padEnd(8)} absorbed by`,
+        `  ${'-'.repeat(72)}`,
+        ...rows,
+        '',
+      ].join('\n'),
+    );
+
+    expect(INSTABILITY.size).toBe(INSTABILITY_PROBES.length);
   });
 });
 

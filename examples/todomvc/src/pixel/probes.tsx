@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { TOKENS_CSS } from '../tokens/foundation.js';
 import { DS_CSS } from '../ds/styles.js';
+import { INSTABILITY_PROBES } from './instability.js';
 
 /**
  * Blind-spot probes: renders where the *pixel* arm is the one that can see.
@@ -32,7 +33,8 @@ import { DS_CSS } from '../ds/styles.js';
  *    discovered by measurement rather than by a bug report.
  */
 
-export type ProbeState = 'before' | 'after';
+export type { ProbeState } from './instability.js';
+import type { ProbeState } from './instability.js';
 
 export interface Probe {
   readonly id: string;
@@ -105,8 +107,21 @@ export const PROBES: readonly Probe[] = [
   },
 ];
 
-export function probeById(id: string): Probe {
-  const probe = PROBES.find((candidate) => candidate.id === id);
+/**
+ * Anything renderable through the probe path.
+ *
+ * Blind-spot probes and instability probes are scored against different
+ * questions and kept in separate sets for that reason, but they mount
+ * identically — so the page agent looks in both and neither set needs its own
+ * wire protocol.
+ */
+type AnyProbe = Pick<Probe, 'id' | 'css' | 'render'> & Partial<Pick<Probe, 'paint'>>;
+
+export function probeById(id: string): AnyProbe {
+  const probe: AnyProbe | undefined =
+    PROBES.find((candidate) => candidate.id === id) ??
+    INSTABILITY_PROBES.find((candidate) => candidate.id === id);
+
   if (!probe) throw new Error(`unknown probe: ${id}`);
   return probe;
 }
