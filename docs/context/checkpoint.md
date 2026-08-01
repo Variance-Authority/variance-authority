@@ -20,11 +20,16 @@ Five were wrong and all five were fixable within the existing structure.
 | P1 | A no-op refactor does not change the hash | **met** — 20/20 stable cases agree, including CSS accretion (1007 rules → 1 kept, 99.90% pruned) |
 | P2 | A real change produces one root plus counted collateral | **met** — 17/17 changed cases agree; every case declaring a root count reports exactly it |
 | P3 | Owner chains resolve to component display names | **met** — chains drive both attribution and differ matching in the measurement |
-| P4 | Both profiles agree on the dimensions both can observe | **not started** — only `jsdom` has been scored |
+| P4 | Both profiles agree on the dimensions both can observe | **met** — 38/38 comparable cases; four defects found and repaired to get there (journal 0007) |
 
 ```
-settled cases: 37   agreed: 37/37   false unchanged: 0   false changed: 0
+jsdom     scorable 38   agreed 38/38   false unchanged 0   false changed 0   undecidable 1
+chromium  scorable 39   agreed 39/39   false unchanged 0   false changed 0   undecidable 0
+P4        comparable 38   agreement 38/38   undeclared divergence 0
 ```
+
+Capture cost, one Chromium reused across the corpus: **7.5 ms/capture warm vs
+205 ms/capture cold — 27.4x** (48 renders, three runs 27.4/28.0/27.4).
 
 **Boundary.** M0 only. Excluded: raster stage, CLI, GitHub Action, MCP server,
 cross-repo `inherited`, hosted anything. No push, no publish.
@@ -38,10 +43,12 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B1 | **normalizer** | landed and measured |
 | B2 | **provenance** | landed; load-bearing for correctness since ADR-0007, not only attribution |
 | B3 | **corpus** | landed; found five defects the implementation's own tests could not |
-| B4 | **dual-surface** | half — `jsdom` scored, `chromium` never run |
+| B4 | **dual-surface** | landed and measured — both profiles scored, P4 met |
 | B5 | **differ** | landed and measured |
-| B6 | **per-profile ground truth** — how a corpus expresses an expectation that differs by profile | in flight (worktree); blocks B4 |
-| B7 | **session** — one standing world, cross-pollution detected rather than prevented | landed and measured (3.5×, ~2% probe overhead) |
+| B6 | **per-profile ground truth** | settled by ADR-0008 (undecidable / divergent / undeclared) |
+| B7 | **persistent harness** — `packages/harness-playwright`, one browser per run | landed and measured (27×) |
+| B8 | **session** — one standing world, cross-pollution detected rather than prevented | landed and measured (3.5×, ~2% probe overhead) |
+| B9 | **impact axis** — reflow vs repaint, orthogonal to the frequency bands | landed; answers B6's leftover band-cardinality question |
 
 ---
 
@@ -53,40 +60,53 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M2 | B1 | Normalization pipeline | **mixed** — ADR-0003 step 4 was wrong; amended to all-or-nothing shorthand expansion (journal 0004) |
 | M3 | B4 | Collector + CSS applicability pruning | **expected** — 99.90% pruned; found a false `unchanged` I had written into whitespace handling (journal 0005) |
 | M4 | B1+B4+B5 | Score the corpus | **expected after repair** — 30/37 on first run, 37/37 after five fixes, all five real defects (journal 0006) |
-| M5 | B4+B6 | Persistent Playwright harness; per-profile expectations; score chromium | *in flight* |
-| M6 | B7 | Stop rinsing; detect and attribute cross-pollution | **expected** — 3.5× faster; found that `:root` tokens never reached any subject under jsdom, so the token band was inert on the cheap tier (journal 0008) |
+| M5 | B4+B6+B7 | Persistent harness; settle B6; score `chromium`; compare profiles | **expected after repair** — 31/39 on first run, 39/39 after four fixes, all four real defects, one fix backed out for producing a false `unchanged` under `jsdom` (journal 0007) |
+| M6 | B8 | Stop rinsing; detect and attribute cross-pollution | **expected** — 3.5× faster; found that `:root` tokens never reached any subject under jsdom, so the token band was inert on the cheap tier (journal 0008) |
+| M7 | B9 | Separate reflow from repaint; component roles; cross-subject docket | **expected** — see journal 0009 |
 
 ---
 
 ## Open links
 
-- **P4 is untouched.** Every number above is `jsdom`. The chromium collector code
-  path has never executed, so "one implementation, two profiles" is currently an
-  argument from construction, not a measurement.
-- **Per-profile ground truth (B6).** Two contested corpus cases are contested for
-  the same reason: their correct answer differs by profile, and the manifest has
-  one expectation field. ADR-0002 says the profiles never share a baseline; it
-  does not say how a corpus states an expectation that differs between them.
-  **This blocks scoring chromium** — without it, cases will be recorded as misses
-  when the profile is structurally unable to decide them.
-- **Band cardinality.** Nothing normative says a subject reports one band rather
-  than a set. A policy blocking on `geometry` behaves differently under each
-  reading (`prop-size/button`).
-- **Profile skip order** (ADR-0002): does a `chromium` hit permit skipping
-  `jsdom`? Still undecided; needs P4.
-- **Corpus validity beyond ourselves.** One corpus, built by us. It proves the
-  rules are coherent and the apparatus works. It does not prove they hold on
-  someone else's component library. Sharpened by journal 0008: the corpus applies
-  token overrides *inline on the subject root*, which routed around a hole where
-  `:root` tokens reached nothing — a fixture convenient in the same way the
-  implementation was convenient tested nothing.
+- **Band cardinality — a policy decision, no longer a modelling gap.** Under
+  `chromium` every `token`-band change that alters a component's size is reported
+  as `geometry`, because `dominantBand` returns the worst band present (4 cases,
+  journal 0007), so a project blocking on `geometry` blocks on every padding
+  change. B9 supplies the missing distinction as a second axis rather than by
+  changing the bands: `impact` says whether a change can *move* anything, so
+  "spacing token" is now `band: token, impact: layout` and "colour token" is
+  `band: token, impact: paint`. What remains open is which of the two a policy
+  should gate on — that is spec §7.2's business, not the differ's.
+- **Profile skip order** (ADR-0002). Measured: a warm `chromium` capture is 7.5 ms,
+  not the ~100 ms the ADR's tier table assumed. The gap between the two semantic
+  tiers is ~5×, not ~100×, so "skip chromium on a jsdom hit" buys much less than
+  the table implies. Still undecided, now with a number.
+- **`dialog-open/dialog`** is the only remaining contested case: the subject
+  boundary for portalled content is a real open question, not a per-profile one.
+- **One machine.** Every rect and the 27× ratio come from one mac, one Chromium.
+  Fonts enter the environment key as a caller-supplied string rather than a
+  content hash, so a second machine could render different geometry and the key
+  would not say so.
+- **Corpus validity beyond ourselves.** One corpus, built by us. Both profiles now
+  agree on it, which proves the two collection paths implement one ruleset. It
+  does not prove the ruleset holds on someone else's component library. Sharpened
+  by journal 0008: the corpus applies token overrides *inline on the subject
+  root*, which routed around a hole where `:root` tokens reached nothing — a
+  fixture convenient in the same way the implementation was convenient tested
+  nothing.
 - **Module-level state is outside the session probe.** A singleton store or
   cached client cannot be seen. Confirmation catches the symptom; attribution
   correctly reports no culprit.
+- **The docket has never seen a real change set.** `buildDocket` aggregates roots
+  across subjects and is tested on constructed diffs. No repository has been run
+  through it, so "one token, 300 collateral, one action" is demonstrated at 3
+  subjects, not 300.
 
 ---
 
 ## Next
 
-**M5** — score the corpus under `chromium`, which closes P4. B6 must land first
-or the scoring is meaningless for the cases that differ by profile.
+**Band cardinality**, then the raster stage. The first is what makes the
+`chromium` verdicts actionable as policy; the second is the only thing that can
+turn "27x cheaper than relaunching a browser" into "cheaper than a screenshot",
+which is the claim the product is sold on.

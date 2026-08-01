@@ -267,13 +267,22 @@ function isInertWrapper(raw: RawNode, node: SemanticNode, state: WalkState): boo
   const declaredHere = state.declaredBy.get(node) ?? EMPTY_PROPERTIES;
 
   for (const [property, value] of Object.entries(node.style)) {
-    // An *inherited* value passes through the wrapper unchanged — the children
-    // receive it whether or not the wrapper is there — so its presence is not
-    // evidence of anything. A value the wrapper *declared* is different: remove
-    // the wrapper and the children inherit from the grandparent instead, which
-    // is a real change. Only the origin map can tell the two apart; by the time
-    // a node is built, both are just entries in `style`.
-    if (INHERITED.has(property) && !declaredHere.has(property)) continue;
+    // Only what the wrapper *declared* is evidence about the wrapper.
+    //
+    // An inherited value passes through unchanged — the children receive it
+    // whether or not the wrapper is there. An engine-computed value is worse
+    // than uninformative: under a profile with computed style every one of the
+    // ~200 allowlisted properties arrives with a resolved value, including used
+    // values like `width: 1264px` that describe the *parent's* layout rather
+    // than anything the wrapper did. Testing those against an initial-value
+    // table meant `isInertDeclaration` returned false on the first unrecognized
+    // one and no wrapper anywhere collapsed under `chromium` — the same rule
+    // disabled by a different accident under `jsdom` in journal 0005, and
+    // invisible until the two profiles were scored against each other (P4).
+    //
+    // Conservatism is kept where it is evidence: an unrecognized property the
+    // wrapper *declared* still blocks the collapse.
+    if (!declaredHere.has(property)) continue;
     if (!isInertDeclaration(property, value)) return false;
   }
 

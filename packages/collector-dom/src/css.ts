@@ -1,4 +1,9 @@
-import type { Declaration, Diagnostic, MatchedRule } from '@variance-authority/core';
+import {
+  SHORTHAND_PROPERTIES,
+  type Declaration,
+  type Diagnostic,
+  type MatchedRule,
+} from '@variance-authority/core';
 import { evaluateMedia, evaluateSupports, type ConditionEnvironment } from './media.js';
 import { mostSpecific, splitSelectorList, specificityOf, type Specificity } from './specificity.js';
 import { classNamesOf, items, propertyNames } from './dom-list.js';
@@ -290,22 +295,54 @@ function safeMatches(element: Element, selector: string): boolean {
 
 function declarationsOf(style: CSSStyleDeclaration): Declaration[] {
   const declarations: Declaration[] = [];
+  let pending = false;
 
   for (const property of propertyNames(style)) {
     const value = style.getPropertyValue(property);
-    if (value === '') continue;
 
-    const references = [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map((match) => match[1]!);
+    // An empty value here is not "no declaration". Chromium enumerates a
+    // `var()`-tainted shorthand as its *longhand* names with empty values —
+    // pending substitution — so `padding: var(--x) var(--y)` appears as four
+    // empty `padding-*` entries and skipping them dropped the declaration
+    // entirely. JSDOM's CSSOM keeps the authored shorthand instead, so the same
+    // stylesheet produced different captures under the two profiles and a
+    // shorthand/longhand rewrite read as a change under `chromium` only.
+    // Found by P4; invisible to either profile scored alone.
+    if (value === '') {
+      pending = true;
+      continue;
+    }
 
-    declarations.push({
-      property,
-      value,
-      important: style.getPropertyPriority(property) === 'important',
-      ...(references.length > 0 ? { references } : {}),
-    });
+    declarations.push(declaration(property, value, style));
+  }
+
+  if (!pending) return declarations;
+
+  // Recover the shorthand the pending longhands came from. Restricted to
+  // `var()`-bearing values because that is the only thing that leaves a longhand
+  // pending: a shorthand with a resolvable value enumerates as longhands *with*
+  // values, and re-emitting it here would declare the same properties twice.
+  //
+  // The shorthand is emitted unexpanded, as ADR-0003 requires — decomposition is
+  // versioned by `core`'s ruleset, not by whichever engine the collector ran in.
+  for (const shorthand of SHORTHAND_PROPERTIES) {
+    const value = style.getPropertyValue(shorthand);
+    if (value === '' || !value.includes('var(')) continue;
+    declarations.push(declaration(shorthand, value, style));
   }
 
   return declarations;
+}
+
+function declaration(property: string, value: string, style: CSSStyleDeclaration): Declaration {
+  const references = [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map((match) => match[1]!);
+
+  return {
+    property,
+    value,
+    important: style.getPropertyPriority(property) === 'important',
+    ...(references.length > 0 ? { references } : {}),
+  };
 }
 
 function conditionOf(

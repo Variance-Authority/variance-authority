@@ -181,6 +181,25 @@ function compareNodes(
     });
   }
 
+  // Which token a property resolves *through* is part of the render hash, so a
+  // change in it moves the hash — but under a profile that cannot resolve custom
+  // properties both resolved values are the same empty string and the loop above
+  // sees nothing. The result was a non-identical diff carrying zero deltas and
+  // zero roots: a correct verdict with an empty docket, which tells a reviewer
+  // that something changed and then refuses to say what. Found by scoring
+  // `prop-size/button` under `jsdom`, which only became scorable with ADR-0008.
+  //
+  // Skipped when the resolved value moved too: the `style-changed` delta above
+  // already names that property, and reporting both splits one cause in two.
+  for (const property of unionKeys(before.styleTokens, after.styleTokens)) {
+    const from = before.styleTokens?.[property];
+    const to = after.styleTokens?.[property];
+    if (from === to) continue;
+    if (before.style[property] !== after.style[property]) continue;
+
+    deltas.push({ ...base('token-changed'), property, from, to });
+  }
+
   if (hasLayout && !sameRect(before, after)) {
     deltas.push({
       ...base('rect-changed'),
@@ -215,6 +234,22 @@ function changedTokenFor(
   // stopped resolving through a token did so because some rule started winning
   // instead — that rule is the root, and blaming the abandoned token would name
   // the thing that did not change.
+  // Properties whose initial value is `currentColor` follow `color` without ever
+  // naming it: no rule declares `outline-color`, so it resolves through no token,
+  // yet a token-driven `color` change moves it. Under a profile with computed
+  // style that produced a second root per Button — "the accent token moved" and
+  // "Button changed" — for one edit. Recognised by the value matching `color` on
+  // both sides, so a node that genuinely declares its own outline colour is
+  // unaffected.
+  if (token === undefined && FOLLOWS_CURRENT_COLOR.has(property)) {
+    const from = before.style[property];
+    const to = after.style[property];
+    if (from !== undefined && to !== undefined && from === before.style['color'] && to === after.style['color']) {
+      return changedTokenFor(before, after, 'color');
+    }
+    return undefined;
+  }
+
   if (token === undefined || after.styleTokens?.[property] !== token) return undefined;
 
   // Undefined on one side counts as a change: a theme override introducing a
@@ -266,17 +301,11 @@ function attribute(
   const propsBefore = ownerDigests(matching, 'before');
   const propsAfter = ownerDigests(matching, 'after');
 
-  for (const delta of deltas) {
-    if (delta.token) {
-      add(`token:${delta.token}`, 'token', delta.token, delta);
-      continue;
-    }
+  const classify = (delta: Delta): Group | null => {
+    if (delta.token) return { id: `token:${delta.token}`, kind: 'token', label: delta.token };
 
     const owners = delta.owners;
-    if (owners === undefined || owners.length === 0) {
-      add('unattributed', 'unattributed', 'no owner chain', delta);
-      continue;
-    }
+    if (owners === undefined || owners.length === 0) return null;
 
     const boundary = changedBoundary(owners, propsBefore, propsAfter);
 
@@ -284,16 +313,48 @@ function attribute(
       // Every incoming props digest held, so the change originated inside the
       // innermost component. That component is the root.
       const owner = owners[0]!;
-      add(`component:${owner.name}`, 'component', owner.name, delta);
-      continue;
+      return { id: `component:${owner.name}`, kind: 'component', label: owner.name };
     }
 
     // Props moved at a boundary, so the change arrived from outside. The root is
     // the provider — the component that passes props across that boundary.
     const changed = owners[boundary]!;
     const provider = owners[boundary + 1];
-    const label = provider ? `${provider.name} → ${changed.name}` : changed.name;
-    add(`prop:${provider?.name ?? '?'}>${changed.name}`, 'prop', label, delta);
+    return {
+      id: `prop:${provider?.name ?? '?'}>${changed.name}`,
+      kind: 'prop',
+      label: provider ? `${provider.name} → ${changed.name}` : changed.name,
+    };
+  };
+
+  // Metric deltas are held back until every cause has a group, then attached to
+  // the nearest one. Without this a profile with layout reports a root per
+  // component whose box happened to resize — the change is not lost, but "one
+  // root plus counted collateral" becomes "one root per affected component",
+  // which is the report spec §6.2 exists to prevent.
+  const causes = deltas.filter((delta) => !isMetric(delta)).map((delta) => ({ delta, group: classify(delta) }));
+
+  for (const { delta, group } of causes) {
+    if (group === null) add('unattributed', 'unattributed', 'no owner chain', delta);
+    else add(group.id, group.kind, group.label, delta);
+  }
+
+  for (const delta of deltas) {
+    if (!isMetric(delta)) continue;
+
+    const target = nearestCause(delta, causes);
+
+    if (target !== undefined) {
+      add(target.id, target.kind, target.label, delta);
+      continue;
+    }
+
+    // No cause anywhere: the box moved and nothing explains it. That is a real
+    // finding — most often a change outside the subject reaching in — and it
+    // keeps its own root rather than being attached to an unrelated one.
+    const own = classify(delta);
+    if (own === null) add('unattributed', 'unattributed', 'no owner chain', delta);
+    else add(own.id, own.kind, own.label, delta);
   }
 
   return [...groups.entries()].map(([id, group]) => ({
@@ -303,6 +364,85 @@ function attribute(
     band: dominantBand(group.deltas),
     deltas: group.deltas,
   }));
+}
+
+/**
+ * Properties whose initial value is `currentColor`.
+ *
+ * `color` itself is excluded, or the lookup would recurse.
+ */
+const FOLLOWS_CURRENT_COLOR: ReadonlySet<string> = new Set([
+  'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+  'outline-color', 'text-decoration-color', 'text-emphasis-color', 'column-rule-color',
+  'caret-color',
+]);
+
+interface Group {
+  readonly id: string;
+  readonly kind: RootKind;
+  readonly label: string;
+}
+
+/**
+ * Computed properties that are functions of the used box rather than of any
+ * declaration.
+ *
+ * A layout engine reports these for every element whether or not a stylesheet
+ * mentioned them, so they move whenever anything inside or above the node
+ * changes size. Treating them as causes is what turned one token edit into five
+ * docket entries under `chromium` — `band.ts` already says the attributor must
+ * fold rect movement into the style change as collateral, and these are the
+ * `style-changed` half of the same evidence.
+ *
+ * Note the cost of the simplification: a genuine `width: 100px → 200px` edit is
+ * folded too, whenever the same node carries another delta to fold into. That
+ * loses no delta and moves no verdict — the change is still reported, under a
+ * root that is a strictly better description of the cause.
+ */
+const USED_VALUE_PROPERTIES: ReadonlySet<string> = new Set([
+  'width', 'height', 'inline-size', 'block-size',
+  'transform-origin', 'perspective-origin',
+]);
+
+/** Evidence that a box moved, as opposed to evidence of why. */
+function isMetric(delta: Delta): boolean {
+  if (delta.kind === 'rect-changed') return true;
+  return delta.kind === 'style-changed' && USED_VALUE_PROPERTIES.has(delta.property ?? '');
+}
+
+/** Paths are `/`-joined child indices, so containment is a prefix test. */
+function isDescendant(candidate: string, ancestor: string): boolean {
+  return candidate.startsWith(`${ancestor}/`);
+}
+
+/**
+ * The cause a metric delta belongs to: same node first, then the nearest change
+ * *inside* it, then the nearest change above it.
+ *
+ * Inside before above, because a box that grew did so because of its contents
+ * far more often than because of its container — and when a container really is
+ * the cause, its own metric delta folds upward on the same rule, so the two
+ * meet at the same root either way.
+ */
+function nearestCause(
+  delta: Delta,
+  causes: readonly { readonly delta: Delta; readonly group: Group | null }[],
+): Group | undefined {
+  const grouped = causes.filter((cause) => cause.group !== null);
+
+  const here = grouped.find((cause) => cause.delta.path === delta.path);
+  if (here) return here.group ?? undefined;
+
+  const inside = grouped
+    .filter((cause) => isDescendant(cause.delta.path, delta.path))
+    .sort((a, b) => a.delta.path.length - b.delta.path.length)[0];
+  if (inside) return inside.group ?? undefined;
+
+  const above = grouped
+    .filter((cause) => isDescendant(delta.path, cause.delta.path))
+    .sort((a, b) => b.delta.path.length - a.delta.path.length)[0];
+
+  return above?.group ?? undefined;
 }
 
 /**

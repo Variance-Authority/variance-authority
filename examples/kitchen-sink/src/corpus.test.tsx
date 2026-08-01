@@ -12,7 +12,10 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { CONTESTED_CORPUS, CORPUS, casesFor } from './corpus.js';
+import type { ProfileId } from '@variance-authority/core';
+import { CONTESTED_CORPUS, CORPUS, SETTLED_CORPUS, casesFor, expectationFor } from './corpus.js';
+
+const PROFILE_IDS: readonly ProfileId[] = ['jsdom', 'chromium'];
 import { noiseSheet } from './cruft/irrelevant-css.js';
 import type { NoiseSheetId } from './cruft/irrelevant-css.js';
 import { renderCase } from './render.js';
@@ -287,6 +290,35 @@ describe('contested cases', () => {
     expect(CONTESTED_CORPUS.length).toBeGreaterThan(0);
     for (const c of CONTESTED_CORPUS) {
       expect(c.contested?.length ?? 0, c.id).toBeGreaterThan(120);
+    }
+  });
+});
+
+describe('per-profile clauses (ADR-0008)', () => {
+  it('never sit on a contested case', () => {
+    // `contested` outranks the profile clause, so a case carrying both would have
+    // a clause that can never be read — an answer to a question still open.
+    for (const c of CORPUS) {
+      if (c.byProfile === undefined) continue;
+      expect(c.contested, `${c.id} declares a profile clause while contested`).toBeUndefined();
+    }
+  });
+
+  it('state an argument rather than a label', () => {
+    for (const c of CORPUS) {
+      for (const [profile, clause] of Object.entries(c.byProfile ?? {})) {
+        const text = 'undecidable' in clause ? clause.undecidable : clause.because;
+        expect(text.length, `${c.id}/${profile}`).toBeGreaterThan(120);
+      }
+    }
+  });
+
+  it('leave every case scorable under at least one profile', () => {
+    // A case no profile can decide is not a per-profile question, it is a
+    // contested one, and it belongs in `contested` where a harness reports it.
+    for (const c of SETTLED_CORPUS) {
+      const anywhere = PROFILE_IDS.some((p) => expectationFor(c, p).kind === 'scorable');
+      expect(anywhere, `${c.id} is undecidable everywhere but not flagged contested`).toBe(true);
     }
   });
 });

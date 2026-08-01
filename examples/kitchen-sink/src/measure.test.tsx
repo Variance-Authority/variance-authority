@@ -1,13 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { diffSnapshots, normalize, type SemanticSnapshot, type Viewport } from '@variance-authority/core';
-import { collect } from '@variance-authority/collector-dom';
-import { portalContentOf, provenanceOf } from '@variance-authority/provenance-react';
-import { CONTESTED_CORPUS, SETTLED_CORPUS, type CorpusCase } from './corpus.js';
-import { renderCase } from './render.js';
+import { diffSnapshots } from '@variance-authority/core';
+import { jsdomSnapshot } from './jsdom-profile.js';
+import {
+  CONTESTED_CORPUS,
+  CORPUS,
+  expectationFor,
+  scorableFor,
+  undecidableFor,
+  type CorpusCase,
+} from './corpus.js';
 
 /**
- * M0's exit measurement.
+ * M0's exit measurement, under `jsdom`.
  *
  * Every other test in this repository was written alongside the code it checks.
  * This one is different: the corpus declared its ground truth in `corpus.ts`
@@ -16,47 +21,20 @@ import { renderCase } from './render.js';
  * numbers mean anything — a ruleset scored against expectations derived from its
  * own output scores 100% and proves nothing.
  *
- * Contested cases are run and reported but never counted. Reporting them as
- * passes or as failures would both hide the fact that nobody has decided.
+ * Since ADR-0008 the denominator is a *per-profile* question. Contested cases are
+ * run and reported but never counted; so are cases this profile declares itself
+ * unable to decide, which is a different exclusion for a different reason and is
+ * reported separately. Scoring an undecidable case either way would be
+ * dishonest — as a pass it credits `jsdom` for an answer it reached by not
+ * looking, as a miss it charges it for a limitation it declares up front.
+ *
+ * The `chromium` half lives in `measure.chromium.test.ts`, which also compares
+ * the two profiles (claim P4).
  */
 
-const VIEWPORT: Viewport = { width: 1280, height: 720, deviceScaleFactor: 1, colorScheme: 'light' };
-
-let container: HTMLElement | null = null;
-let dispose: (() => void) | null = null;
-
 afterEach(() => {
-  dispose?.();
-  dispose = null;
-  container?.remove();
-  container = null;
   document.body.innerHTML = '';
 });
-
-function snapshotOf(subject: CorpusCase['subject'], variant: CorpusCase['baseVariant']): SemanticSnapshot {
-  document.body.innerHTML = '';
-  const host = document.createElement('div');
-  document.body.appendChild(host);
-
-  const rendered = renderCase(host, subject, variant);
-  const snapshot = normalize(
-    collect(rendered.container, {
-      subject: { id: `fixture:${subject}`, kind: 'fixture' },
-      viewport: VIEWPORT,
-      engine: 'jsdom@corpus',
-      fonts: ['Inter/400/normal/corpus'],
-      portalsOf: portalContentOf,
-      // Without owner chains every delta lands in `unattributed`, and the
-      // one-root-per-cause claim is untestable — the differ has nothing to group
-      // by. Wiring it here is what makes P2 and P3 the same measurement.
-      provenanceOf,
-    }),
-  );
-
-  rendered.unmount();
-  host.remove();
-  return snapshot;
-}
 
 interface Outcome {
   readonly id: string;
@@ -68,51 +46,64 @@ interface Outcome {
 }
 
 function run(corpusCase: CorpusCase): Outcome {
-  const before = snapshotOf(corpusCase.subject, corpusCase.baseVariant);
-  const after = snapshotOf(corpusCase.subject, corpusCase.perturbedVariant);
+  const before = jsdomSnapshot(corpusCase.subject, corpusCase.baseVariant);
+  const after = jsdomSnapshot(corpusCase.subject, corpusCase.perturbedVariant);
   const diff = diffSnapshots(before, after);
 
   const observed = diff.identical ? 'hash-stable' : 'hash-changed';
+  const expectation = expectationFor(corpusCase, 'jsdom');
+  const expected = expectation.kind === 'scorable' ? expectation.expect : corpusCase.expect;
 
   return {
     id: corpusCase.id,
-    expected: corpusCase.expect,
+    expected,
     observed,
-    agreed: observed === corpusCase.expect,
+    agreed: observed === expected,
     roots: diff.roots.length,
     bands: [...new Set(diff.deltas.map((delta) => delta.band))],
   };
 }
 
-describe('M0 — corpus agreement', () => {
+const SCORABLE = scorableFor('jsdom');
+const UNDECIDABLE = undecidableFor('jsdom');
+
+describe('M0 — corpus agreement (jsdom)', () => {
   const outcomes: Outcome[] = [];
 
-  for (const corpusCase of SETTLED_CORPUS) {
-    it(`${corpusCase.id} — ${corpusCase.expect}`, () => {
+  for (const corpusCase of SCORABLE) {
+    const expectation = expectationFor(corpusCase, 'jsdom');
+    if (expectation.kind !== 'scorable') continue;
+
+    it(`${corpusCase.id} — ${expectation.expect}`, () => {
       const outcome = run(corpusCase);
       outcomes.push(outcome);
 
       expect(
         outcome.observed,
-        `${corpusCase.id}\n  expected: ${corpusCase.expect}\n  rationale: ${corpusCase.rationale}\n  defends: ${corpusCase.spec}`,
-      ).toBe(corpusCase.expect);
+        `${corpusCase.id}\n  expected: ${expectation.expect}\n  rationale: ${corpusCase.rationale}\n  defends: ${corpusCase.spec}`,
+      ).toBe(expectation.expect);
     });
   }
 
   it('reports the measurement', () => {
-    const stable = SETTLED_CORPUS.filter((c) => c.expect === 'hash-stable');
-    const changed = SETTLED_CORPUS.filter((c) => c.expect === 'hash-changed');
     const missed = outcomes.filter((o) => !o.agreed);
 
     const falseStable = missed.filter((o) => o.observed === 'hash-stable');
     const falseChanged = missed.filter((o) => o.observed === 'hash-changed');
 
+    const declared = (verdict: string): number =>
+      SCORABLE.filter((c) => {
+        const e = expectationFor(c, 'jsdom');
+        return e.kind === 'scorable' && e.expect === verdict;
+      }).length;
+
     console.log(
       [
         '',
-        'M0 CORPUS MEASUREMENT',
-        `  settled cases:        ${SETTLED_CORPUS.length}  (${stable.length} stable, ${changed.length} changed)`,
-        `  contested (excluded): ${CONTESTED_CORPUS.length}`,
+        'M0 CORPUS MEASUREMENT — jsdom',
+        `  scorable cases:       ${SCORABLE.length}  (${declared('hash-stable')} stable, ${declared('hash-changed')} changed)`,
+        `  undecidable here:     ${UNDECIDABLE.length}   ${UNDECIDABLE.map((c) => c.id).join(', ')}`,
+        `  contested (excluded): ${CONTESTED_CORPUS.length}   ${CONTESTED_CORPUS.map((c) => c.id).join(', ')}`,
         `  agreed:               ${outcomes.filter((o) => o.agreed).length}/${outcomes.length}`,
         `  false unchanged:      ${falseStable.length}   ${falseStable.map((o) => o.id).join(', ')}`,
         `  false changed:        ${falseChanged.length}   ${falseChanged.map((o) => o.id).join(', ')}`,
@@ -128,24 +119,28 @@ describe('M0 — corpus agreement', () => {
 });
 
 describe('M0 — one root per cause (claim P2)', () => {
-  const withRootExpectation = SETTLED_CORPUS.filter((c) => c.roots !== undefined);
+  for (const corpusCase of SCORABLE) {
+    const expectation = expectationFor(corpusCase, 'jsdom');
+    if (expectation.kind !== 'scorable' || expectation.roots === undefined) continue;
 
-  for (const corpusCase of withRootExpectation) {
-    it(`${corpusCase.id} — ${corpusCase.roots} root(s)`, () => {
+    it(`${corpusCase.id} — ${expectation.roots} root(s)`, () => {
       const outcome = run(corpusCase);
-      expect(outcome.roots, `${corpusCase.id}: ${corpusCase.rationale}`).toBe(corpusCase.roots);
+      expect(outcome.roots, `${corpusCase.id}: ${corpusCase.rationale}`).toBe(expectation.roots);
     });
   }
 });
 
-describe('M0 — contested cases', () => {
+describe('M0 — excluded cases', () => {
   // Run, reported, never asserted. The value is knowing what the current reading
   // produces, so that whoever settles the question argues against a real number.
-  for (const corpusCase of CONTESTED_CORPUS) {
-    it(`${corpusCase.id} — undecided`, () => {
+  for (const corpusCase of CORPUS) {
+    const expectation = expectationFor(corpusCase, 'jsdom');
+    if (expectation.kind === 'scorable') continue;
+
+    it(`${corpusCase.id} — ${expectation.kind}`, () => {
       const outcome = run(corpusCase);
       console.log(
-        `  contested ${corpusCase.id}: declared ${corpusCase.expect}, observed ${outcome.observed} — ${corpusCase.contested}`,
+        `  ${expectation.kind} ${corpusCase.id}: declared ${corpusCase.expect}, observed ${outcome.observed} — ${expectation.reason}`,
       );
       expect(outcome.observed).toMatch(/^hash-(stable|changed)$/);
     });

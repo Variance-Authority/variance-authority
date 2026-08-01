@@ -129,8 +129,26 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
   for (const [property, value] of Object.entries(input.context.inherited)) {
     style[property] = value;
 
+    // The token's *own* value, not the property's. Storing the inherited
+    // property value here made `tokens` mean two different things depending on
+    // whether the node also declared the property: a `<button>` recorded
+    // `--va-line-height: 1.4` (correct, from the second loop) while the text
+    // node under it recorded `--va-line-height: 19.6px` — the used line-height.
+    // The differ reads this map to decide whether a token moved, so a font-size
+    // change made an untouched token look like it had moved, and the text node
+    // became a second root for a change with one cause. Journal 0006's defect 5
+    // in a place its corpus could not reach without a layout engine.
     const token = input.context.inheritedTokens?.[property];
-    if (token !== undefined) tokens[token] = value;
+    if (token !== undefined) {
+      const resolved = customProperties[token];
+      // Falls back to the property value when the token's own value is unknown,
+      // which is the whole of a declared-only profile: `:root` is outside the
+      // subject, so applicability pruning drops it and no custom property can be
+      // resolved. The fallback is a deliberate over-report — a stand-in witness
+      // that *something* under this token moved — because an absent entry is
+      // indistinguishable from "the token held", and that reads as `unchanged`.
+      tokens[token] = resolved === undefined ? value : canonicalizeValue(property, resolved);
+    }
   }
 
   for (const [property, candidate] of winners) {

@@ -10,8 +10,10 @@
  * artifact is only needed when someone actually opens a browser.
  */
 import { build } from 'esbuild';
+import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { buildAgentBundle } from './agent-bundle.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -29,3 +31,9 @@ await build({
 });
 
 console.log('wrote page/bundle.js');
+
+// The harness builds this itself, in memory, on every run — writing it out is
+// only so `page/harness.html` can be opened by hand with the agent available to
+// the console. Nothing in the measurement path reads this file.
+await writeFile(resolve(here, '../page/harness-bundle.js'), await buildAgentBundle());
+console.log('wrote page/harness-bundle.js');
