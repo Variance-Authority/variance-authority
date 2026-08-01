@@ -1,4 +1,5 @@
 import type { Band, DeltaKind } from '../band.js';
+import type { AggregateImpact, PropertyImpact } from '../impact.js';
 import type { Rect } from '../capture.js';
 import type { NodePath } from '../snapshot.js';
 import type { OwnerFrame } from '../provenance.js';
@@ -51,6 +52,26 @@ export interface Delta {
 
   readonly rectFrom?: Rect;
   readonly rectTo?: Rect;
+
+  /**
+   * How far this change can reach: reflow, repaint, or compositing.
+   *
+   * Absent for structural deltas, where the question does not apply. See
+   * `impact.ts` — the useful consequence is that a paint-only change has no
+   * geometric collateral, which lets a profile with no layout engine rule out
+   * movement rather than merely failing to observe it.
+   */
+  readonly impact?: PropertyImpact;
+
+  /**
+   * Set on a delta that is a *consequence* of another on the same node.
+   *
+   * A rect that moved because padding changed is not an independent finding —
+   * it is the padding change, observed a second way. Without this the docket
+   * reports one edit twice, once as `token` and once as `geometry`, and a
+   * reviewer has to work out that they are the same thing.
+   */
+  readonly derivedFrom?: string;
 }
 
 /**
@@ -66,7 +87,39 @@ export interface Root {
   readonly kind: RootKind;
   readonly label: string;
   readonly band: Band;
+
+  /**
+   * Whether this root can move things, or only repaint them.
+   *
+   * The first question a reviewer asks about a design-system change, and the one
+   * that decides whether the blast radius needs looking at.
+   */
+  readonly impact: AggregateImpact;
+
   readonly deltas: readonly Delta[];
+}
+
+/**
+ * A component implicated in a change set.
+ *
+ * `root` is the component the change originated in; `collateral` merely renders
+ * something the change reached. Separating them is the difference between "these
+ * eleven components changed" — which reads like eleven problems — and "`Button`
+ * changed, and ten components render it".
+ */
+export interface ChangedComponent {
+  readonly name: string;
+  readonly role: 'root' | 'collateral';
+  readonly deltaCount: number;
+  readonly bands: readonly Band[];
+  readonly impact: AggregateImpact;
+  /**
+   * Components that enclose this one where the change was observed.
+   *
+   * Answers "where does this show up?" — the propagation half of the spec's
+   * running sentence, *`Button` (variant prop change) → propagated to `NewHero`*.
+   */
+  readonly renderedIn: readonly string[];
 }
 
 export type RootKind =

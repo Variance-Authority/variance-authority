@@ -1,12 +1,13 @@
 import { bandOf, type Band } from '../band.js';
+import { aggregateImpact, impactOf, type AggregateImpact, type PropertyImpact } from '../impact.js';
 import { diffEnvironments, type EnvironmentDelta } from '../environment.js';
 import type { OwnerFrame } from '../provenance.js';
 import type { SemanticNode, SemanticSnapshot } from '../snapshot.js';
 import { observableBands } from '../profile.js';
-import type { Delta, Root, RootKind } from './delta.js';
+import type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
 import { matchTrees } from './match.js';
 
-export type { Delta, Root, RootKind } from './delta.js';
+export type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
 export { deltaSignature } from './delta.js';
 export { matchTrees } from './match.js';
 export type { Matching } from './match.js';
@@ -21,6 +22,24 @@ export interface SemanticDiff {
 
   /** One entry per explanation. This is what a docket renders and approves. */
   readonly roots: readonly Root[];
+
+  /**
+   * Components implicated, separated into causes and collateral.
+   *
+   * "Eleven components changed" reads like eleven problems. "`Button` changed,
+   * and ten components render it" reads like one, which is what it is.
+   */
+  readonly components: readonly ChangedComponent[];
+
+  /**
+   * Whether anything in this change set can move a box.
+   *
+   * `paint` or `composite` means nothing reflowed and no geometric collateral is
+   * possible — a conclusion available without a layout engine, which is how a
+   * profile that cannot measure still rules movement out instead of merely
+   * failing to observe it.
+   */
+  readonly impact: AggregateImpact;
 
   /**
    * Bands this profile could not observe.
@@ -73,6 +92,8 @@ export function diffSnapshots(
       environmentDeltas,
       deltas: [],
       roots: [],
+      components: [],
+      impact: 'paint',
       unobserved,
     };
   }
@@ -102,8 +123,14 @@ export function diffSnapshots(
     environmentDeltas,
     deltas,
     roots,
+    components: componentsOf(deltas, roots),
+    impact: aggregateImpact(deltas.map(impactTag)),
     unobserved,
   };
+}
+
+function impactTag(delta: Delta): PropertyImpact | 'structural' {
+  return delta.impact ?? 'structural';
 }
 
 function wholeNode(kind: 'node-added' | 'node-removed' | 'node-moved', node: SemanticNode): Delta {
@@ -163,6 +190,8 @@ function compareNodes(
     }
   }
 
+  let reflowCause: Delta | null = null;
+
   for (const property of unionKeys(before.style, after.style)) {
     const from = before.style[property];
     const to = after.style[property];
@@ -171,14 +200,19 @@ function compareNodes(
     // A token whose own value moved makes this delta collateral rather than a
     // root. Recorded here so attribution does not have to re-derive it.
     const token = changedTokenFor(before, after, property);
+    const impact = impactOf(property);
 
-    deltas.push({
+    const delta: Delta = {
       ...base('style-changed'),
       property,
       from,
       to,
+      impact,
       ...(token ? { token } : {}),
-    });
+    };
+
+    deltas.push(delta);
+    if (impact === 'layout' && reflowCause === null) reflowCause = delta;
   }
 
   // Which token a property resolves *through* is part of the render hash, so a
@@ -201,12 +235,91 @@ function compareNodes(
   }
 
   if (hasLayout && !sameRect(before, after)) {
+    // A rect that moved because this node's own padding changed is the same
+    // finding observed twice. Folding it under its cause — and inheriting that
+    // cause's token — keeps one edit as one docket entry instead of splitting it
+    // into a `token` root and an unrelated-looking `geometry` one.
+    //
+    // A rect that moved with *no* layout-impact change here is different and
+    // stays independent: something upstream reflowed and pushed this node, which
+    // is exactly the propagation worth surfacing.
     deltas.push({
       ...base('rect-changed'),
       ...(before.rect ? { rectFrom: before.rect } : {}),
       ...(after.rect ? { rectTo: after.rect } : {}),
+      ...(reflowCause
+        ? {
+            derivedFrom: `${reflowCause.path}:${reflowCause.property ?? ''}`,
+            ...(reflowCause.token ? { token: reflowCause.token } : {}),
+          }
+        : {}),
     });
   }
+}
+
+/**
+ * Which components a change set implicates, and in what capacity.
+ *
+ * A component is a *root* when a root's own deltas name it innermost — the change
+ * originated there. It is *collateral* when it only ever appears further out in
+ * an owner chain, or under a token root: it renders something that changed, but
+ * nothing about it changed.
+ */
+function componentsOf(
+  deltas: readonly Delta[],
+  roots: readonly Root[],
+): readonly ChangedComponent[] {
+  const rootNames = new Set<string>();
+  for (const root of roots) {
+    if (root.kind !== 'component' && root.kind !== 'prop') continue;
+    for (const delta of root.deltas) {
+      const innermost = delta.owners?.[0]?.name;
+      if (innermost !== undefined) rootNames.add(innermost);
+    }
+  }
+
+  const accumulator = new Map<
+    string,
+    { deltas: number; bands: Set<Band>; impacts: (PropertyImpact | 'structural')[]; within: Set<string> }
+  >();
+
+  for (const delta of deltas) {
+    const owners = delta.owners ?? [];
+    for (const [index, owner] of owners.entries()) {
+      let entry = accumulator.get(owner.name);
+      if (!entry) {
+        entry = { deltas: 0, bands: new Set(), impacts: [], within: new Set() };
+        accumulator.set(owner.name, entry);
+      }
+
+      // Only the innermost owner is credited with the delta. Every enclosing
+      // component would otherwise accumulate every delta beneath it, and a page
+      // component would be the biggest change in every diff, every time.
+      if (index === 0) {
+        entry.deltas += 1;
+        entry.bands.add(delta.band);
+        entry.impacts.push(impactTag(delta));
+      }
+
+      // The chain is innermost-first, so the *next* frame out is what encloses
+      // this one. Recording the previous frame instead would answer "what does
+      // this component contain?" — which nobody asked, and which reads as an
+      // answer to "where does it show up?" until someone checks.
+      const enclosing = owners[index + 1];
+      if (enclosing) entry.within.add(enclosing.name);
+    }
+  }
+
+  return [...accumulator.entries()]
+    .map(([name, entry]) => ({
+      name,
+      role: rootNames.has(name) ? ('root' as const) : ('collateral' as const),
+      deltaCount: entry.deltas,
+      bands: [...entry.bands],
+      impact: aggregateImpact(entry.impacts),
+      renderedIn: [...entry.within],
+    }))
+    .sort((a, b) => b.deltaCount - a.deltaCount || a.name.localeCompare(b.name));
 }
 
 /**
@@ -362,6 +475,7 @@ function attribute(
     kind: group.kind,
     label: group.label,
     band: dominantBand(group.deltas),
+    impact: aggregateImpact(group.deltas.map(impactTag)),
     deltas: group.deltas,
   }));
 }

@@ -50,7 +50,20 @@ export type { Verdict, BandOutcome } from './verdict.js';
 export { UNOBSERVED, severityOf, worstVerdict, blocks } from './verdict.js';
 
 export { diffSnapshots, matchTrees, deltaSignature } from './diff/index.js';
-export type { SemanticDiff, Delta, Root, RootKind, Matching } from './diff/index.js';
+export type {
+  SemanticDiff,
+  Delta,
+  Root,
+  RootKind,
+  ChangedComponent,
+  Matching,
+} from './diff/index.js';
+
+export { buildDocket, summarize } from './docket.js';
+export type { Docket, DocketEntry, DocketOptions } from './docket.js';
+
+export { impactOf, canReflow, aggregateImpact } from './impact.js';
+export type { PropertyImpact, AggregateImpact } from './impact.js';
 
 export type { Band, DeltaKind } from './band.js';
 export { BANDS, bandOf } from './band.js';
