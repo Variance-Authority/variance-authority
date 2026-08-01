@@ -18,3 +18,10 @@ export { MUTATIONS, mutationById } from './mutations.js';
 export type { Mutation, MutationId } from './mutations.js';
 export { renderStory } from './render.js';
 export type { RenderOptions, Rendered } from './render.js';
+
+// The pixel arm's surface. `pixel/diff.ts` is deliberately absent: it imports
+// `pngjs`, which is Node-only, and this entry is also bundled for a browser.
+export { BASELINE_VARIANT, PROBE_PREFIX } from './pixel/protocol.js';
+export type { RenderRequest, RenderResult, TodoPageAgent } from './pixel/protocol.js';
+export { PROBES, probeById, renderProbe, clearProbeSheets } from './pixel/probes.js';
+export type { Probe, ProbeState, RenderedProbe } from './pixel/probes.js';
