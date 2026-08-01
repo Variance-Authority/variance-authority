@@ -327,6 +327,61 @@ export function attributeRegions(
   });
 }
 
+export interface RankedRegion extends AttributedRegion {
+  /**
+   * `true` when the semantic tier named this region's component as a *root* of
+   * the change, rather than as something the change happened to move.
+   */
+  readonly cause: boolean;
+}
+
+/**
+ * Rank attributed regions by cause, falling back to area.
+ *
+ * This function exists because of a measurement, and the measurement is the most
+ * useful thing the raster tier has produced. Replacing a checkbox with a styled
+ * div on the todomvc corpus changes 1530 pixels in 5 regions, which attribute
+ * geometrically and rank by area as:
+ *
+ * ```
+ *   933px  Text      <- changed, and reflowed
+ *   511px  Stack     <- only reflowed
+ *    86px  Toggle    <- the edit
+ * ```
+ *
+ * Every one of those attributions is correct. The pixels really are inside those
+ * nodes. The *ordering* is still wrong, because **area measures displacement,
+ * not cause** — an edit that reflows its surroundings moves far more of them than
+ * of itself, so `Stack`, which nothing edited, outranks `Toggle`, which is the
+ * edit. That is the same defect the differ had when a list reorder blamed the
+ * element that moved rather than the code that moved it.
+ *
+ * Geometry cannot fix this; it has no access to why. The semantic tier does — it
+ * has provenance and props digests — so the raster tier stops claiming to rank
+ * and takes the ordering from the tier that can. On the case above that promotes
+ * `Toggle` above `Stack` while leaving both attributions untouched.
+ *
+ * Two limits, stated rather than smoothed over. The semantic tier may name more
+ * than one cause and here it names two, `Toggle` and `Text`, both real — this
+ * does not collapse them, because picking one would be inventing a fact. And
+ * with no causes supplied the order falls back to area, which is honest and is
+ * not good: pixels alone rank the displaced above the displacer, and nothing
+ * inside this file can change that.
+ */
+export function rankRegions(
+  regions: readonly AttributedRegion[],
+  causes: readonly string[] = [],
+): readonly RankedRegion[] {
+  const named = new Set(causes);
+
+  return regions
+    .map((region) => ({
+      ...region,
+      cause: region.component !== undefined && named.has(region.component),
+    }))
+    .sort((a, b) => Number(b.cause) - Number(a.cause) || b.region.pixels - a.region.pixels);
+}
+
 function describe(
   snapshot: SemanticSnapshot,
   node: SemanticNode,

@@ -21,6 +21,7 @@
     "@variance-authority/core": "workspace:^",
     "@variance-authority/harness-playwright": "workspace:^",
     "@variance-authority/provenance-react": "workspace:^",
+    "@variance-authority/raster": "workspace:^",
     "react": "^19",
     "react-dom": "^19"
   },

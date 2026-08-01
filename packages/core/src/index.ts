@@ -71,7 +71,7 @@ export type {
   Raster,
 } from './document.js';
 
-export { isolateRegions, attributeRegions } from './region.js';
+export { isolateRegions, attributeRegions, rankRegions } from './region.js';
 export type {
   ChangeMask,
   DiffRegion,
@@ -79,6 +79,7 @@ export type {
   IsolationOptions,
   AttributedRegion,
   AttributionOptions,
+  RankedRegion,
 } from './region.js';
 
 export { resolveSource, formatSource, indexSource, mergeSourceIndexes } from './source.js';

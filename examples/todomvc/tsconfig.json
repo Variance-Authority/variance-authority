@@ -13,7 +13,7 @@
   "references": [
     { "path": "../../packages/core" },
     { "path": "../../packages/collector-dom" },
-    { "path": "../../packages/harness-playwright" },
+    { "path": "../../packages/harness-playwright" }, { "path": "../../packages/raster" },
     { "path": "../../packages/provenance-react" }
   ]
 }
