@@ -1,0 +1,43 @@
+<!doctype html>
+<!--
+  The REAL-DOM half of the corpus.
+
+  Deliberately inert: no reset, no fonts, no meta viewport, nothing that would
+  contribute style the fixtures did not ask for. Every stylesheet the subject sees
+  is injected by `renderCase`, which is also what the JSDOM tests call — if this
+  file linked a stylesheet of its own, the two observation profiles would be
+  rendering different documents and ADR-0002's claim that they differ only in what
+  they can *observe* would stop being true.
+
+  `<div id="subject">` is the subject subtree boundary. Portalled content lands in
+  a sibling marked `data-va-portal-host`, outside it, which is the whole reason the
+  dialog case is contested.
+
+  Usage:  ?subject=<id>&variant=<id>   — see the index page for the full list.
+  Wait on `document.documentElement[data-va-ready]` before collecting.
+
+  Build the bundle first (`yarn workspace @variance-authority/example-kitchen-sink
+  bundle`); it is generated, not committed. Bundling rather than an import map
+  pointing at a CDN keeps the page loadable with no network, so a collector run is
+  reproducible and cannot be perturbed by someone else's cache.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Pins the UA canvas to light. Not a style contribution to the subject — the
+      fixtures declare every colour they use — but without it the browser picks a
+      canvas from the operating system's theme, so the same case renders on a white
+      background on one machine and a black one on another. That is exactly the kind
+      of undeclared render input the environment key exists to capture (spec §11.1),
+      and leaving it to chance in the corpus would put it beyond the reach of any
+      measurement taken here.
+    -->
+    <meta name="color-scheme" content="light" />
+    <title>variance-authority kitchen-sink corpus</title>
+  </head>
+  <body>
+    <div id="subject"></div>
+    <script type="module" src="./bundle.js"></script>
+  </body>
+</html>

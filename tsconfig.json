@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/provenance-react" },
-    { "path": "./packages/collector-dom" }
+    { "path": "./packages/collector-dom" },
+    { "path": "./examples/kitchen-sink" }
   ]
 }
