@@ -1,7 +1,7 @@
 # Helix checkpoint
 
 **Surface:** this file (git-committed). Epitaphs: [`epitaphs.md`](epitaphs.md).
-**Cycle:** 3
+**Cycle:** 4
 **Reload budget:** one read. Verdicts only — no deliberation, no candidate lists.
 
 ---
@@ -40,7 +40,8 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B3 | **corpus** | landed; found five defects the implementation's own tests could not |
 | B4 | **dual-surface** | half — `jsdom` scored, `chromium` never run |
 | B5 | **differ** | landed and measured |
-| B6 | **per-profile ground truth** — how a corpus expresses an expectation that differs by profile | admitted this cycle; blocks B4 |
+| B6 | **per-profile ground truth** — how a corpus expresses an expectation that differs by profile | in flight (worktree); blocks B4 |
+| B7 | **session** — one standing world, cross-pollution detected rather than prevented | landed and measured (3.5×, ~2% probe overhead) |
 
 ---
 
@@ -52,7 +53,8 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M2 | B1 | Normalization pipeline | **mixed** — ADR-0003 step 4 was wrong; amended to all-or-nothing shorthand expansion (journal 0004) |
 | M3 | B4 | Collector + CSS applicability pruning | **expected** — 99.90% pruned; found a false `unchanged` I had written into whitespace handling (journal 0005) |
 | M4 | B1+B4+B5 | Score the corpus | **expected after repair** — 30/37 on first run, 37/37 after five fixes, all five real defects (journal 0006) |
-| M5 | B4 | Run the corpus under `chromium` via Playwright | *pending* |
+| M5 | B4+B6 | Persistent Playwright harness; per-profile expectations; score chromium | *in flight* |
+| M6 | B7 | Stop rinsing; detect and attribute cross-pollution | **expected** — 3.5× faster; found that `:root` tokens never reached any subject under jsdom, so the token band was inert on the cheap tier (journal 0008) |
 
 ---
 
@@ -74,7 +76,13 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   `jsdom`? Still undecided; needs P4.
 - **Corpus validity beyond ourselves.** One corpus, built by us. It proves the
   rules are coherent and the apparatus works. It does not prove they hold on
-  someone else's component library.
+  someone else's component library. Sharpened by journal 0008: the corpus applies
+  token overrides *inline on the subject root*, which routed around a hole where
+  `:root` tokens reached nothing — a fixture convenient in the same way the
+  implementation was convenient tested nothing.
+- **Module-level state is outside the session probe.** A singleton store or
+  cached client cannot be seen. Confirmation catches the symptom; attribution
+  correctly reports no culprit.
 
 ---
 
