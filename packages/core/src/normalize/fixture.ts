@@ -6,6 +6,7 @@ import type {
   Rect,
 } from '../capture.js';
 import { CHROMIUM_PROFILE, JSDOM_PROFILE, type ObservationProfile } from '../profile.js';
+import { propsDigest } from '../provenance.js';
 
 /**
  * Fixture builders for `RawCapture`.
@@ -41,6 +42,18 @@ export interface NodeSpec {
    * comparing nothing to nothing.
    */
   readonly children?: readonly RawNode[];
+
+  /**
+   * Owner chain, innermost first, with the props each boundary received.
+   * Digests are computed with the real `propsDigest`, so attribution tests
+   * exercise the shipped rule rather than a stand-in.
+   */
+  readonly owners?: readonly OwnerSpec[];
+}
+
+export interface OwnerSpec {
+  readonly name: string;
+  readonly props?: Record<string, unknown>;
 }
 
 export interface RuleSpec {
@@ -67,6 +80,16 @@ export function node(spec: NodeSpec = {}): RawNode {
     ...(spec.computedStyle ? { computedStyle: spec.computedStyle } : {}),
     ...(spec.rect ? { rect: spec.rect } : {}),
     ...(spec.text !== undefined ? { text: spec.text } : {}),
+    ...(spec.owners
+      ? {
+          provenance: {
+            owners: spec.owners.map((owner) => ({
+              name: owner.name,
+              propsDigest: propsDigest(owner.props ?? {}),
+            })),
+          },
+        }
+      : {}),
     children: spec.children ?? [],
   };
 }

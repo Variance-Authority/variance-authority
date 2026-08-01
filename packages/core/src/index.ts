@@ -49,6 +49,9 @@ export type {
 export type { Verdict, BandOutcome } from './verdict.js';
 export { UNOBSERVED, severityOf, worstVerdict, blocks } from './verdict.js';
 
+export { diffSnapshots, matchTrees, deltaSignature } from './diff/index.js';
+export type { SemanticDiff, Delta, Root, RootKind, Matching } from './diff/index.js';
+
 export type { Band, DeltaKind } from './band.js';
 export { BANDS, bandOf } from './band.js';
 
