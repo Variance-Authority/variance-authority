@@ -23,3 +23,6 @@ dist
 # Test + capture artifacts
 .variance/
 coverage/
+
+# Agent worktrees
+.claude/worktrees/

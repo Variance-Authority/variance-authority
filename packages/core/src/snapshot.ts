@@ -1,4 +1,4 @@
-import type { SubjectRef, Rect } from './capture.js';
+import type { SubjectRef, Rect, Diagnostic } from './capture.js';
 import type { EnvironmentKey } from './environment.js';
 import type { Digest } from './hash.js';
 import type { ObservationProfile } from './profile.js';
@@ -46,6 +46,18 @@ export interface SemanticSnapshot {
    * invalidate a baseline.
    */
   readonly styleProvenance: readonly StyleProvenanceEntry[];
+
+  /**
+   * What the collector or the normalizer could not do, carried forward.
+   *
+   * Outside the hash: a diagnostic describes the *observation*, not the render,
+   * and a snapshot that hashed its own warnings would invalidate whenever the
+   * warning text was reworded. But it must survive to the verdict — a subject
+   * whose capture half-failed is not a subject that legitimately `unchanged`,
+   * and silently discarding that fact is how a broken collector reads as a clean
+   * build.
+   */
+  readonly diagnostics: readonly Diagnostic[];
 }
 
 /**

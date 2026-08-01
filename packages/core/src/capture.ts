@@ -72,10 +72,17 @@ export interface RawNode {
   readonly aria?: RawAria;
 
   /**
-   * Rules matching this node, in cascade order, already filtered to the
-   * allowlisted properties. Losing declarations are retained: `core` resolves the
-   * cascade for profiles whose engine did not (ADR-0003 step 5), and cannot do
-   * that from winners alone.
+   * Rules matching this node, as authored.
+   *
+   * Losing declarations are retained: `core` resolves the cascade for profiles
+   * whose engine did not (ADR-0003 step 5), and cannot do that from winners
+   * alone. Shorthands are retained *unexpanded* — expansion is `core`'s job, so
+   * that it is versioned by the ruleset rather than by each collector.
+   *
+   * A collector MAY drop a declaration whose property is neither allowlisted nor
+   * a shorthand of an allowlisted property, and SHOULD when the capture crosses
+   * a network hop. It MUST NOT normalize values; a helpfully pre-cleaned capture
+   * is a second, invisible ruleset versioned by nothing.
    */
   readonly matchedRules: readonly MatchedRule[];
 

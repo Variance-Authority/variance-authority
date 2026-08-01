@@ -52,6 +52,29 @@ export { UNOBSERVED, severityOf, worstVerdict, blocks } from './verdict.js';
 export type { Band, DeltaKind } from './band.js';
 export { BANDS, bandOf } from './band.js';
 
+export { normalize } from './normalize/index.js';
+export type { NormalizeOptions } from './normalize/index.js';
+export type { AliasMap, AliasResult, InheritContext, ResolvedStyle, DeclarationOrigin } from './normalize/index.js';
+export {
+  buildAliasMap,
+  aliasAttributeValue,
+  aliasStyleValue,
+  resolveStyle,
+  resolveVariables,
+  INHERITED_PROPERTIES,
+  EMPTY_CONTEXT,
+  canonicalizeValue,
+  canonicalizeTokens,
+  canonicalizeDimension,
+  isUnresolved,
+  canonicalizeColor,
+  parseColor,
+  formatColor,
+  expandDeclaration,
+  isShorthand,
+  SHORTHAND_PROPERTIES,
+} from './normalize/index.js';
+
 export {
   RULESET_VERSION,
   ALLOWLIST_VERSION,
