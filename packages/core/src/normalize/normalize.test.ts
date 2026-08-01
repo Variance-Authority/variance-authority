@@ -495,10 +495,18 @@ describe('environment key', () => {
 });
 
 describe('text', () => {
-  it('collapses whitespace the renderer would have collapsed anyway', () => {
-    const spaced = node({ tag: 'p', text: '  hello   world  ' });
-    const tight = node({ tag: 'p', text: 'hello world' });
-    expect(hashOf(spaced)).toBe(hashOf(tight));
+  it('collapses runs of whitespace, as white-space: normal does', () => {
+    expect(hashOf(node({ tag: 'p', text: 'hello   world' }))).toBe(
+      hashOf(node({ tag: 'p', text: 'hello world' })),
+    );
+  });
+
+  it('does not trim, because a boundary space between inline elements renders', () => {
+    // Trimming would make `<b>a</b> <i>b</i>` read the same as `<b>a</b><i>b</i>`,
+    // which renders as "a b" and "ab" respectively.
+    expect(hashOf(node({ tag: 'p', text: 'hello ' }))).not.toBe(
+      hashOf(node({ tag: 'p', text: 'hello' })),
+    );
   });
 
   it('can digest text for subjects whose copy is volatile', () => {

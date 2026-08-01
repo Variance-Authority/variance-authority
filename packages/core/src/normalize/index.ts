@@ -324,14 +324,21 @@ function styleOf(node: SemanticNode, includeLayout: boolean): CanonicalValue {
 }
 
 /**
- * Collapse runs of whitespace and trim.
+ * Collapse runs of whitespace to a single space, without trimming.
  *
- * HTML already does this when rendering, so `>  hello  <` and `>hello<` produce
- * identical pixels. Preserving the difference would make source reformatting a
- * baseline invalidation.
+ * Collapsing matches what `white-space: normal` does, so indentation depth is
+ * not a hash input. Trimming does not: a *boundary* space between inline
+ * elements is rendered, and removing it changes "a b" to "ab". Since the
+ * formatting context is unknowable without layout, the space is kept —
+ * over-reporting in a block context, rather than reporting a visible text change
+ * as `unchanged`.
+ *
+ * This costs little in practice because subjects are React-rendered, and JSX
+ * already strips whitespace-only lines and newline-adjacent indentation at
+ * compile time. Hand-written HTML pays more.
  */
 function normalizeText(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return text.replace(/\s+/g, ' ');
 }
 
 /**
