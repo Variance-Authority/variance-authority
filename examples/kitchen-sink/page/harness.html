@@ -1,0 +1,30 @@
+<!doctype html>
+<!--
+  The page a persistent harness navigates to, once, for a whole run.
+
+  Identical to `index.html` in every respect that can reach a subject, and
+  different in one: it loads no script. `index.html` renders one case per page
+  load, chosen by query string, which is the right shape for opening a case by
+  hand and the wrong shape for a harness that must not reload — its bundle would
+  be re-fetched, re-evaluated, and its React id counter reset on every subject,
+  which is the cost the persistent harness exists to avoid.
+
+  So the harness injects its own bundle here and switches subjects by calling into
+  the page. Everything the subject sees is still installed by `renderCase`, so the
+  two profiles continue to render the same document (ADR-0002) and this file
+  contributes no style of its own.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Same reasoning as `index.html`: the canvas is declared, never inherited
+         from the operating system's theme. Playwright's context `colorScheme`
+         emulates `prefers-color-scheme` and this pins the UA canvas; they are
+         different inputs and both have to be nailed down. -->
+    <meta name="color-scheme" content="light" />
+    <title>variance-authority kitchen-sink harness</title>
+  </head>
+  <body>
+    <div id="subject"></div>
+  </body>
+</html>

@@ -16,10 +16,12 @@
   ],
   "scripts": {
     "build": "tsc --build",
-    "bundle": "node scripts/bundle.mjs"
+    "bundle": "node scripts/bundle.mjs",
+    "bench": "node scripts/bench.mjs"
   },
   "dependencies": {
     "@variance-authority/collector-dom": "workspace:^",
+    "@variance-authority/harness-playwright": "workspace:^",
     "@variance-authority/provenance-react": "workspace:^",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

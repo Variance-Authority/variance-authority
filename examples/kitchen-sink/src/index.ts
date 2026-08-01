@@ -13,8 +13,28 @@
  * both reach the fixtures through {@link renderCase}.
  */
 
-export type { CorpusCase, CorpusSummary, ExpectedBand } from './corpus.js';
-export { CORPUS, SETTLED_CORPUS, CONTESTED_CORPUS, casesFor, corpusSummary } from './corpus.js';
+export type {
+  CorpusCase,
+  CorpusSummary,
+  ExpectedBand,
+  Expectation,
+  ProfileClause,
+  ProfileExpectation,
+  Undecidable,
+  Verdict,
+} from './corpus.js';
+export {
+  CORPUS,
+  SETTLED_CORPUS,
+  CONTESTED_CORPUS,
+  casesFor,
+  comparableCases,
+  corpusSummary,
+  declaresDivergence,
+  expectationFor,
+  scorableFor,
+  undecidableFor,
+} from './corpus.js';
 
 export type { SubjectId, SubjectContext } from './subjects.js';
 export { SUBJECTS, SUBJECT_IDS } from './subjects.js';

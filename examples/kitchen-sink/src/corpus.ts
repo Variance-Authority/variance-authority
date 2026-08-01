@@ -20,12 +20,45 @@
  * renders should agree.
  */
 
-import type { Band } from '@variance-authority/core';
+import type { Band, ProfileId } from '@variance-authority/core';
 import type { SubjectId } from './subjects.js';
 import type { VariantId } from './variants.js';
 
 /** `texture` is excluded: it is raster residue, and nothing here reaches raster. */
 export type ExpectedBand = Extract<Band, 'geometry' | 'token'>;
+
+export type Verdict = 'hash-stable' | 'hash-changed';
+
+/**
+ * A different, equally correct answer under one profile (ADR-0008 state 2).
+ *
+ * Replaces the default clause wholesale rather than patching it, so a reader
+ * never has to compose two partial expectations to know what is being claimed.
+ */
+export interface ProfileExpectation {
+  readonly expect: Verdict;
+  readonly band?: ExpectedBand;
+  readonly roots?: number;
+  /**
+   * The argument for the divergence — mandatory, because a divergence with no
+   * stated reason is indistinguishable from a mistake, and the whole point of
+   * declaring the legitimate ones is to leave the illegitimate ones exposed.
+   */
+  readonly because: string;
+}
+
+/**
+ * The profile is structurally unable to decide this case (ADR-0008 state 1).
+ *
+ * Excluded from that profile's score in both directions. A profile is not
+ * credited for an answer it reached by not looking, and not charged for a
+ * limitation its `ObservationProfile` already declares.
+ */
+export interface Undecidable {
+  readonly undecidable: string;
+}
+
+export type ProfileClause = ProfileExpectation | Undecidable;
 
 export interface CorpusCase {
   readonly id: string;
@@ -33,7 +66,11 @@ export interface CorpusCase {
   readonly subject: SubjectId;
   readonly baseVariant: VariantId;
   readonly perturbedVariant: VariantId;
-  readonly expect: 'hash-stable' | 'hash-changed';
+  /**
+   * The answer under any profile that has not said otherwise — not "the `jsdom`
+   * answer". A profile-specific answer goes in {@link CorpusCase.byProfile}.
+   */
+  readonly expect: Verdict;
   /** Set when `hash-changed`. */
   readonly band?: ExpectedBand;
   /** Why this is the ground truth — the argument, not a description. */
@@ -61,6 +98,21 @@ export interface CorpusCase {
    * nobody has decided.
    */
   readonly contested?: string;
+
+  /**
+   * Per-profile overrides (ADR-0008).
+   *
+   * Absent for a profile means the default {@link CorpusCase.expect} holds there.
+   * Present it is either an {@link Undecidable} — exclude the case from that
+   * profile's score — or a {@link ProfileExpectation}, meaning the profiles
+   * legitimately disagree and both answers are correct.
+   *
+   * Those two are not the same thing and are never collapsed: exclusion says the
+   * profile cannot see the case, divergence says it sees it differently. A third
+   * situation — the profiles disagreeing when nothing here says they should — is
+   * not declarable at all. It is the observation P4 exists to make.
+   */
+  readonly byProfile?: Readonly<Partial<Record<ProfileId, ProfileClause>>>;
 }
 
 export const CORPUS: readonly CorpusCase[] = [
@@ -509,17 +561,25 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
-    spec: 'spec §5; `band.ts` (`style-changed` ⇒ token, `rect-changed` ⇒ geometry)',
-    contested:
-      'The band is profile-dependent. Under `jsdom` only declared values move, so `token` ' +
-      'is the whole answer. Under `chromium` the button also gets measurably larger, ' +
-      'producing `rect-changed` deltas that `bandOf` puts in `geometry`. `band.ts` says ' +
-      'the attributor should fold the rect movement under the style change as collateral, ' +
-      'which yields `token` as the reported band — but nothing normative says a subject ' +
-      'reports one band rather than a set, and a policy that blocks on `geometry` would ' +
-      'behave differently depending on which reading is implemented. Declared `token` ' +
-      'here; a harness scoring the `chromium` profile should treat an additional ' +
-      '`geometry` finding as a pass, not a miss.',
+    spec: 'spec §5; `band.ts` (`style-changed` ⇒ token, `rect-changed` ⇒ geometry); ADR-0008',
+    byProfile: {
+      chromium: {
+        expect: 'hash-changed',
+        band: 'geometry',
+        roots: 1,
+        because:
+          'The verdict is the same under both profiles; the band is not. Under `chromium` the ' +
+          'button measurably grows, so `rect-changed` deltas exist and `bandOf` puts them in ' +
+          '`geometry`. `band.ts` argues the attributor should fold rect movement under the ' +
+          'style change as collateral, which would report `token` — and nothing normative says ' +
+          'a subject reports one band rather than a set, so both readings are available. ' +
+          '`geometry` is declared because it is the louder of the two and every ambiguity in ' +
+          'this project resolves toward over-reporting: a policy that blocks on `geometry` ' +
+          'should stop for a button that changed size. Note that this expectation is weak ' +
+          'evidence — it coincides with what `dominantBand` already does, so it confirms less ' +
+          'than a case whose answer was fixed against an unwritten implementation.',
+      },
+    },
     rationale:
       'Padding and font-size resolve to larger values through a different set of spacing ' +
       'tokens. No node appears, disappears or changes role. The interesting property is ' +
@@ -732,17 +792,21 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'geometry',
     roots: 1,
-    spec: 'spec §4.2 ("no role, no visual effect on the box tree")',
-    contested:
-      'The ground truth differs by observation profile, and the corpus can only declare ' +
-      'one. Under `chromium` the inserted `<div>` becomes the flex item, the leaf stops ' +
-      'being one, `column-gap` applies between different boxes and the leaves resize: a ' +
-      'real `geometry` change. Under `jsdom` there is no layout engine, nothing ' +
-      'distinguishes it from `wrapper-block/wrappers`, and the only defensible answer is ' +
-      '`hash-stable`. Declared for the `chromium` reading. A harness scoring the `jsdom` ' +
-      'profile MUST exclude this case rather than record a miss — and the fact that a ' +
-      'profile is structurally unable to decide a case is exactly why ADR-0002 refuses to ' +
-      'let the two profiles share a baseline.',
+    spec: 'spec §4.2 ("no role, no visual effect on the box tree"); ADR-0008',
+    byProfile: {
+      jsdom: {
+        undecidable:
+          'Under `chromium` the inserted `<div>` becomes the flex item, the leaf stops being ' +
+          'one, `column-gap` applies between different boxes and the leaves resize: a real ' +
+          '`geometry` change, which is the declared answer. Under `jsdom` there is no layout ' +
+          'engine and nothing distinguishes this from `wrapper-block/wrappers`. It would ' +
+          'answer `hash-stable`, and that is not an expectation — it is a consequence of ' +
+          'blindness. Scoring it as a pass credits the profile for an answer it reached by ' +
+          'not looking, and inflates the one number that must not be inflated; scoring it as ' +
+          'a miss charges the profile for a limitation its `ObservationProfile` already ' +
+          'declares. Excluded (ADR-0008 §1).',
+      },
+    },
     rationale:
       'Spec §4.2 collapses wrappers with "no visual effect on the box tree", but whether a ' +
       '`<div>` has one is a property of its parent\'s formatting context, not of the ' +
@@ -753,11 +817,118 @@ export const CORPUS: readonly CorpusCase[] = [
   },
 ];
 
-/** Cases whose ground truth is settled — the ones a pass rate may be computed over. */
+/**
+ * Cases whose ground truth is settled *for at least one profile*.
+ *
+ * Not the same as "scorable": a settled case can still be undecidable under a
+ * given profile. Use {@link scorableFor} to get a profile's denominator, never
+ * this list's length.
+ */
 export const SETTLED_CORPUS: readonly CorpusCase[] = CORPUS.filter((c) => c.contested === undefined);
 
 /** Cases with disputed ground truth. Report them; do not score them silently. */
 export const CONTESTED_CORPUS: readonly CorpusCase[] = CORPUS.filter((c) => c.contested !== undefined);
+
+/**
+ * What a given profile is expected to observe for a case (ADR-0008).
+ *
+ * Three outcomes, and the harness must handle all three differently. Folding
+ * `undecidable` into either a pass or a miss is the specific dishonesty the
+ * per-profile mechanism exists to prevent.
+ */
+export type Expectation =
+  | {
+      readonly kind: 'scorable';
+      readonly expect: Verdict;
+      readonly band?: ExpectedBand;
+      readonly roots?: number;
+      /** True when this profile's answer was declared separately from the default. */
+      readonly perProfile: boolean;
+      /** The per-profile argument, when there is one. */
+      readonly because?: string;
+    }
+  | { readonly kind: 'undecidable'; readonly reason: string }
+  | { readonly kind: 'contested'; readonly reason: string };
+
+function isUndecidable(clause: ProfileClause): clause is Undecidable {
+  return 'undecidable' in clause;
+}
+
+/**
+ * Resolve a case against a profile.
+ *
+ * Order is fixed: `contested` outranks everything, because a case nobody has
+ * decided cannot be scored under any profile — a per-profile clause on a
+ * contested case would be answering a question that is still open. Then the
+ * profile clause, then the default.
+ */
+export function expectationFor(corpusCase: CorpusCase, profile: ProfileId): Expectation {
+  if (corpusCase.contested !== undefined) {
+    return { kind: 'contested', reason: corpusCase.contested };
+  }
+
+  const clause = corpusCase.byProfile?.[profile];
+
+  if (clause !== undefined && isUndecidable(clause)) {
+    return { kind: 'undecidable', reason: clause.undecidable };
+  }
+
+  if (clause !== undefined) {
+    return {
+      kind: 'scorable',
+      expect: clause.expect,
+      ...(clause.band !== undefined ? { band: clause.band } : {}),
+      ...(clause.roots !== undefined ? { roots: clause.roots } : {}),
+      perProfile: true,
+      because: clause.because,
+    };
+  }
+
+  return {
+    kind: 'scorable',
+    expect: corpusCase.expect,
+    ...(corpusCase.band !== undefined ? { band: corpusCase.band } : {}),
+    ...(corpusCase.roots !== undefined ? { roots: corpusCase.roots } : {}),
+    perProfile: false,
+  };
+}
+
+/** A profile's denominator. Everything else is reported, never scored. */
+export function scorableFor(profile: ProfileId): readonly CorpusCase[] {
+  return CORPUS.filter((c) => expectationFor(c, profile).kind === 'scorable');
+}
+
+/** Cases a profile declares itself unable to decide. Reported with reasons. */
+export function undecidableFor(profile: ProfileId): readonly CorpusCase[] {
+  return CORPUS.filter((c) => expectationFor(c, profile).kind === 'undecidable');
+}
+
+/**
+ * Cases on which two profiles may be compared to each other — claim P4's
+ * denominator.
+ *
+ * Requires both to be scorable. A case one profile cannot see says nothing about
+ * whether the two agree, and including it would let blindness look like consensus.
+ */
+export function comparableCases(a: ProfileId, b: ProfileId): readonly CorpusCase[] {
+  return CORPUS.filter(
+    (c) => expectationFor(c, a).kind === 'scorable' && expectationFor(c, b).kind === 'scorable',
+  );
+}
+
+/**
+ * True when the corpus declares that the two profiles reach *different verdicts*.
+ *
+ * A band-level divergence is not a verdict-level one: `prop-size/button` is
+ * `hash-changed` under both profiles and differs only in band, so the two
+ * verdicts must still match. Only a case listed here is allowed to disagree.
+ */
+export function declaresDivergence(corpusCase: CorpusCase, a: ProfileId, b: ProfileId): boolean {
+  const left = expectationFor(corpusCase, a);
+  const right = expectationFor(corpusCase, b);
+  if (left.kind !== 'scorable' || right.kind !== 'scorable') return false;
+  return left.expect !== right.expect;
+}
 
 export function casesFor(expect: CorpusCase['expect']): readonly CorpusCase[] {
   return CORPUS.filter((c) => c.expect === expect);
