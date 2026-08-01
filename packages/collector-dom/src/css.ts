@@ -42,6 +42,29 @@ export interface StyleIndex {
   readonly diagnostics: readonly Diagnostic[];
   /** Rules seen before applicability filtering. Reported to show what was pruned. */
   readonly totalRules: number;
+
+  /**
+   * Outcomes of conditions that depend on an input the *semantic* key omits.
+   *
+   * Narrow on purpose. ADR-0003 flattens conditions out of the rule text and puts
+   * them in the environment key, but the semantic key already carries viewport
+   * width, height, and colour scheme — so the outcome of `@media (min-width: …)`
+   * is *derivable* from the key and recording it would be redundant. Worse than
+   * redundant: it made a rule that matches nothing invalidate every baseline,
+   * because adding a never-true media block changed the key. The corpus caught
+   * that immediately.
+   *
+   * The one input the semantic key drops is `deviceScaleFactor`, so resolution
+   * queries are the only conditions whose outcome is not otherwise recoverable.
+   * Those are recorded, and nothing else is.
+   *
+   * Slightly over-conservative: a resolution query gating rules that match no
+   * subject still splits the key. That costs two baselines where one would do,
+   * which is the safe direction, and resolution queries are rare enough that the
+   * precise version — testing whether the gated rules would match — is not worth
+   * its complexity yet.
+   */
+  readonly evaluatedConditions: Readonly<Record<string, boolean>>;
 }
 
 /**
@@ -59,6 +82,7 @@ export function indexStyleSheets(
   const byKey = new Map<string, IndexedRule[]>();
   const universal: IndexedRule[] = [];
   const diagnostics: Diagnostic[] = [];
+  const evaluatedConditions: Record<string, boolean> = {};
   let order = 0;
   let totalRules = 0;
 
@@ -86,12 +110,17 @@ export function indexStyleSheets(
     walk(rules, name, false);
   }
 
-  return { byKey, universal, diagnostics, totalRules };
+  return { byKey, universal, diagnostics, totalRules, evaluatedConditions };
 
   function walk(rules: CSSRuleList, sheet: string, uncertain: boolean): void {
     for (const rule of items(rules)) {
       if (isGroupingRule(rule)) {
         const condition = conditionOf(rule, environment);
+        const prelude = preludeOf(rule);
+        if (prelude !== null && dependsOnOmittedInput(prelude)) {
+          evaluatedConditions[prelude] = condition.matches;
+        }
+
         if (!condition.matches) continue;
         walk(rule.cssRules, sheet, uncertain || condition.uncertain);
         continue;
@@ -364,6 +393,28 @@ function conditionOf(
   // particular depend on layout, which the declared-only profile does not have,
   // so the contents are included and marked uncertain rather than guessed at.
   return { matches: true, uncertain: true };
+}
+
+/**
+ * Whether a condition's outcome depends on something the semantic key omits.
+ *
+ * Only `deviceScaleFactor` is omitted, so only resolution queries qualify. Every
+ * other condition resolves from inputs the key already carries, which makes its
+ * outcome derivable rather than something to record.
+ */
+function dependsOnOmittedInput(prelude: string): boolean {
+  return /\b(min-|max-)?resolution\b|-webkit-device-pixel-ratio/i.test(prelude);
+}
+
+/** The condition text of a grouping rule, for the environment record. */
+function preludeOf(rule: CSSGroupingRule): string | null {
+  const media = (rule as CSSMediaRule).media?.mediaText;
+  if (media) return `@media ${media}`;
+
+  const supports = (rule as CSSSupportsRule).conditionText;
+  if (supports) return `@supports ${supports}`;
+
+  return null;
 }
 
 function isStyleSheet(sheet: StyleSheet): sheet is CSSStyleSheet {

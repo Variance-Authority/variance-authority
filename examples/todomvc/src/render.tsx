@@ -4,7 +4,7 @@ import { act } from 'react';
 import { DS_CSS } from './ds/styles.js';
 import { TOKENS_CSS } from './tokens/foundation.js';
 import type { Mutation } from './mutations.js';
-import { setCodeMutation } from './code-mutation.js';
+import { setCodeMutations } from './code-mutation.js';
 import { storyById } from './stories.js';
 
 /**
@@ -21,6 +21,13 @@ const SHEET_MARKER = 'data-todomvc-sheet';
 
 export interface RenderOptions {
   readonly mutation?: Mutation;
+  /**
+   * Several edits applied together, as a branch carries them.
+   *
+   * Sheet order follows array order, so a later mutation overrides an earlier one
+   * at equal specificity — the same rule as a real stylesheet import order.
+   */
+  readonly mutations?: readonly Mutation[];
 }
 
 export interface Rendered {
@@ -44,10 +51,10 @@ export function renderStory(
   options: RenderOptions = {},
 ): Rendered {
   const document = container.ownerDocument;
-  const mutation = options.mutation;
+  const mutations = options.mutations ?? (options.mutation ? [options.mutation] : []);
 
-  installSheets(document, mutation);
-  setCodeMutation(mutation?.code ? mutation.id : null);
+  installSheets(document, mutations);
+  setCodeMutations(mutations.filter((each) => each.code).map((each) => each.id));
 
   const story = storyById(storyId);
   const element = story.render();
@@ -58,7 +65,7 @@ export function renderStory(
     ROOTS.set(container, root);
   }
 
-  const tree = mutation?.noop ? wrapInert(element) : element;
+  const tree = mutations.some((each) => each.noop) ? wrapInert(element) : element;
   act(() => root!.render(tree));
 
   return {
@@ -94,14 +101,16 @@ function saltedHash(): string {
   return (salt * 2654435761).toString(36).slice(-6);
 }
 
-function installSheets(document: Document, mutation: Mutation | undefined): void {
+function installSheets(document: Document, mutations: readonly Mutation[]): void {
   for (const existing of Array.from(document.querySelectorAll(`[${SHEET_MARKER}]`))) {
     existing.remove();
   }
 
   append(document, 'tokens', TOKENS_CSS);
   append(document, 'design-system', DS_CSS);
-  if (mutation?.css) append(document, `mutation:${mutation.id}`, mutation.css);
+  for (const mutation of mutations) {
+    if (mutation.css) append(document, `mutation:${mutation.id}`, mutation.css);
+  }
 }
 
 function append(document: Document, name: string, css: string): void {

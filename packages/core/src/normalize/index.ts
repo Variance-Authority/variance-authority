@@ -126,7 +126,10 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
     subject: capture.subject,
     profile: capture.profile,
     environment,
-    renderHash: digestCombine('render', [environment.digest, structureHash, styleHash]),
+    // Keyed on the *semantic* digest, not the full one. A snapshot is a semantic
+    // artifact, so binding it to inputs that only rasterization can observe would
+    // split one baseline across machines that render it identically.
+    renderHash: digestCombine('render', [environment.semanticDigest, structureHash, styleHash]),
     structureHash,
     styleHash,
     root,

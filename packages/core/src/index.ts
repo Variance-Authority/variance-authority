@@ -59,6 +59,9 @@ export type {
   Matching,
 } from './diff/index.js';
 
+export { adjudicate, summarizeAdjudication } from './intent.js';
+export type { Intent, IntentClaim, Policy, Adjudication, Adjudicated } from './intent.js';
+
 export { buildDocket, summarize } from './docket.js';
 export type { Docket, DocketEntry, DocketOptions } from './docket.js';
 

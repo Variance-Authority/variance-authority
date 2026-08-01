@@ -61,22 +61,61 @@ export interface Viewport {
 }
 
 export interface EnvironmentKey {
+  /**
+   * Every render input, including the ones only pixels can see.
+   *
+   * The key a raster baseline must be stored under. Two machines agree on it only
+   * if they agree on device pixel ratio as well as everything else — which is why
+   * pixel-based tools end up inside a container.
+   */
   readonly digest: Digest;
+
+  /**
+   * The inputs that can reach the *semantic* representation.
+   *
+   * This is the key that matters economically. A raster baseline is machine-bound
+   * because rasterization is machine-bound, and the usual answer — put the whole
+   * pipeline in Docker — pays that cost on every subject of every build in order
+   * to stabilise the tier that decides almost nothing.
+   *
+   * The semantic representation is built from the box tree, and device pixel
+   * ratio cannot reach a box tree: layout is in CSS pixels, and a 2× render lays
+   * out identically. Measured, not assumed — a DPR change moves 3015 pixels and
+   * leaves structure and style byte-identical (journal 0012).
+   *
+   * So the semantic key omits it, and one semantic baseline is valid on a retina
+   * laptop, a non-retina CI runner, and a container alike. The container is then
+   * needed only for the raster residue, which the tiering already makes rare.
+   *
+   * What is *not* omitted: fonts, engine, viewport size, ruleset, allowlist, and
+   * the resolved conditions. Each of those genuinely changes the box tree, and
+   * dropping one to make baselines more portable would buy portability with
+   * false `unchanged` verdicts.
+   */
+  readonly semanticDigest: Digest;
+
   readonly inputs: EnvironmentInputs;
 }
 
 export function environmentKey(inputs: EnvironmentInputs): EnvironmentKey {
+  const shared = {
+    profile: inputs.profile,
+    engine: inputs.engine,
+    ruleset: inputs.ruleset,
+    allowlist: inputs.allowlist,
+    fonts: [...inputs.fonts].sort(),
+    conditions: { ...inputs.conditions },
+    assets: { ...inputs.assets },
+  };
+
+  // Layout depends on the viewport's size and colour scheme; rasterization also
+  // depends on its scale factor. Splitting the viewport is what makes the two
+  // keys differ, and it is the only difference between them.
+  const { deviceScaleFactor, ...layoutViewport } = inputs.viewport;
+
   return {
-    digest: digestValue({
-      profile: inputs.profile,
-      engine: inputs.engine,
-      ruleset: inputs.ruleset,
-      allowlist: inputs.allowlist,
-      viewport: { ...inputs.viewport },
-      fonts: [...inputs.fonts].sort(),
-      conditions: { ...inputs.conditions },
-      assets: { ...inputs.assets },
-    }),
+    digest: digestValue({ ...shared, viewport: { ...inputs.viewport } }),
+    semanticDigest: digestValue({ ...shared, viewport: layoutViewport }),
     inputs,
   };
 }

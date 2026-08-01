@@ -22,12 +22,20 @@ import type { MutationId } from './mutations.js';
  * component whose implementation changed — in every story that renders it.
  */
 
-let active: MutationId | null = null;
+/**
+ * A *set*, not a single value.
+ *
+ * A branch carries several edits at once — that is what a branch is — and
+ * modelling one at a time was the shape that made the head-to-head a toy. The
+ * interesting question only appears once changes overlap: which of the five
+ * things in front of me is the one I did not mean to do?
+ */
+let active: ReadonlySet<MutationId> = new Set();
 
-export function setCodeMutation(mutation: MutationId | null): void {
-  active = mutation;
+export function setCodeMutations(mutations: readonly MutationId[]): void {
+  active = new Set(mutations);
 }
 
 export function codeMutationIs(mutation: MutationId): boolean {
-  return active === mutation;
+  return active.has(mutation);
 }

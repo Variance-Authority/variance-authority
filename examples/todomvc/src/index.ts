@@ -14,7 +14,7 @@ export * from './ds/components.js';
 export * from './app/todo.js';
 export { STORIES, STORY_IDS, storyById } from './stories.js';
 export type { Story } from './stories.js';
-export { setCodeMutation, codeMutationIs } from './code-mutation.js';
+export { setCodeMutations, codeMutationIs } from './code-mutation.js';
 export { MUTATIONS, mutationById } from './mutations.js';
 export type { Mutation, MutationId } from './mutations.js';
 export { renderStory } from './render.js';
