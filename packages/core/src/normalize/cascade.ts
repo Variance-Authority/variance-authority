@@ -41,6 +41,18 @@ export interface InheritContext {
   readonly inherited: Readonly<Record<string, string>>;
   /** Custom properties in scope. Every custom property inherits. */
   readonly customProperties: Readonly<Record<string, string>>;
+
+  /**
+   * For each inherited property, the token its value came from.
+   *
+   * Inheritance would otherwise launder away the attribution: a heading that
+   * inherits `color` from a container styled with `var(--brand)` produces a
+   * delta with no token, no owner chain of its own, and therefore its own
+   * `unattributed` root. One token edit would fan out into a docket entry per
+   * inheriting text node — destroying precisely the "one root, N collateral"
+   * claim the token band exists to make.
+   */
+  readonly inheritedTokens?: Readonly<Record<string, string>>;
 }
 
 export const EMPTY_CONTEXT: InheritContext = { inherited: {}, customProperties: {} };
@@ -52,6 +64,14 @@ export interface ResolvedStyle {
   readonly tokens: Readonly<Record<string, string>>;
   /** Where each winning declaration came from. Outside the hash by design. */
   readonly origins: Readonly<Record<string, DeclarationOrigin>>;
+  /**
+   * Which token each property's value came from, including inherited ones.
+   *
+   * Needed because "this node uses tokens" is not specific enough to attribute a
+   * delta: a node may resolve `color` through a token while its `padding` comes
+   * from a literal, and only the first is collateral of a token edit.
+   */
+  readonly propertyTokens: Readonly<Record<string, string>>;
   /** Context to pass to this node's children. */
   readonly childContext: InheritContext;
 }
@@ -108,6 +128,9 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
   // visually different nodes as identical.
   for (const [property, value] of Object.entries(input.context.inherited)) {
     style[property] = value;
+
+    const token = input.context.inheritedTokens?.[property];
+    if (token !== undefined) tokens[token] = value;
   }
 
   for (const [property, candidate] of winners) {
@@ -138,16 +161,44 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
     }
   }
 
+  // Which token drives each property, resolved once and reused for both this
+  // node's own record and what its children inherit.
+  //
+  // The precedence matters: a node with its own winning declaration is described
+  // by *that* declaration's token, or by no token at all — never by the
+  // ancestor's. Falling back to the inherited token when a node declared the
+  // property itself makes a rule that *overrode* a token look like collateral of
+  // it, which splits one docket root into two.
+  const propertyTokens: Record<string, string> = {};
+  for (const property of Object.keys(style)) {
+    const own = origins[property];
+    const token = own !== undefined ? own.tokenName : input.context.inheritedTokens?.[property];
+    if (token !== undefined) propertyTokens[property] = token;
+  }
+
   const childInherited: Record<string, string> = {};
+  const childInheritedTokens: Record<string, string> = {};
+
   for (const [property, value] of Object.entries(style)) {
-    if (INHERITED.has(property)) childInherited[property] = value;
+    if (!INHERITED.has(property)) continue;
+    childInherited[property] = value;
+
+    // Attribution rides along with the value, so a descendant that merely
+    // inherits a token-driven colour is still collateral of that token.
+    const token = propertyTokens[property];
+    if (token !== undefined) childInheritedTokens[property] = token;
   }
 
   return {
     style,
     tokens,
     origins,
-    childContext: { inherited: childInherited, customProperties },
+    propertyTokens,
+    childContext: {
+      inherited: childInherited,
+      customProperties,
+      inheritedTokens: childInheritedTokens,
+    },
   };
 }
 

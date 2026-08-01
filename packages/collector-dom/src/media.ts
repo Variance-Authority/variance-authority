@@ -18,6 +18,16 @@ export interface ConditionEnvironment {
   readonly colorScheme: 'light' | 'dark';
   /** Extra features a project declares, e.g. `prefers-reduced-motion: reduce`. */
   readonly features?: Readonly<Record<string, string>>;
+
+  /**
+   * Engine feature test for `@supports`, or absent when none is available.
+   *
+   * Unlike media queries, `@supports` genuinely asks the *engine* a question, so
+   * a correct answer must come from the engine. That the two profiles may answer
+   * differently is not divergence to be avoided: it is the truth being reported,
+   * and it is why the engine is part of the environment key.
+   */
+  readonly supports?: (condition: string) => boolean | null;
 }
 
 export interface ConditionResult {
@@ -53,16 +63,30 @@ export function evaluateMedia(query: string, environment: ConditionEnvironment):
 }
 
 /**
- * Evaluate a `@supports` prelude.
+ * Evaluate a `@supports` prelude by asking the engine.
  *
- * Whether a declaration is supported is a property of the engine, which this
- * code cannot interrogate portably. `CSS.supports` exists in browsers and is
- * absent or unreliable in JSDOM, so the answer would differ between profiles.
- * Rather than diverge, every `@supports` block is treated as matching and marked
- * uncertain — the over-reporting direction again.
+ * `CSS.supports` turns out to be present and correct in JSDOM as well as in
+ * browsers — it rejects `display: nonsense-value` and accepts `display: grid` —
+ * so the honest answer is available on both profiles after all.
+ *
+ * This was previously hard-coded to "matches", on the assumption that JSDOM
+ * lacked the API. That assumption cost a corpus case: a `@supports` block
+ * guarding an unsupported value was always included, so its rules applied and a
+ * no-op perturbation reported as a change. Over-reporting is the right default
+ * for something genuinely unknowable; it is the wrong answer for something we
+ * simply had not checked.
+ *
+ * Without a probe the old behaviour stands: include, and mark uncertain.
  */
-export function evaluateSupports(_condition: string): ConditionResult {
-  return { matches: true, uncertain: true };
+export function evaluateSupports(
+  condition: string,
+  environment?: ConditionEnvironment,
+): ConditionResult {
+  const probe = environment?.supports;
+  if (!probe) return { matches: true, uncertain: true };
+
+  const answer = probe(condition);
+  return answer === null ? { matches: true, uncertain: true } : { matches: answer, uncertain: false };
 }
 
 function evaluateBranch(branch: string, environment: ConditionEnvironment): ConditionResult {

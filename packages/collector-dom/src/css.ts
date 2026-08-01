@@ -248,7 +248,7 @@ function conditionOf(
   }
 
   if (type === 'CSSSupportsRule' || 'conditionText' in rule) {
-    return evaluateSupports((rule as CSSSupportsRule).conditionText ?? '');
+    return evaluateSupports((rule as CSSSupportsRule).conditionText ?? '', environment);
   }
 
   // `@container`, `@layer`, `@scope`, and anything newer. Container queries in

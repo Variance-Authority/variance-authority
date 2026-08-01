@@ -144,12 +144,35 @@ export function accessibleName(element: Element): string | null {
     return alt === null ? null : alt === '' ? null : normalize(alt);
   }
 
-  const text = element.textContent;
-  if (text && text.trim().length > 0) return normalize(text);
+  // Name from content applies only to roles that support it. A generic `<div>`
+  // has no accessible name, however much text it contains.
+  //
+  // Getting this wrong is not cosmetic. Every wrapper `<div>` was being given
+  // the concatenated text of its subtree as a name, which made it non-inert to
+  // the wrapper-collapse rule — so no wrapper anywhere ever collapsed, and every
+  // wrapper-insertion refactor in the corpus reported as a change. One
+  // over-eager accname fallback silently disabled a whole normalization rule.
+  const role = roleOf(element);
+  if (role !== null && NAME_FROM_CONTENT.has(role)) {
+    const text = element.textContent;
+    if (text && text.trim().length > 0) return normalize(text);
+  }
 
   const title = element.getAttribute('title');
   return title && title.trim().length > 0 ? normalize(title) : null;
 }
+
+/**
+ * Roles whose accessible name may be computed from their contents (ARIA 1.2
+ * §"name from author and content"). Everything else takes a name only from an
+ * explicit label or a `title`.
+ */
+const NAME_FROM_CONTENT = new Set([
+  'button', 'cell', 'checkbox', 'columnheader', 'gridcell', 'heading', 'link',
+  'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'row',
+  'rowheader', 'switch', 'tab', 'tooltip', 'treeitem', 'term', 'definition',
+  'caption', 'legend',
+]);
 
 function nativeLabelFor(element: Element): string | null {
   const id = element.getAttribute('id');

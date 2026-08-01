@@ -5,7 +5,12 @@ import { ALLOWLIST_VERSION, RULESET_VERSION, admitsAttribute } from '../ruleset.
 import type { CanonicalValue } from '../canonical.js';
 import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../snapshot.js';
 import { aliasAttributeValue, aliasStyleValue, buildAliasMap, type AliasResult } from './alias.js';
-import { EMPTY_CONTEXT, resolveStyle, type InheritContext } from './cascade.js';
+import {
+  EMPTY_CONTEXT,
+  INHERITED_PROPERTIES,
+  resolveStyle,
+  type InheritContext,
+} from './cascade.js';
 
 export { buildAliasMap, aliasAttributeValue, aliasStyleValue } from './alias.js';
 export type { AliasMap, AliasResult } from './alias.js';
@@ -65,7 +70,12 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
   };
 
   const styleProvenance: StyleProvenanceEntry[] = [];
-  const state: WalkState = { collapseWrappers, digestText, styleProvenance };
+  const state: WalkState = {
+    collapseWrappers,
+    digestText,
+    styleProvenance,
+    declaredBy: new WeakMap(),
+  };
   const container = normalizeNode(capture, capture.root, aliases, seed, '0', state);
 
   // Portalled subtrees are appended as children of the subject root, each
@@ -120,6 +130,15 @@ interface WalkState {
   readonly collapseWrappers: boolean;
   readonly digestText: boolean;
   readonly styleProvenance: StyleProvenanceEntry[];
+  /**
+   * Properties each node declared *itself*, as opposed to inheriting.
+   *
+   * The wrapper-inertness test needs this distinction and cannot recover it from
+   * the finished node: by then an inherited `color` and a declared `color` are
+   * the same entry in `style`. Keyed by node identity rather than threaded
+   * through the return type, so the recursive shape stays a plain tree walk.
+   */
+  readonly declaredBy: WeakMap<SemanticNode, ReadonlySet<string>>;
 }
 
 function normalizeNode(
@@ -166,6 +185,7 @@ function normalizeNode(
     const alias = rawId !== undefined ? aliases.local.get(rawId) : undefined;
 
     const children = collectChildren(node, resolved.childContext, nodePath);
+    const declaredHere = new Set(Object.keys(resolved.origins));
 
     const text =
       node.text === undefined
@@ -174,7 +194,7 @@ function normalizeNode(
           ? digestValue(node.text)
           : normalizeText(node.text);
 
-    return {
+    const built: SemanticNode = {
       path: nodePath,
       tag: node.tag.toLowerCase(),
       ...(alias !== undefined ? { alias } : {}),
@@ -184,11 +204,17 @@ function normalizeNode(
       attributes,
       style,
       ...(Object.keys(resolved.tokens).length > 0 ? { tokens: resolved.tokens } : {}),
+      ...(Object.keys(resolved.propertyTokens).length > 0
+        ? { styleTokens: resolved.propertyTokens }
+        : {}),
       ...(capture.profile.layout && node.rect ? { rect: node.rect } : {}),
       ...(text !== undefined ? { text } : {}),
       ...(node.provenance ? { provenance: node.provenance } : {}),
       children,
     };
+
+    state.declaredBy.set(built, declaredHere);
+    return built;
   }
 
   function collectChildren(
@@ -205,7 +231,7 @@ function normalizeNode(
       // A collapsed wrapper is replaced by its children in place. Re-pathing them
       // is why collapse must happen during the walk rather than as a later pass:
       // paths must reflect the final tree, or every downstream reference is stale.
-      if (state.collapseWrappers && isInertWrapper(child, candidate)) {
+      if (state.collapseWrappers && isInertWrapper(child, candidate, state)) {
         for (const grandchild of candidate.children) {
           built.push(repath(grandchild, `${nodePath}/${built.length}`));
         }
@@ -231,19 +257,31 @@ function normalizeNode(
  * `color` from above passes that same value to its children either way — its
  * presence changes nothing that renders.
  */
-function isInertWrapper(raw: RawNode, node: SemanticNode): boolean {
+function isInertWrapper(raw: RawNode, node: SemanticNode, state: WalkState): boolean {
   if (node.tag !== 'div' && node.tag !== 'span') return false;
   if (node.role !== undefined || node.name !== undefined || node.state !== undefined) return false;
   if (node.alias !== undefined || node.text !== undefined) return false;
   if (Object.keys(node.attributes).length > 0) return false;
   if (raw.shadowChildren !== undefined && raw.shadowChildren.length > 0) return false;
 
+  const declaredHere = state.declaredBy.get(node) ?? EMPTY_PROPERTIES;
+
   for (const [property, value] of Object.entries(node.style)) {
+    // An *inherited* value passes through the wrapper unchanged — the children
+    // receive it whether or not the wrapper is there — so its presence is not
+    // evidence of anything. A value the wrapper *declared* is different: remove
+    // the wrapper and the children inherit from the grandparent instead, which
+    // is a real change. Only the origin map can tell the two apart; by the time
+    // a node is built, both are just entries in `style`.
+    if (INHERITED.has(property) && !declaredHere.has(property)) continue;
     if (!isInertDeclaration(property, value)) return false;
   }
 
   return true;
 }
+
+const EMPTY_PROPERTIES: ReadonlySet<string> = new Set();
+const INHERITED = new Set(INHERITED_PROPERTIES);
 
 /**
  * Initial values for the properties a bare `div`/`span` legitimately carries.
@@ -252,7 +290,9 @@ function isInertWrapper(raw: RawNode, node: SemanticNode): boolean {
  * ones included — so "declares no styling" cannot be tested by an empty map.
  */
 const INERT_VALUES: Readonly<Record<string, readonly string[]>> = {
-  display: ['block', 'inline'],
+  // `contents` generates no box at all, so a wrapper carrying it is inert by
+  // definition: its children already participate in the parent's layout.
+  display: ['block', 'inline', 'contents'],
   position: ['static'],
   'box-sizing': ['content-box', 'border-box'],
   'overflow-x': ['visible'],

@@ -98,6 +98,17 @@ export interface SemanticNode {
    */
   readonly tokens?: Readonly<Record<string, string>>;
 
+  /**
+   * Which token each styled property resolved through, including by inheritance.
+   *
+   * Outside the hash, like `styleProvenance` and for the same reason: swapping a
+   * literal for a token of the same value renames a source without changing a
+   * render. It exists so the differ can tell *which* property a token edit
+   * explains — `tokens` alone says a node uses tokens, not which of its values
+   * one drove.
+   */
+  readonly styleTokens?: Readonly<Record<string, string>>;
+
   /** Present only under a profile with layout. Absent, never zeroed (ADR-0002). */
   readonly rect?: Rect;
 

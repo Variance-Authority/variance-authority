@@ -738,7 +738,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@variance-authority/collector-dom@workspace:packages/collector-dom":
+"@variance-authority/collector-dom@workspace:^, @variance-authority/collector-dom@workspace:packages/collector-dom":
   version: 0.0.0-use.local
   resolution: "@variance-authority/collector-dom@workspace:packages/collector-dom"
   dependencies:
@@ -759,6 +759,8 @@ __metadata:
   dependencies:
     "@types/react": "npm:^19.2.0"
     "@types/react-dom": "npm:^19.2.0"
+    "@variance-authority/collector-dom": "workspace:^"
+    "@variance-authority/provenance-react": "workspace:^"
     esbuild: "npm:^0.25.0"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"

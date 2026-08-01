@@ -94,6 +94,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     deviceScaleFactor: options.viewport.deviceScaleFactor,
     colorScheme: options.viewport.colorScheme,
     ...(options.features ? { features: options.features } : {}),
+    ...(supportsProbe(view) ? { supports: supportsProbe(view)! } : {}),
   };
 
   const index = indexStyleSheets(document, conditions);
@@ -159,6 +160,8 @@ function captureNode(
     inlineStyle[property] = inline.getPropertyValue(property);
   }
 
+  const provenance = options.provenanceOf?.(element);
+
   const children: RawNode[] = [];
   for (const child of childNodesOf(element)) {
     if (child.nodeType === 1) {
@@ -173,7 +176,7 @@ function captureNode(
       // layout engine, which the declared-only profile does not have — so the
       // node is preserved, and `core` collapses its runs to a single space.
       // Dropping it would be a false `unchanged` for a visible text change.
-      children.push(textNode(child.nodeValue ?? ''));
+      children.push(textNode(child.nodeValue ?? '', provenance));
     }
   }
 
@@ -184,8 +187,6 @@ function captureNode(
       shadowChildren.push(captureNode(child, profile, index, view, options));
     }
   }
-
-  const provenance = options.provenanceOf?.(element);
 
   return {
     tag: element.tagName.toLowerCase(),
@@ -206,13 +207,20 @@ function captureNode(
  *
  * `<p>Hello <b>world</b></p>` has two text runs whose order matters. Folding
  * them into the parent's `text` would report a reordering of prose as no change.
+ *
+ * It carries the parent's owner chain, because that is whose chain it is — React
+ * attaches no fiber expando to a text node, but the component that rendered the
+ * element rendered its text too. Without this, every text delta lands in
+ * `unattributed` and cannot be grouped with the element delta that caused it,
+ * which turns one root into several.
  */
-function textNode(text: string): RawNode {
+function textNode(text: string, provenance: Provenance | undefined): RawNode {
   return {
     tag: '#text',
     attributes: {},
     matchedRules: [],
     text,
+    ...(provenance ? { provenance } : {}),
     children: [],
   };
 }
@@ -286,6 +294,28 @@ const INHERITABLE: readonly string[] = [
   'overflow-wrap', 'visibility', 'direction', 'writing-mode',
   'caption-side', 'border-collapse', 'border-spacing',
 ];
+
+/**
+ * Wrap `CSS.supports`, which throws on a prelude it cannot parse.
+ *
+ * Returns `null` for "could not decide", which the evaluator turns into
+ * include-and-mark-uncertain rather than a silent exclusion.
+ */
+function supportsProbe(view: Window | null): ((condition: string) => boolean | null) | null {
+  // `CSS` is declared as a global var rather than a `Window` member in lib.dom,
+  // but it is reached through the capture's own view — which may be a JSDOM
+  // window, not this realm's global.
+  const css = (view as (Window & { CSS?: { supports?(condition: string): boolean } }) | null)?.CSS;
+  if (!css || typeof css.supports !== 'function') return null;
+
+  return (condition: string): boolean | null => {
+    try {
+      return css.supports!(condition);
+    } catch {
+      return null;
+    }
+  };
+}
 
 /**
  * Decide the profile from what the host can actually do.

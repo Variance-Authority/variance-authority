@@ -191,21 +191,36 @@ function compareNodes(
 }
 
 /**
- * Which custom property used by this node changed value.
+ * The token that explains *this property's* change, if one does.
  *
- * Only tokens whose *resolved value* moved qualify. A node that merely mentions
- * `--color-primary` while that token held is not collateral of anything — its
- * own rule changed, and it is a root.
+ * Two conditions, and both are load-bearing. The property must actually resolve
+ * through the token — a node whose `color` comes from a token and whose padding
+ * comes from a literal is collateral of a token edit only in its colour. And the
+ * token's own value must have moved: a node that merely mentions
+ * `--color-primary` while that token held is not collateral of anything, its own
+ * rule changed, and it is a root.
+ *
+ * Dropping either check splits one docket entry into several. Ignoring the
+ * property meant a rule that overrode a token-driven value got attributed to the
+ * token it had just stopped using.
  */
 function changedTokenFor(
   before: SemanticNode,
   after: SemanticNode,
-  _property: string,
+  property: string,
 ): string | undefined {
-  for (const [name, value] of Object.entries(after.tokens ?? {})) {
-    if (before.tokens?.[name] !== value) return name;
-  }
-  return undefined;
+  const token = before.styleTokens?.[property];
+
+  // The *same* token must drive the property on both sides. A property that
+  // stopped resolving through a token did so because some rule started winning
+  // instead — that rule is the root, and blaming the abandoned token would name
+  // the thing that did not change.
+  if (token === undefined || after.styleTokens?.[property] !== token) return undefined;
+
+  // Undefined on one side counts as a change: a theme override introducing a
+  // token that previously had no value is exactly the case the token band exists
+  // to collapse into one root.
+  return before.tokens?.[token] !== after.tokens?.[token] ? token : undefined;
 }
 
 function sameRect(before: SemanticNode, after: SemanticNode): boolean {
