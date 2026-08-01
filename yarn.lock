@@ -720,7 +720,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react-dom@npm:^19.0.0, @types/react-dom@npm:^19.2.0":
+"@types/react-dom@npm:^19, @types/react-dom@npm:^19.0.0, @types/react-dom@npm:^19.2.0":
   version: 19.2.4
   resolution: "@types/react-dom@npm:19.2.4"
   peerDependencies:
@@ -729,7 +729,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:^19.0.0, @types/react@npm:^19.2.0":
+"@types/react@npm:^19, @types/react@npm:^19.0.0, @types/react@npm:^19.2.0":
   version: 19.2.18
   resolution: "@types/react@npm:19.2.18"
   dependencies:
@@ -743,6 +743,7 @@ __metadata:
   resolution: "@variance-authority/collector-dom@workspace:packages/collector-dom"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/provenance-react": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -764,7 +765,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/provenance-react@workspace:packages/provenance-react":
+"@variance-authority/provenance-react@workspace:^, @variance-authority/provenance-react@workspace:packages/provenance-react":
   version: 0.0.0-use.local
   resolution: "@variance-authority/provenance-react@workspace:packages/provenance-react"
   dependencies:
@@ -1766,7 +1767,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-dom@npm:^19.0.0, react-dom@npm:^19.2.0":
+"react-dom@npm:^19, react-dom@npm:^19.0.0, react-dom@npm:^19.2.0":
   version: 19.2.8
   resolution: "react-dom@npm:19.2.8"
   dependencies:
@@ -1777,7 +1778,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react@npm:^19.0.0, react@npm:^19.2.0":
+"react@npm:^19, react@npm:^19.0.0, react@npm:^19.2.0":
   version: 19.2.8
   resolution: "react@npm:19.2.8"
   checksum: 10c0/5f86bdb56426652fd6d989d30a6f2e603c057272c47c9ca3a3fbe190a3a39ee9ccce937d63cfc039717abed1b8891d6a499134bc35311acc07eafdacd86537cd
@@ -2131,7 +2132,11 @@ __metadata:
   resolution: "variance-authority@workspace:."
   dependencies:
     "@types/node": "npm:^22.10.2"
+    "@types/react": "npm:^19"
+    "@types/react-dom": "npm:^19"
     jsdom: "npm:^30.0.1"
+    react: "npm:^19"
+    react-dom: "npm:^19"
     typescript: "npm:^5.7.2"
     vitest: "npm:^2.1.8"
   languageName: unknown

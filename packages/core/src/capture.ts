@@ -45,6 +45,16 @@ export interface RawCapture {
    */
   readonly inheritedSeed: Readonly<Record<string, string>>;
 
+  /**
+   * Subtrees this subject renders through portals, in fiber traversal order.
+   *
+   * A subject's boundary is a component-tree question, not a DOM-containment
+   * one: `createPortal` renders elsewhere in the document while remaining part
+   * of the tree rooted here. Omitting these makes an opening modal report
+   * `unchanged`, because its own container is byte-identical (ADR-0007).
+   */
+  readonly portals?: readonly RawNode[];
+
   /** Anything the collector could not do. Empty is the expected case. */
   readonly diagnostics: readonly Diagnostic[];
 }

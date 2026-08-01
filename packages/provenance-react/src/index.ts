@@ -42,5 +42,7 @@ export {
 
 export { componentName, fiberComponentName, debugOwnerName, ANONYMOUS } from './names.js';
 
+export { portalContentOf } from './portal.js';
+
 export type { ReactRuntimeInfo, ReactKeyFormat } from './runtime.js';
 export { detectReactVersion, detectReactRuntime } from './runtime.js';

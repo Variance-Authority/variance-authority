@@ -106,6 +106,15 @@ export interface SemanticNode {
 
   readonly provenance?: Provenance;
 
+  /**
+   * `true` on the root of a subtree rendered through a portal.
+   *
+   * Recorded in the structure hash so that "the dialog moved from inline to
+   * portalled" is a change rather than a coincidence of identical content, and
+   * so the docket can say *where* something rendered, not only that it exists.
+   */
+  readonly portalled?: boolean;
+
   readonly children: readonly SemanticNode[];
 }
 

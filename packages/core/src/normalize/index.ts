@@ -44,7 +44,8 @@ export interface NormalizeOptions {
 export function normalize(capture: RawCapture, options: NormalizeOptions = {}): SemanticSnapshot {
   const { collapseWrappers = true, digestText = false } = options;
 
-  const aliases = buildAliasMap(capture.root);
+  const portals = capture.portals ?? [];
+  const aliases = buildAliasMap(capture.root, portals);
   const diagnostics: Diagnostic[] = [...capture.diagnostics];
 
   for (const id of aliases.dangling) {
@@ -64,11 +65,33 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
   };
 
   const styleProvenance: StyleProvenanceEntry[] = [];
-  const root = normalizeNode(capture, aliases, seed, '0', {
-    collapseWrappers,
-    digestText,
-    styleProvenance,
-  });
+  const state: WalkState = { collapseWrappers, digestText, styleProvenance };
+  const container = normalizeNode(capture, capture.root, aliases, seed, '0', state);
+
+  // Portalled subtrees are appended as children of the subject root, each
+  // flagged `portalled`. Appending rather than splicing in place keeps their
+  // paths stable when DOM children are added or removed, and keeps them out of
+  // the wrapper-collapse pass, which reasons about siblings.
+  const root: SemanticNode =
+    portals.length === 0
+      ? container
+      : {
+          ...container,
+          children: [
+            ...container.children,
+            ...portals.map((portal, index) => ({
+              ...normalizeNode(
+                capture,
+                portal,
+                aliases,
+                { inherited: {}, customProperties: seed.customProperties },
+                `0/portal:${index}`,
+                state,
+              ),
+              portalled: true as const,
+            })),
+          ],
+        };
 
   const structureHash = digestValue(structureOf(root));
   const styleHash = digestValue(styleOf(root, capture.profile.layout));
@@ -101,12 +124,13 @@ interface WalkState {
 
 function normalizeNode(
   capture: RawCapture,
+  subtreeRoot: RawNode,
   aliases: AliasResult,
   context: InheritContext,
   path: string,
   state: WalkState,
 ): SemanticNode {
-  return build(capture.root, context, path);
+  return build(subtreeRoot, context, path);
 
   function build(node: RawNode, inherited: InheritContext, nodePath: string): SemanticNode {
     const resolved = resolveStyle({
@@ -296,6 +320,7 @@ function structureOf(node: SemanticNode): CanonicalValue {
   return {
     tag: node.tag,
     alias: node.alias,
+    portalled: node.portalled,
     role: node.role,
     name: node.name,
     state: node.state as CanonicalValue | undefined,

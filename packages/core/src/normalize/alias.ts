@@ -38,19 +38,27 @@ const ID_REFERENCE = new Set(ID_REFERENCE_ATTRIBUTES);
  * pointing forward at a sibling is ordinary markup. Collecting every definition
  * first is what keeps the alias of an id independent of where it is mentioned.
  */
-export function buildAliasMap(root: RawNode): AliasResult {
+export function buildAliasMap(root: RawNode, portals: readonly RawNode[] = []): AliasResult {
   const local = new Map<string, string>();
   const external = new Map<string, string>();
   const dangling: string[] = [];
 
-  walk(root, (node) => {
+  // Portalled content is part of the subject (ADR-0007), so it shares one alias
+  // space with the container. A dialog whose `aria-labelledby` points at a title
+  // inside the portal must resolve, not report as dangling.
+  const roots = [root, ...portals];
+  const walkAll = (visit: (node: RawNode) => void): void => {
+    for (const each of roots) walk(each, visit);
+  };
+
+  walkAll((node) => {
     const id = node.attributes['id'];
     if (id !== undefined && id.length > 0 && !local.has(id)) {
       local.set(id, `#a${local.size}`);
     }
   });
 
-  walk(root, (node) => {
+  walkAll((node) => {
     for (const [name, value] of Object.entries(node.attributes)) {
       for (const reference of referencesIn(name, value)) {
         if (local.has(reference) || external.has(reference)) continue;

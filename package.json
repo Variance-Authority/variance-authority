@@ -15,7 +15,11 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "jsdom": "^30.0.1",
+    "react": "^19",
+    "react-dom": "^19",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

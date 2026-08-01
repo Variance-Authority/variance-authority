@@ -61,6 +61,18 @@ export interface CollectOptions {
    */
   readonly fonts?: readonly string[];
 
+  /**
+   * Elements this subject renders through portals, usually `portalContentOf`
+   * from `@variance-authority/provenance-react`.
+   *
+   * Without it a portalled subtree is invisible: the subject's own container is
+   * byte-identical whether a modal is open or closed, so an opening dialog reads
+   * as `unchanged`. Omitting this on a subject that uses portals is a silent
+   * false negative, which is why the collector reports `portals-not-resolved`
+   * when no provider is supplied (ADR-0007).
+   */
+  readonly portalsOf?: (root: Element) => readonly Element[];
+
   /** Extra media features to evaluate against, e.g. `prefers-reduced-motion`. */
   readonly features?: Readonly<Record<string, string>>;
 
@@ -97,6 +109,18 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     });
   }
 
+  const portalRoots = options.portalsOf?.(root) ?? [];
+
+  if (options.portalsOf === undefined) {
+    diagnostics.push({
+      severity: 'warn',
+      code: 'portals-not-resolved',
+      message:
+        'no portal provider supplied; content rendered through createPortal is outside this ' +
+        'capture, and a subject that portals will report unchanged when that content changes',
+    });
+  }
+
   const capture: RawCapture = {
     captureVersion: 1,
     subject: options.subject,
@@ -111,6 +135,9 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     },
     root: captureNode(root, profile, index, view, options),
     inheritedSeed: inheritedSeed(root, profile, view),
+    ...(portalRoots.length > 0
+      ? { portals: portalRoots.map((host) => captureNode(host, profile, index, view, options)) }
+      : {}),
     diagnostics,
   };
 
