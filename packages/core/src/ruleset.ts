@@ -10,8 +10,22 @@
 /** Bump on any change to normalization behavior. */
 export const RULESET_VERSION = 'r1';
 
-/** Bump on any change to {@link STYLE_ALLOWLIST}. */
-export const ALLOWLIST_VERSION = 'a1';
+/**
+ * Bump on any change to {@link STYLE_ALLOWLIST}.
+ *
+ * `a2` added `accent-color` and `-webkit-text-stroke-width`, both found by
+ * probing a real Chromium against the semantic snapshot: each moves hundreds of
+ * pixels and neither moved the render hash.
+ *
+ * `-webkit-text-stroke-color` was added alongside them and immediately removed.
+ * Its initial value is `currentcolor`, so it moves whenever `color` moves — which
+ * split a colour-token root in two, since the derived property resolves through
+ * no token and looked like an independent cause. Nothing measured it as a gap;
+ * it was added on the assumption that its sibling implied it. Properties whose
+ * computed value derives from another property need the derivation modelled
+ * before they can be admitted.
+ */
+export const ALLOWLIST_VERSION = 'a2';
 
 /**
  * Properties that enter a snapshot.
@@ -63,6 +77,11 @@ export const STYLE_ALLOWLIST: readonly string[] = [
 
   // Paint
   'color', 'opacity', 'background-color', 'background-image',
+  // Native-control painting. `accent-color` restyles checkboxes and radios,
+  // which is exactly the kind of property the rest of this list misses: it
+  // describes what the *engine* paints rather than what the author declares
+  // about a box. See the note below.
+  'accent-color', '-webkit-text-stroke-width',
   'background-position', 'background-size', 'background-repeat',
   'background-clip', 'background-origin',
   'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
@@ -81,6 +100,21 @@ export const STYLE_ALLOWLIST: readonly string[] = [
   'table-layout', 'border-collapse', 'border-spacing', 'caption-side',
 ];
 
+/**
+ * Known weakness, recorded because two additions do not fix it.
+ *
+ * The list above was assembled by asking what an author declares about a box,
+ * and it is good at that. It is poor at properties describing what the *engine*
+ * paints — native control appearance, text decoration painted outside the glyph
+ * box, platform accent colours. `accent-color` and `-webkit-text-stroke-width`
+ * were found in an afternoon of probing a real browser, which is weak evidence
+ * that they are the only two.
+ *
+ * The right response is a systematic audit against the CSS property index rather
+ * than more ad-hoc additions, and until that happens this list should be assumed
+ * to have holes of this shape. A missing property is a false `unchanged`, so the
+ * gap is in the direction that matters.
+ */
 const ALLOWED = new Set(STYLE_ALLOWLIST);
 
 export function isAllowedProperty(property: string): boolean {

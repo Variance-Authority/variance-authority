@@ -79,9 +79,18 @@ export interface TextFieldProps {
 }
 
 export function TextField({ id, label, value, placeholder }: TextFieldProps): ReactNode {
+  // The genuinely camera-invisible defect: the label still renders, identically,
+  // and simply stops pointing at the input. Only an attribute value changes, so
+  // no pixel can move — this is not an argument about how something is painted,
+  // which is where the previous attempt at an invisible defect went wrong.
+  //
+  // The input loses its accessible name. A screen-reader user is told nothing
+  // about what the field is for; clicking the label no longer focuses it.
+  const association = codeMutationIs('label-detached') ? `${id}-detached` : id;
+
   return (
     <>
-      <label className="va-text va-text--sm va-text--muted" htmlFor={id}>
+      <label className="va-text va-text--sm va-text--muted" htmlFor={association}>
         {label}
       </label>
       <input id={id} className="va-field" type="text" value={value} placeholder={placeholder} readOnly />

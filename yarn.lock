@@ -2259,9 +2259,12 @@ __metadata:
   resolution: "variance-authority@workspace:."
   dependencies:
     "@types/node": "npm:^22.10.2"
+    "@types/pngjs": "npm:^6.0.5"
     "@types/react": "npm:^19"
     "@types/react-dom": "npm:^19"
     jsdom: "npm:^30.0.1"
+    pixelmatch: "npm:^7.2.0"
+    pngjs: "npm:^7.0.0"
     react: "npm:^19"
     react-dom: "npm:^19"
     typescript: "npm:^5.7.2"

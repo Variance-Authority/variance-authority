@@ -20,6 +20,7 @@ export type MutationId =
   | 'button-padding'
   | 'filter-reorder'
   | 'broken-toggle'
+  | 'label-detached'
   | 'noop-refactor';
 
 export interface Mutation {
@@ -122,10 +123,33 @@ export const MUTATIONS: readonly Mutation[] = [
     layer: 'page',
     intent: 'Refactor the toggle to a styled div (accidental accessibility regression).',
     code: true,
-    // Pixel-identical by construction: the `<div>` carries the same classes and
-    // therefore the same box, the same background, the same border, the same
-    // radius. A camera sees nothing. A user with a keyboard or a screen reader
-    // loses the control entirely.
+    // CORRECTED. This was declared `visible: false` on a construction argument —
+    // same classes, therefore the same box, background, border and radius — and
+    // real screenshots refuted it: 5482 differing pixels across 6 of 15 stories,
+    // plus a 22px→18px height change.
+    //
+    // The argument was wrong on every clause. An `<input type="checkbox">` is a
+    // *native control*: under `appearance: auto` the engine paints a platform
+    // widget with its own fill, checkmark glyph and UA margin, and the author's
+    // `.va-toggle` rules barely participate. Swapping it for a `<div>` swaps a
+    // painted widget for a flat rounded square.
+    //
+    // The interesting claim survives in a weaker and more defensible form: a
+    // pixel differ *sees* this and cannot *classify* it. Six changed screenshots
+    // look exactly like six changed screenshots from a colour tweak. See
+    // `label-detached` for a defect that genuinely cannot move a pixel.
+    visible: true,
+    expect: { roots: 1, rootKind: 'component', impact: 'structural', structureIntact: false },
+  },
+  {
+    id: 'label-detached',
+    layer: 'design-system',
+    intent: 'Rename a field id; miss the matching htmlFor.',
+    code: true,
+    // Invisible for a reason that needs no argument about painting: the only
+    // thing that changes is an attribute *value*. The label renders identically,
+    // the input renders identically, and nothing about the box tree moves.
+    // Verified at 0 differing pixels by the real pixel arm.
     visible: false,
     expect: { roots: 1, rootKind: 'component', impact: 'structural', structureIntact: false },
   },

@@ -32,10 +32,23 @@ import { STORIES } from './stories.js';
  * control has a role, and no threshold, algorithm, or amount of compute recovers
  * information the sensor never captured.
  *
- * `appearanceHash` is a **proxy**, not a screenshot, and it is checked rather
- * than assumed: `mutations.ts` declares `visible` per mutation from first
- * principles, and a separate run takes real Chromium screenshots to confirm the
- * two agree. Where they disagree, the pixels win and the proxy is wrong.
+ * `appearanceHash` is a **proxy**, not a screenshot, and checking it against real
+ * Chromium screenshots found it wrong — so the limit is stated here rather than
+ * discovered again.
+ *
+ * The proxy models what an author *declares* about a box. It does not model what
+ * an engine *paints*, and native form controls are painted by the engine: under
+ * `appearance: auto` a checkbox gets a platform widget with its own fill,
+ * checkmark and margin, and the author's rules barely participate. So the proxy
+ * reports `broken-toggle` as invisible while the camera measures 5482 differing
+ * pixels across six stories.
+ *
+ * The proxy is therefore **optimistic for the pixel arm's blind spots**: where it
+ * says "invisible" it may be under-reporting. That direction matters, because it
+ * means the comparison below understates rather than overstates how often pixels
+ * see something — the honest direction for a table we are using to argue against
+ * them. `label-detached` is the case that needs no argument at all: only an
+ * attribute value changes, and the real pixel arm measures zero.
  */
 
 const VIEWPORT: Viewport = { width: 1024, height: 768, deviceScaleFactor: 1, colorScheme: 'light' };
@@ -255,33 +268,66 @@ describe('claim 2 — layout and styling are told apart', () => {
   });
 });
 
-describe('claim 3 — the case a camera structurally cannot report', () => {
-  const brokenToggle = MUTATIONS.find((m) => m.id === 'broken-toggle')!;
+describe('claim 3 — the defect a camera cannot report', () => {
+  const detached = MUTATIONS.find((m) => m.id === 'label-detached')!;
 
-  it('is invisible to the pixel arm', () => {
-    // The `<div>` carries the same classes, so the same box, background, border
-    // and radius. Every rendered pixel is identical by construction.
-    const result = compare(brokenToggle);
-    expect(result.pixel.reviewItems).toBe(0);
+  it('cannot move a pixel, and does not', () => {
+    // No argument about painting required: the only thing that changes is an
+    // attribute value. The label renders identically, the input renders
+    // identically, and the box tree is untouched. Confirmed at 0 differing
+    // pixels by the real Chromium arm.
+    expect(compare(detached).pixel.reviewItems).toBe(0);
   });
 
-  it('is caught, banded as geometry, and attributed to a component', () => {
-    const result = compare(brokenToggle);
+  it('is caught and attributed to the component that broke it', () => {
+    const result = compare(detached);
 
     expect(result.semantic.reviewItems).toBeGreaterThan(0);
-    expect(result.semantic.structureIntact).toBe(false);
-    expect(result.semantic.components).toContain('Toggle');
+    expect(result.semantic.components).toContain('TextField');
   });
 
-  it('reports the accessibility facts that were lost', () => {
-    const before = snapshotOf('ds/toggle--states');
-    const after = snapshotOf('ds/toggle--states', brokenToggle);
+  it('names the accessible name that was lost', () => {
+    const before = snapshotOf('ds/field--empty');
+    const after = snapshotOf('ds/field--empty', detached);
     const diff = diffSnapshots(before, after);
 
-    const kinds = new Set(diff.deltas.map((delta) => delta.kind));
-    expect(kinds.has('role-changed') || kinds.has('node-removed') || kinds.has('node-added')).toBe(
-      true,
-    );
+    // The field stops being labelled. That is the regression, and it is the kind
+    // of fact an image does not carry.
+    expect(diff.deltas.some((delta) => delta.kind === 'name-changed')).toBe(true);
+  });
+
+  it('reports the dangling reference as a diagnostic, not silently', () => {
+    const after = snapshotOf('ds/field--empty', detached);
+
+    expect(after.diagnostics.some((d) => d.code === 'dangling-id-reference')).toBe(true);
+  });
+});
+
+describe('claim 3b — what a camera sees but cannot classify', () => {
+  // The weaker, surviving form of a claim that was originally overstated.
+  // `broken-toggle` *is* visible — real screenshots measure 5482 differing pixels
+  // across six stories, because an `<input type="checkbox">` is painted by the
+  // engine and a `<div>` is not. What a pixel differ cannot do is say what it is
+  // looking at.
+  const brokenToggle = MUTATIONS.find((m) => m.id === 'broken-toggle')!;
+
+  it('is one root, named, and flagged as structural', () => {
+    const result = compare(brokenToggle);
+
+    expect(result.semantic.reviewItems).toBe(1);
+    expect(result.semantic.components).toContain('Toggle');
+    expect(result.semantic.structureIntact).toBe(false);
+  });
+
+  it('is separated from a colour change, which a screenshot count cannot be', () => {
+    // Six changed screenshots from an accessibility regression look exactly like
+    // six changed screenshots from a rebrand. Here one is `structural` and rooted
+    // at a component; the other is `paint` and rooted at a token.
+    const paint = compare(MUTATIONS.find((m) => m.id === 'token-accent')!);
+
+    expect(compare(brokenToggle).semantic.impact).toBe('structural');
+    expect(paint.semantic.impact).toBe('paint');
+    expect(paint.semantic.rootKinds).toEqual(['token']);
   });
 });
 

@@ -99,6 +99,27 @@ async function shoot(): Promise<Buffer> {
   return harness!.page.locator(CLIP).screenshot();
 }
 
+/**
+ * Mutations swept in-suite.
+ *
+ * A subset, because sweeping all of them triples the runtime to re-derive
+ * numbers `scripts/pixel-arm.mjs` already records. Chosen so that every
+ * assertion below reads a mutation that was actually shot — the two `visible:
+ * false` claims, which are the load-bearing ones, plus the pair whose changed-
+ * story sets turn out to be identical.
+ *
+ * The invariant test iterates this list rather than `MUTATIONS`, so adding a
+ * mutation without sweeping it fails loudly instead of passing vacuously
+ * against an empty result.
+ */
+const SWEPT: readonly string[] = [
+  'broken-toggle',
+  'label-detached',
+  'noop-refactor',
+  'token-radius',
+  'token-accent',
+];
+
 async function mountAndShoot(subject: string, variant: string): Promise<Buffer> {
   await mount(subject, variant);
   return shoot();
@@ -127,12 +148,7 @@ beforeAll(async () => {
 
   for (const story of STORY_IDS) BASELINES.set(story, await mountAndShoot(story, BASELINE_VARIANT));
 
-  // Only the mutations these assertions read. The full eight are swept by
-  // `scripts/pixel-arm.mjs`; sweeping them here would triple the suite's
-  // runtime to re-derive numbers the journal already records.
-  for (const id of ['broken-toggle', 'noop-refactor', 'token-radius', 'token-accent']) {
-    await sweep(id);
-  }
+  for (const id of SWEPT) await sweep(id);
 
   for (let round = 0; round < FLAKE_ROUNDS; round += 1) {
     await mount('page/todos--populated', BASELINE_VARIANT);
@@ -163,27 +179,45 @@ afterAll(async () => {
 
 describe.skipIf(!BROWSER_AVAILABLE)('pixel arm — the ground truth in mutations.ts', () => {
   /**
-   * The headline correction.
+   * The invariant, checked for every mutation rather than argued for any.
    *
-   * `mutations.ts` declares `broken-toggle` as `visible: false` on the argument
-   * that a `<div>` carrying the toggle's classes is "pixel-identical by
-   * construction". Under a real engine it is not, and it cannot be: an
-   * `<input type="checkbox">` is a **native control**, and Chromium paints it
-   * from the UA stylesheet and the platform theme — a checkmark glyph, its own
-   * accent fill, its own default margin — none of which a `<div>` with the same
-   * class inherits. Six of fifteen stories differ, thousands of pixels at
-   * `pixelmatch`'s own defaults.
+   * `visible` is the field the whole comparison turns on, and it is the field
+   * most easily believed rather than measured. This test is the reason the
+   * declaration was corrected: `broken-toggle` claimed `visible: false` "by
+   * construction", and a real engine measured six of fifteen stories differing
+   * by thousands of pixels — because an `<input type="checkbox">` is a native
+   * control that Chromium paints from the UA stylesheet and the platform theme,
+   * so a `<div>` with the same class inherits none of it.
    *
-   * `mutations.ts` is ground truth and is deliberately not edited to match. The
-   * measurement is recorded here and in journal 0010 instead; what the declared
-   * value should become is a decision for whoever owns the corpus.
+   * Stated as an invariant, the same test now guards every future mutation
+   * against the same mistake, which a one-off refutation would not have done.
    */
-  it('REFUTES broken-toggle: visible: false does not survive real pixels', () => {
-    const declared = MUTATIONS.find((mutation) => mutation.id === 'broken-toggle')!;
-    expect(declared.visible).toBe(false);
+  it('every swept mutation`s declared visibility matches what the camera measures', () => {
+    for (const id of SWEPT) {
+      const mutation = MUTATIONS.find((candidate) => candidate.id === id)!;
+      const changed = CHANGED.get(id);
 
-    expect(CHANGED.get('broken-toggle')!.length).toBeGreaterThan(0);
-    expect(PIXELS.get('broken-toggle/ds/toggle--states')!).toBeGreaterThan(0);
+      // Never `?? []`: an unswept mutation would then read as "camera saw
+      // nothing" and quietly satisfy any `visible: false` claim.
+      expect(changed, `${id} was not swept`).toBeDefined();
+      expect(
+        changed!.length > 0,
+        `${id} declares visible: ${mutation.visible}, camera saw ${changed!.length} changed stories`,
+      ).toBe(mutation.visible);
+    }
+  });
+
+  /**
+   * The defect a camera cannot report, verified rather than reasoned about.
+   *
+   * `label-detached` changes one attribute value. The label renders identically,
+   * the input renders identically, nothing in the box tree moves — so unlike the
+   * corrected `broken-toggle`, its invisibility needs no argument about how
+   * anything is painted.
+   */
+  it('confirms label-detached: an accessibility regression at zero pixels', () => {
+    expect(MUTATIONS.find((mutation) => mutation.id === 'label-detached')!.visible).toBe(false);
+    expect(CHANGED.get('label-detached')).toEqual([]);
   });
 
   /**
@@ -240,15 +274,29 @@ describe.skipIf(!BROWSER_AVAILABLE)('pixel arm — what it catches that we do no
   /**
    * The direction this project is not built to test, tested anyway.
    *
-   * Each probe is a real user-visible change that leaves the semantic render hash
-   * untouched. Two are gaps in `STYLE_ALLOWLIST` and are a one-line fix each;
-   * `canvas-repaint` is not fixable that way at all, because the bitmap is not in
-   * the document. Asserting both halves — pixels moved, hash held — is what makes
-   * this a finding rather than a concession.
+   * Every probe is a real user-visible change; the question is whether the
+   * semantic snapshot notices. Two of the three were allowlist gaps when this was
+   * written — `accent-color` and `-webkit-text-stroke-width` — and both are now
+   * admitted at `ALLOWLIST_VERSION` `a2`, so they moved from "we are blind" to
+   * "we caught it". Their probes stay, as the regression tests for that fix.
+   *
+   * `canvas-repaint` is different in kind and is not fixable by adding
+   * properties: the bitmap lives in a rendering context, not in the document, so
+   * no amount of style collection can see it. It is an *observable* gap, and the
+   * honest thing to do with it is leave it asserted and visible.
    */
-  it.each(PROBES.map((probe) => probe.id))('%s: pixels move, our render hash does not', (id) => {
+  const CAUGHT_AT_A2 = new Set(['accent-color', 'text-stroke']);
+
+  it.each(PROBES.map((probe) => probe.id))('%s: pixels move', (id) => {
     const observed = BLIND.get(id)!;
     expect(observed.pixels).toBeGreaterThan(0);
+
+    if (CAUGHT_AT_A2.has(id)) {
+      // Regression guard: if the allowlist loses these again, a real visual
+      // change goes back to reading as `unchanged`.
+      expect(observed.renderHeld, `${id} should now be caught by the allowlist`).toBe(false);
+      return;
+    }
     expect(observed.renderHeld).toBe(true);
   });
 });
