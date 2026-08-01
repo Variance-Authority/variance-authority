@@ -1,12 +1,29 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/provenance-react" },
-    { "path": "./packages/collector-dom" },
-    { "path": "./packages/session" },
-    { "path": "./packages/harness-playwright" },
-    { "path": "./examples/kitchen-sink" },
-    { "path": "./examples/todomvc" }
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/provenance-react"
+    },
+    {
+      "path": "./packages/collector-dom"
+    },
+    {
+      "path": "./packages/session"
+    },
+    {
+      "path": "./packages/harness-playwright"
+    },
+    {
+      "path": "./packages/raster"
+    },
+    {
+      "path": "./examples/kitchen-sink"
+    },
+    {
+      "path": "./examples/todomvc"
+    }
   ]
 }

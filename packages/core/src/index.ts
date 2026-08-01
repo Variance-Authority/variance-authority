@@ -62,6 +62,25 @@ export type {
 export { locate } from './locate.js';
 export type { Location, LocationStep } from './locate.js';
 
+export { documentDigest, identityDigest } from './document.js';
+export type {
+  RenderDocument,
+  RenderFrame,
+  FrameElement,
+  RenderIdentity,
+  Raster,
+} from './document.js';
+
+export { isolateRegions, attributeRegions } from './region.js';
+export type {
+  ChangeMask,
+  DiffRegion,
+  Isolation,
+  IsolationOptions,
+  AttributedRegion,
+  AttributionOptions,
+} from './region.js';
+
 export { resolveSource, formatSource, indexSource, mergeSourceIndexes } from './source.js';
 export type { SourceIndex, SourceRef, Resolution } from './source.js';
 

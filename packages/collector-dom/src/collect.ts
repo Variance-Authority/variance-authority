@@ -280,7 +280,7 @@ function rectOf(element: Element): { x: number; y: number; width: number; height
  * resolved values, so the seed is empty and the tier is correspondingly weaker.
  * That is reported by the profile, not papered over here.
  */
-function inheritedSeed(
+export function inheritedSeed(
   root: Element,
   profile: ObservationProfile,
   view: Window | null,
@@ -382,7 +382,7 @@ function supportsProbe(view: Window | null): ((condition: string) => boolean | n
  * question the profile answers is "can this host observe geometry", and the way
  * to know is to ask it.
  */
-function detectProfile(view: Window | null): ObservationProfile {
+export function detectProfile(view: Window | null): ObservationProfile {
   if (!view) return JSDOM_PROFILE;
 
   const probe = view.document.createElement('div');

@@ -827,6 +827,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/raster@workspace:packages/raster":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/raster@workspace:packages/raster"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    pixelmatch: "npm:^7.2.0"
+    playwright: "npm:^1.49.0"
+    pngjs: "npm:^7.0.0"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/session@workspace:packages/session":
   version: 0.0.0-use.local
   resolution: "@variance-authority/session@workspace:packages/session"

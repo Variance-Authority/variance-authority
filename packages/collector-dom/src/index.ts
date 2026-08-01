@@ -21,3 +21,6 @@ export { specificityOf, mostSpecific, compareSpecificity, splitSelectorList } fr
 export type { Specificity } from './specificity.js';
 
 export { ariaOf, roleOf, accessibleName, stateOf } from './aria.js';
+
+export { acquireDocument, serializeAttributes, PATH_ATTRIBUTE } from './document.js';
+export type { AcquireOptions } from './document.js';

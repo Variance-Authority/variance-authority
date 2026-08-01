@@ -1,0 +1,223 @@
+import type { Diagnostic, SubjectRef } from './capture.js';
+import type { Viewport } from './environment.js';
+import { digestValue, type Digest } from './hash.js';
+
+/**
+ * The render document: what gets *sent* somewhere to become an image.
+ *
+ * This is the acquisition phase's output and the only thing the rendering side
+ * ever sees. It is plain serializable data for the same reason `RawCapture` is
+ * (ADR-0006): the renderer may be a page in this process, a browser on this
+ * machine, or a pinned container two networks away, and no code upstream of it
+ * may assume which.
+ *
+ * Three routes produce one of these, and the point of the type is that they are
+ * interchangeable:
+ *
+ * 1. **jsdom → document → render elsewhere.** jsdom cannot rasterize. It can
+ *    describe exactly what to rasterize, which is the sub-renderer split ADR-0002
+ *    asks for: the cheap tier decides almost everything, and the residue is
+ *    handed to something that owns a GPU.
+ * 2. **playwright → document → render on a server.** The same payload, acquired
+ *    from a real engine. Used when the *deciding* machine and the *pinned*
+ *    machine are different, which is the case every CI setup actually has.
+ * 3. **playwright → image, here.** No document leaves the process. Cheapest when
+ *    the comparison is ephemeral and both sides are rendered in the same page.
+ *
+ * ## Why this is small
+ *
+ * `css` holds the *applicable* rules only — the pruning of ADR-0003, which on the
+ * todomvc corpus takes 1007 rules to 1. That number is a cost claim as much as a
+ * correctness one: shipping a document over a network hop is only sensible if the
+ * document is not the entire design system plus Storybook's chrome.
+ */
+export interface RenderDocument {
+  readonly documentVersion: 1;
+  readonly subject: SubjectRef;
+
+  /**
+   * The subject subtree, serialized.
+   *
+   * Serialized rather than referenced by URL: a URL makes the renderer
+   * responsible for reproducing the application's state, which it cannot do and
+   * should not try. What is sent is the markup that existed at the moment of
+   * capture, which is the only definition of "this render" that survives a hop.
+   */
+  readonly html: string;
+
+  /**
+   * The ancestor context the subject was rendered inside.
+   *
+   * Not decoration. Pruning keeps rules like `html.dark .card` and
+   * `.app .list > li`, whose left-hand side lives *above* the subject — render
+   * the subtree bare and those rules match nothing, so the image is missing
+   * exactly the styling the collector went to the trouble of proving applies.
+   *
+   * Reproduced as empty open tags rather than by re-rendering the application:
+   * what a selector needs is a chain of elements with the right tags, ids,
+   * classes, and attributes, and nothing above the subject contributes anything
+   * else to it that {@link RenderDocument.inherited} does not already carry.
+   */
+  readonly frame: RenderFrame;
+
+  /**
+   * Applicable stylesheet text, in cascade order.
+   *
+   * Order is load-bearing and is the caller's to preserve — the cascade breaks
+   * specificity ties by document order, so a set that arrives shuffled paints
+   * differently while hashing the same if this were a set rather than a list.
+   */
+  readonly css: readonly string[];
+
+  readonly viewport: Viewport;
+
+  /**
+   * Inherited values in force at the subject root, applied to its wrapper.
+   *
+   * The same requirement as `RawCapture.inheritedSeed` and for the same reason:
+   * pruning drops rules on ancestors outside the subtree, and a font-size
+   * inherited from `<html>` is not optional decoration — dropping it changes
+   * every metric in the image.
+   */
+  readonly inherited: Readonly<Record<string, string>>;
+
+  /**
+   * Fonts the acquiring side observed as loaded.
+   *
+   * Carried, not resolved. A renderer that lacks one of these will substitute
+   * and produce different metrics, and that has to be *detectable* rather than
+   * silently absorbed — see {@link RenderIdentity}.
+   */
+  readonly fonts: readonly string[];
+
+  /** External references, url → content hash. Present so a swap is visible. */
+  readonly assets?: Readonly<Record<string, string>>;
+
+  readonly diagnostics: readonly Diagnostic[];
+}
+
+export interface RenderFrame {
+  /** Attributes on `<html>`. `class="dark"` here decides half a design system. */
+  readonly html: Readonly<Record<string, string>>;
+  readonly body: Readonly<Record<string, string>>;
+  /** Elements between `<body>` and the subject root, outermost first. */
+  readonly ancestors: readonly FrameElement[];
+
+  /**
+   * Used width of the subject's parent box, in CSS pixels, when layout was
+   * observable.
+   *
+   * A subject declaring `width: 100%` is a different size in a 1024px page and
+   * inside a 600px panel, and nothing else in this document says which it was.
+   * Absent under a profile with no layout engine, in which case the render falls
+   * back to the viewport and the difference, if any, is real rather than hidden.
+   */
+  readonly containerWidth?: number;
+}
+
+export interface FrameElement {
+  readonly tag: string;
+  readonly attributes: Readonly<Record<string, string>>;
+}
+
+/**
+ * Content address of a document: *what is to be painted*.
+ *
+ * This is the deferral lever. Rendering is the expensive phase, and a document
+ * whose digest has been rendered before under the same identity has an image
+ * already — so the cheapest render is the one that is skipped. Nothing about the
+ * branch, the commit, or the file path enters this (Principle 4), so moving a
+ * story between files does not cost a re-render.
+ *
+ * Deliberately covers `viewport` in full, `deviceScaleFactor` included: unlike
+ * the semantic key (ADR-0010), a raster genuinely differs at 2x and the whole
+ * purpose of this digest is to address the raster.
+ *
+ * **Limit, stated rather than discovered.** Declaration values arrive serialized
+ * by the acquiring engine's CSSOM — jsdom writes `rgb(18, 52, 86)` where the
+ * author wrote `#123456` — and this phase deliberately does not canonicalize
+ * them, because a collector that normalizes is a second ruleset versioned by
+ * nothing (ADR-0001). So two engines can address the same page differently. That
+ * makes a render cache *per acquiring engine*, which is a missed cache hit and
+ * never a wrong image.
+ */
+export function documentDigest(document: RenderDocument): Digest {
+  return digestValue({
+    documentVersion: document.documentVersion,
+    html: document.html,
+    frame: {
+      html: { ...document.frame.html },
+      body: { ...document.frame.body },
+      ancestors: document.frame.ancestors.map((element) => ({
+        tag: element.tag,
+        attributes: { ...element.attributes },
+      })),
+      ...(document.frame.containerWidth !== undefined
+        ? { containerWidth: document.frame.containerWidth }
+        : {}),
+    },
+    css: [...document.css],
+    viewport: { ...document.viewport },
+    inherited: { ...document.inherited },
+    fonts: [...document.fonts],
+    ...(document.assets ? { assets: { ...document.assets } } : {}),
+  });
+}
+
+/**
+ * Who painted it.
+ *
+ * The durable half of this system rests on one requirement — *images compared
+ * against each other must come from the same machine* — and a requirement that
+ * is merely stated gets violated by a CI runner upgrade nobody announced. This
+ * makes it a value, so it can be compared rather than assumed.
+ *
+ * Every field is something that has been observed to move pixels without moving
+ * markup. None of them is a guess about what *might* matter.
+ */
+export interface RenderIdentity {
+  /** `playwright-chromium@1.49.0`, `remote:render.internal`, … */
+  readonly renderer: string;
+  /** Engine build. A Chromium bump repaints text; that is not a regression. */
+  readonly engine: string;
+  /** OS and architecture. Font rasterization differs across both. */
+  readonly platform: string;
+  readonly deviceScaleFactor: number;
+  /**
+   * Fonts the *renderer* actually has.
+   *
+   * Compared against {@link RenderDocument.fonts} at render time, because a
+   * substituted font is the single most common way two machines disagree, and
+   * it is invisible in every artifact except the image itself.
+   */
+  readonly fonts: readonly string[];
+}
+
+export function identityDigest(identity: RenderIdentity): Digest {
+  return digestValue({
+    renderer: identity.renderer,
+    engine: identity.engine,
+    platform: identity.platform,
+    deviceScaleFactor: identity.deviceScaleFactor,
+    fonts: [...identity.fonts],
+  });
+}
+
+/**
+ * A rendered image and the conditions it was produced under.
+ *
+ * `bytes` is base64 rather than a `Buffer` so the whole value survives the same
+ * hops the document does. A raster that could only exist in Node would make the
+ * remote route a special case in every function that touches one.
+ */
+export interface Raster {
+  readonly documentDigest: Digest;
+  readonly identity: RenderIdentity;
+  /** Device pixels. `width / viewport.width` is the scale, and is asserted. */
+  readonly width: number;
+  readonly height: number;
+  /** PNG, base64. */
+  readonly bytes: string;
+  /** Fonts the document declared that the renderer did not have. */
+  readonly missingFonts: readonly string[];
+}
