@@ -1,0 +1,141 @@
+import type { EnvironmentInputs } from './environment.js';
+import type { ObservationProfile } from './profile.js';
+import type { Provenance } from './provenance.js';
+
+/**
+ * The collector/core boundary.
+ *
+ * Collectors **extract**; `core` **normalizes**. Nothing in this file is a live
+ * object — a `RawCapture` is plain data, fully serializable, produced by touching
+ * a DOM and consumed by code that has never seen one.
+ *
+ * Two properties fall out of that split, and both are the reason for it:
+ *
+ * 1. **One ruleset, by construction.** Normalization is the moat (ADR-0003) and
+ *    the thing most likely to drift between two implementations. If the JSDOM and
+ *    Chromium collectors each normalized their own captures, "the same rules ran"
+ *    would be a claim maintained by discipline. Here it is a fact of the call
+ *    graph: there is one normalizer and both profiles enter it.
+ * 2. **The sub-renderer can be anywhere.** A capture crossing a worker boundary,
+ *    a pipe, or a network hop to a device farm is the same value it was in
+ *    process. No code may assume the collector is local.
+ */
+export interface RawCapture {
+  readonly captureVersion: 1;
+  readonly subject: SubjectRef;
+  readonly profile: ObservationProfile;
+
+  /**
+   * Environment inputs the *collector* is positioned to know — engine version,
+   * fonts actually loaded, resolved conditions, asset hashes. The ruleset and
+   * allowlist versions are `core`'s to supply, so they are absent here and the
+   * key is completed during normalization.
+   */
+  readonly environment: Omit<EnvironmentInputs, 'ruleset' | 'allowlist'>;
+
+  readonly root: RawNode;
+
+  /**
+   * Inherited values in force at the subject root.
+   *
+   * Mandatory, not an optimization. CSS applicability pruning (ADR-0003) drops
+   * every rule that matches nothing inside the subtree — including rules on
+   * ancestors *outside* it whose inheritable properties still reach in. Without
+   * this seed the cheap tier is unsound and will report false `unchanged`.
+   */
+  readonly inheritedSeed: Readonly<Record<string, string>>;
+
+  /** Anything the collector could not do. Empty is the expected case. */
+  readonly diagnostics: readonly Diagnostic[];
+}
+
+export interface SubjectRef {
+  /** Stable across renames of the file, e.g. `story:components-button--primary`. */
+  readonly id: string;
+  readonly kind: 'story' | 'route' | 'fixture';
+  readonly title?: string;
+}
+
+/**
+ * A node exactly as observed, before any rule is applied.
+ *
+ * Raw means raw: `attributes` still holds generated ids and hashed class names,
+ * `matchedRules` still holds cascade losers. Normalization needs the unedited
+ * input — a collector that helpfully pre-cleaned would be a second, invisible
+ * ruleset, versioned by nothing.
+ */
+export interface RawNode {
+  readonly tag: string;
+  readonly attributes: Readonly<Record<string, string>>;
+
+  /** Resolved accessibility properties, when the profile provides them. */
+  readonly aria?: RawAria;
+
+  /**
+   * Rules matching this node, in cascade order, already filtered to the
+   * allowlisted properties. Losing declarations are retained: `core` resolves the
+   * cascade for profiles whose engine did not (ADR-0003 step 5), and cannot do
+   * that from winners alone.
+   */
+  readonly matchedRules: readonly MatchedRule[];
+
+  readonly inlineStyle?: Readonly<Record<string, string>>;
+
+  /** Engine-resolved computed style. Present only when `profile.computedStyle`. */
+  readonly computedStyle?: Readonly<Record<string, string>>;
+
+  /** Present only when `profile.layout`. */
+  readonly rect?: Rect;
+
+  /** Literal text of a text node. Digested during normalization, per policy. */
+  readonly text?: string;
+
+  readonly provenance?: Provenance;
+
+  readonly children: readonly RawNode[];
+
+  /** Nodes inside a shadow root, kept distinct from light-DOM children. */
+  readonly shadowChildren?: readonly RawNode[];
+}
+
+export interface RawAria {
+  readonly role: string | null;
+  readonly name: string | null;
+  /** `checked`, `disabled`, `expanded`, `selected`, … */
+  readonly state: Readonly<Record<string, string | boolean | number>>;
+}
+
+export interface MatchedRule {
+  /** Identifies the origin sheet for attribution: href, or a synthetic id. */
+  readonly sheet: string;
+  readonly selector: string;
+  /** `[idCount, classCount, typeCount]` — CSS specificity, most significant first. */
+  readonly specificity: readonly [number, number, number];
+  /** Document order of the rule. Breaks specificity ties, per the cascade. */
+  readonly order: number;
+  readonly declarations: readonly Declaration[];
+  /** Source position, when the sheet exposes one. Turns a diff into a file:line. */
+  readonly source?: { readonly file: string; readonly line: number };
+}
+
+export interface Declaration {
+  readonly property: string;
+  readonly value: string;
+  readonly important: boolean;
+  /** Custom properties referenced by the value, for token-keyed attribution. */
+  readonly references?: readonly string[];
+}
+
+export interface Rect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface Diagnostic {
+  readonly severity: 'warn' | 'error';
+  readonly code: string;
+  readonly message: string;
+  readonly nodePath?: string;
+}
