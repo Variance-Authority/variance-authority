@@ -8,6 +8,21 @@
  * from its own capture — turning "these tests are flaky in CI" into "`story:card`
  * is order-dependent; `story:button` wrote `sheet:<style:3>`, which `story:card`
  * matched via `.btn`."
+ *
+ * ```
+ * [confirmed] story:card
+ *   cause:    story:toolbar (rendered by Button, Toolbar)
+ *   via:      sheet:<style:0>
+ *   evidence: re-running `story:card` in the same session produced a different
+ *             render hash with no code change; `story:toolbar` wrote
+ *             `sheet:<style:0>`, which this subject matched `.card`
+ *   fix:      make `story:toolbar` clean up `sheet:<style:0>`, or scope it so it
+ *             cannot reach `story:card`
+ * ```
+ *
+ * One caller-side sharp edge: the subject container is the same element every
+ * run, so a React caller must create one root per session and `root.render` per
+ * subject. Calling `createRoot` per subject warns and leaks the previous root.
  */
 
 export { createSession, Session } from './session.js';

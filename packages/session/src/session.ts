@@ -92,6 +92,17 @@ export interface Finding {
   readonly evidence: string;
   /** What an agent should do about it. */
   readonly remedy: string;
+
+  /**
+   * Components the culprit subject rendered, innermost-first, deduplicated.
+   *
+   * A subject id names a *story*; a component name names the file to edit. An
+   * agent handed "story:button polluted story:card" still has to find where the
+   * stylesheet was injected — handed "…, rendered by Button ← Toolbar" it can go
+   * straight there. Empty when no provenance provider was configured, which is
+   * itself worth seeing: it means this session cannot attribute to code.
+   */
+  readonly culpritComponents?: readonly string[];
 }
 
 export interface SessionStats {
@@ -134,6 +145,12 @@ export class Session {
    * `mount` is given the container and is expected to render synchronously. The
    * probe brackets the mount rather than the collection, so that work the
    * *collector* does — which touches nothing — is not mistaken for a write.
+   *
+   * The container is the *same element* every run, which React notices: calling
+   * `createRoot` on it twice warns and leaks the previous root. Callers using
+   * React should create one root per session and call `root.render` per subject.
+   * This is the sharp edge of container reuse, and it is a caller-side concern —
+   * the session cannot own a React root without depending on React.
    */
   run(subject: SubjectRef, mount: (container: HTMLElement) => void): SubjectRun {
     const started = now();
@@ -218,7 +235,13 @@ export class Session {
       confirmed.push({
         confidence: 'confirmed',
         victim: id,
-        ...(culprit ? { culprit: culprit.subject.id, key: culprit.key } : {}),
+        ...(culprit
+          ? {
+              culprit: culprit.subject.id,
+              key: culprit.key,
+              culpritComponents: this.#componentsOf(culprit.subject.id),
+            }
+          : {}),
         evidence:
           `re-running \`${id}\` in the same session produced a different render hash ` +
           `(${short(expected)} → ${short(rerun.snapshot.renderHash)}) with no code change` +
@@ -258,6 +281,7 @@ export class Session {
             confidence: 'suspected',
             victim: victim.subject.id,
             culprit: writer.subject.id,
+            culpritComponents: this.#componentsOf(writer.subject.id),
             key,
             evidence:
               `\`${writer.subject.id}\` wrote \`${key}\`; \`${victim.subject.id}\` ` +
@@ -302,6 +326,39 @@ export class Session {
     return this.#runs;
   }
 
+  /**
+   * Findings as text an agent can act on without re-deriving the diagnosis.
+   *
+   * Confirmed first: those are proven, and an agent working a list should not
+   * spend its first move on a coupling that may never bite.
+   */
+  report(findings: readonly Finding[] = this.findings()): string {
+    if (findings.length === 0) return 'No cross-pollution detected.';
+
+    const ordered = [...findings].sort((a, b) =>
+      a.confidence === b.confidence ? 0 : a.confidence === 'confirmed' ? -1 : 1,
+    );
+
+    return ordered
+      .map((finding) => {
+        const where =
+          finding.culpritComponents && finding.culpritComponents.length > 0
+            ? ` (rendered by ${finding.culpritComponents.join(', ')})`
+            : '';
+
+        return [
+          `[${finding.confidence}] ${finding.victim}`,
+          `  cause:    ${finding.culprit ?? 'none — unstable on its own'}${where}`,
+          finding.key ? `  via:      ${finding.key}` : null,
+          `  evidence: ${finding.evidence}`,
+          `  fix:      ${finding.remedy}`,
+        ]
+          .filter((line) => line !== null)
+          .join('\n');
+      })
+      .join('\n\n');
+  }
+
   dispose(): void {
     this.#container.remove();
   }
@@ -340,6 +397,21 @@ export class Session {
 
   #why(subjectId: string, key: StateKey): string {
     return this.#evidence.get(subjectId)?.get(key) ?? 'reads it';
+  }
+
+  /** Distinct component names a subject rendered, outermost last. */
+  #componentsOf(subjectId: string): readonly string[] {
+    const run = this.#runs.find((candidate) => candidate.subject.id === subjectId);
+    if (!run) return [];
+
+    const names = new Set<string>();
+    const visit = (node: { provenance?: { owners: readonly { name: string }[] }; children: readonly unknown[] }): void => {
+      for (const owner of node.provenance?.owners ?? []) names.add(owner.name);
+      for (const child of node.children) visit(child as Parameters<typeof visit>[0]);
+    };
+    visit(run.snapshot.root);
+
+    return [...names];
   }
 }
 

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@variance-authority/collector-dom": "workspace:^",
-    "@variance-authority/core": "workspace:^"
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/provenance-react": "workspace:^"
   }
 }

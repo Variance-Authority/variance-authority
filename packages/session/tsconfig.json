@@ -10,5 +10,5 @@
   },
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
-  "references": [{ "path": "../core" }, { "path": "../collector-dom" }]
+  "references": [{ "path": "../core" }, { "path": "../collector-dom" }, { "path": "../provenance-react" }]
 }
