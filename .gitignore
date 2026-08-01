@@ -23,3 +23,4 @@ dist
 # Test + capture artifacts
 .variance/
 coverage/
+packages/provenance-react/browser-check/www/bundle.js
