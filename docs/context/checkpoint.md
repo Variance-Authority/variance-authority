@@ -1,7 +1,7 @@
 # Helix checkpoint
 
 **Surface:** this file (git-committed). Epitaphs: [`epitaphs.md`](epitaphs.md).
-**Cycle:** 4
+**Cycle:** 5
 **Reload budget:** one read. Verdicts only — no deliberation, no candidate lists.
 
 ---
@@ -49,6 +49,8 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B7 | **persistent harness** — `packages/harness-playwright`, one browser per run | landed and measured (27×) |
 | B8 | **session** — one standing world, cross-pollution detected rather than prevented | landed and measured (3.5×, ~2% probe overhead) |
 | B9 | **impact axis** — reflow vs repaint, orthogonal to the frequency bands | landed; answers B6's leftover band-cardinality question |
+| B10 | **intent / adjudication** — declared claims vs findings, and the locate/source chain | landed; a report is a cause, a place and a file |
+| B11 | **raster tier** — six phases, two retention modes, MCP surface | landed and measured; found that area ranks the displaced above the displacer |
 
 ---
 
@@ -63,6 +65,9 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M5 | B4+B6+B7 | Persistent harness; settle B6; score `chromium`; compare profiles | **expected after repair** — 31/39 on first run, 39/39 after four fixes, all four real defects, one fix backed out for producing a false `unchanged` under `jsdom` (journal 0007) |
 | M6 | B8 | Stop rinsing; detect and attribute cross-pollution | **expected** — 3.5× faster; found that `:root` tokens never reached any subject under jsdom, so the token band was inert on the cheap tier (journal 0008) |
 | M7 | B9 | Separate reflow from repaint; component roles; cross-subject docket | **expected** — see journal 0009 |
+| M8 | B10 | Intent, policy, adjudication (spec §7.2); ADR-0010's two environment keys | **expected** — `rebrand` and `rebrand-with-accident` change the same 14 screenshots and adjudicate differently |
+| M9 | B10 | `locate` and `source` — landmark orientation, component→file by reading the repo | **expected** — `_debugSource` is gone in React 19, so per-element source is a plugin story nothing tells |
+| M10 | B11 | Raster phases, durable/ephemeral retention (ADR-0011), MCP surface | **mixed** — the offload works and the ranking did not; area measures displacement, so the ordering now comes from the semantic tier (journal 0013) |
 
 ---
 
@@ -101,12 +106,26 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   across subjects and is tested on constructed diffs. No repository has been run
   through it, so "one token, 300 collateral, one action" is demonstrated at 3
   subjects, not 300.
+- **Ranking rests on one measurement.** `rankRegions` fixes an ordering that area
+  gets backwards, on one mutation and one story. The finding is solid; the
+  generality is not measured.
+- **The acquired document is not proven faithful.** It paints something with the
+  subject's geometry that responds to its styling, over a socket, byte-identically
+  — which is enough to offload and is not the same claim as "the image matches the
+  page it was acquired from".
+- **The MCP layer has never served a real agent.** Four tools shaped by argument
+  about what an agent needs, tested against text rather than against use.
+- **The font probe reports metric-compatible substitutes as missing.** A false
+  alarm rather than a false `unchanged`, and the same hole as "one machine".
 
 ---
 
 ## Next
 
-**Band cardinality**, then the raster stage. The first is what makes the
-`chromium` verdicts actionable as policy; the second is the only thing that can
-turn "27x cheaper than relaunching a browser" into "cheaper than a screenshot",
-which is the claim the product is sold on.
+The raster stage landed, so the open question moved. What is unmeasured now is
+**generality**: one corpus, one mutation behind the ranking, one machine behind
+every ratio, and an MCP surface nothing has used. The cheapest thing that would
+move any of those is running the whole chain over a repository that is not ours.
+
+**Band cardinality** remains where B9 left it — a policy decision about which
+axis to gate on, not a modelling gap.

@@ -76,9 +76,7 @@ export async function createPlaywrightRenderer(
           await page.evaluate(() => window.document.fonts.ready);
         }
 
-        const missingFonts = await page.evaluate((families: readonly string[]) => {
-          return families.filter((family) => !window.document.fonts.check(`16px "${family}"`));
-        }, familiesOf(document.fonts));
+        const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
 
         const subject = page.locator(`[data-va-path="${SUBJECT_PATH}"]`);
         const bytes = await subject.screenshot({ type: 'png' });
@@ -117,6 +115,50 @@ export async function createPlaywrightRenderer(
     await browser.close();
     throw error;
   }
+}
+
+/**
+ * Which of these families the renderer does not actually have.
+ *
+ * `document.fonts.check` was the obvious mechanism and it is the wrong one. It
+ * answers "are the fonts needed to render this text loaded", which for a family
+ * that is not declared in any `@font-face` is trivially yes — the browser will
+ * fall back and paint something. It returned `true` for a family invented on the
+ * spot, so a substitution check built on it reports nothing, always.
+ *
+ * Metrics are the only honest signal available inside a page. A family that
+ * resolves changes the measured width of a string away from the generic it would
+ * otherwise fall back to; a family that does not resolve measures identically to
+ * the generic, on all three of them. Three generics rather than one because a
+ * real font can coincidentally match one of them in width.
+ *
+ * Runs in the page, so it is written as a standalone function with no closure
+ * over anything in this module.
+ *
+ * **Limit.** A font that is genuinely metric-compatible with a generic — the
+ * point of Arimo, Liberation Sans, and the metric-compatible substitutes a Linux
+ * container ships precisely so that layout does not move — reads as missing here.
+ * That is a false alarm, and it errs toward reporting a doubt rather than
+ * swallowing one. The reliable answer needs the font *bytes*, which is why the
+ * environment key takes font identities as caller-supplied content hashes
+ * (spec §11.1) rather than trusting anything a page can observe.
+ */
+function probeFonts(families: readonly string[]): string[] {
+  const canvas = window.document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (context === null) return [];
+
+  const GENERICS = ['monospace', 'sans-serif', 'serif'];
+  const SAMPLE = 'mmmmmmmmmmlliWWWWQ@#0123456789';
+
+  const widthOf = (stack: string): number => {
+    context.font = `72px ${stack}`;
+    return context.measureText(SAMPLE).width;
+  };
+
+  return families.filter((family) =>
+    GENERICS.every((generic) => widthOf(`"${family}",${generic}`) === widthOf(generic)),
+  );
 }
 
 /**
