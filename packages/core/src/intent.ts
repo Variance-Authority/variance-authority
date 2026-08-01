@@ -1,6 +1,7 @@
 import type { Band } from './band.js';
 import type { Docket, DocketEntry } from './docket.js';
 import type { AggregateImpact } from './impact.js';
+import { formatSource, resolveSource, type SourceIndex } from './source.js';
 import type { Verdict } from './verdict.js';
 
 /**
@@ -223,14 +224,30 @@ function adjudicateEntry(
   };
 }
 
+export interface ReportOptions {
+  /**
+   * Component → file, so a finding names an edit rather than an identifier.
+   *
+   * Optional, and the report degrades to component names without it — which is
+   * what it said before this existed. Better a coarser sentence than a confident
+   * wrong path.
+   */
+  readonly source?: SourceIndex;
+}
+
 /**
  * Render an adjudication as the thing a reviewer or agent actually reads.
  *
- * Ordered worst-first and with authorized roots collapsed to a count. A report
- * that lists four expected changes above the one unexpected one has buried its
- * only finding — which is precisely what a screenshot gallery does.
+ * The shape follows what a report has to defeat. "Looks right, merge" happens
+ * when the output is a picture, so this is a sentence with a cause in it. "100
+ * changes? merge" happens when the output is a list as long as the change is
+ * wide, so authorized roots collapse to a count and only findings get a line.
+ *
+ * Each finding carries three things in order: *what* changed, *where* it is, and
+ * *which file* to open. Anything less and the reader has to go and find out —
+ * which, at review time, means they will not.
  */
-export function summarizeAdjudication(result: Adjudicated): string {
+export function summarizeAdjudication(result: Adjudicated, options: ReportOptions = {}): string {
   const notable = result.adjudications.filter((a) => a.verdict !== 'authorized');
 
   const header =
@@ -240,12 +257,32 @@ export function summarizeAdjudication(result: Adjudicated): string {
 
   const lines = notable
     .sort((a, b) => (a.verdict === 'violation' ? -1 : b.verdict === 'violation' ? 1 : 0))
-    .map((a) => {
-      const components = a.entry.components
-        .filter((component) => component.role === 'root')
-        .map((component) => component.name);
-      const where = components.length > 0 ? ` — ${components.join(', ')}` : '';
-      return `  [${a.verdict}] ${a.label}${where}\n      ${a.because}`;
+    .flatMap((a) => {
+      const roots = a.entry.components.filter((component) => component.role === 'root');
+
+      const files = roots
+        .map((component) => (options.source ? resolveSource(component.name, options.source) : null))
+        .filter((resolution): resolution is NonNullable<typeof resolution> => resolution !== null)
+        .map(formatSource);
+
+      const named = roots.map((component) => component.name).join(', ');
+      const head = `  [${a.verdict}] ${a.label}${named ? ` — ${named}` : ''}`;
+
+      // Location comes from the deltas rather than the entry: a root spans
+      // subjects, and "where" is only meaningful for a place. The first one is
+      // representative and the count says how many others there are.
+      const places = a.entry.places;
+      const place =
+        places.length === 0
+          ? null
+          : `      in ${places[0]}${places.length > 1 ? ` (+${places.length - 1} more places)` : ''}`;
+
+      return [
+        head,
+        `      ${a.because}`,
+        place,
+        files.length > 0 ? `      ${files.join(' | ')}` : null,
+      ].filter((line): line is string => line !== null);
     });
 
   const undelivered = result.undelivered.map(

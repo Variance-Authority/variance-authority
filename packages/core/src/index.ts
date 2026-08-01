@@ -59,6 +59,12 @@ export type {
   Matching,
 } from './diff/index.js';
 
+export { locate } from './locate.js';
+export type { Location, LocationStep } from './locate.js';
+
+export { resolveSource, formatSource, indexSource, mergeSourceIndexes } from './source.js';
+export type { SourceIndex, SourceRef, Resolution } from './source.js';
+
 export { adjudicate, summarizeAdjudication } from './intent.js';
 export type { Intent, IntentClaim, Policy, Adjudication, Adjudicated } from './intent.js';
 

@@ -61,6 +61,14 @@ export interface Delta {
   /** Nearest ARIA landmark, so location reads as "right panel", not coordinates. */
   readonly region?: string;
 
+  /**
+   * Where this is, spoken outside-in: `main → region "Todos" → list item 2 of 3`.
+   *
+   * A path is an address and a rect is a coordinate; neither survives the next
+   * reflow or tells anyone where to look. See `locate.ts`.
+   */
+  readonly where?: string;
+
   readonly rectFrom?: Rect;
   readonly rectTo?: Rect;
 

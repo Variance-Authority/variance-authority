@@ -46,6 +46,16 @@ export interface DocketEntry {
   readonly sample: readonly string[];
 
   /**
+   * Distinct places this root's changes were observed, most common first.
+   *
+   * Carried on the entry rather than derived from deltas at report time, because
+   * an entry spans subjects and the deltas behind it are not kept. Three is
+   * enough to orient without turning a collapsed root back into a list — the
+   * thing collapsing it was for.
+   */
+  readonly places: readonly string[];
+
+  /**
    * `true` when nothing under this root added, removed, moved, or renamed a node.
    *
    * The other half of the sentence the product promises. "One token change, 300
@@ -196,8 +206,24 @@ function finalize(entry: Accumulator, sampleSize: number): DocketEntry {
       }))
       .sort((a, b) => b.deltaCount - a.deltaCount || a.name.localeCompare(b.name)),
     sample: subjects.slice(0, sampleSize),
+    places: rankedPlaces(entry.deltas),
     structureIntact: !entry.deltas.some(isStructural),
   };
+}
+
+/** Distinct `where` phrases, most frequent first, capped. */
+function rankedPlaces(deltas: readonly Delta[]): readonly string[] {
+  const counts = new Map<string, number>();
+
+  for (const delta of deltas) {
+    if (delta.where === undefined || delta.where === '') continue;
+    counts.set(delta.where, (counts.get(delta.where) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([where]) => where);
 }
 
 /**

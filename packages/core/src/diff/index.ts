@@ -6,6 +6,7 @@ import type { SemanticNode, SemanticSnapshot } from '../snapshot.js';
 import { observableBands } from '../profile.js';
 import type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
 import { matchTrees } from './match.js';
+import { locate } from '../locate.js';
 
 export type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
 export { deltaSignature } from './delta.js';
@@ -115,16 +116,33 @@ export function diffSnapshots(
     compareNodes(before, after, deltas, candidate.profile.layout);
   }
 
-  const roots = attribute(deltas, matching, environmentDeltas);
+  // Orientation is attached after the deltas exist, in one pass over the
+  // candidate tree. Doing it during comparison would locate against whichever
+  // tree that comparison happened to be holding, and a removal must be located
+  // in the tree it was removed *from* — see below.
+  const located = deltas.map((delta) => {
+    const tree = delta.kind === 'node-removed' ? baseline.root : candidate.root;
+    const where = locate(tree, delta.path);
+
+    return where.where === ''
+      ? delta
+      : {
+          ...delta,
+          where: where.where,
+          ...(where.region !== undefined ? { region: where.region } : {}),
+        };
+  });
+
+  const roots = attribute(located, matching, environmentDeltas);
 
   return {
     subjectId: candidate.subject.id,
     identical: false,
     environmentDeltas,
-    deltas,
+    deltas: located,
     roots,
-    components: componentsOf(deltas, roots),
-    impact: aggregateImpact(deltas.map(impactTag)),
+    components: componentsOf(located, roots),
+    impact: aggregateImpact(located.map(impactTag)),
     unobserved,
   };
 }
