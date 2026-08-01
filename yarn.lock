@@ -450,6 +450,14 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@variance-authority/collector-dom@workspace:packages/collector-dom":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/collector-dom@workspace:packages/collector-dom"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/core@workspace:^, @variance-authority/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@variance-authority/core@workspace:packages/core"

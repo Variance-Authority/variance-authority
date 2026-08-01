@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "./packages/core" }, { "path": "./packages/provenance-react" }]
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/provenance-react" },
+    { "path": "./packages/collector-dom" }
+  ]
 }
