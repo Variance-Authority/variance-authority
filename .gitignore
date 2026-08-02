@@ -28,3 +28,4 @@ packages/provenance-react/browser-check/www/bundle.js
 # Agent worktrees
 .claude/worktrees/
 docker/results/
+storybook-static/
