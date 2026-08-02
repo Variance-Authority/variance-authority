@@ -29,7 +29,7 @@ The specific consequences, so they are not left to be inferred:
 | A hosted dashboard designers and PMs use without repo access | A JSON report and four MCP tools |
 | Years of contact with third-party component libraries | One corpus, written by the same people who wrote the implementation |
 | Support, SLAs, and someone to call | A git repository |
-| MIT (Argos), or a commercial contract legal can sign | **No LICENSE file. `private: true`, no `license` field — by default, all rights reserved.** Nothing here is licensed for anyone to use, and that is where an evaluation ends before any of the below matters |
+| MIT (Argos), or a commercial contract legal can sign | No licence chosen yet. The project is scaffolding — nothing is published and no distribution has been decided, so there is nothing to license *to* anyone. A reader evaluating it for adoption should read the rest as a description of an approach rather than of something obtainable |
 | A working install path: `npx`, a token, a green check on a PR | A CLI that has never been executed against a real project ([§4.2](#42-nothing-above-the-cli-boundary-has-been-run)) |
 | Linux CI, verified by every customer who runs it | Every measurement in this repository from one M-series Mac |
 
