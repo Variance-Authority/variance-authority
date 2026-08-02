@@ -1,0 +1,135 @@
+name: variance
+
+# An example workflow, meant to be copied and edited rather than read as the only
+# way to wire this up. Everything in it that is a decision is commented as one.
+#
+# ## Why this runs in a pinned container
+#
+# A durable baseline is machine-bound (ADR-0011): a raster is keyed by renderer
+# identity, and a run whose identity does not match the stored one reports
+# `incomparable` rather than inventing a diff. `ubuntu-latest` is a moving image
+# with a moving Chromium, so a suite pinned to it would go `incomparable` on
+# somebody else's schedule — every baseline invalidated by an infrastructure
+# update nobody in the repository approved.
+#
+# The image below is the one `docker/linux-verify.Dockerfile` uses, so the
+# baselines this workflow writes are comparable with the ones produced there. Pin
+# it by digest for a guarantee that survives a tag being moved.
+#
+# ## Why `pull_request` and not `pull_request_target`
+#
+# `pull_request` gives a fork's run a read-only token, so the docket cannot be
+# posted as a comment on a pull request from a fork. That is a real limitation and
+# it is the correct trade: `pull_request_target` would run the fork's own code —
+# its build, its collector module, its dependencies — with a token that can write
+# to this repository. The comment step warns and continues in that case, and the
+# check's verdict still arrives as the exit code, which no token can change.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# Read the code, write one comment. `contents: write` is deliberately absent: see
+# the commit-baselines note on the action step below.
+permissions:
+  contents: read
+  pull-requests: write
+
+# One run per branch. The poster looks for its previous comment and then writes,
+# and those two steps are not atomic — two runs racing on the same branch can both
+# conclude there is no previous comment and both create one, which is exactly the
+# duplication the marker exists to prevent.
+concurrency:
+  group: variance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  variance:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.49.0-noble
+      # Chromium's renderer processes need more shared memory than a container's
+      # default 64MB, and the failure without this is a browser that dies partway
+      # through a suite — which arrives as a coverage hole, not as a crash.
+      options: --ipc=host
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Only needed with commit-baselines on: without it the workspace
+          # sits on a detached merge commit, and the action refuses to push from
+          # there rather than rewriting the branch with the merge.
+          ref: ${{ github.head_ref }}
+
+      - id: config
+        name: is there anything to observe
+        shell: bash
+        run: |
+          # This repository does not commit a variance config yet, and a workflow
+          # that fails on every pull request because a file it needs was never
+          # written teaches people to ignore the check before it has ever run.
+          # Delete this step once the config exists.
+          if [ -f variance.config.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::no variance.config.json in this repository, so nothing was observed."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.config.outputs.present == 'true'
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - if: steps.config.outputs.present == 'true'
+        shell: bash
+        run: yarn build
+
+      - if: steps.config.outputs.present == 'true'
+        id: variance
+        uses: ./.github/actions/variance
+        with:
+          config: variance.config.json
+          profile: chromium
+          command: node packages/cli/dist/bin.js
+          intent: ${{ github.event.pull_request.title }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+          # The comment counts collateral instead of listing it, so the reader
+          # needs somewhere to go for the rest. This link is honest only because
+          # the upload step below exists; the action never infers it.
+          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          # OFF, and it stays off unless somebody decides otherwise on purpose.
+          #
+          # Turning this on makes a bot push a commit to the *contributor's*
+          # branch. That is not a formatting nit: it rewrites work in progress
+          # under somebody who did not ask for it, it invalidates whatever they
+          # had checked out locally, and on a fork it cannot work at all because
+          # the token is read-only. A tool that rewrites branches without being
+          # asked is a tool people disable.
+          #
+          # Worse, and specific to this action: the CLI's `accept` takes `--all`,
+          # so enabling this accepts *changed* subjects as well as new ones. The
+          # regression the check was added to catch gets promoted to the baseline
+          # by the same run that found it, and the next run is green. Turned on,
+          # this check has stopped being a gate and has become a recorder.
+          #
+          # It also needs `permissions: contents: write` above, and the
+          # `ref: ${{ github.head_ref }}` on the checkout step.
+          commit-baselines: 'false'
+
+      # The operator's decision, and the only thing this workflow sends anywhere.
+      # GitHub's own artifact store, on the instance already running the job.
+      # Delete it and the run-url line above together, or keep both — a link to
+      # artifacts that were never uploaded is worse than no link.
+      #
+      # The path is the CLI's default report directory. It has to match the
+      # `report` and `images` paths in variance.config.json, and nothing checks
+      # that it does: a config that moved them would upload an empty artifact
+      # behind a link the comment still prints.
+      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-report
+          path: .variance/
+          if-no-files-found: warn

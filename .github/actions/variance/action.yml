@@ -1,0 +1,292 @@
+name: variance
+description: >-
+  Run variance-authority over a change, put the docket on the pull request, and
+  fail the check from the CLI's exit code.
+
+# A composite action, not a JavaScript one, and not a container one.
+#
+# A JavaScript action would be a second implementation of everything the CLI
+# already does — argument handling, config reading, verdicts — bundled into a
+# committed `dist/` that nobody reviews and that drifts from the CLI it claims to
+# wrap. A container action would pin an image here, where the operator cannot see
+# it, for a tool whose entire premise is that the renderer's identity is part of
+# the measurement (ADR-0011): the image a baseline was painted in belongs in the
+# operator's workflow, next to the baselines, not hidden inside an action.
+#
+# So this is bash around `variance run`. Every decision it makes is a decision the
+# CLI already made, and the two things it adds — a comment and an optional commit
+# — are the two things a command line cannot do for itself.
+#
+# ## The check's colour comes from the exit code, and from nothing else
+#
+# `exit.ts` reserves `0` for "nothing needs review", `1` for "the run happened and
+# found something a person must look at", and `2` for "the run did not happen as
+# configured". Those three integers are the contract. Nothing in this file greps
+# the CLI's output, because a check whose colour depends on a sentence is a check
+# that silently changes meaning the day somebody improves the wording — and the
+# improvement would look like a documentation change in review.
+#
+# `2` additionally suppresses the comment and the commit-back. A run that never
+# launched a renderer has no report worth quoting and no baselines worth
+# promoting; posting the previous run's report as though it were this one's is the
+# stale-finding failure, and accepting baselines from it would overwrite the only
+# copy of what a subject used to look like.
+
+inputs:
+  config:
+    description: >-
+      Path to the variance config, relative to `working-directory`. Every path the
+      action needs afterwards — the report, the baseline store — is read from this
+      file rather than repeated as an input, so the two can never disagree.
+    required: false
+    default: variance.config.json
+
+  profile:
+    description: >-
+      `jsdom` or `chromium`. Empty leaves the config's own profile in force; this
+      is an override for a workflow that runs the same config at two tiers, not a
+      default.
+    required: false
+    default: ''
+
+  subjects:
+    description: 'Glob over subject ids. Non-matching subjects are reported as excluded, never dropped.'
+    required: false
+    default: ''
+
+  intent:
+    description: 'What this run is comparing, in the operator’s words. Carried into the comment.'
+    required: false
+    default: ''
+
+  command:
+    description: >-
+      How to invoke the CLI. Split on whitespace, so `node packages/cli/dist/bin.js`
+      works as well as a bin on PATH. `--no-install` is deliberate: nothing about a
+      run may be downloaded while it is happening, or the render inputs stop being
+      the ones in the repository.
+    required: false
+    default: npx --no-install variance
+
+  working-directory:
+    description: 'Directory to run in. Also where `@variance-authority/cli` is resolved from.'
+    required: false
+    default: '.'
+
+  comment:
+    description: 'Post the docket to the pull request. One comment, updated in place.'
+    required: false
+    default: 'true'
+
+  commit-baselines:
+    description: >-
+      Accept every changed subject and push the regenerated baselines to the pull
+      request's head branch, as a bot. OFF by default, and read the note in
+      `.github/workflows/variance.yml` before turning it on: it rewrites a
+      contributor's branch, and because the CLI's `accept` takes `--all`, it
+      accepts changed subjects as well as new ones — which means the check stops
+      being a gate on the very changes it was added to gate.
+    required: false
+    default: 'false'
+
+  commit-message:
+    required: false
+    default: 'chore(variance): regenerate baselines'
+
+  github-token:
+    description: >-
+      Token used to read and write the pull-request comment. Nothing is sent
+      anywhere else. A `pull_request` run from a fork receives a read-only token,
+      and the comment step warns rather than failing in that case.
+    required: false
+    default: ''
+
+  run-url:
+    description: >-
+      Link printed in the comment for the full report. Empty by default and
+      deliberately not inferred: this action uploads nothing, so a link is only
+      honest if the operator published something to link to.
+    required: false
+    default: ''
+
+outputs:
+  exit-code:
+    description: '0 nothing needs review, 1 changes need review, 2 the run did not happen.'
+    value: ${{ steps.run.outputs.exit-code }}
+  report:
+    description: 'Absolute path to the run report, resolved from the config.'
+    value: ${{ steps.locate.outputs.report }}
+  baselines:
+    description: 'Absolute path to the baseline store, or empty under ephemeral retention.'
+    value: ${{ steps.locate.outputs.baselines }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      name: variance run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+        VARIANCE_PROFILE: ${{ inputs.profile }}
+        VARIANCE_SUBJECTS: ${{ inputs.subjects }}
+        VARIANCE_INTENT: ${{ inputs.intent }}
+      run: |
+        set -uo pipefail
+
+        args=(run --config "$VARIANCE_CONFIG")
+        if [ -n "$VARIANCE_PROFILE" ]; then args+=(--profile "$VARIANCE_PROFILE"); fi
+        if [ -n "$VARIANCE_SUBJECTS" ]; then args+=(--subjects "$VARIANCE_SUBJECTS"); fi
+        if [ -n "$VARIANCE_INTENT" ]; then args+=(--intent "$VARIANCE_INTENT"); fi
+
+        # `if` rather than `set +e`: the condition of an `if` is exempt from
+        # errexit, so the code is captured without ever disarming the shell for
+        # the lines that follow. Losing the exit code here would lose the only
+        # thing this action reads.
+        #
+        # $VARIANCE_COMMAND is intentionally unquoted, so `node path/to/bin.js`
+        # splits into a command and its argument.
+        # shellcheck disable=SC2086
+        if $VARIANCE_COMMAND "${args[@]}"; then code=0; else code=$?; fi
+
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "variance exited $code"
+
+    - id: locate
+      name: locate the report
+      # Skipped on 2 for the reason in the header: the config was refused, so
+      # there is no report from this run and the one on disk belongs to another.
+      if: ${{ steps.run.outputs.exit-code != '2' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_CONFIG: ${{ inputs.config }}
+      run: |
+        node "${{ github.action_path }}/locate-artifacts.mjs" "$VARIANCE_CONFIG" >> "$GITHUB_OUTPUT"
+
+    - id: render
+      name: render the docket
+      if: ${{ inputs.comment == 'true' && steps.run.outputs.exit-code != '2' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_REPORT: ${{ steps.locate.outputs.report }}
+        VARIANCE_RUN_URL: ${{ inputs.run-url }}
+      run: |
+        node "${{ github.action_path }}/render-comment.mjs" \
+          --report "$VARIANCE_REPORT" \
+          --body-file "$RUNNER_TEMP/variance-comment.md" \
+          --run-url "$VARIANCE_RUN_URL"
+
+    - name: post the docket
+      if: ${{ inputs.comment == 'true' && steps.run.outputs.exit-code != '2' }}
+      shell: bash
+      env:
+        # Through the environment rather than interpolated into the command line:
+        # a `${{ }}` expression is pasted into the script before bash sees it, so
+        # a value carrying a quote would become shell syntax.
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        VARIANCE_MARKER: ${{ steps.render.outputs.marker }}
+      run: |
+        node "${{ github.action_path }}/post-comment.mjs" \
+          --body-file "$RUNNER_TEMP/variance-comment.md" \
+          --marker "$VARIANCE_MARKER"
+
+    - name: commit regenerated baselines
+      if: ${{ inputs.commit-baselines == 'true' && steps.run.outputs.exit-code != '2' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+        VARIANCE_BASELINES: ${{ steps.locate.outputs.baselines }}
+        VARIANCE_RETENTION: ${{ steps.locate.outputs.retention }}
+        VARIANCE_MESSAGE: ${{ inputs.commit-message }}
+        VARIANCE_BRANCH: ${{ github.head_ref }}
+      run: |
+        set -euo pipefail
+
+        if [ "$VARIANCE_RETENTION" = "ephemeral" ] || [ -z "$VARIANCE_BASELINES" ]; then
+          echo "::error::commit-baselines is on, but this config stores no baselines; ephemeral retention renders both sides in one run and keeps nothing"
+          exit 2
+        fi
+
+        if [ -z "$VARIANCE_BRANCH" ]; then
+          echo "::error::commit-baselines needs a pull_request event; this one has no head branch"
+          exit 2
+        fi
+
+        # The check that prevents the worst outcome this step can produce. On a
+        # `pull_request` event `actions/checkout` leaves the workspace on a
+        # detached merge commit, and pushing from there would put the merge — not
+        # the contributor's work — on their branch. The workflow has to check out
+        # the head ref explicitly; refusing here is how that requirement becomes
+        # visible instead of becoming a corrupted branch.
+        current="$(git rev-parse --abbrev-ref HEAD)"
+        if [ "$current" != "$VARIANCE_BRANCH" ]; then
+          echo "::error::the workspace is on '$current', not '$VARIANCE_BRANCH'; give actions/checkout the pull request head ref before enabling commit-baselines, because pushing from a merge ref would rewrite the branch with the merge"
+          exit 2
+        fi
+
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all
+
+        git add -- "$VARIANCE_BASELINES"
+
+        if git diff --cached --quiet; then
+          echo "no baseline changed; nothing to commit"
+          exit 0
+        fi
+
+        # One commit, containing image artifacts and the sidecars without which an
+        # image is not a baseline — the sidecar carries the width, the scale, and
+        # the document digest that `settle` compares against on the next run. A
+        # staged path that is neither is a bug in this step, and it stops here
+        # rather than riding into a contributor's branch.
+        unexpected="$(git diff --cached --name-only | grep -Ev '\.(png|json)$' || true)"
+        if [ -n "$unexpected" ]; then
+          echo "::error::refusing to commit non-artifact paths staged under the baseline store"
+          echo "$unexpected"
+          exit 2
+        fi
+
+        git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "$VARIANCE_MESSAGE"
+
+        git push origin "HEAD:refs/heads/$VARIANCE_BRANCH"
+
+    - name: verdict
+      # `always()`, so the exit code still decides the check even if the comment
+      # step failed. A comment that could not be posted is a real failure and the
+      # job carries it anyway — a failed earlier step fails a composite action
+      # regardless of what this one returns — but it must not be able to *hide*
+      # the verdict by aborting before it is stated.
+      if: ${{ always() }}
+      shell: bash
+      env:
+        CODE: ${{ steps.run.outputs.exit-code }}
+      run: |
+        case "${CODE:-}" in
+          0)
+            echo "nothing needs review."
+            ;;
+          1)
+            echo "::error::variance found changes that need review; the docket is in the pull request comment."
+            exit 1
+            ;;
+          2)
+            echo "::error::variance could not run as configured. This is not a finding about the change: no verdict was reached and no subject was observed. See the run step's output."
+            exit 2
+            ;;
+          '')
+            echo "::error::the run step produced no exit code, so this action cannot say what happened."
+            exit 2
+            ;;
+          *)
+            echo "::error::variance exited $CODE, which is not one of its three codes; treating it as a failure."
+            exit "$CODE"
+            ;;
+        esac

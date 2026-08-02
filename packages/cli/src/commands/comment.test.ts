@@ -1,0 +1,352 @@
+import { describe, expect, it } from 'vitest';
+import type { RenderIdentity } from '@variance-authority/core';
+import type { ObservationRecord } from '@variance-authority/mcp';
+import { COMMENT_MARKER, renderComment } from './comment.js';
+import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
+import type { CliRunReport } from './run.js';
+
+const IDENTITY: RenderIdentity = {
+  renderer: 'playwright-chromium',
+  engine: 'chromium@131',
+  platform: 'linux/x64',
+  deviceScaleFactor: 1,
+  fonts: ['Inter/400/normal/sha256-abc'],
+};
+
+function reportOf(
+  observations: readonly ObservationRecord[],
+  extra: Partial<CliRunReport> = {},
+): CliRunReport {
+  return {
+    runVersion: 1,
+    at: '2026-08-01T10:00:00.000Z',
+    identity: IDENTITY,
+    retention: 'durable',
+    observations,
+    notObserved: [],
+    ...extra,
+  };
+}
+
+/** One token edit reaching `subjects` stories, each with collateral beside it. */
+function tokenChange(subjects: number): CliRunReport {
+  return reportOf(
+    Array.from({ length: subjects }, (_, index) => ({
+      subject: `story:s${index}`,
+      verdict: 'changed' as const,
+      because: '1530 pixel(s) differ across 3 region(s)',
+      changedPixels: 1530,
+      regions: [
+        {
+          x: 4,
+          y: 4,
+          width: 16,
+          height: 16,
+          pixels: 86,
+          component: 'Toggle',
+          where: 'main → list item 2 of 3',
+          file: 'src/ds/components.tsx:107',
+          cause: true,
+        },
+        {
+          x: 0,
+          y: 40,
+          width: 300,
+          height: 20,
+          pixels: 933,
+          component: 'Text',
+          where: 'main → list item 2 of 3',
+          file: 'src/ds/text.tsx:12',
+          cause: false,
+        },
+        {
+          x: 0,
+          y: 80,
+          width: 300,
+          height: 40,
+          pixels: 511,
+          component: 'Stack',
+          file: 'src/ds/stack.tsx:4',
+          cause: false,
+        },
+      ],
+    })),
+  );
+}
+
+describe('renderComment', () => {
+  it('puts the cause above the collateral count, so the review starts at the edit', () => {
+    // Area measures displacement, not cause: `Text` and `Stack` moved far more
+    // pixels than `Toggle`, which is the edit. A body that led with them would
+    // reproduce the exact defect `rankRegions` exists to fix, one level up.
+    const body = renderComment({ report: tokenChange(3) });
+
+    expect(body.indexOf('Toggle')).toBeGreaterThan(-1);
+    expect(body.indexOf('Toggle')).toBeLessThan(body.indexOf('Collateral:'));
+    expect(body.indexOf('### Causes')).toBeLessThan(body.indexOf('Collateral:'));
+  });
+
+  it('renders one review item with a count for a token change reaching 300 subjects', () => {
+    // The failure this whole format exists to prevent: 300 lines saying the same
+    // thing, which nobody reads, instead of one line with the number 300 on it.
+    const body = renderComment({ report: tokenChange(300) });
+
+    expect(body).toContain('the cause in 300 subject(s)');
+    // Three subject ids are named as examples and the rest are counted, so the
+    // body must stay short enough to read — not grow with the suite.
+    expect(body).toContain('and 297 other subject(s) not listed');
+    expect(body).not.toContain('story:s299');
+    expect(body.split('\n').length).toBeLessThan(30);
+  });
+
+  it('counts collateral regions instead of listing any of them', () => {
+    // `Text` and `Stack` moved because `Toggle` did. Naming them 300 times each
+    // would bury the one line a reviewer can act on.
+    const body = renderComment({ report: tokenChange(300) });
+
+    expect(body).toContain('600 further region(s)');
+    expect(body).toContain('in 2 component(s)');
+    expect(body).not.toContain('Stack');
+    expect(body).not.toContain('Text');
+  });
+
+  it('names the component, the file, and the landmark for each cause', () => {
+    // A cause a reviewer cannot open is a cause they will not act on. The
+    // landmark is the part a pixel differ cannot produce at all.
+    const body = renderComment({ report: tokenChange(1) });
+
+    expect(body).toContain('`Toggle`');
+    expect(body).toContain('`src/ds/components.tsx:107`');
+    expect(body).toContain('in `main → list item 2 of 3`');
+  });
+
+  it('carries a stable marker so the poster updates its own comment', () => {
+    // Without it the poster cannot tell its previous comment from anyone else's,
+    // and a new comment per run buries the current state under a history nobody
+    // reads. The marker is first, so a truncated body still carries it.
+    const body = renderComment({ report: tokenChange(1) });
+
+    expect(body.startsWith(COMMENT_MARKER)).toBe(true);
+    expect(COMMENT_MARKER).toMatch(/^<!--.*-->$/);
+  });
+
+  it('produces no body at all for a run where nothing needs review', () => {
+    // A bot that comments on every green pull request trains the team to filter
+    // it out, and the filter does not spare the red ones.
+    const clean = reportOf([
+      {
+        subject: 'story:card',
+        verdict: 'unchanged',
+        because: 'no pixels differ',
+        changedPixels: 0,
+        regions: [],
+      },
+    ]);
+
+    expect(exitFor(clean)).toBe(EXIT_CLEAN);
+    expect(renderComment({ report: clean })).toBe('');
+  });
+
+  it('is non-empty exactly when the exit code says review', () => {
+    // The comment's existence and the check's colour are one question. A red
+    // check with no comment sends the reviewer to the log; a comment with a green
+    // check teaches them the comment is advisory.
+    const noObservations = reportOf([], {
+      notObserved: [
+        { subject: 'story:chart', kind: 'failed', because: 'the story never became ready' },
+      ],
+    });
+
+    expect(exitFor(noObservations)).toBe(EXIT_REVIEW);
+    expect(renderComment({ report: noObservations })).not.toBe('');
+    expect(renderComment({ report: noObservations })).toContain('story:chart');
+  });
+
+  it('says coverage is unknown when the report never stated what it skipped', () => {
+    // Absent is not empty. A clean-looking body over a report that never counted
+    // its subjects is the tool inventing the reassurance.
+    const silent: CliRunReport = reportOf([
+      {
+        subject: 'story:card',
+        verdict: 'unchanged',
+        because: 'no pixels differ',
+        changedPixels: 0,
+        regions: [],
+      },
+    ]);
+    const { notObserved, ...unstated } = silent;
+    void notObserved;
+
+    const body = renderComment({ report: unstated });
+    expect(body).toContain('cannot claim a clean result');
+    expect(body).toContain('cannot be read as a pass');
+  });
+
+  it('reports an incomparable subject rather than letting it read as no difference', () => {
+    // The comparison was refused, so nothing is known. Grouping by the reason
+    // keeps 300 of these to one line without discarding the sentence.
+    const body = renderComment({
+      report: reportOf([
+        {
+          subject: 'story:a',
+          verdict: 'incomparable',
+          because: 'a baseline exists but was rendered by another machine',
+          changedPixels: 0,
+          regions: [],
+        },
+        {
+          subject: 'story:b',
+          verdict: 'incomparable',
+          because: 'a baseline exists but was rendered by another machine',
+          changedPixels: 0,
+          regions: [],
+        },
+      ]),
+    });
+
+    expect(body).toContain('**incomparable** — 2 subject(s)');
+    expect(body).toContain('rendered by another machine');
+  });
+
+  it('says a region was ranked by area when the semantic tier named no cause', () => {
+    // With no causes supplied the ordering falls back to area, which ranks the
+    // displaced above the displacer. Printing that in the voice of a cause would
+    // be a confident attribution nobody made.
+    const body = renderComment({
+      report: reportOf([
+        {
+          subject: 'story:a',
+          verdict: 'changed',
+          because: '511 pixel(s) differ',
+          changedPixels: 511,
+          regions: [
+            { x: 0, y: 0, width: 30, height: 20, pixels: 511, component: 'Stack', cause: false },
+          ],
+        },
+      ]),
+    });
+
+    expect(body).toContain('`Stack`');
+    expect(body).toContain('ranked by area');
+    expect(body).not.toContain('the cause in');
+  });
+
+  it('states how many causes it did not list rather than capping silently', () => {
+    // A truncated list that does not say so reads as complete coverage, which is
+    // the failure this system exists to make impossible.
+    const many = reportOf(
+      Array.from({ length: 25 }, (_, index) => ({
+        subject: `story:s${index}`,
+        verdict: 'changed' as const,
+        because: 'differs',
+        changedPixels: 10,
+        regions: [
+          {
+            x: 0,
+            y: 0,
+            width: 4,
+            height: 4,
+            pixels: 10,
+            component: `C${index}`,
+            cause: true,
+          },
+        ],
+      })),
+    );
+
+    const body = renderComment({ report: many, limits: { causes: 5 } });
+    expect(body).toContain('20 further cause(s) reaching 20 subject(s)');
+  });
+
+  it('cuts an over-long body to fit and states how much it cut', () => {
+    // GitHub rejects an over-long comment rather than truncating it, so the real
+    // choice is between a body that says what it dropped and no comment at all.
+    const body = renderComment({ report: tokenChange(300), limits: { characters: 400 } });
+
+    expect(body.length).toBeLessThanOrEqual(400);
+    expect(body).toMatch(/\d+ character\(s\) of this docket are not shown/);
+    // Head-truncation, so the poster can still find and update this comment.
+    expect(body.startsWith(COMMENT_MARKER)).toBe(true);
+  });
+
+  it('neutralises page content interpolated into the body', () => {
+    // A landmark is built from accessible names, which are whatever the product
+    // renders. Unescaped, a name can open a heading, a list, or raw HTML and
+    // rearrange the docket around itself.
+    const body = renderComment({
+      report: reportOf([
+        {
+          subject: 'story:a',
+          verdict: 'changed',
+          because: 'differs',
+          changedPixels: 10,
+          regions: [
+            {
+              x: 0,
+              y: 0,
+              width: 4,
+              height: 4,
+              pixels: 10,
+              component: 'Card',
+              where: 'main → region "## `x` <img src=x>"',
+              cause: true,
+            },
+          ],
+        },
+      ]),
+    });
+
+    expect(body).toContain('``main → region "## `x` <img src=x>"``');
+    expect(body).not.toMatch(/^## `x`/m);
+  });
+
+  it('carries a missing font into the comment, because those images are of another font', () => {
+    // The metrics in a substituted render are not the product's, so approving
+    // them by eye approves a screenshot of a different layout.
+    const body = renderComment({
+      report: reportOf([
+        {
+          subject: 'story:a',
+          verdict: 'changed',
+          because: 'differs',
+          changedPixels: 10,
+          regions: [
+            { x: 0, y: 0, width: 4, height: 4, pixels: 10, component: 'Card', cause: true },
+          ],
+          missingFonts: ['Inter/400/normal/sha256-abc'],
+        },
+      ]),
+    });
+
+    expect(body).toContain('the renderer lacked `Inter/400/normal/sha256-abc` in 1 subject');
+  });
+
+  it('counts excluded subjects without listing them, and lists failed ones', () => {
+    // An exclusion is a decision that was already reviewed; re-litigating it on
+    // every pull request ends with the exclusion list deleted rather than read.
+    const body = renderComment({
+      report: reportOf([], {
+        notObserved: [
+          { subject: 'story:chart', kind: 'failed', because: 'the story never became ready' },
+          { subject: 'story:docs', kind: 'excluded', because: 'tagged `!test`' },
+        ],
+      }),
+    });
+
+    expect(body).toContain('`story:chart` — the story never became ready');
+    expect(body).toContain('1 subject excluded by configuration and not listed');
+    expect(body).not.toContain('story:docs');
+  });
+
+  it('carries the run link when the operator published one, and invents none when not', () => {
+    // This comment counts collateral instead of listing it, so the reader needs
+    // somewhere to go — but whether anything was published at all is the
+    // operator's decision, made in their workflow.
+    const withLink = renderComment({
+      report: tokenChange(1),
+      runUrl: 'https://example.invalid/run/1',
+    });
+    expect(withLink).toContain('https://example.invalid/run/1');
+    expect(renderComment({ report: tokenChange(1) })).not.toContain('Full report and images');
+  });
+});
