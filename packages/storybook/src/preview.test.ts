@@ -41,6 +41,9 @@ const BASE = 'http://localhost:6006';
 /** Fast enough to keep the suite quick, slow enough to take two poll samples. */
 const TIMING = { timeoutMs: 80, pollMs: 5 } as const;
 
+/** The marker a project's own code attaches when it considers itself settled. */
+const READY = '[data-testid="story-ready"]';
+
 describe('building a preview URL', () => {
   it('addresses a story on the preview iframe, in story view mode', () => {
     // `viewMode=docs` would render a page of prose around the component, and it
@@ -106,6 +109,7 @@ describe('building a preview URL', () => {
 /** What the fake preview does when a story is selected. */
 type Behaviour =
   | 'renders'
+  | 'declares'
   | 'silent'
   | 'empty'
   | 'never-settles'
@@ -152,6 +156,20 @@ function fakePreview(script: Readonly<Record<string, Behaviour>>, withChannel = 
       case 'renders':
         root.replaceChildren(paragraph(storyId));
         pending.push(setTimeout(() => fire('storyRendered', storyId), 1));
+        break;
+      case 'declares':
+        // A component that keeps working after Storybook is done with it: the
+        // event fires at 1ms and the application only settles at 12ms. Anything
+        // that treats `storyRendered` as the finish line captures the gap.
+        root.replaceChildren(paragraph(storyId));
+        pending.push(setTimeout(() => fire('storyRendered', storyId), 1));
+        pending.push(
+          setTimeout(() => {
+            const marker = document.createElement('div');
+            marker.setAttribute('data-testid', 'story-ready');
+            root.appendChild(marker);
+          }, 12),
+        );
         break;
       case 'silent':
         // Rendered, but says nothing: the shape of the first story of a session,
@@ -510,6 +528,137 @@ describe('a preview with no channel', () => {
     expect(page.navigations).toHaveLength(2);
     expect(outcomes[1]?.navigated).toBe(true);
     expect(outcomes[1]?.warnings.join(' ')).toContain('ADR-0009');
+  });
+});
+
+/**
+ * The rung above Storybook's own signal.
+ *
+ * `storyRendered` is the framework's claim that the story function returned; the
+ * marker is the subject's claim that it has finished. The fake keeps the two
+ * twelve milliseconds apart on purpose, because that gap is the whole reason a
+ * project would configure a marker at all.
+ */
+describe('a subject that declares its own readiness', () => {
+  it('reports readiness `declared` when the subject attaches the marker', async () => {
+    // Guards against the marker being accepted but filed under the framework's
+    // signal: a caller that cannot see `declared` cannot tell the strongest
+    // evidence from the second strongest, and the rung stops being worth having.
+    preview = fakePreview({ 'a--one': 'declares', 'a--two': 'declares' });
+    const page = fakePage(preview);
+    const attachedWhenObserved: boolean[] = [];
+
+    const outcomes = await collectStories(page, ['a--one', 'a--two'], {
+      baseUrl: BASE,
+      ...TIMING,
+      readySelector: READY,
+      // Guards against finishing at `storyRendered` and waiting for the marker
+      // never: at 1ms the marker is not there yet, so an early finish is visible
+      // here as a capture taken before the subject had settled.
+      observe: (): void => {
+        attachedWhenObserved.push(document.querySelector(READY) !== null);
+      },
+    });
+
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(['rendered', 'rendered']);
+    expect(outcomes.map((outcome) => outcome.readiness)).toEqual(['declared', 'declared']);
+    expect(attachedWhenObserved).toEqual([true, true]);
+  });
+
+  it('times out rather than falling back when a configured marker never appears', async () => {
+    // The property this whole feature stands on. Both weaker paths are covered:
+    // `a--one` is the story the URL already selected, whose markup goes quiet
+    // immediately, and `a--two` is switched over the channel and does emit
+    // `storyRendered`. Either one answered with `rendered` would mean a project
+    // that asked to be asked was quietly answered with a guess — and it would
+    // believe it held the strong signal while holding the weak one.
+    preview = fakePreview({ 'a--one': 'silent', 'a--two': 'renders' });
+    const page = fakePage(preview);
+
+    const outcomes = await collectStories(page, ['a--one', 'a--two'], {
+      baseUrl: BASE,
+      ...TIMING,
+      readySelector: READY,
+    });
+
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(['timeout', 'timeout']);
+    expect(outcomes.map((outcome) => outcome.readiness)).toEqual(['none', 'none']);
+    for (const outcome of outcomes) {
+      expect(outcome.readiness).not.toBe('markup-quiescent');
+      expect(outcome.readiness).not.toBe('storyRendered');
+      expect(outcome.readiness).not.toBe('already-rendered');
+    }
+  });
+
+  it('names the marker that never appeared, so the contract is fixable', async () => {
+    // A bare `timeout` sends someone to read the component; naming the selector
+    // sends them to the one line of application code that was supposed to
+    // attach it.
+    preview = fakePreview({ 'a--one': 'silent' });
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', {
+      baseUrl: BASE,
+      ...TIMING,
+      readySelector: READY,
+    });
+
+    expect(outcome.status).toBe('timeout');
+    expect(outcome.error?.from).toBe('story');
+    expect(outcome.error?.message).toContain(READY);
+  });
+
+  it('changes nothing at all when no marker is configured', async () => {
+    // The absent option must be genuinely absent, not a default in disguise: a
+    // marker nobody agreed to attach would turn every existing run into a suite
+    // of timeouts.
+    preview = fakePreview({ 'a--one': 'silent', 'a--two': 'renders' });
+    const page = fakePage(preview);
+
+    const outcomes = await collectStories(page, ['a--one', 'a--two'], { baseUrl: BASE, ...TIMING });
+
+    expect(outcomes.map((outcome) => outcome.status)).toEqual(['rendered', 'rendered']);
+    expect(outcomes.map((outcome) => outcome.readiness)).toEqual([
+      'already-rendered',
+      'storyRendered',
+    ]);
+    expect(outcomes.flatMap((outcome) => outcome.warnings)).toEqual([]);
+    expect(page.navigations).toHaveLength(1);
+  });
+
+  it('accepts the marker alone when there is no channel to hear Storybook on', async () => {
+    // Without a channel there is no framework signal to wait for, and the
+    // fallback would otherwise be markup quiescence — which is exactly what the
+    // marker exists to replace.
+    preview = fakePreview({ 'a--one': 'declares' }, false);
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', {
+      baseUrl: BASE,
+      ...TIMING,
+      readySelector: READY,
+    });
+
+    expect(outcome.status).toBe('rendered');
+    expect(outcome.readiness).toBe('declared');
+    expect(outcome.channel).toBe(false);
+  });
+
+  it('says in the warnings that the subject declared readiness, not the framework', async () => {
+    // `declared` and `storyRendered` are one word apart in a result and a world
+    // apart in what they claim. Anyone reading the outcome should not have to
+    // know the union's ordering to see which happened.
+    preview = fakePreview({ 'a--one': 'declares' });
+    const page = fakePage(preview);
+
+    const outcome = await collectStory(page, 'a--one', {
+      baseUrl: BASE,
+      ...TIMING,
+      readySelector: READY,
+    });
+
+    expect(outcome.warnings.join(' ')).toContain(READY);
+    expect(outcome.warnings.join(' ')).toContain('the application saying it has settled');
   });
 });
 

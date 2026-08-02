@@ -27,6 +27,27 @@ import type { Harness } from '@variance-authority/harness-playwright';
  * unfinished story. Saying which evidence was used is the difference between a
  * weaker claim and a false one.
  *
+ * **The subject outranks the framework.** `storyRendered` means Storybook
+ * believes the story function returned. It does not mean the *application*
+ * finished: a component that fetches on mount, defers work to an effect, or
+ * animates in is still moving when that event fires, and a capture taken then is
+ * a capture of a component mid-flight. Only the subject knows when it has
+ * settled. So a project may name a readiness marker — a `data-testid` its own
+ * code attaches once it considers itself done — and a marker the application
+ * attached is strictly stronger evidence than any event the framework can emit,
+ * and stronger still than sampling markup and hoping it stopped changing.
+ *
+ * That is worth more than one correct capture. A project that can *declare*
+ * readiness can fix an instability at its source, once, instead of paying for
+ * repeated captures and retries forever.
+ *
+ * The marker is therefore a contract, and a contract that can be quietly
+ * substituted is not one: when a marker is configured and does not arrive, this
+ * reports a timeout naming it. It never falls back to markup quiescence. A
+ * project that asked to be asked, answered with a guess, is worse off than one
+ * that never configured a marker at all — it would believe it had the strong
+ * signal while receiving the weak one.
+ *
  * **Storybook's chrome is not the subject.** The story mounts into
  * `#storybook-root` (`#root` before Storybook 7), and that element — not the
  * preview `<body>` — is the subject root. Naming it correctly is this package's
@@ -109,6 +130,20 @@ export interface ShowRequest {
   readonly events: ShowEvents;
   readonly roots: readonly string[];
   readonly errorOverlay: ErrorOverlay;
+  /**
+   * Selector for the readiness marker the *subject* attaches when it is settled.
+   *
+   * Absent means the feature is off and readiness is decided exactly as it was
+   * before this existed. There is deliberately no default: a marker no project
+   * agreed to attach would never appear, and inventing one would turn every
+   * existing run into a suite of timeouts.
+   *
+   * Present means the marker decides. Readiness is not reached until this
+   * selector matches — `storyRendered` having already fired does not shorten the
+   * wait — and if it never matches, the result is a `timeout` naming it rather
+   * than a capture taken on weaker evidence.
+   */
+  readonly readySelector?: string;
 }
 
 /**
@@ -124,8 +159,16 @@ export type ShowStatus = 'rendered' | 'errored' | 'missing' | 'timeout' | 'no-ro
 /**
  * Which evidence decided that the story was ready.
  *
- * - `storyRendered` — Storybook said so. The only signal that knows about
- *   decorators, loaders, and async render phases.
+ * Ordered strongest first, and the order is the point: each rung knows strictly
+ * less about the subject than the one above it.
+ *
+ * - `declared` — the subject said so itself: the configured readiness marker was
+ *   attached by the application's own code. The strongest rung there is, because
+ *   it is the only one reported by the thing that actually knows whether its
+ *   fetches resolved, its effects ran, and its animation finished.
+ * - `storyRendered` — Storybook said so. The only *framework* signal that knows
+ *   about decorators, loaders, and async render phases — and still only a claim
+ *   that the story function returned, not that the application settled.
  * - `already-rendered` — the story the URL selected was already in the document
  *   when this ran, so its `storyRendered` had already fired; readiness came from
  *   markup that stopped changing.
@@ -134,7 +177,12 @@ export type ShowStatus = 'rendered' | 'errored' | 'missing' | 'timeout' | 'no-ro
  *   arrives later.
  * - `none` — nothing was ready; the status says what happened instead.
  */
-export type Readiness = 'storyRendered' | 'already-rendered' | 'markup-quiescent' | 'none';
+export type Readiness =
+  | 'declared'
+  | 'storyRendered'
+  | 'already-rendered'
+  | 'markup-quiescent'
+  | 'none';
 
 export interface ShowResult {
   readonly status: ShowStatus;
@@ -269,7 +317,95 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       tick();
     });
 
+  /**
+   * Wait for the subject to declare itself ready.
+   *
+   * The marker is the subject's own statement, so this asks nothing else of the
+   * markup: a root that is still changing while the application says it is done
+   * is the application's answer, and it outranks the observation.
+   *
+   * `alsoReady` is the framework's half of the evidence — already satisfied when
+   * the story was rendered before this ran, or when there is no channel to hear
+   * it from. Where a channel exists, both are waited for: the marker completes
+   * `storyRendered`, it does not excuse it.
+   *
+   * The one thing this must never do is resolve `rendered` without the marker.
+   * There is no fallback in here on purpose. Reaching the deadline is a timeout
+   * that names the selector, because a configured marker that quietly became a
+   * markup sample is a declared contract answered with a guess.
+   */
+  const settleByMarker = (
+    selector: string,
+    budgetMs: number,
+    alsoReady: () => boolean,
+    notes: readonly string[],
+  ): Promise<ShowResult> =>
+    new Promise<ShowResult>((resolve) => {
+      const deadline = Date.now() + budgetMs;
+
+      const tick = (): void => {
+        const failed = overlay();
+        if (failed !== null) {
+          resolve(result('errored', 'none', { message: failed.message, stack: failed.stack, notes }));
+          return;
+        }
+
+        const attached = document.querySelector(selector) !== null;
+        if (attached && alsoReady()) {
+          // Said on the way past, every time, because `declared` and
+          // `storyRendered` are one word apart in a result and a world apart in
+          // what they claim: one is the subject reporting that it has settled,
+          // the other is the framework reporting that it called a function.
+          resolve(
+            result('rendered', 'declared', {
+              notes: [
+                ...notes,
+                `readiness \`declared\`: the subject attached \`${selector}\` itself, which is the ` +
+                  `application saying it has settled — a stronger claim than ` +
+                  `\`${request.events.storyRendered}\`, where the framework says only that the story ` +
+                  `function returned.`,
+              ],
+            }),
+          );
+          return;
+        }
+
+        if (Date.now() >= deadline) {
+          const missingRoot =
+            rootSelector() === null ? `, and nothing mounted into ${request.roots.join(' or ')}` : '';
+          resolve(
+            result('timeout', 'none', {
+              message: attached
+                ? `the readiness marker \`${selector}\` was attached, but no ` +
+                  `\`${request.events.storyRendered}\` arrived within ${budgetMs}ms`
+                : `the readiness marker \`${selector}\` never appeared within ${budgetMs}ms` +
+                  `${missingRoot}. A configured marker is not traded for weaker evidence: this run ` +
+                  `asked the subject to declare readiness, so an undeclared story is a timeout ` +
+                  `rather than a capture taken on markup quiescence.`,
+              notes,
+            }),
+          );
+          return;
+        }
+
+        setTimeout(tick, request.pollMs);
+      };
+
+      tick();
+    });
+
+  const marker = request.readySelector;
+
   if (channel === null) {
+    if (marker !== undefined) {
+      // No channel means no `storyRendered` to wait for, so the marker is the
+      // whole of the evidence — and it is still stronger than the quiescence
+      // this would otherwise have fallen back to.
+      return settleByMarker(marker, request.timeoutMs, () => true, [
+        `no Storybook channel was found on the preview window, so the framework's own signal was ` +
+          `unavailable and readiness rested entirely on the configured marker \`${marker}\`.`,
+      ]);
+    }
     return settleByMarkup('markup-quiescent', request.timeoutMs, [
       'no Storybook channel was found on the preview window, so readiness was decided by markup ' +
         'quiescence: the root mounted and stopped changing. That cannot see a story still waiting ' +
@@ -281,6 +417,8 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     const listeners: { event: string; handler: (payload: unknown) => void }[] = [];
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    /** Whether Storybook has said the story function returned. */
+    let signalled = false;
 
     const finish = (value: ShowResult): void => {
       if (settled) return;
@@ -347,7 +485,17 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     };
 
     listen(request.events.storyRendered, (payload) => {
-      if (mine(payload)) finish(result('rendered', 'storyRendered'));
+      if (!mine(payload)) return;
+      if (marker === undefined) {
+        finish(result('rendered', 'storyRendered'));
+        return;
+      }
+      // A marker was configured, so this event is no longer the finish line —
+      // it is the framework's half of it. Storybook believing the story function
+      // returned says nothing about a fetch on mount or an entry animation, and
+      // finishing here would hand back exactly the mid-flight capture the marker
+      // was configured to prevent. The marker poll closes this out.
+      signalled = true;
     });
 
     // No id filter on the exception events: Storybook sends a serialized error,
@@ -378,14 +526,25 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       );
     });
 
+    const failed = (error: unknown): void => {
+      finish(result('unreachable', 'none', { message: String(error) }));
+    };
+
     if (scope.__STORYBOOK_PREVIEW__?.currentSelection?.storyId === request.storyId) {
       // The first story of a session arrives selected by the URL, so its
       // `storyRendered` may have fired before this function was injected.
       // Waiting for it alone would burn the whole timeout and then report a
       // story that is sitting fully rendered on the screen as a timeout.
-      settleByMarkup('already-rendered', request.timeoutMs, []).then(finish, (error: unknown) => {
-        finish(result('unreachable', 'none', { message: String(error) }));
-      });
+      if (marker !== undefined) {
+        // The framework's half is already spent — the story was selected and
+        // rendered before this ran — so the marker is all that is outstanding.
+        settleByMarker(marker, request.timeoutMs, () => true, [
+          `the story was already selected when this ran, so readiness waited on the subject's own ` +
+            `marker \`${marker}\` rather than on markup that had stopped changing.`,
+        ]).then(finish, failed);
+        return;
+      }
+      settleByMarkup('already-rendered', request.timeoutMs, []).then(finish, failed);
       return;
     }
 
@@ -406,6 +565,16 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       return;
     }
 
+    if (marker !== undefined) {
+      // With a marker configured there is no fallback timer at all, because
+      // there is nothing to fall back *to*: the marker owns the deadline, and
+      // reaching it is a timeout naming the selector. This is the whole
+      // difference between a declared contract and a guess, and it is why the
+      // weaker path below is not merely deprioritised but absent.
+      settleByMarker(marker, request.timeoutMs, () => signalled, []).then(finish, failed);
+      return;
+    }
+
     timer = setTimeout(() => {
       // The channel said nothing in time. Rather than reporting a timeout for a
       // story that may be sitting rendered on the screen, check the weaker
@@ -414,9 +583,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       settleByMarkup('markup-quiescent', request.pollMs * 4, [
         `no \`${request.events.storyRendered}\` within ${request.timeoutMs}ms; readiness fell back ` +
           `to markup quiescence, which is weaker evidence than Storybook's own signal`,
-      ]).then(finish, (error: unknown) => {
-        finish(result('unreachable', 'none', { message: String(error) }));
-      });
+      ]).then(finish, failed);
     }, request.timeoutMs);
   });
 };
@@ -465,6 +632,20 @@ export interface CollectOptions {
   readonly events?: ShowEvents;
   readonly roots?: readonly string[];
   readonly errorOverlay?: ErrorOverlay;
+  /**
+   * Selector for a readiness marker the subject attaches when it has settled —
+   * `[data-testid="story-ready"]`, or whatever the project already uses.
+   *
+   * Omitted, nothing changes: readiness is decided by Storybook's signal and the
+   * quiescence fallback, exactly as before. Supplied, it becomes the only thing
+   * that can produce a `rendered` outcome, and a story that never attaches it
+   * times out rather than being captured on weaker evidence.
+   *
+   * Worth the configuration for any component that fetches, animates, or defers
+   * work to an effect: those are the stories that make a suite flaky, and this is
+   * the one signal that can end the flake instead of re-running it.
+   */
+  readonly readySelector?: string;
 }
 
 export interface StoryOutcome {
@@ -593,6 +774,10 @@ export async function collectStory(
     events: options.events ?? STORYBOOK_EVENTS,
     roots: options.roots ?? STORY_ROOT_SELECTORS,
     errorOverlay: options.errorOverlay ?? STORYBOOK_ERROR_OVERLAY,
+    // Spread rather than assigned: under `exactOptionalPropertyTypes` an
+    // explicit `undefined` is not the same as absent, and absent is what turns
+    // the feature off. There is no default to fall back to on purpose.
+    ...(options.readySelector !== undefined ? { readySelector: options.readySelector } : {}),
   };
 
   const extra: string[] = [];
