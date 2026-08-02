@@ -93,8 +93,14 @@ export function roleOf(element: Element): string | null {
   }
 
   if (tag === 'section') {
-    // A `section` is only a `region` once it has an accessible name.
-    return accessibleName(element) === null ? null : 'region';
+    // A `section` is only a `region` once it has an accessible name — and this
+    // must ask only about the *explicit* ones. `accessibleName` consults
+    // `roleOf` for its name-from-content step, so calling it here is mutual
+    // recursion: every plain `<section>` blew the stack, and no fixture had one
+    // until an attribute-provenance test wrote `<section data-component>`. The
+    // narrow call is also the correct one — `section` is not a name-from-content
+    // role, so the steps being skipped could never have applied.
+    return explicitName(element) === null ? null : 'region';
   }
 
   if (tag === 'img') {
@@ -111,18 +117,8 @@ export function roleOf(element: Element): string | null {
  * Order: `aria-labelledby`, `aria-label`, a native label host, then content.
  */
 export function accessibleName(element: Element): string | null {
-  const labelledBy = element.getAttribute('aria-labelledby');
-  if (labelledBy) {
-    const parts = labelledBy
-      .trim()
-      .split(/\s+/)
-      .map((id) => element.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
-      .filter((part) => part.length > 0);
-    if (parts.length > 0) return normalize(parts.join(' '));
-  }
-
-  const label = element.getAttribute('aria-label');
-  if (label && label.trim().length > 0) return normalize(label);
+  const explicit = explicitName(element);
+  if (explicit !== null) return explicit;
 
   const tag = element.tagName.toLowerCase();
 
@@ -163,6 +159,28 @@ export function accessibleName(element: Element): string | null {
 
   const title = element.getAttribute('title');
   return title && title.trim().length > 0 ? normalize(title) : null;
+}
+
+/**
+ * The name an author wrote down: `aria-labelledby`, then `aria-label`.
+ *
+ * Split out because it is the only part of accname that can be asked *before* a
+ * role is known. `roleOf` needs it for `<section>`, and needing the whole of
+ * `accessibleName` there was a mutual recursion with no base case.
+ */
+function explicitName(element: Element): string | null {
+  const labelledBy = element.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const parts = labelledBy
+      .trim()
+      .split(/\s+/)
+      .map((id) => element.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
+      .filter((part) => part.length > 0);
+    if (parts.length > 0) return normalize(parts.join(' '));
+  }
+
+  const label = element.getAttribute('aria-label');
+  return label && label.trim().length > 0 ? normalize(label) : null;
 }
 
 /**

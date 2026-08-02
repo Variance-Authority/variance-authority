@@ -115,6 +115,18 @@ export interface Root {
    */
   readonly impact: AggregateImpact;
 
+  /**
+   * The component responsible, when one can be named.
+   *
+   * Distinct from where the change was *observed*, and the two differ exactly on
+   * a `prop` root: `Panel → Button` means `Panel` passed something new and
+   * `Button` is where it shows. Naming `Button` sends a reviewer to a file
+   * nobody edited, which is the failure `prop-primary-variant/hero` exists to
+   * catch — and which `componentsOf` was committing, marking the innermost owner
+   * as `root` for every kind of root including this one.
+   */
+  readonly cause?: string;
+
   readonly deltas: readonly Delta[];
 }
 

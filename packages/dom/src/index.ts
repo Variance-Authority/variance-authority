@@ -24,7 +24,10 @@ export type { ConditionEnvironment, ConditionResult } from './media.js';
 export { specificityOf, mostSpecific, compareSpecificity, splitSelectorList } from './specificity.js';
 export type { Specificity } from './specificity.js';
 
-export { ariaOf, roleOf, accessibleName, stateOf } from './aria.js';
+export { ariaOf, roleOf, accessibleName, accessibleDescription, stateOf } from './aria.js';
+
+export { attributeProvenance, statesProps } from './attributed.js';
+export type { AttributeProvenanceOptions } from './attributed.js';
 
 export { acquireDocument, serializeAttributes, PATH_ATTRIBUTE } from './document.js';
 export type { AcquireOptions } from './document.js';

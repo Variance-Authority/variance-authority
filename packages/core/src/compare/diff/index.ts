@@ -297,6 +297,16 @@ function componentsOf(
   const rootNames = new Set<string>();
   for (const root of roots) {
     if (root.kind !== 'component' && root.kind !== 'prop') continue;
+
+    // The root's own `cause`, not the innermost owner of its deltas. For a
+    // `prop` root those are different components and the innermost is the wrong
+    // one: `Panel → Button` means `Panel` made the edit. Falling back to the
+    // innermost keeps the previous behaviour where no cause was recorded.
+    if (root.cause !== undefined) {
+      rootNames.add(root.cause);
+      continue;
+    }
+
     for (const delta of root.deltas) {
       const innermost = delta.owners?.[0]?.name;
       if (innermost !== undefined) rootNames.add(innermost);
@@ -416,12 +426,12 @@ function attribute(
   matching: ReturnType<typeof matchTrees>,
   environmentDeltas: readonly EnvironmentDelta[],
 ): readonly Root[] {
-  const groups = new Map<string, { kind: RootKind; label: string; deltas: Delta[] }>();
+  const groups = new Map<string, { kind: RootKind; label: string; cause?: string; deltas: Delta[] }>();
 
-  const add = (id: string, kind: RootKind, label: string, delta: Delta): void => {
+  const add = (id: string, kind: RootKind, label: string, delta: Delta, cause?: string): void => {
     const existing = groups.get(id);
     if (existing) existing.deltas.push(delta);
-    else groups.set(id, { kind, label, deltas: [delta] });
+    else groups.set(id, { kind, label, deltas: [delta], ...(cause !== undefined ? { cause } : {}) });
   };
 
   // A changed environment explains everything under it, so it is collapsed to a
@@ -478,7 +488,7 @@ function attribute(
       // than about the delta.
       const name = (delta.kind === 'node-moved' ? owner.createdBy : undefined) ?? owner.name;
 
-      return { id: `component:${name}`, kind: 'component', label: name };
+      return { id: `component:${name}`, kind: 'component', label: name, cause: name };
     }
 
     // Props moved at a boundary, so the change arrived from outside. The root is
@@ -489,6 +499,10 @@ function attribute(
       id: `prop:${provider?.name ?? '?'}>${changed.name}`,
       kind: 'prop',
       label: provider ? `${provider.name} → ${changed.name}` : changed.name,
+      // The *provider*, not the component the delta landed in. This is the whole
+      // point of a `prop` root: the edit is upstream, and the report has to send
+      // a reviewer there.
+      ...(provider !== undefined ? { cause: provider.name } : {}),
     };
   };
 
@@ -501,7 +515,7 @@ function attribute(
 
   for (const { delta, group } of causes) {
     if (group === null) add('unattributed', 'unattributed', 'no owner chain', delta);
-    else add(group.id, group.kind, group.label, delta);
+    else add(group.id, group.kind, group.label, delta, group.cause);
   }
 
   for (const delta of deltas) {
@@ -510,7 +524,7 @@ function attribute(
     const target = nearestCause(delta, causes);
 
     if (target !== undefined) {
-      add(target.id, target.kind, target.label, delta);
+      add(target.id, target.kind, target.label, delta, target.cause);
       continue;
     }
 
@@ -519,13 +533,14 @@ function attribute(
     // keeps its own root rather than being attached to an unrelated one.
     const own = classify(delta);
     if (own === null) add('unattributed', 'unattributed', 'no owner chain', delta);
-    else add(own.id, own.kind, own.label, delta);
+    else add(own.id, own.kind, own.label, delta, own.cause);
   }
 
   return [...groups.entries()].map(([id, group]) => ({
     id,
     kind: group.kind,
     label: group.label,
+    ...(group.cause !== undefined ? { cause: group.cause } : {}),
     band: dominantBand(group.deltas),
     impact: aggregateImpact(group.deltas.map(impactTag)),
     deltas: group.deltas,
@@ -547,6 +562,8 @@ interface Group {
   readonly id: string;
   readonly kind: RootKind;
   readonly label: string;
+  /** The component responsible. See `Root.cause`. */
+  readonly cause?: string;
 }
 
 /**
