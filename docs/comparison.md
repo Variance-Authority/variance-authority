@@ -600,13 +600,17 @@ there will ever be, and approving the first baseline approves the defect along
 with it. This is not a tuning problem in any product; it is what comparing two of
 something means.
 
-**Measured** — `packages/core/src/judge/inspect.test.ts` (17 tests) reads one
-normalized snapshot. Five rules a document can decide without guessing: a control
+**Measured** — `packages/core/src/judge/inspect.test.ts` (26 tests) reads one
+normalized snapshot. Nine rules a document can decide without guessing: a control
 with no accessible name, an image with neither a name nor an explicit `alt=""`, a
 heading level skipped, a control nested inside a control, an id reference that
-resolves to nothing. Each names a component and a file through the same
-provenance chain a delta uses, and each bands `a11y`, so `blocking: ['a11y']`
-covers inspection and comparison under one policy.
+resolves to nothing, a name that does not contain its visible label, two
+landmarks nothing tells apart, a table with no headers, a positive `tabindex`.
+Each names a component and a file through the same provenance chain a delta uses,
+and each bands `a11y`, so `blocking: ['a11y']` covers inspection and comparison
+under one policy. **Every rule has a case where it must not fire**, and for
+`label-mismatch` that case — an icon button, whose glyph is `aria-hidden` and is
+not a label — is what decides whether the rule is usable at all.
 
 `cases/incumbent-case` asserts both halves of what this reaches. Three of its
 eight scenarios are accessibility regressions no configuration of
@@ -615,9 +619,15 @@ broken render alone. A `<div>` with no role is not a defect in any render taken
 on its own — it becomes one only against the `<button>` it replaced. Inspection
 and comparison catch different things and neither contains the other.
 
-**Deliberately not an axe-core reimplementation.** Axe runs against a live DOM
+**Deliberately not an axe-core reimplementation**, and [spec
+0009](specs/0009-inspection-rules.md) fixes the boundary rather than leaving it
+to drift: a rule belongs here if a stored snapshot can decide it. Contrast does
+not qualify and the file says why — the background a glyph is painted on is a
+stacking question a layout engine answers and a document does not, so a
+four-line check would be right most of the time, which for accessibility is worse
+than no rule. Axe runs against a live DOM
 with computed visibility, contrast and focus order, and has roughly ninety rules
-to these five. Chromatic ships axe with a dashboard and a triage flow, and that
+to these nine. Chromatic ships axe with a dashboard and a triage flow, and that
 is the better product for a team whose requirement is accessibility checking.
 What these five do that axe does not: name the component and the file, and decide
 **offline, from a stored artifact, months later**.

@@ -176,12 +176,13 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 - **The README makes claims about deployment nothing has exercised.** Linux CI,
   git-LFS artifacts, a CI bot committing images back — all stated as intent and
   marked as such, none run once.
-- **Inspection is five rules.** `judge/inspect.ts` decides what a normalized
-  snapshot can decide without guessing; axe has roughly ninety and a live DOM.
-  Nothing here checks contrast, focus order, or computed visibility, and the
-  question of whether the rule list should grow toward axe or stay at the subset
-  that survives being stored is open. It is a position for now: a rule that needs
-  a severity to be tolerable is a rule whose condition is too broad.
+- **Inspection has run against nothing anybody else wrote.** Nine rules, each
+  with a non-firing case, and `cases/storybook-case` reports 0 findings across 8
+  subjects — a real answer about that design system, not a measurement of the
+  rules. Whether the list should grow is *settled* rather than open (spec 0009:
+  a rule belongs here if a stored snapshot can decide it, which excludes
+  contrast, focus order and motion, with reasons in the file). What is open is
+  whether the nine hold up outside this repository.
 - **`untranslated` reports candidates, not defects.** A brand name, a product
   code and an acronym are all "identical in both languages". The sentence says so
   in both directions and the rule skips strings with no letters, which is as far

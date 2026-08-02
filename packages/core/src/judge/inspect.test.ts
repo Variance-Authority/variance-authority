@@ -207,6 +207,130 @@ describe('dangling-reference', () => {
   });
 });
 
+describe('label-mismatch', () => {
+  /**
+   * WCAG 2.5.3. The failure is silent for everyone except the person using
+   * voice control, for whom the button simply does not exist.
+   */
+  it('reports a control whose name does not contain what it reads', () => {
+    const findings = inspect(
+      normalize(
+        capture({ root: node({ tag: 'button', role: 'button', name: 'Submit form', text: 'Save' }) }),
+      ),
+    );
+
+    expect(findings.map((f) => f.rule)).toEqual(['label-mismatch']);
+    expect(findings[0]?.what).toContain('"Save"');
+  });
+
+  /** A name that *extends* the visible text is correct and common. */
+  it('holds when the name contains the visible label', () => {
+    expect(
+      found(
+        capture({
+          root: node({ tag: 'button', role: 'button', name: 'Save changes to draft', text: 'Save' }),
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  /**
+   * The case that decides whether the rule is usable. Every design system has
+   * icon buttons, and a rule that reported all of them would be switched off
+   * before it found anything.
+   */
+  it('holds for an icon button, whose glyph is hidden and is not a label', () => {
+    expect(
+      found(
+        capture({
+          root: node({
+            tag: 'button',
+            role: 'button',
+            name: 'Refresh',
+            children: [node({ tag: 'span', state: { hidden: true }, text: '↻' })],
+          }),
+        }),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('duplicate-landmark', () => {
+  const nav = (name?: string) =>
+    node({ tag: 'nav', role: 'navigation', ...(name !== undefined ? { name } : {}) });
+
+  it('reports two landmarks of one role that nothing tells apart', () => {
+    expect(found(capture({ root: node({ tag: 'div', children: [nav(), nav()] }) }))).toEqual([
+      'duplicate-landmark',
+    ]);
+  });
+
+  /** Two named navigations are how a page is meant to be built. */
+  it('holds when the two carry different names', () => {
+    expect(
+      found(capture({ root: node({ tag: 'div', children: [nav('Primary'), nav('Footer')] }) })),
+    ).toEqual([]);
+  });
+});
+
+describe('table-without-headers', () => {
+  const cell = (text: string) => node({ tag: 'td', role: 'cell', text });
+
+  it('reports a table whose cells are announced without their columns', () => {
+    expect(
+      found(
+        capture({
+          root: node({
+            tag: 'table',
+            role: 'table',
+            children: [
+              node({ tag: 'tr', role: 'row', children: [cell('2,400'), cell('900')] }),
+            ],
+          }),
+        }),
+      ),
+    ).toEqual(['table-without-headers']);
+  });
+
+  it('holds when a header cell exists anywhere in it', () => {
+    expect(
+      found(
+        capture({
+          root: node({
+            tag: 'table',
+            role: 'table',
+            children: [
+              node({
+                tag: 'tr',
+                role: 'row',
+                children: [node({ tag: 'th', role: 'columnheader', name: 'Amount', text: 'Amount' })],
+              }),
+              node({ tag: 'tr', role: 'row', children: [cell('2,400')] }),
+            ],
+          }),
+        }),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('positive-tabindex', () => {
+  it('reports a tabindex that reorders focus for the whole document', () => {
+    expect(
+      found(capture({ root: node({ tag: 'div', attributes: { tabindex: '3' } }) })),
+    ).toEqual(['positive-tabindex']);
+  });
+
+  /** `0` and `-1` are the two ordinary, correct values and must stay silent. */
+  it('holds for tabindex 0 and -1', () => {
+    for (const value of ['0', '-1']) {
+      expect(found(capture({ root: node({ tag: 'div', attributes: { tabindex: value } }) }))).toEqual(
+        [],
+      );
+    }
+  });
+});
+
 describe('attribution', () => {
   it('names the component that wrote the JSX, and orients the finding', () => {
     const findings = inspect(

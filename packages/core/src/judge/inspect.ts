@@ -45,6 +45,17 @@ import { formatSource, resolveSource, type SourceIndex } from '../attribute/sour
  *
  * There is no severity field. A rule that needs one to be tolerable is a rule
  * whose condition is too broad, and the fix is a better condition or no rule.
+ *
+ * **Why there is no contrast rule, stated here so nobody adds one badly later.**
+ * The snapshot carries a resolved `color` and `background-color` per node, so a
+ * check looks like four lines and would be wrong: the background a glyph is
+ * actually painted on is whatever is behind it, which is a stacking question a
+ * layout engine answers and a document does not. A node with a transparent
+ * background over a dark ancestor, an image, a gradient, or a positioned sibling
+ * all read as "background-color: rgba(0,0,0,0)" here. A rule that is right most
+ * of the time about accessibility is worse than no rule: it gets disabled after
+ * the second false alarm, and takes the four that work with it. Spec 0009
+ * records the same for focus order and anything about motion.
  */
 
 export type FindingRule =
@@ -58,6 +69,14 @@ export type FindingRule =
   | 'nested-interactive'
   /** An id reference that resolves to nothing inside this subject. */
   | 'dangling-reference'
+  /** A control whose accessible name does not contain its visible label. */
+  | 'label-mismatch'
+  /** Two landmarks of one role that nothing tells apart. */
+  | 'duplicate-landmark'
+  /** A table with no header cells. */
+  | 'table-without-headers'
+  /** `tabindex` above zero, which reorders focus for the whole page. */
+  | 'positive-tabindex'
   /**
    * The same string in two locales. From `compareLocales`, not from `inspect` —
    * one render cannot know whether its text was translated.
@@ -105,9 +124,19 @@ const HEADING_TAGS: Readonly<Record<string, number>> = {
   h1: 1, h2: 2, h3: 3, h4: 4, h5: 5, h6: 6,
 };
 
+/** Regions of a page a screen reader user navigates between. */
+const LANDMARKS = new Set([
+  'banner', 'navigation', 'main', 'complementary', 'contentinfo',
+  'region', 'form', 'search',
+]);
+
+/** Has at least one letter. A glyph is not a visible label. */
+const HAS_LETTER = /\p{L}/u;
+
 export function inspect(snapshot: SemanticSnapshot): readonly Finding[] {
   const findings: Finding[] = [];
   const headings: { node: SemanticNode; level: number }[] = [];
+  const landmarks = new Map<string, SemanticNode>();
 
   visit(snapshot.root, false);
 
@@ -190,8 +219,103 @@ export function inspect(snapshot: SemanticSnapshot): readonly Finding[] {
       if (level !== undefined) headings.push({ node, level });
     }
 
+    if (node.role !== undefined && LANDMARKS.has(node.role)) {
+      // Keyed by role *and* name: two `navigation` landmarks called "Primary"
+      // and "Footer" are how a page is meant to be built. Two called nothing are
+      // two identical entries in the landmark list.
+      const key = `${node.role}\u0000${node.name ?? ''}`;
+      const first = landmarks.get(key);
+
+      if (first === undefined) {
+        landmarks.set(key, node);
+      } else {
+        findings.push(
+          finding(
+            'duplicate-landmark',
+            node,
+            `a second ${node.role} landmark` +
+              (node.name !== undefined ? ` also named "${node.name}"` : ' with no name') +
+              ', so nothing tells the two apart in a landmark list',
+            snapshot,
+          ),
+        );
+      }
+    }
+
+    if (node.role === 'table' && !hasHeaders(node)) {
+      findings.push(
+        finding(
+          'table-without-headers',
+          node,
+          `<${node.tag}> is a table with no header cells, so every cell is announced without ` +
+            'the column it belongs to',
+          snapshot,
+        ),
+      );
+    }
+
+    const tabindex = Number(node.attributes['tabindex']);
+    if (Number.isInteger(tabindex) && tabindex > 0) {
+      findings.push(
+        finding(
+          'positive-tabindex',
+          node,
+          `<${node.tag}> has tabindex=${tabindex}, which pulls it ahead of every element in ` +
+            'the document that relies on source order',
+          snapshot,
+        ),
+      );
+    }
+
+    // WCAG 2.5.3. A control whose accessible name does not contain its visible
+    // label cannot be operated by voice: "click Save" does nothing when the
+    // button reads Save and is named "Submit form".
+    //
+    // Only when the visible text carries a letter. An icon button labelled
+    // `aria-label="Refresh"` around a glyph is correct, and a rule that reported
+    // it would fire on every icon in every design system.
+    if (interactive && node.name !== undefined) {
+      const visible = visibleTextOf(node);
+      if (
+        visible.length > 0 &&
+        HAS_LETTER.test(visible) &&
+        !node.name.toLowerCase().includes(visible.toLowerCase())
+      ) {
+        findings.push(
+          finding(
+            'label-mismatch',
+            node,
+            `reads "${visible}" and is named "${node.name}", so a voice command using the ` +
+              'visible words does not reach it',
+            snapshot,
+          ),
+        );
+      }
+    }
+
     for (const child of node.children) visit(child, insideControl || interactive);
   }
+}
+
+function hasHeaders(node: SemanticNode): boolean {
+  if (node.role === 'columnheader' || node.role === 'rowheader') return true;
+  return node.children.some(hasHeaders);
+}
+
+/**
+ * Text a sighted user reads, normalized to single spaces.
+ *
+ * `aria-hidden` subtrees are excluded, which is what makes the icon-button case
+ * work: the glyph is hidden, so the visible text is empty and `label-mismatch`
+ * has nothing to compare.
+ */
+function visibleTextOf(node: SemanticNode): string {
+  if (node.state?.['hidden'] === true) return '';
+
+  const own = node.text ?? '';
+  const children = node.children.map(visibleTextOf).join(' ');
+
+  return `${own} ${children}`.replace(/\s+/g, ' ').trim();
 }
 
 function levelOf(node: SemanticNode): number | undefined {

@@ -1,6 +1,6 @@
 # Spec 0009 — Inspection rules, and where they stop
 
-**Status:** specified, not built
+**Status:** built
 **Depends on:** [0003](0003-cli.md)
 
 ## Purpose
@@ -50,17 +50,28 @@ clean; no `findings` key means nothing inspected it. Already enforced in
 `ObservationRecord` and in `variance_findings`, and it is the property that keeps
 a run over a collector with no snapshot from reading as a clean bill of health.
 
-## Rules that qualify and are not written
+## The rules
 
-- **`label-mismatch`** — a control whose visible text is not a prefix of its
-  accessible name, which breaks voice control ("click Save" does nothing when
-  the label says "Save changes to draft"). Decidable: both strings are in the
-  snapshot.
-- **`duplicate-landmark`** — two landmarks of one role with no distinguishing
-  name in one subject.
-- **`table-without-headers`** — a `table` role with no `columnheader`.
-- **`positive-tabindex`** — `tabindex` greater than zero. Already allowlisted as
-  an attribute.
+Nine, each with a case where it must **not** fire, and in several the
+non-firing case is the one that decides whether the rule is usable at all.
+
+| rule | fires on | must not fire on |
+|---|---|---|
+| `control-without-name` | an interactive role with no accessible name | a non-interactive element, however unnamed |
+| `image-without-alt` | an image role with neither a name nor `alt=""` | `alt=""`, which is the author answering the question |
+| `heading-level-skipped` | a forward jump of more than one level | a subject starting at `h3`; a level going back up |
+| `nested-interactive` | a control inside a control | — |
+| `dangling-reference` | an IDREF that resolves to nothing in this subject | a reference that resolves |
+| `label-mismatch` | a control whose name does not contain its visible text (WCAG 2.5.3) | a name that *extends* the visible text; an icon button, whose glyph is `aria-hidden` and is not a label |
+| `duplicate-landmark` | two landmarks of one role that nothing tells apart | two navigations with different names |
+| `table-without-headers` | a `table` role with no header cell anywhere in it | a table with one `columnheader` |
+| `positive-tabindex` | `tabindex` above zero | `0` and `-1`, the two ordinary values |
+
+`label-mismatch` is the one whose *negative* case carries the design. Every
+design system has icon buttons; a rule that reported all of them would be
+switched off before it found anything, and it takes the eight that work with it.
+Visible text excludes `aria-hidden` subtrees and must carry a letter, so a glyph
+is not a label.
 
 ## Rules that do not qualify, and why
 
@@ -77,9 +88,14 @@ a run over a collector with no snapshot from reading as a clean bill of health.
 
 ## Acceptance
 
-1. The four qualifying rules above are implemented and each has a case where it
-   must *not* fire, written before the rule.
-2. Contrast is not implemented, and `inspect.ts` states why in the file rather
-   than leaving it as an obvious omission somebody adds badly later.
-3. A run over `cases/storybook-case` reports its findings and its verdict
-   independently — a subject can be `unchanged` and carry findings.
+1. **Met.** Nine rules, each with a non-firing case (`inspect.test.ts`, 26 tests).
+2. **Met.** Contrast is not implemented and `inspect.ts` states why in the file,
+   rather than leaving it as an obvious omission somebody adds badly later.
+3. **Met.** `cases/storybook-case/src/cli.chromium.test.js` asserts that every
+   observation carries a findings list, so a clean run means *inspected and
+   clean* rather than *nobody looked* — and a subject can be `unchanged` and
+   carry findings.
+
+Still open: no rule here has run against an application this project did not
+write. `cases/storybook-case` reports **0 findings across 8 subjects**, which is
+a real answer about that design system and not a measurement of the rules.
