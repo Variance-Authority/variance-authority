@@ -1,7 +1,7 @@
 # Helix checkpoint
 
 **Surface:** this file (git-committed). Epitaphs: [`epitaphs.md`](epitaphs.md).
-**Cycle:** 5
+**Cycle:** 5 → 6
 **Reload budget:** one read. Verdicts only — no deliberation, no candidate lists.
 
 ---
@@ -51,6 +51,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B9 | **impact axis** — reflow vs repaint, orthogonal to the frequency bands | landed; answers B6's leftover band-cardinality question |
 | B10 | **intent / adjudication** — declared claims vs findings, and the locate/source chain | landed; a report is a cause, a place and a file |
 | B11 | **raster tier** — six phases, two retention modes, MCP surface | landed and measured; found that area ranks the displaced above the displacer |
+| B12 | **history** — what accumulates across runs, and where it lives | **decided, not built** (ADR-0012); first implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
 
@@ -68,6 +69,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M8 | B10 | Intent, policy, adjudication (spec §7.2); ADR-0010's two environment keys | **expected** — `rebrand` and `rebrand-with-accident` change the same 14 screenshots and adjudicate differently |
 | M9 | B10 | `locate` and `source` — landmark orientation, component→file by reading the repo | **expected** — `_debugSource` is gone in React 19, so per-element source is a plugin story nothing tells |
 | M10 | B11 | Raster phases, durable/ephemeral retention (ADR-0011), MCP surface | **mixed** — the offload works and the ranking did not; area measures displacement, so the ordering now comes from the semantic tier (journal 0013) |
+| M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. ADR-0012 records what replaces both; nothing is implemented |
 
 ---
 
@@ -117,15 +119,32 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   about what an agent needs, tested against text rather than against use.
 - **The font probe reports metric-compatible substitutes as missing.** A false
   alarm rather than a false `unchanged`, and the same hole as "one machine".
+- **Nothing accumulates across runs.** Spec §5 has promised per-component change
+  frequency since the draft; ADR-0012 now says what it should record and where it
+  should live, and neither exists. Until it does, the README's third answer is
+  half built: pixels reach code lines, and no sum is kept.
+- **The README makes claims about deployment nothing has exercised.** Linux CI,
+  git-LFS artifacts, a CI bot committing images back — all stated as intent and
+  marked as such, none run once.
 
 ---
 
 ## Next
 
-The raster stage landed, so the open question moved. What is unmeasured now is
-**generality**: one corpus, one mutation behind the ranking, one machine behind
-every ratio, and an MCP surface nothing has used. The cheapest thing that would
-move any of those is running the whole chain over a repository that is not ours.
+Two open fronts, and they are independent.
+
+**History (B12) is decided and unwritten.** ADR-0012 settles what is recorded and
+where it lives; nothing implements it. The first step is per-component
+band hashing in `core` — `SemanticSnapshot` carries `structureHash` and
+`styleHash` at *subject* level only, and the boundary-scoped per-component
+version is what every history question is asked against. The store interface and
+its backing service come after, and neither should be started before the hashing
+is proven to move only when the component's own code moves.
+
+**Generality remains unmeasured.** One corpus, one mutation behind the ranking,
+one machine behind every ratio, and an MCP surface nothing has used. The cheapest
+thing that would move any of those is running the whole chain over a repository
+that is not ours.
 
 **Band cardinality** remains where B9 left it — a policy decision about which
 axis to gate on, not a modelling gap.
