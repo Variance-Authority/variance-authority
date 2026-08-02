@@ -1,8 +1,9 @@
-# Spec 0002 — History store and drift queries
+# Spec 0002 — History service and drift queries
 
 **Status:** specified, not built
 **Depends on:** [0001](0001-component-hashing.md)
-**Package:** new — `@variance-authority/history`
+**Packages:** new — `@variance-authority/history` (interface, drift math, client),
+`@variance-authority/server` (the service)
 
 ## Purpose
 
@@ -57,7 +58,8 @@ run in which two components changed writes two rows.
 
 ## Where it lives
 
-**An external service, reached through an interface. Never a local file.**
+**A service, part of this project, run by the operator in their own
+infrastructure. Never a file in the repository.**
 
 A committed record puts derived state under human merge resolution, and the
 hashes of a merge commit are neither branch's — so a file-based record always
@@ -67,6 +69,27 @@ adds interleaved writes from concurrent jobs.
 A store of observations has no merges to resolve. Two branches observing
 different hashes for one key are two rows; the query selects the lineage. This is
 content-addressing (spec §4, Principle 4) applied to time.
+
+The objection above is about a file **in a repository**, not about storage in
+general. A database file owned by a service is never hand-merged and never
+reviewed as a diff, so it does not inherit the problem.
+
+### Deployment shape
+
+- The service is a package in this repository. The operator runs it; nothing here
+  runs it for them, and no instance is shared between operators.
+- `@variance-authority/history` holds the `HistoryStore` interface, the drift
+  arithmetic as pure functions, and an HTTP client. It contains no storage.
+- `@variance-authority/server` holds the HTTP surface and the storage, behind a
+  `HistoryBackend` interface so the engine is replaceable.
+- The first backend is SQLite via `node:sqlite`. A self-hosted service that
+  requires a native build to install is a service nobody installs; a single file
+  and a port is the whole operational burden.
+- Authentication is a bearer token the operator sets. The service holds no user
+  accounts and no identity of its own.
+- Everything the service stores was produced by the operator's own runs. It
+  neither reaches out nor accepts writes it cannot attribute to a configured
+  token.
 
 ## Contract
 
@@ -121,8 +144,18 @@ style agrees across profiles on 0 of 107 component boundaries).
 5. Two branches recording different hashes for one key both persist, and neither
    query nor write requires a merge.
 
+## Known limits
+
+- One service process owns one SQLite file. Concurrent CI jobs serialize their
+  writes through it, which is correct and is not unbounded. The `HistoryBackend`
+  interface exists so a different engine can replace it without the client, the
+  drift arithmetic, or the recorded shape changing.
+- `node:sqlite` is marked experimental on Node 22. It is reached through exactly
+  one adapter for that reason.
+
 ## Out of scope
 
-- A hosted service. The interface admits one; nothing here operates one.
+- Operating the service for anyone. It ships as something to run, not as
+  something running.
 - Approvals as a workflow. This records whether a change was accepted; deciding
   that is [0005](0005-ci-integration.md)'s business.

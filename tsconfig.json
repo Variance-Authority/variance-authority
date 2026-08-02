@@ -20,6 +20,18 @@
       "path": "./packages/raster"
     },
     {
+      "path": "./packages/history"
+    },
+    {
+      "path": "./packages/server"
+    },
+    {
+      "path": "./packages/storybook"
+    },
+    {
+      "path": "./packages/cli"
+    },
+    {
       "path": "./packages/mcp"
     },
     {

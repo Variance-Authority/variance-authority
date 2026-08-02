@@ -756,6 +756,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@variance-authority/cli@workspace:packages/cli":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/cli@workspace:packages/cli"
+  dependencies:
+    "@variance-authority/collector-dom": "workspace:^"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/harness-playwright": "workspace:^"
+    "@variance-authority/history": "workspace:^"
+    "@variance-authority/mcp": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/storybook": "workspace:^"
+  bin:
+    variance: ./dist/bin.js
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/collector-dom@workspace:^, @variance-authority/collector-dom@workspace:packages/collector-dom":
   version: 0.0.0-use.local
   resolution: "@variance-authority/collector-dom@workspace:packages/collector-dom"
@@ -816,6 +832,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/history@workspace:^, @variance-authority/history@workspace:packages/history":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/history@workspace:packages/history"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/mcp@workspace:^, @variance-authority/mcp@workspace:packages/mcp":
   version: 0.0.0-use.local
   resolution: "@variance-authority/mcp@workspace:packages/mcp"
@@ -850,6 +874,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/server@workspace:packages/server":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/server@workspace:packages/server"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/history": "workspace:^"
+  bin:
+    variance-authority-server: ./dist/bin.js
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/session@workspace:packages/session":
   version: 0.0.0-use.local
   resolution: "@variance-authority/session@workspace:packages/session"
@@ -857,6 +892,15 @@ __metadata:
     "@variance-authority/collector-dom": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/provenance-react": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/storybook@workspace:^, @variance-authority/storybook@workspace:packages/storybook":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/storybook@workspace:packages/storybook"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/harness-playwright": "workspace:^"
   languageName: unknown
   linkType: soft
 

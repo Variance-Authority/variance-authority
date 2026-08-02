@@ -1,0 +1,32 @@
+{
+  "name": "@variance-authority/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "variance": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/collector-dom": "workspace:^",
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/harness-playwright": "workspace:^",
+    "@variance-authority/history": "workspace:^",
+    "@variance-authority/mcp": "workspace:^",
+    "@variance-authority/raster": "workspace:^",
+    "@variance-authority/storybook": "workspace:^"
+  }
+}

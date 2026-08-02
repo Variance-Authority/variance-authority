@@ -124,6 +124,10 @@ renderer identity.*
 
 **You do. And the backend is optional — git-LFS is the default.**
 
+The backend is part of this project and runs in your own infrastructure: a
+process, a port, and a token you set. Nothing is shared with anyone and nothing
+is operated on your behalf.
+
 Without a backend you get every single-run answer: what changed, which component,
 which file. With one you additionally get history — when an area last changed, how
 often it churns, what a token's value has drifted to across approvals.
