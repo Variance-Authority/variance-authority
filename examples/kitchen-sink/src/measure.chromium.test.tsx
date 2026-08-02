@@ -7,11 +7,13 @@ import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  buildDocket,
   diffSnapshots,
   hashComponents,
   loudestBand,
   normalize,
   type Band,
+  type SemanticDiff,
   type SemanticSnapshot,
 } from '@variance-authority/core';
 import { createHarness, type Harness } from '@variance-authority/playwright';
@@ -98,6 +100,8 @@ interface Observation {
   readonly bands: readonly Band[];
   /** Delta kinds observed, so a band disagreement names its own evidence. */
   readonly kinds: readonly string[];
+  /** Who the report blames. See `CorpusCase.blames`. */
+  readonly blames: readonly string[];
   readonly diagnostics: readonly string[];
 }
 
@@ -125,7 +129,25 @@ function observe(before: SemanticSnapshot, after: SemanticSnapshot): Omit<Observ
     band: worst(bands),
     bands,
     kinds: [...new Set(diff.deltas.map((delta) => delta.kind))],
+    blames: blamedBy(diff),
   };
+}
+
+/**
+ * The names the report puts in front of a reviewer.
+ *
+ * Read from the docket rather than from the diff, because the docket is what a
+ * reader is handed and the two can disagree. A `token` root blames no component,
+ * so it carries its label instead.
+ */
+function blamedBy(diff: SemanticDiff): readonly string[] {
+  return buildDocket([diff]).entries.flatMap((entry) => {
+    const components = entry.components
+      .filter((component) => component.role === 'root')
+      .map((component) => component.name);
+
+    return components.length > 0 ? components : [entry.label];
+  });
 }
 
 /** Loudest band present — what a blocking policy reads. `BANDS` fixes the order. */
@@ -273,6 +295,28 @@ describe.skipIf(!BROWSER_AVAILABLE)('M5 — declared bands (spec §5, ADR-0008)'
         `${corpusCase.id}: bands ${observed.bands.join('+')} from ${observed.kinds.join(', ')}\n  ` +
           (expectation.because ?? corpusCase.rationale),
       ).toBe(expectation.band);
+    });
+  }
+});
+
+/**
+ * **Who the report blames**, under a real engine.
+ *
+ * Scored under both profiles because blame is the one answer that must *not*
+ * move between them: which component is responsible for a change is a fact about
+ * the code, and a profile is a fact about the observer. A per-profile clause
+ * inherits this rather than replacing it.
+ */
+describe.skipIf(!BROWSER_AVAILABLE)('M6 — who the report blames (spec §6.2)', () => {
+  for (const corpusCase of SCORABLE) {
+    const expectation = expectationFor(corpusCase, 'chromium');
+    if (expectation.kind !== 'scorable' || expectation.blames === undefined) continue;
+
+    it(`${corpusCase.id} — ${expectation.blames}`, () => {
+      expect(
+        chromiumOf(corpusCase.id).blames,
+        expectation.because ?? corpusCase.rationale,
+      ).toEqual([expectation.blames]);
     });
   }
 });

@@ -235,6 +235,92 @@ describe('banding', () => {
   });
 });
 
+describe('which token a fallback chain blames', () => {
+  /**
+   * `var(--ks-card-radius, var(--va-radius-md))` — a component token with a
+   * system fallback, which is how every real design system is built.
+   *
+   * `styleTokens` names the outer token, because that is what the author wrote.
+   * When it is undefined the value comes from the fallback, so comparing the
+   * outer name's recorded value compares `undefined` with `undefined` and
+   * concludes the token held. The root then fell through to the component: an
+   * edit to the radius *scale* reported as "Card changed internally", once per
+   * consuming component, instead of one token root with counted collateral.
+   */
+  const chained = (scale: string) =>
+    capture({
+      root: node({
+        rules: [
+          { selector: ':scope', declare: { '--va-radius-md': scale } },
+          { selector: '.x', declare: { 'border-radius': 'var(--ks-card-radius, var(--va-radius-md))' } },
+        ],
+        owners: [{ name: 'Card' }],
+      }),
+    });
+
+  it('blames the token that supplied the value, not the one that was named', () => {
+    const result = diff(chained('6px'), chained('14px'));
+
+    expect(result.roots.map((root) => `${root.kind}:${root.label}`)).toEqual([
+      'token:--va-radius-md',
+    ]);
+  });
+
+  /**
+   * The other half, which the fallback must not break: when the *named* token
+   * gains a value where it had none, that override is the root. Both are one
+   * root and they are different roots.
+   */
+  it('blames the override when the named token is the one that appeared', () => {
+    const overridden = (declare: Record<string, string>) =>
+      capture({
+        root: node({
+          rules: [
+            { selector: ':scope', declare: { '--va-radius-md': '6px', ...declare } },
+            { selector: '.x', declare: { 'border-radius': 'var(--ks-card-radius, var(--va-radius-md))' } },
+          ],
+          owners: [{ name: 'Card' }],
+        }),
+      });
+
+    const result = diff(overridden({}), overridden({ '--ks-card-radius': '14px' }));
+
+    expect(result.roots.map((root) => `${root.kind}:${root.label}`)).toEqual([
+      'token:--ks-card-radius',
+    ]);
+  });
+
+  /**
+   * Refuses to answer rather than guessing. "The named token held and two others
+   * moved" is genuinely ambiguous, and a confident wrong token name in front of
+   * a reviewer is worse than a coarser true one.
+   */
+  it('falls through to the component when several tokens moved', () => {
+    const many = (radius: string, space: string) =>
+      capture({
+        root: node({
+          rules: [
+            { selector: ':scope', declare: { '--va-radius-md': radius, '--va-space-2': space } },
+            {
+              selector: '.x',
+              declare: {
+                'border-radius': 'var(--ks-card-radius, var(--va-radius-md))',
+                'padding-top': 'var(--va-space-2)',
+              },
+            },
+          ],
+          owners: [{ name: 'Card' }],
+        }),
+      });
+
+    const result = diff(many('6px', '8px'), many('14px', '12px'));
+    const kinds = new Set(result.roots.map((root) => root.kind));
+
+    expect(kinds.has('token')).toBe(true);
+    expect(result.roots.some((root) => root.kind === 'component')).toBe(true);
+  });
+});
+
 describe('root attribution', () => {
   /**
    * A theme token consumed by two components — the shape the whole docket

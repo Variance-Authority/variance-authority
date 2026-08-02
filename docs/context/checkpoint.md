@@ -188,6 +188,13 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   as a document can get without a catalogue to join against. Joining against the
   actual message catalogue — the ids, not the values — is the thing that would
   make it exact, and no format for that has been decided.
+- **No corpus case constructs a provider-backed `prop` root.**
+  `prop-primary-variant/hero` was written for it and does not: Hero *forwards*
+  `p.props.heroPrimaryVariant` from the fixture rather than deciding it, so the
+  props arrive from outside the subject and no component inside it is
+  responsible. `Root.cause` is therefore set only where a provider exists, and
+  the only thing asserting that path is `packages/dom/src/attributed.test.ts`.
+  A fixture where one component decides what another receives would close it.
 - **A tag change is a replacement.** `matchKey` never pairs an element whose tag
   moved, so `<div>` → `<section aria-label>` reports a removal and an addition
   rather than a `role-changed`, and the `a11y` band does not carry it.
@@ -218,9 +225,8 @@ axis to gate on, not a modelling gap. B15 narrows it: `a11y` and `content` are
 now their own bands, so "block on `geometry`" no longer means "block on every
 padding change *and* every dropped label *and* every copy edit".
 
-**The corpus scores entries, not blame.** `roots: 1` asserts how many docket
-entries a change produces and nothing asserts *which component* each one names.
-That is how a `prop` root could attribute to the wrong component for as long as
-it did — `prop-primary-variant/hero` exists to catch exactly this and asserts a
-count. `packages/dom/src/attributed.test.ts` is currently the only thing checking
-the distinction, which is the wrong place for it.
+**The corpus scores blame now, and scoring it found two more defects.** Every
+`hash-changed` case declares `blames` — the name the report puts in front of a
+reviewer — and both measure harnesses assert it under both profiles, because
+which component is responsible is a fact about the code and a profile is a fact
+about the observer.

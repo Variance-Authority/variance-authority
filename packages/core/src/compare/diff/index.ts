@@ -403,7 +403,38 @@ function changedTokenFor(
   // Undefined on one side counts as a change: a theme override introducing a
   // token that previously had no value is exactly the case the token band exists
   // to collapse into one root.
-  return before.tokens?.[token] !== after.tokens?.[token] ? token : undefined;
+  if (before.tokens?.[token] !== after.tokens?.[token]) return token;
+
+  // The named token held — and may never have had a value at all.
+  // `var(--ks-card-radius, var(--va-radius-md))` is the ordinary shape of a
+  // component token with a system fallback: `styleTokens` names the outer one,
+  // because that is what the author wrote, and when it is undefined the value
+  // came from the fallback. Comparing the outer name's value then compares
+  // `undefined` with `undefined`, concludes the token held, and reports an edit
+  // to the radius *scale* as `component:Card` — "Card changed internally", once
+  // per consuming component — instead of one token root with counted collateral.
+  // That is the product's headline claim failing on the most common
+  // design-system shape there is, and it survived because the corpus asserted
+  // the root *count*, which is one either way.
+  return soleMovedToken(before, after);
+}
+
+/**
+ * The one token this node resolved through whose value moved, if there is
+ * exactly one.
+ *
+ * The fallback for a chain whose outer name carries no value. Deliberately
+ * refuses to answer when two moved: "the named token held and several others
+ * changed" is genuinely ambiguous, and picking one would put a confident wrong
+ * name in front of a reviewer. Ambiguity falls through to the component root,
+ * which is coarser and true.
+ */
+function soleMovedToken(before: SemanticNode, after: SemanticNode): string | undefined {
+  const moved = unionKeys(before.tokens, after.tokens).filter(
+    (name) => before.tokens?.[name] !== after.tokens?.[name],
+  );
+
+  return moved.length === 1 ? moved[0] : undefined;
 }
 
 function sameRect(before: SemanticNode, after: SemanticNode): boolean {
@@ -502,6 +533,15 @@ function attribute(
       // The *provider*, not the component the delta landed in. This is the whole
       // point of a `prop` root: the edit is upstream, and the report has to send
       // a reviewer there.
+      //
+      // Set **only when a provider exists**. With none, the changed boundary is
+      // the outermost frame in the chain: the props arrived from outside the
+      // subject entirely, and no component inside it is responsible. Naming the
+      // boundary there would send a reviewer to a component whose source is also
+      // unchanged, which is the same failure one level out. The fallback in
+      // `componentsOf` — the innermost owner, where the change landed — is what
+      // both corpora ask for in that case, and the entry's own label still says
+      // whose props moved.
       ...(provider !== undefined ? { cause: provider.name } : {}),
     };
   };

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { diffSnapshots, loudestBand, type Band } from '@variance-authority/core';
+import {
+  buildDocket,
+  diffSnapshots,
+  loudestBand,
+  type Band,
+  type SemanticDiff,
+} from '@variance-authority/core';
 import { jsdomSnapshot } from './jsdom-profile.js';
 import {
   CONTESTED_CORPUS,
@@ -47,6 +53,8 @@ interface Outcome {
   readonly bands: readonly Band[];
   /** Delta kinds observed, so a band disagreement names its own evidence. */
   readonly kinds: readonly string[];
+  /** Who the report blames. See `CorpusCase.blames`. */
+  readonly blames: readonly string[];
 }
 
 function run(corpusCase: CorpusCase): Outcome {
@@ -67,7 +75,25 @@ function run(corpusCase: CorpusCase): Outcome {
     band: loudestBand(diff.deltas.map((delta) => delta.band)) ?? 'none',
     bands: [...new Set(diff.deltas.map((delta) => delta.band))],
     kinds: [...new Set(diff.deltas.map((delta) => delta.kind))],
+    blames: blamedBy(diff),
   };
+}
+
+/**
+ * The names the report puts in front of a reviewer.
+ *
+ * Read from the docket rather than from the diff, because the docket is what a
+ * reader is handed and the two can disagree — which is the whole reason this is
+ * scored. A `token` root blames no component, so it carries its label instead.
+ */
+function blamedBy(diff: SemanticDiff): readonly string[] {
+  return buildDocket([diff]).entries.flatMap((entry) => {
+    const components = entry.components
+      .filter((component) => component.role === 'root')
+      .map((component) => component.name);
+
+    return components.length > 0 ? components : [entry.label];
+  });
 }
 
 const SCORABLE = scorableFor('jsdom');
@@ -159,6 +185,30 @@ describe('M0 — declared bands (spec §5)', () => {
         `${corpusCase.id}: bands ${outcome.bands.join('+')} from ${outcome.kinds.join(', ')}\n  ` +
           (expectation.because ?? corpusCase.rationale),
       ).toBe(expectation.band);
+    });
+  }
+});
+
+/**
+ * **Who the report blames**, which `roots` cannot check.
+ *
+ * A count of one is a count of one whichever component it names, so every case
+ * here passed while a `prop` root was attributing to the component the pixels
+ * moved in rather than to the one that passed the prop. That defect was found by
+ * a test in `packages/dom`, which is the wrong place for it: this is the corpus's
+ * claim, declared in advance, and it belongs here.
+ */
+describe('M0 — who the report blames (spec §6.2)', () => {
+  for (const corpusCase of SCORABLE) {
+    const expectation = expectationFor(corpusCase, 'jsdom');
+    if (expectation.kind !== 'scorable' || expectation.blames === undefined) continue;
+
+    it(`${corpusCase.id} — ${expectation.blames}`, () => {
+      const outcome = run(corpusCase);
+
+      expect(outcome.blames, `${corpusCase.id}: ${corpusCase.rationale}`).toEqual([
+        expectation.blames,
+      ]);
     });
   }
 });

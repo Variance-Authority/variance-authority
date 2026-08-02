@@ -179,6 +179,52 @@ those names and their files, so a change caused by `Panel` sent a reviewer to
 `Button.tsx`. That is the failure `prop-primary-variant/hero` exists to prevent,
 committed one layer downstream of where the corpus looks.
 
+## Scoring blame, and the two defects under it
+
+The corpus asserted how many docket entries a change produces and never which
+component each one names. A count of one is a count of one whichever name it
+carries, which is how the `prop` misattribution above survived — the case written
+to catch it (`prop-primary-variant/hero`) asserts a count. `CorpusCase.blames`
+now declares the name the report puts in front of a reviewer, scored in both
+harnesses under both profiles: which component is responsible is a fact about the
+code, and a profile is a fact about the observer.
+
+**A token aliasing another token was invisible.** `var(--ks-card-radius,
+var(--va-radius-md))` is the ordinary shape of a component token with a system
+fallback. `styleTokens` names the outer token, because that is what the author
+wrote; when it is undefined the value comes from the fallback. The differ then
+asked "did `--ks-card-radius` move?", compared `undefined` with `undefined`, and
+concluded the token held — so an edit to the radius **scale** was reported as
+`component:Card`, "Card changed internally", **once per consuming component**,
+instead of one token root with counted collateral. That is the product's headline
+claim failing on the most common design-system shape there is. The corpus case
+`token-radius/card` has said "token delta ⇒ token is the root" in its `spec` line
+since it was written.
+
+Two attempts at it were reverted before the third landed, and the reverts are the
+useful part. Naming the first *defined* token in the chain fixed that case and
+broke `token-card-scoped/card`, where the point is that the outer token gains a
+value. Treating any change of driving token as a token event fixed both and broke
+claim P2 on four cases, splitting one Button variant switch into three roots. The
+fix that survives is in the lookup, not the recording: when the named token held
+and carries no value on either side, fall through to the one token this node
+resolved through whose value moved — and refuse to answer when several did,
+because a confident wrong token name is worse than a coarser true one.
+
+**Blame for a provider-less `prop` root is ambiguous, and both corpora said so.**
+`Root.cause` initially named the changed boundary even when no provider existed.
+That satisfied `prop-primary-variant/hero` and broke four rows of the incumbent
+case, which expects `IconButton` for the same shape. Neither is wrong: when props
+arrive from outside the subject, *no component inside it is responsible*, and the
+boundary's source is as unchanged as the innermost owner's. `cause` is now set
+only where a provider exists inside the subject.
+
+Which means `prop-primary-variant/hero` does not construct the case it was
+written for — Hero forwards `p.props.heroPrimaryVariant` rather than deciding it.
+Recorded on the case with the reason, and as an open link: **no corpus case
+constructs a provider-backed prop root**, and the only thing asserting that path
+is a test in `packages/dom`.
+
 ## Corrected in the documents
 
 `docs/comparison.md` was wrong in both directions and both were fixed in place

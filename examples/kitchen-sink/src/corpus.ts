@@ -39,6 +39,7 @@ export interface ProfileExpectation {
   readonly expect: Verdict;
   readonly band?: ExpectedBand;
   readonly roots?: number;
+  readonly blames?: string;
   /**
    * The argument for the divergence — mandatory, because a divergence with no
    * stated reason is indistinguishable from a mistake, and the whole point of
@@ -84,6 +85,23 @@ export interface CorpusCase {
    * cause has failed even with a correct hash.
    */
   readonly roots?: number;
+
+  /**
+   * **Who the report blames** — the name it puts in front of a reviewer.
+   *
+   * `roots` counts how many explanations a change produces and says nothing
+   * about whether any of them is the right one. That gap is not theoretical: a
+   * `prop` root labelled `Hero → Button` was attributing to `Button` in the
+   * per-component roles the report actually prints, so a reviewer opened a file
+   * nobody had edited — and every case here passed throughout, because a count
+   * of one is a count of one whichever component it names.
+   *
+   * For a `component` or `prop` root this is the component the entry marks as
+   * the root, which for a `prop` root is the **provider** and not the component
+   * the pixels moved in. For a `token` root no component is blamed — the token
+   * is — so this carries the entry's label instead.
+   */
+  readonly blames?: string;
   /**
    * Lower bound on collateral nodes. A bound rather than an exact count because
    * the exact number depends on the computed-style allowlist, which is versioned
@@ -434,6 +452,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: 'Card',
     spec: 'ADR-0003 §2 steps 3+5 (survives matching, wins the cascade)',
     rationale:
       'The injected rule has the same selector as the components sheet and arrives later, ' +
@@ -451,6 +470,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: 'Card',
     spec: 'ADR-0003 §2 step 2',
     rationale:
       'Structurally identical to `css-unmatched-media/card` except that the condition ' +
@@ -472,6 +492,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: '--va-radius-md',
     minCollateral: 1,
     spec: 'spec §5 (token band); §6.2 (token delta ⇒ token is the root)',
     rationale:
@@ -489,6 +510,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: '--ks-card-radius',
     minCollateral: 1,
     spec: 'ADR-0003 attribution side-channel (`tokenName`); `snapshot.ts` `tokens`',
     rationale:
@@ -507,6 +529,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: '--va-color-accent',
     minCollateral: 2,
     spec: 'spec §6.2 (one root, counted collateral); checkpoint P2',
     rationale:
@@ -525,6 +548,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: '--va-space-3',
     minCollateral: 4,
     spec: 'spec §6.2; checkpoint P2',
     rationale:
@@ -560,6 +584,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: 'Button',
     spec: "spec §1 (the running example); §6.2 (changed props at a boundary)",
     rationale:
       'The spec\'s own headline sentence. Background, text colour and border resolve ' +
@@ -590,6 +615,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: 'Button',
     spec: 'spec §5; `band.ts` (`style-changed` ⇒ token, `rect-changed` ⇒ geometry); ADR-0008',
     byProfile: {
       chromium: {
@@ -625,14 +651,24 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'token',
     roots: 1,
+    blames: 'Button',
     spec: 'spec §6.2 (diff explained by changed props at a boundary ⇒ root is the provider)',
     rationale:
       "The pixels that move are Button's, but Button's source did not change and neither " +
-      'did any token: Hero passed a different prop. The root is therefore Hero, and Button ' +
-      'is where the change is *visible*, not where it originates. This is the case that ' +
-      'distinguishes attribution from localization. A differ that blames the node whose ' +
-      'style moved produces exactly the report the spec rejects — "Button changed" — and ' +
-      'sends a reviewer to the wrong file.',
+      'did any token: Hero passed a different prop. The **root** is therefore Hero — the ' +
+      'docket entry reads `prop: Hero` — and Button is where the change is *visible*. This ' +
+      'is the case that distinguishes attribution from localization.\n\n' +
+      '`blames` is nevertheless `Button`, and the correction is worth keeping rather than ' +
+      'arguing away. This case was written to test attribution to a **provider inside the ' +
+      'subject**, and it does not construct that shape: Hero does not decide the variant, ' +
+      'it forwards `p.props.heroPrimaryVariant` from the fixture. So the props arrive from ' +
+      'outside the subject, no component inside it is responsible, and Hero\'s source is ' +
+      'exactly as unchanged as Button\'s — sending a reviewer there is the same failure one ' +
+      'level out. The differ names the innermost owner, where the change landed, and the ' +
+      'entry label still says whose props moved. **No case in this corpus constructs a ' +
+      'provider-backed prop root**; the only thing asserting that path is ' +
+      '`packages/dom/src/attributed.test.ts`, which is a gap in the corpus rather than in ' +
+      'the differ.',
     byProfile: {
       chromium: {
         expect: 'hash-changed',
@@ -653,6 +689,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'geometry',
     roots: 1,
+    blames: 'Button',
     spec: 'spec §5 (`geometry`: boxes appear); `band.ts` `node-added`',
     rationale:
       'A third Button appears in the action row. A node with a role and an accessible name ' +
@@ -660,7 +697,12 @@ export const CORPUS: readonly CorpusCase[] = [
       'of layout — so `jsdom` decides it as confidently as `chromium`, which is the ' +
       'concrete content of ADR-0002\'s claim that JSDOM covers "the structural half of ' +
       'geometry". Under `chromium` the sibling buttons also shift; those are collateral ' +
-      'under the same root, not additional roots.',
+      'under the same root, not additional roots.\n\n' +
+      '`blames` is `Button` rather than the Hero that placed it, and that is the rule ' +
+      '`classify` states explicitly: a component appearing or disappearing is credited to ' +
+      'the component itself, because crediting whoever placed it would blame a parent for ' +
+      'a change it did not make. Only *reordering* is credited to whoever wrote the JSX. ' +
+      'The known cost is recorded there and this case is where it shows.',
   },
   {
     id: 'break-association/field',
@@ -670,6 +712,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'a11y',
     roots: 1,
+    blames: 'Field',
     spec: 'ADR-0003 §1 (`#extern:<n>`, "a dangling reference is a real defect")',
     rationale:
       'The single most important case in the corpus, and it must be read against ' +
@@ -693,6 +736,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'a11y',
     roots: 1,
+    blames: 'Field',
     spec: 'spec §5; `ID_REFERENCE_LIST_ATTRIBUTES`; `aria.ts` `accessibleDescription`',
     rationale:
       'An error message node appears and `aria-describedby` grows from one reference to ' +
@@ -716,6 +760,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'geometry',
     roots: 1,
+    blames: 'Card',
     spec: 'spec §5; ADR-0002 §3; `match.ts` `matchKey`',
     rationale:
       'A `<div>` becomes a `<section aria-label>` with an implicit `region` role. Every ' +
@@ -740,6 +785,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'a11y',
     roots: 1,
+    blames: 'Tabs',
     spec: 'spec §5 (state changes); `band.ts` `state-changed`',
     rationale:
       '`aria-selected` moves between tabs, `tabIndex` follows it, and a different panel is ' +
@@ -758,6 +804,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'a11y',
     roots: 1,
+    blames: 'Tabs',
     spec: '`band.ts` (`role-changed` ⇒ a11y); ADR-0002 §3',
     rationale:
       'The panel keeps its element, its id, its text and every style, and loses ' +
@@ -775,6 +822,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'geometry',
     roots: 1,
+    blames: 'ItemList',
     spec: 'spec §5 (`node-moved`); `snapshot.ts` `NodePath`',
     rationale:
       'The same five items in a different order. The hash must move — the rendered content ' +
@@ -792,6 +840,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'geometry',
     roots: 1,
+    blames: 'ItemList',
     spec: '`snapshot.ts` `NodePath` ("a path change alone is evidence of nothing")',
     rationale:
       'One item added at the front — the worst case for positional addressing, since every ' +
@@ -807,6 +856,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'content',
     roots: 1,
+    blames: 'ItemList',
     minCollateral: 0,
     spec: '`band.ts` (`text-changed` ⇒ content)',
     rationale:
@@ -828,6 +878,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'geometry',
     roots: 1,
+    blames: 'Dialog',
     spec: 'ADR-0003 (subject subtree, `#extern:<n>`); ADR-0002 (false `unchanged`)',
     contested:
       'No ADR defines the subject subtree for portalled content, and the two readings ' +
@@ -855,6 +906,7 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'geometry',
     roots: 1,
+    blames: 'Wrappers',
     spec: 'spec §4.2 ("no role, no visual effect on the box tree"); ADR-0008',
     byProfile: {
       jsdom: {
@@ -905,6 +957,7 @@ export type Expectation =
       readonly expect: Verdict;
       readonly band?: ExpectedBand;
       readonly roots?: number;
+      readonly blames?: string;
       /** True when this profile's answer was declared separately from the default. */
       readonly perProfile: boolean;
       /** The per-profile argument, when there is one. */
@@ -942,6 +995,15 @@ export function expectationFor(corpusCase: CorpusCase, profile: ProfileId): Expe
       expect: clause.expect,
       ...(clause.band !== undefined ? { band: clause.band } : {}),
       ...(clause.roots !== undefined ? { roots: clause.roots } : {}),
+      // A per-profile clause replaces the default wholesale, except for blame:
+      // who is responsible for a change is not a thing two profiles can
+      // legitimately disagree about. A clause that means to override it says so;
+      // one that does not inherits, rather than silently dropping the assertion.
+      ...(clause.blames !== undefined
+        ? { blames: clause.blames }
+        : corpusCase.blames !== undefined
+          ? { blames: corpusCase.blames }
+          : {}),
       perProfile: true,
       because: clause.because,
     };
@@ -952,6 +1014,7 @@ export function expectationFor(corpusCase: CorpusCase, profile: ProfileId): Expe
     expect: corpusCase.expect,
     ...(corpusCase.band !== undefined ? { band: corpusCase.band } : {}),
     ...(corpusCase.roots !== undefined ? { roots: corpusCase.roots } : {}),
+    ...(corpusCase.blames !== undefined ? { blames: corpusCase.blames } : {}),
     perProfile: false,
   };
 }

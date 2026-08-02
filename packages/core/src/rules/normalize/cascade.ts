@@ -147,7 +147,7 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
       // resolved. The fallback is a deliberate over-report — a stand-in witness
       // that *something* under this token moved — because an absent entry is
       // indistinguishable from "the token held", and that reads as `unchanged`.
-      tokens[token] = resolved === undefined ? value : canonicalizeValue(property, resolved);
+      tokens[token] = resolved === undefined ? value : tokenValue(property, resolved, customProperties);
     }
   }
 
@@ -159,7 +159,7 @@ export function resolveStyle(input: ResolveInput): ResolvedStyle {
 
     for (const name of resolution.used) {
       const resolved = customProperties[name];
-      if (resolved !== undefined) tokens[name] = canonicalizeValue(property, resolved);
+      if (resolved !== undefined) tokens[name] = tokenValue(property, resolved, customProperties);
     }
 
     origins[property] = {
@@ -339,6 +339,31 @@ interface VariableResolution {
  * with counted collateral, instead of hundreds of unrelated colour diffs
  * (spec §5, `token` band). A resolved value alone cannot be grouped.
  */
+/**
+ * A custom property's value, resolved through any custom properties it uses.
+ *
+ * The distinction is not cosmetic and it broke the product's headline claim.
+ * `--ks-card-radius: var(--va-radius-md)` is how every real design system is
+ * built — semantic tokens aliasing primitive ones — and recording the *declared*
+ * value stores the literal string `var(--va-radius-md)` on both sides of a
+ * change to `--va-radius-md`. The differ reads this map to decide whether a
+ * token moved, sees two identical strings, and concludes it did not. So the root
+ * fell through to `component:Card`: **one edit to the radius scale was reported
+ * as "Card changed internally", once per consuming component**, instead of as
+ * one token root with counted collateral.
+ *
+ * The corpus declared the right answer for `token-radius/card` — its `spec` line
+ * reads "token delta ⇒ token is the root" — and asserted only the root *count*,
+ * which is one either way.
+ */
+function tokenValue(
+  property: string,
+  declared: string,
+  customProperties: Readonly<Record<string, string>>,
+): string {
+  return canonicalizeValue(property, resolveVariables(declared, customProperties).value);
+}
+
 export function resolveVariables(
   value: string,
   customProperties: Readonly<Record<string, string>>,
