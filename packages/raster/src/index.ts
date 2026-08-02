@@ -81,3 +81,6 @@ export {
   describeRecipe,
 } from './stabilize.js';
 export type { Intervention, Recipe, Tier, Trick, ScreenshotOptions, SettleTarget } from './stabilize.js';
+
+export { gateStability, summarizeGate } from './gate.js';
+export type { StabilitySample, StabilityVerdict } from './gate.js';

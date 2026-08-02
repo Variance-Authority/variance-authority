@@ -259,14 +259,16 @@ Current state, what is proven and what is open, is kept in
 
 ## Reading order
 
-1. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
-2. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
+1. [`docs/architecture.md`](docs/architecture.md) — the composition model: tools,
+   their contracts, and why there is no pipeline
+2. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
+3. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
    dependency order
-3. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
-4. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
-5. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
+4. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
+5. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
+6. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
    [0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the moat
-6. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
+7. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
 
 ## Development
 
