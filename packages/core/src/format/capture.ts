@@ -129,6 +129,21 @@ export interface RawNode {
 export interface RawAria {
   readonly role: string | null;
   readonly name: string | null;
+
+  /**
+   * Accessible description — what `aria-describedby` and `title` resolve to.
+   *
+   * Captured because nothing else captures it, and its absence was a hole. The
+   * attribute allowlist drops every `aria-*` attribute on the stated grounds
+   * that they "are resolved into role/name/state" — true of `aria-label` and
+   * `aria-selected`, and false of `aria-describedby`, which resolves into a
+   * description and had nowhere to land. A field whose `aria-describedby`
+   * pointed at a deleted error message compared **equal**: the reference was
+   * dropped by the allowlist, the name was unaffected, and the regression was
+   * silent on every tier including raster.
+   */
+  readonly description?: string | null;
+
   /** `checked`, `disabled`, `expanded`, `selected`, … */
   readonly state: Readonly<Record<string, string | boolean | number>>;
 }

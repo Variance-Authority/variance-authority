@@ -24,4 +24,7 @@ export { impactOf, canReflow, aggregateImpact } from './impact.js';
 export type { PropertyImpact, AggregateImpact } from './impact.js';
 
 export type { Band, DeltaKind } from './band.js';
-export { BANDS, bandOf } from './band.js';
+export { BANDS, bandOf, loudestBand } from './band.js';
+
+export { observableBands, decidesBand } from './observability.js';
+export type { Observability } from './observability.js';

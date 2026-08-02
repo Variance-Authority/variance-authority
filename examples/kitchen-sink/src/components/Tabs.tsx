@@ -6,13 +6,15 @@
  * not: `aria-selected`, `aria-controls` → `role="tabpanel"`, and the hidden
  * panels. It is in the corpus for two separate reasons.
  *
- * 1. **State is `geometry`, not `token`.** Selecting a different tab moves no
- *    node and changes no resolved style on the tablist itself, but it changes what
- *    a screen reader announces and which panel exists. `bandOf('state-changed')`
- *    says `geometry`, and this fixture is what makes that classification testable
- *    under JSDOM — the profile with no layout engine at all. If JSDOM could only
- *    decide the `token` band, ADR-0002's claim that it decides "the structural half
- *    of geometry" would be unsupported.
+ * 1. **State is `a11y`, not `token`.** Selecting a different tab moves no node
+ *    and changes no resolved style on the tablist itself, but it changes what a
+ *    screen reader announces and which panel exists. `bandOf('state-changed')`
+ *    says `a11y`, and this fixture is what makes that classification testable
+ *    under JSDOM — the profile with no layout engine at all. A panel also appears
+ *    and disappears, which is `geometry`, so this is also where the ranking gets
+ *    fixed: both bands are present and the louder one names the finding. If JSDOM
+ *    could only decide the `token` band, ADR-0002's claim that it decides "the
+ *    structural half of geometry" would be unsupported.
  * 2. **`aria-controls` is a reference list**, handled by
  *    `ID_REFERENCE_LIST_ATTRIBUTES` rather than the single-value path. Tabs are the
  *    cheapest place to catch an aliaser that only rewrote single references.

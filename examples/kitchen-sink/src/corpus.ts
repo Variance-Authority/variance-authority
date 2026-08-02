@@ -25,7 +25,7 @@ import type { SubjectId } from './subjects.js';
 import type { VariantId } from './variants.js';
 
 /** `texture` is excluded: it is raster residue, and nothing here reaches raster. */
-export type ExpectedBand = Extract<Band, 'geometry' | 'token'>;
+export type ExpectedBand = Exclude<Band, 'texture'>;
 
 export type Verdict = 'hash-stable' | 'hash-changed';
 
@@ -535,6 +535,22 @@ export const CORPUS: readonly CorpusCase[] = [
       'collateral or merely reports it. Under a profile with layout this also produces ' +
       'rect movement, which the attributor must fold under the same root as collateral ' +
       'rather than raise as a separate `geometry` finding.',
+    byProfile: {
+      chromium: {
+        expect: 'hash-changed',
+        band: 'geometry',
+        because:
+          'The rationale above already says the attributor "must fold the rect movement under ' +
+          'the same root as collateral". It does fold it into one root — `roots: 1` holds — ' +
+          'and it does not fold the *band*, so `geometry` is what a blocking policy reads. ' +
+          'Declared here rather than argued away: under `jsdom` there is only ' +
+          '`style-changed` and the answer is `token`; under `chromium` the boxes measurably ' +
+          'move and `rect-changed` is louder. Both are correct readings of what each profile ' +
+          'can see, which is the content of ADR-0008. This clause existed as prose in ' +
+          '`docs/comparison.md` — "the other three are reported and not scored" — for as long ' +
+          'as the band field asserted nothing.',
+      },
+    },
   },
   {
     id: 'prop-variant/button',
@@ -552,6 +568,19 @@ export const CORPUS: readonly CorpusCase[] = [
       'upstream provided the prop — compare `prop-primary-variant/hero`, which is the ' +
       'same visual change with a different root, and the pair is what tests that root ' +
       'assignment follows the provenance chain rather than the location of the pixels.',
+    byProfile: {
+      chromium: {
+        expect: 'hash-changed',
+        band: 'geometry',
+        because:
+          'The rationale claims the box is unchanged, and under a real engine that is false: ' +
+          'the secondary variant carries a different border width, so the border box grows by ' +
+          'a pixel on each side and `rect-changed` deltas exist. The correction is worth ' +
+          'keeping visible — "only the colours changed" is exactly the assumption a token ' +
+          'system invites and a layout engine refutes. Under `jsdom` there are no rects and ' +
+          'the answer really is `token`.',
+      },
+    },
   },
   {
     id: 'prop-size/button',
@@ -604,6 +633,17 @@ export const CORPUS: readonly CorpusCase[] = [
       'distinguishes attribution from localization. A differ that blames the node whose ' +
       'style moved produces exactly the report the spec rejects — "Button changed" — and ' +
       'sends a reviewer to the wrong file.',
+    byProfile: {
+      chromium: {
+        expect: 'hash-changed',
+        band: 'geometry',
+        because:
+          'Same mechanism as `prop-variant/button`, one level up: the prop Hero passes ' +
+          'selects a variant whose border width differs, so the Button box moves under a real ' +
+          'engine. What this case is *for* — the root being Hero rather than Button — is ' +
+          'unaffected by the band, and `roots: 1` still carries it.',
+      },
+    },
   },
   {
     id: 'tertiary-action/hero',
@@ -628,7 +668,7 @@ export const CORPUS: readonly CorpusCase[] = [
     baseVariant: 'base',
     perturbedVariant: 'field-break-association',
     expect: 'hash-changed',
-    band: 'geometry',
+    band: 'a11y',
     roots: 1,
     spec: 'ADR-0003 §1 (`#extern:<n>`, "a dangling reference is a real defect")',
     rationale:
@@ -639,8 +679,11 @@ export const CORPUS: readonly CorpusCase[] = [
       'text, same computed styles, and under `chromium` the same rects, so no amount of ' +
       'layout or raster evidence would find it. Masking ids to a constant, which spec ' +
       '§4.2 originally prescribed, makes this render identical to the baseline and reports ' +
-      'a real accessibility regression as `unchanged`. It is banded `geometry` because the ' +
-      'accessibility tree changed, even though not one pixel did.',
+      'a real accessibility regression as `unchanged`. It is banded `a11y`: the input lost ' +
+      'its accessible name and nothing moved, which is the band existing to carry exactly ' +
+      'this. It was declared `geometry` until the bands were split, and the rationale had ' +
+      'already been arguing for `a11y` in prose — "a real accessibility regression" — while ' +
+      'the declared field said layout.',
   },
   {
     id: 'with-error/field',
@@ -648,16 +691,22 @@ export const CORPUS: readonly CorpusCase[] = [
     baseVariant: 'base',
     perturbedVariant: 'field-with-error',
     expect: 'hash-changed',
-    band: 'geometry',
+    band: 'a11y',
     roots: 1,
-    spec: 'spec §5; `ID_REFERENCE_LIST_ATTRIBUTES`',
+    spec: 'spec §5; `ID_REFERENCE_LIST_ATTRIBUTES`; `aria.ts` `accessibleDescription`',
     rationale:
       'An error message node appears and `aria-describedby` grows from one reference to ' +
-      'two. Both halves are `geometry`. The reference-list growth is the part worth ' +
-      'isolating: the alias sequence shifts for every id after the insertion point, so a ' +
-      'differ that compares alias strings positionally will report far more change than ' +
-      'occurred. The hash must move — it should — but the *report* should name one added ' +
-      'node, not a rewritten reference graph.',
+      'two. The node is `geometry`; the field gaining a description is `a11y`, and `a11y` ' +
+      'is the louder of the two — "the email field is now described by its error" is the ' +
+      'sentence a reviewer wants, and "a node appeared" is not. This case was declared ' +
+      '`geometry` for as long as nothing captured the description: every `aria-*` attribute ' +
+      'is dropped by `ATTRIBUTE_ALLOWLIST` on the stated grounds that they resolve into ' +
+      'role/name/state, which was never true of `aria-describedby`. The reference-list ' +
+      'growth is the other part worth isolating: the alias sequence shifts for every id ' +
+      'after the insertion point, so a differ that compares alias strings positionally will ' +
+      'report far more change than occurred. The hash must move — it should — but the ' +
+      '*report* should name one added node and one new description, not a rewritten ' +
+      'reference graph.',
   },
   {
     id: 'as-region/card',
@@ -667,14 +716,21 @@ export const CORPUS: readonly CorpusCase[] = [
     expect: 'hash-changed',
     band: 'geometry',
     roots: 1,
-    spec: 'spec §5 (`geometry` includes role/name/state); ADR-0002 §3',
+    spec: 'spec §5; ADR-0002 §3; `match.ts` `matchKey`',
     rationale:
       'A `<div>` becomes a `<section aria-label>` with an implicit `region` role. Every ' +
       'computed style, every rect and every pixel is identical; a landmark appeared in the ' +
       'accessibility tree. A pixel differ cannot see this at any threshold, which is the ' +
       'general argument for the semantic stage sitting above raster rather than beside it. ' +
       'It also fixes the tag/role boundary: the snapshot keeps `tag`, so a normalizer that ' +
-      'collapsed elements purely by box effect would still have to keep these apart.',
+      'collapsed elements purely by box effect would still have to keep these apart. ' +
+      'Banded `geometry` rather than `a11y`, and the reason is a limit worth stating: the ' +
+      'element changed tag, so `matchKey` never pairs the two and the report is a removal ' +
+      'plus an addition rather than a `role-changed`. The added node is described as ' +
+      '`region "Details"`, so the landmark is named — but by `describe()`, not by the band. ' +
+      'A tag change is a replacement to this differ, and pairing across one would need a ' +
+      'similarity heuristic that nothing here has. Reaching this from one snapshot rather ' +
+      'than from a pair is what `judge/a11y.ts` is for.',
   },
   {
     id: 'select-second/tabs',
@@ -682,15 +738,17 @@ export const CORPUS: readonly CorpusCase[] = [
     baseVariant: 'base',
     perturbedVariant: 'tabs-second',
     expect: 'hash-changed',
-    band: 'geometry',
+    band: 'a11y',
     roots: 1,
     spec: 'spec §5 (state changes); `band.ts` `state-changed`',
     rationale:
       '`aria-selected` moves between tabs, `tabIndex` follows it, and a different panel is ' +
-      'in the DOM. State is `geometry` rather than `token` because it changes what is ' +
-      'announced and what exists, not what anything looks like — the visual difference ' +
-      '(the accent underline) is downstream of the state, not the change itself. Decidable ' +
-      'entirely without a layout engine, which is what makes it a `jsdom`-tier case.',
+      'in the DOM. State is `a11y` because it changes what is *announced*, not what anything ' +
+      'looks like — the visual difference (the accent underline) is downstream of the state, ' +
+      'not the change itself. A panel also appears and disappears, which is `geometry`, so ' +
+      'this is the case that fixes the ranking: the two bands are both present and the ' +
+      'louder one wins. Decidable entirely without a layout engine, which is what makes it ' +
+      'a `jsdom`-tier case.',
   },
   {
     id: 'strip-panel-role/tabs',
@@ -698,9 +756,9 @@ export const CORPUS: readonly CorpusCase[] = [
     baseVariant: 'base',
     perturbedVariant: 'tabs-strip-panel-role',
     expect: 'hash-changed',
-    band: 'geometry',
+    band: 'a11y',
     roots: 1,
-    spec: 'spec §5; ADR-0002 §3',
+    spec: '`band.ts` (`role-changed` ⇒ a11y); ADR-0002 §3',
     rationale:
       'The panel keeps its element, its id, its text and every style, and loses ' +
       '`role="tabpanel"` and `aria-labelledby`. The tab still points at it via ' +
@@ -747,15 +805,20 @@ export const CORPUS: readonly CorpusCase[] = [
     baseVariant: 'base',
     perturbedVariant: 'list-relabelled',
     expect: 'hash-changed',
-    band: 'geometry',
+    band: 'content',
     roots: 1,
     minCollateral: 0,
-    spec: 'spec §5 (content reflow); `band.ts` `text-changed`',
+    spec: '`band.ts` (`text-changed` ⇒ content)',
     rationale:
       'Exactly one item relabelled, at a stable position. The control for the other two ' +
       'list cases: it is the one where "one change" is unambiguously correct, so it ' +
       'calibrates whether their larger reports are over-counting or whether the differ is ' +
-      'simply verbose everywhere.',
+      'simply verbose everywhere. It is also the only pure `content` case in the corpus — ' +
+      'a string moved and nothing else did — which is what makes it the calibration for ' +
+      'the band as well as for the count. The name is the accessible name of the list item ' +
+      'too, so this is the one place `content` and `a11y` could be confused; the item is ' +
+      'named from content, so the name is a consequence of the text rather than a second ' +
+      'edit, and the differ must not report it twice.',
   },
   {
     id: 'dialog-open/dialog',

@@ -212,6 +212,7 @@ function normalizeNode(
       ...(alias !== undefined ? { alias } : {}),
       ...(node.aria?.role ? { role: node.aria.role } : {}),
       ...(node.aria?.name ? { name: node.aria.name } : {}),
+      ...(node.aria?.description ? { description: node.aria.description } : {}),
       ...(node.aria && Object.keys(node.aria.state).length > 0 ? { state: node.aria.state } : {}),
       attributes,
       style,
@@ -371,7 +372,8 @@ function repath(node: SemanticNode, path: string): SemanticNode {
 }
 
 /**
- * Structure alone: shape, roles, names, states, admitted attributes, text.
+ * Structure alone: shape, roles, names, descriptions, states, admitted
+ * attributes, text.
  *
  * Hashed separately from style so the docket can say *which* held. "The DOM is
  * identical, only styling moved" is the sentence that turns a diff into a
@@ -384,6 +386,7 @@ function structureOf(node: SemanticNode): CanonicalValue {
     portalled: node.portalled,
     role: node.role,
     name: node.name,
+    description: node.description,
     state: node.state as CanonicalValue | undefined,
     attributes: node.attributes,
     text: node.text,

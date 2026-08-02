@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { diffSnapshots } from '@variance-authority/core';
+import { diffSnapshots, loudestBand, type Band } from '@variance-authority/core';
 import { jsdomSnapshot } from './jsdom-profile.js';
 import {
   CONTESTED_CORPUS,
@@ -42,7 +42,11 @@ interface Outcome {
   readonly observed: 'hash-stable' | 'hash-changed';
   readonly agreed: boolean;
   readonly roots: number;
-  readonly bands: readonly string[];
+  /** Loudest band present — what a blocking policy reads. */
+  readonly band: Band | 'none';
+  readonly bands: readonly Band[];
+  /** Delta kinds observed, so a band disagreement names its own evidence. */
+  readonly kinds: readonly string[];
 }
 
 function run(corpusCase: CorpusCase): Outcome {
@@ -60,7 +64,9 @@ function run(corpusCase: CorpusCase): Outcome {
     observed,
     agreed: observed === expected,
     roots: diff.roots.length,
+    band: loudestBand(diff.deltas.map((delta) => delta.band)) ?? 'none',
     bands: [...new Set(diff.deltas.map((delta) => delta.band))],
+    kinds: [...new Set(diff.deltas.map((delta) => delta.kind))],
   };
 }
 
@@ -126,6 +132,33 @@ describe('M0 — one root per cause (claim P2)', () => {
     it(`${corpusCase.id} — ${expectation.roots} root(s)`, () => {
       const outcome = run(corpusCase);
       expect(outcome.roots, `${corpusCase.id}: ${corpusCase.rationale}`).toBe(expectation.roots);
+    });
+  }
+});
+
+/**
+ * The declared band, scored — the same block `measure.chromium.test.tsx` runs.
+ *
+ * Until the bands were split this field asserted nothing anywhere: five cases
+ * changed band and no test noticed. A declaration the corpus makes in advance
+ * and never checks is documentation that drifts, and the corpus's whole claim to
+ * refute the implementation rests on its declarations being load-bearing.
+ */
+describe('M0 — declared bands (spec §5)', () => {
+  for (const corpusCase of SCORABLE) {
+    const expectation = expectationFor(corpusCase, 'jsdom');
+    if (expectation.kind !== 'scorable' || expectation.band === undefined) continue;
+
+    it(`${corpusCase.id} — ${expectation.band}`, () => {
+      const outcome = run(corpusCase);
+
+      // The delta kinds are in the message deliberately. "expected token,
+      // observed geometry" does not say which evidence produced the answer.
+      expect(
+        outcome.band,
+        `${corpusCase.id}: bands ${outcome.bands.join('+')} from ${outcome.kinds.join(', ')}\n  ` +
+          (expectation.because ?? corpusCase.rationale),
+      ).toBe(expectation.band);
     });
   }
 });

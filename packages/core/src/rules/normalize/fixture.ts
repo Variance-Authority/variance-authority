@@ -26,6 +26,7 @@ export interface NodeSpec {
   readonly attributes?: Record<string, string>;
   readonly role?: string;
   readonly name?: string;
+  readonly description?: string;
   readonly state?: Record<string, string | boolean | number>;
   readonly rules?: readonly RuleSpec[];
   readonly inlineStyle?: Record<string, string>;
@@ -67,8 +68,16 @@ export interface RuleSpec {
 
 export function node(spec: NodeSpec = {}): RawNode {
   const aria =
-    spec.role !== undefined || spec.name !== undefined || spec.state !== undefined
-      ? { role: spec.role ?? null, name: spec.name ?? null, state: spec.state ?? {} }
+    spec.role !== undefined ||
+    spec.name !== undefined ||
+    spec.description !== undefined ||
+    spec.state !== undefined
+      ? {
+          role: spec.role ?? null,
+          name: spec.name ?? null,
+          ...(spec.description !== undefined ? { description: spec.description } : {}),
+          state: spec.state ?? {},
+        }
       : undefined;
 
   return {

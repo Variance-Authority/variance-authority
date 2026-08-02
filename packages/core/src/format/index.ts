@@ -19,7 +19,7 @@ export type { Digest } from './hash.js';
 export { digestString, digestValue, digestCombine } from './hash.js';
 
 export type { ObservationProfile, ProfileId } from './profile.js';
-export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById, observableBands } from './profile.js';
+export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById } from './profile.js';
 
 export type {
   EnvironmentInputs,

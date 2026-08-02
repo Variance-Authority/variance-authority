@@ -23,9 +23,9 @@ import type { ComponentHash, Digest, ProfileId } from '@variance-authority/core'
 /**
  * The band a hash belongs to.
  *
- * Not `core`'s `Band`. Core's bands (`geometry` / `token` / `texture`) classify a
- * delta by how *often* that kind of thing changes, to decide how loudly to report
- * it. These name the three hashes `hashComponents` produces, which is a different
+ * Not `core`'s `Band`. Core's bands (`a11y` / `geometry` / `token` / `content` /
+ * `texture`) classify a delta by how *often* that kind of thing changes, to
+ * decide how loudly to report it. These name the three hashes `hashComponents` produces, which is a different
  * axis entirely: what part of a component's content was hashed. Importing both
  * into one file is a compile error rather than a silent mix-up, which is the point
  * of leaving the names as the specs wrote them.

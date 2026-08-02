@@ -1,9 +1,9 @@
-import { bandOf, type Band } from '../band.js';
+import { BANDS, bandOf, loudestBand, type Band, type DeltaKind } from '../band.js';
 import { aggregateImpact, impactOf, type AggregateImpact, type PropertyImpact } from '../impact.js';
 import { diffEnvironments, type EnvironmentDelta } from '../../format/environment.js';
 import type { OwnerFrame } from '../../format/provenance.js';
 import type { SemanticNode, SemanticSnapshot } from '../../format/snapshot.js';
-import { observableBands } from '../../format/profile.js';
+import { decidesBand, observableBands } from '../observability.js';
 import type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
 import { matchTrees } from './match.js';
 import { locate } from '../../attribute/locate.js';
@@ -75,11 +75,8 @@ export function diffSnapshots(
     );
   }
 
-  const bands = observableBands(candidate.profile);
-  const unobserved: Band[] = [];
-  if (bands.geometry !== 'full') unobserved.push('geometry');
-  if (bands.token === 'none') unobserved.push('token');
-  if (bands.texture === 'none') unobserved.push('texture');
+  const observability = observableBands(candidate.profile);
+  const unobserved: Band[] = BANDS.filter((band) => !decidesBand(band, observability[band]));
 
   const environmentDeltas = diffEnvironments(
     baseline.environment.inputs,
@@ -177,7 +174,7 @@ function compareNodes(
 ): void {
   const owners = after.provenance?.owners;
   const createdBy = after.provenance?.createdBy;
-  const base = (kind: Parameters<typeof bandOf>[0]) => ({
+  const base = (kind: DeltaKind) => ({
     kind,
     band: bandOf(kind),
     path: after.path,
@@ -190,6 +187,13 @@ function compareNodes(
   }
   if (before.name !== after.name) {
     deltas.push({ ...base('name-changed'), from: before.name, to: after.name });
+  }
+  if (before.description !== after.description) {
+    deltas.push({
+      ...base('description-changed'),
+      from: before.description,
+      to: after.description,
+    });
   }
   if (before.text !== after.text) {
     deltas.push({ ...base('text-changed'), from: before.text, to: after.text });
@@ -653,11 +657,15 @@ function ownerDigests(
   return digests;
 }
 
-/** Worst band present. A group containing one geometry delta is a geometry root. */
+/**
+ * Loudest band present. A group containing one `a11y` delta is an `a11y` root,
+ * whatever else moved alongside it.
+ *
+ * `texture` is the fallback for the empty case rather than a claim: a root is
+ * only built from deltas, so the set is never actually empty here.
+ */
 function dominantBand(deltas: readonly Delta[]): Band {
-  if (deltas.some((delta) => delta.band === 'geometry')) return 'geometry';
-  if (deltas.some((delta) => delta.band === 'token')) return 'token';
-  return 'texture';
+  return loudestBand(deltas.map((delta) => delta.band)) ?? 'texture';
 }
 
 function unionKeys(

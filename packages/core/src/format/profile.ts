@@ -10,6 +10,7 @@
  * A false `unchanged` is the one failure mode this product must never produce.
  */
 
+
 /** Dimensions a collector may or may not be able to observe. */
 export interface ObservationProfile {
   readonly id: ProfileId;
@@ -69,25 +70,4 @@ const PROFILES: Record<ProfileId, ObservationProfile> = {
 
 export function profileById(id: ProfileId): ObservationProfile {
   return PROFILES[id];
-}
-
-/**
- * Bands a profile is able to decide. A band absent from this set can never
- * resolve to `unchanged` under that profile — it resolves to `unobserved`.
- *
- * JSDOM sees structural geometry (nodes appearing, disappearing, reordering)
- * because that is tree shape, but not metric geometry (moves, resizes) because
- * that requires an engine. `geometry` is therefore only partially observable,
- * and partial observation of a blocking band is reported, never assumed away.
- */
-export function observableBands(profile: ObservationProfile): {
-  geometry: 'full' | 'structural-only' | 'none';
-  token: 'full' | 'declared-only' | 'none';
-  texture: 'full' | 'none';
-} {
-  return {
-    geometry: profile.layout ? 'full' : profile.ariaTree ? 'structural-only' : 'none',
-    token: profile.computedStyle ? 'full' : profile.declaredStyle ? 'declared-only' : 'none',
-    texture: profile.raster ? 'full' : 'none',
-  };
 }

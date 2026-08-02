@@ -203,6 +203,54 @@ describe('ARIA extraction', () => {
 
     expect(input.name).toBe('Email');
   });
+
+  it('resolves aria-describedby into an accessible description', () => {
+    const root = render(
+      `<input id="a" type="email" aria-label="Email" aria-describedby="d"><p id="d">We never share it</p>`,
+      '',
+    );
+    const snapshot = normalize(collect(root, options));
+    const input = snapshot.root.children[0]!;
+
+    expect(input.description).toBe('We never share it');
+  });
+
+  /**
+   * The hole this field was added for, stated as a test rather than as a caveat.
+   *
+   * `ATTRIBUTE_ALLOWLIST` drops every `aria-*` attribute on the grounds that
+   * they resolve into role/name/state — true of `aria-label`, never true of
+   * `aria-describedby`. Before the description was captured, deleting the error
+   * message left the input with the same role, the same name, the same styles
+   * and the same rect, so the two renders hashed **identically**: a silent
+   * accessibility regression on every tier this project has, raster included.
+   */
+  it('moves the hash when a description points at a node that is gone', () => {
+    const before = normalize(
+      collect(
+        render(
+          `<input id="a" type="email" aria-label="Email" aria-describedby="d"><p id="d">required</p>`,
+          '',
+        ),
+        options,
+      ),
+    );
+    const after = normalize(
+      collect(render(`<input id="a" type="email" aria-label="Email" aria-describedby="d">`, ''), options),
+    );
+
+    expect(before.root.children[0]!.description).toBe('required');
+    // Not the empty string. A reference that resolves to nothing must not
+    // normalize onto a node that never had one — the dangling reference *is*
+    // the regression.
+    expect(after.root.children[0]!.description).toBe(undefined);
+
+    const result = diffSnapshots(before, after);
+    const delta = result.deltas.find((d) => d.kind === 'description-changed');
+
+    expect(delta?.band).toBe('a11y');
+    expect(delta?.from).toBe('required');
+  });
 });
 
 describe('profile detection', () => {

@@ -39,9 +39,12 @@ const INPUT_ROLES: Readonly<Record<string, string>> = {
 };
 
 export function ariaOf(element: Element): RawAria {
+  const description = accessibleDescription(element);
+
   return {
     role: roleOf(element),
     name: accessibleName(element),
+    ...(description !== null ? { description } : {}),
     state: stateOf(element),
   };
 }
@@ -160,6 +163,41 @@ export function accessibleName(element: Element): string | null {
 
   const title = element.getAttribute('title');
   return title && title.trim().length > 0 ? normalize(title) : null;
+}
+
+/**
+ * Accessible description: `aria-describedby`, then `title`.
+ *
+ * The narrower half of accname, and the half that had nowhere to go before this
+ * existed. `ATTRIBUTE_ALLOWLIST` drops every `aria-*` attribute because they are
+ * "resolved into role/name/state" — which is true of `aria-label` and
+ * `aria-selected` and was never true of `aria-describedby`. A form field whose
+ * error message was deleted kept its role, its name, its styles and its rect,
+ * lost its description, and compared **equal** on every tier this project has.
+ *
+ * A reference that resolves to nothing yields `null` rather than an empty
+ * string, so the delta reads as a description that vanished. That is the whole
+ * point: the dangling reference *is* the regression, and the two must not
+ * normalize onto each other.
+ *
+ * `title` is consulted second and only when it did not already become the name,
+ * because a `title` on an unnamed element is its name, not its description.
+ */
+export function accessibleDescription(element: Element): string | null {
+  const describedBy = element.getAttribute('aria-describedby');
+  if (describedBy) {
+    const parts = describedBy
+      .trim()
+      .split(/\s+/)
+      .map((id) => element.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
+      .filter((part) => part.length > 0);
+    return parts.length > 0 ? normalize(parts.join(' ')) : null;
+  }
+
+  const title = element.getAttribute('title');
+  if (!title || title.trim().length === 0) return null;
+
+  return accessibleName(element) === normalize(title) ? null : normalize(title);
 }
 
 /**

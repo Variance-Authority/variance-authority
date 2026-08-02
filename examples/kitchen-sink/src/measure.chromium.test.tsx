@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   diffSnapshots,
   hashComponents,
+  loudestBand,
   normalize,
   type Band,
   type SemanticSnapshot,
@@ -95,6 +96,8 @@ interface Observation {
   /** Worst band present, which is what a blocking policy would read. */
   readonly band: Band | 'none';
   readonly bands: readonly Band[];
+  /** Delta kinds observed, so a band disagreement names its own evidence. */
+  readonly kinds: readonly string[];
   readonly diagnostics: readonly string[];
 }
 
@@ -121,15 +124,13 @@ function observe(before: SemanticSnapshot, after: SemanticSnapshot): Omit<Observ
     roots: diff.roots.length,
     band: worst(bands),
     bands,
+    kinds: [...new Set(diff.deltas.map((delta) => delta.kind))],
   };
 }
 
-/** Worst band present. A subject with one `geometry` delta is a geometry finding. */
+/** Loudest band present — what a blocking policy reads. `BANDS` fixes the order. */
 function worst(bands: readonly Band[]): Band | 'none' {
-  if (bands.includes('geometry')) return 'geometry';
-  if (bands.includes('token')) return 'token';
-  if (bands.includes('texture')) return 'texture';
-  return 'none';
+  return loudestBand(bands) ?? 'none';
 }
 
 beforeAll(async () => {
@@ -247,14 +248,31 @@ describe.skipIf(!BROWSER_AVAILABLE)('M5 — one root per cause under chromium (c
   }
 });
 
-describe.skipIf(!BROWSER_AVAILABLE)('M5 — declared per-profile bands (ADR-0008)', () => {
+/**
+ * Every declared band, not only the per-profile ones.
+ *
+ * This block used to score `perProfile` clauses only, which meant the `band`
+ * field on an ordinary case asserted nothing at all — a declaration the corpus
+ * made in advance and never checked. Splitting `a11y` and `content` out of
+ * `geometry` moved five cases and broke no test, which is how the hole was
+ * found: an unchecked declaration is documentation that drifts.
+ */
+describe.skipIf(!BROWSER_AVAILABLE)('M5 — declared bands (spec §5, ADR-0008)', () => {
   for (const corpusCase of SCORABLE) {
     const expectation = expectationFor(corpusCase, 'chromium');
-    if (expectation.kind !== 'scorable' || !expectation.perProfile) continue;
-    if (expectation.band === undefined) continue;
+    if (expectation.kind !== 'scorable' || expectation.band === undefined) continue;
 
     it(`${corpusCase.id} — ${expectation.band}`, () => {
-      expect(chromiumOf(corpusCase.id).band, expectation.because).toBe(expectation.band);
+      const observed = chromiumOf(corpusCase.id);
+
+      // The delta kinds are in the message deliberately. "expected token,
+      // observed geometry" does not say which evidence produced the answer, and
+      // a band disagreement is only diagnosable from the kinds underneath it.
+      expect(
+        observed.band,
+        `${corpusCase.id}: bands ${observed.bands.join('+')} from ${observed.kinds.join(', ')}\n  ` +
+          (expectation.because ?? corpusCase.rationale),
+      ).toBe(expectation.band);
     });
   }
 });

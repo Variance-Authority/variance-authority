@@ -1,4 +1,4 @@
-import type { Band, DeltaKind } from '../compare/band.js';
+import { loudestBand, type Band, type DeltaKind } from '../compare/band.js';
 import type { Delta } from '../compare/diff/delta.js';
 import { diffSnapshots } from '../compare/diff/index.js';
 import { formatSource, resolveSource, type SourceIndex } from './source.js';
@@ -289,10 +289,7 @@ function guess(
 }
 
 function worst(bands: readonly Band[]): InstabilityBand {
-  if (bands.includes('geometry')) return 'geometry';
-  if (bands.includes('token')) return 'token';
-  if (bands.includes('texture')) return 'texture';
-  return 'none';
+  return loudestBand(bands) ?? 'none';
 }
 
 function sentence(locations: readonly UnstableLocation[], deltas: number): string {

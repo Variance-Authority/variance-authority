@@ -1,4 +1,4 @@
-import type { Band } from '../compare/band.js';
+import { loudestBand, type Band } from '../compare/band.js';
 import type { ChangedComponent, Delta, Root, RootKind, SemanticDiff } from '../compare/diff/index.js';
 import { aggregateImpact, type AggregateImpact, type PropertyImpact } from '../compare/impact.js';
 
@@ -190,7 +190,11 @@ function finalize(entry: Accumulator, sampleSize: number): DocketEntry {
     rootId: entry.root.id,
     kind: entry.root.kind,
     label: entry.root.label,
-    band: entry.deltas.some((delta) => delta.band === 'geometry') ? 'geometry' : entry.root.band,
+    // The root's own band is a floor, not the answer. A token edit whose
+    // collateral includes a dropped accessible name is reported at `a11y`: the
+    // entry is one review action, so it must be labelled by the loudest thing a
+    // reviewer would be signing off on, not by the thing that caused it.
+    band: loudestBand([entry.root.band, ...entry.deltas.map((delta) => delta.band)]) ?? entry.root.band,
     impact: aggregateImpact(entry.deltas.map((delta) => delta.impact ?? 'structural')),
     subjects,
     subjectCount: subjects.length,

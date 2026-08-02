@@ -80,6 +80,13 @@ export interface SemanticNode {
 
   readonly role?: string;
   readonly name?: string;
+
+  /**
+   * Accessible description, resolved. See `RawAria.description` for why this is
+   * a field of its own rather than an attribute.
+   */
+  readonly description?: string;
+
   readonly state?: Readonly<Record<string, string | boolean | number>>;
 
   /** Semantic attributes surviving normalization. `class` is never among them. */
