@@ -30,6 +30,42 @@ export interface RunReport {
   /** What the run was comparing, in the author's words. Carried into every answer. */
   readonly intent?: string;
   readonly observations: readonly ObservationRecord[];
+  /**
+   * Subjects the run planned and has no observation for. **Absent is not empty.**
+   *
+   * Lives here rather than only on the CLI's own superset because the answers an
+   * agent gets are computed from *this* type, and a field the tools cannot see is
+   * a field the tools cannot be contradicted by. A run that planned 300 subjects,
+   * failed on 50 and found the other 250 unchanged produces a report in which
+   * every observation is clean and the conclusion "nothing to review" is false;
+   * the only thing that can refuse that sentence is this list.
+   *
+   * Optional because a report written by something other than `variance run` will
+   * not carry it, and the difference has to survive: `undefined` means the writer
+   * never said what it skipped, which is not the same claim as "it skipped
+   * nothing" and must never be printed as one. Costs every reader an extra state
+   * to handle, which is cheaper than the state it prevents collapsing.
+   */
+  readonly notObserved?: readonly NotObserved[];
+}
+
+/**
+ * Why a subject is in the report without an observation.
+ *
+ * Two kinds, kept apart because they mean opposite things about whether anyone
+ * should act. `excluded` is a decision the operator already made and wrote down;
+ * `failed` is a hole in this run's coverage. Collapsing them would either make
+ * every configured exclusion permanently red — which ends with the exclusion list
+ * being deleted rather than read — or make a browser that crashed on subject 41
+ * look like a subject somebody chose to skip.
+ */
+export type NotObservedKind = 'excluded' | 'failed';
+
+export interface NotObserved {
+  readonly subject: string;
+  readonly kind: NotObservedKind;
+  /** One sentence, ready to print, naming what was not looked at and why. */
+  readonly because: string;
 }
 
 export interface ObservationRecord {
@@ -83,6 +119,14 @@ export async function writeRunReport(path: string, report: RunReport): Promise<v
  * The version check is not ceremony. These tools answer questions an agent then
  * edits code on, and a silently-misparsed report produces confident answers about
  * fields that were never there.
+ *
+ * `notObserved` gets the same treatment for a sharper reason: it is the field a
+ * summary claims a clean run *from*, so a malformed entry that survived parsing
+ * would be counted as neither a failure nor an exclusion and would silently stop
+ * holding the run open. The cost is that a report from a future writer with a
+ * third kind is refused outright rather than partly understood — which is the
+ * intended trade, because partly understanding a coverage list is exactly the
+ * failure this field exists to prevent.
  */
 export async function readRunReport(path: string): Promise<RunReport> {
   const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<RunReport>;
@@ -95,6 +139,30 @@ export async function readRunReport(path: string): Promise<RunReport> {
   if (!Array.isArray(parsed.observations)) {
     throw new Error(`${path} has no observations array`);
   }
+  if (parsed.notObserved !== undefined) checkNotObserved(path, parsed.notObserved);
 
   return parsed as RunReport;
+}
+
+function checkNotObserved(path: string, value: unknown): void {
+  if (!Array.isArray(value)) {
+    throw new Error(`${path} has a \`notObserved\` field that is not an array`);
+  }
+
+  (value as readonly unknown[]).forEach((entry, index) => {
+    const row = entry as Partial<NotObserved>;
+
+    if (typeof row.subject !== 'string' || typeof row.because !== 'string') {
+      throw new Error(`${path}: notObserved[${index}] has no \`subject\` and \`because\``);
+    }
+    if (row.kind !== 'excluded' && row.kind !== 'failed') {
+      // Not defaulted. Guessing `excluded` would turn a coverage hole into a
+      // decision somebody made, and guessing `failed` would turn every deliberate
+      // exclusion into a permanently red build.
+      throw new Error(
+        `${path}: notObserved[${index}].kind is ${JSON.stringify(row.kind)}, ` +
+          'which is neither "excluded" nor "failed"',
+      );
+    }
+  });
 }

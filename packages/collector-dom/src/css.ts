@@ -44,6 +44,21 @@ export interface StyleIndex {
   readonly totalRules: number;
 
   /**
+   * Which condition environment this index was flattened against, per
+   * `conditionKey`.
+   *
+   * Carried so that an index handed back for reuse can be checked rather than
+   * trusted. Conditions are *erased* during indexing — a rule inside a
+   * non-matching `@media` never enters it — so an index is only meaningful for
+   * the environment that erased them. Reusing one built at 480px to answer for
+   * 1280px yields a capture whose declarations are the narrow layout's and whose
+   * environment key says wide, which is a wrong answer that looks exactly like a
+   * right one. Recording the key costs one string per index and makes that
+   * mistake refusable.
+   */
+  readonly conditions: string;
+
+  /**
    * Outcomes of conditions that depend on an input the *semantic* key omits.
    *
    * Narrow on purpose. ADR-0003 flattens conditions out of the rule text and puts
@@ -68,12 +83,48 @@ export interface StyleIndex {
 }
 
 /**
+ * An index's condition environment, as a comparable string.
+ *
+ * Exists so reuse can be validated. Equality of two `ConditionEnvironment`
+ * objects is not a question JavaScript answers — a fresh one is built per
+ * collection — so the comparable form is derived instead.
+ *
+ * `supports` is recorded as present-or-absent rather than by identity, and that
+ * is the honest limit of this check. Presence is what changes the *shape* of the
+ * answer: without a probe every `@supports` block is included and marked
+ * uncertain, with one the block is evaluated, and those are different rule sets.
+ * Two probes from two different engines are not told apart here — the engine is
+ * already part of the capture's environment key, and an index cannot outlive the
+ * document it was built from, which has one view.
+ */
+export function conditionKey(environment: ConditionEnvironment): string {
+  const features = Object.entries(environment.features ?? {})
+    .map(([name, value]) => `${name}=${value}`)
+    .sort();
+
+  return [
+    `width=${environment.width}`,
+    `height=${environment.height}`,
+    `scale=${environment.deviceScaleFactor}`,
+    `scheme=${environment.colorScheme}`,
+    `features=${features.join(',')}`,
+    `supports=${environment.supports ? 'probed' : 'assumed'}`,
+  ].join(' ');
+}
+
+/**
  * Flatten every reachable stylesheet into a matchable index.
  *
  * Conditional groups are evaluated against the declared environment and *erased*
  * — a rule inside a non-matching `@media` is inapplicable and never enters the
  * index. The condition itself belongs to the environment key, not to the rule
  * text: conditions are render inputs, not content.
+ *
+ * The result is a value, not a cache: it depends only on the document's sheets
+ * and the environment, so a caller whose sheets have not changed may hand the
+ * same one back to `collect` or `acquireDocument` instead of paying for it per
+ * subject. Deciding *whether* the sheets changed is the caller's, because only
+ * the caller watches them.
  */
 export function indexStyleSheets(
   document: Document,
@@ -110,7 +161,14 @@ export function indexStyleSheets(
     walk(rules, name, false);
   }
 
-  return { byKey, universal, diagnostics, totalRules, evaluatedConditions };
+  return {
+    byKey,
+    universal,
+    diagnostics,
+    totalRules,
+    evaluatedConditions,
+    conditions: conditionKey(environment),
+  };
 
   function walk(rules: CSSRuleList, sheet: string, uncertain: boolean): void {
     for (const rule of items(rules)) {

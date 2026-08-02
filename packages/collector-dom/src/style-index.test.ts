@@ -1,0 +1,214 @@
+import { describe, expect, it } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { normalize, type RawCapture, type RawNode, type Viewport } from '@variance-authority/core';
+import { collect, conditionsFor } from './collect.js';
+import { indexStyleSheets } from './css.js';
+
+/**
+ * Reusing one style index across the subjects that share a document.
+ *
+ * Indexing is the expensive half of a collection: it walks every rule in every
+ * sheet on the page, while matching only walks the handful of buckets a subject's
+ * own elements key into. A session runs hundreds of subjects against one document
+ * and one set of sheets, so rebuilding the index per subject is the same work
+ * repeated until it dominates — which is what the cost measurement below prints.
+ *
+ * The saving is only worth taking if it cannot change an answer, and there are
+ * exactly two ways it could:
+ *
+ * - The sheets changed since the index was built. The collector cannot know this
+ *   — it is handed an index, not a promise — so reuse is opt-in and invalidation
+ *   belongs to whoever holds the index. The first test pins that this is real
+ *   rather than advisory: a reused index genuinely does not see a later edit.
+ * - The index was built for different conditions. That one *is* detectable here,
+ *   and it is refused, because a capture keyed to 1280px whose `@media` blocks
+ *   were flattened against 480px is a confident wrong answer sharing a baseline
+ *   with the right one.
+ *
+ * This file runs in the `node` environment and builds its own documents, so it
+ * can time their construction and mutate their sheets without a shared global.
+ */
+
+const VIEWPORT: Viewport = { width: 1280, height: 720, deviceScaleFactor: 1, colorScheme: 'light' };
+
+const OPTIONS = {
+  subject: { id: 'story:card--default', kind: 'fixture' as const },
+  viewport: VIEWPORT,
+  engine: 'jsdom@test',
+  fonts: ['Inter/400/normal/deadbeef'],
+};
+
+function world(css: string): { document: Document; container: Element } {
+  const dom = new JSDOM(
+    `<!doctype html><html><head><style>${css}</style></head>` +
+      `<body><div id="canvas"></div></body></html>`,
+  );
+  const document = dom.window.document as unknown as Document;
+  return { document, container: document.getElementById('canvas')! };
+}
+
+/** The value the cascade was *told*, read straight off the capture. */
+function declaredColor(capture: RawCapture): string | undefined {
+  const subject = capture.root.children[0] as RawNode | undefined;
+  for (const rule of subject?.matchedRules ?? []) {
+    for (const declaration of rule.declarations) {
+      if (declaration.property === 'color') return declaration.value;
+    }
+  }
+  return undefined;
+}
+
+describe('reusing a style index', () => {
+  it('collects against the index it was given instead of rebuilding one per subject', () => {
+    // Guards against the option being accepted and quietly ignored, which would
+    // look like a working optimization and deliver nothing. The only observable
+    // difference between a reused index and a rebuilt one is that the reused one
+    // predates a later edit to the sheet — so that is what is asserted, and it is
+    // also precisely why the holder of an index must invalidate it on the probe's
+    // sheet fingerprints rather than on a count or a timestamp.
+    const { document, container } = world('.card { color: rgb(1, 2, 3) }');
+    const index = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
+
+    document.querySelector('style')!.textContent = '.card { color: rgb(9, 9, 9) }';
+    container.innerHTML = '<p class="card">x</p>';
+
+    expect(declaredColor(collect(container, { ...OPTIONS, index }))).toBe('rgb(1, 2, 3)');
+    expect(declaredColor(collect(container, OPTIONS))).toBe('rgb(9, 9, 9)');
+  });
+
+  it('refuses an index built for a different viewport rather than answering for the wrong one', () => {
+    // The silent-wrong-answer version of this optimization. `@media (min-width:
+    // 800px)` flattened against 480px drops the rule; the capture then reports a
+    // 1280px environment whose declarations are the narrow layout's. Nothing in
+    // the snapshot would look wrong, and it would share a baseline with the
+    // correct capture — a content-addressing failure, so the artifact is refused
+    // rather than produced.
+    const { document, container } = world(
+      '@media (min-width: 800px) { .card { color: rgb(9, 9, 9) } }',
+    );
+    const narrow = indexStyleSheets(document, conditionsFor(document, { ...VIEWPORT, width: 480 }));
+
+    container.innerHTML = '<p class="card">x</p>';
+
+    expect(() => collect(container, { ...OPTIONS, index: narrow })).toThrow(
+      /different condition environment/,
+    );
+  });
+
+  it('produces the same snapshot from a reused index as from a fresh one', () => {
+    // The optimization's whole licence: identical inputs, identical hash. A fence
+    // rather than a probe of the bug — if reuse ever diverged from a fresh build,
+    // every session-collected baseline would disagree with every directly
+    // collected one and neither side would say why.
+    const { document, container } = world(
+      '.card { color: rgb(1, 2, 3) } @media (min-width: 800px) { .card { padding: 4px } }',
+    );
+    container.innerHTML = '<p class="card">x</p>';
+
+    const index = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
+
+    expect(normalize(collect(container, { ...OPTIONS, index })).renderHash).toBe(
+      normalize(collect(container, OPTIONS)).renderHash,
+    );
+  });
+});
+
+/**
+ * A page's worth of CSS: a component library, a wall of utilities, dead rules
+ * from an older design system, and conditional groups that must be evaluated
+ * before anything can be pruned. Roughly 600 rules, of which a dozen match.
+ */
+const DESIGN_SYSTEM = [
+  ':root { --brand: #1ea7fd; --space: 4px }',
+  '*, *::before, *::after { box-sizing: border-box }',
+  'html, body { margin: 0; font-family: Inter, sans-serif }',
+  '.card { border: 1px solid #e6e6e6; border-radius: 8px }',
+  '.card-header { display: flex; justify-content: space-between }',
+  '.card-title { font-size: 16px; font-weight: 600 }',
+  '.card-body { padding: 12px }',
+  '.card-footer { display: flex; gap: 8px }',
+  '.btn { padding: 6px 12px; border-radius: 4px }',
+  '.btn-primary { background: var(--brand); color: #fff }',
+  '.badge { font-size: 11px; text-transform: uppercase }',
+  '.list { margin: 0; padding-left: 16px }',
+  '.list-item { line-height: 1.5 }',
+  ...Array.from({ length: 200 }, (_, i) => `.u-m-${i} { margin: ${i}px }`),
+  ...Array.from({ length: 200 }, (_, i) => `.legacy-${i} .legacy-inner { color: rgb(${i % 255} 0 0) }`),
+  ...Array.from(
+    { length: 100 },
+    (_, i) => `@media (min-width: ${400 + i}px) { .resp-${i} { width: ${i}% } }`,
+  ),
+  ...Array.from(
+    { length: 100 },
+    (_, i) =>
+      `@supports (display: grid) { .grid-${i} { grid-template-columns: repeat(${(i % 12) + 1}, 1fr) } }`,
+  ),
+].join('\n');
+
+const MARKUP =
+  '<article class="card">' +
+  '<header class="card-header"><h3 class="card-title">Title</h3><span class="badge">New</span></header>' +
+  '<div class="card-body"><p>Body copy</p><ul class="list"><li class="list-item">a</li><li class="list-item">b</li></ul></div>' +
+  '<footer class="card-footer"><button class="btn btn-primary">Save</button><button class="btn">Cancel</button></footer>' +
+  '</article>';
+
+const SUBJECTS = 40;
+
+/** Index rebuilt per subject: what `collect` did for every caller. */
+function perSubjectIndex(subjects: number): number {
+  const { container } = world(DESIGN_SYSTEM);
+  const started = performance.now();
+
+  for (let index = 0; index < subjects; index += 1) {
+    container.innerHTML = MARKUP;
+    collect(container, { ...OPTIONS, subject: { id: `story:s${index}`, kind: 'fixture' } });
+  }
+
+  return performance.now() - started;
+}
+
+/** One index for the document, built inside the measurement because it is paid. */
+function sharedIndex(subjects: number): number {
+  const { document, container } = world(DESIGN_SYSTEM);
+  const started = performance.now();
+
+  const shared = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
+  for (let index = 0; index < subjects; index += 1) {
+    container.innerHTML = MARKUP;
+    collect(container, {
+      ...OPTIONS,
+      subject: { id: `story:s${index}`, kind: 'fixture' },
+      index: shared,
+    });
+  }
+
+  return performance.now() - started;
+}
+
+describe('the cost of rebuilding the index per subject', () => {
+  it('falls materially when one index is shared across the subjects of a document', () => {
+    // Warm once so neither side pays for lazy module initialisation.
+    perSubjectIndex(2);
+    sharedIndex(2);
+
+    const rebuiltMs = perSubjectIndex(SUBJECTS);
+    const sharedMs = sharedIndex(SUBJECTS);
+    const ratio = rebuiltMs / sharedMs;
+
+    console.log(
+      [
+        '',
+        `COLLECTION COST (${SUBJECTS} subjects, ${DESIGN_SYSTEM.split('\n').length} CSS rules)`,
+        `  index per subject: ${rebuiltMs.toFixed(0)}ms  (${(rebuiltMs / SUBJECTS).toFixed(2)}ms each)`,
+        `  one shared index:  ${sharedMs.toFixed(0)}ms  (${(sharedMs / SUBJECTS).toFixed(2)}ms each)`,
+        `  speedup:           ${ratio.toFixed(1)}×`,
+        '',
+      ].join('\n'),
+    );
+
+    // Deliberately loose, and for the same reason the session's cost test is: the
+    // claim is "the index stopped dominating", not a particular multiple. A tight
+    // bound fails on a loaded CI box and teaches everyone to ignore the file.
+    expect(ratio).toBeGreaterThan(2);
+  });
+});

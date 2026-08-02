@@ -1,6 +1,11 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import type { Raster, RenderDocument, RenderIdentity } from '@variance-authority/core';
-import type { Renderer } from './renderer.js';
+import {
+  identityDigest,
+  type Raster,
+  type RenderDocument,
+  type RenderIdentity,
+} from '@variance-authority/core';
+import { describeIdentity, identityAtScale, type Renderer } from './renderer.js';
 
 /**
  * Offloading — the same renderer, on the other side of a hop.
@@ -52,15 +57,45 @@ export async function connectRenderer(options: RemoteRendererOptions): Promise<R
     timeoutMs,
   )) as RenderIdentity;
 
+  /**
+   * Predicted locally rather than asked for over the wire.
+   *
+   * A round trip per document to learn a value the far end computes by a known
+   * rule would double the request count of the one phase this project offloads
+   * to make it cheaper. The prediction is checked instead, on the raster that
+   * comes back — so a far end that disagrees is a loud failure rather than a
+   * baseline filed under a key nobody will ever look up.
+   */
+  const identityFor = (document: RenderDocument): RenderIdentity =>
+    identityAtScale(identity, document);
+
   return {
     identity,
+    identityFor,
+
     async render(document: RenderDocument): Promise<Raster> {
-      return (await request(
+      const raster = (await request(
         get,
         `${options.endpoint}${RENDER_PATH}`,
         document,
         timeoutMs,
       )) as Raster;
+
+      const expected = identityFor(document);
+      if (identityDigest(raster.identity) !== identityDigest(expected)) {
+        // The caller has already keyed a baseline lookup on `identityFor`. If
+        // the far end stamped something else, storing this raster files it where
+        // nothing reads, and every later run reports the subject new or
+        // incomparable while the endpoint looks healthy. Refusing here names the
+        // disagreement once, at the hop that caused it.
+        throw new Error(
+          `render server ${options.endpoint} returned a raster rendered as ` +
+            `${describeIdentity(raster.identity)}, but this document was sent to be rendered as ` +
+            `${describeIdentity(expected)}; the two would be stored and looked up under different keys`,
+        );
+      }
+
+      return raster;
     },
     async close(): Promise<void> {
       // Nothing to close. The renderer's lifetime belongs to whoever runs the

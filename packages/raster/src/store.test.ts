@@ -1,11 +1,16 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
-import { documentDigest } from '@variance-authority/core';
-import { createDurableStore, createEphemeralStore, renderCached } from './store.js';
-import type { Renderer } from './renderer.js';
+import { documentDigest, identityDigest } from '@variance-authority/core';
+import {
+  RasterStoreError,
+  createDurableStore,
+  createEphemeralStore,
+  renderCached,
+} from './store.js';
+import { identityAtScale, type Renderer } from './renderer.js';
 
 /**
  * Retention: the two modes, and the one rule that separates them.
@@ -51,14 +56,43 @@ function countingRenderer(identity: RenderIdentity): Renderer & { calls: number 
   const renderer = {
     identity,
     calls: 0,
+    identityFor: (document: RenderDocument): RenderIdentity =>
+      identityAtScale(identity, document),
     async render(document: RenderDocument): Promise<Raster> {
       renderer.calls += 1;
-      return rasterOf(identity, documentDigest(document));
+      return {
+        ...rasterOf(identity, documentDigest(document)),
+        identity: renderer.identityFor(document),
+      };
     },
     async close(): Promise<void> {},
   };
   return renderer;
 }
+
+let root: string;
+
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), 'va-raster-'));
+});
+afterEach(async () => {
+  // Restored first: a test that took a read permission away would otherwise leave
+  // a directory this process cannot remove.
+  await chmod(root, 0o700).catch(() => {});
+  await rm(root, { recursive: true, force: true });
+});
+
+/** The layout, spelled out, so a test can damage one half of a pair. */
+function pathOf(identity: RenderIdentity, subject: string): string {
+  return join(root, identityDigest(identity), subject);
+}
+
+/**
+ * Permissions are advisory for root, so the two EACCES tests below cannot run
+ * there. Skipped by name rather than by silently passing, because a suite that
+ * reports a covered case it did not exercise is worse than one that says so.
+ */
+const asRoot = process.getuid?.() === 0;
 
 describe('the ephemeral mode', () => {
   it('has no past, so it never claims one', () => {
@@ -102,18 +136,13 @@ describe('the ephemeral mode', () => {
 
     expect(other.calls).toBe(1);
   });
+
+  it('has nothing to describe either, and says so the same way', async () => {
+    expect(await createEphemeralStore().describe({ subject: 's' }, MAC)).toBeNull();
+  });
 });
 
 describe('the durable mode', () => {
-  let root: string;
-
-  beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'va-raster-'));
-  });
-  afterEach(async () => {
-    await rm(root, { recursive: true, force: true });
-  });
-
   it('round-trips a baseline for the machine that wrote it', async () => {
     const store = createDurableStore(root);
     await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
@@ -184,5 +213,149 @@ describe('the durable mode', () => {
 
     expect(second.calls).toBe(0);
     expect(result.rendered).toBe(false);
+  });
+});
+
+/**
+ * A store that cannot read is not a store that read nothing.
+ *
+ * Every test here is the same test. `null` from a lookup means `new`, `new`
+ * records whatever this build painted, and the baseline it overwrites was the
+ * only copy of what the subject looked like before. So a lookup may answer `null`
+ * for exactly one reason — both halves of the pair are absent — and must throw
+ * for every other, including the ones that arrive as an errno rather than as a
+ * decision: a truncated cache restore, a permission change, a descriptor
+ * exhausted by a wide run.
+ */
+describe('a baseline the store cannot read', () => {
+  it('refuses an image whose sidecar is missing rather than reporting a new subject', async () => {
+    // A `.png` with no `.json` is a corrupted baseline, not a missing one. A CI
+    // cache restore that ran out of space leaves exactly this, and reporting it as
+    // absent destroys the image that survived on the next `accept`.
+    const store = createDurableStore(root);
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
+    await unlink(`${pathOf(MAC, 'todo--empty')}.json`);
+
+    await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toBeInstanceOf(
+      RasterStoreError,
+    );
+    await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(/half there/);
+  });
+
+  it('refuses a sidecar whose image is missing rather than reporting a new subject', async () => {
+    // The other half of the same pair, and the direction an interrupted `put`
+    // cannot produce — which is why finding it means something is wrong with the
+    // directory rather than with the write that made it.
+    const store = createDurableStore(root);
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
+    await unlink(`${pathOf(MAC, 'todo--empty')}.png`);
+
+    await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(/half there/);
+  });
+
+  it('refuses a sidecar that is not readable JSON rather than reporting a new subject', async () => {
+    // The shape a truncated write actually takes: valid bytes, cut off mid-object.
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, rasterOf(MAC));
+    await writeFile(`${pathOf(MAC, 's')}.json`, '{"documentDigest":"v1:do', 'utf8');
+
+    await expect(store.find({ subject: 's' }, MAC)).rejects.toThrow(/not readable JSON/);
+  });
+
+  it('refuses a sidecar that parses to something that is not a raster', async () => {
+    // A sidecar written by another tool, or by a version of this one that spelled
+    // the fields differently. Casting it would put `undefined` where a digest goes
+    // and compare it against a real one, which is a verdict invented by a parser.
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, rasterOf(MAC));
+    await writeFile(`${pathOf(MAC, 's')}.json`, '{"documentDigest":"v1:doc"}', 'utf8');
+
+    await expect(store.find({ subject: 's' }, MAC)).rejects.toThrow(/not a raster record/);
+  });
+
+  it.skipIf(asRoot)(
+    'refuses a sidecar it is not permitted to read rather than reporting a new subject',
+    async () => {
+      // EACCES after a permissions change, and the errno the finding is really
+      // about: it is transient, it is not about this subject, and read as a miss it
+      // would take the baseline with it.
+      const store = createDurableStore(root);
+      await store.put({ subject: 's' }, rasterOf(MAC));
+      await chmod(`${pathOf(MAC, 's')}.json`, 0o000);
+
+      await expect(store.find({ subject: 's' }, MAC)).rejects.toThrow(/could not read/);
+    },
+  );
+
+  it('refuses a half-written cache entry rather than treating it as a miss', async () => {
+    // The render cache is regenerable, so silently repainting would cost only a
+    // render — but a store that decides for itself which failures are survivable
+    // has two rules, and the operator learns about the corrupt file on the day the
+    // other rule applies. It costs a run that stops until the file is deleted, and
+    // the message names it.
+    const store = createDurableStore(root);
+    await store.cache(rasterOf(MAC, 'v1:doc'));
+    await unlink(join(root, identityDigest(MAC), 'by-document', 'v1:doc.json'));
+
+    await expect(store.cached('v1:doc', MAC)).rejects.toBeInstanceOf(RasterStoreError);
+  });
+});
+
+/**
+ * The lookup that answers from 32 hex characters instead of a megabyte.
+ *
+ * Whether a subject needs a comparison at all is decided by the document digest
+ * in the sidecar and by which machine wrote it — both text, both a few hundred
+ * bytes. `find` answers that question by reading the PNG and base64 encoding it,
+ * which over three hundred subjects is the difference between a lookup pass and a
+ * load. `describe` answers it from the sidecar, and is held to exactly the same
+ * rule about failure.
+ */
+describe('a baseline lookup that does not need the image', () => {
+  it.skipIf(asRoot)('answers without reading the image at all', async () => {
+    // Unreadable bytes are how "did not read them" is stated as a fact rather than
+    // as a timing. The full lookup on the same baseline fails, which is what makes
+    // the claim mean something.
+    const store = createDurableStore(root);
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:painted'));
+    await chmod(`${pathOf(MAC, 'todo--empty')}.png`, 0o000);
+
+    const described = await store.describe({ subject: 'todo--empty' }, MAC);
+
+    expect(described).toEqual({
+      documentDigest: 'v1:painted',
+      comparable: true,
+      storedUnder: MAC,
+    });
+    await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toBeInstanceOf(
+      RasterStoreError,
+    );
+  });
+
+  it('names the machine that wrote another machine`s baseline', async () => {
+    // The cheap lookup has to carry the partition, or a run on the wrong machine
+    // would settle to `new` and re-record — the failure the partition exists for.
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, rasterOf(RUNNER));
+
+    const described = await store.describe({ subject: 's' }, MAC);
+
+    expect(described?.comparable).toBe(false);
+    expect(described?.storedUnder.platform).toBe('linux/x64');
+  });
+
+  it('reports nothing for a subject nobody has ever rendered', async () => {
+    expect(await createDurableStore(root).describe({ subject: 'never-seen' }, MAC)).toBeNull();
+  });
+
+  it('refuses a half-written baseline exactly as the full lookup does', async () => {
+    // The two lookups must not disagree about whether a baseline exists. If the
+    // cheap one could report `new` where the expensive one refuses, the verdict
+    // would depend on which question the caller happened to ask.
+    const store = createDurableStore(root);
+    await store.put({ subject: 's' }, rasterOf(MAC));
+    await unlink(`${pathOf(MAC, 's')}.png`);
+
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/half there/);
   });
 });

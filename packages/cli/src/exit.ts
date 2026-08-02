@@ -73,6 +73,20 @@ export class OperatorError extends Error {
 export interface ReviewableReport {
   readonly observations: readonly {
     readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable';
+
+    /**
+     * What the collection of this subject could not do, carried from the record.
+     *
+     * Only the severity is read, because that is the whole decision. Naming the
+     * codes here would make this module hold a list of every diagnostic the
+     * collectors can emit and re-decide, by text, which of them are serious — the
+     * mapping this file exists not to do (see {@link OperatorError}). The
+     * collector that raised the diagnostic is the only party that knows whether
+     * it describes a limit or a hole, and it says so in one field.
+     */
+    readonly diagnostics?: readonly {
+      readonly severity: 'warn' | 'error';
+    }[];
   }[];
 
   /**
@@ -89,7 +103,7 @@ export interface ReviewableReport {
 /**
  * The verdict code for a completed run: `0` or `1`, never `2`.
  *
- * Four things move it to `1`, and the last two are the ones a pixel-diff tool
+ * Five things move it to `1`, and the last three are the ones a pixel-diff tool
  * gets wrong:
  *
  * - `changed` — the obvious one.
@@ -102,15 +116,26 @@ export interface ReviewableReport {
  * - a `failed` entry in {@link ReviewableReport.notObserved} — the run meant to
  *   look and could not. This is the acceptance criterion of spec 0003 in one
  *   line: a subject that cannot be observed does not silently pass.
+ * - an `error` diagnostic on an observation — the run *did* look, at less than
+ *   the subject. A design system served from a cross-origin `<link>` is skipped
+ *   by the collector on both sides of the comparison, so the images agree, the
+ *   verdict is honestly `unchanged`, and the subject was compared with a chunk of
+ *   its styling missing. No verdict can express that, because the verdict is a
+ *   statement about two images and this is a statement about what went into them.
  *
- * `excluded` entries do not move it. The operator's own configuration saying
- * "do not look here" is a decision that was already made and reviewed; treating
- * it as a finding would make every run with an exclusion permanently red, which
- * ends with the exclusion list being deleted rather than read.
+ * Two things deliberately do not move it. `excluded` entries: the operator's own
+ * configuration saying "do not look here" is a decision that was already made and
+ * reviewed. And `warn` diagnostics: they state a standing limit of the profile or
+ * the configuration — `unverified-fonts` fires on every subject of a suite that
+ * supplied no font hashes — and a gate that is red on every run of a correctly
+ * configured suite is a gate that gets switched off. Both are recorded either
+ * way; what changes is only whether they hold the run open.
  */
 export function exitFor(report: ReviewableReport): typeof EXIT_CLEAN | typeof EXIT_REVIEW {
   const needsReview = report.observations.some(
-    (observation) => observation.verdict !== 'unchanged',
+    (observation) =>
+      observation.verdict !== 'unchanged' ||
+      (observation.diagnostics ?? []).some((diagnostic) => diagnostic.severity === 'error'),
   );
   if (needsReview) return EXIT_REVIEW;
 

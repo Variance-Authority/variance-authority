@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Raster } from '@variance-authority/core';
-import { createDurableStore, type Found, type RasterStore } from './store.js';
+import { createDurableStore, type Described, type Found, type RasterStore } from './store.js';
 
 /**
  * Baselines in the repository, tracked by git-LFS.
@@ -184,6 +184,32 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
       const found = await baselines.find(key, identity);
       if (found !== null) refuseAPointer(found.raster, `the baseline for \`${key.subject}\``);
       return found;
+    },
+
+    /**
+     * Delegated whole, pointer check and all — because there is nothing to check.
+     *
+     * A description is read from the `.json`, and the sidecars are deliberately
+     * outside the tracked glob, so they are real text on every clone whether or
+     * not git-lfs is installed. The `.png` beside one may well be 130 bytes of
+     * pointer, and this call will not notice.
+     *
+     * That is sound rather than overlooked. An answer built from a digest never
+     * depended on the pixels: "the document this run assembled is the one that
+     * baseline was painted from" is a fact about two committed text files, and it
+     * is as true on an unsmudged clone as anywhere else. The moment a caller needs
+     * the image — because the document moved, and something must be compared — it
+     * calls `find`, and `find` refuses the pointer as it always has.
+     *
+     * *What it costs.* On such a clone, a run where nothing changed now passes
+     * green without ever discovering that the working tree holds pointers. The
+     * checkout is still broken and the operator finds out on the first subject
+     * that moves. Reading the head of every PNG to say so earlier would spend the
+     * lookup this method exists to avoid, on every subject, to report a condition
+     * that `createLfsStore` already reports through `tracking.diagnostics`.
+     */
+    describe(key, identity): Promise<Described | null> {
+      return baselines.describe(key, identity);
     },
 
     put(key, raster): Promise<void> {

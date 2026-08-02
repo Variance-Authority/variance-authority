@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
 import { documentDigest } from '@variance-authority/core';
 import { connectRenderer, serveRenderer, type RenderServer } from './render-remote.js';
-import type { Renderer } from './renderer.js';
+import { identityAtScale, type Renderer } from './renderer.js';
 
 /**
  * The offload path, over a real socket.
@@ -43,11 +43,14 @@ function echoRenderer(): Renderer & { seen: RenderDocument[] } {
   const renderer = {
     identity: PINNED,
     seen: [] as RenderDocument[],
+    identityFor(document: RenderDocument): RenderIdentity {
+      return identityAtScale(PINNED, document);
+    },
     async render(document: RenderDocument): Promise<Raster> {
       renderer.seen.push(document);
       return {
         documentDigest: documentDigest(document),
-        identity: PINNED,
+        identity: renderer.identityFor(document),
         width: 200,
         height: 100,
         bytes: Buffer.from(document.html).toString('base64'),
@@ -57,6 +60,26 @@ function echoRenderer(): Renderer & { seen: RenderDocument[] } {
     async close(): Promise<void> {},
   };
   return renderer;
+}
+
+/** A far end that paints at its own scale regardless of what it was sent. */
+function stubbornRenderer(deviceScaleFactor: number): Renderer {
+  const identity: RenderIdentity = { ...PINNED, deviceScaleFactor };
+  return {
+    identity,
+    identityFor: () => identity,
+    async render(document: RenderDocument): Promise<Raster> {
+      return {
+        documentDigest: documentDigest(document),
+        identity,
+        width: 100,
+        height: 100,
+        bytes: '',
+        missingFonts: [],
+      };
+    },
+    async close(): Promise<void> {},
+  };
 }
 
 let server: RenderServer | undefined;
@@ -110,6 +133,7 @@ describe('rendering somewhere else', () => {
     // whichever component sits under the pixels.
     server = await serveRenderer({
       identity: PINNED,
+      identityFor: () => PINNED,
       async render(): Promise<Raster> {
         throw new Error('subject root has no box in the rendered document');
       },
@@ -126,6 +150,7 @@ describe('rendering somewhere else', () => {
   it('fails a request that hangs rather than stalling the run', async () => {
     server = await serveRenderer({
       identity: PINNED,
+      identityFor: () => PINNED,
       render: () => new Promise<Raster>(() => {}),
       async close(): Promise<void> {},
     });
@@ -133,5 +158,33 @@ describe('rendering somewhere else', () => {
     const remote = await connectRenderer({ endpoint: server.url, timeoutMs: 50 });
 
     await expect(remote.render(documentOf('<div data-va-path="0">x</div>'))).rejects.toThrow();
+  });
+
+  it('predicts the identity a document will come back under, at the document`s scale', async () => {
+    // The lookup key a durable run commits to before the hop. Reading it off
+    // `identity` would ask for the far end's default scale, not this document's,
+    // and the baseline would then be written under one key and searched for
+    // under another.
+    server = await serveRenderer(echoRenderer());
+    const remote = await connectRenderer({ endpoint: server.url });
+
+    const document = documentOf('<div data-va-path="0">x</div>');
+    const raster = await remote.render(document);
+
+    expect(remote.identityFor(document)).toEqual(raster.identity);
+    expect(remote.identityFor(document).deviceScaleFactor).toBe(VIEWPORT.deviceScaleFactor);
+  });
+
+  it('refuses a raster the far end rendered under a different identity', async () => {
+    // Silence here is the expensive failure: the caller has already keyed its
+    // baseline lookup on the predicted identity, so storing a raster stamped
+    // with another one files the image where nothing reads it, and every later
+    // run calls the subject new or incomparable while the endpoint looks fine.
+    server = await serveRenderer(stubbornRenderer(1));
+    const remote = await connectRenderer({ endpoint: server.url });
+
+    await expect(remote.render(documentOf('<div data-va-path="0">x</div>'))).rejects.toThrow(
+      /stored and looked up under different keys/,
+    );
   });
 });

@@ -1,6 +1,16 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Digest, Raster, RenderIdentity } from '@variance-authority/core';
-import type { BaselineKey, Found, RasterStore } from './store.js';
+import {
+  RasterStoreError,
+  REFUSAL,
+  identityFrom,
+  rasterFrom,
+  recordFrom,
+  type BaselineKey,
+  type Described,
+  type Found,
+  type RasterStore,
+} from './store.js';
 
 /**
  * Baselines behind an HTTP endpoint the operator runs.
@@ -19,9 +29,16 @@ import type { BaselineKey, Found, RasterStore } from './store.js';
  * | route | body | answer |
  * |---|---|---|
  * | `POST /baseline/find` | `{ key, identity }` | `{ found: Found \| null }` |
+ * | `POST /baseline/describe` | `{ key, identity }` | `{ described: Described \| null }` |
  * | `POST /baseline/put` | `{ key, raster }` | `{ ok: true }` |
  * | `POST /cache/find` | `{ digest, identity }` | `{ raster: Raster \| null }` |
  * | `POST /cache/put` | `{ raster }` | `{ ok: true }` |
+ *
+ * `describe` earns its own route rather than a query parameter on `find`,
+ * because the saving is the response body. A hop is where an unnecessary image
+ * is most expensive — serialized, sent, parsed, and held — and a route that can
+ * answer either way is a route whose cost is decided by a flag somebody can
+ * forget.
  *
  * ## The one rule
  *
@@ -46,6 +63,7 @@ import type { BaselineKey, Found, RasterStore } from './store.js';
  */
 
 export const BASELINE_FIND_PATH = '/baseline/find';
+export const BASELINE_DESCRIBE_PATH = '/baseline/describe';
 export const BASELINE_PUT_PATH = '/baseline/put';
 export const CACHE_FIND_PATH = '/cache/find';
 export const CACHE_PUT_PATH = '/cache/put';
@@ -54,23 +72,6 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 
 /** Longest server message quoted back before it is summarised rather than dropped. */
 const QUOTE_LIMIT = 500;
-
-/**
- * Something went wrong with the *store*, as distinct from something being true
- * about the subject.
- *
- * A distinct type because the caller has to distinguish them and a message
- * cannot be matched on. Spec 0003 gives operator error its own exit code
- * precisely so a CI job can tell "this needs review" from "this did not run",
- * and a verdict and a crash sharing a code is the thing that makes a red build
- * uninformative.
- */
-export class RasterStoreError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = 'RasterStoreError';
-  }
-}
 
 export interface RemoteStoreOptions {
   /** Base URL of a server started by {@link serveRasterStore}, e.g. `http://box:7788`. */
@@ -100,6 +101,13 @@ export function createRemoteStore(options: RemoteStoreOptions): RasterStore {
       return readFound(await call(options, BASELINE_FIND_PATH, { key, identity }), options.endpoint);
     },
 
+    async describe(key: BaselineKey, identity: RenderIdentity): Promise<Described | null> {
+      return readDescribed(
+        await call(options, BASELINE_DESCRIBE_PATH, { key, identity }),
+        options.endpoint,
+      );
+    },
+
     async put(key: BaselineKey, raster: Raster): Promise<void> {
       await call(options, BASELINE_PUT_PATH, { key, raster });
     },
@@ -109,13 +117,13 @@ export function createRemoteStore(options: RemoteStoreOptions): RasterStore {
       // re-render. A store that answered "miss" to an outage would turn a broken
       // endpoint into a run that is merely slow, and the operator would find out
       // when `put` finally failed — after the renders had been paid for.
-      const body = record(await call(options, CACHE_FIND_PATH, { digest, identity }));
+      const body = recordFrom(await call(options, CACHE_FIND_PATH, { digest, identity }));
       if (body === null || !('raster' in body)) {
         throw malformed(options.endpoint, CACHE_FIND_PATH, 'no `raster` field');
       }
       if (body.raster === null) return null;
 
-      const raster = readRaster(body.raster);
+      const raster = rasterFrom(body.raster);
       if (raster === null) {
         throw malformed(options.endpoint, CACHE_FIND_PATH, 'a `raster` that is not a raster');
       }
@@ -160,7 +168,7 @@ async function call(
     if (!response.ok) {
       throw new RasterStoreError(
         `baseline store ${url} returned ${response.status}: ${quote(await safeText(response))}. ` +
-          refusal,
+          REFUSAL,
       );
     }
 
@@ -168,7 +176,7 @@ async function call(
       return await response.json();
     } catch (error) {
       throw new RasterStoreError(
-        `baseline store ${url} returned a body that is not JSON. ${refusal}`,
+        `baseline store ${url} returned a body that is not JSON. ${REFUSAL}`,
         { cause: error },
       );
     }
@@ -176,18 +184,13 @@ async function call(
     if (error instanceof RasterStoreError) throw error;
     throw new RasterStoreError(
       `baseline store ${url} is unreachable: ${error instanceof Error ? error.message : String(error)}. ` +
-        refusal,
+        REFUSAL,
       { cause: error },
     );
   } finally {
     clearTimeout(timer);
   }
 }
-
-const refusal =
-  'This is an operator error, not a verdict: reporting it as a missing baseline would ' +
-  'record whatever is on screen and overwrite the baseline this run was meant to compare ' +
-  'against';
 
 /**
  * A miss is something the server *said*, never something that failed to arrive.
@@ -198,15 +201,15 @@ const refusal =
  * absent answer is that the run cannot continue.
  */
 function readFound(payload: unknown, endpoint: string): Found | null {
-  const body = record(payload);
+  const body = recordFrom(payload);
   if (body === null || !('found' in body)) {
     throw malformed(endpoint, BASELINE_FIND_PATH, 'no `found` field');
   }
   if (body.found === null) return null;
 
-  const found = record(body.found);
-  const raster = found === null ? null : readRaster(found.raster);
-  const storedUnder = found === null ? null : readIdentity(found.storedUnder);
+  const found = recordFrom(body.found);
+  const raster = found === null ? null : rasterFrom(found.raster);
+  const storedUnder = found === null ? null : identityFrom(found.storedUnder);
 
   if (found === null || raster === null || storedUnder === null) {
     throw malformed(endpoint, BASELINE_FIND_PATH, 'a `found` that is not a baseline');
@@ -220,9 +223,50 @@ function readFound(payload: unknown, endpoint: string): Found | null {
   return { raster, comparable: found.comparable, storedUnder };
 }
 
+/**
+ * The cheap answer, held to the same standard as the expensive one.
+ *
+ * A description decides whether a subject is compared at all, so a body this
+ * client is willing to guess at is a body that can settle a run to `unchanged`
+ * on nothing. `documentDigest` in particular: absent, it would compare
+ * `undefined` against a real digest, which never matches — a lookup that
+ * silently degrades into "always render" and hides a broken server behind a
+ * bill for images.
+ */
+function readDescribed(payload: unknown, endpoint: string): Described | null {
+  const body = recordFrom(payload);
+  if (body === null || !('described' in body)) {
+    throw malformed(endpoint, BASELINE_DESCRIBE_PATH, 'no `described` field');
+  }
+  if (body.described === null) return null;
+
+  const described = recordFrom(body.described);
+  const storedUnder = described === null ? null : identityFrom(described.storedUnder);
+
+  if (described === null || storedUnder === null) {
+    throw malformed(endpoint, BASELINE_DESCRIBE_PATH, 'a `described` that is not a baseline');
+  }
+  if (typeof described.documentDigest !== 'string') {
+    throw malformed(
+      endpoint,
+      BASELINE_DESCRIBE_PATH,
+      '`documentDigest` missing or not a string',
+    );
+  }
+  if (typeof described.comparable !== 'boolean') {
+    throw malformed(endpoint, BASELINE_DESCRIBE_PATH, '`comparable` missing or not a boolean');
+  }
+
+  return {
+    documentDigest: described.documentDigest,
+    comparable: described.comparable,
+    storedUnder,
+  };
+}
+
 function malformed(endpoint: string, path: string, what: string): RasterStoreError {
   return new RasterStoreError(
-    `baseline store ${endpoint}${path} answered with ${what}. ${refusal}`,
+    `baseline store ${endpoint}${path} answered with ${what}. ${REFUSAL}`,
   );
 }
 
@@ -236,75 +280,13 @@ function malformed(endpoint: string, path: string, what: string): RasterStoreErr
  * field, and each value is rebuilt from checked parts rather than cast into
  * shape — a cast is a claim about data that arrived over a network from software
  * this package does not version.
+ *
+ * The field-by-field readers themselves live in `store.ts`, with the interface
+ * they check against, because a sidecar read off a disk and a body read off a
+ * socket are the same value arriving by different routes. Two copies would be
+ * two ideas of what a baseline is, and the drift would show up as a store that
+ * accepts what another refuses.
  */
-function readRaster(value: unknown): Raster | null {
-  const raster = record(value);
-  if (raster === null) return null;
-
-  const identity = readIdentity(raster.identity);
-  const missingFonts = readStrings(raster.missingFonts);
-
-  if (
-    identity === null ||
-    missingFonts === null ||
-    typeof raster.documentDigest !== 'string' ||
-    typeof raster.bytes !== 'string' ||
-    typeof raster.width !== 'number' ||
-    typeof raster.height !== 'number'
-  ) {
-    return null;
-  }
-
-  return {
-    documentDigest: raster.documentDigest,
-    identity,
-    width: raster.width,
-    height: raster.height,
-    bytes: raster.bytes,
-    missingFonts,
-  };
-}
-
-function readIdentity(value: unknown): RenderIdentity | null {
-  const identity = record(value);
-  if (identity === null) return null;
-
-  const fonts = readStrings(identity.fonts);
-  if (
-    fonts === null ||
-    typeof identity.renderer !== 'string' ||
-    typeof identity.engine !== 'string' ||
-    typeof identity.platform !== 'string' ||
-    typeof identity.deviceScaleFactor !== 'number'
-  ) {
-    return null;
-  }
-
-  return {
-    renderer: identity.renderer,
-    engine: identity.engine,
-    platform: identity.platform,
-    deviceScaleFactor: identity.deviceScaleFactor,
-    fonts,
-  };
-}
-
-function readStrings(value: unknown): readonly string[] | null {
-  if (!Array.isArray(value)) return null;
-
-  const items: string[] = [];
-  for (const item of value as readonly unknown[]) {
-    if (typeof item !== 'string') return null;
-    items.push(item);
-  }
-  return items;
-}
-
-function record(value: unknown): Readonly<Record<string, unknown>> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Readonly<Record<string, unknown>>)
-    : null;
-}
 
 async function safeText(response: Response): Promise<string> {
   try {
@@ -390,7 +372,7 @@ async function handle(
       return;
     }
 
-    const body = record(JSON.parse(await readBody(request_)));
+    const body = recordFrom(JSON.parse(await readBody(request_)));
     if (body === null) {
       send(response, 400, { error: 'body is not a JSON object' });
       return;
@@ -400,6 +382,14 @@ async function handle(
       case BASELINE_FIND_PATH: {
         const found = await store.find(body.key as BaselineKey, body.identity as RenderIdentity);
         send(response, 200, { found });
+        return;
+      }
+      case BASELINE_DESCRIBE_PATH: {
+        const described = await store.describe(
+          body.key as BaselineKey,
+          body.identity as RenderIdentity,
+        );
+        send(response, 200, { described });
         return;
       }
       case BASELINE_PUT_PATH: {

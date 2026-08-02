@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   documentDigest,
@@ -7,6 +8,7 @@ import {
   profileById,
   rankRegions,
   resolveSource,
+  type Diagnostic,
   type Digest,
   type RankedRegion,
   type RenderDocument,
@@ -99,6 +101,8 @@ export interface NotObserved {
  * about on the way in.
  */
 export interface CliRunReport extends RunReport {
+  readonly observations: readonly CliObservationRecord[];
+
   /**
    * Subjects with no observation. **Absent is not empty** — see `exitFor`.
    *
@@ -110,6 +114,34 @@ export interface CliRunReport extends RunReport {
 
   /** Complaints from the subject index that belong to no single subject. */
   readonly warnings?: readonly string[];
+}
+
+/**
+ * An observation, plus what the collection of that subject could not do.
+ *
+ * A superset for the same reason `CliRunReport` is one: every MCP tool keeps
+ * working on a CLI report unmodified, and this field can be added without a
+ * cross-package change. It belongs on the record rather than in the run's
+ * `warnings` because a diagnostic is *about a subject* — the reader's next
+ * question is always "which one", and a list of prose with no subject attached
+ * cannot answer it.
+ *
+ * **Why this is not folded into the verdict.** A subject whose design system is
+ * served from a cross-origin `<link>` is collected without those rules on both
+ * sides of the comparison, so the two images genuinely agree and `unchanged` is
+ * the truth about the pixels. Calling it `changed` would be a lie about the
+ * comparison, and calling the run clean would be a lie about the coverage. So the
+ * verdict stays honest and `exitFor` reads this instead.
+ */
+export interface CliObservationRecord extends ObservationRecord {
+  /**
+   * Everything the collector and the normalizer complained about, once each.
+   *
+   * Optional so absence keeps meaning "the writer never said" rather than
+   * "nothing was wrong", which is the same distinction `notObserved` draws and
+   * for the same reason.
+   */
+  readonly diagnostics?: readonly Diagnostic[];
 }
 
 /**
@@ -237,6 +269,15 @@ export type Settlement =
       readonly kind: 'settled';
       readonly verdict: ObservationRecord['verdict'];
       readonly because: string;
+      /**
+       * Fonts the renderer lacked when the baseline was painted.
+       *
+       * Carried out of the baseline because the digest short-circuit produces no
+       * `Observation` to carry it, and the record would otherwise state less than
+       * the store already knows. Absent means the baseline recorded none, never
+       * "this path does not look" — see the copy in {@link settle}.
+       */
+      readonly missingFonts?: readonly string[];
     }
   | { readonly kind: 'render'; readonly because: string };
 
@@ -272,6 +313,19 @@ export type Settlement =
  * verdict: without the image there is nothing for `accept` to promote, and
  * `accept` is forbidden to re-run. Stated here rather than hidden, because it is
  * the single exception to the rule this function otherwise enforces.
+ *
+ * ## Why this takes a `Found` and not the cheaper `Described`
+ *
+ * `RasterStore.describe` answers the digest question from the sidecar alone,
+ * without base64-encoding a PNG to make a string comparison — which is the whole
+ * of what the first two branches need, and on a three-hundred-subject suite is
+ * the difference between a few hundred kilobytes and a few hundred megabytes.
+ * This function does not use it, for one reason: `Described` carries the digest,
+ * the comparability and the storing identity, and not the fonts the baseline was
+ * painted without. Settling on it would put back exactly the fact this function
+ * was fixed to stop dropping — a baseline painted with a substituted font,
+ * reported as a bare `unchanged`. The saving is real and is worth having as soon
+ * as `Described` can answer that too.
  */
 export function settle(digest: Digest, found: Found | null): Settlement {
   if (found === null) {
@@ -292,12 +346,26 @@ export function settle(digest: Digest, found: Found | null): Settlement {
   }
 
   if (found.raster.documentDigest === digest) {
+    // The digest is a statement about pixels and about nothing else. A baseline
+    // painted while the renderer lacked a declared font is an image of a
+    // substituted font, and repainting the same document would substitute it
+    // again — which is exactly why this returns `unchanged` and exactly why it
+    // may not return a *bare* `unchanged`. The store recorded the substitution;
+    // dropping it here would leave the reader with a sentence saying the subject
+    // is fine, produced by a comparison that never looked at the typeface.
+    const missingFonts = found.raster.missingFonts;
+
     return {
       kind: 'settled',
       verdict: 'unchanged',
       because:
         'the document this run assembled is byte-identical to the one the baseline was ' +
-        'painted from, under the same renderer identity, so no image was produced',
+        'painted from, under the same renderer identity, so no image was produced' +
+        (missingFonts.length > 0
+          ? `; the renderer lacked ${missingFonts.join(', ')} when the baseline was painted, ` +
+            'so what is settled is an image of a substituted font'
+          : ''),
+      ...(missingFonts.length > 0 ? { missingFonts } : {}),
     };
   }
 
@@ -334,17 +402,20 @@ export function recordOf(
     readonly causes?: readonly string[];
     readonly source?: SourceIndex;
     readonly images?: ObservationRecord['images'];
+    /** What the collection of this subject could not do. See {@link diagnosticsOf}. */
+    readonly diagnostics?: readonly Diagnostic[];
   } = {},
-): ObservationRecord {
+): CliObservationRecord {
   const changed = observation.comparison?.changed[DEFAULT_POLICY.id] ?? 0;
   const strict = observation.comparison?.changed[STRICT_POLICY.id] ?? 0;
   const regions = rankRegions(observation.regions, options.causes ?? []);
   const truncated = observation.isolation;
+  const diagnostics = options.diagnostics ?? [];
 
   return {
     subject: observation.subject,
     verdict: observation.verdict,
-    because: because(observation, changed, strict),
+    because: because(observation, changed, strict) + qualification(diagnostics),
     changedPixels: changed,
     regions: regions.map((region) => regionRecordOf(region, options.source)),
     ...(truncated !== undefined && truncated.truncated > 0
@@ -352,6 +423,7 @@ export function recordOf(
       : {}),
     ...(observation.missingFonts.length > 0 ? { missingFonts: observation.missingFonts } : {}),
     ...(options.images !== undefined ? { images: options.images } : {}),
+    ...(diagnostics.length > 0 ? { diagnostics } : {}),
   };
 }
 
@@ -371,6 +443,67 @@ function because(observation: Observation, changed: number, strict: number): str
     `${observation.because}; ${strict} pixel(s) do differ under the strict policy ` +
     '(antialiasing counted), which the default policy forgives'
   );
+}
+
+/**
+ * The clause that keeps a diagnostic from being a field only a machine reads.
+ *
+ * `variance_summary` lists the subjects whose verdict is not `unchanged`, so a
+ * settled subject appears in the human-facing output only through its own
+ * sentence — and that sentence is what a reviewer sees when they ask about it by
+ * name. Codes and severities only: the messages are already on the record, and
+ * repeating three paragraphs of them here would make the one line nobody can skip
+ * the one line everybody does.
+ *
+ * Severity is printed because it is what `exitFor` reads, and a reader who sees a
+ * complaint quoted at them and a `0` exit code is owed the reason those agree.
+ */
+function qualification(diagnostics: readonly Diagnostic[]): string {
+  if (diagnostics.length === 0) return '';
+
+  const named = diagnostics.map((entry) => `${entry.code} (${entry.severity})`).join(', ');
+  return (
+    `; the collection of this subject reported ${named}, so what was compared may be less ` +
+    'than the whole subject'
+  );
+}
+
+/**
+ * Every diagnostic the cheap tiers produced for this subject, once each.
+ *
+ * **Why both sources.** The document and the snapshot are two views of one
+ * capture, and they do not carry the same complaints: a cross-origin stylesheet
+ * is dropped while the document is being assembled, and a dangling accessible-name
+ * reference is found while the snapshot is being normalized. Taking either alone
+ * loses half of what the run knows about how complete its own inputs were.
+ *
+ * **Why deduplicated.** Because they are two views of one capture, a diagnostic
+ * raised before the split appears in both. Printing it twice would invite the
+ * reader to count two unreadable stylesheets where there is one, which is a
+ * fabricated number — and identical severity, code, message and node carry no
+ * second fact. Diagnostics that differ in any of those four are kept apart.
+ *
+ * The `before` document of an ephemeral pair is deliberately not merged in: its
+ * complaints are about the *previous* revision's collection, and a record that
+ * blended them could not say which side of the comparison was incomplete.
+ */
+function diagnosticsOf(collected: Extract<Collected, { ok: true }>): readonly Diagnostic[] {
+  const byIdentity = new Map<string, Diagnostic>();
+
+  for (const diagnostic of [
+    ...collected.document.diagnostics,
+    ...(collected.snapshot?.diagnostics ?? []),
+  ]) {
+    const key = JSON.stringify([
+      diagnostic.severity,
+      diagnostic.code,
+      diagnostic.message,
+      diagnostic.nodePath ?? null,
+    ]);
+    if (!byIdentity.has(key)) byIdentity.set(key, diagnostic);
+  }
+
+  return [...byIdentity.values()];
 }
 
 function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecord {
@@ -429,7 +562,7 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
   const profile = profileById(config.profile);
 
   const plan = await deps.collector.plan();
-  const observations: ObservationRecord[] = [];
+  const observations: CliObservationRecord[] = [];
   const notObserved: NotObserved[] = [...plan.notObserved];
 
   // The profile describes the *collector*, not the renderer. `--profile jsdom`
@@ -526,7 +659,7 @@ interface ObserveContext {
 }
 
 type Outcome =
-  | { readonly kind: 'observed'; readonly record: ObservationRecord }
+  | { readonly kind: 'observed'; readonly record: CliObservationRecord }
   | { readonly kind: 'not-observed'; readonly entry: NotObserved };
 
 async function observeOne(
@@ -536,6 +669,12 @@ async function observeOne(
 ): Promise<Outcome> {
   const { config, deps, renderer } = context;
   const id = planned.subject.id;
+
+  // Read once, before any branch, because every path out of this function
+  // produces a record and none of them is entitled to a subject's diagnostics
+  // being someone else's problem. The settled path in particular produces no
+  // `Observation` at all, which is how these came to be dropped.
+  const diagnostics = diagnosticsOf(collected);
 
   const observeOptions = {
     renderer,
@@ -569,6 +708,7 @@ async function observeOne(
         ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
         ...(collected.source !== undefined ? { source: collected.source } : {}),
         ...(await images(id, observation, collected.document, renderer, config, deps, null)),
+        diagnostics,
       }),
     };
   }
@@ -583,14 +723,18 @@ async function observeOne(
   const settlement = settle(documentDigest(collected.document), found);
 
   if (settlement.kind === 'settled') {
+    const missingFonts = settlement.missingFonts ?? [];
+
     return {
       kind: 'observed',
       record: {
         subject: id,
         verdict: settlement.verdict,
-        because: settlement.because,
+        because: settlement.because + qualification(diagnostics),
         changedPixels: 0,
         regions: [],
+        ...(missingFonts.length > 0 ? { missingFonts } : {}),
+        ...(diagnostics.length > 0 ? { diagnostics } : {}),
       },
     };
   }
@@ -603,6 +747,7 @@ async function observeOne(
       ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
       ...(collected.source !== undefined ? { source: collected.source } : {}),
       ...(await images(id, observation, collected.document, renderer, config, deps, found)),
+      diagnostics,
     }),
   };
 }
@@ -774,6 +919,42 @@ export async function loadCollector(
 }
 
 /**
+ * Where the render cache goes: outside the work tree, always.
+ *
+ * A durable store is also a render cache, keyed by document digest. Left where
+ * the baselines are, the cache of an LFS store lands inside a tracked, LFS-routed
+ * directory and is committed exactly like a baseline — and unlike a baseline it
+ * gains an entry for every edit and is worthless the moment the next one lands.
+ * The repository then grows without bound with images nobody will ever look at,
+ * and the quota that was bought for baselines pays for them.
+ *
+ * **Why the environment is allowed to decide this, when nothing else is.** The
+ * config file refuses inferred values because they change what is observed. This
+ * one cannot: the cache is content-addressed by document digest under an identity
+ * digest, so a lookup either finds an image painted from this exact document by
+ * this exact machine or finds nothing. A wrong location, a stale entry, or a
+ * cache shared between projects can therefore cost a re-render and can never
+ * produce a wrong image. Cost, not correctness, is a thing `XDG_CACHE_HOME` is
+ * entitled to decide.
+ *
+ * *What it costs.* Nothing prunes this directory. It is outside the repository,
+ * so `git clean` will not either, and a machine that runs many suites accumulates
+ * PNGs until someone deletes it — the price of not committing them instead.
+ */
+export function renderCacheRoot(): string {
+  const configured = process.env['XDG_CACHE_HOME'];
+  // A relative `XDG_CACHE_HOME` is meaningless (the spec requires absolute) and
+  // would resolve against whatever directory the run was invoked from, which is
+  // how a cache ends up back inside the work tree it was moved out of.
+  const base =
+    configured !== undefined && configured !== '' && isAbsolute(configured)
+      ? configured
+      : join(homedir(), '.cache');
+
+  return join(base, 'variance-authority', 'renders');
+}
+
+/**
  * The store the config asks for.
  *
  * Switching implementations must change no verdict for the same inputs (spec
@@ -797,6 +978,10 @@ export async function storeFor(config: Config): Promise<RasterStore> {
     case 'lfs':
       return createLfsStore({
         root: baselines.root,
+        // The tracked root holds baselines and nothing else. See
+        // {@link renderCacheRoot} for why this is not the operator's decision to
+        // make in the config file and why it is safe for it not to be.
+        cacheRoot: renderCacheRoot(),
         ...(baselines.pattern !== undefined ? { pattern: baselines.pattern } : {}),
       });
     case 'remote':
@@ -828,6 +1013,8 @@ export async function readCliRunReport(path: string): Promise<CliRunReport> {
     readonly warnings?: unknown;
   };
   const { notObserved: rawNotObserved, warnings: rawWarnings, ...base } = raw;
+
+  checkDiagnostics(path, base.observations);
 
   if (rawWarnings !== undefined && !isStringArray(rawWarnings)) {
     throw new Error(`${path} has a \`warnings\` field that is not an array of strings`);
@@ -865,6 +1052,48 @@ export async function readCliRunReport(path: string): Promise<CliRunReport> {
 /** The default report writer. Shares `writeRunReport`'s on-disk shape by using it. */
 export async function writeCliRunReport(path: string, report: CliRunReport): Promise<void> {
   await writeRunReport(path, report);
+}
+
+/**
+ * Refuse an observation whose diagnostics are not diagnostics.
+ *
+ * Checked at the read boundary for the same reason `notObserved` is, and with a
+ * sharper edge: `exitFor` withholds a clean exit while an `error` diagnostic is
+ * present, so an entry whose severity survived parsing as something else is a
+ * complaint that silently stops holding the run open. A report is also a file
+ * people edit by hand when triaging, which is exactly when this happens.
+ *
+ * Only the fields the decision rests on are checked, and the entries themselves
+ * are passed through untouched — rebuilding them would drop whatever a future
+ * writer added, and the `report --format json` output is documented to round-trip.
+ */
+function checkDiagnostics(path: string, observations: readonly unknown[]): void {
+  observations.forEach((observation, index) => {
+    const value: unknown = (observation as { readonly diagnostics?: unknown }).diagnostics;
+    if (value === undefined) return;
+
+    if (!Array.isArray(value)) {
+      throw new Error(`${path}: observations[${index}].diagnostics is not an array`);
+    }
+
+    (value as readonly unknown[]).forEach((entry, position) => {
+      const row = entry as Partial<Diagnostic>;
+      const at = `${path}: observations[${index}].diagnostics[${position}]`;
+
+      if (row.severity !== 'warn' && row.severity !== 'error') {
+        // Not defaulted in either direction. Reading an unknown severity as `warn`
+        // would let a hole in the coverage exit `0`; reading it as `error` would
+        // hold every run open on a field somebody spelled wrong.
+        throw new Error(
+          `${at}.severity is ${JSON.stringify(row.severity)}, ` +
+            'which is neither "warn" nor "error"',
+        );
+      }
+      if (typeof row.code !== 'string' || typeof row.message !== 'string') {
+        throw new Error(`${at} has no \`code\` and \`message\``);
+      }
+    });
+  });
 }
 
 function isStringArray(value: unknown): value is readonly string[] {

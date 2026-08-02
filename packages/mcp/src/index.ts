@@ -20,7 +20,13 @@
  * it deliberately contains no decisions.
  */
 
-export type { RunReport, ObservationRecord, RegionRecord } from './report.js';
+export type {
+  RunReport,
+  ObservationRecord,
+  RegionRecord,
+  NotObserved,
+  NotObservedKind,
+} from './report.js';
 export { readRunReport, writeRunReport } from './report.js';
 
 export { TOOLS, toolByName } from './tools.js';

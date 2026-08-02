@@ -8,10 +8,10 @@ import {
   type SemanticSnapshot,
   type SourceIndex,
 } from '@variance-authority/core';
-import { formatSource, resolveSource } from '@variance-authority/core';
+import { documentDigest, formatSource, resolveSource } from '@variance-authority/core';
 import { compareRasters, DEFAULT_POLICY, type CompareOptions, type RasterComparison } from './compare.js';
-import type { Renderer } from './renderer.js';
-import { renderCached, type BaselineKey, type RasterStore } from './store.js';
+import { describeIdentity, type Renderer } from './renderer.js';
+import type { BaselineKey, RasterStore } from './store.js';
 
 /**
  * The composition — the phases, wired, and nothing else.
@@ -95,8 +95,8 @@ export async function observePair(
   after: RenderDocument,
   options: ObserveOptions,
 ): Promise<Observation> {
-  const left = await renderCached(options.renderer, options.store, before);
-  const right = await renderCached(options.renderer, options.store, after);
+  const left = await renderOnce(options.renderer, options.store, before);
+  const right = await renderOnce(options.renderer, options.store, after);
 
   return report(after.subject.id, left.raster, right.raster, left.rendered || right.rendered, options);
 }
@@ -107,14 +107,21 @@ export async function observePair(
  * The baseline is looked up under *any* identity and the comparability check is
  * explicit, so a run on the wrong machine says so in one sentence instead of
  * failing every subject for reasons nobody can attribute.
+ *
+ * The key is `identityFor(document)`, never `renderer.identity`: the raster this
+ * run is about to produce will be *written* under the former, and a lookup that
+ * asks a different question from the write it is trying to find answers it
+ * wrong in both directions — see {@link Renderer.identityFor}.
  */
 export async function observeAgainstBaseline(
   document: RenderDocument,
   key: BaselineKey,
   options: ObserveOptions,
 ): Promise<Observation> {
-  const found = await options.store.find(key, options.renderer.identity);
-  const fresh = await renderCached(options.renderer, options.store, document);
+  const identity = options.renderer.identityFor(document);
+
+  const found = await options.store.find(key, identity);
+  const fresh = await renderOnce(options.renderer, options.store, document);
 
   if (found === null) {
     return {
@@ -133,7 +140,7 @@ export async function observeAgainstBaseline(
       verdict: 'incomparable',
       because:
         `a baseline for \`${key.subject}\` exists but was rendered by ` +
-        `${describe(found.storedUnder)}, and this run is ${describe(options.renderer.identity)}; ` +
+        `${describeIdentity(found.storedUnder)}, and this run is ${describeIdentity(identity)}; ` +
         'pixels are machine-bound, so the two are not comparable',
       regions: [],
       rendered: fresh.rendered,
@@ -142,6 +149,34 @@ export async function observeAgainstBaseline(
   }
 
   return report(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
+}
+
+/**
+ * Render this document, unless an identical one has already been rendered.
+ *
+ * The deferral lever (Principle 4): content addressing makes "identical" a fact
+ * about the document rather than a guess about the branch, so a rebase, a file
+ * move, or a rerun costs nothing and a run over 300 subjects where two changed
+ * pays for two images.
+ *
+ * Deliberately not `renderCached` from the store, which keys the read on
+ * `renderer.identity` while `cache` keys the write on the raster's own. Those
+ * differ by exactly the scale factor, so above 1x the cache can never hit its
+ * own write and the lever is off precisely where images are most expensive.
+ * Both halves key on `identityFor` here. The cost is six lines that look like
+ * six lines elsewhere.
+ */
+async function renderOnce(
+  renderer: Renderer,
+  store: RasterStore,
+  document: RenderDocument,
+): Promise<{ raster: Raster; rendered: boolean }> {
+  const hit = await store.cached(documentDigest(document), renderer.identityFor(document));
+  if (hit !== null) return { raster: hit, rendered: false };
+
+  const raster = await renderer.render(document);
+  await store.cache(raster);
+  return { raster, rendered: true };
 }
 
 function report(
@@ -220,10 +255,6 @@ function describeChange(
       : '';
 
   return `${changed} pixel(s) differ across ${isolation.regions.length} region(s)${where}${size}${capped}`;
-}
-
-function describe(identity: { renderer: string; engine: string; platform: string; deviceScaleFactor: number }): string {
-  return `${identity.renderer} (${identity.engine}, ${identity.platform}, ${identity.deviceScaleFactor}x)`;
 }
 
 /**

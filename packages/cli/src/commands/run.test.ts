@@ -1,9 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   documentDigest,
+  environmentKey,
+  profileById,
+  type Diagnostic,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
+  type SemanticSnapshot,
   type Viewport,
 } from '@variance-authority/core';
 import {
@@ -15,12 +22,14 @@ import {
   type Renderer,
 } from '@variance-authority/raster';
 import type { Config } from '../config.js';
-import { OperatorError } from '../exit.js';
+import { EXIT_CLEAN, EXIT_REVIEW, OperatorError, exitFor } from '../exit.js';
 import {
   matchesGlob,
+  readCliRunReport,
   recordOf,
   run,
   settle,
+  storeFor,
   type CliRunReport,
   type Collected,
   type Collector,
@@ -47,6 +56,25 @@ const IDENTITY: RenderIdentity = {
 
 const OTHER_MACHINE: RenderIdentity = { ...IDENTITY, platform: 'darwin/arm64' };
 
+/**
+ * A design system served from a cross-origin `<link>`, at the severity that gates.
+ *
+ * `collector-dom` emits this code at `warn` today; `error` is used here because
+ * the severity is what `exitFor` reads, and the CLI's half of that contract has to
+ * be pinned independently of which severity any one collector chooses.
+ */
+const UNREADABLE: Diagnostic = {
+  severity: 'error',
+  code: 'unreadable-stylesheet',
+  message: 'stylesheet "https://cdn.example/tokens.css" is cross-origin; its rules were not collected',
+};
+
+const DANGLING: Diagnostic = {
+  severity: 'warn',
+  code: 'dangling-id-reference',
+  message: 'reference to id "label" resolves outside the subject subtree',
+};
+
 function documentFor(id: string, html = '<div data-va-path="0">x</div>'): RenderDocument {
   return {
     documentVersion: 1,
@@ -58,6 +86,36 @@ function documentFor(id: string, html = '<div data-va-path="0">x</div>'): Render
     inherited: {},
     fonts: [],
     diagnostics: [],
+  };
+}
+
+/** The same document, with the collector's complaints attached to it. */
+function documentWith(id: string, diagnostics: readonly Diagnostic[]): RenderDocument {
+  return { ...documentFor(id), diagnostics };
+}
+
+/** A snapshot carrying diagnostics, and otherwise the emptiest one that type-checks. */
+function snapshotWith(id: string, diagnostics: readonly Diagnostic[]): SemanticSnapshot {
+  return {
+    formatVersion: 1,
+    subject: { id, kind: 'fixture' },
+    profile: profileById('chromium'),
+    environment: environmentKey({
+      profile: 'chromium',
+      engine: 'chromium@131',
+      ruleset: 'test',
+      allowlist: 'test',
+      viewport: VIEWPORT,
+      fonts: [],
+      conditions: {},
+      assets: {},
+    }),
+    renderHash: 'v1:0',
+    structureHash: 'v1:0',
+    styleHash: 'v1:0',
+    root: { path: '0', tag: 'div', attributes: {}, style: {}, children: [] },
+    styleProvenance: [],
+    diagnostics,
   };
 }
 
@@ -75,6 +133,9 @@ function rasterFor(document: RenderDocument, identity: RenderIdentity): Raster {
 function fakeRenderer(identity: RenderIdentity = IDENTITY): Renderer {
   return {
     identity,
+    identityFor(document) {
+      return { ...identity, deviceScaleFactor: document.viewport.deviceScaleFactor };
+    },
     async render(document) {
       return rasterFor(document, identity);
     },
@@ -195,6 +256,23 @@ describe('settle', () => {
     expect(settlement.because).toContain('darwin/arm64');
   });
 
+  it('keeps the fonts the baseline was painted without when the digest settles it', () => {
+    // The digest is sound about pixels and says nothing about fonts. A baseline
+    // painted while the renderer lacked Inter is an image of a substituted font,
+    // and answering a repeat of that document with a bare `unchanged` drops a fact
+    // the baseline itself recorded — the reader is then told the subject is fine
+    // by a comparison that never mentioned it is looking at the wrong typeface.
+    const found: Found = {
+      raster: { ...rasterFor(document, IDENTITY), missingFonts: ['Inter'] },
+      comparable: true,
+      storedUnder: IDENTITY,
+    };
+
+    const settlement = settle(digest, found);
+    expect(settlement).toMatchObject({ kind: 'settled', missingFonts: ['Inter'] });
+    expect(settlement.because).toContain('substituted font');
+  });
+
   it('renders when the document moved', () => {
     const found: Found = {
       raster: rasterFor(documentFor('fixture:a', '<div data-va-path="0">y</div>'), IDENTITY),
@@ -287,6 +365,17 @@ describe('recordOf', () => {
     expect(recordOf(base).missingFonts).toEqual(['Inter']);
   });
 
+  it('carries the collector’s diagnostics onto the record and into its sentence', () => {
+    // A diagnostic that stops at `RenderDocument` is a fact nobody can act on. The
+    // record is the whole contract with the report, the MCP tools and the exit
+    // code, so a subject observed from a document the collector could not fully
+    // read has to say so where all three of them look.
+    const record = recordOf(base, { diagnostics: [UNREADABLE] });
+
+    expect(record.diagnostics).toEqual([UNREADABLE]);
+    expect(record.because).toContain('unreadable-stylesheet');
+  });
+
   it('states the pixels the default policy forgave when the verdict is `unchanged`', () => {
     // "Zero pixels changed" after antialiasing forgiveness is a different claim
     // from "the images are identical", and quoting only the forgiving policy is
@@ -344,6 +433,9 @@ describe('run', () => {
     let renders = 0;
     const renderer: Renderer = {
       identity: IDENTITY,
+      identityFor(document) {
+        return { ...IDENTITY, deviceScaleFactor: document.viewport.deviceScaleFactor };
+      },
       async render(document) {
         renders += 1;
         return rasterFor(document, IDENTITY);
@@ -466,6 +558,81 @@ describe('run', () => {
     expect(sidecar.identity.deviceScaleFactor).toBe(2);
   });
 
+  const onlyA: Plan = {
+    subjects: [{ subject: { id: 'fixture:a', kind: 'fixture' } }],
+    notObserved: [],
+    warnings: [],
+  };
+
+  /** A store holding the baseline this document was painted from: the settled path. */
+  function settlingStore(missingFonts: readonly string[] = []): RasterStore {
+    return {
+      ...createEphemeralStore(),
+      async find(key) {
+        return {
+          raster: { ...rasterFor(documentFor(key.subject), IDENTITY), missingFonts },
+          comparable: true,
+          storedUnder: IDENTITY,
+        };
+      },
+    };
+  }
+
+  it('carries the collector’s diagnostics to the verdict instead of dropping them', async () => {
+    // The missed detection this closes: a subject whose design system is served
+    // from a cross-origin `<link>` is collected without those rules, compared
+    // against a baseline collected the same way, and reports `unchanged` — the
+    // pixels really do match, because both sides are missing the same styling.
+    // Nothing in the verdict can see that, so the diagnostic has to reach the
+    // record and the exit code, from the settled path as much as the rendered one.
+    const collector = collectorOf(onlyA, (subject) => ({
+      ok: true,
+      document: documentWith(subject.subject.id, [UNREADABLE]),
+      snapshot: snapshotWith(subject.subject.id, [DANGLING]),
+    }));
+
+    const { report } = await runWith(configOf(), collector, settlingStore());
+
+    expect(report.observations[0]?.verdict).toBe('unchanged');
+    expect(report.observations[0]?.diagnostics).toEqual([UNREADABLE, DANGLING]);
+    expect(exitFor(report)).toBe(EXIT_REVIEW);
+  });
+
+  it('does not hold a run open for a warn, which states a limit rather than a hole', async () => {
+    // The counterweight to the test above: `unverified-fonts` and its kind fire on
+    // every subject of a suite that supplied no font hashes, and gating on them
+    // would make that suite permanently red — which ends with the gate switched
+    // off. Recorded, not gated.
+    const collector = collectorOf(onlyA, (subject) => ({
+      ok: true,
+      document: documentWith(subject.subject.id, [DANGLING]),
+    }));
+
+    const { report } = await runWith(configOf(), collector, settlingStore());
+
+    expect(report.observations[0]?.diagnostics).toEqual([DANGLING]);
+    expect(exitFor(report)).toBe(EXIT_CLEAN);
+  });
+
+  it('records the fonts the baseline was painted without on a digest-settled subject', async () => {
+    // The digest short-circuit is sound about pixels and is not entitled to drop a
+    // fact the baseline already recorded: a bare `unchanged` about a substituted
+    // font tells the reader the subject is fine, in a sentence produced by a
+    // comparison that never looked at the typeface.
+    const collector = collectorOf(onlyA, (subject) => ({
+      ok: true,
+      document: documentFor(subject.subject.id),
+    }));
+
+    const { report } = await runWith(configOf(), collector, settlingStore(['Inter']));
+
+    expect(report.observations[0]).toMatchObject({
+      verdict: 'unchanged',
+      missingFonts: ['Inter'],
+    });
+    expect(report.observations[0]?.because).toContain('substituted font');
+  });
+
   it('states in the report that a profile without layout cannot attribute regions', async () => {
     // Otherwise the limit is discovered from a report full of coordinates with no
     // names, and read as the tool failing rather than as the profile's declared
@@ -477,5 +644,79 @@ describe('run', () => {
     );
 
     expect(report.warnings?.join('\n')).toContain('no layout engine');
+  });
+});
+
+describe('readCliRunReport', () => {
+  it('refuses a diagnostic whose severity is neither warn nor error', async () => {
+    // The exit code now rests on this field, and a report is a file people edit by
+    // hand while triaging. Reading an unknown severity as `warn` would let a hole
+    // in the coverage exit 0; reading it as `error` would hold every run open on a
+    // typo. Neither guess is available.
+    const directory = await mkdtemp(join(tmpdir(), 'variance-cli-'));
+    const path = join(directory, 'report.json');
+
+    await writeFile(
+      path,
+      JSON.stringify({
+        runVersion: 1,
+        at: '2026-08-01T00:00:00.000Z',
+        identity: IDENTITY,
+        retention: 'durable',
+        observations: [
+          {
+            subject: 'fixture:a',
+            verdict: 'unchanged',
+            because: 'no pixels differ',
+            changedPixels: 0,
+            regions: [],
+            diagnostics: [{ severity: 'fatal', code: 'x', message: 'y' }],
+          },
+        ],
+        notObserved: [],
+      }),
+      'utf8',
+    );
+
+    try {
+      await expect(readCliRunReport(path)).rejects.toThrow(/neither "warn" nor "error"/);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('storeFor', () => {
+  const made: string[] = [];
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await Promise.all(made.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  });
+
+  async function directory(prefix: string): Promise<string> {
+    const path = await mkdtemp(join(tmpdir(), prefix));
+    made.push(path);
+    return path;
+  }
+
+  it('keeps the regenerable render cache out of the LFS-tracked baseline tree', async () => {
+    // The cache is keyed by document digest, so it gains an entry per edit and is
+    // worth nothing after one. Under the tracked root it is committed like a
+    // baseline: every run adds megabytes of PNGs to the object database that
+    // nobody will ever read, and the LFS quota pays for it forever.
+    const root = await directory('variance-baselines-');
+    const cache = await directory('variance-cache-');
+    vi.stubEnv('XDG_CACHE_HOME', cache);
+
+    const store = await storeFor(configOf({ baselines: { kind: 'lfs', root } }));
+    const raster = rasterFor(documentFor('fixture:a'), IDENTITY);
+    await store.cache(raster);
+
+    // Still a cache: pushing it out of the work tree must not cost the hit that
+    // pays for the whole deferral.
+    expect(await store.cached(raster.documentDigest, raster.identity)).not.toBeNull();
+    // Only the tracking entry the store writes on the way in.
+    expect(await readdir(root)).toEqual(['.gitattributes']);
   });
 });

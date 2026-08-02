@@ -17,17 +17,74 @@ import type { Raster, RenderDocument, RenderIdentity } from '@variance-authority
  */
 export interface Renderer {
   /**
-   * Who this renderer is, for comparability.
+   * Who this renderer is: the machine, not the image.
    *
    * Available before the first render, because the durable store has to decide
    * whether a stored baseline is even comparable *before* paying to produce the
    * image it would compare against.
+   *
+   * **Incomplete on purpose.** `deviceScaleFactor` is a property of the
+   * *document* — the viewport declares it, and one renderer serves documents at
+   * several scales in one run — so the value here is whatever the renderer
+   * defaults to and is not the value the next raster will carry. Nothing may key
+   * a store on this identity; see {@link Renderer.identityFor}.
    */
   readonly identity: RenderIdentity;
+
+  /**
+   * The identity {@link Renderer.render} will stamp on *this* document's raster.
+   *
+   * The lookup key and the write key have to be the same value, and for a while
+   * they were not: baselines were written under the raster's identity, which
+   * carries the document's scale, and looked up under the renderer's, which
+   * carries 1. At 1x the two coincide and everything works. Above 1x the lookup
+   * never finds its own baseline — it finds it again under a *sibling* identity
+   * and reports `incomparable`, on every run, forever, in a sentence blaming a
+   * machine difference that does not exist. Worse in the other direction: a 1x
+   * baseline is found under the 1x key and called comparable, so a 2x image is
+   * diffed against a 1x one and the result is reported as a change.
+   *
+   * On the interface rather than computed by the caller because only the
+   * renderer knows how it will stamp an identity. A caller deriving the key
+   * would be asserting on a renderer's behalf, which is how the two keys drifted
+   * apart the first time. The cost is one more method on every implementation.
+   */
+  identityFor(document: RenderDocument): RenderIdentity;
 
   render(document: RenderDocument): Promise<Raster>;
 
   close(): Promise<void>;
+}
+
+/**
+ * The machine identity, plus the scale this document asks to be painted at.
+ *
+ * Shared so the local and remote renderers cannot answer `identityFor`
+ * differently — an offloaded render whose identity is computed by one rule on
+ * the client and another on the server writes baselines nobody looks up, which
+ * is the failure {@link Renderer.identityFor} exists to close.
+ *
+ * Only the scale is folded in. Everything else in {@link RenderIdentity} is a
+ * fact about the machine that a document cannot change; a renderer that
+ * genuinely varies more than the scale per document must not use this.
+ */
+export function identityAtScale(
+  identity: RenderIdentity,
+  document: RenderDocument,
+): RenderIdentity {
+  return { ...identity, deviceScaleFactor: document.viewport.deviceScaleFactor };
+}
+
+/**
+ * An identity as a sentence, for the reader of a refusal.
+ *
+ * One function because every refusal in this package is a claim that two
+ * identities differ, and a reader comparing two differently-formatted strings
+ * has to work out whether the formatting or the machine is what moved. The
+ * scale is spelled out for the same reason it is the field that goes wrong.
+ */
+export function describeIdentity(identity: RenderIdentity): string {
+  return `${identity.renderer} (${identity.engine}, ${identity.platform}, ${identity.deviceScaleFactor}x)`;
 }
 
 /**

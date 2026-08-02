@@ -20,6 +20,12 @@
  *             cannot reach `story:card`
  * ```
  *
+ * A subject that is not finished when `mount` returns says so by returning a
+ * promise; `run` awaits it and stays entirely synchronous when it does not. A
+ * subject that renders nothing is refused rather than snapshotted, because an
+ * empty container compares equal to every other empty container and would report
+ * `unchanged` forever while showing nothing.
+ *
  * One caller-side sharp edge: the subject container is the same element every
  * run, so a React caller must create one root per session and `root.render` per
  * subject. Calling `createRoot` per subject warns and leaks the previous root.

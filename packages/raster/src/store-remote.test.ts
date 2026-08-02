@@ -5,12 +5,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
 import { documentDigest } from '@variance-authority/core';
 import { observeAgainstBaseline } from './observe.js';
-import type { Renderer } from './renderer.js';
-import { createDurableStore, type RasterStore } from './store.js';
+import { identityAtScale, type Renderer } from './renderer.js';
+import { RasterStoreError, createDurableStore, type RasterStore } from './store.js';
 import {
+  BASELINE_DESCRIBE_PATH,
   createRemoteStore,
   serveRasterStore,
-  RasterStoreError,
   type StoreServer,
 } from './store-remote.js';
 
@@ -62,9 +62,15 @@ function countingRenderer(identity: RenderIdentity): Renderer & { calls: number 
   const renderer = {
     identity,
     calls: 0,
+    identityFor: (document: RenderDocument): RenderIdentity =>
+      identityAtScale(identity, document),
     async render(document: RenderDocument): Promise<Raster> {
       renderer.calls += 1;
-      return { ...rasterOf(identity), documentDigest: documentDigest(document) };
+      return {
+        ...rasterOf(identity),
+        documentDigest: documentDigest(document),
+        identity: renderer.identityFor(document),
+      };
     },
     async close(): Promise<void> {},
   };
@@ -142,6 +148,53 @@ describe('a baseline store somewhere else', () => {
     await store.put({ subject: 's' }, rasterOf(MAC));
     expect((await store.find({ subject: 's' }, MAC))?.comparable).toBe(true);
   });
+
+  it('describes a baseline without sending the image over the wire', async () => {
+    // The hop is where an unnecessary image costs the most: serialized, sent,
+    // parsed, held. The response is read as text and searched for the bytes,
+    // because "the client did not expose them" and "the server did not send
+    // them" are different claims and only the second one saves anything.
+    server = await serveRasterStore(createDurableStore(root));
+    const store = createRemoteStore({ endpoint: server.url });
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'SGVsbG8='));
+
+    const described = await store.describe({ subject: 'todo--empty' }, MAC);
+    const body = await (
+      await fetch(`${server.url}${BASELINE_DESCRIBE_PATH}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ key: { subject: 'todo--empty' }, identity: MAC }),
+      })
+    ).text();
+
+    expect(described).toEqual({
+      documentDigest: 'v1:doc',
+      comparable: true,
+      storedUnder: MAC,
+    });
+    expect(body).not.toContain('SGVsbG8=');
+  });
+
+  it('carries the identity partition on the cheap lookup too', async () => {
+    // A description that dropped `comparable` would settle a wrong-machine run to
+    // `new`, and `new` re-records — the partition has to survive the hop on both
+    // routes or it only holds on the one somebody remembered to test.
+    server = await serveRasterStore(createDurableStore(root));
+    const store = createRemoteStore({ endpoint: server.url });
+
+    await store.put({ subject: 's' }, rasterOf(RUNNER));
+    const described = await store.describe({ subject: 's' }, MAC);
+
+    expect(described?.comparable).toBe(false);
+    expect(described?.storedUnder).toEqual(RUNNER);
+  });
+
+  it('reports a described subject nobody has rendered as a miss, and only then', async () => {
+    server = await serveRasterStore(createDurableStore(root));
+    const store = createRemoteStore({ endpoint: server.url });
+
+    expect(await store.describe({ subject: 'never-seen' }, MAC)).toBeNull();
+  });
 });
 
 describe('a store that cannot answer', () => {
@@ -165,6 +218,7 @@ describe('a store that cannot answer', () => {
     const broken: RasterStore = {
       retention: 'durable',
       find: () => Promise.reject(new Error('disk went away')),
+      describe: () => Promise.reject(new Error('disk went away')),
       put: () => Promise.resolve(),
       cached: () => Promise.resolve(null),
       cache: () => Promise.resolve(),
@@ -173,6 +227,7 @@ describe('a store that cannot answer', () => {
     const store = createRemoteStore({ endpoint: server.url });
 
     await expect(store.find({ subject: 's' }, MAC)).rejects.toThrow(/disk went away/);
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/disk went away/);
   });
 
   it('refuses a 200 whose body is not an answer', async () => {
@@ -220,12 +275,52 @@ describe('a store that cannot answer', () => {
     await expect(store.cached('v1:doc', MAC)).rejects.toThrow(/not a raster/);
   });
 
+  it('refuses a description body that is not an answer', async () => {
+    // The cheap route is the one a caller reaches for on every subject, so a body
+    // it is willing to guess at is a body that settles a whole run.
+    const store = createRemoteStore({
+      endpoint: 'http://stub',
+      fetch: async () => new Response('{"nothing":true}', { status: 200 }),
+    });
+
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/no `described` field/);
+  });
+
+  it('refuses a description with no document digest rather than rendering everything', async () => {
+    // The quiet one. Absent, the digest compares as `undefined` against a real one
+    // and never matches, so every subject renders: a broken server hidden behind a
+    // bill for images and a run that still reports verdicts.
+    const store = createRemoteStore({
+      endpoint: 'http://stub',
+      fetch: async () =>
+        new Response(JSON.stringify({ described: { comparable: true, storedUnder: MAC } }), {
+          status: 200,
+        }),
+    });
+
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/documentDigest/);
+  });
+
+  it('refuses a description whose comparability it was not told', async () => {
+    const store = createRemoteStore({
+      endpoint: 'http://stub',
+      fetch: async () =>
+        new Response(
+          JSON.stringify({ described: { documentDigest: 'v1:doc', storedUnder: MAC } }),
+          { status: 200 },
+        ),
+    });
+
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/comparable/);
+  });
+
   it('fails a lookup that hangs rather than stalling the run', async () => {
     // A store that never answers is indistinguishable from one that is thinking,
     // and a run that waits forever is a CI job someone cancels and re-runs.
     server = await serveRasterStore({
       retention: 'durable',
       find: () => new Promise(() => {}),
+      describe: () => new Promise(() => {}),
       put: () => Promise.resolve(),
       cached: () => Promise.resolve(null),
       cache: () => Promise.resolve(),

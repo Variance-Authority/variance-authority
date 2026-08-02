@@ -8,10 +8,10 @@
  * collector (ADR-0001, ADR-0003).
  */
 
-export { collect } from './collect.js';
+export { collect, conditionsFor } from './collect.js';
 export type { CollectOptions } from './collect.js';
 
-export { indexStyleSheets, matchRulesFor } from './css.js';
+export { conditionKey, indexStyleSheets, matchRulesFor } from './css.js';
 export type { StyleIndex, IndexedRule } from './css.js';
 
 export { evaluateMedia, evaluateSupports } from './media.js';

@@ -41,8 +41,8 @@ export {
 } from './compare.js';
 export type { DiffPolicy, RasterComparison, CompareOptions } from './compare.js';
 
-export { createEphemeralStore, createDurableStore, renderCached } from './store.js';
-export type { RasterStore, Retention, BaselineKey, Found } from './store.js';
+export { createEphemeralStore, createDurableStore, renderCached, RasterStoreError } from './store.js';
+export type { RasterStore, Retention, BaselineKey, Found, Described } from './store.js';
 
 export { createLfsStore } from './store-lfs.js';
 export type { LfsStore, LfsStoreOptions, LfsTracking, CommandRunner, CommandResult } from './store-lfs.js';
@@ -50,8 +50,8 @@ export type { LfsStore, LfsStoreOptions, LfsTracking, CommandRunner, CommandResu
 export {
   createRemoteStore,
   serveRasterStore,
-  RasterStoreError,
   BASELINE_FIND_PATH,
+  BASELINE_DESCRIBE_PATH,
   BASELINE_PUT_PATH,
   CACHE_FIND_PATH,
   CACHE_PUT_PATH,

@@ -55,6 +55,39 @@ describe('exitFor', () => {
     ).toBe(EXIT_CLEAN);
   });
 
+  it('refuses to call a run clean while a subject carries an error diagnostic', () => {
+    // The failure this guards: a collector that could not read a cross-origin
+    // stylesheet compares the subject with a chunk of its styling missing and
+    // reports `unchanged`. The pixels really are identical — both sides are
+    // unstyled the same way — so no verdict can catch it. Only the diagnostic can,
+    // and a diagnostic that does not reach the exit code is a diagnostic nobody
+    // acts on.
+    expect(
+      exitFor({
+        observations: [
+          {
+            verdict: 'unchanged',
+            diagnostics: [{ severity: 'error' }],
+          },
+        ],
+        notObserved: [],
+      }),
+    ).toBe(EXIT_REVIEW);
+  });
+
+  it('stays clean for a warn diagnostic, which states a limit rather than a hole', () => {
+    // The opposite failure, and the more common one in practice: `unverified-fonts`
+    // fires on every subject of a suite that supplied no font hashes. Gating on it
+    // would make such a suite permanently red, which ends with the gate being
+    // switched off rather than read. The warning is still recorded on the record.
+    expect(
+      exitFor({
+        observations: [{ verdict: 'unchanged', diagnostics: [{ severity: 'warn' }] }],
+        notObserved: [],
+      }),
+    ).toBe(EXIT_CLEAN);
+  });
+
   it('needs review when the report never said what it skipped', () => {
     // Absent is not empty. A report that does not account for its subjects cannot
     // support the sentence "nothing needs review".

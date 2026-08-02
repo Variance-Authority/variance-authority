@@ -13,7 +13,7 @@ import {
   type Viewport,
 } from '@variance-authority/core';
 import { ariaOf } from './aria.js';
-import { indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
+import { conditionKey, indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
 import type { ConditionEnvironment } from './media.js';
 import { attributesOf, childNodesOf, elements, propertyNames } from './dom-list.js';
 
@@ -81,8 +81,61 @@ export interface CollectOptions {
   /** Content hashes for external assets, keyed by request URL. */
   readonly assets?: Readonly<Record<string, string>>;
 
+  /**
+   * A style index already built for this document, from `indexStyleSheets`.
+   *
+   * Indexing walks every rule on the page; matching walks only the buckets this
+   * subject's elements key into. Every subject in a session shares one document
+   * and one set of sheets, so rebuilding the index per subject repeats the
+   * expensive half until it is most of what a collection costs — and collecting
+   * and acquiring the same subject pays for it twice. `AcquireOptions.index`
+   * exists for this reason; this is the same seam on the comparison side.
+   *
+   * Reuse is opt-in because staleness is not detectable from here. A subject that
+   * injects a stylesheet invalidates every later subject's index, and an index
+   * that misses those rules prunes declarations that now apply — a false
+   * `unchanged`, the failure this system exists to prevent. The holder must
+   * therefore invalidate on the *content* of the sheets: a session already
+   * fingerprints them on every probe, so the check is free there and no cheaper
+   * signal (a sheet count, a run counter, a timestamp) is a substitute, since
+   * rewriting a rule in place changes none of them.
+   *
+   * An index built for different conditions is refused rather than used; see
+   * `StyleIndex.conditions`.
+   */
+  readonly index?: StyleIndex;
+
   /** Defaults to `chromium` when the host has a layout engine, else `jsdom`. */
   readonly profile?: ObservationProfile;
+}
+
+/**
+ * The condition environment a capture of this document would be flattened
+ * against.
+ *
+ * Exported because building a reusable index means building one for exactly the
+ * conditions `collect` would have derived, and one of those inputs — the engine's
+ * `@supports` probe — comes from the document's view rather than from the
+ * viewport. A caller assembling a `ConditionEnvironment` by hand would omit it,
+ * `collect` would refuse the index as built for a different environment, and the
+ * reuse would silently never happen. Handing out the derivation is cheaper than
+ * documenting it.
+ */
+export function conditionsFor(
+  document: Document,
+  viewport: Viewport,
+  features?: Readonly<Record<string, string>>,
+): ConditionEnvironment {
+  const supports = supportsProbe(document.defaultView);
+
+  return {
+    width: viewport.width,
+    height: viewport.height,
+    deviceScaleFactor: viewport.deviceScaleFactor,
+    colorScheme: viewport.colorScheme,
+    ...(features ? { features } : {}),
+    ...(supports ? { supports } : {}),
+  };
 }
 
 export function collect(root: Element, options: CollectOptions): RawCapture {
@@ -90,16 +143,11 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
   const view = document.defaultView;
   const profile = options.profile ?? detectProfile(view);
 
-  const conditions: ConditionEnvironment = {
-    width: options.viewport.width,
-    height: options.viewport.height,
-    deviceScaleFactor: options.viewport.deviceScaleFactor,
-    colorScheme: options.viewport.colorScheme,
-    ...(options.features ? { features: options.features } : {}),
-    ...(supportsProbe(view) ? { supports: supportsProbe(view)! } : {}),
-  };
+  const conditions = conditionsFor(document, options.viewport, options.features);
 
-  const index = indexStyleSheets(document, conditions);
+  const index = options.index
+    ? sameEnvironment(options.index, conditions)
+    : indexStyleSheets(document, conditions);
   const diagnostics: Diagnostic[] = [...index.diagnostics];
 
   if (options.fonts === undefined) {
@@ -155,6 +203,30 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
   };
 
   return capture;
+}
+
+/**
+ * Accept a supplied index only if it answers for the environment being captured.
+ *
+ * Throwing, rather than rebuilding or warning. Rebuilding would be silently
+ * correct and silently slow — the caller's mistake would never surface and the
+ * optimization would appear to work while doing nothing. Warning is worse: the
+ * capture would still be produced, and diagnostics are outside the hash, so a
+ * baseline whose `@media` blocks were resolved for another viewport would sit in
+ * the store looking indistinguishable from a real one. A missing answer is
+ * recoverable; a confident wrong one is not.
+ */
+function sameEnvironment(index: StyleIndex, conditions: ConditionEnvironment): StyleIndex {
+  const wanted = conditionKey(conditions);
+  if (index.conditions === wanted) return index;
+
+  throw new Error(
+    `the supplied style index was built for a different condition environment ` +
+      `(index: ${index.conditions}; capture: ${wanted}). Conditional groups are erased during ` +
+      `indexing, so reusing it would flatten @media and @supports against one environment while ` +
+      `keying the capture to another — two different rule sets sharing one baseline. Build an ` +
+      `index per environment with indexStyleSheets(document, conditionsFor(document, viewport)).`,
+  );
 }
 
 function captureNode(

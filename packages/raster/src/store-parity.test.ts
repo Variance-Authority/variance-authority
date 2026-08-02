@@ -7,7 +7,7 @@ import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance
 import { documentDigest } from '@variance-authority/core';
 import { DEFAULT_POLICY } from './compare.js';
 import { observeAgainstBaseline, type RasterVerdict } from './observe.js';
-import type { Renderer } from './renderer.js';
+import { identityAtScale, type Renderer } from './renderer.js';
 import { createDurableStore, type RasterStore } from './store.js';
 import { createLfsStore, type CommandRunner } from './store-lfs.js';
 import { createRemoteStore, serveRasterStore, type StoreServer } from './store-remote.js';
@@ -75,10 +75,12 @@ const EDITED = documentOf('<div data-va-path="0">edited</div>');
 function renderer(identity: RenderIdentity): Renderer {
   return {
     identity,
+    identityFor: (document: RenderDocument): RenderIdentity =>
+      identityAtScale(identity, document),
     async render(document: RenderDocument): Promise<Raster> {
       return {
         documentDigest: documentDigest(document),
-        identity,
+        identity: identityAtScale(identity, document),
         width: 10,
         height: 10,
         bytes: document.html.includes('edited') ? BLACK : WHITE,
@@ -209,6 +211,34 @@ describe('switching where baselines are kept', () => {
       expect(answers).toEqual({ durable: expected, 'git-LFS': expected, remote: expected });
     });
   }
+
+  it('answers the cheap lookup identically wherever the baseline is kept', async () => {
+    // The metadata lookup decides whether a subject is compared at all, so a store
+    // that answered it differently would change verdicts without ever touching a
+    // pixel — acceptance 4 broken by the one query that never reads an image.
+    // Absence is included deliberately: `null` is the answer that leads to `new`,
+    // and `new` re-records.
+    const answers: Record<string, unknown> = {};
+
+    for (const implementation of IMPLEMENTATIONS) {
+      const store = await implementation.open();
+      await store.put({ subject: 'mine' }, baseline(MAC));
+      await store.put({ subject: 'theirs' }, baseline(RUNNER));
+
+      answers[implementation.name] = {
+        mine: await store.describe({ subject: 'mine' }, MAC),
+        theirs: await store.describe({ subject: 'theirs' }, MAC),
+        neither: await store.describe({ subject: 'never-seen' }, MAC),
+      };
+    }
+
+    const expected = {
+      mine: { documentDigest: documentDigest(SAME), comparable: true, storedUnder: MAC },
+      theirs: { documentDigest: documentDigest(SAME), comparable: false, storedUnder: RUNNER },
+      neither: null,
+    };
+    expect(answers).toEqual({ durable: expected, 'git-LFS': expected, remote: expected });
+  });
 
   it('explains an incomparable baseline by naming the machine that wrote it', async () => {
     // The verdict alone is not the deliverable. A wrong-machine run has to be one

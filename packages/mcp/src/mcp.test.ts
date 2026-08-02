@@ -104,9 +104,17 @@ describe('the summary', () => {
   });
 
   it('says so plainly when nothing needs review', () => {
+    // `notObserved: []` is what makes the claim available, and is not decoration:
+    // a clean observation list only means a clean run for a report that also
+    // accounted for the subjects it planned. See `scenario.test.ts` for the two
+    // states this fixture is deliberately not in.
     const clean = handle(
       { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'variance_summary' } },
-      () => ({ ...REPORT, observations: REPORT.observations.filter((o) => o.verdict === 'unchanged') }),
+      () => ({
+        ...REPORT,
+        observations: REPORT.observations.filter((o) => o.verdict === 'unchanged'),
+        notObserved: [],
+      }),
     );
     const text = (clean!.result as { content: { text: string }[] }).content[0]!.text;
 

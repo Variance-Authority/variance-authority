@@ -91,6 +91,7 @@ describe('a baseline store in the repository', () => {
 
     await store.put({ subject: 's' }, rasterOf(MAC));
     await store.find({ subject: 's' }, MAC);
+    await store.describe({ subject: 's' }, MAC);
     await store.cache(rasterOf(MAC));
     await store.cached('v1:doc', MAC);
 
@@ -233,6 +234,31 @@ describe('a clone without git-lfs', () => {
       'oid sha256:4d7a2145b0d3f1e2c4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7\nsize 1024\n';
     await writeFile(join(root, identityDigest(MAC), 'todo--empty.png'), pointer, 'utf8');
 
+    await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
+      /git-LFS pointer, not an image/,
+    );
+  });
+
+  it('still describes a baseline from its sidecar, which a pointer cannot corrupt', async () => {
+    // The stated limit of the cheap lookup, pinned so it is a decision rather than
+    // an oversight. Sidecars are outside the tracked glob, so they are real text on
+    // every clone: "the document this run assembled is the one that baseline was
+    // painted from" is a fact about two committed text files and stays true where
+    // the PNG is 130 bytes of pointer. The moment the bytes are needed — the
+    // document moved, something must be compared — `find` runs and refuses.
+    const store = await createLfsStore({ root, git: TRACKED });
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
+    await writeFile(
+      join(root, identityDigest(MAC), 'todo--empty.png'),
+      'version https://git-lfs.github.com/spec/v1\noid sha256:4d7a\nsize 1024\n',
+      'utf8',
+    );
+
+    expect(await store.describe({ subject: 'todo--empty' }, MAC)).toEqual({
+      documentDigest: 'v1:doc',
+      comparable: true,
+      storedUnder: MAC,
+    });
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
       /git-LFS pointer, not an image/,
     );

@@ -7,7 +7,7 @@ import {
   type Viewport,
 } from '@variance-authority/core';
 import { assemble, SUBJECT_PATH, type AssembleOptions } from './assemble.js';
-import { familiesOf, type Renderer } from './renderer.js';
+import { familiesOf, identityAtScale, type Renderer } from './renderer.js';
 
 /**
  * A local Chromium renderer: one browser, one page per viewport, N documents.
@@ -53,8 +53,10 @@ export async function createPlaywrightRenderer(
       renderer: `playwright-chromium`,
       engine: `chromium@${browser.version()}`,
       platform: `${process.platform}/${process.arch}`,
-      // Filled per document below. Left at 1 here so the identity is complete
-      // and readable; documents at a different scale get their own identity.
+      // The scale belongs to the document, not to the browser — one renderer
+      // serves 1x and 2x viewports in the same run. Left at 1 so the machine
+      // identity is a complete, readable value; `identityFor` supplies the real
+      // one, and nothing may key a store on this.
       deviceScaleFactor: 1,
       fonts: options.fonts ?? [],
     };
@@ -62,8 +64,15 @@ export async function createPlaywrightRenderer(
     const pages = new Map<string, Page>();
     const contexts: BrowserContext[] = [];
 
+    // One expression, used by `render` to stamp the raster and by the pipeline
+    // to look a baseline up. Two expressions is how the write key and the lookup
+    // key drifted apart, and a drift of one field is invisible at 1x.
+    const identityFor = (document: RenderDocument): RenderIdentity =>
+      identityAtScale(identity, document);
+
     return {
       identity,
+      identityFor,
 
       async render(document: RenderDocument): Promise<Raster> {
         const page = await pageFor(browser, pages, contexts, document.viewport);
@@ -91,10 +100,7 @@ export async function createPlaywrightRenderer(
 
         return {
           documentDigest: documentDigest(document),
-          identity: {
-            ...identity,
-            deviceScaleFactor: document.viewport.deviceScaleFactor,
-          },
+          identity: identityFor(document),
           // Device pixels, which is what the mask and the regions are in. The
           // conversion back to CSS pixels happens once, in `attributeRegions`,
           // where the caller has to name the scale.

@@ -1,4 +1,4 @@
-import type { ObservationRecord, RegionRecord, RunReport } from './report.js';
+import type { NotObserved, ObservationRecord, RegionRecord, RunReport } from './report.js';
 
 /**
  * The tools, as pure functions over a run report.
@@ -24,18 +24,29 @@ export interface Tool {
 const NO_ARGS = { type: 'object', properties: {}, additionalProperties: false } as const;
 
 /**
- * Overview: what happened, and what needs attention.
+ * Overview: what happened, what needs attention, and what was never looked at.
  *
  * Deliberately does not list unchanged subjects. A run over 300 subjects where
  * two changed should print two lines — a list as long as the suite is the "100
  * changes? merge" failure in its purest form, and the reader stops reading long
  * before the interesting line.
+ *
+ * The coverage section is the exception to that economy and is not negotiable.
+ * A run that planned 300 subjects, failed on 50 and found the other 250
+ * unchanged has an observation list in which every entry is clean; a summary
+ * computed from observations alone therefore reports it as a clean run, and an
+ * agent acts on that. So `nothing to review` is claimed only from a report that
+ * accounted for every subject it planned — never from silence, and never over a
+ * subject the run meant to see and could not. That is the same rule the CLI's
+ * exit code applies, stated in the same words, because a human and an agent
+ * reading one artifact must not be able to disagree about whether it was green.
  */
 const summarize: Tool = {
   name: 'variance_summary',
   description:
     'What the last visual run found: counts by verdict, then one line per subject that ' +
-    'needs attention. Unchanged subjects are counted, not listed. Start here.',
+    'needs attention, then which subjects were not observed at all. Unchanged subjects are ' +
+    'counted, not listed. Start here.',
   inputSchema: NO_ARGS,
 
   run(report) {
@@ -45,26 +56,118 @@ const summarize: Tool = {
     }
 
     const header = [
-      `${report.observations.length} subject(s), ${report.retention} run at ${report.at}`,
+      `${report.observations.length} subject(s) observed, ${report.retention} run at ${report.at}`,
       `rendered by ${describeIdentity(report)}`,
-      [...counts.entries()].map(([verdict, count]) => `${count} ${verdict}`).join(', '),
+      // The coverage state joins the verdict counts rather than only appearing in
+      // the section below, because that section is as long as the hole is and the
+      // hole is what a reader most needs in the first four lines. A run that lost
+      // 50 subjects otherwise opens with "250 unchanged" and says so 50 lines later.
+      [...counts.entries()]
+        .map(([verdict, count]) => `${count} ${verdict}`)
+        .concat(shortfall(report))
+        .join(', '),
       ...(report.intent !== undefined ? [`intent: ${report.intent}`] : []),
     ];
 
     const notable = report.observations.filter((o) => o.verdict !== 'unchanged');
-    if (notable.length === 0) return [...header, 'nothing to review'].join('\n');
 
     return [
       ...header,
+      ...(notable.length === 0
+        ? []
+        : [
+            '',
+            ...notable.map((observation) => {
+              const cause = observation.regions.find((region) => region.cause);
+              const lead = cause?.component !== undefined ? ` — ${cause.component}` : '';
+              return `[${observation.verdict}] ${observation.subject}${lead}: ${observation.because}`;
+            }),
+          ]),
       '',
-      ...notable.map((observation) => {
-        const cause = observation.regions.find((region) => region.cause);
-        const lead = cause?.component !== undefined ? ` — ${cause.component}` : '';
-        return `[${observation.verdict}] ${observation.subject}${lead}: ${observation.because}`;
-      }),
+      ...coverage(report),
+      ...(notable.length === 0 ? ['', settlement(report)] : []),
     ].join('\n');
   },
 };
+
+/**
+ * The coverage section, in three states — and the third is why this is not
+ * simply a list.
+ *
+ * `absent` means the report's writer never said what it skipped. That is not the
+ * same sentence as "it skipped nothing" and must not be printed as one: a reader
+ * shown a clean summary over a report that never counted its subjects has been
+ * told the suite is green by something that never looked at the suite. Costs
+ * three lines of output on every report a `variance run` did not write, which is
+ * the price of not collapsing "unknown" into "fine".
+ */
+function coverage(report: RunReport): readonly string[] {
+  const entries = report.notObserved;
+
+  if (entries === undefined) {
+    return [
+      'coverage: unknown — this report does not state which subjects were not observed.',
+      '  It was not written by `variance run`, so silence about a subject here cannot be',
+      '  read as a pass.',
+    ];
+  }
+
+  if (entries.length === 0) return ['coverage: every planned subject was observed.'];
+
+  const failed = entries.filter((entry) => entry.kind === 'failed');
+  const excluded = entries.filter((entry) => entry.kind === 'excluded');
+
+  // Every entry is named, however many there are. A count alone leaves an agent
+  // unable to act, and a capped list reads as complete coverage — the failure
+  // `truncated` exists to prevent, applied to the list that matters most.
+  return [
+    `not observed: ${entries.length} subject(s) — ` +
+      `${failed.length} the run could not see, ${excluded.length} excluded by configuration`,
+    ...failed.map(coverageLine),
+    ...excluded.map(coverageLine),
+  ];
+}
+
+function coverageLine(entry: NotObserved): string {
+  return `  [${entry.kind}] ${entry.subject}: ${entry.because}`;
+}
+
+/** The coverage state as one clause, for the counts line. Empty when there is none to state. */
+function shortfall(report: RunReport): readonly string[] {
+  if (report.notObserved === undefined) return ['coverage unknown'];
+  return report.notObserved.length === 0
+    ? []
+    : [`${report.notObserved.length} not observed`];
+}
+
+/**
+ * The closing sentence when no observation is notable — the one an agent stops
+ * reading at, and therefore the one that must not overstate.
+ *
+ * Only the third branch may say "nothing to review". The first two are the cases
+ * where the observations are all clean and the run still is not: an unaccounted
+ * report, and a hole the run meant to fill. Both mirror `exitFor`'s `1`.
+ */
+function settlement(report: RunReport): string {
+  const entries = report.notObserved;
+
+  if (entries === undefined) {
+    return (
+      'no observed subject needs review, but this report never stated what it skipped — ' +
+      'it cannot be read as a clean run'
+    );
+  }
+
+  const failed = entries.filter((entry) => entry.kind === 'failed').length;
+  if (failed > 0) {
+    return (
+      `no observed subject needs review, but ${failed} subject(s) the run meant to see were ` +
+      'not observed — an absent observation is not an unchanged one'
+    );
+  }
+
+  return 'nothing to review';
+}
 
 /**
  * One subject, in full: what changed, where it is, and which file to open.
@@ -78,7 +181,8 @@ const describe: Tool = {
   description:
     'Everything known about one subject: the ranked regions, the component each belongs to, ' +
     'a landmark description of where it is on the page, and the source file to edit. ' +
-    'Causes are listed before collateral.',
+    'Causes are listed before collateral. A subject the run did not observe is answered ' +
+    'with why, not refused.',
   inputSchema: {
     type: 'object',
     properties: { subject: { type: 'string', description: 'Subject id from variance_summary.' } },
@@ -87,7 +191,9 @@ const describe: Tool = {
   },
 
   run(report, input) {
-    const observation = subjectOf(report, input);
+    const located = subjectOf(report, input);
+    if (!located.observed) return unobserved(located.entry);
+    const { observation } = located;
 
     const lines = [
       `[${observation.verdict}] ${observation.subject}`,
@@ -180,13 +286,18 @@ const trace: Tool = {
  * `incomparable` and `new` are the two verdicts an agent will otherwise treat as
  * failures and try to fix in code, which is exactly wrong: neither is about the
  * code. This makes the reason legible enough to act on — or to decide not to.
+ *
+ * A subject with no observation at all is the third such case and the worst one
+ * to refuse. "Unknown subject" tells an agent the subject does not exist, so it
+ * stops asking; the truth is that the subject exists and nothing is known about
+ * it, which is the opposite conclusion.
  */
 const explain: Tool = {
   name: 'variance_explain_verdict',
   description:
     'Why a subject was not compared. `incomparable` means a baseline exists but another ' +
-    'machine rendered it; `new` means none exists. Neither is a code problem — call this ' +
-    'before attempting a fix.',
+    'machine rendered it; `new` means none exists; a subject in the coverage list was never ' +
+    'observed at all. None is a code problem — call this before attempting a fix.',
   inputSchema: {
     type: 'object',
     properties: { subject: { type: 'string' } },
@@ -195,7 +306,22 @@ const explain: Tool = {
   },
 
   run(report, input) {
-    const observation = subjectOf(report, input);
+    const located = subjectOf(report, input);
+
+    if (!located.observed) {
+      return [
+        unobserved(located.entry),
+        '',
+        located.entry.kind === 'excluded'
+          ? 'Nothing was compared, so nothing is known about this subject. There is no code ' +
+            'change to make here; if it should be watched, change the exclusion.'
+          : 'Nothing was compared, so nothing is known about this subject — an absent ' +
+            'observation is not an unchanged one. Fix whatever stopped the run from seeing ' +
+            'it before treating any part of this run as a pass for this subject.',
+      ].join('\n');
+    }
+
+    const { observation } = located;
 
     switch (observation.verdict) {
       case 'incomparable':
@@ -242,20 +368,59 @@ function regionLine(region: RegionRecord): string {
     .join('\n');
 }
 
-function subjectOf(report: RunReport, input: Readonly<Record<string, unknown>>): ObservationRecord {
-  const subject = stringArg(input, 'subject');
-  const found = report.observations.find((observation) => observation.subject === subject);
+/**
+ * A subject named in the run, and which of the two lists it came from.
+ *
+ * A union rather than `ObservationRecord | undefined` so that "the run did not
+ * observe this" cannot be handled by accident. Every caller has to decide what to
+ * say about a subject with no observation, and the answer is never a verdict.
+ */
+type Located =
+  | { readonly observed: true; readonly observation: ObservationRecord }
+  | { readonly observed: false; readonly entry: NotObserved };
 
-  if (found === undefined) {
-    // Listing the alternatives rather than only refusing: an agent that gets
-    // "unknown subject" retries with another guess, and an agent that gets the
-    // list picks the right one.
-    throw new Error(
-      `unknown subject "${subject}"; this run has: ` +
-        report.observations.map((observation) => observation.subject).join(', '),
-    );
-  }
-  return found;
+function subjectOf(report: RunReport, input: Readonly<Record<string, unknown>>): Located {
+  const subject = stringArg(input, 'subject');
+
+  const observation = report.observations.find((entry) => entry.subject === subject);
+  if (observation !== undefined) return { observed: true, observation };
+
+  // The coverage list is searched too, and this is the point of it. A subject the
+  // run planned and could not see is a subject an agent will ask about; refusing
+  // the name tells it the subject does not exist, which is both false and the
+  // conclusion that ends the investigation.
+  const skipped = report.notObserved?.find((entry) => entry.subject === subject);
+  if (skipped !== undefined) return { observed: false, entry: skipped };
+
+  // Listing the alternatives rather than only refusing: an agent that gets
+  // "unknown subject" retries with another guess, and an agent that gets the
+  // list picks the right one.
+  throw new Error(
+    `unknown subject "${subject}"; this run has: ` +
+      [
+        ...report.observations.map((entry) => entry.subject),
+        ...(report.notObserved ?? []).map((entry) => entry.subject),
+      ].join(', '),
+  );
+}
+
+/**
+ * What to say about a subject with no observation — the CLI's wording, verbatim.
+ *
+ * Duplicated text rather than a shared helper only because the packages point the
+ * other way round, and the duplication is deliberate where drift would be worst:
+ * a human running `variance report --subject x` and an agent calling
+ * `variance_describe` on the same subject must be told the same thing, or the two
+ * of them will argue about a run neither can re-observe.
+ */
+function unobserved(entry: NotObserved): string {
+  return [
+    `[not observed] ${entry.subject}`,
+    entry.because,
+    entry.kind === 'excluded'
+      ? 'This was excluded by configuration, not by a failure.'
+      : 'The run meant to observe this and could not. It is not a pass.',
+  ].join('\n');
 }
 
 function stringArg(input: Readonly<Record<string, unknown>>, name: string): string {

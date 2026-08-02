@@ -79,6 +79,14 @@ export interface SubjectRun {
   readonly writes: ReadonlySet<StateKey>;
   /** Position in the session. Ordering is what makes a conflict directional. */
   readonly sequence: number;
+  /**
+   * Wall clock from the clearing of the container to the recorded run.
+   *
+   * A subject that declares its readiness is timed with its own waiting
+   * included, because that waiting is what the session actually spent. It also
+   * means a session full of asynchronous subjects dilutes `probeShare` — the
+   * probe did not get cheaper, the denominator got larger.
+   */
   readonly durationMs: number;
 }
 
@@ -126,6 +134,8 @@ export class Session {
   readonly #container: HTMLElement;
   #probeMs = 0;
   #totalMs = 0;
+  /** Id of the subject whose mount has not settled yet, or `null`. */
+  #mounting: string | null = null;
 
   constructor(options: SessionOptions) {
     this.#options = options;
@@ -142,17 +152,64 @@ export class Session {
   /**
    * Run one subject: mount, probe, collect, normalize, record.
    *
-   * `mount` is given the container and is expected to render synchronously. The
-   * probe brackets the mount rather than the collection, so that work the
-   * *collector* does — which touches nothing — is not mistaken for a write.
+   * `mount` is given the container and may finish in one of two ways. Returning
+   * nothing means it is already done, and that path stays exactly as
+   * synchronous as it was — no microtask, no await, no ceremony, because it is
+   * the overwhelming majority of subjects and the whole package exists to be
+   * cheap. Returning a promise means the subject is *declaring* when it is
+   * finished, and `run` waits for that declaration before photographing
+   * anything. A signal from the subject beats any timeout, animation-frame count
+   * or mutation-quiet heuristic this package could pick, because only the
+   * subject knows what it was waiting for; the cost is that a subject which
+   * never settles hangs the session rather than producing a wrong answer, which
+   * is the right way round.
+   *
+   * Whichever path it took, the container must not be empty when the collector
+   * arrives — see `#requireRendered`. That check is what makes the asynchronous
+   * path an improvement rather than a second way to be wrong.
    *
    * The container is the *same element* every run, which React notices: calling
    * `createRoot` on it twice warns and leaks the previous root. Callers using
    * React should create one root per session and call `root.render` per subject.
    * This is the sharp edge of container reuse, and it is a caller-side concern —
    * the session cannot own a React root without depending on React.
+   *
+   * @throws {Error} when the subject rendered nothing, or when another subject
+   * is still mounting.
    */
-  run(subject: SubjectRef, mount: (container: HTMLElement) => void): SubjectRun {
+  // The promise-returning overload is declared first on purpose. A parameter
+  // typed `=> void` accepts a function returning anything, promises included, so
+  // a sync-first order would match every `async` mount against it and hand the
+  // caller a `SubjectRun` that is really a `Promise<SubjectRun>` — the exact
+  // "looked at the wrong object and saw no difference" failure being fixed here,
+  // relocated into the type system.
+  run(
+    subject: SubjectRef,
+    mount: (container: HTMLElement) => PromiseLike<unknown>,
+  ): Promise<SubjectRun>;
+  run(subject: SubjectRef, mount: (container: HTMLElement) => void): SubjectRun;
+  run(
+    subject: SubjectRef,
+    mount: (container: HTMLElement) => unknown,
+  ): SubjectRun | Promise<SubjectRun> {
+    return this.#runOnce(subject, mount);
+  }
+
+  #runOnce(
+    subject: SubjectRef,
+    mount: (container: HTMLElement) => unknown,
+  ): SubjectRun | Promise<SubjectRun> {
+    if (this.#mounting !== null) {
+      // One session, one container. Two subjects mounting into it concurrently
+      // photograph each other's DOM, and unlike an empty container the result
+      // looks plausible enough to be baselined.
+      throw new Error(
+        `refusing to start \`${subject.id}\` while \`${this.#mounting}\` is still mounting: ` +
+          `a session has one container, so overlapping subjects would each be collected with ` +
+          `the other's DOM in it; await the previous run before starting the next`,
+      );
+    }
+
     const started = now();
 
     if (this.#options.clearContainer !== false) this.#container.replaceChildren();
@@ -161,7 +218,29 @@ export class Session {
     const before = this.#probe();
     this.#probeMs += now() - probeStart;
 
-    mount(this.#container);
+    const settled = mount(this.#container);
+
+    if (!isThenable(settled)) return this.#photograph(subject, before, started);
+
+    this.#mounting = subject.id;
+
+    return Promise.resolve(settled)
+      .finally(() => {
+        this.#mounting = null;
+      })
+      .then(() => this.#photograph(subject, before, started));
+  }
+
+  /**
+   * Close the probe bracket, collect, and record — once the subject is ready.
+   *
+   * Split out of `run` so that both paths photograph the world in exactly the
+   * same way. The probe brackets the mount rather than the collection, so that
+   * work the *collector* does — which touches nothing — is not mistaken for a
+   * write.
+   */
+  #photograph(subject: SubjectRef, before: StateProbe, started: number): SubjectRun {
+    this.#requireRendered(subject);
 
     const probeEnd = now();
     const after = this.#probe();
@@ -201,6 +280,54 @@ export class Session {
   }
 
   /**
+   * Refuse a subject that rendered nothing.
+   *
+   * This is the canonical vacuous positive: an empty container is byte-identical
+   * to every other empty container, so its snapshot agrees with any baseline
+   * taken the same way and the subject reports `unchanged` forever while showing
+   * nothing at all. A missing answer is recoverable; a confident wrong one is
+   * not, so the artifact is refused rather than produced.
+   *
+   * "Rendered" is deliberately wider than "has element children". The collector
+   * captures text nodes, so a subject whose entire output is a string is
+   * observable and refusing it would be a false alarm — and a check that fires
+   * on legitimate subjects is a check that gets switched off. Comments and
+   * whitespace-only text do not count: they are what a container that rendered
+   * nothing tends to contain.
+   *
+   * Two limits worth knowing. `portalsOf` is consulted only when the container
+   * itself looks empty, so the common path pays nothing for it — but a subject
+   * whose whole output is portalled is only rescued when a portal provider is
+   * configured; without one it is refused, which is the safe direction given the
+   * collector could not have seen its content either. And under
+   * `clearContainer: false` the previous subject's DOM satisfies this check, so
+   * a subject that mounts nothing is caught only when it is the first to run.
+   */
+  #requireRendered(subject: SubjectRef): void {
+    if (this.#rendered()) return;
+
+    throw new Error(
+      `refusing to snapshot an empty subject \`${subject.id}\`: mount returned without ` +
+        `rendering anything into the container. An empty container compares equal to every ` +
+        `other empty container, so this snapshot would report \`unchanged\` no matter how the ` +
+        `subject changed. If it renders asynchronously, return a promise from mount — run() ` +
+        `awaits it.`,
+    );
+  }
+
+  #rendered(): boolean {
+    if (this.#container.firstElementChild !== null) return true;
+
+    for (const node of this.#container.childNodes) {
+      // 3 is TEXT_NODE, spelled numerically because this package must work
+      // against a `Document` from any realm, where the global `Node` is absent.
+      if (node.nodeType === 3 && (node.nodeValue ?? '').trim() !== '') return true;
+    }
+
+    return (this.#options.portalsOf?.(this.#container) ?? []).length > 0;
+  }
+
+  /**
    * Re-run subjects and confirm their hashes did not move.
    *
    * This is the empirical tier, and it is the only thing here that *proves*
@@ -210,54 +337,101 @@ export class Session {
    *
    * A hash that moved is order-dependence, full stop: same code, same subject,
    * different answer. `findings()` then matches it against the ledger to say who.
+   *
+   * `replay` may declare readiness the same way `mount` does, and for the same
+   * reason: a subject re-run into a container it has not filled yet would have
+   * its hash compared against a real one and be confirmed as unstable — a
+   * fabricated finding, which is worse than none because it is proof-shaped.
+   * Overload order matches `run`'s, and so does the argument for it.
    */
+  verify(
+    replay: (subject: SubjectRef, container: HTMLElement) => PromiseLike<unknown>,
+    sample?: readonly string[],
+  ): Promise<readonly Finding[]>;
   verify(
     replay: (subject: SubjectRef, container: HTMLElement) => void,
     sample?: readonly string[],
-  ): readonly Finding[] {
-    const confirmed: Finding[] = [];
-    const targets =
-      sample ?? [...new Set(this.#runs.map((run) => run.subject.id))];
+  ): readonly Finding[];
+  verify(
+    replay: (subject: SubjectRef, container: HTMLElement) => unknown,
+    sample?: readonly string[],
+  ): readonly Finding[] | Promise<readonly Finding[]> {
+    const targets = sample ?? [...new Set(this.#runs.map((run) => run.subject.id))];
+    return this.#verifyFrom(0, targets, replay, []);
+  }
 
-    for (const id of targets) {
+  /**
+   * Re-run `targets` from `start`, suspending only where a subject asks it to.
+   *
+   * A plain loop cannot pause, and an `async` loop would drag every synchronous
+   * session onto the microtask queue for nothing. This runs as a loop until a
+   * replay declares readiness, then resumes itself from the next index inside
+   * the continuation — so the synchronous path never allocates a promise, and
+   * the asynchronous one recurses through `then`, which flattens rather than
+   * growing the stack.
+   */
+  #verifyFrom(
+    start: number,
+    targets: readonly string[],
+    replay: (subject: SubjectRef, container: HTMLElement) => unknown,
+    confirmed: Finding[],
+  ): readonly Finding[] | Promise<readonly Finding[]> {
+    for (let index = start; index < targets.length; index += 1) {
+      const id = targets[index];
+      if (id === undefined) continue;
+
       const original = this.#runs.find((run) => run.subject.id === id);
       if (!original) continue;
 
-      const rerun = this.run(original.subject, (container) =>
+      const outcome = this.#runOnce(original.subject, (container) =>
         replay(original.subject, container),
       );
 
-      const expected = this.#firstHash.get(id);
-      if (expected === undefined || rerun.snapshot.renderHash === expected) continue;
+      if (isThenable(outcome)) {
+        const next = index + 1;
+        return outcome.then((rerun) => {
+          this.#confirm(confirmed, original, rerun);
+          return this.#verifyFrom(next, targets, replay, confirmed);
+        });
+      }
 
-      const culprit = this.#culpritBetween(original, rerun);
-
-      confirmed.push({
-        confidence: 'confirmed',
-        victim: id,
-        ...(culprit
-          ? {
-              culprit: culprit.subject.id,
-              key: culprit.key,
-              culpritComponents: this.#componentsOf(culprit.subject.id),
-            }
-          : {}),
-        evidence:
-          `re-running \`${id}\` in the same session produced a different render hash ` +
-          `(${short(expected)} → ${short(rerun.snapshot.renderHash)}) with no code change` +
-          (culprit
-            ? `; \`${culprit.subject.id}\` wrote \`${culprit.key}\`, which this subject ` +
-              `${this.#why(id, culprit.key)}`
-            : '; no earlier subject wrote anything this one reads, so the instability is ' +
-              'inside the subject itself — a timer, a random value, or an unsettled animation'),
-        remedy: culprit
-          ? `make \`${culprit.subject.id}\` clean up \`${culprit.key}\`, or scope it so it ` +
-            `cannot reach \`${id}\``
-          : `make \`${id}\` deterministic; a session cannot stabilise what re-renders differently`,
-      });
+      this.#confirm(confirmed, original, outcome);
     }
 
     return confirmed;
+  }
+
+  /** Record a confirmed finding when a subject's hash moved between its runs. */
+  #confirm(confirmed: Finding[], original: SubjectRun, rerun: SubjectRun): void {
+    const id = original.subject.id;
+    const expected = this.#firstHash.get(id);
+    if (expected === undefined || rerun.snapshot.renderHash === expected) return;
+
+    const culprit = this.#culpritBetween(original, rerun);
+
+    confirmed.push({
+      confidence: 'confirmed',
+      victim: id,
+      ...(culprit
+        ? {
+            culprit: culprit.subject.id,
+            key: culprit.key,
+            culpritComponents: this.#componentsOf(culprit.subject.id),
+          }
+        : {}),
+      evidence:
+        `re-running \`${id}\` in the same session produced a different render hash ` +
+        `(${short(expected)} → ${short(rerun.snapshot.renderHash)}) with no code change` +
+        (culprit
+          ? `; \`${culprit.subject.id}\` wrote \`${culprit.key}\`, which this subject ` +
+            `${this.#why(id, culprit.key)}`
+          : '; no earlier subject wrote anything this one reads, so the instability is ' +
+            'inside the subject itself — a timer, a random value, or an unsettled animation'),
+      remedy: culprit
+        ? `make \`${culprit.subject.id}\` clean up \`${culprit.key}\`, or scope it so it ` +
+          `cannot reach \`${id}\``
+        : `make \`${id}\` deterministic; a session cannot stabilise what re-renders differently`,
+    });
   }
 
   /**
@@ -435,4 +609,23 @@ function short(digest: Digest): string {
 
 function now(): number {
   return typeof performance === 'object' ? performance.now() : Date.now();
+}
+
+/**
+ * Does this value declare when it is finished?
+ *
+ * Structural rather than `instanceof Promise`, because a subject's promise
+ * routinely comes from another realm — a JSDOM window, a Storybook iframe, a
+ * transpiler's polyfill — and `instanceof` answers "no" for all of them. A false
+ * "no" here silently reinstates the defect: the mount is not awaited and an
+ * empty container is photographed. The cost of the structural test is that a
+ * non-promise object with a callable `then` is awaited, which is what `await`
+ * would do with it anyway.
+ */
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
 }
