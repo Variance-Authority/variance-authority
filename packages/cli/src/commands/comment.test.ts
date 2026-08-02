@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core';
-import type { ObservationRecord } from '@variance-authority/mcp';
+import type { ObservationRecord } from '@variance-authority/report';
 import { COMMENT_MARKER, renderComment } from './comment.js';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
 import type { CliRunReport } from './run.js';

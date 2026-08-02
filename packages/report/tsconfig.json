@@ -10,15 +10,6 @@
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts"],
   "references": [
-    { "path": "../core" },
-    { "path": "../mcp" },
-    { "path": "../observe" },
-    { "path": "../playwright" },
-    { "path": "../png" },
-    { "path": "../raster" },
-    { "path": "../remote" },
-    { "path": "../report" },
-    { "path": "../store" },
-    { "path": "../storybook" }
+    { "path": "../core" }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@variance-authority/mcp",
+  "name": "@variance-authority/report",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,20 +8,13 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./tools": {
-      "types": "./dist/tools.d.ts",
-      "default": "./dist/tools.js"
-    },
-    "./protocol": {
-      "types": "./dist/protocol.d.ts",
-      "default": "./dist/protocol.js"
+    "./file": {
+      "types": "./dist/file.d.ts",
+      "default": "./dist/file.js"
     }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "variance-authority-mcp": "./dist/bin.js"
-  },
   "files": [
     "dist"
   ],
@@ -29,9 +22,6 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@variance-authority/report": "workspace:^"
-  },
-  "devDependencies": {
     "@variance-authority/core": "workspace:^"
   }
 }

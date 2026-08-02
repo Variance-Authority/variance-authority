@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 import { createEphemeralStore } from '@variance-authority/raster';
-import type { ObservationRecord } from '@variance-authority/mcp';
+import type { ObservationRecord } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { accept, formatAcceptance } from './accept.js';
 import type { CliRunReport } from './run.js';

@@ -1413,6 +1413,7 @@ __metadata:
     "@variance-authority/png": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/remote": "workspace:^"
+    "@variance-authority/report": "workspace:^"
     "@variance-authority/store": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
   bin:
@@ -1470,6 +1471,7 @@ __metadata:
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/remote": "workspace:^"
+    "@variance-authority/report": "workspace:^"
     esbuild: "npm:^0.25.0"
     pixelmatch: "npm:^7.2.0"
     playwright: "npm:^1.49.0"
@@ -1492,6 +1494,7 @@ __metadata:
   resolution: "@variance-authority/mcp@workspace:packages/mcp"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/report": "workspace:^"
   bin:
     variance-authority-mcp: ./dist/bin.js
   languageName: unknown
@@ -1557,9 +1560,16 @@ __metadata:
   resolution: "@variance-authority/remote@workspace:packages/remote"
   dependencies:
     "@variance-authority/core": "workspace:^"
-    "@variance-authority/observe": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/store": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/report@workspace:^, @variance-authority/report@workspace:packages/report":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/report@workspace:packages/report"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
   languageName: unknown
   linkType: soft
 

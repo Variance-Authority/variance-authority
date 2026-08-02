@@ -6,28 +6,22 @@
  * can reach it *after the fact*, from a different process, without access to
  * whatever was in scope when the change was sensed.
  *
- * Three files, three concerns, and the split is load-bearing:
+ * Two concerns, two entrypoints, and the split is load-bearing:
  *
- * - `report.ts` — the on-disk contract. A run writes it; the tools read it.
- *   Because it is a file, the run can happen on a pinned machine in CI and the
- *   questions can be asked on a laptop.
- * - `tools.ts` — the answers, as pure functions from a report to text. Testable
+ * - `mcp/tools` — the answers, as pure functions from a report to text. Testable
  *   without speaking a protocol, which is the only way the question that matters
  *   ("does this help an agent fix it?") stays cheap to ask.
- * - `protocol.ts` — MCP, as a pure function from a request to a response.
+ * - `mcp/protocol` — MCP framing, as a pure function from a request to a
+ *   response. Also pure, and separately exercisable.
  *
- * `server.ts` is the stream plumbing left over once those three are removed, and
- * it deliberately contains no decisions.
+ * `server.ts` is the stdio plumbing left over once those two are removed, and it
+ * deliberately contains no decisions.
+ *
+ * What a run *wrote* is not here. The report format is
+ * `@variance-authority/report`, because the CLI writes it, a PR comment renders
+ * it and these tools read it — and a format owned by one reader bends towards
+ * that reader.
  */
-
-export type {
-  RunReport,
-  ObservationRecord,
-  RegionRecord,
-  NotObserved,
-  NotObservedKind,
-} from './report.js';
-export { readRunReport, writeRunReport } from './report.js';
 
 export { TOOLS, toolByName } from './tools.js';
 export type { Tool } from './tools.js';

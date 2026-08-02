@@ -1,5 +1,6 @@
 import type { Readable, Writable } from 'node:stream';
-import { readRunReport, type RunReport } from './report.js';
+import type { RunReport } from '@variance-authority/report';
+import { readRunReport } from '@variance-authority/report/file';
 import { createLineReader, handle, type JsonRpcRequest } from './protocol.js';
 
 /**

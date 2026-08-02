@@ -1,5 +1,5 @@
 import { EXIT_CLEAN, exitFor } from '../exit.js';
-import type { ObservationRecord, RegionRecord } from '@variance-authority/mcp';
+import type { ObservationRecord, RegionRecord } from '@variance-authority/report';
 import type { CliRunReport, NotObserved } from './run.js';
 
 /**

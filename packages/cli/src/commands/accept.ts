@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Raster } from '@variance-authority/core';
 import type { RasterStore } from '@variance-authority/raster';
-import type { ObservationRecord } from '@variance-authority/mcp';
+import type { ObservationRecord } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import type { CliRunReport } from './run.js';
 

@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/raster" },
+    { "path": "./packages/report" },
     { "path": "./packages/dom" },
     { "path": "./packages/react" },
     { "path": "./packages/session" },

@@ -34,6 +34,7 @@
     "@variance-authority/png": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/remote": "workspace:^",
+    "@variance-authority/report": "workspace:^",
     "esbuild": "^0.25.0",
     "pixelmatch": "^7.2.0",
     "playwright": "^1.49.0",

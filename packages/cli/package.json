@@ -28,6 +28,7 @@
     "@variance-authority/png": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/remote": "workspace:^",
+    "@variance-authority/report": "workspace:^",
     "@variance-authority/store": "workspace:^",
     "@variance-authority/storybook": "workspace:^"
   }

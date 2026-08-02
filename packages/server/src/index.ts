@@ -13,6 +13,15 @@
  * repository runs it for anyone, no instance is shared between operators, and
  * everything it stores was produced by the operator's own runs. It neither
  * reaches out nor accepts a write it cannot attribute to its configured token.
+ *
+ * This entrypoint is the **contract and the socket**: what a backend has to be,
+ * the arithmetic that turns rows into answers, and the service in front of it.
+ * The shipped backend is `@variance-authority/server/sqlite`, one import away,
+ * because `node:sqlite` is not a free requirement — an operator backing this with
+ * Postgres implements {@link HistoryBackend} and should never load it. The
+ * process that composes the two — environment in, listening socket out — is
+ * `@variance-authority/server/bin`, which is also what the `variance-authority-
+ * server` executable runs.
  */
 
 export type {
@@ -34,18 +43,5 @@ export {
   reachFrom,
 } from './backend.js';
 
-export type { SqliteBackendOptions } from './backend-sqlite.js';
-export { SCHEMA_VERSION, createSqliteBackend } from './backend-sqlite.js';
-
 export type { HistoryService, HistoryServiceOptions } from './http.js';
 export { serveHistory } from './http.js';
-
-export type { ServerConfig } from './bin.js';
-export {
-  DATABASE_VARIABLE,
-  HOST_VARIABLE,
-  PORT_VARIABLE,
-  TOKEN_VARIABLE,
-  readConfig,
-  start,
-} from './bin.js';

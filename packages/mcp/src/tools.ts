@@ -1,4 +1,9 @@
-import type { NotObserved, ObservationRecord, RegionRecord, RunReport } from './report.js';
+import type {
+  NotObserved,
+  ObservationRecord,
+  RegionRecord,
+  RunReport,
+} from '@variance-authority/report';
 
 /**
  * The tools, as pure functions over a run report.

@@ -30,7 +30,6 @@
     "@variance-authority/raster": "workspace:^"
   },
   "devDependencies": {
-    "@variance-authority/observe": "workspace:^",
     "@variance-authority/store": "workspace:^"
   }
 }

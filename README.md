@@ -189,25 +189,51 @@ features. The core is meant to work without any of that.
 
 ## What exists
 
+**A package is named for what it needs, not for what it does.** Five of them need
+nothing at all — no browser, no codec, no disk, no socket — which is why the cheap
+tiers are cheap in practice and not only on paper.
+
 ```
-packages/
-  core/                 snapshot format, normalization, hashing, diff, banding, verdicts,
-                        regions, attribution, docket, intent, locate, source
-  provenance-react/     React fiber traversal → owner chains, props digests, portals
-  collector-dom/        RawCapture and RenderDocument from a live DOM, incl. CSS pruning
-  session/              one standing world; cross-pollution detected instead of prevented
-  playwright/   one Chromium, one page, one navigation — a capture per subject
-  raster/               assemble, render (local or remote), compare, store, observe
-  mcp/                  run report, four tools, JSON-RPC over stdio
-examples/
-  kitchen-sink/         8 subjects, 40 declared cases — the measurement's ground truth
-  todomvc/              a small design system, the pixel arm, and the end-to-end
-docs/context/           the paper trail: ADRs, journal, helix checkpoint
+requires nothing
+  core/        the format, the rules, comparison, attribution, verdicts, plans
+               → six entrypoints: format, rules, compare, attribute, judge, plan
+  raster/      the pixel tier as data: assembly, the renderer and store contracts,
+               diff policies, interventions, the stability gate
+  report/      what a run leaves behind — one shape, several readers
+  history/     what a row may contain, what the numbers mean, and what to say
+               when there is no store at all
+  storybook/   a project's own stories as a subject list
+
+requires something, and says so in its name
+  dom/         a live DOM      extraction, and CSS applicability pruning
+  react/       React internals fibers → owner chains, props digests, portals
+  session/     a live DOM      many subjects in one standing world
+  playwright/  a browser       the persistent harness, and a renderer
+  png/         a PNG codec     decoding, comparison, the diff image
+  store/       a filesystem    baselines on disk, and in git-LFS
+  remote/      a socket        a renderer and a store across a hop
+  server/      a database      the history service you run
+  mcp/         stdio           the observation, exposed to an agent
+
+composes the above
+  observe/     one composition, shipped as an example — the only place in the
+               repository where an order is hard-wired
+  cli/         the workflow, which is the one place a workflow belongs
+
+examples/kitchen-sink  8 subjects, 40 declared cases — the measurement's ground truth
+examples/todomvc       a small design system, the pixel arm, and the end-to-end
+cases/storybook-case   a real Storybook, built by Storybook, read from outside
+docs/context/          the paper trail: ADRs, journal, helix checkpoint
 ```
 
 Dependencies point downward only. Collectors extract; `core` normalizes. That
 split is what makes one ruleset serve both profiles by construction, and what
 lets a capture cross a network hop to a remote renderer unchanged.
+
+The layout is a test rather than a convention — see
+[ADR-0013](docs/context/adr/0013-packages-are-named-for-their-requirements.md)
+and `tools/boundaries.test.ts`, which fails when an import goes undeclared, a
+requirement gains a second owner, or an advertised entrypoint stops resolving.
 
 ## The two rendering surfaces
 

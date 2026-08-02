@@ -1,4 +1,4 @@
-import { toolByName } from '@variance-authority/mcp';
+import { toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import type { CliRunReport, NotObserved } from './run.js';
 

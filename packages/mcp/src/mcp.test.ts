@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { handle, createLineReader, PROTOCOL_VERSION } from './protocol.js';
-import { readRunReport, writeRunReport, type RunReport } from './report.js';
+import type { RunReport } from '@variance-authority/report';
+import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 import { serve } from './server.js';
 import { TOOLS, toolByName } from './tools.js';
 

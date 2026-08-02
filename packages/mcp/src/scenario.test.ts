@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core';
 import { handle } from './protocol.js';
-import { readRunReport, type NotObserved, type ObservationRecord, type RunReport } from './report.js';
+import type {
+  NotObserved,
+  ObservationRecord,
+  RunReport,
+} from '@variance-authority/report';
+import { readRunReport } from '@variance-authority/report/file';
 
 /**
  * The scenario this product exists to refuse: a coverage hole reading as a clean

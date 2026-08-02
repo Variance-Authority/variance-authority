@@ -1,4 +1,4 @@
-import type { RunReport } from './report.js';
+import type { RunReport } from '@variance-authority/report';
 import { TOOLS, toolByName } from './tools.js';
 
 /**

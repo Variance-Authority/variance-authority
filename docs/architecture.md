@@ -87,6 +87,59 @@ that will not hold still, and names why, before any image exists.
 compare, isolate and map. A team with images from elsewhere takes only the reading
 end. The pieces below the one they replace do not know.
 
+## Packages
+
+**The first cut between packages is what a consumer must supply, not what the
+code does.**
+
+A box is named for its requirement, and code that needs one requirement may not
+sit with code that needs another. Storybook support does not belong with
+Playwright helpers — not because they are different features, but because a
+Storybook user would then install a browser and a Playwright user would install a
+Storybook adapter, and neither asked for the other. What something *does* is the
+second cut, made inside a box with entrypoints.
+
+| package | requires | holds |
+|---|---|---|
+| `core` | nothing | the format, the rules, comparison, attribution, verdicts, plans |
+| `raster` | nothing | the pixel tier as data: assembly, contracts, policies, interventions, the gate |
+| `report` | nothing | what a run leaves behind, so several readers can share one shape |
+| `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
+| `storybook` | nothing | a project's own stories as a subject list |
+| `dom` | a live DOM | extraction, and CSS applicability pruning |
+| `react` | React internals | fibers → owner chains, props digests, portals |
+| `session` | a live DOM | many subjects in one standing world |
+| `playwright` | a browser | the persistent harness, and a renderer |
+| `png` | a PNG codec | decoding, comparison, the diff image |
+| `store` | a filesystem | baselines on disk, and in git-LFS |
+| `remote` | a socket | a renderer and a store on the other side of a hop |
+| `server` | a database | the history service the operator runs |
+| `mcp` | stdio | the observation, exposed to an agent |
+| `observe` | the three it composes | one composition, shipped as an example |
+| `cli` | all of it | the workflow, which is the one place a workflow belongs |
+
+Five boxes require nothing at all. That is the same distribution the tool table
+shows, arrived at from the other end, and it is what makes the cheap tiers cheap
+in practice rather than only on paper: running the ephemeral retention mode pulls
+in no filesystem and no socket, because the mode does not have one.
+
+Entrypoints are the second cut. `store/lfs` needs a `git`; `history/client`
+needs a network; `server/sqlite` needs `node:sqlite`; `report/file` needs a disk;
+`playwright/agent` must be importable *without* Playwright, since it is bundled
+into the page. In every case the split exists because the two halves cost
+different things to have.
+
+Two consequences worth stating, because they are the ones that get argued about:
+
+- **A package may be small.** `png` is one file. Splitting by requirement
+  produces small boxes, and a small box with one requirement is better than a
+  large one with four.
+- **The rule is enforced, not documented.** `tools/boundaries.test.ts` fails when
+  an import is undeclared, a declaration is unused, a third-party requirement
+  gains a second owner, the production graph gains a cycle, or an advertised
+  entrypoint does not resolve. It found four packages' worth of drift the first
+  time it ran.
+
 ## What this forecloses
 
 - A stage that only works inside the pipeline. If it cannot be exercised alone,

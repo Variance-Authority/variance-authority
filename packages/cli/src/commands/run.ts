@@ -39,13 +39,12 @@ import { createDurableStore, createLfsStore } from '@variance-authority/store';
 import type { Raster } from '@variance-authority/core';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
-import {
-  readRunReport,
-  writeRunReport,
-  type ObservationRecord,
-  type RegionRecord,
-  type RunReport,
-} from '@variance-authority/mcp';
+import type {
+  ObservationRecord,
+  RegionRecord,
+  RunReport,
+} from '@variance-authority/report';
+import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 import type { Config } from '../config.js';
 import { OperatorError } from '../exit.js';
 
@@ -95,7 +94,7 @@ export interface NotObserved {
  * The run report as this CLI writes it: `RunReport` plus the coverage it cannot
  * express.
  *
- * A superset rather than a change to `@variance-authority/mcp`'s type, so an MCP
+ * A superset rather than a change to `@variance-authority/report`'s type, so an MCP
  * server reads a CLI report unmodified and every tool in that package keeps
  * working. The extra fields are the two things a *command line* has to answer and
  * an agent's question does not: what was skipped, and what the index complained
