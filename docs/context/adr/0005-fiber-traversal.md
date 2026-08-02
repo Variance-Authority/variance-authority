@@ -10,18 +10,20 @@ bippy-style traversal)". Those are two different sources with different
 availability, and the difference decides whether provenance is a cheap-tier
 dimension or a browser-tier one.
 
-- The **DevTools global hook** (`__REACT_DEVTOOLS_GLOBAL_HOOK__`) exists when the
-  browser extension is installed, or when something installed it *before* React
-  loaded. It is absent in a bare `vitest` process and in a fresh Playwright
-  context, and installing it means injecting a script into the page before the
-  app boots — a cooperation requirement on every consumer.
+- The **DevTools global hook** (`__REACT_DEVTOOLS_GLOBAL_HOOK__`) exists only
+  when the browser extension is installed, or when something installed it
+  *before* React loaded. It is absent in a bare `vitest` process and in a fresh
+  Playwright context, and installing it means injecting a script into the page
+  before the app boots — a cooperation requirement on every consumer.
 - The **DOM expando** (`__reactFiber$<random>`) is written by `react-dom` itself
   onto every host node it creates. It requires nothing, cooperates with nothing,
   and is present in jsdom and in a real browser identically.
 
-ADR-0002 put provenance in the cheap tier on the claim that "fiber traversal is
-engine-independent". That claim only holds for a source that does not need a
+ADR-0002 puts provenance in the cheap tier on the claim that "fiber traversal is
+engine-independent". That claim holds only for a source that does not need a
 browser extension.
+
+Fiber internals are unversioned.
 
 ## Decision
 
@@ -37,10 +39,10 @@ The package imports React nowhere. Fiber shapes are declared structurally, so
 React copy, and a React major upgrade is a runtime concern rather than a
 dependency-resolution one.
 
-## Three internal contracts, and how each fails
+### Three internal contracts, and how each fails
 
-Fiber internals are unversioned. Every assumption is commented in place; these
-are the three that matter, with the symptom of each breaking:
+Every assumption is commented in place. Three of them matter, each with the
+symptom of its breaking:
 
 1. **Expando key prefix.** `__reactFiber$` (React ≥17), `__reactInternalInstance$`
    (React 16); the suffix is `Math.random().toString(36).slice(2)` per `react-dom`
@@ -56,7 +58,7 @@ are the three that matter, with the symptom of each breaking:
    `current`. *Breaks as:* props digests one render stale — the most dangerous
    of the three, because a stale digest still looks like a valid digest.
 
-## Two chains, kept separate
+### Two chains, kept separate
 
 `owners` (the `return` chain, filtered to composites) and `createdBy`
 (`_debugOwner`) are not redundant. `owners` answers *where a node ended up*;
@@ -96,11 +98,11 @@ production builds — and is omitted rather than faked when absent.
   that were never observed — the false-`unchanged` failure ADR-0002 forbids. RSC
   attribution needs build-time annotation, not traversal.
 
-## Open question raised
+## Known limits
 
 `core.digestString` imports `node:crypto`. `propsDigest` must run *in the page*
 — a prop can be a function or an element, and neither survives serialization out
 of a browser — so `core`'s only hash implementation cannot run where it is
 needed. This contradicts nothing in ADR-0001's wording but breaks its intent that
-`core` be environment-free. Owned by `core`, not by this package; recorded in
-`journal/0002`.
+`core` be environment-free. It is owned by `core`, not by this package; recorded
+in `journal/0002`.

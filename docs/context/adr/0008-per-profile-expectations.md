@@ -2,16 +2,17 @@
 
 **Status:** accepted
 **Date:** 2026-08-01
-**Blocks:** B4 (scoring the `chromium` profile), claim P4
+**Blocks:** scoring the `chromium` profile, claim P4
 **Amends:** the corpus manifest format only. ADR-0002 stands unchanged.
 
 ## Context
 
 ADR-0002 makes `jsdom` and `chromium` separate baselines that are never diffed
 against each other. It says nothing about how a *corpus* states an expectation,
-and the corpus assumed one ground truth per case — a single `expect` field.
+and a corpus with a single `expect` field per case asserts one ground truth for
+every profile.
 
-Two cases proved that assumption false, and they are false in two different ways:
+Two cases falsify that assertion, in two different ways:
 
 - **`wrapper-flex-block/wrappers`.** A `<div>` is interposed inside a flex row.
   Under `chromium` it becomes the flex item, the leaf stops being one, and the
@@ -23,12 +24,11 @@ Two cases proved that assumption false, and they are false in two different ways
   measurably grows, producing `rect-changed` deltas that `bandOf` puts in
   `geometry`.
 
-The corpus's own note on the first case contains the contradiction in one
-paragraph: it says the only defensible `jsdom` answer is `hash-stable`, and it
-says a harness scoring `jsdom` **must exclude the case rather than record a
-miss**. Both cannot be a ground truth. Deciding which is the whole of B6.
+The first case admits two incompatible answers under `jsdom`: that the only
+defensible answer is `hash-stable`, and that a harness scoring `jsdom` **must
+exclude the case rather than record a miss**. Both cannot be a ground truth.
 
-Without a decision, scoring `chromium` is meaningless for exactly the cases that
+Absent a decision, scoring `chromium` is meaningless for exactly the cases that
 distinguish the profiles, which is to say for the cases P4 exists to examine.
 
 ## Decision
@@ -49,17 +49,16 @@ readonly byProfile?: Partial<Record<ProfileId, ProfileExpectation | Undecidable>
 The case is **excluded** from that profile's score. Not counted as a pass, not
 counted as a miss, reported separately with its reason.
 
-This is the resolution of the contradiction above, and the argument is short:
-`hash-stable` under `jsdom` for `wrapper-flex-block/wrappers` is not an
-expectation, it is a **consequence of blindness**. Scoring it as a pass would
-credit the profile for an answer it reached by not looking, and the number it
-inflates — "agreement on the dimensions both can observe" — is precisely the
-number that must not be inflated. Scoring it as a miss is equally dishonest in
-the other direction: it charges a profile for a limitation it *declares*, which
-is what an `ObservationProfile` is for.
+This resolves the contradiction above. `hash-stable` under `jsdom` for
+`wrapper-flex-block/wrappers` is not an expectation, it is a **consequence of
+blindness**. Scoring it as a pass credits the profile for an answer it reached by
+not looking, and the number it inflates — "agreement on the dimensions both can
+observe" — is precisely the number that must not be inflated. Scoring it as a
+miss is equally dishonest in the other direction: it charges a profile for a
+limitation it *declares*, which is what an `ObservationProfile` is for.
 
-So the exclusion is not a convenience. It is the corpus obeying ADR-0002 §3: a
-tier that cannot see a band must say so rather than pass it.
+The exclusion is not a convenience. It is the corpus obeying ADR-0002 §3: a tier
+that cannot see a band must say so rather than pass it.
 
 ### 2. Divergent — the profiles legitimately disagree
 
@@ -95,17 +94,18 @@ otherwise".
 
 ## Consequences
 
-- `SETTLED_CORPUS` grows from 37 to 39 and `CONTESTED_CORPUS` shrinks to 1
-  (`dialog-open/dialog`, which is a genuinely open question about the subject
-  boundary and not a per-profile one). The `jsdom` score's denominator is
-  unchanged at 37 + `prop-size/button` = 38, with `wrapper-flex-block/wrappers`
-  now excluded explicitly and by name rather than by being flagged as disputed.
+- `SETTLED_CORPUS` holds 39 cases — the 37 with a single ground truth plus
+  `wrapper-flex-block/wrappers` and `prop-size/button` — and `CONTESTED_CORPUS`
+  holds 1 (`dialog-open/dialog`, which is a genuinely open question about the
+  subject boundary and not a per-profile one). The `jsdom` score's denominator is
+  37 + `prop-size/button` = 38, with `wrapper-flex-block/wrappers` excluded
+  explicitly and by name.
 - A harness MUST report undecidable-per-profile counts alongside its score. A
   pass rate whose denominator moved silently is a rumour.
 - `band` on a per-profile clause is asserted where declared. It is *not* asserted
-  from the default `expect` clause, because no harness has ever asserted it and
-  turning 39 unasserted fields into assertions in the same change would mix a
-  format decision with a measurement.
+  from the default `expect` clause, because no harness asserts it and converting
+  39 unasserted fields into assertions mixes a format decision with a
+  measurement.
 
 ## What this forecloses
 
@@ -123,11 +123,11 @@ otherwise".
   false-`changed` count are reported separately, per profile. A false
   `unchanged` is categorically worse and may never be averaged into a total.
 
-## Open, still
+## Known limits
 
 **Band cardinality.** This ADR lets a case declare *a* band per profile. It does
 not decide whether a subject reports one band or a set — `prop-size/button` under
 `chromium` genuinely produces both `token` and `geometry` deltas, and the single
-`band` field records only the dominant one. The corpus can now express the two
+`band` field records only the dominant one. The corpus can express the two
 profiles' answers; it still cannot express "a set". Resolving that is a change to
 `SemanticDiff`, not to the corpus, and is left open.

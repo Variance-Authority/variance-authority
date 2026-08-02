@@ -28,7 +28,7 @@ hashes of a merge commit are neither branch's — so a committed record always
 describes a state that no longer exists by the time it lands. An append-only
 JSONL adds interleaved writes from concurrent CI jobs on top.
 
-**Replaced by** ADR-0012: semantic band hashes per component boundary plus
+**Replaced by** specs 0001 and 0002: semantic band hashes per component boundary plus
 resolved token values, in an external service that stores observations rather
 than state, and therefore has no merges to resolve.
 

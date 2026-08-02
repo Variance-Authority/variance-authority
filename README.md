@@ -84,7 +84,7 @@ was never edited, only reflowed, and it outranks the edit by 6×. Area measures
 displacement, so the ordering comes from the tier that has provenance.
 
 **Tracking accumulated change over time.** *(designed, not built — see
-[ADR-0012](docs/context/adr/0012-history-is-a-service.md))* A button gains 2px,
+[spec 0002](docs/specs/0002-history-store.md))* A button gains 2px,
 eleven times, each approved correctly, and nobody ever sees the 22px change. No
 threshold catches that, because the quantity that would have is a **sum** and
 nothing in a one-run-at-a-time tool is summing. What gets recorded is one content
@@ -136,7 +136,7 @@ History cannot be a local file, and that is a settled decision rather than a
 preference: a committed lock file puts derived state under human merge
 resolution, and the hashes of a merge commit are neither branch's. A database has
 no merge conflicts because it stores *observations*, not state. See
-[ADR-0012](docs/context/adr/0012-history-is-a-service.md).
+[spec 0002](docs/specs/0002-history-store.md).
 
 *Designed, not built.*
 
@@ -236,7 +236,8 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
 Stated plainly, because everything above is easier to believe with this beside it.
 
 - **History.** No per-component band hashing, no store, no drift answers. Decided
-  in [ADR-0012](docs/context/adr/0012-history-is-a-service.md), not written.
+  in [spec 0001](docs/specs/0001-component-hashing.md) and
+  [spec 0002](docs/specs/0002-history-store.md), not written.
 - **A CLI, a manifest, a GitHub Action, PR comments, commit-back.** The packages
   are a library; the workflow around them is yours to write today.
 - **Git-LFS and remote artifact storage.** The durable store is a local directory.
@@ -255,11 +256,13 @@ Current state, what is proven and what is open, is kept in
 ## Reading order
 
 1. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
-2. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
-3. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
-4. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
+2. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
+   dependency order
+3. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
+4. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
+5. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
    [0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the moat
-5. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
+6. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
 
 ## Development
 

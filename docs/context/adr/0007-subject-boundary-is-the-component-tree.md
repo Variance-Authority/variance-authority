@@ -2,33 +2,31 @@
 
 **Status:** accepted
 **Date:** 2026-08-01
-**Amends:** ADR-0002 (which covered *what* a profile can observe, not *where* a subject ends)
-**Origin:** contested case `dialog-open/dialog` raised by the corpus build
+**Amends:** ADR-0002 (which covers *what* a profile can observe, not *where* a subject ends)
 
 ## Context
 
-Every definition of "subject" up to now assumed the subject *is* a DOM subtree:
+A containment-based definition of "subject" treats the subject as a DOM subtree:
 `collect(root)` walks `root` and its descendants, and applicability pruning keeps
 rules matching something inside it.
 
-`createPortal` breaks that assumption. A dialog, tooltip, or toast renders into a
+`createPortal` breaks that definition. A dialog, tooltip, or toast renders into a
 host elsewhere in the document — usually `document.body` — while remaining part
 of the component tree rooted at the subject. Every containment-based definition
 puts that content outside the subject.
 
-The corpus measured the consequence: opening a modal moves **342 bytes** out of
-the subject's container into the portal host, leaving the container
-**byte-identical**. So a dialog opening produced the same render hash as a dialog
-closed.
+The contested case `dialog-open/dialog` measures the consequence: opening a modal
+moves **342 bytes** out of the subject's container into the portal host, leaving
+the container **byte-identical**. Under DOM containment, a dialog opening and a
+dialog closed produce the same render hash.
 
 That is a false `unchanged` on a change no user could miss. It is precisely the
-failure ADR-0002 was written to prevent, arriving through a door ADR-0002 did not
+failure ADR-0002 exists to prevent, arriving through a door ADR-0002 does not
 cover: not a dimension the profile cannot *see*, but content the subject
-definition declined to *look at*.
+definition declines to *look at*.
 
-It was also invisible to every test written before the corpus, because a
-containment-based collector and a containment-based fixture agree with each other
-perfectly.
+A containment-based collector and a containment-based fixture agree with each
+other perfectly, so no test built on containment can expose the gap.
 
 ## Decision
 
@@ -63,9 +61,9 @@ on screen.
 
 `portalsOf` is an injected option, because the collector carries no framework
 dependency (spec §9). A collector called without it emits
-`portals-not-resolved`. Without that diagnostic, a caller who forgot to wire the
-provider gets exactly the silent false negative this ADR exists to remove, and
-gets it in the configuration most likely to be reached by accident.
+`portals-not-resolved`. Without that diagnostic, a caller who omits the provider
+gets exactly the silent false negative this ADR exists to remove, and gets it in
+the configuration most likely to be reached by accident.
 
 ## Consequences
 
@@ -73,10 +71,10 @@ gets it in the configuration most likely to be reached by accident.
   walking the DOM from the subject root, which means an adapter for a framework
   with no provenance provider cannot support portals at all — it must report
   them unsupported rather than silently omit them.
-- A test asserts the bug is still reachable without the provider
+- A test asserts the defect remains reachable without the provider
   (`is invisible to a DOM-containment reading`). Keeping the broken behaviour
-  demonstrable stops the fix rotting into a no-op that nobody notices.
-- `findFiber` alone was not enough to implement this. A subject root is very
+  demonstrable stops the fix decaying into a no-op that nobody notices.
+- `findFiber` alone is not sufficient to implement this. A subject root is very
   often the element a React root was mounted *into*, and `react-dom` marks those
   with `__reactContainer$` rather than the `__reactFiber$` expando — so the
   element React renders *through* has no fiber of its own. The lookup falls back
@@ -85,16 +83,15 @@ gets it in the configuration most likely to be reached by accident.
 ## What this forecloses
 
 - Defining subjects purely by CSS selector or DOM range. The definition needs a
-  provenance provider, which is now load-bearing for correctness rather than only
+  provenance provider, which is load-bearing for correctness rather than only
   for attribution.
 - Treating `collect(root)` as a pure function of `root`'s DOM subtree. It is a
   function of the subtree *and* the component tree rooted there.
 
-## Still open
+## Known limits
 
 Shadow DOM is captured (`shadowChildren`), and `<dialog>` with the top layer is
 not: a native modal is promoted out of normal flow at paint time, which affects
 raster and stacking but not the semantic tree, so it is out of scope until Stage 2
 exists. The corpus's other two contested cases — a band that differs per profile,
-and a subject reporting a set of bands rather than one — remain undecided and are
-tracked in the checkpoint.
+and a subject reporting a set of bands rather than one — remain undecided.
