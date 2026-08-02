@@ -72,6 +72,8 @@ export type {
 } from './document.js';
 
 export { hashComponents, UNATTRIBUTED } from './component-hash.js';
+export { coverageOf, alsoCovering, summarizeCoverage } from './coverage.js';
+export type { Coverage, ComponentCoverage, SubjectCoverage, SubjectValue } from './coverage.js';
 export type { ComponentHash } from './component-hash.js';
 export { isolateRegions, attributeRegions, rankRegions } from './region.js';
 export type {
