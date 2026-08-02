@@ -37,8 +37,18 @@ stores or references image bytes.
 
 ## Acceptance
 
-1. A baseline written under git-LFS is byte-identical when read back, and the
-   working tree contains a pointer rather than the image.
+1. A baseline written under git-LFS is byte-identical when read back, git itself
+   resolves `filter` to `lfs` for the image glob, and a pointer found where an
+   image should be is raised as an operator error.
+
+   An earlier version of this criterion required the working tree to contain a
+   *pointer* rather than the image. That is backwards: LFS smudges on checkout,
+   so a correct working tree holds the image and the pointer lives in the object
+   database. A pointer in the working tree means git-lfs is missing — the broken
+   clone — and writing the criterion that way would have made a broken clone the
+   success condition. It must not be reported as a missing baseline either, since
+   `new` re-records whatever is on screen and destroys the baseline it was meant
+   to compare against.
 2. A run on a second renderer identity does not find the first's baseline, and
    reports `incomparable` with the machine named.
 3. An unreachable remote endpoint exits with the operator-error code, and no
