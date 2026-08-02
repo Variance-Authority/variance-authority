@@ -206,6 +206,77 @@ at anything. We have the same hole from the other end —
 [`accept --all`](../../packages/cli/README.md) does not distinguish a new baseline
 from a changed one. Neither of us should.
 
+## Can a team actually leave?
+
+[`src/migration.chromium.test.ts`](src/migration.chromium.test.ts) asks the other
+half of "replace", which is the half a better answer does not settle. A tool
+nobody can migrate *to* has replaced nothing.
+
+It starts from the artifact a team already has — the PNGs
+`playwright test --update-snapshots` wrote — and does not re-record anything.
+
+```bash
+yarn vitest run cases/incumbent-case/src/migration.chromium.test.ts
+```
+
+**Their baselines are ordinary PNGs, so there is nothing to convert.** The reading
+end takes one as it is and produces what the count could not, on the first run:
+
+```
+--- space-token-nudged, read from a baseline Playwright recorded
+  their baseline      incumbent/baselines/strict/space-token-nudged.png (22818 bytes)
+  what it says        5864 pixels changed
+  what we add         17 region(s), 0 of them off-tree
+  cause        1124px — Heading        src/surface.tsx:87
+  cause         215px — Total          src/surface.tsx:232
+  cause          45px — IconButton     src/surface.tsx:97
+  cause          44px — Indicator      src/surface.tsx:126
+  cause          21px — IconButton     src/surface.tsx:97
+  collateral   1149px — «no component»
+```
+
+That format is not a format, and that is the point. A tool whose baselines are a
+proprietary blob, or live only behind an API, is a tool whose exit cost is a
+re-recording of every subject — which is what keeps teams where they are.
+
+### What the import costs, measured
+
+**A PNG carries no identity.** Our durable baselines are partitioned by renderer
+identity so a run on a different machine is `incomparable` — one sentence —
+rather than every subject failing for reasons nobody can attribute
+([ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md)). An
+imported baseline states no engine, no scale factor, no fonts and no platform, so
+it can only be compared *by assumption*, and the verdict that guards a wrong
+assumption is unavailable for as long as the import lasts.
+
+That is not a defect in their design. A screenshot assertion has no identity to
+record because it never compares across machines by construction — the baseline
+and the run are the same CI image, or the suite is already red. It becomes a cost
+the moment the baseline outlives that assumption.
+
+**A PNG is also not a semantic baseline**, and this is the sharper cost.
+Attribution needs one snapshot, of the *current* state, so region names and files
+survive the import intact. **Ranking** needs a baseline document, because cause
+and collateral are decided by what two documents say and not by where pixels are.
+So an imported subject can only be ordered by area — and area is the ordering
+[`examples/todomvc`](../../examples/todomvc) measured as backwards. The same 17
+regions, ordered both ways:
+
+```
+by area   «no component» > Heading > Row > Row > «no component» > … > IconButton
+by cause  Heading > Total > IconButton > Indicator > «no component» > Row > …
+```
+
+So the honest migration story is a generation, not a switch: **import to get
+moving, and let the imported baselines age out** as subjects are re-recorded
+under an identity. Until a subject is re-recorded it gets regions, names and
+files, and neither `incomparable` nor a cause-first ordering.
+
+*Not built: a foreign-baseline reader in [`store`](../../packages/store). Reading
+a directory of PNGs is `readFileSync`, which is why this case does it inline
+rather than shipping a package for it — but the generation-tracking above is real
+product surface and does not exist.*
+
 ## What the run corrected
 
 The corpus was declared first and the run disagreed with it twice. Both

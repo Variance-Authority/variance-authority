@@ -52,6 +52,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B10 | **intent / adjudication** — declared claims vs findings, and the locate/source chain | landed; a report is a cause, a place and a file |
 | B11 | **raster tier** — six phases, two retention modes, MCP surface | landed and measured; found that area ranks the displaced above the displacer |
 | B13 | **the boundary** — what a package is, and what an entrypoint costs | landed; ADR-0013, enforced by `tools/boundaries.test.ts` |
+| B14 | **replacement** — what a case is, and whether an incumbent can actually be left | landed and measured against a real `toHaveScreenshot`; three rows no threshold reaches, one row we lose |
 | B12 | **history** — what accumulates across runs, and where it lives | **specified, not built** ([specs 0001–0002](../specs/README.md)); first implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
@@ -72,6 +73,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M10 | B11 | Raster phases, durable/ephemeral retention (ADR-0011), MCP surface | **mixed** — the offload works and the ranking did not; area measures displacement, so the ordering now comes from the semantic tier (journal 0013) |
 | M12 | B13 | Cut packages by requirement rather than by feature; group `core`; enforce the rule as a test | **expected, and it found drift** — `raster` was four requirements in one box; four packages imported test-time requirements they never declared, which works in a workspace and breaks on a standalone install |
 | M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. specs 0001 and 0002 record what replaces both; nothing is implemented |
+| M13 | B14 | Run a real `@playwright/test` against a corpus declared first; ask what an import costs | **expected, and it corrected us twice** — 35/36 assertions on the first run; `toHaveScreenshot` does measure across a size mismatch in 1.62, where the scenario was declared as a refusal to, and attribution named `Indicator` where `Toolbar` was predicted (journal 0014) |
 
 ---
 
@@ -102,7 +104,21 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   by journal 0008: the corpus applies token overrides *inline on the subject
   root*, which routed around a hole where `:root` tokens reached nothing — a
   fixture convenient in the same way the implementation was convenient tested
-  nothing.
+  nothing. Narrowed, not closed, by `cases/` — the *inputs* there are authored by
+  Storybook and by Playwright, but the components are still ours.
+- **Replacement is measured against one comparator.** `pixelmatch` at
+  Playwright's defaults, on eight scenarios we chose, on one machine. It is the
+  differ behind most of the ecosystem, which is why it was picked, and it is
+  still one. The hosted products are not confronted at all: their review UI,
+  approval workflow, cross-browser grid and repository-scale change detection are
+  outside anything here, and the one claim that carries to them — a comparison of
+  images cannot see a change that never reached a pixel — is an argument from
+  shape rather than a measurement.
+- **An imported baseline forfeits two things, and nothing tracks which subjects
+  are affected.** A foreign PNG states no identity, so `incomparable` is
+  unavailable; it is not a document, so ranking falls back to area, which journal
+  0013 measured as backwards. "Import, then let the generation age out" is the
+  right shape and no generation is recorded anywhere.
 - **Module-level state is outside the session probe.** A singleton store or
   cached client cannot be seen. Confirmation catches the symptom; attribution
   correctly reports no culprit.

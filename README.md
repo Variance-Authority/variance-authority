@@ -94,6 +94,58 @@ eight approvals` becomes an exact, machine-independent sentence.
 
 > We can make VR an immensely valuable tool.
 
+### "We already have Playwright screenshots. Why would we switch?"
+
+**Mostly you would not switch — you would keep the runner and replace what
+happens after the screenshot.** We use Playwright ourselves.
+
+So the question is answered by running theirs. `@playwright/test` is installed in
+[`cases/incumbent-case`](cases/incumbent-case), its own runner executes its own
+`toHaveScreenshot` in its own process, over the same page and the same clip we
+read. Eight edits, each declared with its argument *before* either arm ran, scored
+against *must a reviewer be told?* rather than *did the image change*:
+
+```
+scenario            ground truth  incumbent (defaults)  incumbent (tolerant)  ours         and we name
+label-dropped       regression    miss                  miss                  hit          IconButton
+heading-demoted     regression    miss                  miss                  hit          Heading
+control-devolved    regression    miss                  miss                  hit          RowAction
+indicator-dropped   regression    hit                   miss                  hit          Indicator
+space-token-nudged  regression    hit                   hit                   hit          Panel, Toolbar
+row-added           regression    hit                   hit                   hit          Total, Panel
+unseen-subject      no defect     deferral              deferral              deferral     no baseline
+note-reindented     no defect     hold                  hold                  false alarm  Note
+```
+
+Three things that table is for:
+
+**A category no threshold reaches.** The first three rows are missed at *every*
+configuration the incumbent has. An `aria-label` deleted, a heading demoted, a
+`<button>` devolved to a `<div>` — none reach a pixel, so there is nothing for a
+comparator to find. We settle all three with **no image consulted on either
+side**. This is a property of comparing images rather than of any product, so it
+holds against every raster tool on the market.
+
+**A tolerance is measured against the wrong thing.** `maxDiffPixelRatio: 0.01` of
+a 420×312 clip is **1310px** of licence; the status indicator that vanished is
+**36px**. The regression fits 36 times inside the setting that makes the suite
+survivable — and nothing in the output says which of the two it just absorbed.
+
+**We lose a row, and it is in the table.** A reindented block renders identically
+and moves our hash. It is asserted as a false alarm, so the day somebody fixes it
+the suite goes red.
+
+**Leaving is cheap; leaving cleanly is a generation.** Their baselines are
+ordinary PNGs, so the reading end answers from them with components and files on
+the first run, with nothing re-recorded. What a PNG cannot carry is an identity —
+so `incomparable` is unavailable — or a document, so ranking falls back to area,
+which we measured as backwards. Import to get moving, re-record as you go.
+
+**What this does not cover:** the hosted products are half comparison and half
+product, and the product half — a review UI, a team approval workflow, a
+cross-browser grid, change detection at repository scale — is not confronted here
+at all. [`cases/README.md`](cases/README.md) says so at more length.
+
 ---
 
 ### "Where do test cases come from?"
@@ -228,7 +280,7 @@ tiers are cheap in practice and not only on paper.
 |---|---|
 | [`examples/kitchen-sink`](examples/kitchen-sink) | 8 subjects, 40 declared cases — the measurement's ground truth |
 | [`examples/todomvc`](examples/todomvc) | a small design system, the pixel arm, and the end-to-end |
-| [`cases/storybook-case`](cases/storybook-case) | a real Storybook, built by Storybook, read from outside |
+| [`cases/`](cases) | confrontations with things we did not author — a real Storybook, a real `toHaveScreenshot` |
 | [`docs/context/`](docs/context) | the paper trail: ADRs, journal, helix checkpoint |
 
 Every package has a README stating what it requires and what its entrypoints
@@ -284,6 +336,10 @@ Stated plainly, because everything above is easier to believe with this beside i
 - **Generality.** One corpus, built by us. Both profiles agree on it, which proves
   the two collection paths implement one ruleset — not that the ruleset holds on
   someone else's component library.
+- **Parity with a hosted product.** The comparison half is measured against one
+  real incumbent ([`cases/`](cases)). The product half — review UI, team
+  approvals, a cross-browser grid, repository-scale change detection — does not
+  exist here and is not claimed.
 - **A real agent.** The MCP tools are shaped by argument about what an agent
   needs and tested against text, not against an agent that used them and either
   fixed the thing or did not.

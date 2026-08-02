@@ -270,6 +270,35 @@ report is wrong: `Stack` was never edited, only reflowed, and it outranks the
 actual edit by roughly 6×. Area measures displacement, so the ordering has to
 come from the tier that has provenance (journal 0013).
 
+**Measured against a real incumbent, not against a model of one.**
+`cases/incumbent-case` installs `@playwright/test` and runs *its* runner, *its*
+`toHaveScreenshot`, in its own process, over the same page and clip we read —
+record on the trunk, compare on the branch. Eight edits, declared with their
+arguments before either arm ran, scored against *must a reviewer be told?* rather
+than *did the image change* (journal 0014):
+
+```
+  incumbent (defaults)  3 hit, 3 miss, 1 hold, 1 deferral
+  incumbent (tolerant)  2 hit, 4 miss, 1 hold, 1 deferral
+  ours                  6 hit, 1 false alarm, 1 deferral
+```
+
+Two configurations, because one would be a straw man whichever it was: `defaults`
+fails on a single differing pixel, which no real suite survives; `tolerant` sets
+`maxDiffPixelRatio: 0.01`. On the two rows both arms detect, the difference is
+what is handed over — *5446 pixels (ratio 0.04) are different* against
+`Heading src/surface.tsx:87`.
+
+Three qualifications, in the same spirit as the rest of this section. The
+comparator is `pixelmatch` at Playwright's defaults — the differ behind most of
+the ecosystem, which is why it was chosen, and still one comparator on one
+machine. The eight scenarios were chosen by us because we believe they separate
+the tools, which is not a representative sample of a suite. And the run corrected
+the declared corpus twice, both recorded rather than edited away: `toHaveScreenshot`
+*does* measure across a size mismatch in 1.62, where the scenario had been
+declared as a refusal to; and attribution named `Indicator` where `Toolbar` was
+predicted.
+
 **All three lines resolve to the same file.** `examples/todomvc/src/ds/components.tsx`
 is 143 lines and declares all seven components in the example's design system, so
 this capture measures the component→*line* hop and does not discriminate the
@@ -407,6 +436,27 @@ cannot observe reports `unobserved` rather than passing (ADR-0002, ADR-0008).
 | Baseline store partitioned by renderer identity | `packages/store/src/durable.test.ts` (11) | cross-identity → `incomparable`, never `unchanged` |
 | Identical verdicts and pixel counts across durable, git-LFS and remote stores | `packages/observe/src/parity.test.ts` (5) | 4 scenarios: `unchanged` / `changed` / `new` / `incomparable` |
 | A store that cannot be reached is an operator error, never `new` and never `unchanged` | `packages/remote/src/store.test.ts` (14) | Unreachable endpoint, refused token, hanging lookup, unreadable body; no baseline written |
+| Changes that never reach a pixel are decided with **no image consulted on either side** | `cases/incumbent-case/src/replacement.chromium.test.ts` (36 tests) | A dropped `aria-label`, a demoted heading and a devolved `<button>`: `pixels: 0, semanticOnly: true` for all three, against a real `toHaveScreenshot` that is silent on all three at **both** its configurations |
+
+**The strongest form of the cheap-tier argument, and the one worth stating
+separately.** The first three scenarios of `cases/incumbent-case` are not missed
+by the incumbent because it is tuned wrongly. There is no threshold, comparator
+or tolerance that finds a change which never reached a pixel — the evidence is
+absent from the representation. That is a property of comparing images rather
+than of any product, so it carries to Percy, Chromatic, Argos and Applitools
+alike **as an argument from the shape of the thing, not as a measurement**: none
+of the four was run, and only `toHaveScreenshot` was.
+
+The fair objection is that a team catches those three with `jest-axe` or a DOM
+snapshot, and it is a good objection. The answer is that it is a second tool, a
+second suite and a second baseline, not that the first tool should have found
+them.
+
+The mirror of that finding, from the same run: `maxDiffPixelRatio: 0.01` of a
+420×312 clip is **1310px** of licence, and the status indicator whose removal it
+hides is **36px**. A tolerance is a fraction of the *image*; a regression is a
+fraction of a *component*. Nothing in the output says which of the two a tolerance
+just absorbed. This is arithmetic on one clip size and moves with it.
 
 **Claimed, not measured.** Three of the README's six cost-table rows are not
 checked by `yarn test`:
@@ -604,20 +654,28 @@ actual driver — `collectStory` / `collectStories` — is not imported by the C
 all; the CLI imports only `readStoryIndex`, `storySubjectId` and `toSubjects`.
 "Runnable from a terminal" is true of the argument parser, not of a run.
 
-### 4.4 The Storybook adapter has never met a Storybook
+### 4.4 The Storybook adapter has met a Storybook; the CLI has not
 
-Every test runs against `packages/storybook/src/__fixtures__/*.json` and a
-hand-written `fakePreview` under jsdom (`preview.test.ts:126`). No Storybook is
-installed in the repository. All four of spec 0006's acceptance criteria are
-unmet as written — acceptance 1 says "with no fixture file involved", and
-acceptances 2 and 3 (Storybook's chrome contributes no rules; one browser, one
-navigation over N stories) have never been exercised against real Storybook
-chrome, which is the exact case ADR-0003 was written for. What *is* proven is
-v3/v4/v5 index parsing (`index-file.test.ts`, 22), subject mapping with
-per-story exclusion and viewport (`subjects.test.ts`, 17), and a preview driver
-that navigates once and switches stories over Storybook's own channel, reporting
-a throwing story as a subject rather than crashing the run (`preview.test.ts`,
-27).
+**Corrected 2026-08-02, after `cases/storybook-case` landed.** This section
+previously read "has never met a Storybook", and that is no longer true: Storybook
+is installed in the repository, `storybook build` produces `storybook-static/`,
+and `cases/storybook-case/src/storybook.chromium.test.js` drives the real preview
+against the `index.json` Storybook itself wrote. It also produced a finding the
+fixtures could not — the readiness gap, reproducibly: captured on Storybook's own
+`storyRendered` the deferred story is `loading…`, and captured on a declared
+marker it is the component. Acceptances 1 and 3 of spec 0006 (no fixture in the
+loop; one browser, one navigation over N stories) are met.
+
+What remains unmet is **acceptance 2** — that Storybook's own chrome contributes
+no rules to a subject, which is the exact case ADR-0003 was written for and is
+not asserted anywhere — and the CLI hop above it. The CLI still imports only
+`readStoryIndex`, `storySubjectId` and `toSubjects`; `collectStory` /
+`collectStories` are exercised by the case and not by a run
+([§4.3](#43-there-is-no-shipped-collector)). Under the fixtures, what was already
+proven stands: v3/v4/v5 index parsing (`index-file.test.ts`, 22), subject mapping
+with per-story exclusion and viewport (`subjects.test.ts`, 17), and a preview
+driver that reports a throwing story as a subject rather than crashing the run
+(`preview.test.ts`, 27).
 
 ### 4.5 Targets never measured, and limits never tested
 
