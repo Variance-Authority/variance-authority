@@ -157,12 +157,46 @@ export function accessibleName(element: Element): string | null {
   // over-eager accname fallback silently disabled a whole normalization rule.
   const role = roleOf(element);
   if (role !== null && NAME_FROM_CONTENT.has(role)) {
-    const text = element.textContent;
-    if (text && text.trim().length > 0) return normalize(text);
+    const text = visibleText(element);
+    if (text.trim().length > 0) return normalize(text);
   }
 
   const title = element.getAttribute('title');
   return title && title.trim().length > 0 ? normalize(title) : null;
+}
+
+/**
+ * Text content, minus what is hidden from the accessibility tree.
+ *
+ * `textContent` is the wrong function for name-from-content and the difference
+ * is not academic. The canonical icon-only button is
+ * `<button><span aria-hidden="true">↻</span></button>`, and reading its
+ * `textContent` gives it the accessible name "↻" — so a control with **no** name
+ * reports as a control with a name, and the rule that exists to find exactly
+ * this button never fires. `aria-hidden` subtrees and `hidden` elements
+ * contribute nothing to a name (accname step 2A).
+ *
+ * `aria-labelledby` is deliberately not filtered this way: referenced content is
+ * used for a name even when it is hidden, which is how the pattern of pointing
+ * at an off-screen `<span>` works at all.
+ */
+function visibleText(element: Element): string {
+  let text = '';
+
+  for (const child of element.childNodes) {
+    if (child.nodeType === 3 /* text */) {
+      text += child.nodeValue ?? '';
+      continue;
+    }
+    if (child.nodeType !== 1 /* element */) continue;
+
+    const node = child as Element;
+    if (node.getAttribute('aria-hidden') === 'true' || node.hasAttribute('hidden')) continue;
+
+    text += visibleText(node);
+  }
+
+  return text;
 }
 
 /**

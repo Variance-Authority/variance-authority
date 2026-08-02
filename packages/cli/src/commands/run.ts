@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import {
   documentDigest,
   formatSource,
+  inspect,
   profileById,
   rankRegions,
   resolveSource,
@@ -40,6 +41,7 @@ import type { Raster } from '@variance-authority/core';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
 import type {
+  FindingRecord,
   ObservationRecord,
   RegionRecord,
   RunReport,
@@ -418,6 +420,8 @@ export function recordOf(
     readonly images?: ObservationRecord['images'];
     /** What the collection of this subject could not do. See {@link diagnosticsOf}. */
     readonly diagnostics?: readonly Diagnostic[];
+    /** Defects in this render, from `inspect`. Independent of the verdict. */
+    readonly findings?: readonly FindingRecord[];
   } = {},
 ): CliObservationRecord {
   const changed = observation.comparison?.changed[DEFAULT_POLICY.id] ?? 0;
@@ -436,9 +440,57 @@ export function recordOf(
       ? { truncated: { regions: truncated.truncated, pixels: truncated.truncatedPixels } }
       : {}),
     ...(observation.missingFonts.length > 0 ? { missingFonts: observation.missingFonts } : {}),
+    // Present-and-empty, not omitted. `[]` means the render was inspected and
+    // was clean; absent means nothing inspected it, because the collector
+    // supplied no snapshot. Those are different claims, and the second must
+    // never print as the first — the same rule `notObserved` follows.
+    ...(options.findings !== undefined ? { findings: options.findings } : {}),
     ...(options.images !== undefined ? { images: options.images } : {}),
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
   };
+}
+
+/** Spread helper, so `undefined` omits the key rather than setting it. */
+function findingsField(collected: {
+  readonly snapshot?: SemanticSnapshot;
+  readonly source?: SourceIndex;
+}): { findings?: readonly FindingRecord[] } {
+  const findings = findingsOf(collected.snapshot, collected.source);
+  return findings === undefined ? {} : { findings };
+}
+
+/**
+ * What this render says about itself, with no baseline consulted.
+ *
+ * Runs on every subject that produced a snapshot, including the ones that settle
+ * without an image and the ones reported `new`. That is the point: a defect
+ * present on the first run is the case a comparison can never reach, so the run
+ * where there is nothing to compare against is exactly the run that most needs
+ * this.
+ */
+function findingsOf(
+  snapshot: SemanticSnapshot | undefined,
+  source: SourceIndex | undefined,
+): readonly FindingRecord[] | undefined {
+  // `undefined`, not `[]`. A collector that supplies no snapshot has not been
+  // inspected, which is not the same as having been inspected and found clean.
+  if (snapshot === undefined) return undefined;
+
+  return inspect(snapshot).map((finding) => {
+    const resolved =
+      source !== undefined && finding.component !== undefined
+        ? resolveSource(finding.component, source)
+        : null;
+
+    return {
+      rule: finding.rule,
+      what: finding.what,
+      path: finding.path,
+      ...(finding.where !== undefined ? { where: finding.where } : {}),
+      ...(finding.component !== undefined ? { component: finding.component } : {}),
+      ...(resolved !== null ? { file: formatSource(resolved) } : {}),
+    };
+  });
 }
 
 /**
@@ -756,6 +808,7 @@ async function observeOne(
         ...(collected.source !== undefined ? { source: collected.source } : {}),
         ...(await images(id, observation, collected.document, renderer, config, deps, null)),
         diagnostics,
+        ...findingsField(collected),
       }),
     };
   }
@@ -772,6 +825,12 @@ async function observeOne(
   if (settlement.kind === 'settled') {
     const missingFonts = settlement.missingFonts ?? [];
 
+    // Findings are attached here too, on the path that settles without rendering
+    // anything. A subject whose document digest matched its baseline has changed
+    // nothing and may still contain a control with no name — that is the whole
+    // reason inspection is not a comparison.
+    const findings = findingsOf(collected.snapshot, collected.source);
+
     return {
       kind: 'observed',
       record: {
@@ -780,6 +839,7 @@ async function observeOne(
         because: settlement.because + qualification(diagnostics),
         changedPixels: 0,
         regions: [],
+        ...(findings !== undefined ? { findings } : {}),
         ...(missingFonts.length > 0 ? { missingFonts } : {}),
         ...(diagnostics.length > 0 ? { diagnostics } : {}),
       },
@@ -795,6 +855,7 @@ async function observeOne(
       ...(collected.source !== undefined ? { source: collected.source } : {}),
       ...(await images(id, observation, collected.document, renderer, config, deps, found)),
       diagnostics,
+      ...findingsField(collected),
     }),
   };
 }

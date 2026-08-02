@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
@@ -242,5 +242,37 @@ live('the durable workflow, end to end', () => {
     expect(out).toMatch(/src\/ds\.jsx:\d+/);
     expect(out).toContain('collateral');
     expect(out).not.toContain('cause ');
+  }, 240_000);
+
+  /**
+   * The half that needs no baseline at all, run against a Storybook nobody wrote
+   * for us.
+   *
+   * Whatever it finds here is the finding — including nothing. What is asserted
+   * is the property that makes the number readable either way: every observation
+   * carries a findings list, so an empty run means *inspected and clean* rather
+   * than *nobody looked*. A report where the two are indistinguishable can
+   * report a clean bill of health from a collector that supplied no snapshot.
+   */
+  it('inspects every render, and says so whether or not it finds anything', () => {
+    const report = JSON.parse(readFileSync(join(workspace, 'run.json'), 'utf8'));
+
+    expect(report.observations.length).toBeGreaterThan(0);
+    for (const observation of report.observations) {
+      expect(Array.isArray(observation.findings), observation.subject).toBe(true);
+    }
+
+    const findings = report.observations.flatMap((observation) => observation.findings);
+    console.log(
+      `\n  INSPECTION — ${findings.length} finding(s) across ${report.observations.length} subjects` +
+        findings.map((f) => `\n    [${f.rule}] ${f.what}  ${f.file ?? ''}`).join(''),
+    );
+
+    // Each one must be actionable on its own: a rule nobody can locate is a rule
+    // nobody fixes.
+    for (const finding of findings) {
+      expect(finding.what.length, finding.rule).toBeGreaterThan(0);
+      expect(finding.path, finding.rule).toBeTypeOf('string');
+    }
   }, 240_000);
 });

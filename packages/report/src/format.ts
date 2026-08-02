@@ -76,12 +76,55 @@ export interface ObservationRecord {
   /** Regions found but not recorded, with their pixels. Never silently dropped. */
   readonly truncated?: { readonly regions: number; readonly pixels: number };
   readonly missingFonts?: readonly string[];
+
+  /**
+   * Defects found in *this* render, with no baseline consulted.
+   *
+   * The other half of what a run knows, and the half a comparison structurally
+   * cannot produce: a control that never had an accessible name compares equal
+   * to itself forever, so approving the first baseline approves the defect.
+   * Recorded per subject rather than per run because they are attributed the
+   * same way a region is — a component, a place, a file — and because the same
+   * component appearing in six subjects is six chances to notice it.
+   *
+   * They do not affect the verdict. A tool that blocks a merge on day one over
+   * findings nobody asked for gets switched off in week one; a project that
+   * wants them enforced writes `blocking: ['a11y']` in its policy, which covers
+   * both these and the regressions found by comparison.
+   *
+   * **Empty is not absent.** `[]` means this render was inspected and was clean;
+   * omitted means nothing inspected it, because the collector supplied no
+   * snapshot. Printing the second as the first tells a reader the component is
+   * fine on the authority of something that never looked at it — the same
+   * collapse `notObserved` exists to prevent.
+   */
+  readonly findings?: readonly FindingRecord[];
   /** Where the images went, when the run kept them. Relative to the report. */
   readonly images?: {
     readonly before?: string;
     readonly after?: string;
     readonly diff?: string;
   };
+}
+
+/**
+ * One defect in a render, flattened for the report.
+ *
+ * Same fields a `RegionRecord` carries and for the same reason: what, where,
+ * whose, which file. The owner chain is dropped — it is an in-memory structure
+ * with a props digest per frame, and a report is read by something that wants a
+ * sentence.
+ */
+export interface FindingRecord {
+  /** e.g. `control-without-name`. Stable, so an ignore list can name one. */
+  readonly rule: string;
+  /** One sentence, naming the thing rather than the rule. */
+  readonly what: string;
+  readonly path: string;
+  /** Landmark phrase, e.g. `main → list item 2 of 3`. */
+  readonly where?: string;
+  readonly component?: string;
+  readonly file?: string;
 }
 
 export interface RegionRecord {

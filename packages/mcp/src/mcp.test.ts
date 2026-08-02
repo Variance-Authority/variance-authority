@@ -167,6 +167,119 @@ describe('describing a subject', () => {
   });
 });
 
+describe('findings, which no comparison could have produced', () => {
+  /**
+   * The property being asserted is that these survive a *clean* run. A subject
+   * reported `unchanged` is a subject a comparison has nothing to say about, and
+   * a control that never had an accessible name is `unchanged` on every run
+   * there will ever be.
+   */
+  const WITH_FINDINGS: RunReport = {
+    ...REPORT,
+    observations: [
+      {
+        subject: 'ds/button--primary',
+        verdict: 'unchanged',
+        because: 'no pixels differ',
+        changedPixels: 0,
+        regions: [],
+        findings: [
+          {
+            rule: 'control-without-name',
+            what: '<button> is a button with no accessible name',
+            path: '0/1',
+            component: 'IconButton',
+            file: 'src/ds/IconButton.tsx:12',
+          },
+        ],
+      },
+      {
+        subject: 'ds/card--default',
+        verdict: 'unchanged',
+        because: 'no pixels differ',
+        changedPixels: 0,
+        regions: [],
+        findings: [
+          {
+            rule: 'control-without-name',
+            what: '<button> is a button with no accessible name',
+            path: '0/3',
+            component: 'IconButton',
+            file: 'src/ds/IconButton.tsx:12',
+          },
+          {
+            rule: 'heading-level-skipped',
+            what: 'heading level jumps from 2 to 4 at "Billing"',
+            path: '0/0',
+            component: 'Card',
+            file: 'src/ds/Card.tsx:8',
+          },
+        ],
+      },
+    ],
+  };
+
+  it('points at them from a summary that is otherwise clean', () => {
+    const text = toolByName('variance_summary')!.run(WITH_FINDINGS, {});
+
+    expect(text).toContain('2 unchanged');
+    expect(text).toContain('findings: 3 in 2 subject(s)');
+    expect(text).toContain('do not affect the verdict');
+  });
+
+  it('collapses one component in two subjects into one line', () => {
+    const text = toolByName('variance_findings')!.run(WITH_FINDINGS, {});
+
+    expect(text).toContain('control-without-name — 2 occurrence(s)');
+    expect(text).toContain('src/ds/IconButton.tsx:12 — in 2 subjects');
+    expect(text).toContain('heading-level-skipped');
+  });
+
+  it('filters to one rule when asked', () => {
+    const text = toolByName('variance_findings')!.run(WITH_FINDINGS, { rule: 'heading-level-skipped' });
+
+    expect(text).toContain('heading-level-skipped');
+    expect(text).not.toContain('control-without-name');
+  });
+
+  /**
+   * The same distinction `coverage` draws. A report with no findings and a
+   * report written by something that never inspected anything are different
+   * claims, and an agent told "no findings" over the second has been told the
+   * renders are clean by something that never read them.
+   */
+  it('does not let "nothing inspected" read as a clean bill of health', () => {
+    const text = toolByName('variance_findings')!.run(REPORT, {});
+
+    expect(text).toContain('Nothing in this report was inspected');
+    expect(text).toContain('not evidence that the renders were clean');
+  });
+
+  it('says so differently when the renders were inspected and were clean', () => {
+    const clean: RunReport = {
+      ...REPORT,
+      observations: REPORT.observations.map((o) => ({ ...o, findings: [] })),
+    };
+
+    expect(toolByName('variance_findings')!.run(clean, {})).toContain(
+      `No findings across ${clean.observations.length} inspected subject(s)`,
+    );
+    expect(toolByName('variance_summary')!.run(clean, {})).toContain(
+      `findings: none in ${clean.observations.length} inspected subject(s)`,
+    );
+  });
+
+  it('shows a subject its own findings even when nothing changed', () => {
+    const text = toolByName('variance_describe')!.run(WITH_FINDINGS, {
+      subject: 'ds/button--primary',
+    });
+
+    expect(text).toContain('[unchanged]');
+    expect(text).toContain('independent of the verdict');
+    expect(text).toContain('src/ds/IconButton.tsx:12');
+  });
+});
+
 describe('tracing a component across the run', () => {
   it('separates being the cause from being displaced', () => {
     const text = call('variance_trace_component', { component: 'Stack' });

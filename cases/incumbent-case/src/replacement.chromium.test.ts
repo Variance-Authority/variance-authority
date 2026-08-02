@@ -9,6 +9,7 @@ import {
   diffSnapshots,
   formatSource,
   indexSource,
+  inspect,
   isolateRegions,
   mergeSourceIndexes,
   normalize,
@@ -19,6 +20,8 @@ import {
   type SourceIndex,
 } from '@variance-authority/core';
 import { comparePngs } from '@variance-authority/png';
+// @ts-expect-error — a plain .mjs script, deliberately not part of the TS build.
+import { stale } from '../scripts/bundle.mjs';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import {
   CONFIGURATIONS,
@@ -77,7 +80,17 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
-const READY = BROWSER_AVAILABLE && existsSync(BUNDLE) && existsSync(RESULTS);
+/**
+ * A bundle older than what it was built from is not a case that can run.
+ *
+ * Refusing rather than rebuilding, because rebuilding here would give our arm a
+ * newer page than the one the incumbent recorded its baselines against — and a
+ * head-to-head between two builds measures the builds. So the case stops and
+ * names the command, which is the same rule every other prerequisite follows.
+ */
+const STALE = stale();
+
+const READY = BROWSER_AVAILABLE && existsSync(BUNDLE) && existsSync(RESULTS) && STALE === null;
 
 // ---------------------------------------------------------------------------
 // the incumbent's report, read rather than reproduced
@@ -208,6 +221,13 @@ async function observe(
   return { snapshot, shot, origin };
 }
 
+/**
+ * Every scenario's post-edit snapshot, kept so the inspection arm can read the
+ * broken render *without* the baseline the comparison arm needs.
+ */
+const AFTER = new Map<string, SemanticSnapshot>();
+const BEFORE = new Map<string, SemanticSnapshot>();
+
 async function runOurArm(): Promise<void> {
   for (const scenario of SCENARIOS) {
     // The record phase, mirroring theirs: the new-subject scenario gets no
@@ -216,6 +236,8 @@ async function runOurArm(): Promise<void> {
       scenario.baseline === 'none' ? null : await observe(scenario, 'before');
 
     const after = await observe(scenario, 'after');
+    AFTER.set(scenario.id, after.snapshot);
+    if (baseline !== null) BEFORE.set(scenario.id, baseline.snapshot);
 
     if (baseline === null) {
       OURS.set(scenario.id, {
@@ -331,6 +353,7 @@ if (!READY) {
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(BUNDLE) ? '' : '\n  no page bundle') +
       (existsSync(RESULTS) ? '' : '\n  the incumbent has not run') +
+      (STALE === null ? '' : `\n  ${STALE}`) +
       '\n  yarn workspace @variance-authority/case-incumbent incumbent\n',
   );
 }
@@ -521,5 +544,80 @@ live('the scoreboard', () => {
     console.log(['--- and what an editor can open', ...named.map((entry) => `  ${entry}`), ''].join('\n'));
 
     expect(named.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The arm that needs no baseline, and where it stops.
+ *
+ * Both incumbent configurations are silent on all three of the a11y scenarios,
+ * and ours catches all three — by comparing two documents. That still leaves the
+ * case a comparison cannot reach: the control that *never* had a label. There is
+ * no "before" in which it worked, so there is nothing to compare against, and
+ * approving the first baseline approves the defect.
+ *
+ * `inspect` reads the post-edit render alone. One of the three falls out of it,
+ * and two do not — which is the honest shape of the claim. Inspection and
+ * comparison catch different things and neither contains the other:
+ *
+ * - a control with no accessible name is a property of the render, so one
+ *   snapshot decides it;
+ * - a heading demoted to a `<div>` and a `<button>` devolved to a `<div>` are
+ *   only defects *relative to what they were*. A `<div>` is not wrong. Nothing
+ *   in the broken render says the styling was copied off a control, which is
+ *   exactly why reviews miss them, and only the baseline knows.
+ */
+describe.skipIf(!READY)('what one render says with no baseline', () => {
+  it('reports the dropped label from the broken render alone', () => {
+    const findings = inspect(AFTER.get('label-dropped')!);
+
+    expect(findings.map((finding) => finding.rule)).toContain('control-without-name');
+
+    const found = findings.find((finding) => finding.rule === 'control-without-name')!;
+    expect(found.band).toBe('a11y');
+    expect(found.what).toContain('button');
+  });
+
+  it('finds nothing in the same render before the label was dropped', () => {
+    expect(inspect(BEFORE.get('label-dropped')!)).toEqual([]);
+  });
+
+  it('is silent on the two that only a baseline can decide, and that is the shape of it', () => {
+    // Not a gap being excused. A `<div>` with no role is not a defect in any
+    // render taken on its own — it becomes one only against the `<h2>` or the
+    // `<button>` it replaced. A rule that fired here would fire on every
+    // presentational element in every codebase.
+    expect(inspect(AFTER.get('heading-demoted')!)).toEqual([]);
+    expect(inspect(AFTER.get('control-devolved')!)).toEqual([]);
+
+    // And the comparison arm did catch both, at `pixels: 0`.
+    for (const id of ['heading-demoted', 'control-devolved']) {
+      const ours = OURS.get(id)!;
+      expect(ours.told, id).toBe('told');
+      expect(ours.semanticOnly, id).toBe(true);
+    }
+  });
+
+  it('prints what an inspection of all eight renders finds', () => {
+    const rows = SCENARIOS.flatMap((scenario) =>
+      inspect(AFTER.get(scenario.id)!).map((finding) => ({ scenario: scenario.id, finding })),
+    );
+
+    console.log(
+      [
+        '',
+        '--- inspection, no baseline consulted',
+        ...(rows.length === 0
+          ? ['  nothing']
+          : rows.map(
+              ({ scenario, finding }) =>
+                `  ${scenario.padEnd(20)} [${finding.rule}] ${finding.what}` +
+                (finding.component !== undefined ? ` — ${finding.component}` : ''),
+            )),
+        '',
+      ].join('\n'),
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
   });
 });

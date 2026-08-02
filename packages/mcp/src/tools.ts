@@ -90,6 +90,7 @@ const summarize: Tool = {
           ]),
       '',
       ...coverage(report),
+      ...findingsLine(report),
       ...(notable.length === 0 ? ['', settlement(report)] : []),
     ].join('\n');
   },
@@ -211,6 +212,21 @@ const describe: Tool = {
         : []),
     ];
 
+    // Findings before regions. A subject can be `unchanged` and still carry
+    // them, in which case they are the only thing this tool has to say, and a
+    // reader who stopped at "nothing changed" would never reach them.
+    if (observation.findings !== undefined && observation.findings.length > 0) {
+      lines.push(
+        '',
+        `${observation.findings.length} finding(s) in this render, independent of the verdict:`,
+        ...observation.findings.map(
+          (finding) =>
+            `  [${finding.rule}] ${finding.what}` +
+            (finding.file !== undefined ? `\n    ${finding.file}` : ''),
+        ),
+      );
+    }
+
     if (observation.regions.length === 0) return lines.join('\n');
 
     lines.push('', ...observation.regions.map(regionLine));
@@ -235,6 +251,125 @@ const describe: Tool = {
     }
 
     return lines.join('\n');
+  },
+};
+
+/**
+ * One line, and only when there is something to say.
+ *
+ * Findings do not change the verdict, so they must not be able to make a clean
+ * run read as dirty — but a run that found fourteen controls with no accessible
+ * name and mentioned none of them has withheld the only thing it knew that a
+ * comparison could not have told it.
+ */
+function findingsLine(report: RunReport): readonly string[] {
+  const inspected = report.observations.filter((o) => o.findings !== undefined);
+  const subjects = inspected.filter((o) => o.findings!.length > 0);
+  const total = subjects.reduce((sum, o) => sum + o.findings!.length, 0);
+
+  if (total > 0) {
+    return [
+      `findings: ${total} in ${subjects.length} subject(s), found without a baseline — ` +
+        'call variance_findings. These do not affect the verdict.',
+    ];
+  }
+
+  // "Inspected and clean" is worth one line; "nobody inspected anything" is
+  // worth nothing here and is said by `variance_findings` when asked, because a
+  // reader who did not ask must not be told either way.
+  return inspected.length === 0
+    ? []
+    : [`findings: none in ${inspected.length} inspected subject(s).`];
+}
+
+/**
+ * Defects in the render itself, which no comparison could have reported.
+ *
+ * A separate tool rather than part of `variance_describe` because it answers a
+ * different question. `describe` answers "what did this change do"; this answers
+ * "what is wrong with this component regardless of whether anyone touched it" —
+ * and the second is the one a comparison structurally cannot reach, since a
+ * control that never had an accessible name compares equal to itself forever.
+ *
+ * Grouped by rule rather than by subject. One missing `alt` in twelve stories is
+ * one edit to one component, and listing it twelve times under twelve subject
+ * headings is the same fatigue the docket exists to prevent.
+ */
+const findings: Tool = {
+  name: 'variance_findings',
+  description:
+    'Accessibility defects found in the renders themselves, with no baseline involved: a ' +
+    'control with no accessible name, a skipped heading level, a broken label association. ' +
+    'Grouped by rule, each naming the component and the file. These are present on the ' +
+    'first run and are invisible to any comparison, so they do not affect the verdict.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      rule: { type: 'string', description: 'Optional. Only findings of this rule.' },
+    },
+    additionalProperties: false,
+  },
+
+  run(report, input) {
+    const wanted = typeof input?.['rule'] === 'string' ? input['rule'] : undefined;
+
+    const all = report.observations.flatMap((observation) =>
+      (observation.findings ?? [])
+        .filter((finding) => wanted === undefined || finding.rule === wanted)
+        .map((finding) => ({ subject: observation.subject, finding })),
+    );
+
+    if (all.length === 0) {
+      if (wanted !== undefined) return `No findings for rule ${wanted}.`;
+
+      const inspected = report.observations.filter((o) => o.findings !== undefined).length;
+
+      // Two different sentences, because they are two different claims. A report
+      // whose writer never inspected anything has not found the renders clean;
+      // it has not looked at them, and an agent told otherwise acts on it.
+      return inspected === 0
+        ? 'Nothing in this report was inspected — no observation carries a findings list, ' +
+            'so this is not evidence that the renders were clean.'
+        : `No findings across ${inspected} inspected subject(s).`;
+    }
+
+    const byRule = new Map<string, typeof all>();
+    for (const entry of all) {
+      const bucket = byRule.get(entry.finding.rule) ?? [];
+      bucket.push(entry);
+      byRule.set(entry.finding.rule, bucket);
+    }
+
+    return [...byRule]
+      .map(([rule, entries]) => {
+        // Same finding, same component, several subjects: one edit, so one line
+        // with the subjects counted rather than one line per place it shows up.
+        const places = new Map<string, { what: string; file?: string; subjects: string[] }>();
+        for (const { subject, finding } of entries) {
+          const key = `${finding.component ?? finding.path}\u0000${finding.what}`;
+          const place = places.get(key) ?? {
+            what: finding.what,
+            ...(finding.file !== undefined ? { file: finding.file } : {}),
+            subjects: [],
+          };
+          place.subjects.push(subject);
+          places.set(key, place);
+        }
+
+        return [
+          `${rule} — ${entries.length} occurrence(s)`,
+          ...[...places.values()].map((place) => {
+            const reach =
+              place.subjects.length === 1
+                ? place.subjects[0]
+                : `${place.subjects.length} subjects: ${place.subjects.slice(0, 3).join(', ')}` +
+                  (place.subjects.length > 3 ? ', …' : '');
+
+            return `  ${place.what}\n    ${place.file ?? '(no source index)'} — in ${reach}`;
+          }),
+        ].join('\n');
+      })
+      .join('\n\n');
   },
 };
 
@@ -352,7 +487,7 @@ const explain: Tool = {
   },
 };
 
-export const TOOLS: readonly Tool[] = [summarize, describe, trace, explain];
+export const TOOLS: readonly Tool[] = [summarize, describe, findings, trace, explain];
 
 export function toolByName(name: string): Tool | undefined {
   return TOOLS.find((tool) => tool.name === name);

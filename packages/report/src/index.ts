@@ -20,6 +20,7 @@ export type {
   RunReport,
   ObservationRecord,
   RegionRecord,
+  FindingRecord,
   NotObserved,
   NotObservedKind,
 } from './format.js';
