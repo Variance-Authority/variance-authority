@@ -44,5 +44,19 @@ export type { DiffPolicy, RasterComparison, CompareOptions } from './compare.js'
 export { createEphemeralStore, createDurableStore, renderCached } from './store.js';
 export type { RasterStore, Retention, BaselineKey, Found } from './store.js';
 
+export { createLfsStore } from './store-lfs.js';
+export type { LfsStore, LfsStoreOptions, LfsTracking, CommandRunner, CommandResult } from './store-lfs.js';
+
+export {
+  createRemoteStore,
+  serveRasterStore,
+  RasterStoreError,
+  BASELINE_FIND_PATH,
+  BASELINE_PUT_PATH,
+  CACHE_FIND_PATH,
+  CACHE_PUT_PATH,
+} from './store-remote.js';
+export type { RemoteStoreOptions, ServeStoreOptions, StoreServer } from './store-remote.js';
+
 export { observePair, observeAgainstBaseline, summarizeObservation } from './observe.js';
 export type { Observation, ObserveOptions, RasterVerdict } from './observe.js';

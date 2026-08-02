@@ -1,0 +1,9 @@
+{
+  "name": "@example/design-system",
+  "version": "2.4.0",
+  "private": true,
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  }
+}

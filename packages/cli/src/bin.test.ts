@@ -1,0 +1,130 @@
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { USAGE, parseArgs } from './bin.js';
+import { OperatorError } from './exit.js';
+
+describe('parseArgs', () => {
+  it('reads a bare command with the default config path, made absolute', () => {
+    // Relative here would mean something different depending on the shell's cwd,
+    // and every path inside the config is resolved against the config's directory.
+    expect(parseArgs(['doctor'])).toEqual({
+      command: 'doctor',
+      config: resolve('variance.config.json'),
+    });
+  });
+
+  it('accepts `--flag value` and `--flag=value` as the same thing', () => {
+    // Both are muscle memory. Supporting one and silently treating the other as a
+    // positional would produce a run over the wrong subjects.
+    expect(parseArgs(['run', '--subjects', 'story:*'])).toEqual(
+      parseArgs(['run', '--subjects=story:*']),
+    );
+  });
+
+  it('refuses an unknown flag instead of ignoring it, and lists the ones that exist', () => {
+    // The failure this parser exists to prevent: `--subject` where `--subjects`
+    // was meant runs the whole suite and reports success, while the operator's
+    // shell history shows the flag they intended.
+    const error = attempt(['run', '--subject', 'story:button']);
+
+    expect(error.message).toContain('`--subject` is not a flag `variance run` accepts');
+    expect(error.message).toContain('--profile, --subjects, --intent');
+  });
+
+  it('refuses a flag that belongs to another command', () => {
+    // `--format json` on `run` is meaningless, and accepting it would teach a
+    // false model of what the command does.
+    expect(attempt(['run', '--format', 'json']).message).toContain('not a flag');
+  });
+
+  it('refuses an unknown command and prints the usage', () => {
+    const error = attempt(['rin']);
+    expect(error.message).toContain('unknown command `rin`');
+    expect(error.message).toContain(USAGE);
+  });
+
+  it('refuses a value-taking flag with nothing after it', () => {
+    // A missing value is a mistake, not a request for the default; falling back
+    // would turn a typo into a different report.
+    expect(attempt(['report', '--format']).message).toContain('needs a value');
+  });
+
+  it('refuses a value-taking flag followed by another flag', () => {
+    expect(attempt(['report', '--format', '--subject']).message).toContain('needs a value');
+  });
+
+  it('refuses a repeated flag rather than taking the last one', () => {
+    // Two contradicting values mean the operator believes one is in force.
+    // Choosing silently makes half of those beliefs wrong.
+    expect(attempt(['run', '--subjects', 'a', '--subjects', 'b']).message).toContain(
+      'more than once',
+    );
+  });
+
+  it('refuses an invalid enum value for --profile and --format', () => {
+    expect(attempt(['run', '--profile', 'webkit']).message).toContain('jsdom or chromium');
+    expect(attempt(['report', '--format', 'yaml']).message).toContain('text or json');
+  });
+
+  it('refuses positional arguments on commands that take none', () => {
+    // A stray word is far more likely to be a mistyped flag than a request.
+    expect(attempt(['serve', 'report.json']).message).toContain('takes no positional');
+  });
+
+  it('takes accept subjects as positionals and --all as a boolean', () => {
+    expect(parseArgs(['accept', 'story:button', 'story:card'])).toEqual({
+      command: 'accept',
+      config: resolve('variance.config.json'),
+      subjects: ['story:button', 'story:card'],
+      all: false,
+    });
+    expect(parseArgs(['accept', '--all']).all).toBe(true);
+  });
+
+  it('refuses --all together with named subjects', () => {
+    // Honouring --all would accept subjects nobody named; honouring the names
+    // would ignore a flag that was typed. Both are silent, so neither is chosen.
+    expect(attempt(['accept', '--all', 'story:button']).message).toContain('pass one or the other');
+  });
+
+  it('refuses accept with neither subjects nor --all', () => {
+    expect(attempt(['accept']).message).toContain('needs a subject id, or --all');
+  });
+
+  it('refuses a value on a boolean flag', () => {
+    expect(attempt(['accept', '--all=yes']).message).toContain('takes no value');
+  });
+
+  it('lets `--` end flag parsing so a subject id may begin with a dash', () => {
+    expect(parseArgs(['accept', '--', '--odd-subject']).subjects).toEqual(['--odd-subject']);
+  });
+
+  it('treats no arguments, help, and --help as the same request', () => {
+    for (const argv of [[], ['help'], ['--help'], ['-h']]) {
+      expect(parseArgs(argv)).toEqual({ command: 'help' });
+    }
+  });
+
+  it('omits absent optional flags rather than setting them undefined', () => {
+    // `exactOptionalPropertyTypes` is on, and a present-but-undefined field would
+    // override a config value with nothing further down.
+    expect(Object.keys(parseArgs(['run'])).sort()).toEqual(['command', 'config']);
+  });
+
+  it('documents the three exit codes in its usage text', () => {
+    // The usage is where an operator learns that a verdict and a crash differ.
+    expect(USAGE).toContain('0 nothing needs review');
+    expect(USAGE).toContain('1 changes need review');
+    expect(USAGE).toContain('2 operator error');
+  });
+});
+
+function attempt(argv: readonly string[]): OperatorError {
+  try {
+    parseArgs(argv);
+  } catch (error) {
+    if (error instanceof OperatorError) return error;
+    throw error;
+  }
+  throw new Error(`expected \`${argv.join(' ')}\` to be refused`);
+}

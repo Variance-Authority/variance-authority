@@ -1,0 +1,41 @@
+{
+  "v": 3,
+  "stories": {
+    "components-button--primary": {
+      "id": "components-button--primary",
+      "title": "Components/Button",
+      "name": "Primary",
+      "importPath": "./src/components/Button.stories.tsx",
+      "kind": "Components/Button",
+      "story": "Primary",
+      "parameters": {
+        "__id": "components-button--primary",
+        "docsOnly": false,
+        "fileName": "./src/components/Button.stories.tsx"
+      }
+    },
+    "components-button--page": {
+      "id": "components-button--page",
+      "title": "Components/Button",
+      "name": "Page",
+      "importPath": "./src/components/Button.stories.mdx",
+      "kind": "Components/Button",
+      "story": "Page",
+      "parameters": {
+        "__id": "components-button--page",
+        "docsOnly": true,
+        "fileName": "./src/components/Button.stories.mdx"
+      }
+    },
+    "foundations-colors--overview": {
+      "id": "foundations-colors--overview",
+      "kind": "Foundations/Colors",
+      "story": "Overview",
+      "parameters": {
+        "__id": "foundations-colors--overview",
+        "docsOnly": false,
+        "fileName": "./src/foundations/Colors.stories.js"
+      }
+    }
+  }
+}

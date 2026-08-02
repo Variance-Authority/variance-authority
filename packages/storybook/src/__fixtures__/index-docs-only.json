@@ -1,0 +1,23 @@
+{
+  "v": 5,
+  "entries": {
+    "docs-introduction--docs": {
+      "type": "docs",
+      "id": "docs-introduction--docs",
+      "name": "Docs",
+      "title": "Docs/Introduction",
+      "importPath": "./src/docs/Introduction.mdx",
+      "storiesImports": [],
+      "tags": ["dev", "test", "docs"]
+    },
+    "docs-tokens--docs": {
+      "type": "docs",
+      "id": "docs-tokens--docs",
+      "name": "Docs",
+      "title": "Docs/Tokens",
+      "importPath": "./src/docs/Tokens.mdx",
+      "storiesImports": [],
+      "tags": ["dev", "test", "docs"]
+    }
+  }
+}

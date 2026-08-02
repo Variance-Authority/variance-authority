@@ -1,0 +1,22 @@
+{
+  "v": 6,
+  "entries": {
+    "components-button--primary": {
+      "type": "story",
+      "id": "components-button--primary",
+      "name": "Primary",
+      "title": "Components/Button",
+      "importPath": "./src/components/Button.stories.tsx",
+      "tags": ["dev", "test"],
+      "usesMocks": true
+    },
+    "components-button--experiment": {
+      "type": "experiment",
+      "id": "components-button--experiment",
+      "name": "Experiment",
+      "title": "Components/Button",
+      "importPath": "./src/components/Button.experiment.tsx",
+      "tags": ["dev"]
+    }
+  }
+}
