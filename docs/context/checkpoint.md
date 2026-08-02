@@ -53,6 +53,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B11 | **raster tier** — six phases, two retention modes, MCP surface | landed and measured; found that area ranks the displaced above the displacer |
 | B13 | **the boundary** — what a package is, and what an entrypoint costs | landed; ADR-0013, enforced by `tools/boundaries.test.ts` |
 | B14 | **replacement** — what a case is, and whether an incumbent can actually be left | landed and measured against a real `toHaveScreenshot`; three rows no threshold reaches, one row we lose |
+| B15 | **limbs** — what a run knows with no baseline at all: bands split, inspection, locale, provenance without React | landed and measured; four capabilities and six defects, every one of them found by writing the capability rather than by looking for the defect |
 | B12 | **history** — what accumulates across runs, and where it lives | **specified, not built** ([specs 0001–0002](../specs/README.md)); first implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
@@ -75,6 +76,11 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. specs 0001 and 0002 record what replaces both; nothing is implemented |
 | M13 | B14 | Run a real `@playwright/test` against a corpus declared first; ask what an import costs | **expected, and it corrected us twice** — 35/36 assertions on the first run; `toHaveScreenshot` does measure across a size mismatch in 1.62, where the scenario was declared as a refusal to, and attribution named `Indicator` where `Toolbar` was predicted (journal 0014) |
 | M14 | B14 | Write the collector `cases/storybook-case` was missing and run the CLI over a real Storybook | **mixed, and the most productive move so far** — the workflow closes (new → accept → unchanged → 5 of 8 changed on a one-component edit, with the right five), and the first execution found five defects no unit test could reach. Three made durable mode unusable: the run never exited, `stabilization` was dropped by the identity codec so `accept` and `run` keyed on different digests, and the refusal that resulted named the same machine on both sides (journal 0014) |
+
+| M15 | B15 | Split `a11y` and `content` out of `geometry`, rank bands once, and score the corpus's own band declarations | **expected, and the scoring is what paid** — five corpus cases changed band and no test noticed, because the declared band asserted nothing anywhere. Scoring it found that the differ reported a list rotation as five changed strings, which `reorder/list` was written to catch and could not: its assertions were the verdict and the root count, both correct while the report is useless |
+| M16 | B15 | `inspect` — five rules over one snapshot, so a defect present on the first run is reported rather than approved into the baseline | **expected, and it found the bug it was written to catch** — `<button><span aria-hidden="true">↻</span></button>` was named "↻", because name-from-content read `textContent`. The case did not notice for a session, because it reads a prebuilt bundle; it now refuses to run against one older than its inputs |
+| M17 | B15 | `compareLocales` — untranslated strings and boxes that stopped fitting, across two renders of one subject | **corrected twice by its own measurement** — the first run found nothing, because the rule read text nodes and the forgotten string was a `title`; and at 420px German fits, so whether a translation fits is a property of the container as much as the translation. `matchTrees` cannot be reused: it keys on the accessible name, which is exactly what a translation changes |
+| M18 | B15 | A second `provenanceOf`, reading `data-*` — 25 lines, no framework in the process | **expected, and it found two defects neither in the new code** — every plain `<section>` blew the stack on a `roleOf`/`accessibleName` mutual recursion, and a `prop` root labelled `Panel → Button` was attributing to `Button` in the per-component roles the report prints, sending a reviewer to a file nobody edited |
 
 ---
 
@@ -170,6 +176,23 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 - **The README makes claims about deployment nothing has exercised.** Linux CI,
   git-LFS artifacts, a CI bot committing images back — all stated as intent and
   marked as such, none run once.
+- **Inspection is five rules.** `judge/inspect.ts` decides what a normalized
+  snapshot can decide without guessing; axe has roughly ninety and a live DOM.
+  Nothing here checks contrast, focus order, or computed visibility, and the
+  question of whether the rule list should grow toward axe or stay at the subset
+  that survives being stored is open. It is a position for now: a rule that needs
+  a severity to be tolerable is a rule whose condition is too broad.
+- **`untranslated` reports candidates, not defects.** A brand name, a product
+  code and an acronym are all "identical in both languages". The sentence says so
+  in both directions and the rule skips strings with no letters, which is as far
+  as a document can get without a catalogue to join against. Joining against the
+  actual message catalogue — the ids, not the values — is the thing that would
+  make it exact, and no format for that has been decided.
+- **A tag change is a replacement.** `matchKey` never pairs an element whose tag
+  moved, so `<div>` → `<section aria-label>` reports a removal and an addition
+  rather than a `role-changed`, and the `a11y` band does not carry it.
+  `as-region/card` declares `geometry` for that reason with the limit attached.
+  Pairing across a tag change needs a similarity heuristic nothing here has.
 
 ---
 
@@ -191,4 +214,13 @@ thing that would move any of those is running the whole chain over a repository
 that is not ours.
 
 **Band cardinality** remains where B9 left it — a policy decision about which
-axis to gate on, not a modelling gap.
+axis to gate on, not a modelling gap. B15 narrows it: `a11y` and `content` are
+now their own bands, so "block on `geometry`" no longer means "block on every
+padding change *and* every dropped label *and* every copy edit".
+
+**The corpus scores entries, not blame.** `roots: 1` asserts how many docket
+entries a change produces and nothing asserts *which component* each one names.
+That is how a `prop` root could attribute to the wrong component for as long as
+it did — `prop-primary-variant/hero` exists to catch exactly this and asserts a
+count. `packages/dom/src/attributed.test.ts` is currently the only thing checking
+the distinction, which is the wrong place for it.

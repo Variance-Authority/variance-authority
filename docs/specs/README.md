@@ -22,6 +22,8 @@ Ordered by dependency. Later entries assume earlier ones.
 | [0005](0005-ci-integration.md) | CI integration and PR feedback | 0003, 0004 | A run produces a report nobody sees. |
 | [0006](0006-storybook-adapter.md) | Storybook adapter | 0003 | Story-shaped subjects work; nothing reads a real Storybook. |
 | [0007](0007-linux-verification.md) | Linux verification | 0003 | Every measurement comes from one Mac and one Chromium. |
+| [0008](0008-locale-runs.md) | Locale runs | 0003 | `compareLocales` answers two questions no image can be asked, and nothing calls it from a run. |
+| [0009](0009-inspection-rules.md) | Inspection rules, and where they stop | 0003 | Five rules exist. Whether the list grows toward axe or stays at what a stored snapshot can decide is undecided, and an undecided rule list rots. |
 
 ## Standing constraints
 

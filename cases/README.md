@@ -18,7 +18,7 @@ property that makes an agreement worth anything.
 | case | what it confronts | what it produced |
 |---|---|---|
 | [`storybook-case`](storybook-case) | a real Storybook, built by `storybook build`, and the whole CLI run over it | the readiness gap, reproducibly — and **five defects in the first real `variance run`**, three of which made durable mode unusable |
-| [`incumbent-case`](incumbent-case) | a real `@playwright/test`, running its own `toHaveScreenshot` in its own process | eight declared edits; 3 of them are missed by every configuration the incumbent has, and 1 is a false alarm of ours |
+| [`incumbent-case`](incumbent-case) | a real `@playwright/test`, running its own `toHaveScreenshot` in its own process | eight declared edits; 3 of them are missed by every configuration the incumbent has, and 1 is a false alarm of ours. Plus two questions no comparison can be asked at all — see below |
 
 Both halves matter and they are different questions. One asks *do we answer
 better*. The other asks *does the thing run* — and a tool that answers better and
@@ -70,6 +70,57 @@ that needs the previous revision's snapshot, and a durable run has a baseline
 image without one, so every region reads `collateral` and the ordering falls back
 to area. The same sentence `incumbent-case` reaches from the other end: *a PNG is
 not a semantic baseline.*
+
+## Two questions that are not comparisons
+
+Both cases above ask *did the tool report the change*. From the same surface,
+`incumbent-case` also asks two questions that have no baseline in them, because
+they are the questions an image cannot be asked:
+
+**What is wrong with this render on its own?** A control that never had an
+accessible name compares equal to itself forever, so approving the first baseline
+approves the defect. Of the three accessibility regressions no `toHaveScreenshot`
+configuration detects, inspection reaches **one** from the broken render alone —
+and the case asserts that it reaches only one. A `<div>` with no role is not a
+defect in any render taken by itself; it becomes one against the `<button>` it
+replaced. Inspection and comparison catch different things and neither contains
+the other.
+
+**What happens in another language?** One panel, English and German, real
+Chromium layout:
+
+```
+  translated strings   16
+  identical strings    2
+  widest growth        2.02× at RowAction
+  overflows at 420px   0
+  overflows at 300px   2
+```
+
+The string left in English is a `title` — the first version of the rule read text
+nodes and found nothing, which is the correction that made it useful: the strings
+that get forgotten are the ones that are not text nodes. And the overflow answer
+depends on the container, not on the translation, which is why no expansion ratio
+could have produced it.
+
+**Not measured: what the incumbent would do here.** It was not run at two
+locales. That its model needs a baseline per locale per subject follows from how
+`toHaveScreenshot` is keyed — an argument from the shape of the thing, labelled
+as one.
+
+## A case must refuse a stale bundle
+
+`incumbent-case` reads a prebuilt page bundle rather than rebuilding one at test
+time, so that both arms observe the same bytes. The cost of that showed up
+immediately: a fix in `packages/dom` did not reach the page, and the
+head-to-head stayed green against yesterday's implementation for a whole session.
+
+That is a silently skipped case in a different shape — it reads in a summary
+exactly like one that ran and agreed. The bundle now writes esbuild's own input
+list and the case **refuses to run** when it is older than any of them, naming
+the file and the command. Rebuilding instead would be worse: our arm would then
+observe a newer page than the one the incumbent recorded its baselines against,
+and a head-to-head between two builds measures the builds.
 
 ## What is not established here, and cannot be
 

@@ -12,8 +12,11 @@ measured against a corpus with pre-declared ground truth — 38/38 under `jsdom`
 retention modes and an MCP surface followed. `variance run` now completes over a
 real Storybook — *new → accept → unchanged → 5 of 8 changed on a one-component
 edit* — and the first execution of that cycle found five defects nothing else
-could ([journal 0014](docs/context/journal/0014-the-incumbent.md)). Nothing is
-published and there is no hosted anything. Read [what does not exist
+could ([journal 0014](docs/context/journal/0014-the-incumbent.md)). A run also
+reports what no comparison can reach: accessibility defects present on the first
+run, and, across two locales, which string nobody translated and which box
+stopped fitting ([journal 0015](docs/context/journal/0015-without-a-baseline.md)).
+Nothing is published and there is no hosted anything. Read [what does not exist
 yet](#what-does-not-exist-yet) before believing any of the rest.
 
 ---
@@ -151,6 +154,30 @@ at all. [`cases/README.md`](cases/README.md) says so at more length.
 
 ---
 
+### "What can you tell me that a screenshot cannot?"
+
+Two things, and neither is a better comparison.
+
+**A defect that was there on the first run.** A button that never had an
+accessible name compares equal to itself on every run there will ever be, so
+approving the first baseline approves the defect. `variance run` reads each
+render on its own and reports five kinds of defect in it — a control with no
+accessible name, an image with no `alt`, a heading level skipped, a control
+inside a control, a label pointing at nothing — each naming a component and a
+file. They never change the verdict; a tool that blocks a merge on day one over
+findings nobody asked for gets switched off in week one.
+
+**Which string nobody translated.** A message catalogue and a PNG have no key in
+common, so the category's answer to a localized UI is N times as many screenshots
+and a person to look at all of them. Comparing one subject across two languages
+is arithmetic here: a string identical in both where others moved, and a box that
+fitted its container in one language and does not in the other. Measured on one
+panel in English and German against real Chromium layout — 16 strings translated,
+one left behind, 2 boxes overflowing at a 300px width and none at 420px.
+
+*Both are facts about a document, so they cost no screenshot. Neither has been
+run against an application anybody else wrote.*
+
 ### "Where do test cases come from?"
 
 **From you.** Jest, Vitest, Storybook, Playwright — you choose. There is no
@@ -161,8 +188,9 @@ Both rendering surfaces emit the same snapshot format and enter the same
 normalizer, so a subject can be decided in a unit test today and in a browser
 tomorrow without being written twice.
 
-*Built: Vitest/Jest via `jsdom`, and Playwright. Story-shaped subjects work; a
-Storybook plugin does not exist.*
+*Built: Vitest/Jest via `jsdom`, and Playwright. `variance run` drives a real
+Storybook end to end through a collector the operator writes — about a hundred
+lines, once, per project. There is no plugin.*
 
 ### "Where are results stored?"
 
@@ -172,8 +200,10 @@ image is never hand-merged: you take one side.
 
 History is a different artifact with different rules — see the next question.
 
-*Designed, not built. Today the durable store is a local directory partitioned by
-renderer identity.*
+*Built: a local directory partitioned by renderer identity, a git-LFS store, and
+a remote store, all three producing identical verdicts on the same four
+scenarios. Never exercised: git-LFS as git-LFS — no clean/smudge filter has run
+and no image has been committed through it.*
 
 ### "Who runs the backend?"
 
@@ -197,7 +227,11 @@ resolution, and the hashes of a merge commit are neither branch's. A database ha
 no merge conflicts because it stores *observations*, not state. See
 [spec 0002](docs/specs/0002-history-store.md).
 
-*Designed, not built.*
+*Built and unit-tested — the hashing, the drift arithmetic, the SQLite backend,
+the HTTP surface, append-only enforced at the database level. **Never called from
+a run**: `variance accept` explicitly refuses to record, so no row exists. This
+is the largest gap in the project and it is the first entry under [what does not
+exist yet](#what-does-not-exist-yet).*
 
 ### "Who runs the pipeline?"
 
@@ -205,8 +239,9 @@ no merge conflicts because it stores *observations*, not state. See
 phones anything, schedules anything, or needs a hosted control plane to reach a
 verdict.
 
-*Built as a library. There is no CLI yet, so today "configure it" means calling
-the packages from your own test files.*
+*Built: `variance run`, `accept`, `report`, `serve` and `comment`, driven end to
+end over a Storybook this project did not write. Never run against a repository
+outside this one.*
 
 ### "Who generates the images?"
 
@@ -262,7 +297,7 @@ tiers are cheap in practice and not only on paper.
 
 | | requires | |
 |---|---|---|
-| [`dom`](packages/dom) | a live DOM | extraction, and CSS applicability pruning |
+| [`dom`](packages/dom) | a live DOM | extraction, CSS applicability pruning, and provenance from `data-*` for anything that is not React |
 | [`react`](packages/react) | React internals | fibers → owner chains, props digests, portals |
 | [`session`](packages/session) | a live DOM | many subjects in one standing world |
 | [`playwright`](packages/playwright) | a browser | the persistent harness, and a renderer |
@@ -328,9 +363,13 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
 
 Stated plainly, because everything above is easier to believe with this beside it.
 
-- **History.** No per-component band hashing, no store, no drift answers. Decided
-  in [spec 0001](docs/specs/0001-component-hashing.md) and
-  [spec 0002](docs/specs/0002-history-store.md), not written.
+- **A history with a row in it.** The hashing, the drift arithmetic, the store
+  and the service are written and unit-tested; **nothing has ever called them
+  from a run.** `variance accept` explicitly refuses to record. So the 22px story
+  this README opens with has never once been produced by the pipeline, which is
+  the largest gap in the project. This bullet read "no per-component band
+  hashing, no store, no drift answers" until 2026-08-02, which was wrong in the
+  other direction — the code landed and the sentence did not move.
 - **A GitHub Action, PR comments, commit-back.** Committed and never run once.
   The CLI itself does now run — see [`cases/storybook-case`](cases/storybook-case)
   — but only against a project in this repository, and the mounting half of a
@@ -340,8 +379,22 @@ Stated plainly, because everything above is easier to believe with this beside i
   currently reports every region as `collateral` and orders them by area — the
   ordering [journal 0013](docs/context/journal/0013-observability.md) measured as
   backwards. `observePair` does not have this problem.
-- **Git-LFS and remote artifact storage.** The durable store is a local directory.
-- **Storybook integration.** Story-shaped subjects work; a plugin does not exist.
+- **git-LFS exercised as git-LFS.** The store is written and its tests inject a
+  fake `CommandRunner` in every case but one. No clean/smudge filter has ever
+  run and no image has been committed through it.
+- **A shipped collector.** Story-shaped subjects work and one worked example
+  exists ([`cases/storybook-case/collector/`](cases/storybook-case/collector),
+  about a hundred lines). There is no plugin, and mounting is the adopter's to
+  write, once, per project.
+- **Any framework but React, actually run.** Provenance needs a component name
+  per element. React gets it from fibers; anything else gets it from two `data-*`
+  attributes and 25 lines
+  ([`packages/dom/src/attributed.ts`](packages/dom/src/attributed.ts)), which is
+  what a Vue or Svelte build step already emits. No Vue, Svelte or Angular
+  application has been through it.
+- **A localized application.** `compareLocales` finds untranslated strings and
+  boxes that stopped fitting, measured against real Chromium layout on one panel
+  in two languages. One panel is not an application.
 - **Linux verification.** Every number here is from one Mac and one Chromium.
 - **Generality.** One corpus, built by us. Both profiles agree on it, which proves
   the two collection paths implement one ruleset — not that the ruleset holds on

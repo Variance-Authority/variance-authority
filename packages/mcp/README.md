@@ -43,7 +43,7 @@ npx variance-authority-mcp .variance/run.json    # directly
 
 ## What an agent can ask
 
-Four tools, all answering from the artifact and **never re-running anything**.
+Five tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
 are asked wherever the agent is.
 
@@ -52,9 +52,16 @@ import { toolByName } from '@variance-authority/mcp/tools';
 
 toolByName('variance_summary')?.run(report, {});
 toolByName('variance_describe')?.run(report, { subject: 'story:card--populated' });
+toolByName('variance_findings')?.run(report, {});
 toolByName('variance_trace_component')?.run(report, { component: 'Button' });
 toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--populated' });
 ```
+
+`variance_findings` is the one that is not about a change. A control that never
+had an accessible name compares equal to itself on every run, so a comparison can
+never report it — and an agent asked to fix a component wants it anyway. Its
+findings do not affect the verdict, and an empty answer distinguishes *inspected
+and clean* from *nobody looked*, for the same reason the coverage section does.
 
 ## The failure it is built to refuse
 

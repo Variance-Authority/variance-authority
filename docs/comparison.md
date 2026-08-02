@@ -26,11 +26,11 @@ The specific consequences, so they are not left to be inferred:
 | They have | This has |
 |---|---|
 | Chrome, Firefox, Safari, Edge, mobile emulators or real devices | One Chromium build, `deviceScaleFactor: 1`, one font stack, `color-scheme: light` pinned |
-| A hosted dashboard designers and PMs use without repo access | A JSON report and four MCP tools |
+| A hosted dashboard designers and PMs use without repo access | A JSON report and five MCP tools |
 | Years of contact with third-party component libraries | One corpus, written by the same people who wrote the implementation |
 | Support, SLAs, and someone to call | A git repository |
 | MIT (Argos), or a commercial contract legal can sign | No licence chosen yet. The project is scaffolding — nothing is published and no distribution has been decided, so there is nothing to license *to* anyone. A reader evaluating it for adoption should read the rest as a description of an approach rather than of something obtainable |
-| A working install path: `npx`, a token, a green check on a PR | A CLI that has never been executed against a real project ([§4.2](#42-nothing-above-the-cli-boundary-has-been-run)) |
+| A working install path: `npx`, a token, a green check on a PR | A CLI executed end to end against one Storybook this project did not write, and against nothing else ([§4.2](#42-nothing-above-the-cli-boundary-has-been-run)) |
 | Linux CI, verified by every customer who runs it | Every measurement in this repository from one M-series Mac |
 
 Anything below that reads as an advantage should be read against this table. The
@@ -43,16 +43,16 @@ surface area is not one of them.
 
 | | **Percy** (BrowserStack) | **Chromatic** | **Argos** | **Applitools** | **Variance Authority** |
 |---|---|---|---|---|---|
-| **Integration surface** | 20+ SDKs: Selenium, Playwright, Cypress, Puppeteer, Storybook, Appium; plus no-code URL list, sitemap, static dir, crawler ([SDKs](https://www.browserstack.com/docs/percy/overview/supported-sdks)) | Storybook first-class (stories become tests with no authoring), plus Playwright, Cypress, Vitest ([docs](https://www.chromatic.com/docs/storybook/)) | Playwright, Vitest, Storybook, Cypress, WebdriverIO, Puppeteer, plus a CLI that takes any PNG ([docs](https://argos-ci.com/docs/overview.md)) | 30+ SDKs across five languages, native mobile, Tosca, Katalon ([docs](https://applitools.com/docs/eyes)) | Vitest/Jest via jsdom, and Playwright. Storybook adapter written against fixtures only. **React only for provenance** |
+| **Integration surface** | 20+ SDKs: Selenium, Playwright, Cypress, Puppeteer, Storybook, Appium; plus no-code URL list, sitemap, static dir, crawler ([SDKs](https://www.browserstack.com/docs/percy/overview/supported-sdks)) | Storybook first-class (stories become tests with no authoring), plus Playwright, Cypress, Vitest ([docs](https://www.chromatic.com/docs/storybook/)) | Playwright, Vitest, Storybook, Cypress, WebdriverIO, Puppeteer, plus a CLI that takes any PNG ([docs](https://argos-ci.com/docs/overview.md)) | 30+ SDKs across five languages, native mobile, Tosca, Katalon ([docs](https://applitools.com/docs/eyes)) | Vitest/Jest via jsdom, and Playwright. Storybook driven end to end by `cases/storybook-case`. Provenance from React fibers, or from **two `data-*` attributes any build step can emit** ([§3.1](#31-a-diff-that-names-a-component-and-a-file)) |
 | **Where rendering happens** | Vendor. DOM serialized in your browser, re-rendered server-side across browsers/widths, **JS disabled by default** ([workflow](https://www.browserstack.com/docs/percy/integrate/percy-sdk-workflow)) | Vendor "Capture Cloud". Storybook bundle or E2E archive uploaded and re-rendered ([docs](https://www.chromatic.com/docs/snapshots/)) | **Customer CI.** Argos never launches a browser; it receives PNGs and diffs them ([docs](https://argos-ci.com/docs/overview.md)) | Vendor. Ultrafast Grid re-renders a DOM snapshot in containers; mobile is emulated/simulated ([UFG](https://applitools.com/docs/eyes/concepts/test-execution/ultrafast-grid)) | **Customer, everywhere.** jsdom in the unit-test process, or one Chromium the run owns. Optional remote renderer the operator runs |
 | **Cost model** | **Per screenshot** = page × browser × width. Free 5,000/mo; Desktop $199/mo annual → 10,000, overage **$0.036** ([pricing](https://www.browserstack.com/pricing?product=percy)) | **Per billed snapshot** = tests × builds × browsers × modes; TurboSnap = 0.2. Free 5,000/mo; Starter $179/mo → 35,000, overage **$0.008** ([billing](https://www.chromatic.com/docs/billing/)) | **Per screenshot.** Free 5,000/mo; Pro from $100/mo → 35,000, overage **$0.004** ($0.0015 Storybook). SSO priced separately ([pricing](https://argos-ci.com/pricing)) | **Per Page** = a unique checkpoint *regardless of browser, device or version*. No public price at any tier ([pricing](https://applitools.com/pricing/), [ToS](https://applitools.com/terms-of-use/)) | No unit. Compute is the operator's; storage is a directory, git-LFS (**never exercised as git-LFS**, [§4.2](#42-nothing-above-the-cli-boundary-has-been-run)) or a remote endpoint the operator runs. Sized below — estimated, never operated |
 | **Flakiness handling** | Determinism up front — JS off, GIFs frozen, CSS animations frozen ([animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations)) — plus manual suppression. No per-snapshot flake rate, quarantine or retry documented as of 2026-08-02; retries may exist at the test-runner layer instead | SteadySnap: render stabilization, Burst Capture (multiple renders, pick most stable), freeze frame, **auto-migrated baselines across their own browser upgrades** ([SteadySnap](https://www.chromatic.com/features/steadysnap)) | **Diff fingerprints.** An ignore is a (test, diff-shape) pair; auto-ignore after N occurrences in 7 days; flakiness score 0–100 per test; an Ignored register with occurrence counts ([docs](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md)) | Perceptual matching, six match levels, floating/ignore/layout regions, DOM-anchored ignore regions, `MatchTimeout` 2s retry. No cross-run flake score documented as of 2026-08-02 ([match levels](https://applitools.com/docs/eyes/concepts/best-practices/match-levels)) | **No flake rate, no quarantine, no retry, and no cross-run data at all** ([§4.1](#41-nothing-has-ever-recorded-a-history-row)) — strictly less mitigation than the two cells to the left. What exists instead is a classification of causes by what absorbs them: construction, environment key, policy, or **nothing** — and [flakiness.md](flakiness.md) lists five causes currently absorbed by nothing, including mid-flight animations and cross-origin stylesheets. Cross-pollution is attributed to a named writer rather than suppressed. That is a position, not a mitigation |
-| **Attribution: does a diff name a component and a file?** | **No.** Root Cause Analysis names the changed element's CSS class, or its tag if it has none. No component, no file, no commit ([RCA](https://www.browserstack.com/docs/percy/root-cause-analysis/overview)) | **Component yes, by construction; file no.** A snapshot *is* a story, so the story title names the component. For a page-level story the answer is "this page moved". `npx chromatic trace` walks the module graph file→story offline — the same category of offline repo lookup this project's own last hop uses, pointed the other way ([trace](https://www.chromatic.com/docs/turbosnap/trace-utility/)) | **No.** Metadata carries the *test spec's* file and line (`tests/home.spec.ts:42:3`) and the Storybook story id. No component field and no map from a diff to product code in the documented metadata ([metadata](https://argos-ci.com/docs/reference/screenshot-metadata.md)) | **No.** RCA names DOM elements and changed CSS properties with a DOM path. GitHub status Details links go to the Test Manager, not to source ([RCA](https://applitools.com/docs/eyes/concepts/reviewing-tests/root-cause-analysis)) | **Yes, measured on one corpus**: pixels → regions → components → `file:line`, ranked from the semantic tier. **React only.** The `cause`/`collateral` ranking rests on one mutation, one story, one self-authored example app, one machine ([§3.1](#31-a-diff-that-names-a-component-and-a-file)) |
+| **Attribution: does a diff name a component and a file?** | **No.** Root Cause Analysis names the changed element's CSS class, or its tag if it has none. No component, no file, no commit ([RCA](https://www.browserstack.com/docs/percy/root-cause-analysis/overview)) | **Component yes, by construction; file no.** A snapshot *is* a story, so the story title names the component. For a page-level story the answer is "this page moved". `npx chromatic trace` walks the module graph file→story offline — the same category of offline repo lookup this project's own last hop uses, pointed the other way ([trace](https://www.chromatic.com/docs/turbosnap/trace-utility/)) | **No.** Metadata carries the *test spec's* file and line (`tests/home.spec.ts:42:3`) and the Storybook story id. No component field and no map from a diff to product code in the documented metadata ([metadata](https://argos-ci.com/docs/reference/screenshot-metadata.md)) | **No.** RCA names DOM elements and changed CSS properties with a DOM path. GitHub status Details links go to the Test Manager, not to source ([RCA](https://applitools.com/docs/eyes/concepts/reviewing-tests/root-cause-analysis)) | **Yes, measured on one corpus**: pixels → regions → components → `file:line`, ranked from the semantic tier. Two provenance adapters — React fibers, and 25 lines reading `data-component`/`data-props`, which is what a Vue or Svelte build step already emits. The `cause`/`collateral` ranking rests on one mutation, one story, one self-authored example app, one machine ([§3.1](#31-a-diff-that-names-a-component-and-a-file)) |
 | **Review and approval** | Dashboard approval persisting across a branch's lifespan, snapshot rules that persist to future branches, **unlimited users on every tier including Free** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | UI Test and UI Review as separate checks, assigned and persistent default reviewers, threaded discussion anchored to an individual snapshot, no repo access required for designers ([review](https://www.chromatic.com/docs/review/)) | Multiple independent reviewers, comments pinned to an exact pixel or line range, a full keyboard path, per-test discussion threads ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Triage grouped by the *shape* of the diff, one accept propagating across the batch ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)) | **The axis this loses hardest, and the one these products are bought for.** `variance accept` writes a sidecar beside an image and explicitly refuses to record history ([§4.1](#41-nothing-has-ever-recorded-a-history-row)). No UI, no reviewer model, no discussion, no merge semantics for two branches accepting differently — and it has never been run |
 | **Accumulated history** | Approval persists across a branch's lifespan; snapshot rules persist; 30-day (Free) / 12-month (paid) build history. **No longitudinal per-snapshot metric** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | Per-branch baselines with branch-point inheritance, squash/rebase detection via git provider APIs, browsable baseline revision history. Retention unpublished below Enterprise ([branching](https://www.chromatic.com/docs/branching-and-baselines/)) | **The strongest in the category.** Per-test flakiness over 24h–90d windows, changes grouped by fingerprint and ranked by recurrence, first/last seen, per-test discussion threads, account analytics with CSV ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Baselines keyed by app × test × OS × browser × viewport, with revision history, branch baselines and a merge UI; Insights charts. 1-year retention stated on Public Cloud only ([baselines](https://applitools.com/docs/eyes/getting-started/applitools-workflow/baselines)) | Designed and coded: per-component band hashes + resolved token values, append-only, no pixels. **Nothing has ever written a row** — see [§4.1](#41-nothing-has-ever-recorded-a-history-row) |
 | **Self-hosting** | **None, and the architecture forecloses it** — the SDK's function is to ship your DOM to Percy's API. "Automate Self-Hosted" is a different product | **None.** "On-premises" in their docs means self-hosted *git providers* ([FAQ](https://www.chromatic.com/docs/faq/chromatic-sso-on-premises-other-git/)) | MIT-licensed in full, **and the vendor states self-hosting "is not officially supported or documented"** — needs Postgres, RabbitMQ, Redis, S3, DynamoDB, a GitHub App and Stripe ([docs](https://argos-ci.com/docs/overview.md)) | **Yes** — on-premise Eyes server, images stored locally; also private dedicated cloud ([modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes), ~7 years old). Scoped to Eyes, not Autonomous | Nothing hosted exists, so nothing has to be opted out of: no telemetry, no phone-home, one outbound call to a renderer endpoint the operator supplies. That is not the same as a self-hosting *story* — **no license** (see the table above), no install path, no upgrade path, no backup story, and the history service is one SQLite file behind a bearer token with no concurrency test ([§4.5](#45-targets-never-measured-and-limits-never-tested)) |
 | **Data residency** | Geo Region Restriction, **Enterprise plan only, via an Account Executive**; metadata such as test names stays in the default region regardless ([GRR](https://www.browserstack.com/docs/enterprise/security/geo-region-restriction)) | **Undocumented publicly.** No stated provider, region, or EU option; SOC 2 Type 2 and 99.9% SLA are stated ([security](https://www.chromatic.com/security)) | **US only.** S3 in the US under Standard Contractual Clauses; no documented EU option. SOC 2 Type II ([security](https://argos-ci.com/security)) | Customer-selectable data-centre location including EU on Azure or customer premises; ISO 27001. GDPR page last updated May 2021 ([GDPR](https://applitools.com/legal/gdpr/)) | The operator's network, and the operator's compliance work. Nothing leaves that network, but that is the operator's claim about their own infrastructure, not an attestation: no SOC 2, no ISO 27001, no DPA, no retention policy, no deletion path, no pen test, no auditor has ever read this code. Residency becomes a question about the operator rather than an answer ([§5](#5-when-not-to-choose-this)) |
-| **Maturity** | Mature, broad, backed by BrowserStack | Mature; built by the Storybook maintainers | Mature enough to run production suites; small team, key-person concentration | Mature, enterprise sales motion, some docs 7–8 years old | **M0 spike.** 53 test files, 884 passing / 3 skipped, ~26k lines of source and ~13k of test. Zero external users. Nothing published, nothing licensed. A test count is a poor maturity metric here and [§4](#4-what-is-written-and-unrun) says why |
+| **Maturity** | Mature, broad, backed by BrowserStack | Mature; built by the Storybook maintainers | Mature enough to run production suites; small team, key-person concentration | Mature, enterprise sales motion, some docs 7–8 years old | **M0 spike.** 73 test files, 1308 passing / 3 skipped. Zero external users. Nothing published, nothing licensed. A test count is a poor maturity metric here and [§4](#4-what-is-written-and-unrun) says why |
 
 ### The one commercial fact worth isolating
 
@@ -139,9 +139,16 @@ comparison: a known $283/mo against an unknown engineering commitment.
 
 - **Zero-authoring test discovery.** If stories exist, tests exist. Play
   functions run as interaction tests before capture
-  ([docs](https://www.chromatic.com/docs/storybook/test/)). This project's
-  Storybook adapter has never met a Storybook
-  ([§4.4](#44-the-storybook-adapter-has-never-met-a-storybook)).
+  ([docs](https://www.chromatic.com/docs/storybook/test/)). Here the operator
+  writes a collector — about a hundred lines, once
+  ([§4.3](#43-there-is-no-shipped-collector)).
+- **Accessibility as a product, not a rule list.** axe on every snapshot, in a
+  dashboard, with a triage flow and a history
+  ([a11y](https://www.chromatic.com/docs/accessibility-tests/)). This project
+  computes the accessibility tree and reports defects in it
+  ([§3.5](#35-what-a-comparison-cannot-reach)) with a component and a file
+  attached, which axe does not do — but the rule list is five rules against
+  axe's ~90, there is no UI, and nobody has triaged anything.
 - **Baseline and branching semantics worked out in production.** Per-branch
   baselines, branch-point inheritance, most-recent-approved-wins on ambiguous
   merges, and explicit squash/rebase detection through git provider APIs when git
@@ -218,7 +225,7 @@ comparison: a known $283/mo against an unknown engineering commitment.
 
 ## 3. Where this project is genuinely different
 
-Four axes. Each is stated with what has been measured and what has only been
+Five axes. Each is stated with what has been measured and what has only been
 built or argued. Every measured figure names the file that produces it. **`yarn
 test` re-derives the verdict counts; it does not re-derive the timings.** Three
 README figures come from scripts no test asserts
@@ -242,7 +249,7 @@ Two framing caveats apply to everything in this section:
 
 ### 3.1 A diff that names a component and a file
 
-**On React this is the axis with the widest gap, and the gap is narrower against
+**This is the axis with the widest gap, and the gap is narrower against
 Chromatic than against the others.** Percy's Root Cause Analysis stops at a CSS
 class or an HTML tag. Applitools' stops at a DOM path and changed CSS properties.
 Argos carries the *test spec's* file and line. For a component-level Storybook
@@ -251,6 +258,14 @@ sits next to it — is sufficient and needs no fiber traversal; `chromatic trace
 already walks that module graph. The gap opens on page-level and E2E subjects,
 where every competitor's answer collapses to "this page moved", and on the
 cause/collateral split, which none of them attempt at all.
+
+The cause/collateral split is also where this project's own reporting was wrong
+until 2026-08-02, which is worth stating because it is the claim being made. A
+`prop` root — `Panel → Button`, meaning `Panel` passed something new — was
+labelled correctly on the docket entry and then attributed to `Button` in the
+per-component roles the report actually prints. A reviewer following it opened a
+file nobody had edited. `Root.cause` now records the responsible component;
+`packages/dom/src/attributed.test.ts` asserts the distinction.
 
 **Measured.** `examples/todomvc/src/observe.chromium.test.ts` (10 tests) takes a
 real Chromium screenshot pair through mask → regions → box tree → owner chain →
@@ -328,11 +343,21 @@ Supporting measurements:
   aggregates roots by stable root id and is tested on constructed diffs at
   **3 subjects** (`packages/core/src/docket.test.ts`, 12 tests). "One token, 300
   collateral, one action" is demonstrated at 3, not 300.
-- **Provenance is React-only.** `collect()` takes `provenanceOf` as a caller
-  supplied callback (`packages/dom/src/collect.ts:52`), so the
-  interface is framework-agnostic; the only implementation is
-  `packages/react`. For Vue, Svelte or Angular, the differentiating
-  axis of this entire document does not currently exist.
+- **No Vue, Svelte or Angular application has been run through this.** What was
+  written here until 2026-08-02 was stronger and wrong: "provenance is
+  React-only", stated as a property of the approach. It was a count of
+  implementations. `collect()` takes `provenanceOf` as a caller-supplied
+  callback, and attribution needs a renderer to supply exactly two things — a
+  component name per element and a digest of what was passed in.
+  `packages/dom/src/attributed.ts` is the second implementation and reads them
+  from two `data-*` attributes in **25 lines**;
+  `packages/dom/src/attributed.test.ts` drives the whole chain — diff, docket,
+  root versus collateral — from markup with no framework in the process, and
+  asserts that the attributes are dropped before hashing so adding a build
+  plugin invalidates no stored baseline. Vue's `vite-plugin-vue-inspector`
+  already emits an attribute of this shape; Svelte's compiler knows the
+  component and the file for every element. What is unmeasured is any real
+  application of any of them.
 
 ### 3.2 Flakiness treated as a taxonomy of absorption, not a tolerance
 
@@ -562,6 +587,77 @@ persisting with no merge.
 **Not measured, and this is the largest gap in the project.** See
 [§4.1](#41-nothing-has-ever-recorded-a-history-row).
 
+### 3.5 What a comparison cannot reach
+
+Everything above answers *what changed*, which needs two of something. Two
+questions a product actually has are not of that shape, and every tool in the
+category is structurally unable to answer either, because the artifact it kept is
+an image.
+
+**A defect present on the first run is invisible to a comparison forever.** A
+button that never had an accessible name compares equal to itself on every run
+there will ever be, and approving the first baseline approves the defect along
+with it. This is not a tuning problem in any product; it is what comparing two of
+something means.
+
+**Measured** — `packages/core/src/judge/inspect.test.ts` (17 tests) reads one
+normalized snapshot. Five rules a document can decide without guessing: a control
+with no accessible name, an image with neither a name nor an explicit `alt=""`, a
+heading level skipped, a control nested inside a control, an id reference that
+resolves to nothing. Each names a component and a file through the same
+provenance chain a delta uses, and each bands `a11y`, so `blocking: ['a11y']`
+covers inspection and comparison under one policy.
+
+`cases/incumbent-case` asserts both halves of what this reaches. Three of its
+eight scenarios are accessibility regressions no configuration of
+`toHaveScreenshot` detects; inspection reaches **one** of the three from the
+broken render alone. A `<div>` with no role is not a defect in any render taken
+on its own — it becomes one only against the `<button>` it replaced. Inspection
+and comparison catch different things and neither contains the other.
+
+**Deliberately not an axe-core reimplementation.** Axe runs against a live DOM
+with computed visibility, contrast and focus order, and has roughly ninety rules
+to these five. Chromatic ships axe with a dashboard and a triage flow, and that
+is the better product for a team whose requirement is accessibility checking.
+What these five do that axe does not: name the component and the file, and decide
+**offline, from a stored artifact, months later**.
+
+**A message catalogue and a PNG have no key in common.** There is no relation
+between the string `checkout.cta` and a region of an image, so the category's
+answer to a localized UI is N times as many screenshots and a person to look at
+all of them.
+
+**Measured** — `packages/core/src/judge/locale.test.ts` (10 tests) and
+`cases/incumbent-case/src/locale.chromium.test.ts` (4 tests, real Chromium
+layout), one panel in English and German:
+
+```
+  translated strings   16
+  identical strings    2
+  widest growth        2.02× at RowAction
+  overflows at 420px   0
+  overflows at 300px   2
+```
+
+Two findings, both facts rather than ratios: a string identical in both languages
+in a subject where other strings moved, and a box that fitted its container in one
+language and does not in the other. **No expansion threshold** — "German is 35%
+longer" is a rule of thumb, and a build that fails on a ratio is a build whose
+ratio gets raised until it stops failing. The growth is measured and reported.
+
+Two predictions in that measurement were wrong and the corrections are the useful
+part. The first run found *nothing*, because the rule read text nodes and the only
+untranslated string was a `title`; in a real product the forgotten strings are
+precisely the ones that are not text nodes — an `aria-label`, a `placeholder`, an
+`alt` — which render no pixel of their own. And at 420px German fits: whether a
+translation fits is a property of the translation *and* its container, which is
+why a ratio cannot answer it and two rectangles can.
+
+**Claimed, not measured.** No localized application has been run through this.
+The incumbent was not run at two locales either — that their model needs a
+baseline per locale per subject follows from how `toHaveScreenshot` is keyed, and
+is an argument from the shape of the thing, not a measurement.
+
 ---
 
 ## 4. What is written and unrun
@@ -651,9 +747,9 @@ pipeline.
   repository does not contain and no-ops, so no job has launched a browser, no
   artifact has been uploaded, and no pull request has ever been commented on.
   Spec 0005's acceptances are unmet by execution, not by absence of code.
-- **The MCP layer has never served an agent.** Four tools shaped by argument
+- **The MCP layer has never served an agent.** Five tools shaped by argument
   about what an agent needs, tested against text (`packages/mcp/src/mcp.test.ts`,
-  21 tests, including chunk-boundary reframing).
+  38 tests, including chunk-boundary reframing).
 
 ### 4.3 There is no shipped collector, and that is the design
 
@@ -674,7 +770,7 @@ What has not changed is that a buyer comparing integration surfaces should read
 this as a cost. Percy ships 20+ SDKs and Argos takes any PNG from a CLI; here the
 mounting half is the adopter's to write, once, per project.
 
-### 4.4 The Storybook adapter has met a Storybook; the CLI has not
+### 4.4 The Storybook adapter and the CLI have both met a Storybook
 
 **Corrected 2026-08-02, after `cases/storybook-case` landed.** This section
 previously read "has never met a Storybook", and that is no longer true: Storybook
@@ -733,12 +829,12 @@ products above is the better answer, and in most cases it is not close.
 | Condition | Why it disqualifies | Go to |
 |---|---|---|
 | **Something is needed this quarter** | Nothing above the CLI boundary has been run once. Adopting this means finishing it | Any of the four |
-| **The frontend is not React** | Provenance is React fiber traversal. Without it, diffs resolve to nothing better than a DOM path — which is what every competitor already gives, with support. Even on React, the traversal reads unversioned internals and is verified only against **19.2.8**; ADR-0005 names three internal contracts it depends on, and the third would fail *silently*, returning props digests one render stale. A React upgrade is a re-verification event, not a version bump | Argos, Chromatic |
+| **The frontend is not React, and nobody will add a build plugin** | Provenance needs a name per element. React gets it from fiber traversal; anything else gets it from two `data-*` attributes, which is a build-step change somebody has to make and own. Without either, diffs resolve to a DOM path — what every competitor already gives, with support. On React the traversal reads unversioned internals verified only against **19.2.8**; ADR-0005 names three internal contracts, and the third fails *silently*, returning props digests one render stale. A React upgrade is a re-verification event, not a version bump | Argos, Chromatic |
 | **Cross-browser or cross-device coverage is the requirement** | One Chromium. No Firefox, no Safari, no Edge, no mobile, no real devices | Applitools (one Page covers the matrix), Percy, Chromatic |
-| **Non-engineers must review** | There is a JSON report and four MCP tools. No dashboard, no approval UI, no threaded discussion, no invite flow | Chromatic (UI Review), Percy, Applitools |
+| **Non-engineers must review** | There is a JSON report and five MCP tools. No dashboard, no approval UI, no threaded discussion, no invite flow | Chromatic (UI Review), Percy, Applitools |
 | **Cost predictability matters more than cost structure** | There is no unit and no bill, but also no ceiling on the engineering time to operate a spike. A published $0.004/screenshot with a spend cap is a more predictable number than "your own infrastructure" | Argos |
 | **Longitudinal flake data is needed now** | Argos already ships per-test flakiness scores, fingerprint-grouped recurrence, and an audited ignore register. Here, the history tier is written and has never recorded a row ([§4.1](#41-nothing-has-ever-recorded-a-history-row)) | Argos |
-| **Storybook is the test surface and coverage should be automatic** | Chromatic turns every story into a test with no authoring, and maintains Storybook. The adapter here has never met a real Storybook ([§4.4](#44-the-storybook-adapter-has-never-met-a-storybook)) | Chromatic |
+| **Storybook is the test surface and coverage should be automatic** | Chromatic turns every story into a test with no authoring, and maintains Storybook. Here the operator writes the collector — about a hundred lines, once, per project ([§4.3](#43-there-is-no-shipped-collector)) | Chromatic |
 | **The content under test is canvas, WebGL, video, or heavy third-party iframes** | The bitmap lives in a rendering context, not the document. This is structural, not a missing feature | A pixel differ — any of them |
 | **Regulated data with a contractual residency requirement, plus a vendor to sign it** | Self-hosting solves the residency problem and creates a supplier-risk problem: the supplier is a spike with no support commitment | Applitools (real on-premise), or Percy Enterprise GRR |
 | **A team that will not maintain its own tooling** | Every property in [§3](#3-where-this-project-is-genuinely-different) is bought with operator effort that the SaaS products absorb | Any of the four |
