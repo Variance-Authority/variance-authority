@@ -51,6 +51,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B9 | **impact axis** — reflow vs repaint, orthogonal to the frequency bands | landed; answers B6's leftover band-cardinality question |
 | B10 | **intent / adjudication** — declared claims vs findings, and the locate/source chain | landed; a report is a cause, a place and a file |
 | B11 | **raster tier** — six phases, two retention modes, MCP surface | landed and measured; found that area ranks the displaced above the displacer |
+| B13 | **the boundary** — what a package is, and what an entrypoint costs | landed; ADR-0013, enforced by `tools/boundaries.test.ts` |
 | B12 | **history** — what accumulates across runs, and where it lives | **specified, not built** ([specs 0001–0002](../specs/README.md)); first implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
@@ -69,6 +70,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M8 | B10 | Intent, policy, adjudication (spec §7.2); ADR-0010's two environment keys | **expected** — `rebrand` and `rebrand-with-accident` change the same 14 screenshots and adjudicate differently |
 | M9 | B10 | `locate` and `source` — landmark orientation, component→file by reading the repo | **expected** — `_debugSource` is gone in React 19, so per-element source is a plugin story nothing tells |
 | M10 | B11 | Raster phases, durable/ephemeral retention (ADR-0011), MCP surface | **mixed** — the offload works and the ranking did not; area measures displacement, so the ordering now comes from the semantic tier (journal 0013) |
+| M12 | B13 | Cut packages by requirement rather than by feature; group `core`; enforce the rule as a test | **expected, and it found drift** — `raster` was four requirements in one box; four packages imported test-time requirements they never declared, which works in a workspace and breaks on a standalone install |
 | M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. specs 0001 and 0002 record what replaces both; nothing is implemented |
 
 ---
@@ -115,6 +117,10 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   subject's geometry that responds to its styling, over a socket, byte-identically
   — which is enough to offload and is not the same claim as "the image matches the
   page it was acquired from".
+- **The layout is checked, the *naming* is not.** `tools/boundaries.test.ts`
+  proves every import is declared and every requirement has one owner. Nothing
+  proves a package's name still describes what it needs — `store` could grow a
+  socket and only a reader would notice.
 - **The MCP layer has never served a real agent.** Four tools shaped by argument
   about what an agent needs, tested against text rather than against use.
 - **The font probe reports metric-compatible substitutes as missing.** A false

@@ -6,6 +6,10 @@
  * rule applies requires a live DOM — and does no other cleanup, because every
  * other normalization rule must be versioned by the ruleset rather than by the
  * collector (ADR-0001, ADR-0003).
+ *
+ * **Requires a live DOM**, which is the whole reason it is not part of `core` and
+ * the reason nothing else is part of it. Both profiles supply one — jsdom in a
+ * unit test, Chromium in a page — and neither is named here.
  */
 
 export { collect, conditionsFor } from './collect.js';

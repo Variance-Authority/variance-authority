@@ -35,7 +35,7 @@ Root enumeration, where it is needed, scans for `__reactContainer$<random>` on
 elements rather than calling `hook.getFiberRoots()`.
 
 The package imports React nowhere. Fiber shapes are declared structurally, so
-`provenance-react` cannot pin, duplicate, or conflict with the application's
+`react` cannot pin, duplicate, or conflict with the application's
 React copy, and a React major upgrade is a runtime concern rather than a
 dependency-resolution one.
 

@@ -35,7 +35,7 @@ land in the document.**
 
 - `RawCapture.portals` carries the top-level elements the subject renders through
   portals, in fiber traversal order.
-- `portalContentOf` in `provenance-react` finds them by walking for `HostPortal`
+- `portalContentOf` in `react` finds them by walking for `HostPortal`
   fibers, so the boundary is read from the component tree, which is the thing
   that actually defines it.
 - Normalization appends each portalled subtree as a child of the subject root,

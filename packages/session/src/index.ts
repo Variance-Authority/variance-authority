@@ -29,6 +29,9 @@
  * One caller-side sharp edge: the subject container is the same element every
  * run, so a React caller must create one root per session and `root.render` per
  * subject. Calling `createRoot` per subject warns and leaks the previous root.
+ *
+ * **Requires a live DOM** and nothing else. It knows about React only through the
+ * caller's `mount`, so a session runs whatever a caller can put on a page.
  */
 
 export { createSession, Session } from './session.js';

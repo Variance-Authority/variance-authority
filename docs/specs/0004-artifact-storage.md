@@ -2,7 +2,7 @@
 
 **Status:** specified, not built
 **Depends on:** [0003](0003-cli.md)
-**Package:** `@variance-authority/raster`
+**Package:** `@variance-authority/store`, `@variance-authority/remote`
 
 ## Purpose
 

@@ -1,5 +1,5 @@
 /**
- * `@variance-authority/history` — the contract, the arithmetic, and a client.
+ * `@variance-authority/history` — the contract and the arithmetic.
  *
  * The question a single run cannot answer: a button gains 2px, eleven times, each
  * approved correctly, and nobody ever sees the 22px change. No threshold catches

@@ -23,7 +23,7 @@ exists, which is inside the rendering environment, and a `core` that imports
 
 The division "collectors extract, `core` normalizes, the transport is free" is
 therefore false in the one place it is load-bearing. A browser verification
-harness for `provenance-react` built against a Node-dependent `core` must stub
+harness for `react` built against a Node-dependent `core` must stub
 `node:crypto` to run at all, and such a stub verifies traversal while proving
 nothing about hashing.
 

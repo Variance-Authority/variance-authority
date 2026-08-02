@@ -22,19 +22,15 @@ project references, and Vitest**.
 
 Package dependencies point downward only:
 
-```
-cli
- ├── collector-playwright ──┐
- ├── collector-jsdom ───────┤
- │        └── provenance-react
- └── core ◀─────────────────┘
-```
-
 - `core` depends on **nothing** in the repo and has **no DOM, React, or browser
   types**. It is pure data: format, normalization, hash, diff, band, verdict.
-- Collectors depend on `core` for types and on `provenance-react` for owner chains.
-  They never depend on each other.
-- `provenance-react` depends on `core` types only.
+- Collectors depend on `core` for types and on `react` for owner chains. They
+  never depend on each other.
+- `react` depends on `core` types only.
+
+*How the rest are cut is ADR-0013: a package is named for what a consumer must
+supply, and holds only code that needs it.* This ADR settles the toolchain and
+the direction; ADR-0013 settles the boundary.
 
 `node_modules` is the linker output and is gitignored; `.pnp.cjs` is absent. The
 linker choice is revisitable once Playwright and the fiber internals are proven to

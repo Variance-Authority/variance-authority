@@ -402,11 +402,11 @@ cannot observe reports `unobserved` rather than passing (ADR-0002, ADR-0008).
 | Same corpus under `chromium` | `examples/kitchen-sink/src/measure.chromium.test.tsx` (69 tests, 1 skip) | **scorable 39, agreed 39/39, false unchanged 0, false changed 0** |
 | P4 — the two profiles agree on what both can observe | same file, one run, both halves | **comparable 38, agreement 38/38, undeclared divergence 0** |
 | Per-component band hashing: ancestors do not move on a descendant edit and vice-versa | `packages/core/src/component-hash.ts`, `component-hash.test.ts` (11 tests), corpus acceptance at `measure.chromium.test.tsx:363` | **structure 107/107 agree across profiles; style 0/107.** `structure` is the only cross-tier band; `style` and `geometry` are profile-scoped |
-| The six raster phases are separable; two need a browser, two need nothing | `packages/raster/src/assemble.test.ts` (6), `compare.test.ts` (5) | — |
-| A jsdom-acquired document renders byte-identically in-process and over an HTTP hop | `packages/raster/src/render-remote.test.ts` (5), `examples/todomvc/src/offload.chromium.test.tsx` (5) | — |
-| Baseline store partitioned by renderer identity | `packages/raster/src/store.test.ts` (11) | cross-identity → `incomparable`, never `unchanged` |
-| Identical verdicts and pixel counts across durable, git-LFS and remote stores | `packages/raster/src/store-parity.test.ts` (5) | 4 scenarios: `unchanged` / `changed` / `new` / `incomparable` |
-| A store that cannot be reached is an operator error, never `new` and never `unchanged` | `packages/raster/src/store-remote.test.ts` (14) | Unreachable endpoint, refused token, hanging lookup, unreadable body; no baseline written |
+| The raster phases are separable, and separately installable — two need a browser, two need nothing | `packages/raster/src/assemble.test.ts` (6), `packages/png/src/compare.test.ts` (5) | — |
+| A jsdom-acquired document renders byte-identically in-process and over an HTTP hop | `packages/remote/src/renderer.test.ts` (5), `examples/todomvc/src/offload.chromium.test.tsx` (5) | — |
+| Baseline store partitioned by renderer identity | `packages/store/src/durable.test.ts` (11) | cross-identity → `incomparable`, never `unchanged` |
+| Identical verdicts and pixel counts across durable, git-LFS and remote stores | `packages/observe/src/parity.test.ts` (5) | 4 scenarios: `unchanged` / `changed` / `new` / `incomparable` |
+| A store that cannot be reached is an operator error, never `new` and never `unchanged` | `packages/remote/src/store.test.ts` (14) | Unreachable endpoint, refused token, hanging lookup, unreadable body; no baseline written |
 
 **Claimed, not measured.** Three of the README's six cost-table rows are not
 checked by `yarn test`:
