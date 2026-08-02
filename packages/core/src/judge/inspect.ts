@@ -5,7 +5,16 @@ import { locate } from '../attribute/locate.js';
 import { formatSource, resolveSource, type SourceIndex } from '../attribute/source.js';
 
 /**
- * What one snapshot says on its own, with no baseline and no second run.
+ * What a render says without a baseline.
+ *
+ * Two producers, one `Finding` type. `inspect` reads a single snapshot;
+ * `compareLocales` reads two renders of one subject in different languages,
+ * which is also not a regression comparison — both renders are correct. Sharing
+ * the type is what lets the report, the CLI and the MCP tools carry both without
+ * knowing which produced what.
+ *
+ * The rest of this comment is about `inspect`, which reads one snapshot with no
+ * baseline and no second run.
  *
  * Everything else in this package answers *what changed*, which requires two of
  * something. That framing has a blind spot the whole category shares: **a defect
@@ -48,7 +57,14 @@ export type FindingRule =
   /** A control inside another control. Only one of them is reachable. */
   | 'nested-interactive'
   /** An id reference that resolves to nothing inside this subject. */
-  | 'dangling-reference';
+  | 'dangling-reference'
+  /**
+   * The same string in two locales. From `compareLocales`, not from `inspect` —
+   * one render cannot know whether its text was translated.
+   */
+  | 'untranslated'
+  /** A box outside the box that contains it, in one locale and not the other. */
+  | 'overflows-container';
 
 export interface Finding {
   readonly rule: FindingRule;

@@ -24,6 +24,9 @@ const PALETTE = {
 };
 
 export interface Edit {
+  readonly locale: Locale;
+  /** The panel's own width. The same component lives in a page and in a sidebar. */
+  readonly width: number;
   readonly labelled: boolean;
   readonly heading: 'h2' | 'div';
   readonly control: 'button' | 'div';
@@ -33,12 +36,75 @@ export interface Edit {
   readonly reindented: boolean;
 }
 
-const ROWS = [
-  { label: 'Design retainer', amount: '€ 2,400.00' },
-  { label: 'Implementation', amount: '€ 7,150.00' },
-  { label: 'Accessibility audit', amount: '€ 900.00' },
-  { label: 'Handover workshop', amount: '€ 450.00' },
-];
+export type Locale = 'en' | 'de';
+
+/**
+ * The panel's strings, in two languages.
+ *
+ * A message catalogue rather than a second copy of the markup, for the same
+ * reason every other variant here is a prop: two copies drift, and the whole
+ * point is that only the *strings* differ. `en` is byte-identical to what the
+ * markup carried before this existed, so no recorded baseline moves.
+ *
+ * The German is real, not padded to make a point. `Zugänglichkeitsüberprüfung`
+ * is a word, and it is unbreakable — which is why the most ordinary i18n layout
+ * failure there is happens with ordinary German nouns: a flex item cannot shrink
+ * below its longest word, so the row grows past the panel that contains it.
+ *
+ * `Invoice INV-2026-0184` is deliberately left with its identifier intact. It is
+ * the false-alarm case for the `untranslated` rule — `INV-2026-0184` carries
+ * letters, so a rule looking for "text that did not change" has something to say
+ * about a string nobody should translate. Keeping it here means the measurement
+ * reports its own false alarm rather than being run on strings chosen to avoid
+ * one.
+ */
+const MESSAGES: Readonly<Record<Locale, {
+  readonly heading: string;
+  readonly total: string;
+  readonly edit: string;
+  readonly refresh: string;
+  readonly download: string;
+  readonly unsaved: string;
+  readonly vat: string;
+  readonly terms: string;
+  readonly rows: readonly string[];
+}>> = {
+  en: {
+    heading: 'Invoice INV-2026-0184',
+    total: 'Total',
+    edit: 'Edit',
+    refresh: 'Refresh invoice',
+    download: 'Download invoice',
+    unsaved: 'Unsaved changes',
+    vat: 'Prices exclude VAT.',
+    terms: 'Payable within 30 days.',
+    rows: ['Design retainer', 'Implementation', 'Accessibility audit', 'Handover workshop'],
+  },
+  de: {
+    heading: 'Rechnung INV-2026-0184',
+    total: 'Gesamt',
+    edit: 'Bearbeiten',
+    refresh: 'Rechnung aktualisieren',
+    download: 'Rechnung herunterladen',
+    // Left in English on purpose: one missing translation, so the measurement
+    // has something true to find rather than only its own false alarm.
+    unsaved: 'Unsaved changes',
+    vat: 'Preise verstehen sich zuzüglich Mehrwertsteuer.',
+    terms: 'Zahlbar innerhalb von 30 Tagen.',
+    rows: [
+      'Gestaltungspauschale',
+      'Umsetzung',
+      'Zugänglichkeitsüberprüfung',
+      'Übergabe-Workshop',
+    ],
+  },
+};
+
+const AMOUNTS = ['€ 2,400.00', '€ 7,150.00', '€ 900.00', '€ 450.00'];
+
+function rowsFor(locale: Locale): readonly { label: string; amount: string }[] {
+  return MESSAGES[locale].rows.map((label, index) => ({ label, amount: AMOUNTS[index]! }));
+}
 
 /**
  * The heading's rendered properties, in one object used by both branches.
@@ -123,7 +189,7 @@ function IconButton({ labelled, glyph, action }: { labelled: boolean; glyph: str
  * of layout movement instead of a measurement of how small a real regression can
  * be. Nothing moves; the dot is simply not painted.
  */
-function Indicator({ shown }: { shown: boolean }) {
+function Indicator({ shown, title }: { shown: boolean; title: string }) {
   return (
     <span
       style={{
@@ -136,7 +202,7 @@ function Indicator({ shown }: { shown: boolean }) {
     >
       {shown ? (
         <span
-          title="Unsaved changes"
+          title={title}
           style={{
             display: 'block',
             width: '8px',
@@ -150,13 +216,20 @@ function Indicator({ shown }: { shown: boolean }) {
   );
 }
 
-function Toolbar({ labelled, indicator, space }: { labelled: boolean; indicator: boolean; space: number }) {
+function Toolbar({
+  labelled,
+  indicator,
+  space,
+  locale,
+}: { labelled: boolean; indicator: boolean; space: number; locale: Locale }) {
+  const messages = MESSAGES[locale];
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: `${space / 2}px` }}>
-      <IconButton labelled={labelled} glyph="⟳" action="Refresh invoice" />
-      <IconButton labelled glyph="⤓" action="Download invoice" />
+      <IconButton labelled={labelled} glyph="⟳" action={messages.refresh} />
+      <IconButton labelled glyph="⤓" action={messages.download} />
       <span style={{ flex: 1 }} />
-      <Indicator shown={indicator} />
+      <Indicator shown={indicator} title={messages.unsaved} />
     </div>
   );
 }
@@ -173,7 +246,12 @@ function RowAction({ as, children }: { as: 'button' | 'div'; children: string })
   );
 }
 
-function Row({ label, amount, control }: { label: string; amount: string; control: 'button' | 'div' }) {
+function Row({
+  label,
+  amount,
+  control,
+  action,
+}: { label: string; amount: string; control: 'button' | 'div'; action: string }) {
   return (
     <div
       style={{
@@ -189,17 +267,29 @@ function Row({ label, amount, control }: { label: string; amount: string; contro
       <span style={{ fontSize: '14px', color: PALETTE.muted, fontVariantNumeric: 'tabular-nums' }}>
         {amount}
       </span>
-      <RowAction as={control}>Edit</RowAction>
+      <RowAction as={control}>{action}</RowAction>
     </div>
   );
 }
 
-function Rows({ count, control }: { count: number; control: 'button' | 'div' }) {
+function Rows({
+  count,
+  control,
+  locale,
+}: { count: number; control: 'button' | 'div'; locale: Locale }) {
   return (
     <div>
-      {ROWS.slice(0, count).map((row) => (
-        <Row key={row.label} label={row.label} amount={row.amount} control={control} />
-      ))}
+      {rowsFor(locale)
+        .slice(0, count)
+        .map((row) => (
+          <Row
+            key={row.label}
+            label={row.label}
+            amount={row.amount}
+            control={control}
+            action={MESSAGES[locale].edit}
+          />
+        ))}
     </div>
   );
 }
@@ -214,30 +304,31 @@ function Rows({ count, control }: { count: number; control: 'button' | 'div' }) 
  * painted, so the two render identically — and the normalizer keeps the space,
  * because telling a block context from an inline one needs a layout engine.
  */
-function Note({ reindented }: { reindented: boolean }) {
+function Note({ reindented, locale }: { reindented: boolean; locale: Locale }) {
   const style = { margin: 0, fontSize: '12px', lineHeight: '16px', color: PALETTE.muted } as const;
+  const { vat, terms } = MESSAGES[locale];
 
   return reindented ? (
     <p style={style}>
       {' '}
-      <span>Prices exclude VAT.</span> <span>Payable within 30 days.</span>{' '}
+      <span>{vat}</span> <span>{terms}</span>{' '}
     </p>
   ) : (
     <p style={style}>
-      <span>Prices exclude VAT.</span> <span>Payable within 30 days.</span>
+      <span>{vat}</span> <span>{terms}</span>
     </p>
   );
 }
 
-function Total({ rows }: { rows: number }) {
-  const total = ROWS.slice(0, rows).reduce(
+function Total({ rows, locale }: { rows: number; locale: Locale }) {
+  const total = rowsFor(locale).slice(0, rows).reduce(
     (sum, row) => sum + Number(row.amount.replace(/[^\d.]/g, '')),
     0,
   );
 
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 600 }}>
-      <span style={{ color: PALETTE.text }}>Total</span>
+      <span style={{ color: PALETTE.text }}>{MESSAGES[locale].total}</span>
       <span style={{ color: PALETTE.text, fontVariantNumeric: 'tabular-nums' }}>
         {`€ ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
       </span>
@@ -252,7 +343,7 @@ export function Panel(edit: Edit) {
         {
           '--case-space': `${edit.space}px`,
           boxSizing: 'border-box',
-          width: '420px',
+          width: `${edit.width}px`,
           padding: 'calc(var(--case-space) * 1.5)',
           display: 'flex',
           flexDirection: 'column',
@@ -264,11 +355,16 @@ export function Panel(edit: Edit) {
         } as React.CSSProperties
       }
     >
-      <Toolbar labelled={edit.labelled} indicator={edit.indicator} space={edit.space} />
-      <Heading as={edit.heading}>Invoice INV-2026-0184</Heading>
-      <Rows count={edit.rows} control={edit.control} />
-      <Total rows={edit.rows} />
-      <Note reindented={edit.reindented} />
+      <Toolbar
+        labelled={edit.labelled}
+        indicator={edit.indicator}
+        space={edit.space}
+        locale={edit.locale}
+      />
+      <Heading as={edit.heading}>{MESSAGES[edit.locale].heading}</Heading>
+      <Rows count={edit.rows} control={edit.control} locale={edit.locale} />
+      <Total rows={edit.rows} locale={edit.locale} />
+      <Note reindented={edit.reindented} locale={edit.locale} />
     </div>
   );
 }

@@ -20,6 +20,7 @@ import type { CaptureRequest, PageAgent } from '@variance-authority/playwright/a
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { editFor, scenario, type Variant } from './scenarios.js';
+import type { Locale } from './surface.js';
 import { Panel } from './surface.js';
 
 const CONTAINER = 'subject';
@@ -42,7 +43,12 @@ function container(): HTMLElement {
  * observe, and a host that accumulated a stale attribute or an empty text node
  * would move every rect — and every pixel — with no code having changed.
  */
-export function mount(id: string, variant: Variant): HTMLElement {
+export function mount(
+  id: string,
+  variant: Variant,
+  locale: Locale = 'en',
+  width?: number,
+): HTMLElement {
   delete document.documentElement.dataset[READY];
 
   const parent = container();
@@ -58,7 +64,15 @@ export function mount(id: string, variant: Variant): HTMLElement {
   parent.appendChild(host);
 
   const root = createRoot(host);
-  flushSync(() => root.render(createElement(Panel, editFor(scenario(id), variant))));
+  flushSync(() =>
+    root.render(
+      createElement(Panel, {
+        ...editFor(scenario(id), variant),
+        locale,
+        ...(width !== undefined ? { width } : {}),
+      }),
+    ),
+  );
   mounted = { root, host };
 
   document.documentElement.dataset[READY] = '1';
@@ -84,10 +98,15 @@ export function mountFromLocation(): void {
 
 function capture(request: CaptureRequest): string {
   // `request.subject` carries the scenario id and `request.variant` the side,
-  // matching the harness's two-string bridge. The capture is taken from the host
-  // the mount returned rather than from `#subject`, so the snapshot's root is the
-  // panel and not the clip box around it.
-  const host = mount(request.subject, request.variant as Variant);
+  // matching the harness's two-string bridge. A locale rides on the variant as
+  // `after@de` rather than widening that bridge: the harness's contract is two
+  // strings, and a third parameter added for one test is a contract changed for
+  // every caller. The capture is taken from the host the mount returned rather
+  // than from `#subject`, so the snapshot's root is the panel and not the clip
+  // box around it.
+  // `after`, `after@de`, or `after@de@300` — side, catalogue, panel width.
+  const [side, locale, width] = request.variant.split('@') as [Variant, Locale | undefined, string | undefined];
+  const host = mount(request.subject, side, locale ?? 'en', width === undefined ? undefined : Number(width));
 
   return JSON.stringify(
     collect(host, {

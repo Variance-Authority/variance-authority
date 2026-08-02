@@ -42,9 +42,27 @@ export interface Edit {
   readonly indicator?: boolean;
   /** `true` renders the note the way a formatter leaves it after reindenting. */
   readonly reindented?: boolean;
+  /**
+   * Which message catalogue the panel renders.
+   *
+   * Not one of the eight scenarios: swapping locale is not a regression, it is
+   * two correct renders of one subject, which is a different question with a
+   * different answer. It lives here because `locale.chromium.test.ts` asks that
+   * question of the same surface, through the same harness, in the same browser.
+   */
+  readonly locale?: 'en' | 'de';
+  /**
+   * The panel's width, for the same reason as `locale` and with the same
+   * disclaimer: not one of the eight scenarios. The same component ships in a
+   * page and in a 300px sidebar, and whether a translation fits is a question
+   * about the pair, not about either one.
+   */
+  readonly width?: number;
 }
 
 export const BASE = {
+  locale: 'en',
+  width: 420,
   labelled: true,
   heading: 'h2',
   control: 'button',
