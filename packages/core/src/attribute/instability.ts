@@ -1,8 +1,8 @@
-import type { Band, DeltaKind } from './band.js';
-import type { Delta } from './diff/delta.js';
-import { diffSnapshots } from './diff/index.js';
+import type { Band, DeltaKind } from '../compare/band.js';
+import type { Delta } from '../compare/diff/delta.js';
+import { diffSnapshots } from '../compare/diff/index.js';
 import { formatSource, resolveSource, type SourceIndex } from './source.js';
-import type { NodePath, SemanticSnapshot } from './snapshot.js';
+import type { NodePath, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
  * Where an instability lives, and what kind it is.

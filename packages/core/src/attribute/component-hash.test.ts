@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { hashComponents, UNATTRIBUTED, type ComponentHash } from './component-hash.js';
-import { CHROMIUM_PROFILE, JSDOM_PROFILE } from './profile.js';
-import type { Rect } from './capture.js';
-import type { SemanticNode, SemanticSnapshot } from './snapshot.js';
+import { CHROMIUM_PROFILE, JSDOM_PROFILE } from '../format/profile.js';
+import type { Rect } from '../format/capture.js';
+import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
  * Per-component hashing, tested on hand-written trees.

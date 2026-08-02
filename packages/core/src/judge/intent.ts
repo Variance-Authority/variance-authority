@@ -1,7 +1,7 @@
-import type { Band } from './band.js';
+import type { Band } from '../compare/band.js';
 import type { Docket, DocketEntry } from './docket.js';
-import type { AggregateImpact } from './impact.js';
-import { formatSource, resolveSource, type SourceIndex } from './source.js';
+import type { AggregateImpact } from '../compare/impact.js';
+import { formatSource, resolveSource, type SourceIndex } from '../attribute/source.js';
 import type { Verdict } from './verdict.js';
 
 /**

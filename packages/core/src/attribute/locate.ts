@@ -1,4 +1,4 @@
-import type { NodePath, SemanticNode } from './snapshot.js';
+import type { NodePath, SemanticNode } from '../format/snapshot.js';
 
 /**
  * Orientation: *where* a change is, in words a person can act on.

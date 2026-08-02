@@ -1,4 +1,4 @@
-import { digestCombine, digestValue, type Digest } from './hash.js';
+import { digestCombine, digestValue, type Digest } from '../format/hash.js';
 
 /**
  * The declaration every tool carries, and the plan a caller assembles from them.

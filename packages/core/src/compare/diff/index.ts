@@ -1,12 +1,12 @@
 import { bandOf, type Band } from '../band.js';
 import { aggregateImpact, impactOf, type AggregateImpact, type PropertyImpact } from '../impact.js';
-import { diffEnvironments, type EnvironmentDelta } from '../environment.js';
-import type { OwnerFrame } from '../provenance.js';
-import type { SemanticNode, SemanticSnapshot } from '../snapshot.js';
-import { observableBands } from '../profile.js';
+import { diffEnvironments, type EnvironmentDelta } from '../../format/environment.js';
+import type { OwnerFrame } from '../../format/provenance.js';
+import type { SemanticNode, SemanticSnapshot } from '../../format/snapshot.js';
+import { observableBands } from '../../format/profile.js';
 import type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
 import { matchTrees } from './match.js';
-import { locate } from '../locate.js';
+import { locate } from '../../attribute/locate.js';
 
 export type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
 export { deltaSignature } from './delta.js';

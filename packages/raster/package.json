@@ -18,9 +18,6 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@variance-authority/core": "workspace:^",
-    "pixelmatch": "^7.2.0",
-    "playwright": "^1.49.0",
-    "pngjs": "^7.0.0"
+    "@variance-authority/core": "workspace:^"
   }
 }

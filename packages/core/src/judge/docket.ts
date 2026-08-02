@@ -1,6 +1,6 @@
-import type { Band } from './band.js';
-import type { ChangedComponent, Delta, Root, RootKind, SemanticDiff } from './diff/index.js';
-import { aggregateImpact, type AggregateImpact, type PropertyImpact } from './impact.js';
+import type { Band } from '../compare/band.js';
+import type { ChangedComponent, Delta, Root, RootKind, SemanticDiff } from '../compare/diff/index.js';
+import { aggregateImpact, type AggregateImpact, type PropertyImpact } from '../compare/impact.js';
 
 /**
  * The docket: one entry per root cause, across every subject in a change set.

@@ -1,4 +1,4 @@
-import type { Declaration, MatchedRule } from '../capture.js';
+import type { Declaration, MatchedRule } from '../../format/capture.js';
 import { admits, isCustomProperty } from '../ruleset.js';
 import { canonicalizeValue } from './value.js';
 import { expandDeclaration } from './shorthand.js';

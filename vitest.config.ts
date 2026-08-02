@@ -7,6 +7,7 @@ export default defineConfig({
       'packages/*/test/**/*.test.ts',
       'examples/*/src/**/*.test.{ts,tsx}',
       'cases/*/src/**/*.test.{js,ts,tsx}',
+      'tools/**/*.test.ts',
     ],
     // `node` is the default; corpus fixtures opt into jsdom per-file with a
     // `// @vitest-environment jsdom` docblock, so the DOM-free packages stay

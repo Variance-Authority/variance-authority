@@ -1,9 +1,9 @@
-import type { Diagnostic, RawCapture, RawNode } from '../capture.js';
-import { environmentKey } from '../environment.js';
-import { digestCombine, digestValue, type Digest } from '../hash.js';
+import type { Diagnostic, RawCapture, RawNode } from '../../format/capture.js';
+import { environmentKey } from '../../format/environment.js';
+import { digestCombine, digestValue, type Digest } from '../../format/hash.js';
 import { ALLOWLIST_VERSION, RULESET_VERSION, admitsAttribute } from '../ruleset.js';
-import type { CanonicalValue } from '../canonical.js';
-import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../snapshot.js';
+import type { CanonicalValue } from '../../format/canonical.js';
+import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../../format/snapshot.js';
 import { aliasAttributeValue, aliasStyleValue, buildAliasMap, type AliasResult } from './alias.js';
 import {
   EMPTY_CONTEXT,

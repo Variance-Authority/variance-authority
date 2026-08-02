@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { canReflow, impactOf } from '../impact.js';
-import { normalize } from '../normalize/index.js';
-import { CHROMIUM_PROFILE, capture, node } from '../normalize/fixture.js';
+import { normalize } from '../../rules/normalize/index.js';
+import { CHROMIUM_PROFILE, capture, node } from '../../rules/normalize/fixture.js';
 import { diffSnapshots } from './index.js';
 
 /**

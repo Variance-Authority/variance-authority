@@ -1,4 +1,4 @@
-import type { RawNode } from '../capture.js';
+import type { RawNode } from '../../format/capture.js';
 import { ID_REFERENCE_ATTRIBUTES, ID_REFERENCE_LIST_ATTRIBUTES } from '../ruleset.js';
 
 /**

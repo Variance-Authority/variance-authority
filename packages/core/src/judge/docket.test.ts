@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildDocket, summarize } from './docket.js';
-import { diffSnapshots } from './diff/index.js';
-import { normalize } from './normalize/index.js';
-import { capture, node } from './normalize/fixture.js';
-import type { SemanticDiff } from './diff/index.js';
+import { diffSnapshots } from '../compare/diff/index.js';
+import { normalize } from '../rules/normalize/index.js';
+import { capture, node } from '../rules/normalize/fixture.js';
+import type { SemanticDiff } from '../compare/diff/index.js';
 
 /**
  * Design-system collateral: the question a per-subject diff cannot answer.

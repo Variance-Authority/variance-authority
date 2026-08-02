@@ -21,6 +21,8 @@
     "@variance-authority/dom": "workspace:^",
     "@variance-authority/playwright": "workspace:^",
     "@variance-authority/react": "workspace:^",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "react": "^19",
     "react-dom": "^19"
   },
@@ -34,6 +36,7 @@
     "@variance-authority/remote": "workspace:^",
     "esbuild": "^0.25.0",
     "pixelmatch": "^7.2.0",
+    "playwright": "^1.49.0",
     "pngjs": "^7.0.0"
   }
 }

@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@variance-authority/remote": "workspace:^",
-    "@variance-authority/store": "workspace:^"
+    "@variance-authority/store": "workspace:^",
+    "pngjs": "^7.0.0"
   }
 }

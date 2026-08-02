@@ -22,6 +22,9 @@
     "@variance-authority/dom": "workspace:^"
   },
   "devDependencies": {
-    "@variance-authority/react": "workspace:^"
+    "@variance-authority/react": "workspace:^",
+    "jsdom": "^30.0.1",
+    "react": "^19",
+    "react-dom": "^19"
   }
 }

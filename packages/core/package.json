@@ -7,6 +7,30 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./format": {
+      "types": "./dist/format/index.d.ts",
+      "default": "./dist/format/index.js"
+    },
+    "./rules": {
+      "types": "./dist/rules/index.d.ts",
+      "default": "./dist/rules/index.js"
+    },
+    "./compare": {
+      "types": "./dist/compare/index.d.ts",
+      "default": "./dist/compare/index.js"
+    },
+    "./attribute": {
+      "types": "./dist/attribute/index.d.ts",
+      "default": "./dist/attribute/index.js"
+    },
+    "./judge": {
+      "types": "./dist/judge/index.d.ts",
+      "default": "./dist/judge/index.js"
+    },
+    "./plan": {
+      "types": "./dist/plan/index.d.ts",
+      "default": "./dist/plan/index.js"
     }
   },
   "main": "./dist/index.js",

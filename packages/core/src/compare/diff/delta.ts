@@ -1,8 +1,8 @@
 import type { Band, DeltaKind } from '../band.js';
 import type { AggregateImpact, PropertyImpact } from '../impact.js';
-import type { Rect } from '../capture.js';
-import type { NodePath } from '../snapshot.js';
-import type { OwnerFrame } from '../provenance.js';
+import type { Rect } from '../../format/capture.js';
+import type { NodePath } from '../../format/snapshot.js';
+import type { OwnerFrame } from '../../format/provenance.js';
 
 /**
  * A single observed difference.

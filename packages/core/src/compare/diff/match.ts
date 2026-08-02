@@ -1,4 +1,4 @@
-import type { SemanticNode } from '../snapshot.js';
+import type { SemanticNode } from '../../format/snapshot.js';
 
 /**
  * Node correspondence.

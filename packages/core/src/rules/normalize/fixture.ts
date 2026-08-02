@@ -4,9 +4,9 @@ import type {
   RawCapture,
   RawNode,
   Rect,
-} from '../capture.js';
-import { CHROMIUM_PROFILE, JSDOM_PROFILE, type ObservationProfile } from '../profile.js';
-import { propsDigest } from '../provenance.js';
+} from '../../format/capture.js';
+import { CHROMIUM_PROFILE, JSDOM_PROFILE, type ObservationProfile } from '../../format/profile.js';
+import { propsDigest } from '../../format/provenance.js';
 
 /**
  * Fixture builders for `RawCapture`.

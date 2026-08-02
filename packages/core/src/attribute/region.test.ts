@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { attributeRegions, isolateRegions, type ChangeMask } from './region.js';
-import type { SemanticNode, SemanticSnapshot } from './snapshot.js';
+import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
  * The two phases that turn a pixel count into a place, tested on hand-written

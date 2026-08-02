@@ -1,6 +1,6 @@
-import type { CanonicalValue } from './canonical.js';
-import { digestValue, type Digest } from './hash.js';
-import type { SemanticNode, SemanticSnapshot } from './snapshot.js';
+import type { CanonicalValue } from '../format/canonical.js';
+import { digestValue, type Digest } from '../format/hash.js';
+import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
  * Per-component content hashes, one per band.

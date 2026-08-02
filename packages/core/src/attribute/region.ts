@@ -1,6 +1,6 @@
-import type { Rect } from './capture.js';
+import type { Rect } from '../format/capture.js';
 import { locate } from './locate.js';
-import type { NodePath, SemanticNode, SemanticSnapshot } from './snapshot.js';
+import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
  * Isolating a pixel difference, and connecting it to the tree.

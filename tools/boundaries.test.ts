@@ -1,0 +1,281 @@
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+/**
+ * The layout rule, enforced rather than described.
+ *
+ * **The first cut between packages is what a consumer must supply, not what the
+ * code does.** A browser, a React runtime, a PNG codec, a filesystem, a socket, a
+ * database — each is a box, and code that needs one may not sit in a box with
+ * code that needs another. A team extending their own Playwright tests should not
+ * install a second browser to compare two images; a team keeping baselines
+ * somewhere this project has never heard of should not install a codec to do it.
+ *
+ * Prose in an architecture document does not survive a hurried afternoon. What
+ * survives is a red test, so the rule is checked here against the imports that
+ * actually exist:
+ *
+ * 1. every import is declared, and every declaration is imported
+ * 2. a third-party runtime requirement has exactly one owner
+ * 3. the production graph is acyclic
+ * 4. every entrypoint a package advertises resolves to something built
+ *
+ * Rule 1 is what rots first and rots invisibly: a package that imports what it
+ * does not declare works fine in the workspace, where a hoisted `node_modules`
+ * hands it over anyway, and fails the moment somebody installs it alone.
+ *
+ * Test files are held to a weaker version of rule 1 on purpose. A test may reach
+ * for a real backend across a boundary its source may not cross — that is what
+ * `devDependencies` are for — and holding tests to the production rule would push
+ * suites towards mocks, which is a worse trade than the one being avoided.
+ */
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Third-party requirements: what a consumer installs, as opposed to node's own. */
+const OWNED_BY_ONE = ['playwright', 'pixelmatch', 'pngjs', 'react', 'react-dom', 'jsdom'];
+
+interface Workspace {
+  readonly name: string;
+  readonly dir: string;
+  readonly manifest: Manifest;
+  readonly imports: { readonly source: ReadonlySet<string>; readonly test: ReadonlySet<string> };
+}
+
+interface Manifest {
+  readonly name: string;
+  readonly dependencies?: Readonly<Record<string, string>>;
+  readonly devDependencies?: Readonly<Record<string, string>>;
+  readonly exports?: Readonly<Record<string, { readonly types?: string; readonly default?: string }>>;
+  readonly bin?: Readonly<Record<string, string>>;
+}
+
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  if (!existsSync(dir)) return out;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) sourceFiles(path, out);
+    else if (/\.(ts|tsx|js|jsx)$/.test(entry.name)) out.push(path);
+  }
+  return out;
+}
+
+/**
+ * The package a specifier names, ignoring the entrypoint.
+ *
+ * `@variance-authority/store/lfs` and `@variance-authority/store` are one
+ * dependency. `node:fs/promises` is not a dependency at all — a host capability
+ * rather than something anybody installs, and one the compiler already governs
+ * through each package's `types` and `lib`.
+ */
+function packageOf(specifier: string): string | null {
+  if (specifier.startsWith('.') || specifier.startsWith('node:')) return null;
+  const parts = specifier.split('/');
+  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!;
+}
+
+/**
+ * Import specifiers, and only import specifiers.
+ *
+ * Comments go first, because this repository's comments talk about packages by
+ * name constantly and a checker that reads prose reports imports nobody wrote.
+ * What is left is matched at line starts: a statement cannot cross a `;`, so an
+ * `export const` cannot reach a `from` several lines below it.
+ */
+const PATTERNS = [
+  /^[ \t]*(?:import|export)\b[^;]*?\bfrom[ \t]*['"]([^'"]+)['"]/gm,
+  /^[ \t]*import[ \t]*['"]([^'"]+)['"]/gm,
+  /\bimport\([ \t]*['"]([^'"]+)['"][ \t]*\)/g,
+];
+
+function specifiersIn(text: string): readonly string[] {
+  const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+  return PATTERNS.flatMap((pattern) => [...code.matchAll(pattern)].map((match) => match[1]!));
+}
+
+function workspaces(): readonly Workspace[] {
+  const found: Workspace[] = [];
+  for (const group of ['packages', 'examples', 'cases']) {
+    const groupDir = join(ROOT, group);
+    if (!existsSync(groupDir)) continue;
+    for (const name of readdirSync(groupDir)) {
+      const dir = join(groupDir, name);
+      const manifestPath = join(dir, 'package.json');
+      if (!statSync(dir).isDirectory() || !existsSync(manifestPath)) continue;
+
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Manifest;
+      const source = new Set<string>();
+      const test = new Set<string>();
+
+      for (const file of sourceFiles(join(dir, 'src'))) {
+        const isTest = /\.test\.(ts|tsx|js|jsx)$/.test(file) || file.includes('__fixtures__');
+        for (const specifier of specifiersIn(readFileSync(file, 'utf8'))) {
+          const owner = packageOf(specifier);
+          if (owner === null || owner === manifest.name) continue;
+          (isTest ? test : source).add(owner);
+        }
+      }
+      found.push({ name: manifest.name, dir, manifest, imports: { source, test } });
+    }
+  }
+  return found;
+}
+
+const ALL = workspaces();
+const PACKAGES = ALL.filter((workspace) => workspace.dir.includes(`${ROOT}/packages/`));
+
+/** Everything a package may reach for at build time, and everything at test time. */
+function declared(workspace: Workspace): { production: Set<string>; any: Set<string> } {
+  const production = new Set(Object.keys(workspace.manifest.dependencies ?? {}));
+  const any = new Set([...production, ...Object.keys(workspace.manifest.devDependencies ?? {})]);
+  return { production, any };
+}
+
+/**
+ * Devtools and type-only packages the root provides for every workspace.
+ *
+ * Listed rather than inferred, so adding one is a decision somebody made rather
+ * than a hole that opened.
+ */
+const AMBIENT = new Set(['vitest', '@types/node', '@types/react', '@types/react-dom', 'typescript']);
+
+/**
+ * Declared-but-never-imported, on purpose, with the reason attached.
+ *
+ * A build tool can require a package nothing in the source names — a renderer a
+ * bundler reaches for, a peer a framework resolves. Those are real requirements
+ * and must stay declared. Writing them down here rather than exempting a whole
+ * category keeps the escape hatch the size of the actual exception.
+ */
+const REQUIRED_WITHOUT_IMPORT: Readonly<Record<string, readonly string[]>> = {
+  // Storybook's React renderer resolves this itself; no story file imports it.
+  '@variance-authority/case-storybook': ['react-dom'],
+};
+
+describe('a package declares what it imports', () => {
+  it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
+    '%s imports nothing its manifest does not list',
+    (_name, workspace) => {
+      const { production } = declared(workspace);
+      const undeclared = [...workspace.imports.source].filter(
+        (dependency) => !production.has(dependency) && !AMBIENT.has(dependency),
+      );
+
+      // Not a tidiness complaint. In a workspace an undeclared import resolves
+      // anyway — the hoisted tree hands it over — and the failure arrives when
+      // somebody installs the package on its own.
+      expect(undeclared).toEqual([]);
+    },
+  );
+
+  it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
+    '%s tests import nothing the manifest does not list',
+    (_name, workspace) => {
+      const { any } = declared(workspace);
+      const undeclared = [...workspace.imports.test].filter(
+        (dependency) => !any.has(dependency) && !AMBIENT.has(dependency),
+      );
+
+      expect(undeclared).toEqual([]);
+    },
+  );
+
+  it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
+    '%s lists nothing it does not import',
+    (_name, workspace) => {
+      const used = new Set([...workspace.imports.source, ...workspace.imports.test]);
+      const excused = new Set(REQUIRED_WITHOUT_IMPORT[workspace.name] ?? []);
+      const unused = [...Object.keys(workspace.manifest.dependencies ?? {})].filter(
+        (dependency) => !used.has(dependency) && !excused.has(dependency),
+      );
+
+      // A stale declaration is the same failure read backwards: it says this
+      // package requires something, and a reader deciding what a box costs them
+      // believes it.
+      expect(unused).toEqual([]);
+    },
+  );
+});
+
+describe('a requirement has one owner', () => {
+  it.each(OWNED_BY_ONE)('%s is a production dependency of at most one package', (dependency) => {
+    const owners = PACKAGES.filter((workspace) =>
+      Object.keys(workspace.manifest.dependencies ?? {}).includes(dependency),
+    ).map((workspace) => workspace.name);
+
+    // The rule, stated as a number. Two owners means a consumer who wants one
+    // of them installs both, which is the thing the layout exists to prevent.
+    expect(owners.length).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps the packages that require nothing requiring nothing', () => {
+    // `core` and `raster` are the two boxes whose whole value is being free. If
+    // either ever grows a dependency, every argument about cheap tiers and
+    // extensible pipelines quietly stops being true.
+    for (const name of ['@variance-authority/core', '@variance-authority/raster']) {
+      const workspace = PACKAGES.find((candidate) => candidate.name === name);
+      expect(workspace, `${name} is missing`).toBeDefined();
+
+      const external = Object.keys(workspace!.manifest.dependencies ?? {}).filter(
+        (dependency) => !dependency.startsWith('@variance-authority/'),
+      );
+      expect({ [name]: external }).toEqual({ [name]: [] });
+    }
+  });
+});
+
+describe('the production graph', () => {
+  it('has no cycles', () => {
+    const edges = new Map(
+      ALL.map((workspace) => [
+        workspace.name,
+        Object.keys(workspace.manifest.dependencies ?? {}).filter((dependency) =>
+          dependency.startsWith('@variance-authority/'),
+        ),
+      ]),
+    );
+
+    const state = new Map<string, 'visiting' | 'done'>();
+    const cycles: string[] = [];
+
+    const visit = (name: string, path: readonly string[]): void => {
+      if (state.get(name) === 'done') return;
+      if (state.get(name) === 'visiting') {
+        cycles.push([...path.slice(path.indexOf(name)), name].join(' → '));
+        return;
+      }
+      state.set(name, 'visiting');
+      for (const next of edges.get(name) ?? []) visit(next, [...path, name]);
+      state.set(name, 'done');
+    };
+    for (const name of edges.keys()) visit(name, []);
+
+    expect(cycles).toEqual([]);
+  });
+});
+
+describe('every advertised entrypoint exists', () => {
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s resolves each of its exports',
+    (_name, workspace) => {
+      const missing: string[] = [];
+      for (const [entry, target] of Object.entries(workspace.manifest.exports ?? {})) {
+        for (const path of [target.types, target.default]) {
+          if (path !== undefined && !existsSync(join(workspace.dir, path))) {
+            missing.push(`${entry} → ${path}`);
+          }
+        }
+      }
+      for (const path of Object.values(workspace.manifest.bin ?? {})) {
+        if (!existsSync(join(workspace.dir, path))) missing.push(`bin → ${path}`);
+      }
+
+      // An entrypoint is a promise to a consumer, and a promise nobody checks is
+      // discovered by the consumer. Requires a build first, which is how the
+      // suite is run.
+      expect(missing).toEqual([]);
+    },
+  );
+});
