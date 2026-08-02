@@ -1,9 +1,17 @@
 # @variance-authority/playwright
 
-**Requires: a browser.** This is the only package in the repository that depends
-on `playwright`, so a consumer who does not render never installs one.
+**Requires:** a browser **binary** on the machine, which an install does not give
+you:
 
-Two tools live here, and they are separate tools that happen to share a
+```bash
+npx playwright install chromium
+```
+
+This is the only box in the repository that will ever ask you to install a
+browser. Everything downstream of a render — comparison, isolation, attribution,
+storage — sits elsewhere and stays reachable without one.
+
+Two tools live here, and they are separate tools that happen to share that
 requirement.
 
 ## Entrypoints

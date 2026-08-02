@@ -1,7 +1,8 @@
 # @variance-authority/server
 
-**Requires: a database and a socket.** `server/sqlite` requires `node:sqlite`
-specifically.
+**Requires:** a Node with `node:sqlite` (22+, where it is still experimental and
+warns on import), a writable database path, a port, and a bearer token of at
+least 16 characters. It refuses to start without the last one.
 
 The history service. The half of [spec 0002](../../docs/specs/0002-history-store.md)
 that has state.

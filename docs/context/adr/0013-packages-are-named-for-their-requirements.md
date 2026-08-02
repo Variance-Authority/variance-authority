@@ -35,7 +35,7 @@ A package is named for its requirement — `dom`, `react`, `playwright`, `png`,
 nothing goes in a package that requires nothing, however different its subject
 matter is from its neighbours.
 
-Three rules follow, and are enforced by `tools/boundaries.test.ts`:
+Four rules follow, and are enforced by `tools/boundaries.test.ts`:
 
 1. **One owner per third-party requirement.** `playwright` is a production
    dependency of exactly one package, and so is each of `pixelmatch`, `pngjs`,
@@ -44,7 +44,12 @@ Three rules follow, and are enforced by `tools/boundaries.test.ts`:
    inside a workspace, because the hoisted tree hands it over, and fails when the
    package is installed alone. A declared-but-unused dependency is the same lie
    read backwards: it tells a reader the box costs more than it does.
-3. **An entrypoint exists where the halves cost differently.** `store/lfs` needs
+3. **A requirement is what the manifest cannot state.** A browser binary an
+   install does not fetch, a directory this process can write, a service already
+   running, a tree `react-dom` has rendered. Naming a dependency instead
+   duplicates a machine-readable fact rule 1 already checks, and a prose copy of
+   an enforced fact only ever drifts away from it.
+4. **An entrypoint exists where the halves cost differently.** `store/lfs` needs
    `git`; `history/client` needs a network; `server/sqlite` needs `node:sqlite`;
    `report/file` needs a disk; `playwright/agent` must be importable *without*
    Playwright, because it is bundled into the page.

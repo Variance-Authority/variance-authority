@@ -1,6 +1,7 @@
 # @variance-authority/remote
 
-**Requires: a socket.** `node:http`, both halves.
+**Requires:** a port to bind, or a peer to reach. Nothing else: what is served is
+whatever you hand the serving half.
 
 The same tools, on the other side of a wire: a renderer reached over HTTP, and a
 baseline store reached over HTTP.

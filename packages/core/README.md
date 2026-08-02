@@ -1,9 +1,9 @@
 # @variance-authority/core
 
-**Requires: nothing.** No DOM, no React, no I/O, no async — enforced by its
-`tsconfig` (`lib: ES2022`, `types: []`), so "the core cannot peek at a live
-document" is a compile error rather than a code-review convention
-([ADR-0006](../../docs/context/adr/0006-host-free-core.md)).
+**Requires:** nothing — not even a runtime with a `Buffer`. No DOM, no I/O, no
+async, enforced by its `tsconfig` (`lib: ES2022`, `types: []`), so "the core
+cannot peek at a live document" is a compile error rather than a code-review
+convention ([ADR-0006](../../docs/context/adr/0006-host-free-core.md)).
 
 Pure data in, pure data out. Collectors extract; core normalizes and adjudicates.
 

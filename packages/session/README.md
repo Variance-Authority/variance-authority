@@ -1,7 +1,8 @@
 # @variance-authority/session
 
-**Requires: a live DOM.** It knows about React only through the caller's `mount`,
-so a session runs whatever a caller can put on a page.
+**Requires:** a live DOM, and a `mount` function you write. It knows about React
+only through that function, so a session runs whatever a caller can put on a
+page.
 
 Run many subjects in one standing world.
 

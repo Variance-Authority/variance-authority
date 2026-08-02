@@ -1,6 +1,7 @@
 # @variance-authority/history
 
-**Requires: nothing.** `history/client` requires a network.
+**Requires:** nothing. `history/client` requires a service already running at an
+endpoint you control, and the bearer token it was started with.
 
 The question a single run cannot answer: a button gains 2px, eleven times, each
 approved correctly, and nobody ever sees the 22px change. No threshold catches

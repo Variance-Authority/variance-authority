@@ -1,6 +1,7 @@
 # @variance-authority/mcp
 
-**Requires: stdio.** The observation, exposed to an agent.
+**Requires:** a run report that already exists, and a client that speaks MCP over
+stdio. It never runs anything itself.
 
 The chain the rest of this repository builds ends at a sentence: a cause, a
 place, and a file. This package puts that sentence somewhere an agent can reach

@@ -1,7 +1,8 @@
 # @variance-authority/store
 
-**Requires: a filesystem.** `store/lfs` additionally requires a `git` on the
-path.
+**Requires:** a directory this process can write. `store/lfs` additionally
+requires `git` on the path, with LFS installed **and smudging on checkout** — see
+below for what happens when it is not.
 
 Baselines on disk. Two backends, one requirement.
 

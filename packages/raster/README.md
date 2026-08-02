@@ -1,7 +1,7 @@
 # @variance-authority/raster
 
-**Requires: nothing.** The pixel tier, minus everything that costs — no browser,
-no image codec, no filesystem, no socket.
+**Requires:** nothing. No browser to launch, no directory to write, no port to
+bind, no runtime globals — the same `types: []` bar `core` clears.
 
 What is left when those are taken away turns out to be most of the interesting
 part: what a document assembles to, what a renderer promises, what a store

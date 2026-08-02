@@ -1,12 +1,14 @@
 # @variance-authority/storybook
 
-**Requires: nothing.** Not a browser, not a filesystem.
+**Requires:** a built Storybook's `index.json`, **as a value** — you decide where
+it came from. `storybook/read` requires a readable path; driving a preview
+requires a page object you supply, which is three methods you can write by hand.
 
 A project's own Storybook as the subject list. There is no separate test format
 to author and no DSL to learn — a subject is whatever your existing stories
 already mount.
 
-## Why it requires nothing
+## Why it needs neither a browser nor a disk
 
 Both would have been easy to require, and both would have been wrong:
 

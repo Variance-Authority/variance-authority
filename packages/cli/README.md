@@ -1,10 +1,14 @@
 # @variance-authority/cli
 
-**Requires: all of it.** The workflow, which is the one place a workflow belongs.
+**Requires:** a config file, plus whatever that config selects — a browser for
+`profile: chromium`, a writable directory for `baselines.kind: directory`, `git`
+for `lfs`, a reachable service for `remote`. `variance doctor` reports which of
+those this machine actually has.
 
 Every other package is a tool. This is the composition an operator actually runs,
-and it is the only package allowed to know what order things happen in and what
-a project's configuration file looks like.
+and it is the only one allowed to know what order things happen in and what a
+project's configuration file looks like — which is why it is also the only one
+whose requirements are decided by a file rather than by its own code.
 
 ## Commands
 

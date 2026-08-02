@@ -1,7 +1,8 @@
 # @variance-authority/observe
 
-**Requires: a PNG codec**, because it compares images — plus a renderer and a
-store, which arrive as arguments, so it needs neither a browser nor a disk.
+**Requires:** a `Renderer` and a `RasterStore`, both passed in — so it needs
+neither a browser nor a directory of its own, and swapping either is a wiring
+decision it does not notice.
 
 One composition, shipped as an example.
 

@@ -281,6 +281,16 @@ describe('every advertised entrypoint exists', () => {
   );
 });
 
+/** The `**Requires:` paragraph, which is everything before the second blank line. */
+function requirement(workspace: Workspace): string {
+  const text = readFileSync(join(workspace.dir, 'README.md'), 'utf8');
+  const start = text.indexOf('**Requires:');
+  if (start === -1) return '';
+
+  const end = text.indexOf('\n\n', start);
+  return end === -1 ? text.slice(start) : text.slice(start, end);
+}
+
 describe('every package says what it is', () => {
   it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
     '%s has a README',
@@ -291,16 +301,33 @@ describe('every package says what it is', () => {
   );
 
   it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
-    '%s states its requirement in the first paragraph',
+    '%s states its requirement before anything else',
     (_name, workspace) => {
       // "**Requires:" is the sentence the layout rule turns on. A README that
-      // does not answer *what does this cost me* is a README describing
-      // features, which is the shape the boundary exists to argue against.
-      // Examples and cases are exempt: they are not something anyone installs.
-      const text = readFileSync(join(workspace.dir, 'README.md'), 'utf8');
-      expect(text.slice(0, 400), `${workspace.name} does not state a requirement`).toContain(
-        '**Requires:',
+      // does not answer *what must be true before this works* is a README
+      // describing features, which is the shape the boundary argues against.
+      // Examples and cases are exempt: nobody installs them.
+      expect(requirement(workspace), `${workspace.name} states no requirement`).not.toBe('');
+    },
+  );
+
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s does not restate its manifest in prose',
+    (_name, workspace) => {
+      // The requirement is what `package.json` **cannot** say: a browser binary
+      // an install does not fetch, a directory this process can write, a service
+      // already running, a tree `react-dom` has rendered. Naming a dependency
+      // here instead duplicates a fact that is machine-readable and already
+      // checked above — and a prose copy of an enforced fact only ever drifts
+      // away from it.
+      const declared = Object.keys(workspace.manifest.dependencies ?? {}).filter(
+        (dependency) => !dependency.startsWith('@variance-authority/'),
       );
+      const restated = declared.filter((dependency) =>
+        new RegExp(`\\b${dependency.replace(/[/-]/g, '.')}\\b`).test(requirement(workspace)),
+      );
+
+      expect(restated).toEqual([]);
     },
   );
 

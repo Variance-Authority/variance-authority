@@ -1,6 +1,7 @@
 # @variance-authority/report
 
-**Requires: nothing** for the format. `report/file` requires a filesystem.
+**Requires:** nothing for the format. `report/file` requires a path this process
+can read and write.
 
 What a run leaves behind. The observation pipeline produces values in memory and
 then the process ends; this is the shape those answers take so they can be read

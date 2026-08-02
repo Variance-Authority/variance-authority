@@ -1,7 +1,7 @@
 # @variance-authority/dom
 
-**Requires: a live DOM.** Nothing else — and that requirement is the entire
-reason this is a package rather than part of `core`.
+**Requires:** a live DOM in scope — a mounted element and the `document` that
+owns it. jsdom or a browser; it never asks which.
 
 Extract a `RawCapture` from a mounted element. One implementation for both
 observation profiles: jsdom in a unit test, Chromium in a page, same code, same

@@ -1,13 +1,13 @@
 # @variance-authority/png
 
-**Requires: a PNG codec** — `pixelmatch` and `pngjs`, installed here and nowhere
-else.
+**Requires:** a runtime with `Buffer` — so Node, not a browser. Nothing to launch,
+nothing to write, nothing to reach. Two buffers in, a mask out.
 
-That is the whole reason this is a package rather than a folder. A team extending
-their own Playwright tests takes comparison, isolation and attribution and never
-renders anything; a team whose images arrive from elsewhere takes only the
-reading end. Neither should install a browser to do it, and with the codec in its
-own box neither does.
+This is a package rather than a folder so that **comparing two images never costs
+you a browser**. A team extending their own Playwright tests takes comparison,
+isolation and attribution and renders nothing; a team whose images arrive from
+elsewhere takes only the reading end. Neither should have to launch Chromium to
+do it, and with the codec boxed on its own neither does.
 
 ## It stops at a mask
 
