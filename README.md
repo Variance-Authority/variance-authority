@@ -9,8 +9,11 @@ the cheapest representation capable of deciding — in your own infrastructure.
 **Status: M0 spike.** The pipeline runs end to end under **both** profiles and is
 measured against a corpus with pre-declared ground truth — 38/38 under `jsdom`,
 39/39 under `chromium`, zero false verdicts either way. The raster tier, the two
-retention modes and an MCP surface followed. There is no CLI, no manifest, no
-hosted anything, and nothing is published. Read [what does not exist
+retention modes and an MCP surface followed. `variance run` now completes over a
+real Storybook — *new → accept → unchanged → 5 of 8 changed on a one-component
+edit* — and the first execution of that cycle found five defects nothing else
+could ([journal 0014](docs/context/journal/0014-the-incumbent.md)). Nothing is
+published and there is no hosted anything. Read [what does not exist
 yet](#what-does-not-exist-yet) before believing any of the rest.
 
 ---
@@ -328,8 +331,15 @@ Stated plainly, because everything above is easier to believe with this beside i
 - **History.** No per-component band hashing, no store, no drift answers. Decided
   in [spec 0001](docs/specs/0001-component-hashing.md) and
   [spec 0002](docs/specs/0002-history-store.md), not written.
-- **A CLI, a manifest, a GitHub Action, PR comments, commit-back.** The packages
-  are a library; the workflow around them is yours to write today.
+- **A GitHub Action, PR comments, commit-back.** Committed and never run once.
+  The CLI itself does now run — see [`cases/storybook-case`](cases/storybook-case)
+  — but only against a project in this repository, and the mounting half of a
+  run is a collector each adopter writes.
+- **Cause-vs-collateral ranking on the durable path.** It needs the previous
+  revision's snapshot and a stored baseline is an image, so `variance run`
+  currently reports every region as `collateral` and orders them by area — the
+  ordering [journal 0013](docs/context/journal/0013-observability.md) measured as
+  backwards. `observePair` does not have this problem.
 - **Git-LFS and remote artifact storage.** The durable store is a local directory.
 - **Storybook integration.** Story-shaped subjects work; a plugin does not exist.
 - **Linux verification.** Every number here is from one Mac and one Chromium.

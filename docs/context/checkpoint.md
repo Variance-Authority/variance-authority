@@ -74,6 +74,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M12 | B13 | Cut packages by requirement rather than by feature; group `core`; enforce the rule as a test | **expected, and it found drift** — `raster` was four requirements in one box; four packages imported test-time requirements they never declared, which works in a workspace and breaks on a standalone install |
 | M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. specs 0001 and 0002 record what replaces both; nothing is implemented |
 | M13 | B14 | Run a real `@playwright/test` against a corpus declared first; ask what an import costs | **expected, and it corrected us twice** — 35/36 assertions on the first run; `toHaveScreenshot` does measure across a size mismatch in 1.62, where the scenario was declared as a refusal to, and attribution named `Indicator` where `Toolbar` was predicted (journal 0014) |
+| M14 | B14 | Write the collector `cases/storybook-case` was missing and run the CLI over a real Storybook | **mixed, and the most productive move so far** — the workflow closes (new → accept → unchanged → 5 of 8 changed on a one-component edit, with the right five), and the first execution found five defects no unit test could reach. Three made durable mode unusable: the run never exited, `stabilization` was dropped by the identity codec so `accept` and `run` keyed on different digests, and the refusal that resulted named the same machine on both sides (journal 0014) |
 
 ---
 
@@ -129,6 +130,27 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 - **Ranking rests on one measurement.** `rankRegions` fixes an ordering that area
   gets backwards, on one mutation and one story. The finding is solid; the
   generality is not measured.
+- **The durable path cannot rank at all, and this is now demonstrated rather than
+  suspected.** Separating cause from collateral needs the previous revision's
+  *snapshot*; `observeAgainstBaseline` has a baseline **image** and no snapshot,
+  so `variance run` reports every region as `collateral` and orders them by area
+  — the ordering journal 0013 measured as backwards. The first real CLI run over
+  `cases/storybook-case` names `Tokens`, the wrapper the edit displaced, where the
+  edit was to `Button`. `observePair` has both sides and does not have this
+  problem, which is why the asymmetry stayed invisible: the only things exercising
+  the durable path supplied `causes` by hand. Carrying a semantic baseline beside
+  the image is the fix and nothing does it.
+- **Regions in the space between boxes report `unattributed`.** A gap produced by
+  `Stack`'s `gap` is inside `Stack` and inside no child, and comes back as "a
+  region no box contained, which usually means the scale or origin was wrong" —
+  a sentence that sends the reader after a bug that is not there. 3 of 4 regions
+  on one story of the first real run. Whether a parent should claim its own gaps
+  is a real question about what attribution means, not an obvious fix.
+- **Component names do not survive a minified build.** React reads a display name
+  off the function; a production bundler renames it; attribution then produces a
+  complete, confident report naming `a`. `keepNames` fixes it, nobody would guess
+  it, and nothing detects it — a report full of one-letter components is
+  indistinguishable to the tool from a project whose components are called that.
 - **The acquired document is not proven faithful.** It paints something with the
   subject's geometry that responds to its styling, over a socket, byte-identically
   — which is enough to offload and is not the same claim as "the image matches the

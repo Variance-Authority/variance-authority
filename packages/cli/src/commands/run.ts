@@ -327,7 +327,20 @@ export type Settlement =
  * reported as a bare `unchanged`. The saving is real and is worth having as soon
  * as `Described` can answer that too.
  */
-export function settle(digest: Digest, found: Found | null): Settlement {
+export function settle(
+  digest: Digest,
+  found: Found | null,
+  /**
+   * The identity this run would paint under.
+   *
+   * Required so the refusal can name *both* sides. A sentence that says a
+   * baseline is not comparable while describing only the baseline gives the
+   * reader one machine and asks them to guess what the other one is — and when
+   * the difference is in a field the description omits, the two sides read
+   * identically. See `describeIdentity`.
+   */
+  mine?: RenderIdentity,
+): Settlement {
   if (found === null) {
     return {
       kind: 'render',
@@ -340,8 +353,9 @@ export function settle(digest: Digest, found: Found | null): Settlement {
       kind: 'settled',
       verdict: 'incomparable',
       because:
-        `a baseline exists but was rendered by ${describeIdentity(found.storedUnder)}; ` +
-        'pixels are machine-bound, so the two are not comparable and no image was produced',
+        `a baseline exists but was rendered by ${describeIdentity(found.storedUnder)}` +
+        (mine === undefined ? '' : `, and this run is ${describeIdentity(mine)}`) +
+        '; pixels are machine-bound, so the two are not comparable and no image was produced',
     };
   }
 
@@ -590,6 +604,39 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
   // what `settle` is for.
   const renderer = await deps.renderer();
 
+  try {
+    return await observeAll(plan, { config, deps, renderer }, options, {
+      observations,
+      notObserved,
+      warnings,
+    });
+  } finally {
+    // A renderer is a browser, which is a child process, and nothing above this
+    // function opened it — `deps.renderer()` is a factory, so the only code that
+    // knows one was ever needed is this one.
+    //
+    // Found by the first real `variance run` and by nothing before it: every
+    // test in `run.test.ts` injects a fake renderer, and a fake costs nothing to
+    // leave open. What a real one costs is a command that produces a correct
+    // report, prints it, and then never exits.
+    await renderer.close();
+  }
+}
+
+/** The loop, extracted only so `run` can own the renderer's lifetime in one place. */
+async function observeAll(
+  plan: Plan,
+  context: ObserveContext,
+  options: RunOptions,
+  accumulated: {
+    observations: CliObservationRecord[];
+    notObserved: NotObserved[];
+    warnings: readonly string[];
+  },
+): Promise<CliRunReport> {
+  const { config, deps, renderer } = context;
+  const { observations, notObserved, warnings } = accumulated;
+
   for (const planned of plan.subjects) {
     const id = planned.subject.id;
 
@@ -720,7 +767,7 @@ async function observeOne(
   // paid so that comparison, isolation, and attribution are not reimplemented
   // here where they would be a second, untested copy.
   const found = await deps.store.find(key, renderer.identity);
-  const settlement = settle(documentDigest(collected.document), found);
+  const settlement = settle(documentDigest(collected.document), found, renderer.identity);
 
   if (settlement.kind === 'settled') {
     const missingFonts = settlement.missingFonts ?? [];

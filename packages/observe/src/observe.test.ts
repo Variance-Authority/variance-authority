@@ -131,10 +131,16 @@ describe('a durable observation above 1x', () => {
     );
 
     expect(observation.verdict).toBe('incomparable');
+
+    // Both sides, and the scale on each. Matched on the prefix rather than the
+    // whole parenthesis because `describeIdentity` also prints the fonts and the
+    // stabilization recipe — the two fields the digest covers and the sentence
+    // used to omit, which is how an identity mismatch came to be reported as two
+    // identical descriptions of one machine.
     expect(observation.because).toContain(
-      'this run is playwright-chromium (chromium@131.0.0, darwin/arm64, 2x)',
+      'this run is playwright-chromium (chromium@131.0.0, darwin/arm64, 2x,',
     );
-    expect(observation.because).toContain('darwin/arm64, 1x)');
+    expect(observation.because).toContain('rendered by playwright-chromium (chromium@131.0.0, darwin/arm64, 1x,');
   });
 
   it('reuses a 2x render instead of paying for it twice', async () => {

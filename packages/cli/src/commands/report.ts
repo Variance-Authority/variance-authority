@@ -1,6 +1,6 @@
 import { toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
-import type { CliRunReport, NotObserved } from './run.js';
+import type { CliRunReport } from './run.js';
 
 /**
  * `variance report` — ask questions of an artifact, never of a browser.
@@ -27,7 +27,7 @@ import type { CliRunReport, NotObserved } from './run.js';
  * the tool that was fixed.
  *
  * What is added on top is the one thing those tools cannot know about, because
- * their type does not carry it: the subjects that were not observed at all.
+ * their type does not carry it: the index warnings that belong to no subject.
  */
 
 export type ReportFormat = 'text' | 'json';
@@ -105,54 +105,33 @@ function asText(options: ReportOptions): string {
     return tool('variance_describe', report, { subject });
   }
 
-  return [tool('variance_summary', report, {}), coverage(report)].join('\n\n');
+  return [tool('variance_summary', report, {}), warnings(report)]
+    .filter((section) => section !== '')
+    .join('\n\n');
 }
 
 /**
- * The coverage section — the part of the output with no counterpart in a
- * pixel-diff tool.
+ * The only section this command adds, and the reason it is only this.
  *
- * Three states, and the third is the reason this is not simply a list. `absent`
- * means the report's writer never said what it skipped, which is not the same
- * sentence as "it skipped nothing" and must not be printed as one: a reader who
- * sees a clean summary over a report that does not account for its subjects has
- * been told the suite is green by something that never counted the suite.
+ * Coverage — *which subjects were not observed, and why* — was printed here as
+ * well as by `variance_summary`, so every run said "coverage: every planned
+ * subject was observed." twice. The tests could not see it: they all assert with
+ * `toContain`, which is satisfied by the first copy.
+ *
+ * Found by the first real `variance run`, and it is the exact failure the
+ * doc-comment above warns about, arrived at from the other direction. Two
+ * formatters over one artifact drift; `tool()` exists so that cannot happen, and
+ * a second implementation grew beside it anyway because the CLI's report type is
+ * a superset and `notObserved` looked like the CLI's business. It is not:
+ * `variance_summary` reads that field too.
+ *
+ * `warnings` genuinely is. It is on `CliRunReport` and not on `RunReport`, so no
+ * MCP tool can see it, and an index complaint that belongs to no single subject
+ * would otherwise be written to the file and never read aloud.
  */
-function coverage(report: CliRunReport): string {
-  const entries = report.notObserved;
-
-  const warnings =
-    report.warnings === undefined || report.warnings.length === 0
-      ? []
-      : ['', 'warnings:', ...report.warnings.map((warning) => `  ${warning}`)];
-
-  if (entries === undefined) {
-    return [
-      'coverage: unknown — this report does not state which subjects were not observed.',
-      '  It was not written by `variance run`, so silence about a subject here cannot be',
-      '  read as a pass.',
-      ...warnings,
-    ].join('\n');
-  }
-
-  if (entries.length === 0) {
-    return ['coverage: every planned subject was observed.', ...warnings].join('\n');
-  }
-
-  const failed = entries.filter((entry) => entry.kind === 'failed');
-  const excluded = entries.filter((entry) => entry.kind === 'excluded');
-
-  return [
-    `not observed: ${entries.length} subject(s) — ` +
-      `${failed.length} the run could not see, ${excluded.length} excluded by configuration`,
-    ...failed.map(line),
-    ...excluded.map(line),
-    ...warnings,
-  ].join('\n');
-}
-
-function line(entry: NotObserved): string {
-  return `  [${entry.kind}] ${entry.subject}: ${entry.because}`;
+function warnings(report: CliRunReport): string {
+  if (report.warnings === undefined || report.warnings.length === 0) return '';
+  return ['warnings:', ...report.warnings.map((warning) => `  ${warning}`)].join('\n');
 }
 
 function tool(

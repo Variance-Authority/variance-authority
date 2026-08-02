@@ -1422,7 +1422,12 @@ __metadata:
   resolution: "@variance-authority/case-storybook@workspace:cases/storybook-case"
   dependencies:
     "@storybook/react-vite": "npm:^9.1.13"
+    "@variance-authority/cli": "workspace:^"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/react": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
+    esbuild: "npm:^0.25.0"
     playwright: "npm:^1.49.0"
     react: "npm:^19"
     react-dom: "npm:^19"
@@ -1431,7 +1436,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/cli@workspace:packages/cli":
+"@variance-authority/cli@workspace:^, @variance-authority/cli@workspace:packages/cli":
   version: 0.0.0-use.local
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:

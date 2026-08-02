@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "storybook": "storybook dev -p 6199 --no-open --quiet",
-    "build-storybook": "storybook build -o storybook-static --quiet"
+    "build-storybook": "storybook build -o storybook-static --quiet",
+    "variance": "node ../../packages/cli/dist/bin.js",
+    "build-storybook:changed": "VITE_CASE_MUTATION=wide-button storybook build -o storybook-changed --quiet"
   },
   "dependencies": {
     "react": "^19",
@@ -13,7 +15,12 @@
   },
   "devDependencies": {
     "@storybook/react-vite": "^9.1.13",
+    "@variance-authority/cli": "workspace:^",
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/dom": "workspace:^",
+    "@variance-authority/react": "workspace:^",
     "@variance-authority/storybook": "workspace:^",
+    "esbuild": "^0.25.0",
     "playwright": "^1.49.0",
     "storybook": "^9.1.13",
     "vite": "^6.0.0"

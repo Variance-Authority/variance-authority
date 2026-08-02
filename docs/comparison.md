@@ -602,23 +602,32 @@ pipeline.
 
 ### 4.2 Nothing above the CLI boundary has been run
 
-- **No `variance run` has ever completed against a real project.** The binary
-  builds and runs: `--help` prints the five-command usage block and exits 0, and
-  `doctor`, `report` and an unknown command each exit **2** with a specific
-  operator error, so the exit-code contract holds as a real process exit and not
-  only as the pure function `packages/cli/src/exit.test.ts` (9 tests) covers.
-  What has never happened is a run. Spec 0003 acceptance 1 — "`variance run` over
-  the todomvc example produces the same verdicts as the existing test-file path,
-  with no test runner involved" — has no test and no script; all 21 cases in
-  `packages/cli/src/commands/run.test.ts` use a fake `Collector` and a fake
-  `Renderer`; and there is no variance config file anywhere in the repository for
-  a run to read. What *is* proven, beyond the parser
-  (`packages/cli/src/bin.test.ts`, 18 tests: refuses unknown flags, cross-command
-  flags, repeated flags, value-less value flags), is `config.test.ts` (16),
-  `comment.test.ts` (16), `doctor.test.ts` (14), `report.test.ts` (11),
-  `accept.test.ts` (9), and that `exitFor` refuses to report "nothing needs
-  review" while the report contains a subject it meant to observe and could not.
-  `variance serve` (MCP over stdio) has no test file of its own.
+- **`variance run` now completes against a real project. Corrected 2026-08-02.**
+  This entry previously read "no `variance run` has ever completed against a real
+  project", and that is no longer true: `cases/storybook-case` carries a
+  `variance.config.json`, a collector the operator writes
+  (`cases/storybook-case/collector/`), and
+  `cases/storybook-case/src/cli.chromium.test.js`, which spawns the binary over a
+  Storybook built by Storybook and asserts the whole cycle —
+  **new (exit 1) → accept (0) → unchanged (0) → 5 of 8 changed (exit 1)** on a
+  build with one component edited, finding exactly the five stories that render
+  it. Spec 0003 acceptance 1 is met in substance against `storybook-case` rather
+  than against todomvc.
+
+  **The first execution found five defects, and three made durable mode
+  unusable** (journal 0014): the run never exited, because nothing closed the
+  renderer `deps.renderer()` opened; `stabilization` was dropped by the identity
+  wire codec, so `accept` stored a baseline under a different digest than the next
+  `run` looked it up with and every subject came back `incomparable` forever; and
+  the refusal that produced named the same machine on both sides, because
+  `describeIdentity` omitted the two fields the digest covers. Plus a coverage
+  section printed twice, and component names lost to a minifying build.
+
+  That is the value of the entry rather than an argument against it: 21 cases in
+  `run.test.ts` with a fake `Collector` and a fake `Renderer` could not have found
+  any of them. What is still unrun: `variance serve` (MCP over stdio) has no test
+  file of its own, and `variance run` has never been executed against a
+  repository this project did not write.
 - **git-LFS has never been exercised as git-LFS.** `store-lfs.test.ts` injects a
   fake `CommandRunner` in every test but one; the single real-git test does
   `git init` and checks `git check-attr` resolves the filter. git-lfs is never
@@ -646,13 +655,24 @@ pipeline.
   about what an agent needs, tested against text (`packages/mcp/src/mcp.test.ts`,
   21 tests, including chunk-boundary reframing).
 
-### 4.3 There is no shipped collector
+### 4.3 There is no shipped collector, and that is the design
 
 `loadCollector` in `packages/cli/src/commands/run.ts` imports a module *the
-operator writes*, named in the config rather than discovered. `planStorybook` produces only a plan. The Storybook package's
-actual driver — `collectStory` / `collectStories` — is not imported by the CLI at
-all; the CLI imports only `readStoryIndex`, `storySubjectId` and `toSubjects`.
-"Runnable from a terminal" is true of the argument parser, not of a run.
+operator writes*, named in the config rather than discovered. `planStorybook`
+produces only a plan, and the Storybook package's driver — `collectStory` /
+`collectStories` — is not imported by the CLI at all.
+
+**Corrected 2026-08-02:** one now exists as a worked example.
+`cases/storybook-case/collector/` is about a hundred lines including its comments
+— it serves its own build, declares which stories carry a readiness marker, and
+indexes its own source for component→file — and it is what the end-to-end run in
+[§4.2](#42-nothing-above-the-cli-boundary-has-been-run) is driven by. So "an
+operator writes about thirty lines" is now a claim with a file behind it rather
+than an estimate, and the number is closer to a hundred.
+
+What has not changed is that a buyer comparing integration surfaces should read
+this as a cost. Percy ships 20+ SDKs and Argos takes any PNG from a CLI; here the
+mounting half is the adopter's to write, once, per project.
 
 ### 4.4 The Storybook adapter has met a Storybook; the CLI has not
 

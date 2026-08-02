@@ -185,6 +185,93 @@ So migration is a generation rather than a switch: import to get moving, let the
 imported baselines age out as subjects are re-recorded under an identity. The
 generation tracking that would make that a product feature does not exist.
 
+## Running the thing, which had never happened
+
+A tool that answers better and has never been run replaces nothing, and
+`comparison.md` §5 lists it as the first disqualifier: *"nothing above the CLI
+boundary has been run once."* So the second half of this move was to write the
+collector `cases/storybook-case` was missing and execute the workflow.
+
+It works. Four steps, over a Storybook this project did not author:
+
+| step | verdicts | exit |
+|---|---|---|
+| `variance run` on a fresh checkout | 8 new | **1** |
+| `variance accept --all` | 8 accepted | 0 |
+| `variance run` again | 8 unchanged, *nothing to review* | 0 |
+| `variance run` on a build with one component edited | 3 unchanged, **5 changed** | **1** |
+
+The last row is the measurement. `Button` appears in five of the eight stories and
+the run finds exactly those five; the three that hold render no `Button`. The edit
+is selected at build time rather than threaded as a prop, for the reason
+`code-mutation.ts` records — a prop switch makes a source edit look like a
+composition change and roots it at the story's entry point.
+
+### It found five defects, and three made durable mode unusable
+
+None was reachable from `run.test.ts`, which injects a fake `Collector` and a fake
+`Renderer`. That is the right way to test the loop and no way at all to test the
+*workflow* — whether a run leaves something `accept` can promote, whether a
+promoted baseline is the one the next run finds, whether the exit codes mean what
+they claim across a cycle.
+
+1. **The run never exited.** `deps.renderer()` is a factory; nothing closed what
+   it opened. A correct report printed and the process sat holding a browser. A
+   fake renderer costs nothing to leave open.
+2. **`stabilization` was dropped by `identityFrom`.** The codec rebuilds a
+   `RenderIdentity` field by field and did not know about the optional one, so an
+   identity survived being written and came back shortened. `accept` stored the
+   baseline under the shortened digest; the next `run` looked up under the full
+   one, found it under a *sibling* identity, and reported `incomparable`. On every
+   subject, forever, on a single machine.
+3. **The refusal named the same machine on both sides.** `describeIdentity`
+   printed the renderer, engine, platform and scale — and neither the fonts nor
+   the recipe, which are the other two fields `identityDigest` covers. So (2)
+   surfaced as *"a baseline exists but was rendered by playwright-chromium
+   (chromium@151, darwin/arm64, 1x)"* on a run that was playwright-chromium
+   (chromium@151, darwin/arm64, 1x). Two identical descriptions of two different
+   identities, and nowhere for the reader to go.
+4. **The coverage section printed twice**, by the CLI and by the MCP tool it
+   delegates to. Every assertion about it used `toContain`, which the first copy
+   satisfies. The duplication is the exact failure `report.ts`'s own doc-comment
+   warns against, arrived at from the other direction.
+5. **A production Storybook build minifies**, so attribution reported *"1356
+   pixel(s) differ … in a"*.
+
+(2) is the one worth dwelling on, because it is the *third* appearance of one
+failure: the write key and the lookup key computed by two rules. `deviceScaleFactor`
+was the first (checkpoint M11), `identityFor` was introduced to close it, and this
+was the same hole one field over — in a wire codec rather than in a renderer. The
+regression test now asserts key-for-key rather than value equality, so adding a
+field to `RenderIdentity` and forgetting the codec fails at the codec instead of
+in somebody's durable workflow six weeks later.
+
+(5) is not our defect and is the one to pass on. **Component attribution needs a
+build that preserves function names.** React reads a display name off the
+function; minification renames it; the chain then finds the right regions, joins
+them to the right boxes, and reports a complete, confident answer naming
+something that is in no source file — which is worse than naming nothing.
+`keepNames: true`, and nobody would guess it.
+
+### The gap it leaves open, stated because it is load-bearing
+
+**Nothing on the durable path is a `cause`.** Every region comes back
+`collateral`, and the largest belongs to the wrapper the edit displaced rather
+than to the component that was edited.
+
+Attribution is not what fails: regions land in the tree, name a component and
+resolve to `src/ds.jsx:26`. *Ranking* fails, because separating cause from
+collateral needs the previous revision's **snapshot**, and a durable run has a
+baseline image without one. The ordering falls back to area — the ordering journal
+0013 measured as backwards.
+
+Which is the same sentence the migration half of this move arrived at from the
+other end: *a PNG is not a semantic baseline.* There it is a cost of importing
+somebody else's artifact. Here it is not an import at all — nothing in our own
+durable pipeline carries one. `observePair` has both sides and `observeAgainstBaseline`
+has one, and that asymmetry has been invisible for as long as the only thing
+exercising it was a test that supplied `causes` by hand.
+
 ## Cost paid elsewhere
 
 `tools/boundaries.test.ts` failed on the new workspace, correctly, and the fix was
@@ -192,6 +279,13 @@ to the rule rather than to the case: `.spec.` now counts as a test file alongsid
 `.test.`. The weaker import rule is about *when* code runs, not which runner runs
 it, and holding a competitor's spec to the production rule would have put a second
 test runner into a workspace's `dependencies`.
+
+A limit of that test, found while adding the collector and not closed: it scans
+`src/` only, so a workspace's `scripts/` and `collector/` directories are outside
+rule 1 entirely. It matters little today — every `packages/*` workspace is
+`src/`-only, and examples and cases are private and never installed — and it is
+the kind of hole that stops being harmless the moment a package grows a build
+script.
 
 ## What this does not establish
 

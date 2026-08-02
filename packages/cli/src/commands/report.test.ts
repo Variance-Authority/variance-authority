@@ -96,6 +96,19 @@ describe('formatReport, text', () => {
     );
   });
 
+  it.each([
+    ['coverage: every planned subject was observed.', { ...REPORT, notObserved: [] }],
+    ['not observed:', REPORT],
+    ['coverage: unknown', (({ notObserved, ...rest }) => rest)(REPORT)],
+  ] as const)('says %s exactly once', (phrase, report) => {
+    // Every other assertion in this file uses `toContain`, which is satisfied by
+    // the first copy of a line printed twice — so a duplicated coverage section
+    // survived every test here and was found by the first real `variance run`.
+    // Counting rather than containing is what would have caught it.
+    const occurrences = formatReport({ report, format: 'text' }).split(phrase).length - 1;
+    expect(occurrences).toBe(1);
+  });
+
   it('answers about a not-observed subject from the coverage list', () => {
     // "Unknown subject" here would send the reader hunting for a typo instead of
     // reading the reason, which is right there.

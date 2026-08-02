@@ -31,12 +31,31 @@ export function Tokens({ children, overrides = {} }) {
   );
 }
 
+/**
+ * The edit, as an edit — selected at build time, never threaded as a prop.
+ *
+ * `VITE_CASE_MUTATION=wide-button` produces a second Storybook in which `Button`
+ * declares different padding, which is what lets a run be scored against a
+ * *change* without any file in this repository being modified and restored.
+ *
+ * Read here rather than passed in, for the reason
+ * `examples/todomvc/src/code-mutation.ts` records: a prop change and a source
+ * change are different causes with different correct attributions. Threading a
+ * switch down as a prop makes every source edit look like a composition change,
+ * and it is then rooted at whichever component happens to be the story's entry
+ * point — the same logical edit attributed to a different component in every
+ * story. `Button`'s props do not move here; its own output does.
+ */
+const WIDE_BUTTON = import.meta.env?.VITE_CASE_MUTATION === 'wide-button';
+
 export function Button({ children, variant = 'primary' }) {
   return (
     <button
       type="button"
       style={{
-        padding: 'var(--case-space) calc(var(--case-space) * 1.5)',
+        padding: WIDE_BUTTON
+          ? 'calc(var(--case-space) * 1.25) calc(var(--case-space) * 2)'
+          : 'var(--case-space) calc(var(--case-space) * 1.5)',
         borderRadius: 'var(--case-radius)',
         border: '1px solid var(--case-border)',
         background: variant === 'primary' ? 'var(--case-accent)' : 'transparent',

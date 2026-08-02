@@ -17,8 +17,12 @@ property that makes an agreement worth anything.
 
 | case | what it confronts | what it produced |
 |---|---|---|
-| [`storybook-case`](storybook-case) | a real Storybook, built by `storybook build`, read from outside | the readiness gap, reproducibly: `storyRendered` captures `loading…`, a declared marker captures the component |
+| [`storybook-case`](storybook-case) | a real Storybook, built by `storybook build`, and the whole CLI run over it | the readiness gap, reproducibly — and **five defects in the first real `variance run`**, three of which made durable mode unusable |
 | [`incumbent-case`](incumbent-case) | a real `@playwright/test`, running its own `toHaveScreenshot` in its own process | eight declared edits; 3 of them are missed by every configuration the incumbent has, and 1 is a false alarm of ours |
+
+Both halves matter and they are different questions. One asks *do we answer
+better*. The other asks *does the thing run* — and a tool that answers better and
+has never been executed replaces nothing.
 
 ## Where replacement stands
 
@@ -49,6 +53,23 @@ Three claims come out of that, and one concession:
 4. **We false-alarm where the camera is right.** A reindented block moves our hash
    and renders identically. Asserted as a failure, so the day it is fixed the
    suite goes red and says so.
+
+And from [`storybook-case`](storybook-case), the workflow rather than the
+comparison — over a Storybook this project did not author:
+
+```
+variance run     on a fresh checkout          8 new                exit 1
+variance accept --all                         8 accepted           exit 0
+variance run     again                        8 unchanged          exit 0
+variance run     one component edited         3 unchanged, 5 changed   exit 1
+```
+
+The last row finds exactly the five stories that render the edited component.
+**What it cannot do yet is say which of the named components is the cause** —
+that needs the previous revision's snapshot, and a durable run has a baseline
+image without one, so every region reads `collateral` and the ordering falls back
+to area. The same sentence `incumbent-case` reaches from the other end: *a PNG is
+not a semantic baseline.*
 
 ## What is not established here, and cannot be
 

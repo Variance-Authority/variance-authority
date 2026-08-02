@@ -138,4 +138,30 @@ describe('a record that claims to be a raster', () => {
   it('is accepted whole, or not at all', () => {
     expect(rasterFrom(rasterOf(MAC))).toEqual(rasterOf(MAC));
   });
+
+  it('carries every field the identity digest covers, including the optional ones', () => {
+    // The failure this exists to stop, which is not "a field is missing" but "a
+    // field is *dropped*". `stabilization` was absent from the codec, so an
+    // identity survived being written and came back shortened — `accept` then
+    // stored a baseline under one digest and the next `run` looked it up under
+    // another, reporting `incomparable` on every subject forever, in a sentence
+    // that named the same machine on both sides.
+    //
+    // Field-by-field rather than `toEqual` on the whole record, so that adding a
+    // field to `RenderIdentity` and forgetting the codec fails here rather than
+    // in somebody's durable workflow six weeks later.
+    const stabilized: RenderIdentity = { ...MAC, stabilization: 'v1:recipe' };
+
+    expect(identityFrom(stabilized)).toEqual(stabilized);
+    expect(Object.keys(identityFrom(stabilized) ?? {}).sort()).toEqual(
+      Object.keys(stabilized).sort(),
+    );
+  });
+
+  it('refuses a stabilization that is present and is not a digest', () => {
+    // Refused rather than dropped, for the same reason: a value of the wrong
+    // type is a writer this reader does not understand, and quietly discarding
+    // it produces exactly the silent shortening above.
+    expect(identityFrom({ ...MAC, stabilization: 7 })).toBeNull();
+  });
 });

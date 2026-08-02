@@ -246,17 +246,46 @@ export function rasterFrom(value: unknown): Raster | null {
   return sidecar === null || typeof bytes !== 'string' ? null : { ...sidecar, bytes };
 }
 
+/**
+ * An identity off a wire, rebuilt field by field.
+ *
+ * **Every field of `RenderIdentity` must appear here, including the optional
+ * ones.** This function is on the path of every baseline sidecar, every remote
+ * store response and every render-cache read-back, so a field it forgets is a
+ * field that survives being written and is gone by the time anything compares
+ * it — and `identityDigest` covers all of them.
+ *
+ * That is not hypothetical. `stabilization` was missing from this list, and the
+ * consequence was that a durable workflow could never see its own baseline:
+ * `run` rendered under an identity carrying the recipe digest, the raster went
+ * through this codec on the way to the candidate sidecar and came back without
+ * it, `accept` stored the baseline under the shortened digest, and the next
+ * `run` looked up under the full one — found a baseline under a *sibling*
+ * identity, and reported `incomparable` in a sentence that named the same
+ * machine on both sides. Every run, forever, with no way to act on it.
+ *
+ * It survived every test because no test ever crossed the codec with a
+ * stabilizing renderer: the store suites build identities by hand, and the run
+ * suite injects a fake renderer that stamps none. It was found by the first real
+ * `run` → `accept` → `run`.
+ */
 export function identityFrom(value: unknown): RenderIdentity | null {
   const identity = recordFrom(value);
   if (identity === null) return null;
 
   const fonts = stringsFrom(identity.fonts);
+  const stabilization = identity.stabilization;
+
   if (
     fonts === null ||
     typeof identity.renderer !== 'string' ||
     typeof identity.engine !== 'string' ||
     typeof identity.platform !== 'string' ||
-    typeof identity.deviceScaleFactor !== 'number'
+    typeof identity.deviceScaleFactor !== 'number' ||
+    // Absent is allowed — a renderer may predate the field — but a present value
+    // of the wrong type is refused rather than dropped, because dropping it is
+    // exactly the failure above.
+    (stabilization !== undefined && typeof stabilization !== 'string')
   ) {
     return null;
   }
@@ -267,6 +296,7 @@ export function identityFrom(value: unknown): RenderIdentity | null {
     platform: identity.platform,
     deviceScaleFactor: identity.deviceScaleFactor,
     fonts,
+    ...(stabilization !== undefined ? { stabilization } : {}),
   };
 }
 
