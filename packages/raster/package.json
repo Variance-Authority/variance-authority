@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./difference": {
+      "types": "./dist/difference/index.d.ts",
+      "default": "./dist/difference/index.js"
     }
   },
   "main": "./dist/index.js",

@@ -58,3 +58,39 @@ it lets a layout change score "detected" without measuring anything.
 Both images are padded onto the union box, on **white** because a page's declared
 canvas is white, and the padding is reported. A story that grew by one row then
 differs in that row rather than in its entire area.
+
+## `png/difference` — the codec half of known-difference measurement
+
+```ts
+import { observePngDifference } from '@variance-authority/png/difference';
+import { YIQ_DISTANCE } from '@variance-authority/raster/difference';
+
+const observation = await observePngDifference({
+  firstImage: chromiumPng,
+  secondImage: webkitPng,
+  metric: YIQ_DISTANCE,
+  severityLevels: [0, 0.01, 0.04, 0.16, 0.64],
+});
+```
+
+Decoding is the only part that needs a decoder, so it is the only part here. The
+field, the curve, the deltas and the artifact are arithmetic over two arrays and
+live in [`@variance-authority/raster/difference`](../raster) — which means a team
+whose images arrive as raw RGBA, from a canvas or a WASM renderer or a
+framebuffer, never installs this package at all.
+
+Source hashes are taken over the **encoded** bytes rather than the decoded
+pixels, because that is what a caller has and can look up again.
+
+### It refuses mismatched sizes, and the section above does not
+
+A real divergence, stated rather than smoothed over. `compareRasters` pads,
+because it is answering *did this subject change* and refusing would let a layout
+change score "detected" without measuring anything. `observePngDifference`
+refuses, because it is answering *how has a known difference moved* — and a
+baseline field measured on one grid has no per-pixel correspondence with a
+current field measured on another. Padding there would silently invent a
+difference across the whole added region and then report it as drift.
+
+Both are right for their question. Neither should be quietly given the other's
+behaviour.
