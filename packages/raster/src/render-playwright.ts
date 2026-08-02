@@ -7,6 +7,12 @@ import {
   type Viewport,
 } from '@variance-authority/core';
 import { assemble, SUBJECT_PATH, type AssembleOptions } from './assemble.js';
+import {
+  RASTER_STABILIZATION,
+  stabilizationCss,
+  stabilizationDigest,
+  type Stabilization,
+} from './stabilize.js';
 import { familiesOf, identityAtScale, type Renderer } from './renderer.js';
 
 /**
@@ -41,12 +47,25 @@ export interface PlaywrightRendererOptions {
 
   /** Waits for web fonts and images before shooting. Defaults to `true`. */
   readonly waitForFonts?: boolean;
+
+  /**
+   * What to do to the page so it holds still. Defaults to the raster set.
+   *
+   * Every entry is an intervention applied from outside the subject, so nothing
+   * in the product is shaped by it. The applied set is folded into the
+   * renderer's identity: a baseline stabilised one way and a run stabilised
+   * another are `incomparable`, not `changed`, because the difference between
+   * them is this option rather than anybody's code.
+   */
+  readonly stabilization?: Stabilization;
 }
 
 export async function createPlaywrightRenderer(
   options: PlaywrightRendererOptions = {},
 ): Promise<Renderer> {
   const browser = await chromium.launch({ headless: options.headless ?? true });
+  const stabilization = options.stabilization ?? RASTER_STABILIZATION;
+  const holdStill = stabilizationCss(stabilization);
 
   try {
     const identity: RenderIdentity = {
@@ -59,6 +78,7 @@ export async function createPlaywrightRenderer(
       // one, and nothing may key a store on this.
       deviceScaleFactor: 1,
       fonts: options.fonts ?? [],
+      stabilization: stabilizationDigest(stabilization),
     };
 
     const pages = new Map<string, Page>();
@@ -78,11 +98,34 @@ export async function createPlaywrightRenderer(
         const page = await pageFor(browser, pages, contexts, document.viewport);
 
         await page.setContent(assemble(document, options.assemble ?? {}), {
-          waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
+          waitUntil:
+            options.waitForFonts === false || !stabilization.fonts ? 'domcontentloaded' : 'load',
         });
 
-        if (options.waitForFonts !== false) {
+        // After `setContent`, because `setContent` replaces the document and
+        // would discard a sheet added before it.
+        if (holdStill !== '') await page.addStyleTag({ content: holdStill });
+
+        if (options.waitForFonts !== false && stabilization.fonts) {
           await page.evaluate(() => window.document.fonts.ready);
+        }
+
+        if (stabilization.images) {
+          // Decoding, not merely fetched: an image that has arrived but not
+          // decoded still lays out at its intrinsic size and paints as nothing.
+          await page.evaluate(() =>
+            Promise.all(
+              Array.from(window.document.images)
+                .filter((image) => !image.complete)
+                .map(
+                  (image) =>
+                    new Promise<void>((resolve) => {
+                      image.addEventListener('load', () => resolve(), { once: true });
+                      image.addEventListener('error', () => resolve(), { once: true });
+                    }),
+                ),
+            ).then(() => undefined),
+          );
         }
 
         const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));

@@ -191,6 +191,24 @@ export interface RenderIdentity {
    * it is invisible in every artifact except the image itself.
    */
   readonly fonts: readonly string[];
+
+  /**
+   * Digest of what the renderer did *to* the page so it could be observed.
+   *
+   * Pausing animations, hiding a caret, waiting for fonts — each is necessary
+   * and each widens the gap between what was measured and what a person sees.
+   * The gap itself is acceptable; a *difference* in it between two runs is not,
+   * because the images then differ for a reason that is not the code and the
+   * report blames whichever component sits under the pixels. Folding it in here
+   * makes that comparison `incomparable` instead, by the same mechanism that
+   * refuses a cross-machine one.
+   *
+   * Optional only because a renderer may predate the field. Absent means the
+   * renderer did not record what it did, which is emphatically not the same as
+   * "it did nothing" — and two such renderers will compare, which is the hazard
+   * that argues for every renderer setting it.
+   */
+  readonly stabilization?: Digest;
 }
 
 export function identityDigest(identity: RenderIdentity): Digest {
@@ -198,6 +216,7 @@ export function identityDigest(identity: RenderIdentity): Digest {
     renderer: identity.renderer,
     engine: identity.engine,
     platform: identity.platform,
+    ...(identity.stabilization !== undefined ? { stabilization: identity.stabilization } : {}),
     deviceScaleFactor: identity.deviceScaleFactor,
     fonts: [...identity.fonts],
   });

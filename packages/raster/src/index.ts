@@ -60,3 +60,13 @@ export type { RemoteStoreOptions, ServeStoreOptions, StoreServer } from './store
 
 export { observePair, observeAgainstBaseline, summarizeObservation } from './observe.js';
 export type { Observation, ObserveOptions, RasterVerdict } from './observe.js';
+
+export {
+  NO_STABILIZATION,
+  LAYOUT_STABILIZATION,
+  RASTER_STABILIZATION,
+  stabilizationCss,
+  stabilizationDigest,
+  describeStabilization,
+} from './stabilize.js';
+export type { Stabilization } from './stabilize.js';
