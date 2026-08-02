@@ -26,6 +26,11 @@ export interface Observation {
   readonly component: string;
   readonly band: 'structure' | 'style' | 'geometry';
   readonly hash: Digest;
+  /**
+   * Which tier observed it. Required on `style` and `geometry`, which are not
+   * portable across profiles; `structure` is, and is compared without it.
+   */
+  readonly profile: ProfileId;
   readonly commit: string;
   readonly run: string;
   readonly at: string;
@@ -96,6 +101,12 @@ application as the thing that keeps changing, in every run, forever.
 **Quiet runs are recorded.** A run in which nothing changed still records that it
 happened, or every rate computed later is inflated — "changed in 4 of 4 runs" for
 a component that changed in 4 of 40.
+
+**Bands are compared only where they are comparable.** `structure` is portable
+across profiles and is compared without regard to which tier produced it.
+`style` and `geometry` are not, and a query that crossed profiles on either would
+report a change caused by the tier that ran rather than by an edit (measured:
+style agrees across profiles on 0 of 107 component boundaries).
 
 ## Acceptance
 

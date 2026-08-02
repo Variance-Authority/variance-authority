@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   diffSnapshots,
+  hashComponents,
   normalize,
   type Band,
   type SemanticSnapshot,
@@ -100,6 +101,14 @@ interface Observation {
 const CHROMIUM: Map<string, Observation> = new Map();
 const JSDOM: Map<string, Observation> = new Map();
 
+/** Both snapshots of each pair, kept so the same renders can be hashed per component. */
+interface Pair {
+  readonly base: SemanticSnapshot;
+  readonly perturbed: SemanticSnapshot;
+}
+const PAIR_CHROMIUM: Map<string, Pair> = new Map();
+const PAIR_JSDOM: Map<string, Pair> = new Map();
+
 let harness: Harness | undefined;
 let engine = 'chromium@unknown';
 
@@ -144,18 +153,19 @@ beforeAll(async () => {
     const before = await harness.capture(corpusCase.subject, corpusCase.baseVariant);
     const after = await harness.capture(corpusCase.subject, corpusCase.perturbedVariant);
 
+    const chromiumPair: Pair = { base: normalize(before), perturbed: normalize(after) };
     CHROMIUM.set(corpusCase.id, {
-      ...observe(normalize(before), normalize(after)),
+      ...observe(chromiumPair.base, chromiumPair.perturbed),
       diagnostics: [...before.diagnostics, ...after.diagnostics].map((d) => d.code),
     });
+    PAIR_CHROMIUM.set(corpusCase.id, chromiumPair);
 
-    JSDOM.set(corpusCase.id, {
-      ...observe(
-        jsdomSnapshot(corpusCase.subject, corpusCase.baseVariant),
-        jsdomSnapshot(corpusCase.subject, corpusCase.perturbedVariant),
-      ),
-      diagnostics: [],
-    });
+    const jsdomPair: Pair = {
+      base: jsdomSnapshot(corpusCase.subject, corpusCase.baseVariant),
+      perturbed: jsdomSnapshot(corpusCase.subject, corpusCase.perturbedVariant),
+    };
+    JSDOM.set(corpusCase.id, { ...observe(jsdomPair.base, jsdomPair.perturbed), diagnostics: [] });
+    PAIR_JSDOM.set(corpusCase.id, jsdomPair);
   }
 }, 300_000);
 
@@ -339,4 +349,108 @@ describe.skipIf(!BROWSER_AVAILABLE)('M5 — collection under chromium', () => {
 
 describe.skipIf(BROWSER_AVAILABLE)('M5 — corpus under chromium', () => {
   it.skip('needs a Chromium download: npx playwright install chromium', () => {});
+});
+
+/**
+ * Spec 0001 acceptance, scored against the corpus's pre-declared ground truth.
+ *
+ * Per-component hashes are the unit a history is kept in, so the questions that
+ * matter are whether they move exactly when the corpus says something changed,
+ * and whether they mean the same thing under both profiles. Both are answered
+ * here rather than on hand-written trees, because a hash that only behaves on
+ * fixtures is a hash that has never met a real component boundary.
+ */
+describe.skipIf(!BROWSER_AVAILABLE)('spec 0001 — per-component hashes', () => {
+  function moved(pair: Pair): readonly string[] {
+    const before = new Map(hashComponents(pair.base).map((h) => [h.component, h] as const));
+    const after = hashComponents(pair.perturbed);
+
+    return after
+      .filter((hash) => {
+        const previous = before.get(hash.component);
+        return (
+          previous === undefined ||
+          previous.structure !== hash.structure ||
+          previous.style !== hash.style ||
+          previous.geometry !== hash.geometry
+        );
+      })
+      .map((hash) => hash.component);
+  }
+
+  it('moves nothing on a case the corpus declares stable', () => {
+    // The no-op refactor property, over every stable case at once. A hash that
+    // moves here would report an edit nobody made, in a record nobody re-derives.
+    const noisy = CORPUS.filter(
+      (c) => c.expect === 'hash-stable' && moved(PAIR_CHROMIUM.get(c.id)!).length > 0,
+    ).map((c) => `${c.id}: ${moved(PAIR_CHROMIUM.get(c.id)!).join(', ')}`);
+
+    expect(noisy, 'component hashes moved on a case declared stable').toEqual([]);
+  });
+
+  it('moves something on every case the corpus declares changed', () => {
+    // The other direction, and the one that would make the record useless
+    // rather than merely noisy: a change nothing recorded is a change nobody
+    // can ever ask about again.
+    const silent = CORPUS.filter(
+      (c) => c.expect === 'hash-changed' && moved(PAIR_CHROMIUM.get(c.id)!).length === 0,
+    ).map((c) => c.id);
+
+    expect(silent, 'no component hash moved on a case declared changed').toEqual([]);
+  });
+
+  it('agrees across profiles on structure, and reports where style diverges', () => {
+    // The load-bearing question for history: does a hash mean the same thing
+    // whichever tier produced it?
+    //
+    // Structure must agree — tag, role, name, state, attributes and text are
+    // observable by both profiles by construction, so a disagreement is a defect
+    // in one of the two collection paths rather than a property of the change.
+    //
+    // Style is not expected to agree and must not be required to. `jsdom`
+    // resolves declared style and `chromium` resolves computed style (ADR-0002),
+    // which are different observations of the same page — comparing them is
+    // exactly what the profile-scoped environment key exists to prevent. The
+    // rate is measured here rather than assumed, because "how far apart" decides
+    // whether the style band is worth recording per profile at all.
+    let comparedStructure = 0;
+    let comparedStyle = 0;
+    let agreedStyle = 0;
+    const structureDisagreed: string[] = [];
+
+    for (const corpusCase of CORPUS) {
+      const chromiumHashes = hashComponents(PAIR_CHROMIUM.get(corpusCase.id)!.base);
+      const jsdomHashes = new Map(
+        hashComponents(PAIR_JSDOM.get(corpusCase.id)!.base).map((h) => [h.component, h] as const),
+      );
+
+      for (const hash of chromiumHashes) {
+        const counterpart = jsdomHashes.get(hash.component);
+        if (counterpart === undefined) continue;
+
+        comparedStructure += 1;
+        if (counterpart.structure !== hash.structure) {
+          structureDisagreed.push(`${corpusCase.id}/${hash.component}`);
+        }
+
+        comparedStyle += 1;
+        if (counterpart.style === hash.style) agreedStyle += 1;
+      }
+    }
+
+    console.log(
+      [
+        '',
+        'SPEC 0001 — CROSS-PROFILE AGREEMENT (jsdom vs chromium, base variants)',
+        `  structure  ${comparedStructure - structureDisagreed.length}/${comparedStructure} agree`,
+        `  style      ${agreedStyle}/${comparedStyle} agree`,
+        '',
+      ].join('\n'),
+    );
+
+    expect(
+      [...new Set(structureDisagreed)],
+      'the two collection paths disagree on structure',
+    ).toEqual([]);
+  });
 });

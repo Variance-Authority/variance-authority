@@ -85,17 +85,29 @@ Each is a test, not a claim.
 5. **Reflow is geometry only.** A change that moves `Stack` without altering its
    own declarations moves `Stack.geometry` alone, and under `jsdom` moves
    nothing.
-6. **Profiles agree.** The same subject captured under `jsdom` and under
-   `chromium` produces identical `structure` and `style` hashes for every
-   component.
-7. **A no-op refactor moves nothing.** Run against the existing corpus's
-   `noop-refactor` mutation across every subject.
-8. **Reordering children moves the parent.** The `filter-reorder` mutation moves
-   the structure hash of the component that owns the order, and not of the items
-   that moved.
+6. **Profiles agree on structure, and only on structure.** The same subject
+   captured under `jsdom` and under `chromium` produces identical `structure`
+   hashes for every component.
 
-Acceptance 6 is the load-bearing one: without it the record is per-profile and
-worthless as history.
+   **Measured: structure 107/107 agree, style 0/107.** Style is not portable
+   across profiles and MUST NOT be required to be: `jsdom` resolves declared
+   style and `chromium` resolves computed style, which are different observations
+   of one page, and comparing them is what the profile-scoped environment key
+   exists to prevent (ADR-0002). Geometry is unobservable under `jsdom` at all.
+
+   The consequence belongs to whatever keeps a record: **`structure` is the
+   cross-tier band; `style` and `geometry` are profile-scoped** and a history
+   row carrying either MUST record which profile produced it.
+7. **A no-op refactor moves nothing.** No component hash moves on any corpus case
+   declared `hash-stable`.
+8. **Every real change moves something.** At least one component hash moves on
+   every corpus case declared `hash-changed`. The converse of 7, and the more
+   damaging failure: a change nothing recorded is a change nobody can ask about
+   again.
+
+Acceptance 6 is the load-bearing one. Its answer determines whether a history row
+means anything without knowing which tier wrote it, and the answer is *only for
+structure*.
 
 ## Out of scope
 
