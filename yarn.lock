@@ -793,6 +793,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@playwright/test@npm:^1.62.1":
+  version: 1.62.1
+  resolution: "@playwright/test@npm:1.62.1"
+  dependencies:
+    playwright: "npm:1.62.1"
+  bin:
+    playwright: cli.js
+  checksum: 10c0/4b76f2f717723f84a73601f74fde97f5d92e4b5c869cf87c0f5628bf247fa1d18c9dc6c8e136463303233239e8ce58f902513d4281a9fabc3c426e911ded2c83
+  languageName: node
+  linkType: hard
+
 "@rollup/pluginutils@npm:^5.0.2":
   version: 5.4.0
   resolution: "@rollup/pluginutils@npm:5.4.0"
@@ -1387,6 +1398,24 @@ __metadata:
   checksum: 10c0/a9b0549d816ff2c353077365d865a33655a141d066d0f5a3ba6fd4b28bc2f4188a510079f7c1f715b3e7af505a27374adce2a5140a3ece2a059aab3d6e1a4244
   languageName: node
   linkType: hard
+
+"@variance-authority/case-incumbent@workspace:cases/incumbent-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-incumbent@workspace:cases/incumbent-case"
+  dependencies:
+    "@playwright/test": "npm:^1.62.1"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    esbuild: "npm:^0.25.0"
+    playwright: "npm:^1.49.0"
+    react: "npm:^19"
+    react-dom: "npm:^19"
+  languageName: unknown
+  linkType: soft
 
 "@variance-authority/case-storybook@workspace:cases/storybook-case":
   version: 0.0.0-use.local
@@ -3168,7 +3197,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright@npm:^1.49.0":
+"playwright@npm:1.62.1, playwright@npm:^1.49.0":
   version: 1.62.1
   resolution: "playwright@npm:1.62.1"
   dependencies:

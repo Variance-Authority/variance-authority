@@ -29,3 +29,9 @@ packages/provenance-react/browser-check/www/bundle.js
 .claude/worktrees/
 docker/results/
 storybook-static/
+
+# The incumbent's own artifacts: its baselines are this machine's Chromium, and
+# its report belongs to a run rather than to the repository. Regenerate with
+# `yarn workspace @variance-authority/case-incumbent incumbent`.
+cases/*/incumbent/
+cases/*/test-results/

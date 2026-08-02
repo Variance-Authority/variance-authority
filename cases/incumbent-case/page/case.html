@@ -1,0 +1,58 @@
+<!doctype html>
+<!--
+  The page both arms navigate to.
+
+  Deliberately inert, for the same reason todomvc's harness page is: no reset, no
+  webfont, nothing that would contribute style the subject did not ask for. Every
+  property the panel renders with is declared by the panel, so a disagreement
+  between the two arms cannot be blamed on this file.
+
+  Loaded over `file://`, with no server. The bundle is a classic script and the
+  page fetches nothing, so there is no origin rule to trip over and no port to
+  collide with a parallel run — which matters here because two runners drive this
+  page, one of them a `playwright test` process this repository does not control.
+
+  `<div id="subject">` is both the mount point and the **screenshot clip**. Both
+  arms observe this box rather than the viewport: a viewport shot would charge
+  every scenario for the empty page below it, and would make two panels of
+  different heights differ in pixels belonging to neither.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Pins the canvas to light. Without it the browser takes a canvas from the
+      host operating system's theme, and every scenario would report as changed
+      on a reviewer's dark-mode laptop — an undeclared render input, which is the
+      one thing the environment key exists to rule out.
+    -->
+    <meta name="color-scheme" content="light" />
+    <title>variance-authority incumbent case</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+      /* Shrink-wraps the panel, so the clip is the subject and nothing else. */
+      #subject {
+        display: inline-block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="subject"></div>
+    <script src="../dist/case.js"></script>
+    <!--
+      Mounting is triggered here rather than by the bundle, and that is load
+      bearing. Our arm injects the same bundle a second time through
+      `addScriptTag`, the way it injects a page agent into any harness page; a
+      bundle that mounted on evaluation would then mount twice and leave two
+      panels in the clip.
+    -->
+    <script>
+      window.__CASE__.mountFromLocation();
+    </script>
+  </body>
+</html>

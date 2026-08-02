@@ -18,6 +18,7 @@
     { "path": "./packages/mcp" },
     { "path": "./packages/cli" },
     { "path": "./examples/kitchen-sink" },
-    { "path": "./examples/todomvc" }
+    { "path": "./examples/todomvc" },
+    { "path": "./cases/incumbent-case" }
   ]
 }
