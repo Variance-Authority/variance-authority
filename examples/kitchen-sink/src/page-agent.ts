@@ -1,7 +1,7 @@
 /**
  * The corpus's page agent: the browser half of the persistent harness.
  *
- * `@variance-authority/harness-playwright` knows how to keep a browser alive and
+ * `@variance-authority/playwright` knows how to keep a browser alive and
  * move plain data across the bridge. It does not know what a subject is. This
  * file supplies that, and it is the only place in the corpus that runs
  * exclusively in a real engine.
@@ -12,12 +12,12 @@
  * always be blamed on the fixtures, and the measurement would answer nothing.
  */
 
-import { collect } from '@variance-authority/collector-dom';
+import { collect } from '@variance-authority/dom';
 // The `/agent` entry point rather than the package root: the root exports
 // `createHarness`, which imports Playwright, which does not bundle for a browser.
-import type { CaptureRequest, PageAgent } from '@variance-authority/harness-playwright/agent';
-import { AGENT_GLOBAL } from '@variance-authority/harness-playwright/agent';
-import { portalContentOf, provenanceOf } from '@variance-authority/provenance-react';
+import type { CaptureRequest, PageAgent } from '@variance-authority/playwright/agent';
+import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
+import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { renderCase, type RenderedCase } from './render.js';
 import { SUBJECT_IDS, type SubjectId } from './subjects.js';
 import { VARIANT_IDS, type VariantId } from './variants.js';

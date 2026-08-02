@@ -1393,8 +1393,6 @@ __metadata:
   resolution: "@variance-authority/case-storybook@workspace:cases/storybook-case"
   dependencies:
     "@storybook/react-vite": "npm:^9.1.13"
-    "@variance-authority/core": "workspace:^"
-    "@variance-authority/harness-playwright": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
     react: "npm:^19"
     react-dom: "npm:^19"
@@ -1407,24 +1405,17 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:
-    "@variance-authority/collector-dom": "workspace:^"
     "@variance-authority/core": "workspace:^"
-    "@variance-authority/harness-playwright": "workspace:^"
-    "@variance-authority/history": "workspace:^"
     "@variance-authority/mcp": "workspace:^"
+    "@variance-authority/observe": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
     "@variance-authority/raster": "workspace:^"
+    "@variance-authority/remote": "workspace:^"
+    "@variance-authority/store": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
   bin:
     variance: ./dist/bin.js
-  languageName: unknown
-  linkType: soft
-
-"@variance-authority/collector-dom@workspace:^, @variance-authority/collector-dom@workspace:packages/collector-dom":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/collector-dom@workspace:packages/collector-dom"
-  dependencies:
-    "@variance-authority/core": "workspace:^"
-    "@variance-authority/provenance-react": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1434,15 +1425,25 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/dom@workspace:^, @variance-authority/dom@workspace:packages/dom":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/dom@workspace:packages/dom"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/example-kitchen-sink@workspace:examples/kitchen-sink":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-kitchen-sink@workspace:examples/kitchen-sink"
   dependencies:
     "@types/react": "npm:^19.2.0"
     "@types/react-dom": "npm:^19.2.0"
-    "@variance-authority/collector-dom": "workspace:^"
-    "@variance-authority/harness-playwright": "workspace:^"
-    "@variance-authority/provenance-react": "workspace:^"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/react": "workspace:^"
     esbuild: "npm:^0.25.0"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
@@ -1456,26 +1457,19 @@ __metadata:
     "@types/pngjs": "npm:^6.0.5"
     "@types/react": "npm:^19.2.18"
     "@types/react-dom": "npm:^19.2.4"
-    "@variance-authority/collector-dom": "workspace:^"
     "@variance-authority/core": "workspace:^"
-    "@variance-authority/harness-playwright": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
     "@variance-authority/mcp": "workspace:^"
-    "@variance-authority/provenance-react": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
     "@variance-authority/raster": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    "@variance-authority/remote": "workspace:^"
     esbuild: "npm:^0.25.0"
     pixelmatch: "npm:^7.2.0"
     pngjs: "npm:^7.0.0"
     react: "npm:^19"
     react-dom: "npm:^19"
-  languageName: unknown
-  linkType: soft
-
-"@variance-authority/harness-playwright@workspace:^, @variance-authority/harness-playwright@workspace:packages/harness-playwright":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/harness-playwright@workspace:packages/harness-playwright"
-  dependencies:
-    "@variance-authority/core": "workspace:^"
-    playwright: "npm:^1.49.0"
   languageName: unknown
   linkType: soft
 
@@ -1497,16 +1491,36 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/provenance-react@workspace:^, @variance-authority/provenance-react@workspace:packages/provenance-react":
+"@variance-authority/observe@workspace:^, @variance-authority/observe@workspace:packages/observe":
   version: 0.0.0-use.local
-  resolution: "@variance-authority/provenance-react@workspace:packages/provenance-react"
+  resolution: "@variance-authority/observe@workspace:packages/observe"
   dependencies:
-    "@types/react": "npm:^19.0.0"
-    "@types/react-dom": "npm:^19.0.0"
     "@variance-authority/core": "workspace:^"
-    jsdom: "npm:^25.0.1"
-    react: "npm:^19.0.0"
-    react-dom: "npm:^19.0.0"
+    "@variance-authority/png": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/remote": "workspace:^"
+    "@variance-authority/store": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/playwright@workspace:^, @variance-authority/playwright@workspace:packages/playwright":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/playwright@workspace:packages/playwright"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    playwright: "npm:^1.49.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/png@workspace:^, @variance-authority/png@workspace:packages/png":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/png@workspace:packages/png"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    pixelmatch: "npm:^7.2.0"
+    pngjs: "npm:^7.0.0"
   languageName: unknown
   linkType: soft
 
@@ -1518,6 +1532,30 @@ __metadata:
     pixelmatch: "npm:^7.2.0"
     playwright: "npm:^1.49.0"
     pngjs: "npm:^7.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/react@workspace:^, @variance-authority/react@workspace:packages/react":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/react@workspace:packages/react"
+  dependencies:
+    "@types/react": "npm:^19.0.0"
+    "@types/react-dom": "npm:^19.0.0"
+    "@variance-authority/core": "workspace:^"
+    jsdom: "npm:^25.0.1"
+    react: "npm:^19.0.0"
+    react-dom: "npm:^19.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/remote@workspace:^, @variance-authority/remote@workspace:packages/remote":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/remote@workspace:packages/remote"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/observe": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/store": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1536,9 +1574,18 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/session@workspace:packages/session"
   dependencies:
-    "@variance-authority/collector-dom": "workspace:^"
     "@variance-authority/core": "workspace:^"
-    "@variance-authority/provenance-react": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/store@workspace:^, @variance-authority/store@workspace:packages/store":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/store@workspace:packages/store"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -1547,7 +1594,6 @@ __metadata:
   resolution: "@variance-authority/storybook@workspace:packages/storybook"
   dependencies:
     "@variance-authority/core": "workspace:^"
-    "@variance-authority/harness-playwright": "workspace:^"
   languageName: unknown
   linkType: soft
 

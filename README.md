@@ -196,7 +196,7 @@ packages/
   provenance-react/     React fiber traversal → owner chains, props digests, portals
   collector-dom/        RawCapture and RenderDocument from a live DOM, incl. CSS pruning
   session/              one standing world; cross-pollution detected instead of prevented
-  harness-playwright/   one Chromium, one page, one navigation — a capture per subject
+  playwright/   one Chromium, one page, one navigation — a capture per subject
   raster/               assemble, render (local or remote), compare, store, observe
   mcp/                  run report, four tools, JSON-RPC over stdio
 examples/

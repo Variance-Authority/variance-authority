@@ -321,7 +321,7 @@ cross-origin stylesheet. Score: share reported as unchanged.
 | Reindented JSX inside a block | **0 px rendered, hash moves — a false alarm** | same (**measured**) |
 | Canvas repaint | **blind, and the test asserts the blindness** (`renderHeld === true`); 857 px at default allowlist, 2031 px strict | same; magnitude from `scripts/pixel-arm.mjs`, asserted by no test |
 | Cross-origin stylesheet edit | fingerprints as `unreadable`, compares **equal** | `docs/flakiness.md` |
-| Image swapped behind a stable URL | assets are caller-supplied content hashes — **blind** | `packages/collector-dom/src/collect.ts:81` |
+| Image swapped behind a stable URL | assets are caller-supplied content hashes — **blind** | `packages/dom/src/collect.ts:81` |
 
 So the expected outcome is split: **we win M4a on rasterization causes and lose
 at least one case (reindentation) that every pixel differ gets right; we lose

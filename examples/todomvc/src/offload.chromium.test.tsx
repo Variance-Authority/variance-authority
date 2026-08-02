@@ -3,16 +3,11 @@ import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { documentDigest, type RenderDocument, type Viewport } from '@variance-authority/core';
-import { acquireDocument } from '@variance-authority/collector-dom';
-import {
-  comparePngs,
-  createPlaywrightRenderer,
-  decode,
-  serveRenderer,
-  connectRenderer,
-  type Renderer,
-  type RenderServer,
-} from '@variance-authority/raster';
+import { acquireDocument } from '@variance-authority/dom';
+import { comparePngs, decode } from '@variance-authority/png';
+import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import type { Renderer } from '@variance-authority/raster';
+import { connectRenderer, serveRenderer, type RenderServer } from '@variance-authority/remote';
 import { mutationById } from './mutations.js';
 import { renderStory } from './render.js';
 

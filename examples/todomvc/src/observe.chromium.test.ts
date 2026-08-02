@@ -17,10 +17,10 @@ import {
   type RankedRegion,
   type SemanticSnapshot,
 } from '@variance-authority/core';
-import { comparePngs } from '@variance-authority/raster';
+import { comparePngs } from '@variance-authority/png';
 import { handle, writeRunReport, type RunReport } from '@variance-authority/mcp';
-import { createHarness, type Harness } from '@variance-authority/harness-playwright';
-import { AGENT_GLOBAL } from '@variance-authority/harness-playwright/agent';
+import { createHarness, type Harness } from '@variance-authority/playwright';
+import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { BASELINE_VARIANT } from './pixel/protocol.js';
 import { buildSourceIndex } from './source-index.js';
 import { mkdtemp, rm } from 'node:fs/promises';

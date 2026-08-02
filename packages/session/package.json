@@ -18,8 +18,10 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@variance-authority/collector-dom": "workspace:^",
     "@variance-authority/core": "workspace:^",
-    "@variance-authority/provenance-react": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+  },
+  "devDependencies": {
+    "@variance-authority/react": "workspace:^"
   }
 }

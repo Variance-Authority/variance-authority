@@ -1,7 +1,7 @@
 /**
  * todomvc's page agent: the browser half of the persistent harness.
  *
- * `@variance-authority/harness-playwright` keeps one Chromium alive and moves two
+ * `@variance-authority/playwright` keeps one Chromium alive and moves two
  * plain strings across the bridge. It does not know what a story is. This file
  * supplies that, mirroring `examples/kitchen-sink/src/page-agent.ts`.
  *
@@ -18,12 +18,12 @@
  * fixtures.
  */
 
-import { collect } from '@variance-authority/collector-dom';
+import { collect } from '@variance-authority/dom';
 // The `/agent` entry point rather than the package root: the root exports
 // `createHarness`, which imports Playwright, which does not bundle for a browser.
-import type { CaptureRequest, PageAgent } from '@variance-authority/harness-playwright/agent';
-import { AGENT_GLOBAL } from '@variance-authority/harness-playwright/agent';
-import { portalContentOf, provenanceOf } from '@variance-authority/provenance-react';
+import type { CaptureRequest, PageAgent } from '@variance-authority/playwright/agent';
+import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
+import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { MUTATIONS, mutationById, type Mutation, type MutationId } from './mutations.js';
 import { renderStory, type Rendered } from './render.js';
 import { clearProbeSheets, renderProbe, type ProbeState } from './pixel/probes.js';

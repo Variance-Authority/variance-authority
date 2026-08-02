@@ -6,6 +6,10 @@
  * it, because the quantity that would is a **sum** and a one-run-at-a-time tool
  * keeps none.
  *
+ * It also holds **no client**. A store reached over a hop is
+ * `@variance-authority/history/client`, one import away and not on the path of
+ * anyone who only wants to know what a churn number means.
+ *
  * This package holds **no storage**. That is a boundary, not an omission. Storage
  * is `@variance-authority/server`, run by the operator in their own
  * infrastructure, because a record kept as a file in the repository puts derived
@@ -40,7 +44,7 @@ export {
   detectDrift,
 } from './drift.js';
 
-export type { HttpHistoryOptions, LastChangedResponse, RecordRequest } from './client.js';
+export type { LastChangedResponse, RecordRequest } from './protocol.js';
 export {
   CHURN_PATH,
   HISTORY_API_VERSION,
@@ -48,7 +52,6 @@ export {
   OBSERVATIONS_PATH,
   REACH_PATH,
   VALUE_JOURNEY_PATH,
-  createHttpHistoryStore,
-} from './client.js';
+} from './protocol.js';
 
 export { createAbsentStore, unkept } from './absent.js';

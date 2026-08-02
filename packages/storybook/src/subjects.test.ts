@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { Viewport } from '@variance-authority/core';
-import { readStoryIndex, type StoryIndex } from './index-file.js';
+import type { StoryIndex } from './index-file.js';
+import { readStoryIndex } from './read.js';
 import { toSubjects, type StoryParameters, type SubjectPlan } from './subjects.js';
 
 /**

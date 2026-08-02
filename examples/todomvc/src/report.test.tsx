@@ -14,8 +14,8 @@ import {
   type SourceIndex,
   type Viewport,
 } from '@variance-authority/core';
-import { collect } from '@variance-authority/collector-dom';
-import { portalContentOf, provenanceOf } from '@variance-authority/provenance-react';
+import { collect } from '@variance-authority/dom';
+import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { POLICY, changesetById, mutationsOf, type Changeset } from './changesets.js';
 import { renderStory } from './render.js';
 import { STORIES } from './stories.js';

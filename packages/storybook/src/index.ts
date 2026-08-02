@@ -4,7 +4,7 @@
  * Three steps, kept apart because they fail differently and are worth testing
  * separately (spec 0006):
  *
- * 1. {@link readStoryIndex} reads what a built Storybook declares, and refuses
+ * 1. {@link parseStoryIndex} reads what a built Storybook declares, and refuses
  *    anything that is not that. No browser, no evaluation, no `.storybook/`.
  * 2. {@link toSubjects} turns those entries into subjects and applies policy —
  *    exclusion, viewport, and a deterministic order. Pure.
@@ -16,6 +16,12 @@
  * that way. What is handed across is a subject id, a URL, and the fact that the
  * story is ready — plus, when it is not, the reason.
  *
+ * **This package requires nothing.** Not a browser: {@link harnessPage} names the
+ * three page methods it uses rather than importing a `Page`, so Storybook support
+ * and Playwright support are never installed together by accident. Not a
+ * filesystem: `index.json` arrives as a value, and the one function that reads it
+ * off a disk is `@variance-authority/storybook/read`.
+ *
  * Nothing here prunes Storybook's chrome. It does not have to: the story mounts
  * into `#storybook-root`, so the preview reset, the addon layout, and the error
  * overlay are outside the subject subtree and are dropped by ordinary CSS
@@ -23,7 +29,7 @@
  * second normalization ruleset, versioned by nobody.
  */
 
-export { parseStoryIndex, readStoryIndex } from './index-file.js';
+export { parseStoryIndex } from './index-file.js';
 export type { StoryEntry, ExcludedEntry, StoryIndex, IndexShape } from './index-file.js';
 
 export { toSubjects, storySubjectId } from './subjects.js';
@@ -48,6 +54,7 @@ export {
   collectStories,
 } from './preview.js';
 export type {
+  BrowserHarness,
   ShowEvents,
   ErrorOverlay,
   ShowRequest,

@@ -6,12 +6,12 @@ import {
   OBSERVATIONS_PATH,
   REACH_PATH,
   VALUE_JOURNEY_PATH,
-  createHttpHistoryStore,
   isKept,
   type Observation,
   type RunRecord,
   type TokenValue,
 } from '@variance-authority/history';
+import { createHttpHistoryStore } from '@variance-authority/history/client';
 import { createSqliteBackend } from './backend-sqlite.js';
 import { lastChangedFrom, type HistoryBackend } from './backend.js';
 import { serveHistory, type HistoryService } from './http.js';

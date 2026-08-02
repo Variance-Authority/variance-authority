@@ -46,7 +46,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B4 | **dual-surface** | landed and measured — both profiles scored, P4 met |
 | B5 | **differ** | landed and measured |
 | B6 | **per-profile ground truth** | settled by ADR-0008 (undecidable / divergent / undeclared) |
-| B7 | **persistent harness** — `packages/harness-playwright`, one browser per run | landed and measured (27×) |
+| B7 | **persistent harness** — `packages/playwright`, one browser per run | landed and measured (27×) |
 | B8 | **session** — one standing world, cross-pollution detected rather than prevented | landed and measured (3.5×, ~2% probe overhead) |
 | B9 | **impact axis** — reflow vs repaint, orthogonal to the frequency bands | landed; answers B6's leftover band-cardinality question |
 | B10 | **intent / adjudication** — declared claims vs findings, and the locate/source chain | landed; a report is a cause, a place and a file |

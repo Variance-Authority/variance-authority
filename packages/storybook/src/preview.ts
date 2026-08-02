@@ -1,4 +1,3 @@
-import type { Harness } from '@variance-authority/harness-playwright';
 
 /**
  * Driving a Storybook preview: one navigation, N stories.
@@ -604,14 +603,32 @@ export interface StoryPage {
 }
 
 /**
- * Drive the page a {@link Harness} already owns.
+ * A browser page, named rather than imported.
+ *
+ * `@variance-authority/playwright`'s `Harness` satisfies this, and so does a bare
+ * Playwright `Page` wrapped in an object — but neither is a *dependency*, because
+ * naming the three methods costs six lines and importing the type costs every
+ * consumer of this package a browser they may never open. Storybook support and
+ * browser support are separate concerns that meet at a URL and a function call,
+ * and this is where that seam is.
+ */
+export interface BrowserHarness {
+  readonly page: {
+    url(): string;
+    goto(url: string, options?: { readonly waitUntil?: 'load' }): Promise<unknown>;
+    evaluate<A, R>(fn: (argument: A) => R | Promise<R>, argument: A): Promise<R>;
+  };
+}
+
+/**
+ * Drive the page a harness already owns.
  *
  * The harness holds the browser, the viewport, the injected collector, and the
- * one navigation this adapter is allowed. Wrapping rather than passing the
- * Playwright `Page` straight through keeps the interface above small enough to
- * fake, and pins `waitUntil` at the same `load` the harness itself uses.
+ * one navigation this adapter is allowed. Wrapping rather than passing the page
+ * straight through keeps the interface above small enough to fake, and pins
+ * `waitUntil` at the same `load` the harness itself uses.
  */
-export function harnessPage(harness: Harness): StoryPage {
+export function harnessPage(harness: BrowserHarness): StoryPage {
   const { page } = harness;
   return {
     url: () => page.url(),

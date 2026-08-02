@@ -280,8 +280,8 @@ Supporting measurements:
 
 | Claim | File | Result |
 |---|---|---|
-| Owner chains resolve to component display names, without the React DevTools hook | `packages/provenance-react/src/provenance.test.ts` (23 tests) | Against React 19.2.8 |
-| Portals belong to the subject by component tree, not DOM containment (ADR-0007) | `packages/collector-dom/src/portal.test.tsx` (6 tests) | Container hash is byte-identical whether the dialog is open or closed. The **342 bytes** that move is a one-off corpus measurement from journal 0003, restated as prose at `packages/provenance-react/src/portal.ts:12` and asserted by no test |
+| Owner chains resolve to component display names, without the React DevTools hook | `packages/react/src/provenance.test.ts` (23 tests) | Against React 19.2.8 |
+| Portals belong to the subject by component tree, not DOM containment (ADR-0007) | `packages/dom/src/portal.test.tsx` (6 tests) | Container hash is byte-identical whether the dialog is open or closed. The **342 bytes** that move is a one-off corpus measurement from journal 0003, restated as prose at `packages/react/src/portal.ts:12` and asserted by no test |
 | Semantic diff separates root from collateral; token attribution | `packages/core/src/diff/diff.test.ts` (18 tests) | — |
 | `impact` (`layout`/`paint`/`composite`) as an axis orthogonal to bands | `packages/core/src/diff/impact.test.ts` (18 tests) | `--brand` → `token/paint`; `--space` → `token/layout` (journal 0009) |
 | Component → file by reading the repo, with no build plugin | `packages/core/src/source.ts`, `examples/todomvc/src/source-index.ts` | **A regex scan**, not a source map — `_debugSource` is gone in React 19, so this is deliberate. It misses components produced by a factory, assigned dynamically or re-exported under another name, and can name a capitalised non-component; a name declared in two files is reported as ambiguous rather than guessed. Limits stated in `source.ts`. **No dedicated test**; exercised only end-to-end on one example app |
@@ -300,9 +300,9 @@ Supporting measurements:
   **3 subjects** (`packages/core/src/docket.test.ts`, 12 tests). "One token, 300
   collateral, one action" is demonstrated at 3, not 300.
 - **Provenance is React-only.** `collect()` takes `provenanceOf` as a caller
-  supplied callback (`packages/collector-dom/src/collect.ts:52`), so the
+  supplied callback (`packages/dom/src/collect.ts:52`), so the
   interface is framework-agnostic; the only implementation is
-  `packages/provenance-react`. For Vue, Svelte or Angular, the differentiating
+  `packages/react`. For Vue, Svelte or Angular, the differentiating
   axis of this entire document does not currently exist.
 
 ### 3.2 Flakiness treated as a taxonomy of absorption, not a tolerance
@@ -353,7 +353,7 @@ the multiple, as the claim** — the repository itself prints three different
 figures for this one quantity, and the number moved twice while this document was
 being written.
 
-**Measured** — cruft removal. `packages/collector-dom/src/collect.test.ts:80`
+**Measured** — cruft removal. `packages/dom/src/collect.test.ts:80`
 asserts that growing an accreted CSS-in-JS sheet from 5 to 500 generations leaves
 the render hash **byte-identical**. This is the failure where a baseline decays
 simply by being run later in a suite.
@@ -378,7 +378,7 @@ simply by being run later in a suite.
   alarm rate is open.
 - **Open blind spots no test closes**: an image swapped behind a stable URL
   (`assets` are caller-supplied content hashes,
-  `packages/collector-dom/src/collect.ts:81`); cross-origin stylesheets, which
+  `packages/dom/src/collect.ts:81`); cross-origin stylesheets, which
   fingerprint as `unreadable` and compare **equal**; animations mid-flight, which
   are not paused; headless overlay scrollbars, where the classic reflow does not
   reproduce for either arm. The property allowlist models what an author declares

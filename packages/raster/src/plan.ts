@@ -6,7 +6,7 @@ import {
   type Plan,
   type ToolDeclaration,
 } from '@variance-authority/core';
-import { DEFAULT_POLICY, type DiffPolicy } from './compare.js';
+import { DEFAULT_POLICY, type DiffPolicy } from './policy.js';
 import { RASTER_RECIPE, recipeDigest, type Recipe } from './stabilize.js';
 
 /**

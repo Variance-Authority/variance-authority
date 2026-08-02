@@ -7,7 +7,7 @@ import {
   type SubjectRef,
   type Viewport,
 } from '@variance-authority/core';
-import { collect } from '@variance-authority/collector-dom';
+import { collect } from '@variance-authority/dom';
 import { readsOf } from './reads.js';
 import {
   SheetRegistry,

@@ -13,11 +13,11 @@ import {
   type SemanticSnapshot,
   type Viewport,
 } from '@variance-authority/core';
+import type { Observation } from '@variance-authority/observe';
 import {
   RasterStoreError,
   createEphemeralStore,
   type Found,
-  type Observation,
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';

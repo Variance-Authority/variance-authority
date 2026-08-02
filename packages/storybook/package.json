@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./read": {
+      "types": "./dist/read.d.ts",
+      "default": "./dist/read.js"
     }
   },
   "main": "./dist/index.js",
@@ -18,7 +22,6 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@variance-authority/core": "workspace:^",
-    "@variance-authority/harness-playwright": "workspace:^"
+    "@variance-authority/core": "workspace:^"
   }
 }

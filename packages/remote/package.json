@@ -1,0 +1,36 @@
+{
+  "name": "@variance-authority/remote",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer.d.ts",
+      "default": "./dist/renderer.js"
+    },
+    "./store": {
+      "types": "./dist/store.d.ts",
+      "default": "./dist/store.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/raster": "workspace:^"
+  },
+  "devDependencies": {
+    "@variance-authority/observe": "workspace:^",
+    "@variance-authority/store": "workspace:^"
+  }
+}

@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { parseStoryIndex, readStoryIndex } from './index-file.js';
+import { parseStoryIndex } from './index-file.js';
+import { readStoryIndex } from './read.js';
 
 /**
  * The reader, against files shaped like the ones Storybook writes.

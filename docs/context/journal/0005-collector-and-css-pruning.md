@@ -38,7 +38,7 @@ pruned:            99.90%
 ```
 
 Reproduce by rendering the fixture in
-`packages/collector-dom/src/collect.test.ts` and comparing `StyleIndex.totalRules`
+`packages/dom/src/collect.test.ts` and comparing `StyleIndex.totalRules`
 against the summed `matchedRules` of the capture.
 
 That ratio is the whole economic argument in one number. The expensive stages run

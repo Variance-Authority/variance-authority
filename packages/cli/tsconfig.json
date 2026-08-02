@@ -4,40 +4,20 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "lib": [
-      "ES2022"
-    ],
-    "types": [
-      "node"
-    ]
+    "lib": ["ES2022"],
+    "types": ["node"]
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "src/**/*.test.ts"
-  ],
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"],
   "references": [
-    {
-      "path": "../core"
-    },
-    {
-      "path": "../collector-dom"
-    },
-    {
-      "path": "../harness-playwright"
-    },
-    {
-      "path": "../history"
-    },
-    {
-      "path": "../mcp"
-    },
-    {
-      "path": "../raster"
-    },
-    {
-      "path": "../storybook"
-    }
+    { "path": "../core" },
+    { "path": "../mcp" },
+    { "path": "../observe" },
+    { "path": "../playwright" },
+    { "path": "../png" },
+    { "path": "../raster" },
+    { "path": "../remote" },
+    { "path": "../store" },
+    { "path": "../storybook" }
   ]
 }

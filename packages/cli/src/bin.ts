@@ -397,7 +397,7 @@ async function planFor(config: Config): Promise<Plan | undefined> {
  * chromium` on a machine without Chromium exit 2 rather than 1.
  */
 async function rendererFor(config: Config): Promise<Renderer> {
-  const { createPlaywrightRenderer } = await import('@variance-authority/raster');
+  const { createPlaywrightRenderer } = await import('@variance-authority/playwright');
   try {
     return await createPlaywrightRenderer({ fonts: config.fonts });
   } catch (error) {

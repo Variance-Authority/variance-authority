@@ -8,14 +8,12 @@
     "build-storybook": "storybook build -o storybook-static --quiet"
   },
   "dependencies": {
-    "@variance-authority/core": "workspace:^",
-    "@variance-authority/harness-playwright": "workspace:^",
-    "@variance-authority/storybook": "workspace:^",
     "react": "^19",
     "react-dom": "^19"
   },
   "devDependencies": {
     "@storybook/react-vite": "^9.1.13",
+    "@variance-authority/storybook": "workspace:^",
     "storybook": "^9.1.13",
     "vite": "^6.0.0"
   }

@@ -10,9 +10,9 @@
  * not re-exported from the package index for that reason.
  */
 
-import { collect } from '@variance-authority/collector-dom';
+import { collect } from '@variance-authority/dom';
 import { normalize, type SemanticSnapshot, type Viewport } from '@variance-authority/core';
-import { portalContentOf, provenanceOf } from '@variance-authority/provenance-react';
+import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { renderCase } from './render.js';
 import type { SubjectId } from './subjects.js';
 import type { VariantId } from './variants.js';

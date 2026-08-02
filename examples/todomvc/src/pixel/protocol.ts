@@ -1,4 +1,4 @@
-import type { CaptureRequest, PageAgent } from '@variance-authority/harness-playwright/agent';
+import type { CaptureRequest, PageAgent } from '@variance-authority/playwright/agent';
 
 /**
  * The wire contract between the pixel runner (Node) and the page agent (browser).

@@ -6,7 +6,7 @@
 
 ## What was asked
 
-Build `@variance-authority/provenance-react`: given a DOM element, produce the
+Build `@variance-authority/react`: given a DOM element, produce the
 `Provenance` value `core` defines — owner chain innermost-first with a props
 digest per boundary, `createdBy`, optional source location. It must work in both
 jsdom and a real browser, and must not require the React DevTools hook.
@@ -15,7 +15,7 @@ jsdom and a real browser, and must not require the React DevTools hook.
 
 Four source files (`fiber`, `names`, `resolve`, `runtime`), 23 tests rendering
 real React trees under jsdom, ADR-0005, and a manual browser harness under
-`packages/provenance-react/browser-check/` that runs the same ten assertions in
+`packages/react/browser-check/` that runs the same ten assertions in
 Chromium.
 
 **Tested against React 19.2.8 / react-dom 19.2.8.** Everything below was
@@ -209,7 +209,7 @@ yarn install --no-immutable && yarn build && yarn test
 
 ```
  ✓ packages/core/src/canonical.test.ts (16 tests) 3ms
- ✓ packages/provenance-react/src/provenance.test.ts (23 tests) 35ms
+ ✓ packages/react/src/provenance.test.ts (23 tests) 35ms
 
  Test Files  2 passed (2)
       Tests  39 passed (39)
@@ -218,8 +218,8 @@ yarn install --no-immutable && yarn build && yarn test
 `tsc --build` clean. Real-browser run:
 
 ```bash
-node packages/provenance-react/browser-check/build.mjs
-python3 -m http.server 5600 --directory packages/provenance-react/browser-check/www
+node packages/react/browser-check/build.mjs
+python3 -m http.server 5600 --directory packages/react/browser-check/www
 ```
 
 ```json

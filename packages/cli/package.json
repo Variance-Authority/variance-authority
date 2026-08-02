@@ -21,12 +21,14 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@variance-authority/collector-dom": "workspace:^",
     "@variance-authority/core": "workspace:^",
-    "@variance-authority/harness-playwright": "workspace:^",
-    "@variance-authority/history": "workspace:^",
     "@variance-authority/mcp": "workspace:^",
+    "@variance-authority/observe": "workspace:^",
+    "@variance-authority/playwright": "workspace:^",
+    "@variance-authority/png": "workspace:^",
     "@variance-authority/raster": "workspace:^",
+    "@variance-authority/remote": "workspace:^",
+    "@variance-authority/store": "workspace:^",
     "@variance-authority/storybook": "workspace:^"
   }
 }

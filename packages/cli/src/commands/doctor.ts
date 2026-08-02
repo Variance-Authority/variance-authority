@@ -5,7 +5,8 @@ import type {
   RenderIdentity,
   Viewport,
 } from '@variance-authority/core';
-import { SUBJECT_PATH, createPlaywrightRenderer, type Renderer } from '@variance-authority/raster';
+import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 

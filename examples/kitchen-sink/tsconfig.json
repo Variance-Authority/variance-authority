@@ -4,16 +4,16 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022","DOM","DOM.Iterable"],
     "types": ["node"],
     "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
+  "exclude": ["src/**/*.test.ts","src/**/*.test.tsx"],
   "references": [
     { "path": "../../packages/core" },
-    { "path": "../../packages/collector-dom" },
-    { "path": "../../packages/harness-playwright" },
-    { "path": "../../packages/provenance-react" }
+    { "path": "../../packages/dom" },
+    { "path": "../../packages/playwright" },
+    { "path": "../../packages/react" }
   ]
 }

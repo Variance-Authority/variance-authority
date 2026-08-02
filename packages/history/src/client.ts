@@ -1,5 +1,13 @@
 import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
 import { BANDS, type Band, type Observation, type RunRecord, type TokenValue } from './observation.js';
+import {
+  CHURN_PATH,
+  LAST_CHANGED_PATH,
+  OBSERVATIONS_PATH,
+  REACH_PATH,
+  VALUE_JOURNEY_PATH,
+  type RecordRequest,
+} from './protocol.js';
 import type { BandChurn, Churn, HistoryStore, Journey, Reach, Window } from './store.js';
 
 /**
@@ -22,34 +30,6 @@ import type { BandChurn, Churn, HistoryStore, Journey, Reach, Window } from './s
  * The absence of a store is a different thing entirely, and is said differently:
  * see `createAbsentStore`.
  */
-
-/** Bumped when the wire shape changes incompatibly, so a mismatch 404s loudly. */
-export const HISTORY_API_VERSION = 'v1';
-
-export const OBSERVATIONS_PATH = `/${HISTORY_API_VERSION}/observations`;
-export const LAST_CHANGED_PATH = `/${HISTORY_API_VERSION}/last-changed`;
-export const CHURN_PATH = `/${HISTORY_API_VERSION}/churn`;
-export const VALUE_JOURNEY_PATH = `/${HISTORY_API_VERSION}/value-journey`;
-export const REACH_PATH = `/${HISTORY_API_VERSION}/reach`;
-
-/**
- * The body of a write.
- *
- * The run travels with the rows rather than in a second call, so a service can
- * commit both or neither. Recording rows whose run never landed would leave a
- * change with no denominator, and recording the run without its rows would leave
- * a quiet run that was not quiet.
- */
-export interface RecordRequest {
-  readonly run: RunRecord;
-  readonly observations: readonly Observation[];
-  readonly tokens: readonly TokenValue[];
-}
-
-/** `null` means the record contains no such change, which is an answer. */
-export interface LastChangedResponse {
-  readonly observation: Observation | null;
-}
 
 export interface HttpHistoryOptions {
   /** Base URL of the operator's service, e.g. `http://history.internal:7788`. */

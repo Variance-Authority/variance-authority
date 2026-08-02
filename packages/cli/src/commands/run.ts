@@ -19,25 +19,26 @@ import {
   type Viewport,
 } from '@variance-authority/core';
 import {
+  observeAgainstBaseline,
+  observePair,
+  type Observation,
+} from '@variance-authority/observe';
+import { decode, diffImage } from '@variance-authority/png';
+import {
   DEFAULT_POLICY,
   RasterStoreError,
   STRICT_POLICY,
-  createDurableStore,
   createEphemeralStore,
-  createLfsStore,
-  createRemoteStore,
-  diffImage,
-  decode,
-  observeAgainstBaseline,
-  observePair,
   type BaselineKey,
   type Found,
-  type Observation,
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
+import { createRemoteStore } from '@variance-authority/remote';
+import { createDurableStore, createLfsStore } from '@variance-authority/store';
 import type { Raster } from '@variance-authority/core';
-import { readStoryIndex, storySubjectId, toSubjects } from '@variance-authority/storybook';
+import { storySubjectId, toSubjects } from '@variance-authority/storybook';
+import { readStoryIndex } from '@variance-authority/storybook/read';
 import {
   readRunReport,
   writeRunReport,

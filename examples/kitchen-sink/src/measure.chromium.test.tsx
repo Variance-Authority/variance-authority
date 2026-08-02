@@ -13,7 +13,7 @@ import {
   type Band,
   type SemanticSnapshot,
 } from '@variance-authority/core';
-import { createHarness, type Harness } from '@variance-authority/harness-playwright';
+import { createHarness, type Harness } from '@variance-authority/playwright';
 import {
   CONTESTED_CORPUS,
   CORPUS,
@@ -74,7 +74,7 @@ function agentBundle(): string {
  *
  * The file runs under `jsdom` because half of it collects there in-process. The
  * other half drives a real Chromium through
- * `@variance-authority/harness-playwright` — one browser, one page, no reload —
+ * `@variance-authority/playwright` — one browser, one page, no reload —
  * so adding subjects costs a `page.evaluate`, not a process launch.
  *
  * Skipped, loudly, when Chromium is not downloaded. A machine with no browser has

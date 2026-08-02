@@ -1,44 +1,22 @@
 {
   "files": [],
   "references": [
-    {
-      "path": "./packages/core"
-    },
-    {
-      "path": "./packages/provenance-react"
-    },
-    {
-      "path": "./packages/collector-dom"
-    },
-    {
-      "path": "./packages/session"
-    },
-    {
-      "path": "./packages/harness-playwright"
-    },
-    {
-      "path": "./packages/raster"
-    },
-    {
-      "path": "./packages/history"
-    },
-    {
-      "path": "./packages/server"
-    },
-    {
-      "path": "./packages/storybook"
-    },
-    {
-      "path": "./packages/cli"
-    },
-    {
-      "path": "./packages/mcp"
-    },
-    {
-      "path": "./examples/kitchen-sink"
-    },
-    {
-      "path": "./examples/todomvc"
-    }
+    { "path": "./packages/core" },
+    { "path": "./packages/raster" },
+    { "path": "./packages/dom" },
+    { "path": "./packages/react" },
+    { "path": "./packages/session" },
+    { "path": "./packages/png" },
+    { "path": "./packages/playwright" },
+    { "path": "./packages/store" },
+    { "path": "./packages/remote" },
+    { "path": "./packages/observe" },
+    { "path": "./packages/storybook" },
+    { "path": "./packages/history" },
+    { "path": "./packages/server" },
+    { "path": "./packages/mcp" },
+    { "path": "./packages/cli" },
+    { "path": "./examples/kitchen-sink" },
+    { "path": "./examples/todomvc" }
   ]
 }

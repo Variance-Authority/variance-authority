@@ -17,12 +17,10 @@
     "pixel": "node scripts/pixel-arm.mjs"
   },
   "dependencies": {
-    "@variance-authority/collector-dom": "workspace:^",
     "@variance-authority/core": "workspace:^",
-    "@variance-authority/harness-playwright": "workspace:^",
-    "@variance-authority/mcp": "workspace:^",
-    "@variance-authority/provenance-react": "workspace:^",
-    "@variance-authority/raster": "workspace:^",
+    "@variance-authority/dom": "workspace:^",
+    "@variance-authority/playwright": "workspace:^",
+    "@variance-authority/react": "workspace:^",
     "react": "^19",
     "react-dom": "^19"
   },
@@ -30,6 +28,10 @@
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@variance-authority/mcp": "workspace:^",
+    "@variance-authority/png": "workspace:^",
+    "@variance-authority/raster": "workspace:^",
+    "@variance-authority/remote": "workspace:^",
     "esbuild": "^0.25.0",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0"
