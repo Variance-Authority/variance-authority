@@ -74,6 +74,8 @@ export type {
 export { hashComponents, UNATTRIBUTED } from './component-hash.js';
 export { coverageOf, alsoCovering, summarizeCoverage } from './coverage.js';
 export { locateInstability, summarizeInstability } from './instability.js';
+export { planIdentity, validatePlan, planForTier, describePlan } from './tool.js';
+export type { ToolKind, Tier, IdentityContribution, ToolDeclaration, Plan, PlanProblem } from './tool.js';
 export type { Instability, InstabilityBand, UnstableLocation, UnstableProperty } from './instability.js';
 export type { Coverage, ComponentCoverage, SubjectCoverage, SubjectValue } from './coverage.js';
 export type { ComponentHash } from './component-hash.js';

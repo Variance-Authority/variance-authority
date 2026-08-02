@@ -84,3 +84,6 @@ export type { Intervention, Recipe, Tier, Trick, ScreenshotOptions, SettleTarget
 
 export { gateStability, summarizeGate } from './gate.js';
 export type { StabilitySample, StabilityVerdict } from './gate.js';
+
+export { DEFAULT_PLAN, DEFAULT_CELL, defaultPlan, defaultPlanIdentity } from './plan.js';
+export type { PlanOptions } from './plan.js';
