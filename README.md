@@ -193,38 +193,46 @@ features. The core is meant to work without any of that.
 nothing at all — no browser, no codec, no disk, no socket — which is why the cheap
 tiers are cheap in practice and not only on paper.
 
-```
-requires nothing
-  core/        the format, the rules, comparison, attribution, verdicts, plans
-               → six entrypoints: format, rules, compare, attribute, judge, plan
-  raster/      the pixel tier as data: assembly, the renderer and store contracts,
-               diff policies, interventions, the stability gate
-  report/      what a run leaves behind — one shape, several readers
-  history/     what a row may contain, what the numbers mean, and what to say
-               when there is no store at all
-  storybook/   a project's own stories as a subject list
+**Requires nothing**
 
-requires something, and says so in its name
-  dom/         a live DOM      extraction, and CSS applicability pruning
-  react/       React internals fibers → owner chains, props digests, portals
-  session/     a live DOM      many subjects in one standing world
-  playwright/  a browser       the persistent harness, and a renderer
-  png/         a PNG codec     decoding, comparison, the diff image
-  store/       a filesystem    baselines on disk, and in git-LFS
-  remote/      a socket        a renderer and a store across a hop
-  server/      a database      the history service you run
-  mcp/         stdio           the observation, exposed to an agent
+| | |
+|---|---|
+| [`core`](packages/core) | the format, the rules, comparison, attribution, verdicts, plans — six entrypoints |
+| [`raster`](packages/raster) | the pixel tier as data: assembly, contracts, policies, interventions, the gate |
+| [`report`](packages/report) | what a run leaves behind — one shape, several readers |
+| [`history`](packages/history) | what a row may contain, what the numbers mean, what to say with no store |
+| [`storybook`](packages/storybook) | a project's own stories as a subject list |
 
-composes the above
-  observe/     one composition, shipped as an example — the only place in the
-               repository where an order is hard-wired
-  cli/         the workflow, which is the one place a workflow belongs
+**Requires something, and says so in its name**
 
-examples/kitchen-sink  8 subjects, 40 declared cases — the measurement's ground truth
-examples/todomvc       a small design system, the pixel arm, and the end-to-end
-cases/storybook-case   a real Storybook, built by Storybook, read from outside
-docs/context/          the paper trail: ADRs, journal, helix checkpoint
-```
+| | requires | |
+|---|---|---|
+| [`dom`](packages/dom) | a live DOM | extraction, and CSS applicability pruning |
+| [`react`](packages/react) | React internals | fibers → owner chains, props digests, portals |
+| [`session`](packages/session) | a live DOM | many subjects in one standing world |
+| [`playwright`](packages/playwright) | a browser | the persistent harness, and a renderer |
+| [`png`](packages/png) | a PNG codec | decoding, comparison, the diff image |
+| [`store`](packages/store) | a filesystem | baselines on disk, and in git-LFS |
+| [`remote`](packages/remote) | a socket | a renderer and a store across a hop |
+| [`server`](packages/server) | a database | the history service you run |
+| [`mcp`](packages/mcp) | stdio | the observation, exposed to an agent |
+
+**Composes the above**
+
+| | |
+|---|---|
+| [`observe`](packages/observe) | one composition, shipped as an example — the only place in the repository where an order is hard-wired |
+| [`cli`](packages/cli) | the workflow, which is the one place a workflow belongs |
+
+| | |
+|---|---|
+| [`examples/kitchen-sink`](examples/kitchen-sink) | 8 subjects, 40 declared cases — the measurement's ground truth |
+| [`examples/todomvc`](examples/todomvc) | a small design system, the pixel arm, and the end-to-end |
+| [`cases/storybook-case`](cases/storybook-case) | a real Storybook, built by Storybook, read from outside |
+| [`docs/context/`](docs/context) | the paper trail: ADRs, journal, helix checkpoint |
+
+Every package has a README stating what it requires and what its entrypoints
+cost.
 
 Dependencies point downward only. Collectors extract; `core` normalizes. That
 split is what makes one ruleset serve both profiles by construction, and what

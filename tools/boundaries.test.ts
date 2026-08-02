@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest';
  * 2. a third-party runtime requirement has exactly one owner
  * 3. the production graph is acyclic
  * 4. every entrypoint a package advertises resolves to something built
+ * 5. every package has a README that states its requirement and its entrypoints
  *
  * Rule 1 is what rots first and rots invisibly: a package that imports what it
  * does not declare works fine in the workspace, where a hoisted `node_modules`
@@ -276,6 +277,48 @@ describe('every advertised entrypoint exists', () => {
       // discovered by the consumer. Requires a build first, which is how the
       // suite is run.
       expect(missing).toEqual([]);
+    },
+  );
+});
+
+describe('every package says what it is', () => {
+  it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
+    '%s has a README',
+    (_name, workspace) => {
+      const path = join(workspace.dir, 'README.md');
+      expect(existsSync(path), `${workspace.dir}/README.md is missing`).toBe(true);
+    },
+  );
+
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s states its requirement in the first paragraph',
+    (_name, workspace) => {
+      // "**Requires:" is the sentence the layout rule turns on. A README that
+      // does not answer *what does this cost me* is a README describing
+      // features, which is the shape the boundary exists to argue against.
+      // Examples and cases are exempt: they are not something anyone installs.
+      const text = readFileSync(join(workspace.dir, 'README.md'), 'utf8');
+      expect(text.slice(0, 400), `${workspace.name} does not state a requirement`).toContain(
+        '**Requires:',
+      );
+    },
+  );
+
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s documents every entrypoint it advertises',
+    (_name, workspace) => {
+      const entries = Object.keys(workspace.manifest.exports ?? {}).filter((entry) => entry !== '.');
+      if (entries.length === 0) return;
+
+      const text = readFileSync(join(workspace.dir, 'README.md'), 'utf8');
+      const undocumented = entries.filter(
+        (entry) => !text.includes(`/${entry.replace(/^\.\//, '')}`),
+      );
+
+      // An entrypoint is a promise, and an undocumented one is a promise made to
+      // nobody: a consumer reaches for the default and installs the requirement
+      // the split existed to spare them.
+      expect(undocumented).toEqual([]);
     },
   );
 });
