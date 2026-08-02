@@ -8,10 +8,13 @@ import {
 } from '@variance-authority/core';
 import { assemble, SUBJECT_PATH, type AssembleOptions } from './assemble.js';
 import {
-  RASTER_STABILIZATION,
-  stabilizationCss,
-  stabilizationDigest,
-  type Stabilization,
+  RASTER_RECIPE,
+  conflicts,
+  recipeCss,
+  recipeDigest,
+  recipeScreenshot,
+  settleRecipe,
+  type Recipe,
 } from './stabilize.js';
 import { familiesOf, identityAtScale, type Renderer } from './renderer.js';
 
@@ -49,23 +52,37 @@ export interface PlaywrightRendererOptions {
   readonly waitForFonts?: boolean;
 
   /**
-   * What to do to the page so it holds still. Defaults to the raster set.
+   * Which tricks hold the page still. Defaults to the raster recipe.
    *
-   * Every entry is an intervention applied from outside the subject, so nothing
-   * in the product is shaped by it. The applied set is folded into the
-   * renderer's identity: a baseline stabilised one way and a run stabilised
-   * another are `incomparable`, not `changed`, because the difference between
-   * them is this option rather than anybody's code.
+   * A list rather than a set of switches, so a project can drop one, replace one
+   * with a different mechanism, or add its own without editing this package.
+   * Every shipped trick is applied from outside the subject, so nothing in the
+   * product is shaped by it. The recipe is folded into the renderer's identity:
+   * a baseline made under one recipe and a run made under another are
+   * `incomparable`, not `changed`, because what differs is this option rather
+   * than anybody's code.
    */
-  readonly stabilization?: Stabilization;
+  readonly stabilization?: Recipe;
 }
 
 export async function createPlaywrightRenderer(
   options: PlaywrightRendererOptions = {},
 ): Promise<Renderer> {
   const browser = await chromium.launch({ headless: options.headless ?? true });
-  const stabilization = options.stabilization ?? RASTER_STABILIZATION;
-  const holdStill = stabilizationCss(stabilization);
+  const recipe = options.stabilization ?? RASTER_RECIPE;
+  const holdStill = recipeCss(recipe);
+  const shot = recipeScreenshot(recipe);
+
+  // Refused rather than resolved. Two tricks over one property means one wins by
+  // accident of ordering, and which one is invisible in every image that follows.
+  const clashes = conflicts(recipe);
+  if (clashes.length > 0) {
+    await browser.close();
+    throw new Error(
+      'stabilization recipe has tricks claiming the same property: ' +
+        clashes.map((clash) => `${clash.governs} (${clash.ids.join(', ')})`).join('; '),
+    );
+  }
 
   try {
     const identity: RenderIdentity = {
@@ -78,7 +95,7 @@ export async function createPlaywrightRenderer(
       // one, and nothing may key a store on this.
       deviceScaleFactor: 1,
       fonts: options.fonts ?? [],
-      stabilization: stabilizationDigest(stabilization),
+      stabilization: recipeDigest(recipe),
     };
 
     const pages = new Map<string, Page>();
@@ -98,40 +115,26 @@ export async function createPlaywrightRenderer(
         const page = await pageFor(browser, pages, contexts, document.viewport);
 
         await page.setContent(assemble(document, options.assemble ?? {}), {
-          waitUntil:
-            options.waitForFonts === false || !stabilization.fonts ? 'domcontentloaded' : 'load',
+          waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
         });
 
         // After `setContent`, because `setContent` replaces the document and
         // would discard a sheet added before it.
         if (holdStill !== '') await page.addStyleTag({ content: holdStill });
 
-        if (options.waitForFonts !== false && stabilization.fonts) {
-          await page.evaluate(() => window.document.fonts.ready);
-        }
-
-        if (stabilization.images) {
-          // Decoding, not merely fetched: an image that has arrived but not
-          // decoded still lays out at its intrinsic size and paints as nothing.
-          await page.evaluate(() =>
-            Promise.all(
-              Array.from(window.document.images)
-                .filter((image) => !image.complete)
-                .map(
-                  (image) =>
-                    new Promise<void>((resolve) => {
-                      image.addEventListener('load', () => resolve(), { once: true });
-                      image.addEventListener('error', () => resolve(), { once: true });
-                    }),
-                ),
-            ).then(() => undefined),
-          );
-        }
+        // Every wait the recipe asks for, and nothing else. A recipe with no
+        // waits — the structure-and-style rung — pays for none of this.
+        if (options.waitForFonts !== false) await settleRecipe(recipe, page);
 
         const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
 
         const subject = page.locator(`[data-va-path="${SUBJECT_PATH}"]`);
-        const bytes = await subject.screenshot({ type: 'png' });
+        // Handed to the browser rather than emulated in CSS. It fast-forwards a
+        // finite animation to completion — the state a user comes to rest on —
+        // and cancels an infinite one to its initial frame, then replays it.
+        // Injected CSS can only pin frame zero, which captures a fade-in at the
+        // moment it is invisible.
+        const bytes = await subject.screenshot({ type: 'png', ...shot });
         const box = await subject.boundingBox();
 
         if (box === null) {

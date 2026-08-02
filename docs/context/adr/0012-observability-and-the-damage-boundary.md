@@ -37,11 +37,23 @@ attribution will name whichever component happens to sit under the pixels.
 **Interventions are enumerable, applied from outside wherever possible, scoped
 to the tier that needs them, and folded into the identity of what they produced.**
 
-### 1. Interventions are a value, not a behaviour
+### 1. Each intervention is a separate, nameable trick
 
-The applied set is an explicit record — animations, caret, scrollbars, fonts,
-images — rather than a collection of flags checked at call sites. A set can be
-digested, reported, and compared; a scattering of conditionals cannot.
+Not a fixed record of switches. A closed vocabulary means adding a trick edits a
+type every caller depends on, and a project with a need nobody anticipated has
+to fork. Each is a value carrying an id, the tier that can observe what it fixes,
+what it costs, the property it governs, and how it is applied; a *recipe* is any
+list of them.
+
+Two tricks may express the same intent through different mechanisms and remain
+separate values, because they produce different images and the choice belongs to
+the caller. Holding animations in the browser and pinning them in CSS is the
+worked example: the first fast-forwards a finite animation to where a user comes
+to rest, the second freezes a fade-in at the moment it is invisible.
+
+**Two tricks governing one property are reported, not resolved.** Applying both
+lets one win by accident of ordering, and which one won is invisible in every
+image that follows.
 
 ### 2. Applied from outside the subject, unless the outside cannot know
 
@@ -49,7 +61,7 @@ Ordered by increasing cost, and the earliest sufficient option MUST be taken:
 
 | Mechanism | Design damage | Notes |
 |---|---|---|
-| Injected CSS, browser configuration | none | Nothing in the product imports it; removing the tool removes the intervention |
+| Injected CSS, browser screenshot options | none | Nothing in the product imports it; removing the tool removes the intervention. Prefer the browser's own option where one exists — it acts where the frame is composed, and can express states CSS cannot |
 | Runtime substitution — patching `Promise`, replacing a suspense boundary | none, but | Moves the damage from design into semantics: the subject runs on primitives the product does not use, and a difference caused by the patch is indistinguishable from a difference caused by the code |
 | A contract the subject implements — a readiness marker | real, small | Reserved for what the outside genuinely cannot determine |
 
@@ -64,9 +76,12 @@ knowledge it buys is real; the failure it introduces is undiagnosable.
 
 An intervention is applied only by a tier that can observe what it fixes.
 
+Each trick declares the cheapest tier that can observe its effect, and a recipe
+is filtered rather than rewritten per tier.
+
 | Tier | Applied | Because |
 |---|---|---|
-| structure + declared style | nothing | An unloaded font cannot change which rules match or what they declare; an undecoded image cannot either |
+| semantic | nothing | An unloaded font cannot change which rules match or what they declare; an undecoded image cannot either |
 | layout | animations, scrollbars, fonts, images | All four change metrics, intrinsic sizes, or resolved values |
 | raster | the above, plus caret | A caret paints and does not lay out |
 
@@ -108,9 +123,12 @@ an image is the product when animations were frozen to obtain it.
 
 ## Known limits
 
-- Pausing animations pins them at their first frame. A component whose settled
-  appearance is its *final* frame is therefore captured in a state a user never
-  sees. Holding the last frame instead is not expressible in CSS alone.
+- The CSS animation trick pins the first frame, so a component whose settled
+  appearance is its *final* frame is captured in a state a user never sees. This
+  is why the browser-level trick is the default where a browser offers one: it
+  fast-forwards finite animations to completion. The CSS trick remains for
+  renderers with no such option, and the two are separate identities precisely
+  because they do not agree.
 - Hiding scrollbars removes their width, so a layout that reflows around a
   scrollbar is measured without one. The alternative — keeping them — imports a
   platform and preference difference into every comparison.

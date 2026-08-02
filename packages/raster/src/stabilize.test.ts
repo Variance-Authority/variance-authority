@@ -1,102 +1,148 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LAYOUT_STABILIZATION,
-  NO_STABILIZATION,
-  RASTER_STABILIZATION,
-  describeStabilization,
-  stabilizationCss,
-  stabilizationDigest,
-  type Stabilization,
+  LAYOUT_RECIPE,
+  RASTER_RECIPE,
+  SEMANTIC_RECIPE,
+  conflicts,
+  describeRecipe,
+  forTier,
+  hideCaret,
+  holdAnimations,
+  pinAnimations,
+  recipeCss,
+  recipeDigest,
+  recipeScreenshot,
+  settleRecipe,
+  waitForFonts,
+  type Intervention,
 } from './stabilize.js';
 
 /**
- * The intervention set, tested for the two things that make it worth having:
- * that a difference in what was done to the page cannot be mistaken for a
- * difference in the code, and that the cheap tier is not charged for waits it
- * has no use for.
+ * Interventions as composable tricks.
+ *
+ * What is asserted is not that each one works — a CSS string cannot be checked
+ * without a browser — but the four properties that make an open set safer than a
+ * closed one: a tier is charged only for what it can observe, two tricks over one
+ * property are reported rather than silently resolved, the applied set is part of
+ * the identity of what it produced, and a project's own trick composes with these
+ * without editing them.
  */
 
-describe('what each tier actually needs', () => {
-  it('asks for nothing when only structure and declared style are observed', () => {
+describe('paying only for what a tier can observe', () => {
+  it('asks for nothing at the structure-and-style rung', () => {
     // A font that has not loaded cannot change which rules match or what they
-    // declare. Waiting for it before a structure-and-style hash buys nothing and
-    // costs the wait on every subject, on the tier that exists to be cheap.
-    expect(NO_STABILIZATION.fonts).toBe(false);
-    expect(NO_STABILIZATION.images).toBe(false);
-    expect(stabilizationCss(NO_STABILIZATION)).toBe('');
+    // declare. Waiting for it before a hash buys nothing and costs the wait per
+    // subject, on the rung that exists to be cheap.
+    expect(forTier(RASTER_RECIPE, 'semantic')).toEqual([]);
+    expect(recipeCss(SEMANTIC_RECIPE)).toBe('');
   });
 
-  it('waits for assets only once layout is resolved', () => {
-    // Both change metrics — a font its advances, an image its intrinsic size —
-    // so a tier that reports rects has to have them.
-    expect(LAYOUT_STABILIZATION.fonts).toBe(true);
-    expect(LAYOUT_STABILIZATION.images).toBe(true);
+  it('drops the caret for a tier that never rasterizes', () => {
+    // A caret paints and does not lay out, so hiding it for a layout-only tier
+    // changes the subject and buys nothing.
+    const layout = forTier(RASTER_RECIPE, 'layout');
+
+    expect(layout).not.toContain(hideCaret);
+    expect(forTier(RASTER_RECIPE, 'raster')).toContain(hideCaret);
   });
 
-  it('leaves the caret to the tier that can actually see it', () => {
-    // A caret paints and does not lay out. Hiding it for a layout-only tier
-    // would be an intervention that changes the subject and buys nothing.
-    expect(LAYOUT_STABILIZATION.caret).toBe(false);
-    expect(RASTER_STABILIZATION.caret).toBe(true);
+  it('keeps asset waits once layout is resolved', () => {
+    expect(forTier(RASTER_RECIPE, 'layout')).toContain(waitForFonts);
   });
 });
 
-describe('holding the page still without changing it', () => {
-  it('pauses animations rather than removing them', () => {
-    // `animation: none` drops whatever layout the keyframes contribute, which
-    // changes the page instead of stopping it. Pausing at a negative delay holds
-    // the clock at zero with every declaration still in force.
-    const css = stabilizationCss(LAYOUT_STABILIZATION);
+describe('two tricks over one property', () => {
+  it('reports the clash instead of quietly letting one win', () => {
+    // Pinning animations in CSS while asking the compositor to fast-forward them
+    // applies both, and the CSS wins by accident of ordering. Which one won is
+    // invisible in the resulting image.
+    const clashing = [...LAYOUT_RECIPE, pinAnimations];
 
-    expect(css).toContain('animation-play-state:paused');
-    expect(css).not.toContain('animation:none');
-    expect(css).not.toContain('animation: none');
+    expect(conflicts(clashing)).toEqual([
+      { governs: 'animations', ids: ['hold-animations', 'pin-animations'] },
+    ]);
   });
 
-  it('emits nothing for a field that is off', () => {
-    const css = stabilizationCss({ ...NO_STABILIZATION, caret: true });
+  it('finds nothing to report in the shipped recipes', () => {
+    expect(conflicts(RASTER_RECIPE)).toEqual([]);
+    expect(conflicts(LAYOUT_RECIPE)).toEqual([]);
+  });
 
-    expect(css).toContain('caret-color');
-    expect(css).not.toContain('animation-play-state');
-    expect(css).not.toContain('scrollbar');
+  it('keeps the two animation tricks separate rather than one flag', () => {
+    // They express one intent and produce different images: the browser settles
+    // a finite animation where a user sees it, and CSS pins the frame where a
+    // fade-in is invisible. Collapsing them into a boolean would hide the choice.
+    expect(holdAnimations.screenshot).toEqual({ animations: 'disabled' });
+    expect(pinAnimations.css).toContain('animation-play-state:paused');
+    expect(pinAnimations.css).not.toContain('animation:none');
   });
 });
 
 describe('what was done is part of what was measured', () => {
-  it('gives two different sets two different identities', () => {
-    // The whole point. If a baseline paused animations and a run did not, the
-    // images differ for a reason that is not the code — and without this the
-    // report blames whichever component sits under the pixels.
-    expect(stabilizationDigest(LAYOUT_STABILIZATION)).not.toBe(
-      stabilizationDigest(RASTER_STABILIZATION),
-    );
+  it('gives two recipes two identities', () => {
+    expect(recipeDigest(LAYOUT_RECIPE)).not.toBe(recipeDigest(RASTER_RECIPE));
   });
 
-  it('treats not intervening as a property of the image too', () => {
-    // `false` is recorded, not omitted. "We did not pause animations" is as much
-    // a fact about the resulting image as "we did", and a digest that ignored it
-    // would let the two compare.
-    const off: Stabilization = { ...LAYOUT_STABILIZATION, animations: false };
-    expect(stabilizationDigest(off)).not.toBe(stabilizationDigest(LAYOUT_STABILIZATION));
+  it('ignores the order tricks were composed in', () => {
+    expect(recipeDigest([...RASTER_RECIPE].reverse())).toBe(recipeDigest(RASTER_RECIPE));
   });
 
-  it('is stable for the same set', () => {
-    expect(stabilizationDigest({ ...LAYOUT_STABILIZATION })).toBe(
-      stabilizationDigest(LAYOUT_STABILIZATION),
-    );
+  it('separates the same intent applied two ways', () => {
+    // A baseline whose fade-in was fast-forwarded must never be compared against
+    // one whose fade-in was pinned at zero.
+    expect(recipeDigest([holdAnimations])).not.toBe(recipeDigest([pinAnimations]));
   });
 });
 
-describe('keeping the gap visible', () => {
-  it('names every intervention, so a reader knows the image is not the product', () => {
-    const text = describeStabilization(RASTER_STABILIZATION);
+describe('composing a trick this package does not ship', () => {
+  it('accepts one and folds it into every derived answer', () => {
+    // The reason this is an open set. A project with a need nobody anticipated
+    // adds a value; it does not fork a type.
+    const freezeVideo: Intervention = {
+      id: 'freeze-video',
+      trick: 'hold',
+      needs: 'raster',
+      governs: 'video',
+      because: 'video elements paused at their poster frame',
+      css: 'video{display:none !important}',
+    };
 
-    expect(text).toContain('animations paused');
-    expect(text).toContain('caret hidden');
-    expect(text).toContain('waited for fonts');
+    const recipe = [...RASTER_RECIPE, freezeVideo];
+
+    expect(recipeCss(recipe)).toContain('video{display:none');
+    expect(recipeDigest(recipe)).not.toBe(recipeDigest(RASTER_RECIPE));
+    expect(describeRecipe(recipe)).toContain('poster frame');
+    expect(conflicts(recipe)).toEqual([]);
+  });
+});
+
+describe('applying a recipe', () => {
+  it('merges every screenshot contribution', () => {
+    expect(recipeScreenshot(RASTER_RECIPE)).toEqual({ animations: 'disabled', caret: 'hide' });
   });
 
-  it('says plainly when the subject was left alone', () => {
-    expect(describeStabilization(NO_STABILIZATION)).toContain('untouched');
+  it('runs every wait, in order', async () => {
+    const ran: string[] = [];
+    const trick = (id: string): Intervention => ({
+      id,
+      trick: 'wait',
+      needs: 'layout',
+      governs: id,
+      because: id,
+      settle: async () => {
+        ran.push(id);
+      },
+    });
+
+    await settleRecipe([trick('a'), trick('b')], { evaluate: async () => undefined });
+    expect(ran).toEqual(['a', 'b']);
+  });
+
+  it('names every intervention, so nobody reads the image as the product', () => {
+    const text = describeRecipe(RASTER_RECIPE);
+
+    expect(text).toContain('fast-forwarded');
+    expect(text).toContain('caret hidden');
+    expect(describeRecipe(SEMANTIC_RECIPE)).toContain('untouched');
   });
 });

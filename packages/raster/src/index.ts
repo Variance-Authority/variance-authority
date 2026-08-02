@@ -62,11 +62,22 @@ export { observePair, observeAgainstBaseline, summarizeObservation } from './obs
 export type { Observation, ObserveOptions, RasterVerdict } from './observe.js';
 
 export {
-  NO_STABILIZATION,
-  LAYOUT_STABILIZATION,
-  RASTER_STABILIZATION,
-  stabilizationCss,
-  stabilizationDigest,
-  describeStabilization,
+  INTERVENTIONS,
+  SEMANTIC_RECIPE,
+  LAYOUT_RECIPE,
+  RASTER_RECIPE,
+  holdAnimations,
+  pinAnimations,
+  hideCaret,
+  hideScrollbars,
+  waitForFonts,
+  waitForImages,
+  forTier,
+  conflicts,
+  recipeCss,
+  recipeScreenshot,
+  recipeDigest,
+  settleRecipe,
+  describeRecipe,
 } from './stabilize.js';
-export type { Stabilization } from './stabilize.js';
+export type { Intervention, Recipe, Tier, Trick, ScreenshotOptions, SettleTarget } from './stabilize.js';
