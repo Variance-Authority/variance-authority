@@ -54,6 +54,37 @@ ports to a native module behind an unchanged interface. The candidate order is:
 Cascade resolution and banding stay in TS regardless. They encode policy, and policy
 must remain legible and cheap to change.
 
+## Measured 2026-08-04 — neither gate has fired, and the ADR aimed right
+
+[Journal 0016](../journal/0016-where-the-time-actually-goes.md) is the recorded
+benchmark this decision asks for. Outcome:
+
+- **G1 is grazed, not cleared.** Normalize + diff on a 2201-node tree is 42 ms
+  at p50 and 48–51 ms at p95 across three trials, against a 50 ms threshold — a
+  result inside its own noise band, which is not a gate firing. At 5501 nodes it
+  is 121 ms, but ADR-0007 makes a subject a component tree and the cost model's
+  warm capture figure is 7.5 ms.
+- **G2 cannot be measured.** There is no frequency rollup, because
+  `@variance-authority/history` still has no caller. A gate over a workload that
+  never runs has not been checked, and must not be reported as passed.
+
+Two things this ADR got right in advance are worth recording, because they made
+the measurement actionable rather than merely interesting. Normalization cost is
+**flat** in matched rules per node (1 → 6) and in custom properties (1 → 15), so
+the work is per-node — allocation, tree walk, canonical serialization, hashing.
+That is candidate 1 above, the half declared "hot, trivially portable, no
+policy", and it is *not* cascade resolution, the half declared to stay in TS
+regardless.
+
+The finding that changes what anyone should do next is on the raster side and
+this ADR did not anticipate it: **pixelmatch is 9% of a comparison.** Decoding
+the two PNGs is 90%, and 43% of *that* is already native zlib. So the real
+candidate is a PNG decoder, the seam for it is `@variance-authority/png`, and
+taking it is a dependency swap rather than a language migration. The larger win
+was structural and is already banked — spec 0011 item 0 made an unchanged
+subject decode nothing at all, which is worth more than any constant factor and
+is precisely the "fix the tiering" clause below.
+
 ## What this forecloses
 
 - Native code as an early differentiator or a performance claim in launch material.
