@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ProfileId } from '@variance-authority/core';
@@ -19,6 +20,7 @@ import {
 import { formatReport, type ReportFormat } from './commands/report.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { serve } from './commands/serve.js';
+import { COMMENT_MARKER, renderComment } from './commands/comment.js';
 import { doctor, exitForDiagnosis, formatDiagnosis, machineProbes } from './commands/doctor.js';
 
 /**
@@ -56,9 +58,16 @@ export type Parsed =
   | { readonly command: 'accept'; readonly config: string; readonly subjects: readonly string[]; readonly all: boolean }
   | { readonly command: 'serve'; readonly config: string }
   | { readonly command: 'doctor'; readonly config: string }
+  | {
+      readonly command: 'comment';
+      readonly config: string;
+      readonly bodyFile?: string;
+      readonly runUrl?: string;
+      readonly marker: boolean;
+    }
   | { readonly command: 'help' };
 
-const COMMANDS = ['run', 'report', 'accept', 'serve', 'doctor'] as const;
+const COMMANDS = ['run', 'report', 'accept', 'serve', 'doctor', 'comment'] as const;
 
 const DEFAULT_CONFIG = 'variance.config.json';
 
@@ -71,6 +80,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
   accept: ['--all'],
   serve: [],
   doctor: [],
+  comment: ['--body-file', '--run-url', '--marker'],
 };
 
 export const USAGE = [
@@ -79,6 +89,7 @@ export const USAGE = [
   'variance accept  [--config <path>] <subject>... | --all',
   'variance serve   [--config <path>]              # MCP over stdio',
   'variance doctor  [--config <path>]',
+  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] | --marker',
   '',
   'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',
   'A verdict and a crash never share a code.',
@@ -164,6 +175,33 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'doctor':
       noPositionals(flags.positionals, 'doctor');
       return { command: 'doctor', config };
+
+    case 'comment': {
+      noPositionals(flags.positionals, 'comment');
+      const bodyFile = flags.values.get('--body-file');
+      const runUrl = flags.values.get('--run-url');
+      const marker = flags.present.has('--marker');
+
+      if (marker && (bodyFile !== undefined || runUrl !== undefined)) {
+        // Two different questions, and answering both at once would mean
+        // deciding which one the exit code is about. `--marker` is a constant
+        // this build carries; the body is a reading of a report that may not
+        // exist yet.
+        throw new OperatorError(
+          '`--marker` prints the marker and nothing else; it does not take --body-file or --run-url',
+        );
+      }
+
+      return {
+        command: 'comment',
+        config,
+        marker,
+        ...(bodyFile !== undefined ? { bodyFile } : {}),
+        // An empty `--run-url` is the workflow's "the operator published
+        // nothing", which must read as absent rather than as a link to ''.
+        ...(runUrl !== undefined && runUrl !== '' ? { runUrl } : {}),
+      };
+    }
   }
 }
 
@@ -174,7 +212,7 @@ interface Flags {
   readonly positionals: readonly string[];
 }
 
-const BOOLEAN = new Set(['--all']);
+const BOOLEAN = new Set(['--all', '--marker']);
 
 function readFlags(argv: readonly string[], command: (typeof COMMANDS)[number]): Flags {
   const accepted = [...GLOBAL, ...(PER_COMMAND[command] ?? [])];
@@ -295,6 +333,15 @@ async function dispatch(
   parsed: Exclude<Parsed, { command: 'help' }>,
   streams: { out(text: string): void; err(text: string): void },
 ): Promise<ExitCode> {
+  // Before the config, because the marker is a constant this build carries and
+  // not a reading of anything. The poster needs it in exactly the case where
+  // there is no body to find it in — a clean run, where the previous docket has
+  // to be located and cleared.
+  if (parsed.command === 'comment' && parsed.marker) {
+    streams.out(`${COMMENT_MARKER}\n`);
+    return EXIT_CLEAN;
+  }
+
   const config = await loadConfig(parsed.config);
 
   switch (parsed.command) {
@@ -372,6 +419,25 @@ async function dispatch(
       const diagnosis = await doctor(config, machineProbes(config));
       streams.out(`${formatDiagnosis(diagnosis)}\n`);
       return exitForDiagnosis(diagnosis);
+    }
+
+    case 'comment': {
+      const report = await readCliRunReport(config.report);
+      const body = renderComment({
+        report,
+        ...(parsed.runUrl !== undefined ? { runUrl: parsed.runUrl } : {}),
+      });
+
+      // An empty file, never a missing one. The poster has to tell "nothing
+      // needs review" from "the render never ran", and only the first of those
+      // may clear a previous docket.
+      if (parsed.bodyFile !== undefined) await writeFile(parsed.bodyFile, body, 'utf8');
+      else streams.out(body);
+
+      // `0` for "this rendered", not for "the run was clean". The verdict is
+      // `run`'s and the workflow already has it; a second opinion here could
+      // only disagree with it.
+      return EXIT_CLEAN;
     }
   }
 }

@@ -37,13 +37,23 @@ import { provenanceOf } from '@variance-authority/react';
 // For the semantic tiers: a capture the normalizer turns into a snapshot.
 const capture = collect(container, {
   subject: { id: 'story:button--primary', kind: 'story' },
-  profile: 'chromium',
+  viewport,
+  engine: 'chromium@131.0.6778.33',   // goes into the environment key, unread by the rules
+  fonts,                              // `family/weight/style/contentHash`, and see below
   provenanceOf,                       // optional; owner chains if you have React
 });
 
 // For the raster tier: markup plus only the CSS that applies to it.
 const document = acquireDocument(container, { subject, viewport, fonts });
 ```
+
+The profile is not an argument here. It is **detected** from the document —
+jsdom has no layout engine and a browser does — and passing one is the override,
+not the normal case. `fonts` is a caller's job for the reason stated in the type:
+a page can see that `Inter` is in use and cannot read the bytes it was given, so
+a substituted font changes geometry without changing a line of code. Omit it and
+the collector says so in a diagnostic rather than putting a confident value in
+the environment key.
 
 `acquireDocument` produces something **serializable**, which is what lets the
 next hop be a network hop: a document acquired in a jsdom unit test can be

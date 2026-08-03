@@ -30,6 +30,14 @@ a contributor's branch without being asked is a tool people disable.
 
 **Nothing is uploaded anywhere the operator did not configure.**
 
+**The action renders nothing itself.** The body comes from `variance comment`,
+the same binary the check's exit code comes from, so the docket on a pull request
+and the output of `variance report` cannot describe one run differently. The
+alternative was tried and removed: a script in the action that reached into the
+CLI's `dist/` layout to import the renderer, which coupled the action to a build
+path that is not a published contract, and which the file itself named as the
+wrong answer.
+
 ## Acceptance
 
 1. A workflow on a real repository produces a comment naming the cause component

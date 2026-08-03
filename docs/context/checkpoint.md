@@ -142,10 +142,13 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   so `variance run` reports every region as `collateral` and orders them by area
   — the ordering journal 0013 measured as backwards. The first real CLI run over
   `cases/storybook-case` names `Tokens`, the wrapper the edit displaced, where the
-  edit was to `Button`. `observePair` has both sides and does not have this
-  problem, which is why the asymmetry stayed invisible: the only things exercising
-  the durable path supplied `causes` by hand. Carrying a semantic baseline beside
-  the image is the fix and nothing does it.
+  edit was to `Button`. **`observePair` does not fix this either, and the
+  earlier claim that it did was wrong.** It carries a single snapshot and calls
+  `attributeRegions` and nothing else — it never reaches `rankRegions`, so it
+  attributes and stops. Cause-first ordering happens only where `core` is
+  composed by hand with *two* documents: `examples/todomvc`'s observe test and
+  the two `incumbent-case` suites, all of which supply `causes` themselves.
+  Carrying a semantic baseline beside the image is the fix and nothing does it.
 - **Regions in the space between boxes report `unattributed`.** A gap produced by
   `Stack`'s `gap` is inside `Stack` and inside no child, and comes back as "a
   region no box contained, which usually means the scale or origin was wrong" —
@@ -161,11 +164,21 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   subject's geometry that responds to its styling, over a socket, byte-identically
   — which is enough to offload and is not the same claim as "the image matches the
   page it was acquired from".
+- **The documentation is checked now, and one class of it still is not.**
+  `tools/documentation.test.ts` resolves every link, every backticked repository
+  path and every `file:line` reference across all 68 markdown files, and compiles
+  every README `ts` example against the built `.d.ts` with no unused import. It
+  found that **11 of the 20 examples did not compile** — wrong arity, options
+  that were renamed, a field that no longer exists — which is what a reader was
+  copying. What it deliberately does not check is a fence in a spec or an ADR:
+  those are proposals about code that may not exist, and specs 0001 and 0002 are
+  marked `not built` for that reason. So a spec can still name a type that was
+  renamed under it and nothing will say so.
 - **The layout is checked, the *naming* is not.** `tools/boundaries.test.ts`
   proves every import is declared and every requirement has one owner. Nothing
   proves a package's name still describes what it needs — `store` could grow a
   socket and only a reader would notice.
-- **The MCP layer has never served a real agent.** Four tools shaped by argument
+- **The MCP layer has never served a real agent.** Five tools shaped by argument
   about what an agent needs, tested against text rather than against use.
 - **The font probe reports metric-compatible substitutes as missing.** A false
   alarm rather than a false `unchanged`, and the same hole as "one machine".

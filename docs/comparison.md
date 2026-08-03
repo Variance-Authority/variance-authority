@@ -131,7 +131,7 @@ comparison: a known $283/mo against an unknown engineering commitment.
   Fixing a noisy subject here means editing code and waiting for another run.
 - **No-code on-ramps.** URL list, sitemap.xml, static directory, or a crawl-based
   Visual Scanner with no code changes. This project has no collection path out of
-  the box at all ([§4.3](#43-there-is-no-shipped-collector)).
+  the box at all ([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)).
 - **Unlimited users on every tier including Free.** Visual review is a team
   activity; Percy does not tax the reviewers.
 
@@ -141,7 +141,7 @@ comparison: a known $283/mo against an unknown engineering commitment.
   functions run as interaction tests before capture
   ([docs](https://www.chromatic.com/docs/storybook/test/)). Here the operator
   writes a collector — about a hundred lines, once
-  ([§4.3](#43-there-is-no-shipped-collector)).
+  ([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)).
 - **Accessibility as a product, not a rule list.** axe on every snapshot, in a
   dashboard, with a triage flow and a history
   ([a11y](https://www.chromatic.com/docs/accessibility-tests/)). This project
@@ -302,7 +302,7 @@ Two configurations, because one would be a straw man whichever it was: `defaults
 fails on a single differing pixel, which no real suite survives; `tolerant` sets
 `maxDiffPixelRatio: 0.01`. On the two rows both arms detect, the difference is
 what is handed over — *5446 pixels (ratio 0.04) are different* against
-`Heading src/surface.tsx:87`.
+`Heading src/surface.tsx:153`.
 
 Three qualifications, in the same spirit as the rest of this section. The
 comparator is `pixelmatch` at Playwright's defaults — the differ behind most of
@@ -326,10 +326,10 @@ Supporting measurements:
 |---|---|---|
 | Owner chains resolve to component display names, without the React DevTools hook | `packages/react/src/provenance.test.ts` (23 tests) | Against React 19.2.8 |
 | Portals belong to the subject by component tree, not DOM containment (ADR-0007) | `packages/dom/src/portal.test.tsx` (6 tests) | Container hash is byte-identical whether the dialog is open or closed. The **342 bytes** that move is a one-off corpus measurement from journal 0003, restated as prose at `packages/react/src/portal.ts:12` and asserted by no test |
-| Semantic diff separates root from collateral; token attribution | `packages/core/src/diff/diff.test.ts` (18 tests) | — |
-| `impact` (`layout`/`paint`/`composite`) as an axis orthogonal to bands | `packages/core/src/diff/impact.test.ts` (18 tests) | `--brand` → `token/paint`; `--space` → `token/layout` (journal 0009) |
-| Component → file by reading the repo, with no build plugin | `packages/core/src/source.ts`, `examples/todomvc/src/source-index.ts` | **A regex scan**, not a source map — `_debugSource` is gone in React 19, so this is deliberate. It misses components produced by a factory, assigned dynamically or re-exported under another name, and can name a capitalised non-component; a name declared in two files is reported as ambiguous rather than guessed. Limits stated in `source.ts`. **No dedicated test**; exercised only end-to-end on one example app |
-| Region clustering from a change mask | `packages/core/src/region.ts`, `region.test.ts` (12 tests) | Grid `cell = 8` at `packages/core/src/region.ts:82` |
+| Semantic diff separates root from collateral; token attribution | `packages/core/src/compare/diff/diff.test.ts` (18 tests) | — |
+| `impact` (`layout`/`paint`/`composite`) as an axis orthogonal to bands | `packages/core/src/compare/diff/impact.test.ts` (18 tests) | `--brand` → `token/paint`; `--space` → `token/layout` (journal 0009) |
+| Component → file by reading the repo, with no build plugin | `packages/core/src/attribute/source.ts`, `examples/todomvc/src/source-index.ts` | **A regex scan**, not a source map — `_debugSource` is gone in React 19, so this is deliberate. It misses components produced by a factory, assigned dynamically or re-exported under another name, and can name a capitalised non-component; a name declared in two files is reported as ambiguous rather than guessed. Limits stated in `source.ts`. **No dedicated test**; exercised only end-to-end on one example app |
+| Region clustering from a change mask | `packages/core/src/attribute/region.ts`, `region.test.ts` (12 tests) | Grid `cell = 8` at `packages/core/src/attribute/region.ts:82` |
 
 **Claimed, not measured.**
 
@@ -341,7 +341,7 @@ Supporting measurements:
   one region").
 - **The cross-subject docket has never seen a real change set.** `buildDocket`
   aggregates roots by stable root id and is tested on constructed diffs at
-  **3 subjects** (`packages/core/src/docket.test.ts`, 12 tests). "One token, 300
+  **3 subjects** (`packages/core/src/judge/docket.test.ts`, 12 tests). "One token, 300
   collateral, one action" is demonstrated at 3, not 300.
 - **No Vue, Svelte or Angular application has been run through this.** What was
   written here until 2026-08-02 was stronger and wrong: "provenance is
@@ -455,7 +455,7 @@ cannot observe reports `unobserved` rather than passing (ADR-0002, ADR-0008).
 | Corpus scored under `jsdom` against ground truth declared before the pipeline existed | `examples/kitchen-sink/src/measure.test.tsx` (59 tests) | **scorable 38, agreed 38/38, false unchanged 0, false changed 0**; 1 undecidable, 1 contested |
 | Same corpus under `chromium` | `examples/kitchen-sink/src/measure.chromium.test.tsx` (69 tests, 1 skip) | **scorable 39, agreed 39/39, false unchanged 0, false changed 0** |
 | P4 — the two profiles agree on what both can observe | same file, one run, both halves | **comparable 38, agreement 38/38, undeclared divergence 0** |
-| Per-component band hashing: ancestors do not move on a descendant edit and vice-versa | `packages/core/src/component-hash.ts`, `component-hash.test.ts` (11 tests), corpus acceptance at `measure.chromium.test.tsx:363` | **structure 107/107 agree across profiles; style 0/107.** `structure` is the only cross-tier band; `style` and `geometry` are profile-scoped |
+| Per-component band hashing: ancestors do not move on a descendant edit and vice-versa | `packages/core/src/attribute/component-hash.ts`, `component-hash.test.ts` (11 tests), corpus acceptance at `measure.chromium.test.tsx:363` | **structure 107/107 agree across profiles; style 0/107.** `structure` is the only cross-tier band; `style` and `geometry` are profile-scoped |
 | The raster phases are separable, and separately installable — two need a browser, two need nothing | `packages/raster/src/assemble.test.ts` (6), `packages/png/src/compare.test.ts` (5) | — |
 | A jsdom-acquired document renders byte-identically in-process and over an HTTP hop | `packages/remote/src/renderer.test.ts` (5), `examples/todomvc/src/offload.chromium.test.tsx` (5) | — |
 | Baseline store partitioned by renderer identity | `packages/store/src/durable.test.ts` (11) | cross-identity → `incomparable`, never `unchanged` |
@@ -488,7 +488,7 @@ checked by `yarn test`:
 
 | README claim | Actual source |
 |---|---|
-| **1007 CSS rules → 1** (99.90% pruned) | Asserted nowhere. `collect.test.ts:96` asserts `kept < 10` on a smaller (~210 rule) fixture. 1007 is a manual reproduction in journal 0005, re-quoted as prose in `packages/core/src/document.ts:30` |
+| **1007 CSS rules → 1** (99.90% pruned) | Asserted nowhere. `collect.test.ts:96` asserts `kept < 10` on a smaller (~210 rule) fixture. 1007 is a manual reproduction in journal 0005, re-quoted as prose in `packages/core/src/format/document.ts:30` |
 | **7.5 ms warm vs 205 ms cold — 27×** | `examples/kitchen-sink/scripts/bench.mjs` only. No test asserts it |
 | **65.4 ms screenshot vs 3.4 ms semantic — 19×** | `examples/todomvc/scripts/pixel-arm.mjs` only. Quoted in a doc comment at `examples/todomvc/src/offload.chromium.test.tsx:32`, asserted nowhere |
 
@@ -695,7 +695,7 @@ specified, not built`.
 `hashComponents`, `observationsFrom` and `createHttpHistoryStore` are called by
 **no non-test code anywhere** — verified by grep across `packages/*/src` and
 `examples/*/src`; the only hits are the definitions and the re-exports in
-`packages/core/src/index.ts:74` and `packages/history/src/index.ts:19,51`.
+`packages/core/src/attribute/index.ts:34` and `packages/history/src/index.ts:19,51`.
 `variance run` does not record. `variance accept` explicitly refuses to
 (`packages/cli/src/commands/accept.ts:38`: "It does not write to the history
 store… the hashes are not in it and cannot be derived from it").
@@ -746,7 +746,7 @@ pipeline.
   including the one that matters most: "a semantic verdict that differs across
   platforms refutes ADR-0010."
 - **CI integration is committed and has never run.**
-  `.github/actions/variance/{action.yml,locate-artifacts,render-comment,post-comment}`
+  `.github/actions/variance/{action.yml,locate-artifacts,post-comment}`
   and `.github/workflows/variance.yml` all exist and are tracked (commit
   `2e683d3`, corrected by `66f4662`); `packages/cli/src/commands/comment.ts`
   renders the body as a pure function and is covered by `comment.test.ts` (16
@@ -797,7 +797,7 @@ no rules to a subject, which is the exact case ADR-0003 was written for and is
 not asserted anywhere — and the CLI hop above it. The CLI still imports only
 `readStoryIndex`, `storySubjectId` and `toSubjects`; `collectStory` /
 `collectStories` are exercised by the case and not by a run
-([§4.3](#43-there-is-no-shipped-collector)). Under the fixtures, what was already
+([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)). Under the fixtures, what was already
 proven stands: v3/v4/v5 index parsing (`index-file.test.ts`, 22), subject mapping
 with per-story exclusion and viewport (`subjects.test.ts`, 17), and a preview
 driver that reports a throwing story as a subject rather than crashing the run
@@ -844,7 +844,7 @@ products above is the better answer, and in most cases it is not close.
 | **Non-engineers must review** | There is a JSON report and five MCP tools. No dashboard, no approval UI, no threaded discussion, no invite flow | Chromatic (UI Review), Percy, Applitools |
 | **Cost predictability matters more than cost structure** | There is no unit and no bill, but also no ceiling on the engineering time to operate a spike. A published $0.004/screenshot with a spend cap is a more predictable number than "your own infrastructure" | Argos |
 | **Longitudinal flake data is needed now** | Argos already ships per-test flakiness scores, fingerprint-grouped recurrence, and an audited ignore register. Here, the history tier is written and has never recorded a row ([§4.1](#41-nothing-has-ever-recorded-a-history-row)) | Argos |
-| **Storybook is the test surface and coverage should be automatic** | Chromatic turns every story into a test with no authoring, and maintains Storybook. Here the operator writes the collector — about a hundred lines, once, per project ([§4.3](#43-there-is-no-shipped-collector)) | Chromatic |
+| **Storybook is the test surface and coverage should be automatic** | Chromatic turns every story into a test with no authoring, and maintains Storybook. Here the operator writes the collector — about a hundred lines, once, per project ([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)) | Chromatic |
 | **The content under test is canvas, WebGL, video, or heavy third-party iframes** | The bitmap lives in a rendering context, not the document. This is structural, not a missing feature | A pixel differ — any of them |
 | **Regulated data with a contractual residency requirement, plus a vendor to sign it** | Self-hosting solves the residency problem and creates a supplier-risk problem: the supplier is a spike with no support commitment | Applitools (real on-premise), or Percy Enterprise GRR |
 | **A team that will not maintain its own tooling** | Every property in [§3](#3-where-this-project-is-genuinely-different) is bought with operator effort that the SaaS products absorb | Any of the four |
@@ -869,7 +869,7 @@ still has nowhere to go: nothing is published, nothing is licensed, the CLI has
 never completed a run, and this repository contains no `variance.config.json` to
 run it against. Nobody can trial this against their own codebase today. The
 realistic first move is to read `packages/core/src/diff/` and
-`packages/core/src/source.ts` and decide whether the approach is worth finishing
+`packages/core/src/attribute/source.ts` and decide whether the approach is worth finishing
 — because finishing it is what adoption would mean.
 
 A comparison that only finds in its own favour is an advertisement. On maturity,

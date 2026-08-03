@@ -111,6 +111,32 @@ describe('parseArgs', () => {
     expect(Object.keys(parseArgs(['run'])).sort()).toEqual(['command', 'config']);
   });
 
+  it('takes the docket flags on comment, and drops an empty --run-url', () => {
+    expect(parseArgs(['comment', '--body-file', 'out.md', '--run-url', 'https://ci/1'])).toEqual({
+      command: 'comment',
+      config: resolve('variance.config.json'),
+      marker: false,
+      bodyFile: 'out.md',
+      runUrl: 'https://ci/1',
+    });
+
+    // A workflow that published nothing passes `--run-url ""`, and a comment
+    // linking to `''` is worse than one linking nowhere.
+    expect(parseArgs(['comment', '--run-url', ''])).toEqual({
+      command: 'comment',
+      config: resolve('variance.config.json'),
+      marker: false,
+    });
+  });
+
+  it('refuses --marker together with the flags that render a body', () => {
+    // Two different questions. Answering both at once would mean deciding which
+    // of them the exit code is about.
+    expect(attempt(['comment', '--marker', '--body-file', 'out.md']).message).toContain(
+      'prints the marker and nothing else',
+    );
+  });
+
   it('documents the three exit codes in its usage text', () => {
     // The usage is where an operator learns that a verdict and a crash differ.
     expect(USAGE).toContain('0 nothing needs review');

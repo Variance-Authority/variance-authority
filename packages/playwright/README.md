@@ -58,9 +58,15 @@ subjects into one document and let one decide the other's verdict.
 ```ts
 import { createPlaywrightRenderer } from '@variance-authority/playwright';
 
-const renderer = await createPlaywrightRenderer({ viewport });
+const renderer = await createPlaywrightRenderer();
 const raster = await renderer.render(document);
 ```
+
+**The viewport is not a renderer setting.** It arrives with each document, and
+the renderer keeps one page per viewport and reuses it — so one renderer serves
+1x and 2x, or a phone width and a desktop one, in the same run without a second
+browser. What `createPlaywrightRenderer` does take is the stabilization recipe,
+whether to wait for fonts, and whether to be headless.
 
 It satisfies the `Renderer` contract from
 [`@variance-authority/raster`](../raster) — the same one a renderer across a

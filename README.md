@@ -255,10 +255,10 @@ exist yet](#what-does-not-exist-yet).*
 phones anything, schedules anything, or needs a hosted control plane to reach a
 verdict.
 
-*Built: `variance run`, `accept`, `report`, `serve` and `doctor` — five commands,
-driven end to end over a Storybook this project did not write. Never run against a
-repository outside this one. The PR-comment renderer is written and unit-tested
-but is not one of them: nothing dispatches to it.*
+*Built: `variance run`, `accept`, `report`, `serve`, `comment` and `doctor` — six
+commands, driven end to end over a Storybook this project did not write. Never run
+against a repository outside this one. `comment` renders the pull-request body and
+posts nothing; sending it is the workflow's job, with your token.*
 
 ### "Who generates the images?"
 
@@ -269,10 +269,10 @@ only two of them need a browser. A document acquired in a unit test can be
 rendered by a pinned machine elsewhere, proven byte-identical in-process and over
 an HTTP hop.
 
-*Built: the phases, the remote renderer, the offload. Written but unreachable: the
-GitHub Action ([`.github/workflows/variance.yml`](.github/workflows/variance.yml))
-and the PR-comment renderer, neither of which has run. Not built: the
-commit-back.*
+*Built: the phases, the remote renderer, the offload, and `variance comment`,
+which renders the body. Written and never executed: the GitHub Action
+([`.github/workflows/variance.yml`](.github/workflows/variance.yml)) that would
+post it. Not built: the commit-back.*
 
 ### "Where does it work?"
 
@@ -352,6 +352,13 @@ The layout is a test rather than a convention — see
 and `tools/boundaries.test.ts`, which fails when an import goes undeclared, a
 requirement gains a second owner, or an advertised entrypoint stops resolving.
 
+**The documentation is a test too.** `tools/documentation.test.ts` resolves every
+link, every repository path and every `file:line` reference in this and the other
+67 markdown files, and compiles every README example against the built types with
+no unused import. An example is the only part of a README that can be executed,
+and until it is, it is the part most likely to be wrong: the first run of that
+test found that 11 of the 20 examples here did not compile.
+
 ## The two rendering surfaces
 
 | Surface | Driver | Profile | Can observe |
@@ -386,12 +393,13 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   never once been produced by the pipeline, which is the largest gap in the
   project. Per-component band hashing, which every history question is asked
   against, is not written at all ([spec 0001](docs/specs/0001-component-hashing.md)).
-- **A GitHub Action, PR comments, commit-back.** The workflow and the comment
-  renderer are committed and have never run once; the comment renderer is not
-  even wired to a command, so there is no way to invoke it short of importing it.
-  The CLI itself does now run — see [`cases/storybook-case`](cases/storybook-case)
-  — but only against a project in this repository, and the mounting half of a
-  run is a collector each adopter writes.
+- **A GitHub Action, PR comments, commit-back.** The workflow and the composite
+  action are committed and have never run once. The body they would post is
+  `variance comment`, which has been run against a real report and never from
+  CI — so what is unexercised is the delivery, not the docket. The CLI itself
+  does now run — see [`cases/storybook-case`](cases/storybook-case) — but only
+  against a project in this repository, and the mounting half of a run is a
+  collector each adopter writes.
 - **Cause-vs-collateral ranking on the durable path.** It needs the previous
   revision's snapshot and a stored baseline is an image, so `variance run` passes
   no causes and reports every region as `collateral`, ordered by area — the

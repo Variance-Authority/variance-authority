@@ -52,6 +52,7 @@ import { RASTER_RECIPE, forTier, conflicts, recipeCss, recipeDigest } from '@var
 
 forTier(RASTER_RECIPE, 'semantic');   // [] — an unloaded font cannot change which rules match
 conflicts(RASTER_RECIPE);             // two tricks over one property: reported, never resolved
+recipeCss(RASTER_RECIPE);             // the stylesheet a renderer injects, readable before it runs
 recipeDigest(RASTER_RECIPE);          // folds into the plan identity, so retuning moves the address
 ```
 

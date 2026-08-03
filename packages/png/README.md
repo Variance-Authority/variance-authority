@@ -22,6 +22,9 @@ const comparison = compareRasters(before, after, {
 
 comparison.changed;   // { default: 86, strict: 1530 }
 comparison.mask;      // positions — what isolation and attribution need
+
+// The picture, for when somebody does have to look. On request, never by default.
+const picture = diffImage(decode(before.bytes), decode(after.bytes), DEFAULT_POLICY);
 ```
 
 Not a number, and not a picture. The number is what makes a pixel differ

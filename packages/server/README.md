@@ -62,7 +62,10 @@ notices until it matters.
 ```ts
 import { serveHistory, createBackedStore, type HistoryBackend } from '@variance-authority/server';
 
-const backend: HistoryBackend = { /* rows in, rows out — no arithmetic */ };
+// Yours: rows in, rows out, no arithmetic. `HistoryBackend` names every method
+// it has to answer, and none of them returns a number.
+declare const backend: HistoryBackend;
+
 const service = await serveHistory({ backend, token, port: 7788 });
 
 // Or skip the socket: the same backend as a local `HistoryStore`, with the

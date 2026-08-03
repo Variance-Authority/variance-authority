@@ -18,6 +18,7 @@ variance report  [--config <path>] [--format text|json] [--subject <id>]
 variance accept  [--config <path>] <subject>... | --all
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
+variance comment [--config <path>] [--body-file <path>] [--run-url <url>] | --marker
 ```
 
 `run` produces the verdict and the exit code; `report` re-reads what it wrote;
@@ -27,13 +28,27 @@ last run wrote to an MCP client — an agent asks it what changed, which compone
 and which file, over stdio, without re-running anything; the tools are
 [`@variance-authority/mcp`](../mcp)'s.
 
+`comment` renders the same report as a pull-request body: causes first,
+collateral counted rather than listed, and **nothing when the check is green** —
+an empty body, because a bot that comments on every clean pull request teaches
+the team to filter it out, and the filter does not distinguish the clean ones.
+It writes to `--body-file` when given one and to stdout otherwise, and it posts
+nothing itself. `--marker` prints the HTML comment the poster searches for to
+find and rewrite its own previous docket; it is asked separately because it is
+needed in exactly the case where there is no body to read it out of. Exit `0`
+means *this rendered*, never *the run was clean* — the verdict belongs to `run`,
+which already said it.
+
 `--intent <text>` declares what the change was *meant* to do, overriding the
 config's `intent`. A run that matches its declared intent is adjudicated
 differently from one that does not: the claim is what lets a verdict say *this is
 the change you said you were making* instead of only *this changed*.
 
-Those five are the whole surface. There is no command that posts to a pull
-request; the exit code and the report are what a CI job has to work with.
+Those six are the whole surface. **No command posts anything anywhere.**
+`comment` produces the body; sending it is
+[`.github/actions/variance`](../../.github/actions/variance)'s job, with the
+operator's own token, and the exit code and the report remain what a CI job
+actually gates on.
 
 ## Exit codes, and why they are the interface
 
@@ -58,19 +73,44 @@ means*, *is this skip reported* — become integration tests with a browser in
 them, which is to say they stop being asked.
 
 ```ts
-import { run, loadConfig, exitFor, EXIT_REVIEW } from '@variance-authority/cli';
+import {
+  EXIT_REVIEW,
+  exitFor,
+  loadCollector,
+  loadConfig,
+  run,
+  storeFor,
+  writeArtifactToDisk,
+  writeCliRunReport,
+} from '@variance-authority/cli';
+import { createPlaywrightRenderer } from '@variance-authority/playwright';
 
 const config = await loadConfig('variance.config.json');
-const report = await run(config, { profile: 'chromium' });
+
+const report = await run({
+  config,
+  // Everything the run touches, handed to it. This is what the `bin` assembles.
+  deps: {
+    collector: await loadCollector(config.subjects.collector, { config }),
+    store: await storeFor(config),
+    renderer: () => createPlaywrightRenderer(),
+    now: () => new Date().toISOString(),
+    writeArtifact: writeArtifactToDisk,
+    writeReport: writeCliRunReport,
+  },
+});
 
 const code = exitFor(report);
 if (code === EXIT_REVIEW) console.log('changes need review');
 process.exitCode = code;
 ```
 
-The injection seams are types on the options: `Collector`, `RunDeps`,
-`CandidateReader`, `DoctorProbes`. A test supplies a fake renderer and a real
-store, or the reverse, and neither needs a browser.
+**`deps` is the whole argument, and it is why the example is this long.** The
+injection seams are types on it — `Collector`, `RunDeps`, `CandidateReader`,
+`DoctorProbes` — so a test supplies a fake renderer and a real store, or the
+reverse, and neither needs a browser. `now` is in there for the same reason: a
+report carries a timestamp, and a test that cannot fix the clock cannot assert
+the artifact it produced.
 
 ## The order it runs in, and why
 
