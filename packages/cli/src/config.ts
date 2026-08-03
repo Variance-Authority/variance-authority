@@ -81,7 +81,51 @@ export interface Config {
 
   /** What this run is comparing, in the operator's words. `--intent` overrides. */
   readonly intent?: string;
+
+  readonly alone?: AloneConfig;
 }
+
+/**
+ * How much re-collection a run will pay for to tell a regression from a leak.
+ *
+ * A subject that changed is re-collected in a clean world and compared again.
+ * On a green run that costs nothing, because nothing changed. On a normal red
+ * run it costs one collection and one render per changed subject, paid exactly
+ * where it buys an attribution — the shared render is already in the render
+ * cache under its document digest, so the second pass renders one image, not
+ * two.
+ *
+ * The case that needs a limit is the one where a token moved and *everything*
+ * changed. There the second pass approaches the cost of full per-subject
+ * isolation, which is the regime this project exists to avoid paying. A tool
+ * that gets slowest exactly when the diff is largest is a tool that gets
+ * switched off on the day it mattered.
+ *
+ * So the budget is a cap on subjects, not a time limit: exceeding it stops the
+ * pass and says so in the report, rather than silently paying or silently
+ * skipping.
+ */
+export interface AloneConfig {
+  /**
+   * Subjects to re-collect, at most. Defaults to {@link DEFAULT_ALONE_LIMIT}.
+   *
+   * `0` turns the pass off, which is different from having no collector support:
+   * one is a decision and the other is a missing capability, and the report
+   * distinguishes them.
+   */
+  readonly limit?: number;
+}
+
+/**
+ * Enough to attribute a normal regression, small enough that a token change
+ * cannot turn a run into per-subject isolation.
+ *
+ * Not tuned — chosen. A red run with more than twenty changed subjects is
+ * almost never twenty independent regressions; it is one cause with twenty
+ * symptoms, and re-collecting the twenty-first says nothing the first twenty
+ * did not.
+ */
+export const DEFAULT_ALONE_LIMIT = 20;
 
 /**
  * Where the subject list comes from, and where the *documents* come from.
@@ -180,6 +224,7 @@ const TOP_LEVEL = [
   'report',
   'images',
   'intent',
+  'alone',
 ] as const;
 
 /**
@@ -233,6 +278,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const report = resolveFrom(options.baseDir, path(root, 'report', options) ?? DEFAULT_REPORT_PATH);
   const images = path(root, 'images', options);
   const intent = optionalText(root, 'intent', options);
+  const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
 
   return {
     project: nonEmpty(root, 'project', options),
@@ -249,7 +295,20 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     // else produces links that resolve to nothing on the machine reading them.
     images: images === undefined ? resolve(dirname(report), 'images') : resolveFrom(options.baseDir, images),
     ...(intent !== undefined ? { intent } : {}),
+    ...(alone !== undefined ? { alone } : {}),
   };
+}
+
+function parseAlone(value: unknown, options: ParseOptions): AloneConfig {
+  const root = object(value, 'alone', ['limit'], options);
+  if (root['limit'] === undefined) return {};
+
+  const limit = root['limit'];
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 0) {
+    fail('alone.limit', `must be a non-negative integer, not ${quote(String(limit))}`, options);
+  }
+
+  return { limit: limit as number };
 }
 
 /**

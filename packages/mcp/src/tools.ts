@@ -85,16 +85,59 @@ const summarize: Tool = {
             ...notable.map((observation) => {
               const cause = observation.regions.find((region) => region.cause);
               const lead = cause?.component !== undefined ? ` — ${cause.component}` : '';
-              return `[${observation.verdict}] ${observation.subject}${lead}: ${observation.because}`;
+              // Labelled by what it *is* rather than by its verdict. The verdict
+              // stays `changed` — the pixels really did move — but a reader who
+              // acts on that word reviews a component that nothing edited. The
+              // two need opposite actions, so they get different words.
+              const label =
+                observation.alone?.reproduced === false ? 'order-dependent' : observation.verdict;
+              const because =
+                observation.alone?.reproduced === false
+                  ? observation.alone.because
+                  : observation.because;
+              return `[${label}] ${observation.subject}${lead}: ${because}`;
             }),
           ]),
       '',
       ...coverage(report),
+      ...orderDependence(report),
       ...findingsLine(report),
       ...(notable.length === 0 ? ['', settlement(report)] : []),
     ].join('\n');
   },
 };
+
+/**
+ * Subjects whose change vanished when nothing else had run.
+ *
+ * Separated from the verdict counts because it is a different kind of work.
+ * Every other line in this summary is about a component; these are about the
+ * *suite* — some earlier subject left shared state behind, and this one read it.
+ * Filed under `changed` they read as a backlog of reviews, and a reviewer who
+ * opens one finds a component nobody touched.
+ *
+ * What this section deliberately does not print is who poisoned them. The run
+ * has no evidence for that: a leak that lives in module scope — a singleton
+ * store, a cached client, a memoized selector — is invisible to anything a
+ * document can observe about itself. The honest handoff is the difference,
+ * already resolved to a region and a component and a file, plus the fact that a
+ * clean world does not show it. Narrowing to the writer from there is a
+ * bisection over run order, which is work for whoever reads this, and cheap
+ * once they know it is the answer they are looking for.
+ */
+function orderDependence(report: RunReport): readonly string[] {
+  const leaked = report.observations.filter((o) => o.alone?.reproduced === false);
+  if (leaked.length === 0) return [];
+
+  return [
+    '',
+    `order dependence: ${leaked.length} subject(s) changed under the shared session and`,
+    '  matched the baseline when re-collected alone. These are not component changes and',
+    '  `accept` refuses them. The writer is not named — module-level state is outside',
+    '  anything a render can see — so bisect run order over:',
+    ...leaked.map((observation) => `    ${observation.subject}`),
+  ];
+}
 
 /**
  * The coverage section, in three states — and the third is why this is not
@@ -202,8 +245,22 @@ const describe: Tool = {
     const { observation } = located;
 
     const lines = [
-      `[${observation.verdict}] ${observation.subject}`,
+      `[${observation.alone?.reproduced === false ? 'order-dependent' : observation.verdict}] ${observation.subject}`,
       observation.because,
+      // Placed second, directly under the verdict, because it changes what every
+      // line below it means. The regions are still correct — those pixels really
+      // did move, in those components — but they are the shape of a leak rather
+      // than the shape of an edit, and an agent that reads the region list first
+      // starts editing a component whose source nobody changed.
+      ...(observation.alone?.reproduced === false
+        ? [
+            `NOT A COMPONENT CHANGE: ${observation.alone.because}. The regions below are real`,
+            'but they are what the leak did, not what an edit did. Do not change these',
+            'components. Find the subject that writes the state this one reads by bisecting',
+            'run order — the run cannot name it, because module-level state is invisible to',
+            'anything a rendered document can observe about itself.',
+          ]
+        : []),
       ...(observation.missingFonts !== undefined && observation.missingFonts.length > 0
         ? [
             `warning: the renderer lacked ${observation.missingFonts.join(', ')}; ` +

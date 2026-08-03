@@ -99,6 +99,30 @@ export interface ObservationRecord {
    * collapse `notObserved` exists to prevent.
    */
   readonly findings?: readonly FindingRecord[];
+
+  /**
+   * What a second collection, in a world nothing else had touched, said.
+   *
+   * Present only on a subject the run called `changed`, and only when the
+   * collector can build such a world — `collectAlone` in `commands/run.ts` is
+   * optional, because a collector holding one page open across every subject
+   * cannot, and saying so is better than being assumed to have one.
+   *
+   * `reproduced: false` is the finding this whole path exists for: the change is
+   * gone when nothing else has run, so the baseline was right and the *session*
+   * moved this subject. That is a defect in the suite rather than in the
+   * component, and it must never be promoted — see `accept`, which refuses it.
+   *
+   * **Absent is not `reproduced: true`.** Omitted means nothing re-collected
+   * this subject, and reading that as "it reproduces" is how a false regression
+   * gets promoted with a confirmation attached to it.
+   */
+  readonly alone?: {
+    /** `true` when the difference survived a world nothing else had touched. */
+    readonly reproduced: boolean;
+    readonly because: string;
+  };
+
   /** Where the images went, when the run kept them. Relative to the report. */
   readonly images?: {
     readonly before?: string;

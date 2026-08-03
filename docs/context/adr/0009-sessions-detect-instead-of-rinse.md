@@ -89,6 +89,45 @@ affected subject re-runs.
   safety net cost what the setup it replaces costs, and the trade would be
   pointless.
 
+## Amended 2026-08-04 — what "attributable" was worth
+
+This ADR's decision line says cross-pollution "MUST be **detectable and
+attributable**", and the two halves turned out to be worth very different
+amounts. The correction is recorded here rather than in a new ADR, because the
+decision — do not rinse — is unchanged; what changed is the claim made for it.
+
+**Detection is cheap, general, and now shipped.** It is not the probe. A subject
+whose change disappears when it is collected in a world nothing else has touched
+was moved by the session, and that holds for *every* cause — including the ones
+below, which no probe can see.
+
+**Attribution is neither.** The probe's entire field of view is stylesheets,
+root custom properties, root and body attributes, stray body children, and the
+title. That set was chosen for cost and it is the right set for the cost, but it
+is a small fraction of the ways one subject reaches another. A module-scope
+store, a cached client, a memoized selector, a mocked clock, a registry
+populated on import — none of them touch the DOM, and the "Known limits" below
+already said so. What that section did not say is the consequence: **the tier
+that names a culprit answers a narrow question, and the tier that proves one
+exists answers the general one.**
+
+Nor is there a fallback. There is no stack to consult: the write happened during
+some earlier subject's render, in a frame that returned long before this
+subject's comparison, and nothing in the system captures one for this purpose —
+which is checkable, since no observation path in the repo reads `.stack` at all.
+
+So the shipped path does not photograph anything. It observes an outcome and
+resolves it the way this project resolves every outcome: **outcome → DOM node →
+fiber → component → file**, which is machinery that already existed for
+comparing against a baseline. What it hands over is a difference with a region,
+a component, and a source file attached, plus the fact that a clean world does
+not show it. Narrowing from there to the writer is a bisection over run order,
+it is cheap once you know that is the question, and it is the agent's to do.
+
+The probe remains correct and remains unwired. It is a *sharpener*: where the
+leak does travel through a stylesheet or a custom property, it turns one
+bisection into zero. It is no longer the thing the argument rests on.
+
 ## Known limits
 
 - **Cross-origin stylesheets** fingerprint as `unreadable` and compare equal, so

@@ -111,6 +111,22 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
       continue;
     }
 
+    // Refused ahead of the image check, because this is the one refusal that is
+    // about the *content* of the candidate rather than its availability. The
+    // image exists and is readable; promoting it would write a render the
+    // session poisoned as the thing every later run is measured against, and
+    // the subject would then compare `unchanged` for exactly as long as the leak
+    // survives — the failure being baselined along with the pixels.
+    if (observation.alone?.reproduced === false) {
+      refused.push({
+        subject: observation.subject,
+        because:
+          `${observation.alone.because}. Accepting it would make the leak the baseline; ` +
+          'fix the subject that writes the shared state, or re-run once it is fixed',
+      });
+      continue;
+    }
+
     const after = observation.images?.after;
     if (after === undefined) {
       refused.push({ subject: observation.subject, because: noImage(observation) });

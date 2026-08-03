@@ -47,7 +47,7 @@ import type {
   RunReport,
 } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
-import type { Config } from '../config.js';
+import { DEFAULT_ALONE_LIMIT, type Config } from '../config.js';
 import { OperatorError } from '../exit.js';
 
 /**
@@ -228,6 +228,30 @@ export interface Collector {
   /** Subjects to observe, plus the ones this source already refuses, with reasons. */
   plan(): Promise<Plan>;
   collect(subject: PlannedSubject): Promise<Collected>;
+
+  /**
+   * Collect this subject again, in a world nothing else has touched.
+   *
+   * The saving this whole tool is built on is that the world is *not* rebuilt
+   * between subjects (ADR-0009): one browser, one page, one Storybook, for the
+   * length of a run. That saving is real and it is taken on every subject. What
+   * it buys is the possibility that subject B renders differently because
+   * subject A ran first — and a comparison cannot tell that apart from a
+   * regression, because both arrive as "the pixels moved".
+   *
+   * One clean collection settles it. If the difference is gone with nothing else
+   * in the world, the baseline was right and the session moved this subject.
+   *
+   * **Optional, and `undefined` is a real answer.** A collector holding a single
+   * page open has no clean world to offer, and the run reports that rather than
+   * reading it as "nothing leaked" — the standing constraint that a missing
+   * capability is announced instead of defaulting to a silent negative.
+   *
+   * Called only for subjects the run already called `changed`, and only up to
+   * `alone.limit`, so a green run never calls it at all.
+   */
+  collectAlone?(subject: PlannedSubject): Promise<Collected>;
+
   close(): Promise<void>;
 }
 
@@ -452,6 +476,8 @@ export function recordOf(
     readonly diagnostics?: readonly Diagnostic[];
     /** Defects in this render, from `inspect`. Independent of the verdict. */
     readonly findings?: readonly FindingRecord[];
+    /** What a clean-world re-collection said. See {@link alone}. */
+    readonly alone?: ObservationRecord['alone'];
   } = {},
 ): CliObservationRecord {
   const changed = observation.comparison?.changed[DEFAULT_POLICY.id] ?? 0;
@@ -476,6 +502,7 @@ export function recordOf(
     // never print as the first — the same rule `notObserved` follows.
     ...(options.findings !== undefined ? { findings: options.findings } : {}),
     ...(options.images !== undefined ? { images: options.images } : {}),
+    ...(options.alone !== undefined ? { alone: options.alone } : {}),
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
   };
 }
@@ -687,7 +714,9 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
   const renderer = await deps.renderer();
 
   try {
-    return await observeAll(plan, { config, deps, renderer }, options, {
+    const budget = { remaining: config.alone?.limit ?? DEFAULT_ALONE_LIMIT };
+
+    return await observeAll(plan, { config, deps, renderer, budget }, options, {
       observations,
       notObserved,
       warnings,
@@ -738,7 +767,7 @@ async function observeAll(
     }
 
     try {
-      const outcome = await observeOne(planned, collected, { config, deps, renderer });
+      const outcome = await observeOne(planned, collected, context);
 
       if (outcome.kind === 'observed') observations.push(outcome.record);
       else notObserved.push(outcome.entry);
@@ -785,6 +814,15 @@ interface ObserveContext {
   readonly config: Config;
   readonly deps: RunDeps;
   readonly renderer: Renderer;
+  /**
+   * How many more subjects may be re-collected alone.
+   *
+   * Mutable and shared across the loop, because the budget is a property of the
+   * *run* rather than of a subject: twenty changed subjects should spend twenty,
+   * not twenty each. Passed rather than closed over so `observeOne` stays
+   * callable from a test with a budget of its own.
+   */
+  readonly budget: { remaining: number };
 }
 
 type Outcome =
@@ -839,6 +877,7 @@ async function observeOne(
         ...(await images(id, observation, collected.document, renderer, config, deps, null)),
         diagnostics,
         ...findingsField(collected),
+        ...(await alone(planned, observation, null, context)),
       }),
     };
   }
@@ -890,7 +929,144 @@ async function observeOne(
       ...(await images(id, observation, collected.document, renderer, config, deps, key)),
       diagnostics,
       ...findingsField(collected),
+      ...(await alone(planned, observation, key, context)),
     }),
+  };
+}
+
+/**
+ * Re-collect a changed subject with nothing else in the world, and compare again.
+ *
+ * The question a comparison cannot answer on its own. `changed` means the pixels
+ * moved; it does not say whether they moved because somebody edited the
+ * component or because the subject that ran three before this one left a
+ * stylesheet behind. Those need opposite actions — one is a review, the other is
+ * a bug in the suite — and today they arrive identical.
+ *
+ * **This is not a retry.** A retry runs again and reports the better answer; the
+ * failure it hides is the one where the second run is wrong. Here both outcomes
+ * are reported and neither clears anything: a change that reproduces alone is
+ * still `changed`, and one that does not is still a finding — a different one,
+ * against the suite instead of the component.
+ *
+ * The cost is one collection and *one* render. The shared render is already in
+ * the render cache under its document digest (`renderOnce` in
+ * `@variance-authority/observe`), so only the clean document is new.
+ *
+ * What this deliberately does not attempt is naming the subject that poisoned
+ * this one. A probe can only see what it can read — stylesheets, custom
+ * properties, attributes, stray body nodes — and the causes that actually bite
+ * live in module scope, where a singleton store or a cached client is invisible
+ * to any amount of DOM photography. So the run answers the question it can
+ * answer with evidence, and the difference it hands over is already resolved to
+ * a region, a node, a component, and a file. Finding the writer from there is a
+ * bisection, and a bisection is the agent's job.
+ */
+async function alone(
+  planned: PlannedSubject,
+  observation: Observation,
+  key: BaselineKey | null,
+  context: ObserveContext,
+): Promise<{ alone?: CliObservationRecord['alone'] }> {
+  const { config, deps, renderer, budget } = context;
+
+  // A subject that did not change has nothing to attribute, and this is the
+  // reason a green run pays nothing at all for any of this.
+  if (observation.verdict !== 'changed') return {};
+
+  const limit = config.alone?.limit ?? DEFAULT_ALONE_LIMIT;
+  if (limit === 0) return {};
+
+  // Absent capability and exhausted budget are two different sentences, and a
+  // reader who gets the wrong one draws the wrong conclusion: one means write
+  // the method, the other means raise the number.
+  if (deps.collector.collectAlone === undefined) {
+    return {
+      alone: {
+        reproduced: true,
+        because:
+          'not re-collected: this collector supplies no `collectAlone`, so there is no ' +
+          'clean world to compare against and the change is reported as it was observed',
+      },
+    };
+  }
+
+  if (budget.remaining <= 0) {
+    return {
+      alone: {
+        reproduced: true,
+        because:
+          `not re-collected: the run's budget of ${limit} subjects was already spent, ` +
+          'so this change was not checked against a clean world',
+      },
+    };
+  }
+
+  budget.remaining -= 1;
+
+  const fresh = await deps.collector.collectAlone(planned);
+  if (!fresh.ok) {
+    return {
+      alone: {
+        reproduced: true,
+        because: `not re-collected: collecting it in a clean world failed: ${fresh.because}`,
+      },
+    };
+  }
+
+  const observeOptions = {
+    renderer,
+    store: deps.store,
+    ...(fresh.snapshot !== undefined ? { snapshot: fresh.snapshot } : {}),
+    ...(fresh.source !== undefined ? { source: fresh.source } : {}),
+  };
+
+  // The same comparison the first pass made, against the same other side. Not a
+  // second implementation of it: reusing these means the clean-world answer
+  // inherits attribution, font reporting, and the identity partition rather than
+  // acquiring its own subtly different versions of all three.
+  let clean: Observation;
+  if (key === null) {
+    if (fresh.before === undefined) {
+      return {
+        alone: {
+          reproduced: true,
+          because:
+            'not re-collected: ephemeral retention compares two documents and the clean ' +
+            'collection supplied only one',
+        },
+      };
+    }
+    clean = await observePair(fresh.before, fresh.document, observeOptions);
+  } else {
+    clean = await observeAgainstBaseline(fresh.document, key, observeOptions);
+  }
+
+  if (clean.verdict === 'unchanged') {
+    return {
+      alone: {
+        reproduced: false,
+        because:
+          `re-collected alone, ${planned.subject.id} matches its baseline: the difference ` +
+          'is gone when nothing else has run, so this is order dependence in the suite ' +
+          'rather than a change to the component',
+      },
+    };
+  }
+
+  // Anything that is not `unchanged` leaves the change standing. `incomparable`
+  // and `new` are folded in here deliberately: neither is evidence that the
+  // change was a leak, and reporting "does not reproduce" on the strength of a
+  // baseline we could not read would clear a real regression.
+  return {
+    alone: {
+      reproduced: true,
+      because:
+        clean.verdict === 'changed'
+          ? 'the change is still there with nothing else in the world, so it is the component'
+          : `re-collected alone and the clean comparison was \`${clean.verdict}\`, which ` +
+            'neither confirms nor clears the change',
+    },
   };
 }
 

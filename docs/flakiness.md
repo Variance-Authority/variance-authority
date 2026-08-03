@@ -81,16 +81,32 @@ pollution becomes a read-write conflict with a named writer:
 Measured at **3.4× faster** than rinsing, with the probe costing **~2%** of
 session time. Details in [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md).
 
-**A `variance run` does none of this**, and until 2026-08-04 this section said
-"we" in a voice that implied otherwise. The corner-cut ships — the harness holds
-one page across every capture, and a real run calls the adopter's collector in a
-loop — but the probe is a package nothing depends on, so a run today neither
-rinses *nor* detects, and a leak lands in the verdict as a change. Worse, the
-detection that was built re-runs a subject **in the same session**, which proves
-a hash is unstable and cannot see a leak that is deterministic — the kind that
-turns into a false regression rather than a flake. Both gaps, what closing them
-costs, and the one case where it costs more than isolation, are in
-[spec 0012](specs/0012-order-dependence-in-a-run.md).
+**A `variance run` does not do that**, and until 2026-08-04 this section said
+"we" in a voice that implied otherwise. The probe is a package nothing depends
+on. What a run does instead, since 2026-08-04, is cheaper and more general:
+
+> **A subject whose change is gone when it is collected alone was moved by the
+> session, not by an edit.**
+
+Only subjects that changed are re-collected, so a green run pays nothing; the
+shared render is already cached, so a red one pays a single render per subject,
+capped by `alone.limit`. The result is reported as `order-dependent` rather than
+`changed`, and **`accept` refuses it** — promoting it would make the leak the
+baseline, and the subject would compare clean for as long as the leak survived.
+
+This catches the case the probe's own confirmation tier cannot. `verify()`
+re-runs a subject **in the same session**: it varies time and holds the world
+fixed, so a leak that happens *every* time never moves the hash and reports as
+nothing. That deterministic kind is the one that becomes a false regression
+rather than a flake.
+
+**What a run will not tell you is who wrote it.** A probe sees stylesheets,
+custom properties, attributes and stray body nodes; the couplings that bite live
+in module scope — a singleton store, a cached client, a mocked clock — and touch
+no DOM at all. There is no stack to fall back on either. So the run resolves the
+outcome the way it resolves every outcome — to a node, a component, a file — and
+narrowing to the writer is a bisection over run order. Details and what is left
+in [spec 0012](specs/0012-order-dependence-in-a-run.md).
 
 ## Where we differ from the state of the art
 

@@ -108,6 +108,51 @@ describe('accept', () => {
     expect(result.refused[0]?.because).toContain('never renders one');
   });
 
+  it('refuses a change that vanished in a clean world, image or no image', async () => {
+    // The one refusal that is about the *content* of the candidate. The image is
+    // right there and perfectly readable; promoting it writes a render the
+    // session poisoned as the thing every later run is measured against, and the
+    // subject then compares `unchanged` for as long as the leak survives — the
+    // failure baselined along with the pixels.
+    const { store, puts } = recordingStore();
+
+    const result = await accept({
+      report: reportOf([
+        observation({
+          alone: { reproduced: false, because: 're-collected alone, it matches its baseline' },
+        }),
+      ]),
+      reportDir: '/repo/out',
+      store,
+      subjects: ['fixture:a'],
+      all: false,
+      read: async () => CANDIDATE,
+    });
+
+    expect(puts).toHaveLength(0);
+    expect(result.refused[0]?.because).toContain('would make the leak the baseline');
+  });
+
+  it('accepts a change that reproduced alone, because that is a component change', async () => {
+    // The other half, and it has to be asserted: a check that only ever refuses
+    // is indistinguishable from a broken accept.
+    const { store, puts } = recordingStore();
+
+    const result = await accept({
+      report: reportOf([
+        observation({ alone: { reproduced: true, because: 'the change is still there' } }),
+      ]),
+      reportDir: '/repo/out',
+      store,
+      subjects: ['fixture:a'],
+      all: false,
+      read: async () => CANDIDATE,
+    });
+
+    expect(result.refused).toHaveLength(0);
+    expect(puts).toEqual([[{ subject: 'fixture:a' }, CANDIDATE]]);
+  });
+
   it('explains an incomparable subject in terms of machines, not of code', async () => {
     // An agent handed "no image" would try to fix the component. The cause is a
     // baseline written elsewhere, and nothing in the source can address it.
