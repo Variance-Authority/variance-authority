@@ -1,6 +1,7 @@
 # todomvc
 
-A small design system, the pixel arm, and the end-to-end.
+A small design system, and three suites over it: attribution, a pixel-diff
+opponent to measure it against, and the render offload.
 
 Where the claims stop being about snapshots and start being about **pixels
 attached to code lines**.
@@ -21,10 +22,14 @@ what this reports:            5 region(s)
   collateral  511px in 1 region(s) — Stack    src/ds/components.tsx:27
 ```
 
-The third column is the point, and so is the word `collateral`. Ranked by area
-that report is **wrong**: `Stack` was never edited, only reflowed, and it
-outranks the actual edit by 6×. Area measures displacement, so the ordering has
-to come from the tier that has provenance.
+The third column is the point, and so is the word `collateral`. The edit swapped
+`Toggle`'s native checkbox for a styled `<div>`, which is 4px shorter; `Text` sits
+inside the same rows and restyles with it, and `Stack` merely reflows around both.
+Ranked by area that report is **wrong**: `Stack` at 511px was never edited and
+outranks `Toggle`, which *is* the edit, by 6×. Area measures displacement, and
+displacement is largest where the change is not. So the ordering has to come from
+the tier that has provenance — which is what puts both `Text` and `Toggle` above
+`Stack` in the report as printed.
 
 ## The pixel arm
 
@@ -48,6 +53,26 @@ scrollbar            holds              holds    headless-artifact
 clock                moves (73px)       moves    policy
 block-whitespace     holds              moves    nothing
 ```
+
+`absorbed by` names *how* each source stops costing a review, and no two rows use
+the same mechanism:
+
+- **construction** — the representation never carried the quantity. Glyph
+  rasterization is not a property of the box tree, so there is nothing to
+  threshold; it is absent rather than tolerated.
+- **environment-key** — the difference is real, and `deviceScaleFactor` is part
+  of the identity, so the two runs address different baselines and never meet. A
+  pixel differ has the same option and has to be configured to take it.
+- **headless-artifact** — **not absorbed by anyone.** Headless Chromium uses
+  overlay scrollbars, so the reflow never happens here and *both* arms are blind
+  to something every headed user sees. Kept in the table because "it only flakes
+  in CI" is, for this cause, exactly inverted.
+- **policy** — both arms move and neither is wrong; what differs is the cost of
+  silencing it. A pixel differ masks a coordinate region, which silences whatever
+  else lands there and breaks when the layout moves; `digestText` masks the text
+  node, which follows the content.
+- **nothing** — it reaches the representation and we report it anyway. There is
+  one such row, and it is the next paragraph.
 
 `block-whitespace` moves for us and holds for the pixel arm. It is in the table
 because a comparison that only listed the rows we win is not a comparison.

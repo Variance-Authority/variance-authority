@@ -1,6 +1,6 @@
 # Spec 0001 — Per-component band hashing
 
-**Status:** specified, not built
+**Status:** `not built` — see [the status vocabulary](README.md#status-vocabulary)
 **Package:** `@variance-authority/core`
 
 ## Purpose

@@ -36,7 +36,7 @@ wants the shapes and not the disk.
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 
-await writeRunReport('.variance/run.json', report);
+await writeRunReport('.variance/run.json', runReport);
 const report = await readRunReport('.variance/run.json');  // throws on anything that is not one
 ```
 

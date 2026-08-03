@@ -20,6 +20,21 @@ variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
 ```
 
+`run` produces the verdict and the exit code; `report` re-reads what it wrote;
+`accept` promotes a candidate image to baseline; `doctor` says what this machine
+can observe before a run rather than after one. `serve` exposes the report the
+last run wrote to an MCP client — an agent asks it what changed, which component
+and which file, over stdio, without re-running anything; the tools are
+[`@variance-authority/mcp`](../mcp)'s.
+
+`--intent <text>` declares what the change was *meant* to do, overriding the
+config's `intent`. A run that matches its declared intent is adjudicated
+differently from one that does not: the claim is what lets a verdict say *this is
+the change you said you were making* instead of only *this changed*.
+
+Those five are the whole surface. There is no command that posts to a pull
+request; the exit code and the report are what a CI job has to work with.
+
 ## Exit codes, and why they are the interface
 
 ```
@@ -47,7 +62,10 @@ import { run, loadConfig, exitFor, EXIT_REVIEW } from '@variance-authority/cli';
 
 const config = await loadConfig('variance.config.json');
 const report = await run(config, { profile: 'chromium' });
-process.exitCode = exitFor(report);
+
+const code = exitFor(report);
+if (code === EXIT_REVIEW) console.log('changes need review');
+process.exitCode = code;
 ```
 
 The injection seams are types on the options: `Collector`, `RunDeps`,
@@ -101,7 +119,9 @@ this run.
 
 **`accept --all` does not distinguish a new baseline from a changed one.** In
 that mode the CI gate becomes a recorder, which is the one thing the exit codes
-above are built to prevent. Splitting the two is open work.
+above are built to prevent. Name the subjects explicitly — `variance accept
+story:card--populated …` — anywhere the difference matters, and keep `--all` out
+of anything that runs unattended.
 
 ## Reading
 

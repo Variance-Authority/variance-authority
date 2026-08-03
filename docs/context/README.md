@@ -10,8 +10,14 @@ the whole history.
 context/
   journal/   NNNN-slug.md   append-only. What was attempted, what happened, what it cost.
   adr/       NNNN-slug.md   decisions that constrain code. Superseded, never deleted.
-  spec/                     the source specification and its amendments.
+  spec/      X.Y.Z-tag.md   the original brief the project started from. Read-only.
 ```
+
+`spec/` is not [`docs/specs/`](../specs/README.md), and the two are not
+interchangeable. `spec/` holds the one document this project began with, kept
+verbatim so a claim can be traced back to whether it was ever asked for;
+`docs/specs/` holds per-capability contracts that are written, implemented and
+eventually deleted. Nothing new is ever added to `spec/`.
 
 ## Rules
 
@@ -27,6 +33,12 @@ context/
    later ADRs that reference them.
 
 ## Status vocabulary
+
+For ADRs. Journal entries carry no status — they are dated and append-only — and
+`spec/` carries the status it was frozen with. The per-capability specs in
+[`docs/specs/`](../specs/README.md) use [their own
+vocabulary](../specs/README.md#status-vocabulary), which tracks implementation
+rather than decision standing.
 
 | Status | Meaning |
 |---|---|

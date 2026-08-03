@@ -25,10 +25,10 @@ Both would have been easy to require, and both would have been wrong:
 ## Three steps, kept apart because they fail differently
 
 ```ts
-import { parseStoryIndex, toSubjects, collectStories, harnessPage } from '@variance-authority/storybook';
+import { toSubjects, collectStories, harnessPage } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
 
-const index = await readStoryIndex('storybook-static/index.json');
+const index = await readStoryIndex('storybook-static/index.json');  // parseStoryIndex, off a disk
 const plan = toSubjects(index, { exclude: ['**/docs/**'] });
 
 const outcomes = await collectStories(harnessPage(harness), plan.subjects.map((s) => s.storyId), {
@@ -41,10 +41,12 @@ const outcomes = await collectStories(harnessPage(harness), plan.subjects.map((s
 1. **`parseStoryIndex`** reads what a built Storybook declares, and refuses
    anything that is not that. No browser, no evaluation, no `.storybook/`.
    Dispatches on the key that is present rather than on `v`, so a newer index in
-   a familiar shape is read and *warned about* rather than refused.
+   a familiar shape is read and *warned about* rather than refused. Call it
+   directly on an index you already hold; `readStoryIndex` is the same parser
+   with a `readFile` in front of it, for the disk case above.
 2. **`toSubjects`** applies policy — exclusion, viewport, a deterministic order.
    Pure.
-3. **`collectStory`** drives a preview page that is already open, moving between
+3. **`collectStories`** drives a preview page that is already open, moving between
    stories over Storybook's own channel rather than reloading. One navigation for
    a whole run; a second one is *reported*, not counted internally.
 

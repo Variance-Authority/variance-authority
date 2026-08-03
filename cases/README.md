@@ -34,6 +34,14 @@ From [`incumbent-case`](incumbent-case), measured on one Mac and one Chromium:
   ours                  6 hit, 1 false alarm, 1 deferral
 ```
 
+Eight edits, scored against *must a reviewer be told?* — **hit** told them and
+should have, **miss** stayed silent and should not have, **hold** stayed silent
+correctly, and **false alarm** spoke up over nothing. **Deferral** is neither: it
+is `unseen-subject`, a panel with no baseline, where both arms decline to reach a
+verdict at all and both are right to. It is one row in every column, so it moves
+no comparison — it is in the corpus because a scoreboard that lists only the rows
+that separate the tools is not a scoreboard.
+
 Three claims come out of that, and one concession:
 
 1. **A whole category is unreachable by any raster tool.** An `aria-label`
@@ -46,10 +54,10 @@ Three claims come out of that, and one concession:
    of a 420×312 clip is 1310px of licence; the status indicator that vanished is
    36px. The regression fits 36 times inside the setting that makes the suite
    survivable, and nothing in the output says which of the two it just absorbed.
-3. **A count is terminal and a mask is not.** *5446 pixels changed* cannot be
+3. **A count is terminal; a region has an owner.** *5446 pixels changed* cannot be
    assigned to anyone, so the only response is to open the image and look — the
    expensive act the tool was meant to replace. The same comparison read further
-   is `Heading src/surface.tsx:87`.
+   is `Heading src/surface.tsx:153`.
 4. **We false-alarm where the camera is right.** A reindented block moves our hash
    and renders identically. Asserted as a failure, so the day it is fixed the
    suite goes red and says so.
@@ -97,9 +105,12 @@ Chromium layout:
   overflows at 300px   2
 ```
 
-The string left in English is a `title` — the first version of the rule read text
-nodes and found nothing, which is the correction that made it useful: the strings
-that get forgotten are the ones that are not text nodes. And the overflow answer
+The two identical strings are one node's accessible name and its `title`, which
+carry the same untranslated text — reported as **one** finding, because reporting
+both would be reporting one missing translation twice. So: one string left in
+English, found in two places. The first version of the rule read text nodes and
+found nothing, which is the correction that made it useful: the strings that get
+forgotten are the ones that are not text nodes. And the overflow answer
 depends on the container, not on the translation, which is why no expansion ratio
 could have produced it.
 
@@ -134,7 +145,7 @@ scored only the half we happen to have built would be an advertisement.
 What *does* carry across is claim 1. Their comparison is a comparison of images,
 so the invisible category is invisible to them too, whatever the review UI around
 it looks like. That is an argument from the shape of the thing rather than a
-measurement, and it is labelled as one.
+measurement.
 
 **One incumbent has actually been run.** `pixelmatch` at Playwright's defaults —
 which is also what `jest-image-snapshot` uses, and what several hosted products

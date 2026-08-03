@@ -1,6 +1,6 @@
 # Spec 0006 — Storybook adapter
 
-**Status:** specified, not built
+**Status:** `built` — see [the status vocabulary](README.md#status-vocabulary)
 **Depends on:** [0003](0003-cli.md)
 
 ## Purpose

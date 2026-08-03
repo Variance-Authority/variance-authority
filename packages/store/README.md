@@ -18,11 +18,11 @@ pins the expected answer as well as comparing them.
 
 Three stores agreeing on a wrong answer is not a pass.
 
-| entrypoint | requires |
-|---|---|
-| `.` | a filesystem, and `git` if you use the LFS store |
-| `./durable` | a filesystem |
-| `./lfs` | a filesystem and `git` |
+| entrypoint | requires | holds, and when you want it |
+|---|---|---|
+| `.` | a filesystem, and `git` if you use the LFS store | both backends and the shared layout. Take it when the store is chosen from config at runtime rather than at import. |
+| `./durable` | a filesystem | baselines in a plain directory. The single-machine and self-hosted-runner case: nothing to install, and nothing shares them. |
+| `./lfs` | a filesystem and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
 
 ## The layout is the rule
 
@@ -66,9 +66,9 @@ const store = await createLfsStore({ root: '.variance/baselines' });
 store.tracking;   // was `*.png` tracking actually verified with git, or only assumed?
 ```
 
-Git-LFS is the default in the README's answer to *"where are results stored?"*
-because it needs no infrastructure, and because a baseline image is never
-hand-merged: you take one side.
+Git-LFS is this project's default answer to *where do baselines live*, because it
+needs no infrastructure, and because a baseline image is never hand-merged: you
+take one side.
 
 The store **refuses a pointer file read as an image**. An un-smudged checkout —
 LFS not installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you 130 bytes of text

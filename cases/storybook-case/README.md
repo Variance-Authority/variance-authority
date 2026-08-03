@@ -32,13 +32,21 @@ A small design system — `Button`, `Stack`, `Card`, `Spinner`, `Clock`,
 `AsyncPanel` — chosen so the eight stories cover the cases that actually decide
 whether an adapter is any good:
 
+Eight stories, covered by **one navigation**:
+
 | story | what it is for |
 |---|---|
-| static components | the ordinary path: eight stories, **one navigation** |
-| `Spinner` | something that will not hold still |
-| `Clock` | content that changes because time passed, not because code did |
-| `AsyncPanel` | settles *after* Storybook says it is done |
-| a story that throws | an error overlay, reported with the story's own stack |
+| `Button — primary`, `Button — secondary` | the ordinary path |
+| `Card — with actions`, `Card — rebranded`, `Composed` | `Button` again, so no subject covers it alone — these five are what a `Button` edit moves |
+| `Loading` (`Spinner`) | something that will not hold still |
+| `Ticking` (`Clock`) | content that changes because time passed, not because code did |
+| `Deferred` (`AsyncPanel`) | settles *after* Storybook says it is done |
+
+Those last three are the three that hold when `Button` changes.
+
+The adapter's remaining path — a story that throws, reported as an error overlay
+with the story's own stack rather than as a timeout — has no standing story here;
+it was exercised against a real build failure instead, below.
 
 ## The finding this case exists to have produced
 
@@ -98,7 +106,10 @@ which records that mistake being made and undone.
 
 ### The collector is the operator's half, written out in full
 
-[`collector/`](collector) is the thirty-odd lines `variance.config.json` names.
+[`collector/index.mjs`](collector/index.mjs) is the 234 lines
+`variance.config.json` names; [`collector/`](collector) is 341 lines across three
+files, once the page agent and its bundler are counted. That is the size of the
+half an adopter writes.
 The CLI supplies the generic half — read `index.json`, apply exclusion policy,
 plan — and this supplies what only this project can: it serves its own build,
 declares which stories have their own readiness marker, and indexes its own
@@ -106,13 +117,14 @@ source for component→file. That seam exists because a CLI that guessed any of
 those would need a plugin system whose failures are undebuggable from either
 side.
 
-## What it caught on the way in
+## What it caught
 
-`React is not defined` — a missing `esbuild.jsx: 'automatic'` in `viteFinal`. The
-adapter reported it as `errored` with the story's own stack rather than as a
-timeout, which is the behaviour it was built for, arriving unprompted.
+A story that throws is reported as `errored` with its own stack rather than as a
+timeout — the distinction that tells an operator to read a stack trace instead of
+raising a readiness timeout. The case exercised it against a real
+`React is not defined` (a missing `esbuild.jsx: 'automatic'` in `viteFinal`).
 
-**And then the first real `variance run` found five more.** None of them was
+**The first real `variance run` found five defects, all since fixed.** None was
 reachable from `packages/cli/src/commands/run.test.ts`, which injects a fake
 `Collector` and a fake `Renderer` — the right way to test the loop, and no way at
 all to test the workflow.

@@ -1,6 +1,6 @@
 # Spec 0004 — Artifact storage: git-LFS and remote
 
-**Status:** specified, not built
+**Status:** `built` — see [the status vocabulary](README.md#status-vocabulary)
 **Depends on:** [0003](0003-cli.md)
 **Package:** `@variance-authority/store`, `@variance-authority/remote`
 

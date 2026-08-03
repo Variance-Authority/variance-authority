@@ -1,6 +1,6 @@
 # Spec 0007 — Linux verification
 
-**Status:** specified, not built
+**Status:** `not built` — see [the status vocabulary](README.md#status-vocabulary)
 **Depends on:** [0003](0003-cli.md)
 
 ## Purpose

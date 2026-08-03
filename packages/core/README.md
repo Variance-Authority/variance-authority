@@ -9,8 +9,10 @@ Pure data in, pure data out. Collectors extract; core normalizes and adjudicates
 
 ## Entrypoints
 
-Six groups, in the order an answer travels through them. The default entrypoint
-is all six and is what most callers want.
+Six groups. The first five are the order an answer travels through; `core/plan`
+sits outside that line, because a plan has to exist before anything is captured —
+its digest is what decides which baselines the run can reach at all. The default
+entrypoint is all six and is what most callers want.
 
 | entrypoint | holds |
 |---|---|
@@ -19,11 +21,14 @@ is all six and is what most callers want.
 | `core/compare` | two snapshots become deltas — and **no verdict** |
 | `core/attribute` | a position becomes a component becomes a file |
 | `core/judge` | policy: verdicts, intent claims, the docket a reader is handed |
-| `core/plan` | a composition as a value, and the identity derived from it |
+| `core/plan` | the whole configuration of a run — profile, ruleset version, viewport, policy, interventions — as one value, plus the identity digest derived from it |
 
 The groups exist for callers who genuinely want one. Somebody implementing the
 capture format for a renderer this project has never met needs `core/format` and
-would be misled by everything else.
+would be misled by everything else. Somebody deciding where a baseline is stored,
+or whether two runs may be compared at all, needs `core/plan` and nothing else:
+the digest it derives is the address, so changing any part of the plan changes
+which baselines the run can see.
 
 ## The split that carries weight
 
@@ -39,7 +44,12 @@ import { normalize, diffSnapshots, isolateRegions, attributeRegions } from '@var
 const before = normalize(capture, { profile: 'chromium' });
 const after = normalize(recapture, { profile: 'chromium' });
 
-const diff = diffSnapshots(before, after);          // deltas, roots, matching
+const diff = diffSnapshots(before, after);          // deltas, roots, matching — no verdict
+                                                    // hand `diff` to core/judge for one
+
+// The pixel path, for the subjects a digest could not settle. `mask` is a
+// ChangeMask from the raster tier (`@variance-authority/png` decodes and
+// compares); core never opens an image, which is why it requires nothing.
 const places = isolateRegions(mask, { cell: 8 });   // pixels → regions
 const named = attributeRegions(places.regions, after); // regions → components → files
 ```

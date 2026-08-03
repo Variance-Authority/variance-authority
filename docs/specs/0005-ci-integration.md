@@ -1,6 +1,6 @@
 # Spec 0005 — CI integration and PR feedback
 
-**Status:** specified, not built
+**Status:** `built, never run` — see [the status vocabulary](README.md#status-vocabulary)
 **Depends on:** [0003](0003-cli.md), [0004](0004-artifact-storage.md)
 
 ## Purpose

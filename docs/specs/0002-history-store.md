@@ -1,6 +1,6 @@
 # Spec 0002 — History service and drift queries
 
-**Status:** specified, not built
+**Status:** `built, not wired` — see [the status vocabulary](README.md#status-vocabulary)
 **Depends on:** [0001](0001-component-hashing.md)
 **Packages:** new — `@variance-authority/history` (interface, drift math, client),
 `@variance-authority/server` (the service)

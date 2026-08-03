@@ -1,6 +1,6 @@
 # Spec 0009 — Inspection rules, and where they stop
 
-**Status:** built
+**Status:** `built` — see [the status vocabulary](README.md#status-vocabulary)
 **Depends on:** [0003](0003-cli.md)
 
 ## Purpose

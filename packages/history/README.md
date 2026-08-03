@@ -60,9 +60,11 @@ has drifted", which is a confident answer to a question nobody asked. The HTTP
 client throws on every transport failure for the same reason, and
 `createAbsentStore` says *no record is kept* rather than answering.
 
-## Status
+## Who writes a row
 
-The contract, the arithmetic and the client are built and tested. **Nothing in
-the pipeline writes to them yet** — the CLI parses a `history` config block and
-`variance doctor` reports whether one is configured, but `variance run` does not
-record observations.
+**Whoever calls this package does.** The CLI parses a `history` config block and
+`variance doctor` reports whether one is configured, but `variance run` records no
+observations — so a store reached through `createHttpHistoryStore` holds exactly
+what your own code posted to it. Design against that: with no writer of your own,
+every drift query answers from an empty store, which `createAbsentStore` and the
+`unkept` sentence above already give you a truthful way to report.

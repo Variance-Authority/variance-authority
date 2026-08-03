@@ -161,21 +161,27 @@ real regression can be.
 `space-token-nudged` and `row-added` are caught by everything. They are in the
 corpus for what happens next.
 
+Verbatim from the incumbent's own report:
+
 ```
 space-token-nudged   Expected an image 420px by 312px, received 420px by 338px.
                      5446 pixels (ratio 0.04 of all image pixels) are different.
 ```
 
-5446 cannot be assigned to anyone, so the only available response is to open the
+5446 is Playwright's count over its own padded canvas; §"What the import costs"
+below reports 5864 for the same pair, which is *our* count under our policy over
+the same baseline. Neither number is wrong and the gap is not the point — the
+point is that either of them cannot be assigned to anyone, so the only available
+response is to open the
 image and look — which is the expensive act the tool was meant to replace, and
 where review blindness comes from. A mask clusters into regions, the regions join
 the box tree, the tree knows which component produced each node, and the
 component resolves to a file an editor opens:
 
 ```
-IconButton src/surface.tsx:97      Indicator  src/surface.tsx:126
-Heading    src/surface.tsx:87      Panel      src/surface.tsx:248
-RowAction  src/surface.tsx:164     Row        src/surface.tsx:176
+IconButton src/surface.tsx:163     Indicator  src/surface.tsx:192
+Heading    src/surface.tsx:153     Panel      src/surface.tsx:339
+RowAction  src/surface.tsx:237     Row        src/surface.tsx:249
 ```
 
 Ranking comes from the semantic tier rather than from area, for the reason
@@ -225,13 +231,16 @@ end takes one as it is and produces what the count could not, on the first run:
 ```
 --- space-token-nudged, read from a baseline Playwright recorded
   their baseline      incumbent/baselines/strict/space-token-nudged.png (22818 bytes)
-  what it says        5864 pixels changed
+  what it says        5864 pixels changed          (our count, their baseline)
   what we add         17 region(s), 0 of them off-tree
-  cause        1124px — Heading        src/surface.tsx:87
-  cause         215px — Total          src/surface.tsx:232
-  cause          45px — IconButton     src/surface.tsx:97
-  cause          44px — Indicator      src/surface.tsx:126
-  cause          21px — IconButton     src/surface.tsx:97
+  — regions, names and files below are what the import gives you.
+  — the cause-first *order* is not: producing it needed a live `before`
+    capture, which a migrating subject does not have. See below.
+  cause        1124px — Heading        src/surface.tsx:153
+  cause         215px — Total          src/surface.tsx:323
+  cause          45px — IconButton     src/surface.tsx:163
+  cause          44px — Indicator      src/surface.tsx:192
+  cause          21px — IconButton     src/surface.tsx:163
   collateral   1149px — «no component»
 ```
 
@@ -288,7 +297,8 @@ quietly edited to match its result is not a prediction.
 performed. What 1.62 actually does is print both dimensions *and* a count over the
 padded canvas — `Expected an image 420px by 312px, received 420px by 359px. 1967
 pixels … are different.` So the scenario lost the property it was added for, and
-now sits with the other two as a row about interpretability rather than refusal.
+now sits alongside `space-token-nudged` as a row about interpretability rather
+than refusal.
 This is precisely what running their runner buys over reading their docs.
 
 **`indicator-dropped` was declared to name `Toolbar`.** It names `Indicator` —

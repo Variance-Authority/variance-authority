@@ -17,7 +17,7 @@ an answer was.
 | [`@variance-authority/playwright`](../playwright) | a browser |
 | [`@variance-authority/store`](../store) | a filesystem |
 | [`@variance-authority/remote`](../remote) | a socket |
-| [`@variance-authority/observe`](../observe) | the three above, which it composes |
+| [`@variance-authority/observe`](../observe) | a PNG codec — it composes `png` with `core` and this package, and nothing else in this table |
 
 Nothing here imports any of them. A team extending their own Playwright tests
 needs this vocabulary without a second browser; a team keeping baselines

@@ -47,7 +47,8 @@ every item changed.
 - **`_debugSource` is gone in React 19.** Per-element source locations were a
   React 18 affordance and are not coming back, so component→file resolution is
   done by reading the repository ([`core/attribute`](../core)'s `indexSource`)
-  rather than by asking the fiber. See journal 0009.
+  rather than by asking the fiber
+  ([journal 0009](../../docs/context/journal/0009-impact-components-docket.md)).
 - **A node React never rendered has no chain**, and says so — `NO_FIBER` with a
   reason, never an empty chain that reads like "no components involved".
 

@@ -57,11 +57,20 @@ toolByName('variance_trace_component')?.run(report, { component: 'Button' });
 toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--populated' });
 ```
 
+| tool | answers | ask it when |
+|---|---|---|
+| `variance_summary` | how the run came out across every subject, including the ones nobody observed | starting from nothing: *did anything change, and was anything missed?* |
+| `variance_describe` | what changed inside one subject — regions, components, files | the summary named a subject and you need the detail |
+| `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
+| `variance_trace_component` | every subject one component appears in, with pixels and cause-or-displaced | sizing the blast radius of a design-system or token edit |
+| `variance_explain_verdict` | why a subject was **not compared** — `incomparable`, `new`, or never observed | before attempting a fix, because none of those is a code problem |
+
 `variance_findings` is the one that is not about a change. A control that never
 had an accessible name compares equal to itself on every run, so a comparison can
 never report it — and an agent asked to fix a component wants it anyway. Its
 findings do not affect the verdict, and an empty answer distinguishes *inspected
-and clean* from *nobody looked*, for the same reason the coverage section does.
+and clean* from *nobody looked* — the same distinction `variance_summary` keeps
+when it accounts for the subjects nobody observed.
 
 ## The failure it is built to refuse
 
@@ -76,8 +85,11 @@ a run with unobserved subjects never reads as clean. `notObserved` distinguishes
 guessing `excluded` turns a coverage hole into a decision somebody made, and
 guessing `failed` turns every deliberate exclusion into a permanently red build.
 
-## Honest limit
+## Stability
 
-**This layer has never served a real agent.** Four tools shaped by argument about
-what an agent needs, tested against text rather than against an agent that used
-them and either fixed the thing or did not.
+**The tool names, their argument shapes and the wording of their answers carry no
+compatibility guarantee.** They are answers chosen to be useful to an agent
+rather than a published interface, and an answer that turns out to be the wrong
+one to give will change without a deprecation. If you need them to hold still,
+import `@variance-authority/mcp/tools` behind an adapter of your own and pin the
+version.

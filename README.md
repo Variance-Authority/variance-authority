@@ -8,11 +8,13 @@ the cheapest representation capable of deciding — in your own infrastructure.
 
 **Status: M0 spike.** The pipeline runs end to end under **both** profiles and is
 measured against a corpus with pre-declared ground truth — 38/38 under `jsdom`,
-39/39 under `chromium`, zero false verdicts either way. The raster tier, the two
-retention modes and an MCP surface followed. `variance run` now completes over a
+39/39 under `chromium`, zero false verdicts either way. Above the semantic tiers
+sits a raster tier that resolves changed pixels to components; baselines are kept
+either **durably**, addressed by renderer identity, or **ephemerally**, with both
+images rendered by one renderer in the same run and nothing stored; and an MCP
+surface hands the whole observation to an agent. `variance run` completes over a
 real Storybook — *new → accept → unchanged → 5 of 8 changed on a one-component
-edit* — and the first execution of that cycle found five defects nothing else
-could ([journal 0014](docs/context/journal/0014-the-incumbent.md)). A run also
+edit* ([journal 0014](docs/context/journal/0014-the-incumbent.md)). A run also
 reports what no comparison can reach: accessibility defects present on the first
 run, and, across two locales, which string nobody translated and which box
 stopped fitting ([journal 0015](docs/context/journal/0015-without-a-baseline.md)).
@@ -70,10 +72,10 @@ the three-hundred-and-first is approved without being read.
 
 That is exactly what we approach differently, in two ways.
 
-**Connecting pixels to code lines.** *(built and measured)* A comparison stops at
-a mask rather than a number; the mask clusters into regions; regions join the box
-tree; the tree knows which component produced each node; the component resolves
-to a file:
+**Connecting pixels to code lines.** *(built and measured — see the limit below
+the block)* A comparison stops at a mask rather than a number; the mask clusters
+into regions; regions join the box tree; the tree knows which component produced
+each node; the component resolves to a file:
 
 ```
 --- broken-toggle on page/todos--populated
@@ -89,6 +91,19 @@ The third column is the point. Ranked by area that report is *wrong* — `Stack`
 was never edited, only reflowed, and it outranks the edit by 6×. Area measures
 displacement, so the ordering comes from the tier that has provenance.
 
+**Which surface emits it.** That block comes from
+[`examples/todomvc/src/observe.chromium.test.ts`](examples/todomvc/src/observe.chromium.test.ts),
+composing [`core`](packages/core) directly: `diffSnapshots` over *two* documents
+names the causes, then `isolateRegions` → `attributeRegions` → `rankRegions` orders
+them. **Two documents are what the `cause`/`collateral` split costs.** `variance
+run` has the same wiring and ranks by cause whenever it is handed one — but on the
+durable path the baseline is an image with no document behind it, so it is handed
+none and the ordering falls back to area, which this block just called wrong.
+`observePair` does not rank at all: it renders both images but carries a single
+snapshot, so it attributes and stops. Component and file survive in every case;
+only the ordering does not. See
+[what does not exist yet](#what-does-not-exist-yet).
+
 **Tracking accumulated change over time.** *(designed, not built — see
 [spec 0002](docs/specs/0002-history-store.md))* A button gains 2px,
 eleven times, each approved correctly, and nobody ever sees the 22px change. No
@@ -98,7 +113,8 @@ hash per band per component boundary plus the resolved token values — never
 pixels, never images, never coordinates — so `--va-space-3: 12px → 20px across
 eight approvals` becomes an exact, machine-independent sentence.
 
-> We can make VR an immensely valuable tool.
+> Between them: a change you can hand to whoever owns the file, and a change too
+> small to notice that still gets counted.
 
 ### "We already have Playwright screenshots. Why would we switch?"
 
@@ -189,7 +205,7 @@ normalizer, so a subject can be decided in a unit test today and in a browser
 tomorrow without being written twice.
 
 *Built: Vitest/Jest via `jsdom`, and Playwright. `variance run` drives a real
-Storybook end to end through a collector the operator writes — about a hundred
+Storybook end to end through a collector the operator writes — a few hundred
 lines, once, per project. There is no plugin.*
 
 ### "Where are results stored?"
@@ -239,9 +255,10 @@ exist yet](#what-does-not-exist-yet).*
 phones anything, schedules anything, or needs a hosted control plane to reach a
 verdict.
 
-*Built: `variance run`, `accept`, `report`, `serve` and `comment`, driven end to
-end over a Storybook this project did not write. Never run against a repository
-outside this one.*
+*Built: `variance run`, `accept`, `report`, `serve` and `doctor` — five commands,
+driven end to end over a Storybook this project did not write. Never run against a
+repository outside this one. The PR-comment renderer is written and unit-tested
+but is not one of them: nothing dispatches to it.*
 
 ### "Who generates the images?"
 
@@ -252,8 +269,10 @@ only two of them need a browser. A document acquired in a unit test can be
 rendered by a pinned machine elsewhere, proven byte-identical in-process and over
 an HTTP hop.
 
-*Built: the phases, the remote renderer, the offload. Not built: the GitHub
-Action, the PR comment, the commit-back.*
+*Built: the phases, the remote renderer, the offload. Written but unreachable: the
+GitHub Action ([`.github/workflows/variance.yml`](.github/workflows/variance.yml))
+and the PR-comment renderer, neither of which has run. Not built: the
+commit-back.*
 
 ### "Where does it work?"
 
@@ -311,7 +330,7 @@ tiers are cheap in practice and not only on paper.
 
 | | |
 |---|---|
-| [`observe`](packages/observe) | one composition, shipped as an example — the only place in the repository where an order is hard-wired |
+| [`observe`](packages/observe) | two images to a verdict — `observePair` and `observeAgainstBaseline`, the ephemeral and durable modes. Take it when you want the whole answer without the CLI's config file; it is the only place in the repository where a phase order is hard-wired |
 | [`cli`](packages/cli) | the workflow, which is the one place a workflow belongs |
 
 | | |
@@ -319,7 +338,7 @@ tiers are cheap in practice and not only on paper.
 | [`examples/kitchen-sink`](examples/kitchen-sink) | 8 subjects, 40 declared cases — the measurement's ground truth |
 | [`examples/todomvc`](examples/todomvc) | a small design system, the pixel arm, and the end-to-end |
 | [`cases/`](cases) | confrontations with things we did not author — a real Storybook, a real `toHaveScreenshot` |
-| [`docs/context/`](docs/context) | the paper trail: ADRs, journal, helix checkpoint |
+| [`docs/context/`](docs/context) | the paper trail: decisions that constrain the code, what each attempt cost, and current state — what is proven and what is open |
 
 Every package has a README stating what it requires and what its entrypoints
 cost.
@@ -361,31 +380,35 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
 
 ## What does not exist yet
 
-Stated plainly, because everything above is easier to believe with this beside it.
-
-- **A history with a row in it.** The hashing, the drift arithmetic, the store
-  and the service are written and unit-tested; **nothing has ever called them
-  from a run.** `variance accept` explicitly refuses to record. So the 22px story
-  this README opens with has never once been produced by the pipeline, which is
-  the largest gap in the project. This bullet read "no per-component band
-  hashing, no store, no drift answers" until 2026-08-02, which was wrong in the
-  other direction — the code landed and the sentence did not move.
-- **A GitHub Action, PR comments, commit-back.** Committed and never run once.
+- **A history with a row in it.** The drift arithmetic, the store and the service
+  are written and unit-tested; **nothing has ever called them from a run.**
+  `variance accept` explicitly refuses to record. So the 22px story above has
+  never once been produced by the pipeline, which is the largest gap in the
+  project. Per-component band hashing, which every history question is asked
+  against, is not written at all ([spec 0001](docs/specs/0001-component-hashing.md)).
+- **A GitHub Action, PR comments, commit-back.** The workflow and the comment
+  renderer are committed and have never run once; the comment renderer is not
+  even wired to a command, so there is no way to invoke it short of importing it.
   The CLI itself does now run — see [`cases/storybook-case`](cases/storybook-case)
   — but only against a project in this repository, and the mounting half of a
   run is a collector each adopter writes.
 - **Cause-vs-collateral ranking on the durable path.** It needs the previous
-  revision's snapshot and a stored baseline is an image, so `variance run`
-  currently reports every region as `collateral` and orders them by area — the
+  revision's snapshot and a stored baseline is an image, so `variance run` passes
+  no causes and reports every region as `collateral`, ordered by area — the
   ordering [journal 0013](docs/context/journal/0013-observability.md) measured as
-  backwards. `observePair` does not have this problem.
-- **git-LFS exercised as git-LFS.** The store is written and its tests inject a
-  fake `CommandRunner` in every case but one. No clean/smudge filter has ever
-  run and no image has been committed through it.
+  backwards. The wiring is there; the input is not. `observePair` does not rank
+  either — it carries one snapshot, so it attributes and stops. Cause-first
+  ordering runs today only where `core` is composed by hand with both documents:
+  `examples/todomvc/src/observe.chromium.test.ts` and the two
+  [`cases/incumbent-case`](cases/incumbent-case) suites.
+- **git-LFS exercised as git-LFS.** The store is written, but no clean/smudge
+  filter has ever run and no image has been committed through it, so the one
+  failure that matters — an un-smudged checkout handing back a pointer file where
+  a PNG should be — has only ever been simulated.
 - **A shipped collector.** Story-shaped subjects work and one worked example
   exists ([`cases/storybook-case/collector/`](cases/storybook-case/collector),
-  about a hundred lines). There is no plugin, and mounting is the adopter's to
-  write, once, per project.
+  341 lines across three files). There is no plugin, and mounting is the
+  adopter's to write, once, per project.
 - **Any framework but React, actually run.** Provenance needs a component name
   per element. React gets it from fibers; anything else gets it from two `data-*`
   attributes and 25 lines

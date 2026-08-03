@@ -1,6 +1,6 @@
 # Spec 0008 — Locale runs
 
-**Status:** specified, not built
+**Status:** `built, not wired` — see [the status vocabulary](README.md#status-vocabulary)
 **Depends on:** [0003](0003-cli.md)
 
 ## Purpose
