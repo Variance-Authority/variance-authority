@@ -228,8 +228,8 @@ export function observationsFrom(
  */
 function scopeKey(component: string, band: Band, profile: ProfileId): string {
   return band === 'structure'
-    ? `structure ${component}`
-    : `${band} ${profile} ${component}`;
+    ? `structure\u0000${component}`
+    : `${band}\u0000${profile}\u0000${component}`;
 }
 
 function digestOf(hash: ComponentHash, band: Band): Digest | undefined {
