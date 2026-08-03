@@ -464,8 +464,28 @@ async function planFor(config: Config): Promise<Plan | undefined> {
  */
 async function rendererFor(config: Config): Promise<Renderer> {
   const { createPlaywrightRenderer } = await import('@variance-authority/playwright');
+  return openRenderer(() => createPlaywrightRenderer({ fonts: config.fonts }));
+}
+
+/**
+ * Any failure to open a renderer is an operator error, never a verdict.
+ *
+ * Exported, and taking the opener as an argument, for one reason: spec 0003
+ * acceptance 2 requires `run --profile chromium` on a machine without Chromium to
+ * exit 2 rather than 1, and until 2026-08-03 that was argued in a comment and
+ * asserted by nothing — the only criterion in the spec still carried by prose.
+ * It cannot be tested through `main` on a machine that *has* a browser, and
+ * uninstalling one to check is not a test.
+ *
+ * The distinction is the whole of why exit 2 exists. Exit 1 means a component
+ * changed and somebody should look; exit 2 means the run never happened. A
+ * missing browser reported as 1 sends a reviewer to find a change nobody made,
+ * and — worse — a CI step that treats 1 as "accept and move on" would record
+ * baselines from a run that observed nothing.
+ */
+export async function openRenderer(open: () => Promise<Renderer>): Promise<Renderer> {
   try {
-    return await createPlaywrightRenderer({ fonts: config.fonts });
+    return await open();
   } catch (error) {
     throw new OperatorError(
       `no renderer could be opened on this machine: ${messageOf(error)}. ` +

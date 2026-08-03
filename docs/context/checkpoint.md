@@ -81,6 +81,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M16 | B15 | `inspect` — five rules over one snapshot, so a defect present on the first run is reported rather than approved into the baseline | **expected, and it found the bug it was written to catch** — `<button><span aria-hidden="true">↻</span></button>` was named "↻", because name-from-content read `textContent`. The case did not notice for a session, because it reads a prebuilt bundle; it now refuses to run against one older than its inputs |
 | M17 | B15 | `compareLocales` — untranslated strings and boxes that stopped fitting, across two renders of one subject | **corrected twice by its own measurement** — the first run found nothing, because the rule read text nodes and the forgotten string was a `title`; and at 420px German fits, so whether a translation fits is a property of the container as much as the translation. `matchTrees` cannot be reused: it keys on the accessible name, which is exactly what a translation changes |
 | M18 | B15 | A second `provenanceOf`, reading `data-*` — 25 lines, no framework in the process | **expected, and it found two defects neither in the new code** — every plain `<section>` blew the stack on a `roleOf`/`accessibleName` mutual recursion, and a `prop` root labelled `Panel → Button` was attributing to `Button` in the per-component roles the report prints, sending a reviewer to a file nobody edited |
+| M19 | — | Read all nine specs against the code, correct what drifted, and start the lifecycle they define | **mixed, and it found one MUST with no code behind it** — spec 0008's uncompared count did not exist, so a locale whose tree diverged reported *fewer* findings and read as the cleaner one. 0003 named five of six commands; 0007 said `not built` with a Dockerfile in the tree that could not have run the contract; 0005 promised a Bitbucket recipe nobody had written. Specs 0004 and 0009 discharged into ADR-0016 and ADR-0015 and deleted; 0003 and 0006 still owe theirs |
 
 ---
 
@@ -166,14 +167,17 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   page it was acquired from".
 - **The documentation is checked now, and one class of it still is not.**
   `tools/documentation.test.ts` resolves every link, every backticked repository
-  path and every `file:line` reference across all 69 markdown files, and compiles
+  path and every `file:line` reference across all 67 markdown files, and compiles
   every README `ts` example against the built `.d.ts` with no unused import. It
   found that **11 of the 20 examples did not compile** — wrong arity, options
   that were renamed, a field that no longer exists — which is what a reader was
-  copying. What it deliberately does not check is a fence in a spec or an ADR:
-  those are proposals about code that may not exist, and specs 0001 and 0002 are
-  marked `not built` for that reason. So a spec can still name a type that was
-  renamed under it and nothing will say so.
+  copying. What it deliberately does not *compile* is a fence in a spec or an
+  ADR: those are proposals about code that may not exist. Their type references
+  are checked, and so now is a spec's status against the index and any block that
+  lists the CLI's commands against the binary — the last of which found spec 0003
+  naming five of six. What still passes unread is a spec's ordinary prose: a
+  behaviour paragraph can describe a field that does not exist, which is exactly
+  what spec 0008's uncompared count was for a whole branch.
 - **The layout is checked, the *naming* is not.** `tools/boundaries.test.ts`
   proves every import is declared and every requirement has one owner. Nothing
   proves a package's name still describes what it needs — `store` could grow a
@@ -196,7 +200,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 - **Inspection has run against nothing anybody else wrote.** Nine rules, each
   with a non-firing case, and `cases/storybook-case` reports 0 findings across 8
   subjects — a real answer about that design system, not a measurement of the
-  rules. Whether the list should grow is *settled* rather than open (spec 0009:
+  rules. Whether the list should grow is *settled* rather than open (ADR-0015:
   a rule belongs here if a stored snapshot can decide it, which excludes
   contrast, focus order and motion, with reasons in the file). What is open is
   whether the nine hold up outside this repository.

@@ -620,9 +620,10 @@ broken render alone. A `<div>` with no role is not a defect in any render taken
 on its own — it becomes one only against the `<button>` it replaced. Inspection
 and comparison catch different things and neither contains the other.
 
-**Deliberately not an axe-core reimplementation**, and [spec
-0009](specs/0009-inspection-rules.md) fixes the boundary rather than leaving it
-to drift: a rule belongs here if a stored snapshot can decide it. Contrast does
+**Deliberately not an axe-core reimplementation**, and
+[ADR-0015](context/adr/0015-a-rule-is-what-a-stored-snapshot-can-decide.md) fixes
+the boundary rather than leaving it to drift: a rule belongs here if a stored
+snapshot can decide it. Contrast does
 not qualify and the file says why — the background a glyph is painted on is a
 stacking question a layout engine answers and a document does not, so a
 four-line check would be right most of the time, which for accessibility is worse

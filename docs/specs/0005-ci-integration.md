@@ -1,7 +1,9 @@
 # Spec 0005 — CI integration and PR feedback
 
 **Status:** `built, never run` — see [the status vocabulary](README.md#status-vocabulary)
-**Depends on:** [0003](0003-cli.md), [0004](0004-artifact-storage.md)
+**Depends on:** [0003](0003-cli.md), and on baseline storage
+([ADR-0016](../context/adr/0016-where-a-baseline-is-kept-decides-nothing.md),
+which discharged spec 0004)
 
 ## Purpose
 

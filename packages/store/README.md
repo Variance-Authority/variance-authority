@@ -81,4 +81,4 @@ without a git repository.
 ## Reading
 
 - [ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md) — durable vs ephemeral
-- [spec 0004](../../docs/specs/0004-artifact-storage.md) — what a store had to answer
+- [ADR-0016](../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) — why there are three backends and why the choice must not show

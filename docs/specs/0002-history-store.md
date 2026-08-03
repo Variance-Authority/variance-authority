@@ -110,6 +110,38 @@ export interface HistoryStore {
 
 Every operation returns a small slice. Nothing loads a whole history.
 
+### The read a run needs, and which this contract does not have
+
+**Nothing here answers the question the write path has to ask**, and that — not
+absence of effort — is why 0001 and 0002 have sat `built, not wired` for a cycle.
+
+`observationsFrom(hashes, run, previous)` needs `previous`: the rows currently
+recorded for the subject it is about to write. The rule that makes the whole
+design affordable depends on it — *"a row is written only when a hash moves; a
+300-subject run in which two components changed writes two rows"*. The four reads
+above are all **questions a human or an agent asks about the past**: when did this
+last change, how often does it churn, what did this token drift to, where does
+this component appear now. None of them is the one a run asks about the present,
+and the closest, `lastChanged`, returns a single row — so computing `previous`
+through it costs one request per component per band. A 300-subject project with
+ten components each is 9,000 round trips per run.
+
+Two shapes resolve it and they trade the same bytes in opposite directions.
+
+1. **A bulk read.** `current(subjects)` returns the latest row per
+   `(subject, component, band)` scope. The run compares and sends only movement,
+   which is what this document already describes everywhere else.
+2. **The server deduplicates on write.** The run sends everything it observed and
+   the service drops a row equal to the latest stored one. No new read, and the
+   comparison happens where the data already is — but the request body then
+   carries every component of every subject on every run, and `maxBodyBytes`
+   exists precisely to refuse bodies that size.
+
+Both are defensible; this spec picked neither, and a contract that specifies a
+write rule it gives nobody the means to implement is the reason there is code on
+both sides of a wire with nothing crossing it. **Deciding between them is the
+next step for B12** — not more implementation.
+
 **Two deviations from the first draft of this contract, both deliberate, both
 argued in `packages/history/src/store.ts` rather than here.** `record` takes the
 run as a required argument instead of inferring it from the rows, because a run in

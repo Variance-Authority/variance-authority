@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { USAGE, parseArgs } from './bin.js';
-import { OperatorError } from './exit.js';
+import { USAGE, openRenderer, parseArgs } from './bin.js';
+import { EXIT_OPERATOR, OperatorError } from './exit.js';
 
 describe('parseArgs', () => {
   it('reads a bare command with the default config path, made absolute', () => {
@@ -163,6 +163,41 @@ describe('parseArgs', () => {
     expect(USAGE).toContain('0 nothing needs review');
     expect(USAGE).toContain('1 changes need review');
     expect(USAGE).toContain('2 operator error');
+  });
+});
+
+/**
+ * A machine that cannot open a browser, which is spec 0003 acceptance 2.
+ *
+ * The criterion — `run --profile chromium` with no Chromium exits 2, not 1 — was
+ * argued in a comment and asserted by nothing. It cannot be reached through
+ * `main` on a machine that has a browser, and the only alternative is to stop
+ * checking it, which is how a run that never happened comes to look like a run
+ * that found nothing.
+ */
+describe('opening a renderer', () => {
+  it('turns any failure to open one into an operator error, so a missing browser exits 2', async () => {
+    const failure = new Error('browserType.launch: Executable doesn’t exist at /ms-playwright');
+
+    const error = await openRenderer(() => Promise.reject(failure)).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
+
+    expect(error).toBeInstanceOf(OperatorError);
+    expect((error as OperatorError).exitCode).toBe(EXIT_OPERATOR);
+    // The underlying message intact, because "no renderer could be opened" alone
+    // does not tell an operator whether to install a browser or fix a path.
+    expect((error as OperatorError).message).toContain('Executable doesn’t exist');
+    expect((error as OperatorError).message).toContain('variance doctor');
+    expect((error as OperatorError).cause).toBe(failure);
+  });
+
+  it('is not in the way of a renderer that opens', async () => {
+    // The wrapper returns the value untouched. A guard that also transformed the
+    // success path would be a second thing to get wrong on every run.
+    const renderer = { opened: true };
+    await expect(openRenderer(() => Promise.resolve(renderer as never))).resolves.toBe(renderer);
   });
 });
 
