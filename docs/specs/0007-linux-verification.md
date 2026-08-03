@@ -1,6 +1,6 @@
 # Spec 0007 — Linux verification
 
-**Status:** `not built` — see [the status vocabulary](README.md#status-vocabulary)
+**Status:** `built, never run` — see [the status vocabulary](README.md#status-vocabulary)
 **Depends on:** [0003](0003-cli.md)
 
 ## Purpose
@@ -13,6 +13,24 @@ design decisions rest on numbers that have only ever been taken on one machine.
 
 Run the full suite and both corpus measurements on Linux, and record the results
 next to the existing ones rather than replacing them.
+
+[`docker/linux-verify.Dockerfile`](../../docker/linux-verify.Dockerfile) and
+[`docker/linux-verify.sh`](../../docker/linux-verify.sh) are that, and neither
+has been executed once. This spec said `not built` until 2026-08-03, which is why
+nobody ran them: the index said the work had not started.
+
+**And they could not have run this contract.** The image copied `packages`,
+`examples` and four config files. `cases/*` is a declared workspace, so
+`yarn install --immutable` fails without it — masked by an `|| yarn install`
+fallback that would have produced an image with a *different dependency set* and
+then compared its numbers to the macOS ones as though the only difference were
+the platform. `tools/**` is in the vitest include, so this repository's own
+boundary and documentation rules would not have been among the tests. Neither
+absence shows up in a summary: a suite that never collects a file reports one
+fewer file, and nobody counts. All three are fixed, `.dockerignore` now keeps a
+macOS `node_modules` out of the machine that exists to be a different one, and
+`linux-verify.sh` refuses a run whose log does not name the families that went
+missing.
 
 ## Behaviour
 

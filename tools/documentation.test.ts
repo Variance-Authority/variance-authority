@@ -734,12 +734,15 @@ describe('the documented command line is the real one', () => {
     (match) => match[1]!,
   );
 
+  /** The synopsis lines of `USAGE`, as the binary prints them back at a reader. */
+  const USAGE_LINES = [...bin.matchAll(/^ {2}'(variance [^']+)',$/gm)].map((match) => match[1]!);
+
   it('reads the binary', () => {
     expect(dispatched.length).toBeGreaterThan(0);
   });
 
   it("shows the binary's own usage, line for line", () => {
-    const usage = [...bin.matchAll(/^ {2}'(variance [^']+)',$/gm)].map((match) => match[1]!);
+    const usage = USAGE_LINES;
     const readme = readFileSync(join(ROOT, 'packages/cli/README.md'), 'utf8');
 
     expect(usage.length).toBe(dispatched.length);
@@ -769,6 +772,134 @@ describe('the documented command line is the real one', () => {
   it('documents every command the binary dispatches', () => {
     const readme = readFileSync(join(ROOT, 'packages/cli/README.md'), 'utf8');
     expect(dispatched.filter((command) => !new RegExp(`variance ${command}\\b`).test(readme))).toEqual([]);
+  });
+
+  /**
+   * Wherever a block lists the commands, it lists all of them, in the binary's
+   * own words.
+   *
+   * The two rules above are each half-blind in the same place. `spec 0003`
+   * carried five of the six commands for a session inside a block that presents
+   * itself as *the contract*, and neither rule fired: every command it named
+   * exists, so the first rule passed, and the second reads only
+   * `packages/cli/README.md`, so the missing one was missing somewhere it does
+   * not look. A reader implementing against that spec would never learn
+   * `comment` is there; the action that posts the docket calls it.
+   *
+   * **A synopsis is told from the other two things structurally, not by
+   * filename.** A synopsis states a command's *shape*; an invocation states one
+   * command; a transcript records what some ran. So a line qualifies when it
+   * carries a placeholder — `[…]` or `<…>` — and, once the placeholders and any
+   * trailing `#` note are stripped, has nothing left but the command, its flags,
+   * `...` and `|`.
+   *
+   * Both other kinds are in this repository and both are correctly excluded.
+   * `cases/README.md` begins every line with `variance ` and keeps `on a fresh
+   * checkout  8 new  exit 1` — a record of what four runs did. The
+   * `variance comment --marker` block below in `packages/cli/README.md` is one
+   * concrete call with no placeholder in it; requiring it to name all six
+   * commands is what the first draft of this rule did, and it was wrong.
+   *
+   * Verbatim against `USAGE`, for the reason the README rule gives: a synopsis a
+   * reader retypes has to be the one the parser prints back when they get it
+   * wrong. **The limit that buys:** a document proposing a command line for
+   * something unbuilt cannot be written this way. That costs nothing today —
+   * this repository has one binary, so a block enumerating `variance` commands
+   * is describing it — and the day it costs something, the first rule above
+   * would have refused the proposal anyway for naming a command that does not
+   * dispatch.
+   */
+  const isSynopsis = (fence: Fence): boolean => {
+    const lines = fence.code.split('\n').filter((line) => line.trim() !== '');
+    if (lines.length === 0) return false;
+
+    return lines.every((line) => {
+      if (!line.startsWith('variance ')) return false;
+      if (!/[[<]/.test(line)) return false;
+
+      const remaining = line
+        .replace(/#.*$/, '')
+        .replace(/\[[^\]]*\]/g, '')
+        .replace(/<[^>]*>/g, '')
+        .trim()
+        .split(/\s+/)
+        // `variance` and the command itself; what follows decides the question.
+        .slice(2);
+
+      return remaining.every((token) => /^(--[\w-]+|\.{3}|\|)$/.test(token));
+    });
+  };
+
+  const SYNOPSES = FENCES.filter(isSynopsis);
+
+  it('finds the synopses, so a parsing change cannot empty this rule', () => {
+    // Named rather than counted: an empty list would pass every rule below.
+    expect(SYNOPSES.map((fence) => fence.file)).toContain('packages/cli/README.md');
+  });
+
+  it.each(SYNOPSES.map((fence) => [`${fence.file}:${fence.line}`, fence] as const))(
+    '%s lists every command and shows the binary’s own line',
+    (_where, fence) => {
+      const shown = fence.code
+        .split('\n')
+        .filter((line) => line.trim() !== '')
+        .map((line) => line.trimEnd());
+
+      expect(dispatched.filter((command) => !shown.some((line) => line.startsWith(`variance ${command} `) || line === `variance ${command}`))).toEqual([]);
+      expect(shown.filter((line) => !USAGE_LINES.includes(line))).toEqual([]);
+    },
+  );
+});
+
+/**
+ * A spec says what it is, once.
+ *
+ * Three places carry a spec's status — its own header, the vocabulary that
+ * defines the words, and the sequence table that lists every spec — and they
+ * have already disagreed: two `built` specs contradicted their own headers a
+ * commit ago, and the table's prose still described a spec as greenfield while a
+ * Dockerfile for it sat in `docker/`. A status is the one field a reader uses to
+ * decide whether to implement something, so a stale one costs a session.
+ *
+ * Checked rather than argued, because the three copies exist for good reasons —
+ * a reader opening one spec should not have to open the index, and a reader
+ * scanning the index should not have to open nine files — and the cost of a
+ * legitimate duplication is that something has to hold it together.
+ */
+describe('every spec agrees with the index about itself', () => {
+  const INDEX = readFileSync(join(ROOT, 'docs/specs/README.md'), 'utf8');
+
+  const SPECS = MARKDOWN.filter((file) => /^docs\/specs\/\d{4}-/.test(file)).sort();
+
+  /** The words the vocabulary table defines, which are the only ones a spec may use. */
+  const VOCABULARY = [...INDEX.matchAll(/^\| `([^`]+)` \| /gm)].map((match) => match[1]!);
+
+  /** `| [0001](0001-…md) | … | … | `status` | … |` — number to status. */
+  const LISTED = new Map(
+    [...INDEX.matchAll(/^\| \[(\d{4})\]\([^)]+\) \|[^|]*\|[^|]*\| `([^`]+)` \|/gm)].map(
+      (match) => [match[1]!, match[2]!] as const,
+    ),
+  );
+
+  const statusOf = (file: string): string | null =>
+    /^\*\*Status:\*\* `([^`]+)`/m.exec(readFileSync(join(ROOT, file), 'utf8'))?.[1] ?? null;
+
+  it('reads a vocabulary and a sequence table out of the index', () => {
+    expect(VOCABULARY.length).toBeGreaterThan(0);
+    expect(LISTED.size).toBe(SPECS.length);
+  });
+
+  it.each(SPECS)('%s', (file) => {
+    const number = /(\d{4})-/.exec(file)![1]!;
+    const status = statusOf(file);
+
+    expect(status, `${file} states no status`).not.toBeNull();
+    expect(VOCABULARY, `${file} uses a word the vocabulary does not define`).toContain(status);
+    expect(LISTED.get(number), `the sequence table and ${file} disagree`).toBe(status);
+  });
+
+  it('lists no spec that does not exist', () => {
+    expect([...LISTED.keys()].filter((number) => !SPECS.some((file) => file.includes(`/${number}-`)))).toEqual([]);
   });
 });
 

@@ -272,17 +272,26 @@ rendered by a pinned machine elsewhere, proven byte-identical in-process and ove
 an HTTP hop.
 
 *Built: the phases, the remote renderer, the offload, and `variance comment`,
-which renders the body. Written and never executed: the GitHub Action
+which renders the body. Also built, and off by default: the commit-back, which
+refuses three ways — no baselines to commit, no head branch, or a workspace on a
+detached merge ref. Written and never executed: the GitHub Action
 ([`.github/workflows/variance.yml`](.github/workflows/variance.yml)) that would
-post it. Not built: the commit-back.*
+post any of it.*
 
 ### "Where does it work?"
 
 **Any Linux terminal** — your dev machine, GitHub Actions, Bitbucket Pipelines.
-It is Node and Playwright, with no service dependency and no daemon.
+It is Node and Playwright, with no service dependency and no daemon. The exit
+code is the whole gate, so a CI that can run a command already has it; the only
+platform-specific part is posting the comment, and both recipes are written down
+([GitHub](.github/actions/variance),
+[Bitbucket](packages/cli/README.md#bitbucket-pipelines-and-what-carries-to-any-ci)).
 
 *Honest limit: every measurement in this repository was taken on one Mac with one
-Chromium. Linux CI is the intended target and is not yet verified.*
+Chromium, and neither CI recipe has ever executed. Linux CI is the intended
+target and is not yet verified —
+[spec 0007](docs/specs/0007-linux-verification.md) is the harness for it, and it
+has not been run either.*
 
 ### "SOC 2?"
 

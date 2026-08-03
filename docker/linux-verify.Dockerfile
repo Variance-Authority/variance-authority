@@ -20,12 +20,30 @@ FROM mcr.microsoft.com/playwright:v1.49.0-noble
 
 WORKDIR /work
 
-# Dependencies first, so a source edit does not re-resolve the workspace.
-COPY package.json yarn.lock .yarnrc.yml* ./
-COPY packages ./packages
-COPY examples ./examples
-COPY tsconfig.base.json tsconfig.json vitest.config.ts ./
+# The whole tree, and the reason is that "the full suite" means the full suite.
+#
+# This copied `packages`, `examples` and four config files until 2026-08-03, and
+# would not have run the thing it was built for. `cases/*` is a declared
+# workspace, so `yarn install --immutable` fails outright without it; `tools/**`
+# is in the vitest include, so the boundary and documentation rules — this
+# repository's own gate — would simply not have been among the tests; and
+# `docs/` holds most of what the documentation rules resolve against. A run of
+# that image would have reported a green Linux suite that had never executed
+# `cases/`, `tools/`, or a single markdown check.
+#
+# `.git` is included deliberately. Both `tools` suites enumerate what to check
+# with `git ls-files`, which is the right question — tracked files, not whatever
+# is lying in the directory — and it needs a repository to answer it.
+# `.dockerignore` is what keeps this from also carrying a macOS `node_modules`
+# into the machine this image exists to be different from.
+COPY . .
 
-RUN corepack enable && yarn install --immutable || yarn install
+# `--immutable`, with no fallback. The previous `|| yarn install` re-resolved the
+# workspace whenever the immutable install failed, which meant a broken build
+# context produced an image with a *different dependency set* rather than an
+# error — and then compared its results to the macOS numbers as if the only
+# difference were the platform. A resolution difference reported as a platform
+# difference is the one wrong answer this spec can produce.
+RUN corepack enable && yarn install --immutable
 
 CMD ["bash", "-lc", "yarn build && yarn test"]

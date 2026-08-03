@@ -8,8 +8,12 @@ what a capability must do, written before the code and kept until the decisions
 it forced have been lifted into ADRs — at which point the spec is deleted. **A
 spec is therefore not a promise that the capability is missing.** Of the nine
 below, four are `built` and stay only because nobody has written their ADRs yet,
-four more have code that no consumer path reaches, and one is greenfield. The
-`Status` column, not the presence of the file, is what says which is which.
+three more have code that no consumer path reaches, and two are committed and
+have never been executed at all. **None is greenfield**, and this sentence said
+one was until 2026-08-03 — spec 0007 has had a Dockerfile and a runner in
+[`docker/`](../../docker) since it was written. The `Status` column, not the
+presence of the file, is what says which is which; `tools/documentation.test.ts`
+fails when a spec's own header and the table below disagree.
 
 Whoever moves a spec to `built` owns the rest of the move: writing the ADRs for
 every decision it forced, updating [`docs/context/checkpoint.md`](../context/checkpoint.md),
@@ -23,9 +27,19 @@ Each spec states **what**, not **how it was arrived at**.
 | status | means |
 |---|---|
 | `not built` | no implementation; the spec is the whole of it |
-| `built, not wired` | the packages exist and are unit-tested, but no consumer path reaches them, so the acceptance criteria are unmet |
+| `built, not wired` | the packages exist and are tested, and no consumer path reaches them, so an operator cannot use the capability at all |
 | `built, never run` | committed and reachable, never executed against anything |
 | `built` | implemented and exercised; awaiting ADR extraction and deletion |
+
+**`built, not wired` says nothing about the acceptance criteria**, and it claimed
+the opposite until 2026-08-03 — "so the acceptance criteria are unmet". That is
+false for [0001](0001-component-hashing.md), whose eight criteria are all met by
+tests, three of them scored against the corpus's pre-declared ground truth; the
+missing thing is a caller, not a proof. It is true for
+[0008](0008-locale-runs.md), whose first criterion begins "`variance run` on a
+config declaring `locales`" and therefore cannot be met without one. One status
+was describing two situations, and the difference is exactly what a reader
+deciding where to spend a day needs.
 
 ## Sequence
 
@@ -39,7 +53,7 @@ Ordered by dependency. Later entries assume earlier ones.
 | [0004](0004-artifact-storage.md) | Artifact storage: git-LFS and remote | 0003 | `built` | The directory store, the git-LFS store and the remote store all ship. git-LFS has never been exercised as git-LFS — no clean/smudge filter has run. |
 | [0005](0005-ci-integration.md) | CI integration and PR feedback | 0003, 0004 | `built, never run` | [`.github/workflows/variance.yml`](../../.github/workflows/variance.yml) and the composite action around it are committed and have never executed. `variance comment`, which renders the body they post, is a command and has been run against a real report — but never from CI. |
 | [0006](0006-storybook-adapter.md) | Storybook adapter | 0003 | `built` | `@variance-authority/storybook` reads an index Storybook wrote; [`cases/storybook-case`](../../cases/storybook-case) runs the whole CLI over a real build. |
-| [0007](0007-linux-verification.md) | Linux verification | 0003 | `not built` | Every measurement comes from one Mac and one Chromium. |
+| [0007](0007-linux-verification.md) | Linux verification | 0003 | `built, never run` | [`docker/linux-verify.Dockerfile`](../../docker/linux-verify.Dockerfile) and [`linux-verify.sh`](../../docker/linux-verify.sh) build the image and run the suite three times. Neither has ever been executed, and every measurement still comes from one Mac and one Chromium. |
 | [0008](0008-locale-runs.md) | Locale runs | 0003 | `built, not wired` | `compareLocales` ships in `core/judge` and answers two questions no image can be asked. Nothing calls it from a run; a locale comparison still means hand-writing a test. |
 | [0009](0009-inspection-rules.md) | Inspection rules, and where they stop | 0003 | `built` | Nine rules over one snapshot, and a written boundary: the list stays at what a stored snapshot can decide and does not grow toward axe. |
 

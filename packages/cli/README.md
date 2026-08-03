@@ -162,6 +162,60 @@ mounting half of a run is code you write. `baselines` is `directory`, `lfs` or
 `retention: "ephemeral"` needs no baselines at all — both images are produced by
 this run.
 
+## Bitbucket Pipelines, and what carries to any CI
+
+There is a composite action for GitHub Actions
+([`.github/actions/variance`](../../.github/actions/variance)). There is no
+second integration to install, and there does not need to be: **the exit code
+above is the whole interface**, so a CI that can run a command already has the
+gate. What a platform integration adds is the comment, and that is the only part
+worth writing down twice.
+
+```yaml
+# bitbucket-pipelines.yml
+image: mcr.microsoft.com/playwright:v1.49.0-noble
+
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: variance
+          script:
+            - corepack enable && yarn install --immutable
+            - yarn build
+            # The gate. Nothing parses this output; the exit code is the verdict,
+            # and `set -e` is what turns 1 into a failed step.
+            - node packages/cli/dist/bin.js run --config variance.config.json --profile chromium
+          after-script:
+            # `after-script` runs whether or not the step passed, which is the
+            # point: the run that failed is the run whose docket is worth posting.
+            - node packages/cli/dist/bin.js comment --config variance.config.json --body-file body.md
+            - bash ./bitbucket-comment.sh body.md
+          artifacts:
+            - .variance/**
+```
+
+The poster is the platform-specific half, and it needs one thing from this CLI:
+
+```bash
+variance comment --marker
+```
+
+That prints the invisible marker the rendered body carries, and nothing else.
+Finding a previous comment by it and updating that comment — rather than adding
+one per run — is the whole of the "one comment, updated in place" rule; on
+Bitbucket that is a `GET` of
+`/2.0/repositories/{workspace}/{repo}/pullrequests/{id}/comments`, a search for
+the marker in `content.raw`, and a `PUT` to the one that has it or a `POST` if
+none does. `.github/actions/variance/post-comment.mjs` is the same three steps
+against GitHub's API and is the file to read while writing the other.
+
+**Never run.** Neither this nor the GitHub workflow has executed on a real pull
+request — [spec 0005](../../docs/specs/0005-ci-integration.md) is `built, never
+run` and this section does not change that. It is written down because the
+contract said a documented equivalent would exist and, until 2026-08-03, none
+did; treat the YAML as a starting point somebody still has to prove.
+
 ## Known gap
 
 **`accept --all` does not distinguish a new baseline from a changed one.** In

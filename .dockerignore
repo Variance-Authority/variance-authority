@@ -1,0 +1,34 @@
+# What must not cross from this machine into the image that exists to be a
+# different machine (spec 0007).
+#
+# `docker/linux-verify.Dockerfile` copies the whole tree, because the suite needs
+# the whole tree — `cases/` is a declared workspace, `tools/` is in the vitest
+# include, and both `tools` suites enumerate files with `git ls-files`, so `.git`
+# comes too. That makes this file load-bearing rather than housekeeping: without
+# it the copy would carry a macOS-built `node_modules` into a Linux container.
+#
+# Nothing would obviously break. `yarn install` would find the tree already
+# populated, the native binaries would be the wrong platform, and the failure
+# would surface as a suite behaving oddly on Linux — which is *precisely* the
+# finding spec 0007 exists to produce and would be a fabrication of this file's
+# absence. The one thing a portability check must never do is import the machine
+# it is checking against.
+
+node_modules
+.yarn/install-state.gz
+
+# Build output. `yarn build` runs inside the image; carrying a macOS `dist` in
+# would let a stale artifact answer for a compile that never happened.
+dist
+*.tsbuildinfo
+
+# Run artifacts, none of which are inputs.
+.variance/
+coverage/
+docker/results/
+cases/*/incumbent/
+cases/*/test-results/
+cases/*/storybook-changed/
+
+# Agent worktrees, which are checkouts of this same repository.
+.claude/worktrees/

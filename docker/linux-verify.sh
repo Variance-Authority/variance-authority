@@ -12,6 +12,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${ROOT}/docker/results"
 IMAGE="variance-authority-linux-verify"
 
+# The build context, before the daemon — a wrong input is a fact about this
+# checkout and stays wrong however the machine is configured.
+#
+# A git *worktree* keeps `.git` as a file pointing at the main checkout, and a
+# `COPY .` carries that file into an image where the path it names does not
+# exist. `git ls-files` then fails, and the two suites that enumerate with it —
+# the boundary rules and the documentation rules — do not run. The image would
+# still build, still go green, and still be missing this repository's own gate,
+# which is the shape of failure this whole spec exists to catch. So it is
+# refused rather than discovered.
+if [ ! -d "${ROOT}/.git" ]; then
+  echo "${ROOT}/.git is not a directory, so this is a worktree or a submodule." >&2
+  echo "Build from a clone: git ls-files cannot answer inside the image, and the" >&2
+  echo "tools suites would be silently absent from the run." >&2
+  exit 2
+fi
+
 if ! docker info >/dev/null 2>&1; then
   echo "docker daemon is not running; start it and retry" >&2
   exit 2
@@ -29,6 +46,28 @@ for run in 1 2 3; do
   docker run --rm --ipc=host "${IMAGE}" \
     bash -lc 'yarn build && yarn test 2>&1' | tee "${OUT}/linux-run-${run}.log"
 done
+
+# What ran, checked rather than assumed.
+#
+# The image copied four directories and none of the cases or tools until
+# 2026-08-03, so it would have printed a green Linux suite that had never
+# executed this repository's own rules. Nothing said so, because a suite that
+# does not collect a file reports one fewer file and no reader counts. These are
+# the two families whose absence is invisible in a summary, named individually so
+# the message says which one went missing.
+missing=()
+for family in 'tools/documentation.test.ts' 'tools/boundaries.test.ts' 'cases/' 'examples/kitchen-sink'; do
+  grep -q -- "${family}" "${OUT}/linux-run-1.log" || missing+=("${family}")
+done
+
+if [ ${#missing[@]} -gt 0 ]; then
+  echo >&2
+  echo "the run did not include: ${missing[*]}" >&2
+  echo "That is a partial suite reported as a whole one — the failure spec 0007" >&2
+  echo "exists to catch, arriving in the harness. Check the build context and" >&2
+  echo ".dockerignore before reading any number in ${OUT}." >&2
+  exit 1
+fi
 
 echo
 echo "results in ${OUT}"
