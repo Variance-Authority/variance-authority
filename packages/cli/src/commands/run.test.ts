@@ -145,14 +145,38 @@ function fakeRenderer(identity: RenderIdentity = IDENTITY): Renderer {
   };
 }
 
-/** An ephemeral store — a real cache — with `find` answering whatever a test needs. */
+/**
+ * An ephemeral store — a real cache — with the baseline lookups answering
+ * whatever a test needs.
+ *
+ * `describe` is derived from the same `found` rather than inherited from the
+ * ephemeral base, because a store whose two lookups disagree is not a store. The
+ * run reads the cheap one to settle and the expensive one only to write a diff
+ * image, so a fake answering `null` to the first would send every test here down
+ * the render path no matter what it set up — passing for the wrong reason, which
+ * is the failure mode a fake is most likely to introduce.
+ */
 function storeAnswering(found: Found | null | (() => never)): RasterStore {
   const base = createEphemeralStore();
+  const answer = (): Found | null => {
+    if (typeof found === 'function') found();
+    return found as Found | null;
+  };
+
   return {
     ...base,
     async find() {
-      if (typeof found === 'function') found();
-      return found as Found | null;
+      return answer();
+    },
+    async describe() {
+      const baseline = answer();
+      if (baseline === null) return null;
+      return {
+        documentDigest: baseline.raster.documentDigest,
+        comparable: baseline.comparable,
+        storedUnder: baseline.storedUnder,
+        missingFonts: baseline.raster.missingFonts,
+      };
     },
   };
 }
@@ -228,10 +252,11 @@ describe('settle', () => {
     // The economy the whole command rests on: a render document states everything
     // sent to a renderer, so an identical one under an identical identity cannot
     // produce a different image. No browser is asked.
-    const found: Found = {
-      raster: rasterFor(document, IDENTITY),
+    const found: Described = {
+      documentDigest: documentDigest(document),
       comparable: true,
       storedUnder: IDENTITY,
+      missingFonts: [],
     };
 
     expect(settle(digest, found)).toEqual({
@@ -244,10 +269,11 @@ describe('settle', () => {
   it('refuses to render against a baseline another machine painted', () => {
     // Rendering here would buy a large, confident diff caused by a font stack or
     // a driver, which the report would then blame on a component.
-    const found: Found = {
-      raster: rasterFor(document, OTHER_MACHINE),
+    const found: Described = {
+      documentDigest: documentDigest(document),
       comparable: false,
       storedUnder: OTHER_MACHINE,
+      missingFonts: [],
     };
 
     const settlement = settle(digest, found);
@@ -262,10 +288,11 @@ describe('settle', () => {
     // and answering a repeat of that document with a bare `unchanged` drops a fact
     // the baseline itself recorded — the reader is then told the subject is fine
     // by a comparison that never mentioned it is looking at the wrong typeface.
-    const found: Found = {
-      raster: { ...rasterFor(document, IDENTITY), missingFonts: ['Inter'] },
+    const found: Described = {
+      documentDigest: documentDigest(document),
       comparable: true,
       storedUnder: IDENTITY,
+      missingFonts: ['Inter'],
     };
 
     const settlement = settle(digest, found);
@@ -274,10 +301,11 @@ describe('settle', () => {
   });
 
   it('renders when the document moved', () => {
-    const found: Found = {
-      raster: rasterFor(documentFor('fixture:a', '<div data-va-path="0">y</div>'), IDENTITY),
+    const found: Described = {
+      documentDigest: documentDigest(documentFor('fixture:a', '<div data-va-path="0">y</div>')),
       comparable: true,
       storedUnder: IDENTITY,
+      missingFonts: [],
     };
     expect(settle(digest, found).kind).toBe('render');
   });
@@ -429,8 +457,10 @@ describe('run', () => {
   }));
 
   it('settles unchanged subjects without asking the renderer for an image', async () => {
-    // The measurable claim: 300 subjects, 0 renders when nothing moved.
+    // The measurable claim: 300 subjects, 0 renders *and 0 image reads* when
+    // nothing moved.
     let renders = 0;
+    let images = 0;
     const renderer: Renderer = {
       identity: IDENTITY,
       identityFor(document) {
@@ -454,13 +484,28 @@ describe('run', () => {
     const store: RasterStore = {
       ...createEphemeralStore(),
       async find(key) {
+        images += 1;
         return found(key.subject);
+      },
+      async describe(key) {
+        return {
+          documentDigest: documentDigest(documentFor(key.subject)),
+          comparable: true,
+          storedUnder: IDENTITY,
+          missingFonts: [],
+        };
       },
     };
 
     const { report } = await runWith(configOf(), collectsBoth, store, { renderer });
 
     expect(renders).toBe(0);
+    // And no image was *read* either, which is the half of the claim that used
+    // not to hold: the settled path went through `find`, so a suite where
+    // nothing moved still moved every baseline PNG in order to compare 32 hex
+    // characters. `describe` answers from the sidecar, so a fully-settled run
+    // now touches no image on either side.
+    expect(images).toBe(0);
     expect(report.observations.map((entry) => entry.verdict)).toEqual([
       'unchanged',
       'unchanged',
@@ -564,7 +609,13 @@ describe('run', () => {
     warnings: [],
   };
 
-  /** A store holding the baseline this document was painted from: the settled path. */
+  /**
+   * A store holding the baseline this document was painted from: the settled path.
+   *
+   * `describe` is the one the run actually reaches here — settling reads the
+   * sidecar and never the image — and `find` is kept in agreement so a test that
+   * moves off this path finds a coherent store rather than an empty one.
+   */
   function settlingStore(missingFonts: readonly string[] = []): RasterStore {
     return {
       ...createEphemeralStore(),
@@ -573,6 +624,14 @@ describe('run', () => {
           raster: { ...rasterFor(documentFor(key.subject), IDENTITY), missingFonts },
           comparable: true,
           storedUnder: IDENTITY,
+        };
+      },
+      async describe(key) {
+        return {
+          documentDigest: documentDigest(documentFor(key.subject)),
+          comparable: true,
+          storedUnder: IDENTITY,
+          missingFonts,
         };
       },
     };

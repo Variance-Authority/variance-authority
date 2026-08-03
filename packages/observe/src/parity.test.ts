@@ -268,8 +268,18 @@ describe('switching where baselines are kept', () => {
     }
 
     const expected = {
-      mine: { documentDigest: documentDigest(SAME), comparable: true, storedUnder: MAC },
-      theirs: { documentDigest: documentDigest(SAME), comparable: false, storedUnder: RUNNER },
+      mine: {
+        documentDigest: documentDigest(SAME),
+        comparable: true,
+        storedUnder: MAC,
+        missingFonts: [],
+      },
+      theirs: {
+        documentDigest: documentDigest(SAME),
+        comparable: false,
+        storedUnder: RUNNER,
+        missingFonts: [],
+      },
       neither: null,
     };
     expect(answers).toEqual({
@@ -277,6 +287,32 @@ describe('switching where baselines are kept', () => {
       'git-LFS': expected,
       remote: expected,
       bucket: expected,
+    });
+  });
+
+  it('carries the fonts the baseline was painted without, wherever it is kept', async () => {
+    // The field that makes the cheap lookup usable for a verdict at all, and the
+    // one every backend had in hand and dropped until 2026-08-04. A store that
+    // answers `[]` here is not slightly wrong: settling reports a bare
+    // `unchanged` for a baseline that is an image of a substituted typeface, and
+    // no later stage can recover the fact because no image is read.
+    //
+    // Separate from the parity case above because that one asserts agreement on
+    // an empty list, which every backend satisfies by forgetting the field.
+    const answers: Record<string, unknown> = {};
+
+    for (const implementation of IMPLEMENTATIONS) {
+      const store = await implementation.open();
+      await store.put({ subject: 'substituted' }, { ...baseline(MAC), missingFonts: ['Inter'] });
+      answers[implementation.name] = (await store.describe({ subject: 'substituted' }, MAC))
+        ?.missingFonts;
+    }
+
+    expect(answers).toEqual({
+      durable: ['Inter'],
+      'git-LFS': ['Inter'],
+      remote: ['Inter'],
+      bucket: ['Inter'],
     });
   });
 

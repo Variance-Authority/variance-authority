@@ -111,7 +111,12 @@ describe('the wire is the one the clients already speak', () => {
       })
     ).json();
     expect(described).toEqual({
-      described: { documentDigest: RASTER.documentDigest, comparable: true, storedUnder: IDENTITY },
+      described: {
+        documentDigest: RASTER.documentDigest,
+        comparable: true,
+        storedUnder: IDENTITY,
+        missingFonts: [],
+      },
     });
 
     const found = (await (

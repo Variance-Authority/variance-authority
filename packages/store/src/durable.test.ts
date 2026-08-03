@@ -278,6 +278,7 @@ describe('a baseline lookup that does not need the image', () => {
       documentDigest: 'v1:painted',
       comparable: true,
       storedUnder: MAC,
+      missingFonts: [],
     });
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toBeInstanceOf(
       RasterStoreError,

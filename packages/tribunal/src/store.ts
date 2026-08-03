@@ -118,6 +118,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
         documentDigest: sidecar.documentDigest,
         comparable: row.identityDigest === mine,
         storedUnder: sidecar.identity,
+        missingFonts: sidecar.missingFonts,
       };
     },
 

@@ -257,11 +257,34 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     throw malformed(endpoint, BASELINE_DESCRIBE_PATH, '`comparable` missing or not a boolean');
   }
 
+  // Refused rather than defaulted to `[]`, and this is the one field here where
+  // that distinction changes a verdict. A settled subject reports `unchanged`;
+  // if the baseline was painted without a declared font, it must say so in the
+  // same sentence. A wire that drops the field and a wire that says "no fonts
+  // were missing" are indistinguishable after a default, and the second is the
+  // one that gets believed — which is the `stabilization` failure, in the codec
+  // that produced it the first time.
+  const missingFonts = stringsFrom(described.missingFonts);
+  if (missingFonts === null) {
+    throw malformed(
+      endpoint,
+      BASELINE_DESCRIBE_PATH,
+      '`missingFonts` missing or not an array of strings',
+    );
+  }
+
   return {
     documentDigest: described.documentDigest,
     comparable: described.comparable,
     storedUnder,
+    missingFonts,
   };
+}
+
+/** An array of strings, or `null` for anything else — including absent. */
+function stringsFrom(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.every((entry) => typeof entry === 'string') ? (value as readonly string[]) : null;
 }
 
 function malformed(endpoint: string, path: string, what: string): RasterStoreError {

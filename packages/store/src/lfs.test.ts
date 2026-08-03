@@ -258,6 +258,7 @@ describe('a clone without git-lfs', () => {
       documentDigest: 'v1:doc',
       comparable: true,
       storedUnder: MAC,
+      missingFonts: [],
     });
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
       /git-LFS pointer, not an image/,

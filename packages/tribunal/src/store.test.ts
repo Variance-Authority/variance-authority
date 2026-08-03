@@ -147,6 +147,7 @@ describe('the cheap lookup and the full one agree', () => {
       documentDigest: raster(MAC).documentDigest,
       comparable: true,
       storedUnder: MAC,
+      missingFonts: [],
     });
     expect(described).not.toHaveProperty('raster');
   });

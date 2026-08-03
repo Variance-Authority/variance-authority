@@ -54,7 +54,12 @@ export function createDurableStore(root: string): RasterStore {
       const mine = identityDigest(identity);
       const own = await readSidecar(pathFor(root, mine, key));
       if (own !== null) {
-        return { documentDigest: own.documentDigest, comparable: true, storedUnder: own.identity };
+        return {
+          documentDigest: own.documentDigest,
+          comparable: true,
+          storedUnder: own.identity,
+          missingFonts: own.missingFonts,
+        };
       }
 
       for (const other of await identities(root)) {
@@ -65,6 +70,7 @@ export function createDurableStore(root: string): RasterStore {
             documentDigest: sidecar.documentDigest,
             comparable: false,
             storedUnder: sidecar.identity,
+            missingFonts: sidecar.missingFonts,
           };
         }
       }

@@ -413,13 +413,21 @@ into with the consequence written down, and not the default.
 
 In this order, because each unblocks the next.
 
-0. **`missingFonts` on `Described`.** Three lines, and the code already asks for
-   it by name: `settle` takes the expensive `Found` rather than the cheap
-   `Described` for exactly one reason — `Described` cannot say what fonts the
-   baseline was painted without, and settling without that reports a substituted
-   font as a bare `unchanged` (`packages/raster/src/store.ts:259`). Every backend
-   has the value in hand and drops it. Closing this is what makes the cheap path
-   reachable at all, so it comes before anything that would build on it.
+0. ~~**`missingFonts` on `Described`.**~~ **Done, 2026-08-04.** `Described` carries
+   a fourth field, every backend supplies it out of a sidecar it was already
+   reading, `settle` takes a `Described`, and the durable path calls `describe`.
+   A run in which nothing moved now reads **no baseline image at all**, which is
+   asserted rather than described — the settled-path test counts image reads and
+   expects zero. Two things were learnt that the estimate did not contain. The
+   full lookup had to move *into* `images`, behind the verdict check, because
+   once settling stopped reading images there was no `Found` left to reuse and
+   reinstating one for every subject would have given the saving straight back;
+   only a `changed` subject, which is about to write a diff anyway, now reads a
+   baseline. And the wire had to **refuse** an absent `missingFonts` rather than
+   default it to `[]`, because absent and empty are not the same claim: empty is
+   a verdict that no font was substituted, and a codec that invents it is the
+   `stabilization` failure again. The compiler catches a dropped field; only the
+   parity suite catches a hardcoded one, so it has a case for that.
 1. **Split `RenderCache` out of `RasterStore`**, with the never-throws rule and its
    tests. No new package, no new concepts, and it removes a class of red build that
    is not about anybody's code. The parity suite gains a cache-loss case: every

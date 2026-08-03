@@ -93,9 +93,10 @@ export interface Found {
  * A baseline's attributes without the baseline — what a lookup can say about a
  * stored image from its sidecar alone.
  *
- * Exactly the three fields that decide whether an image is needed at all. There
- * is no `raster` here and there must not be one: the moment this type can carry
- * bytes, a caller can be handed them by accident and the saving disappears.
+ * Exactly the four fields that decide whether an image is needed at all, and
+ * what may be said once it is not. There is no `raster` here and there must not
+ * be one: the moment this type can carry bytes, a caller can be handed them by
+ * accident and the saving disappears.
  */
 export interface Described {
   /** The digest of the document the stored image was painted from. */
@@ -103,6 +104,22 @@ export interface Described {
   /** As {@link Found.comparable} — whether the identity now asking wrote it. */
   readonly comparable: boolean;
   readonly storedUnder: RenderIdentity;
+
+  /**
+   * Fonts the renderer did not have when the baseline was painted.
+   *
+   * The fourth field, and the one that makes this type usable for a verdict at
+   * all. Without it a caller settling from a digest match reports a bare
+   * `unchanged` for a baseline that is an image of a substituted font — true
+   * about the pixels, and a lie about the subject. Every backend already reads
+   * this out of the sidecar and used to drop it here, which is why `settle` took
+   * the expensive `Found` for its first several months.
+   *
+   * Empty is the answer, never absent. A transport that omits it must fail
+   * rather than default: a missing verdict-bearing field silently read as `[]`
+   * is how `stabilization` once made every subject `incomparable` forever.
+   */
+  readonly missingFonts: readonly string[];
 }
 
 export interface RasterStore {

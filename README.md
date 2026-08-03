@@ -62,6 +62,7 @@ So the architecture is organised around not doing the expensive thing:
 | One standing world instead of rinsing between subjects | **3.4× faster**, probe overhead **~2%** of session time |
 | Deciding semantically before rendering | **3.4 ms** semantic collection vs **65.4 ms** for a screenshot |
 | Content-addressed render cache | an unchanged document under an unchanged identity is **not re-rendered** |
+| Settling from the sidecar | and **not re-read** — a durable run where nothing moved decodes no baseline image, because the digest that settles it is a few hundred bytes of text beside the PNG rather than in it |
 | Ephemeral mode | both images rendered now by one renderer, so the machine cancels out **by construction** — no container, no pinned runner, no stored artifact |
 
 The last row matters most. Everyone else stabilises pixels by pinning the whole

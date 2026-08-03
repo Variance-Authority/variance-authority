@@ -134,6 +134,11 @@ describe('a baseline store somewhere else', () => {
       documentDigest: 'v1:doc',
       comparable: true,
       storedUnder: MAC,
+      // Non-empty on purpose, and the only fixture in the suite that is. This
+      // field decides whether a settled subject reports a bare `unchanged` or
+      // says the baseline is an image of a substituted font, so a wire that
+      // dropped it would be caught here and nowhere else.
+      missingFonts: ['Inter'],
     });
     expect(body).not.toContain('SGVsbG8=');
   });
@@ -275,6 +280,47 @@ describe('a store that cannot answer', () => {
     });
 
     await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/comparable/);
+  });
+
+  it('refuses a description that does not say which fonts were missing', async () => {
+    // The loudest failure of the three if it were allowed through, and the one
+    // with a precedent in this repository. Defaulting the field to `[]` reads as
+    // "no fonts were missing", which is a *verdict*: the subject settles to a
+    // bare `unchanged` while the baseline is an image of a substituted typeface.
+    // Absent and empty must not be the same value on a wire, which is exactly
+    // what `stabilization` taught here when the identity codec dropped it.
+    const store = createRemoteStore({
+      endpoint: 'http://stub',
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            described: { documentDigest: 'v1:doc', comparable: true, storedUnder: MAC },
+          }),
+          { status: 200 },
+        ),
+    });
+
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/missingFonts/);
+  });
+
+  it('refuses a description whose missing fonts are not strings', async () => {
+    const store = createRemoteStore({
+      endpoint: 'http://stub',
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            described: {
+              documentDigest: 'v1:doc',
+              comparable: true,
+              storedUnder: MAC,
+              missingFonts: [{ family: 'Inter' }],
+            },
+          }),
+          { status: 200 },
+        ),
+    });
+
+    await expect(store.describe({ subject: 's' }, MAC)).rejects.toThrow(/missingFonts/);
   });
 
   it('fails a lookup that hangs rather than stalling the run', async () => {

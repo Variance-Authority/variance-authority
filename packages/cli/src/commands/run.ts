@@ -31,7 +31,7 @@ import {
   STRICT_POLICY,
   createEphemeralStore,
   type BaselineKey,
-  type Found,
+  type Described,
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
@@ -336,22 +336,32 @@ export type Settlement =
  * `accept` is forbidden to re-run. Stated here rather than hidden, because it is
  * the single exception to the rule this function otherwise enforces.
  *
- * ## Why this takes a `Found` and not the cheaper `Described`
+ * ## Why this takes a `Described` and not a `Found`
  *
  * `RasterStore.describe` answers the digest question from the sidecar alone,
  * without base64-encoding a PNG to make a string comparison — which is the whole
- * of what the first two branches need, and on a three-hundred-subject suite is
- * the difference between a few hundred kilobytes and a few hundred megabytes.
- * This function does not use it, for one reason: `Described` carries the digest,
- * the comparability and the storing identity, and not the fonts the baseline was
- * painted without. Settling on it would put back exactly the fact this function
- * was fixed to stop dropping — a baseline painted with a substituted font,
- * reported as a bare `unchanged`. The saving is real and is worth having as soon
- * as `Described` can answer that too.
+ * of what every branch here needs, and on a three-hundred-subject suite is the
+ * difference between a few hundred kilobytes and a few hundred megabytes. Across
+ * a hop it is that difference twice.
+ *
+ * This function took the expensive `Found` until `Described` gained
+ * `missingFonts`, and the reason was exactly one field: settling on a digest
+ * match while dropping the fonts the baseline was painted without reports a
+ * substituted typeface as a bare `unchanged` — true about the pixels, and a lie
+ * about the subject. That is now the fourth field of `Described`, every backend
+ * supplies it out of a sidecar it was already reading, and a transport that
+ * omits it fails rather than defaulting.
+ *
+ * *What the caller still pays.* This is not a cheaper `find`; it cannot say what
+ * changed, only whether anything could have. A subject that does **not** settle
+ * needs the image after all, so its run does one sidecar read *and* the lookups
+ * it always did. The trade is deliberate and it is a bet on the common case: a
+ * suite where nothing moved now reads no PNG at all, and a suite where
+ * everything moved does strictly more work than before.
  */
 export function settle(
   digest: Digest,
-  found: Found | null,
+  found: Described | null,
   /**
    * The identity this run would paint under.
    *
@@ -381,7 +391,7 @@ export function settle(
     };
   }
 
-  if (found.raster.documentDigest === digest) {
+  if (found.documentDigest === digest) {
     // The digest is a statement about pixels and about nothing else. A baseline
     // painted while the renderer lacked a declared font is an image of a
     // substituted font, and repainting the same document would substitute it
@@ -389,7 +399,7 @@ export function settle(
     // may not return a *bare* `unchanged`. The store recorded the substitution;
     // dropping it here would leave the reader with a sentence saying the subject
     // is fine, produced by a comparison that never looked at the typeface.
-    const missingFonts = found.raster.missingFonts;
+    const missingFonts = found.missingFonts;
 
     return {
       kind: 'settled',
@@ -835,12 +845,16 @@ async function observeOne(
 
   const key: BaselineKey = { subject: id };
 
-  // The settlement query. When it does not settle, the observation pipeline runs
-  // and looks the baseline up again — one extra lookup per unsettled subject,
-  // paid so that comparison, isolation, and attribution are not reimplemented
-  // here where they would be a second, untested copy.
-  const found = await deps.store.find(key, renderer.identity);
-  const settlement = settle(documentDigest(collected.document), found, renderer.identity);
+  // The settlement query, and it reads no image. `describe` answers from the
+  // sidecar — a few hundred bytes of text against a base64-encoded PNG — which
+  // on a suite where almost nothing moved is the whole cost of the durable path.
+  //
+  // When it does not settle, the observation pipeline runs and looks the baseline
+  // up properly: one extra lookup per unsettled subject, paid so that comparison,
+  // isolation, and attribution are not reimplemented here where they would be a
+  // second, untested copy.
+  const described = await deps.store.describe(key, renderer.identity);
+  const settlement = settle(documentDigest(collected.document), described, renderer.identity);
 
   if (settlement.kind === 'settled') {
     const missingFonts = settlement.missingFonts ?? [];
@@ -873,7 +887,7 @@ async function observeOne(
     record: recordOf(observation, {
       ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
       ...(collected.source !== undefined ? { source: collected.source } : {}),
-      ...(await images(id, observation, collected.document, renderer, config, deps, found)),
+      ...(await images(id, observation, collected.document, renderer, config, deps, key)),
       diagnostics,
       ...findingsField(collected),
     }),
@@ -900,7 +914,16 @@ async function images(
   renderer: Renderer,
   config: Config,
   deps: RunDeps,
-  found: Found | null,
+  /**
+   * The baseline to subtract from, or `null` where there is no stored one.
+   *
+   * `null` is the ephemeral path, and it is a key rather than a raster because
+   * the lookup now happens here. Passing a key to a store that answers `null` to
+   * everything would work and would say the wrong thing: this mode has no
+   * baseline, and the code should not have to reach a no-op backend to find that
+   * out.
+   */
+  key: BaselineKey | null,
 ): Promise<{ images?: ObservationRecord['images'] }> {
   const raster = await candidateRaster(deps.store, document, renderer);
   if (raster === null) return {};
@@ -914,8 +937,20 @@ async function images(
     Buffer.from(`${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`, 'utf8'),
   );
 
-  const before = found?.raster;
-  if (before === undefined || observation.verdict !== 'changed') {
+  if (key === null || observation.verdict !== 'changed') {
+    return { images: { after: relative(reportDir, `${base}.after.png`) } };
+  }
+
+  // The baseline's *bytes*, looked up here rather than handed in, and this is
+  // the only place in a run that wants them. Once the settlement query stopped
+  // reading images there was no full lookup left to reuse, and reinstating one
+  // for every subject in order to serve the few that write a diff would have
+  // given back exactly what `describe` was adopted to save.
+  //
+  // After the verdict check on purpose: `unchanged`, `new` and `incomparable`
+  // never write a `before.png`, so for them this read would be pure waste.
+  const before = (await deps.store.find(key, renderer.identity))?.raster;
+  if (before === undefined) {
     // No `before` means nothing to subtract from, so a diff image would be the
     // candidate itself painted red. Omitted rather than written, and its absence
     // is visible in the record, which lists exactly the images that exist.
