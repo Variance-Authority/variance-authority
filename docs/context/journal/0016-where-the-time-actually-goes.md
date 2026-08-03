@@ -123,6 +123,61 @@ would not want to.
 3. **Nothing in the semantic tier qualifies yet.** G1 is grazed on a tree at the
    very top of the plausible range and comfortable everywhere below it.
 
+## Addendum — the browser-decode trick, and prior art that skips the question
+
+Asked whether the decode should happen in Chromium instead, on the recollection
+that Node's PNG handling was once slow enough to make the round trip worth it.
+That recollection was correct when it was formed and **is no longer true**.
+
+Same 1280×800 pair, decoded in headless Chromium via `createImageBitmap` →
+`OffscreenCanvas` → `getImageData`, compared in-page, with only a count returned:
+
+| | |
+|---|---|
+| in-page decode of both images | **44.9 ms** |
+| `pngjs` decode of both images | 45.7 ms |
+| in-page per-pixel diff | 1.4 ms |
+| `pixelmatch` | 4.8 ms |
+| **in-page total, round trip from Node** | **65.0 ms** |
+| **`comparePngs` total, in Node** | **50.6 ms** |
+
+The decoders are within 2% of each other, so the premise the trick rested on has
+evaporated — and once the CDP round trip is counted, moving the work into the
+browser is **28% worse**. The 1.4 ms against pixelmatch's 4.8 ms is not a
+like-for-like win either: that loop is a plain RGB inequality, where pixelmatch
+does antialiasing-aware YIQ. It is the cost of a weaker comparison, not a faster
+one.
+
+### `whales-story-shots`, and what it does instead
+
+A previous tool of this project's author, and the same thesis one step earlier:
+*hash the HTML and CSS, screenshot only the stories whose hash moved*. Its
+capture step prunes CSS to the classes actually present in the HTML before
+hashing, which is ADR-0003's applicability pruning arrived at independently.
+
+Its answer to PNG cost is more radical than decoding in the browser: **it never
+decodes a PNG anywhere.** Its dependencies are `playwright`, `plimited` and
+`sanitize-filename` — no `pngjs`, no `pixelmatch`, no `sharp`, no canvas.
+Playwright writes the screenshot straight to disk and nothing reads the bytes
+back. Chromium's encoder is the only PNG code in the pipeline.
+
+That works because **it has no pixel verdict**. The comparison is the HTML and
+CSS hash; the image is an artifact for a person to look at, produced only for
+stories the hashes already flagged.
+
+So the decode cost measured above is not waste this project failed to remove. It
+is what the raster tier *buys*: a mask, clustered into regions, joined to the box
+tree, resolved to a component and a file. whales cannot produce that and does
+not pay for it. The half of its answer that does apply here is already taken —
+spec 0011 item 0 made an unchanged subject decode nothing at all, which is
+whales' rule for the settled path exactly.
+
+What remains genuinely round-trip-shaped is that **Chromium encodes a PNG and we
+immediately decode it**, both ends ours, purely because the transport between
+them is a file. The measurement above says the fix is not to move the decode into
+the browser. It would have to be a raw-pixel transport, which Playwright does not
+offer.
+
 ## What would change this
 
 - A corpus of *real* subjects where p95 node count exceeds 2000. This benchmark
@@ -140,3 +195,9 @@ One machine, one Node version, one sitting, synthetic inputs, no CI runner. The
 p50/p95 figures come from 30–40 iterations after a warm-up, so they measure
 steady-state JIT rather than the first subject of a run. Nothing here was run
 under contention, which is what a CI runner actually is.
+
+The in-page figures carry two more. `getImageData` includes canvas compositing
+and a readback, so 44.9 ms is "browser decode as it could actually be used"
+rather than decode alone — which is the honest comparison to make, but it is not
+a decoder benchmark. And headless Chromium here is almost certainly on
+SwiftShader; a GPU-backed runner could move that number in either direction.
