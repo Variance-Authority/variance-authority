@@ -176,3 +176,86 @@ describe('expansion, measured and not judged', () => {
     expect(result.findings).toEqual([]);
   });
 });
+
+/**
+ * The nodes that were not compared, which is spec 0008's one normative MUST that
+ * had no code behind it.
+ *
+ * Pairing by position stops where the trees diverge — the right call, argued on
+ * `pairByPosition` — and the cost is that a divergent subject produces *fewer*
+ * findings than a matching one. Unstated, that is this project's central failure
+ * arriving inside its own answer: the locale nobody translated reads as the
+ * clean one, because none of its strings were looked at.
+ *
+ * Every case below asserts the count and the findings together. Either alone is
+ * satisfiable by a wrong implementation: a count with no findings check passes
+ * for a comparison that stopped early and said so; findings with no count passes
+ * for exactly the silent narrowing this exists to catch.
+ */
+describe('what was not compared', () => {
+  const two = (first: RawCapture['root'], second: RawCapture['root']) =>
+    capture({ root: node({ tag: 'div', children: [first, second] }) });
+
+  it('counts nothing when the trees match, rather than leaving the field absent', () => {
+    const result = compare(
+      panel('Continue', 'Renews monthly', { panel: 200, button: 96 }),
+      panel('Fortfahren', 'Wird monatlich verlängert', { panel: 200, button: 148 }),
+    );
+
+    // `{ base: 0, other: 0 }` is an answer — the trees were walked and matched.
+    // An absent field would say nobody counted, and a reader cannot tell those
+    // apart from a report.
+    expect(result.uncompared).toEqual({ base: 0, other: 0, divergedAt: [] });
+  });
+
+  it('counts a subtree a tag change took out of the comparison, and names where', () => {
+    // The date that renders as `<time>` in one locale and `<span>` in the other.
+    // Its string is left behind, and without the count the subject looks cleaner
+    // for it.
+    const result = compare(
+      two(node({ tag: 'span', text: 'Ends 3 May' }), node({ tag: 'p', text: 'Renews monthly' })),
+      two(node({ tag: 'time', text: '3. Mai' }), node({ tag: 'p', text: 'Wird verlängert' })),
+    );
+
+    expect(result.uncompared.base).toBe(1);
+    expect(result.uncompared.other).toBe(1);
+    expect(result.uncompared.divergedAt).toEqual(['0/0']);
+
+    // And the strings under it are genuinely gone: one translation counted, not
+    // two. That is the number the count exists to qualify.
+    expect(result.translated).toBe(1);
+  });
+
+  it('counts the children past the shorter list, on whichever side they are', () => {
+    // A German plural with an extra element. The extra node is in `other`, so
+    // the two sides differ — which is what says which render carried it.
+    const result = compare(
+      two(node({ tag: 'p', text: 'One item' }), node({ tag: 'p', text: 'Total' })),
+      capture({
+        root: node({
+          tag: 'div',
+          children: [
+            node({ tag: 'p', text: 'Ein Artikel' }),
+            node({ tag: 'p', text: 'Gesamt' }),
+            node({ tag: 'p', text: 'und ein weiterer' }),
+          ],
+        }),
+      }),
+    );
+
+    expect(result.uncompared).toEqual({ base: 0, other: 1, divergedAt: ['0'] });
+  });
+
+  it('reports the whole of both trees when the roots themselves disagree', () => {
+    const result = compare(
+      capture({ root: node({ tag: 'div', children: [node({ tag: 'p', text: 'Total' })] }) }),
+      capture({ root: node({ tag: 'section', children: [node({ tag: 'p', text: 'Gesamt' })] }) }),
+    );
+
+    // Nothing was compared, so nothing was found — and this is the shape a
+    // reader must never see reported as agreement.
+    expect(result.uncompared).toEqual({ base: 2, other: 2, divergedAt: ['0'] });
+    expect(result.translated).toBe(0);
+    expect(result.findings).toEqual([]);
+  });
+});

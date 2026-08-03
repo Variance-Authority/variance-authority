@@ -52,16 +52,31 @@ element simply leaves its strings uncompared. The run MUST say how many nodes
 went uncompared rather than reporting a smaller number of findings as a cleaner
 result.
 
+`LocaleComparison.uncompared` is that, added on 2026-08-03 — a count per side and
+the paths where pairing stopped. **This paragraph was a MUST with nothing behind
+it for the whole of B15**, in a capability marked as built, and the failure it
+describes is the one this project exists to refuse: a date that renders as
+`<time>` in German and `<span>` in English takes its subtree out of the walk, so
+the locale nobody translated comes back with *fewer* findings than the one
+somebody did. The count is always present, `{ base: 0, other: 0 }` included —
+zero is an answer and an absent field is not.
+
 ## Acceptance
 
-1. `variance run` on a config declaring `locales: ['en', 'de']` produces one
-   baseline per subject and a `LocaleComparison` per non-base locale.
-2. An untranslated string in a real application is named, with its component and
-   its file.
-3. Storage for a two-locale run is within 5% of a one-locale run — the property
-   the whole design rests on.
-4. A run whose subject tree differs between locales reports the uncompared count
-   rather than silently narrowing.
+1. **Unmet, and unmeetable without a caller.** `variance run` on a config
+   declaring `locales: ['en', 'de']` produces one baseline per subject and a
+   `LocaleComparison` per non-base locale. Nothing reads a `locales` key; the
+   word does not appear in `packages/cli/src/config.ts`.
+2. **Met, against a render this project did not lay out.**
+   `cases/incumbent-case/src/locale.chromium.test.ts` — "names the string nobody
+   translated, including the one that is not text" — in real Chromium, with the
+   component attached. Still ours to the extent that we wrote the panel.
+3. **Unmet.** Storage for a two-locale run is within 5% of a one-locale run — the
+   property the whole design rests on, and one only a real run can measure.
+4. **Met.** `packages/core/src/judge/locale.test.ts`, "what was not compared" —
+   four cases covering a matched tree, a tag change, a longer child list, and two
+   roots that disagree. Each asserts the count *and* the findings, because either
+   alone passes for an implementation that narrows silently.
 
 ## Not in scope
 
