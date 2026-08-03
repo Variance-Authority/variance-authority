@@ -79,11 +79,26 @@ regardless.
 The finding that changes what anyone should do next is on the raster side and
 this ADR did not anticipate it: **pixelmatch is 9% of a comparison.** Decoding
 the two PNGs is 90%, and 43% of *that* is already native zlib. So the real
-candidate is a PNG decoder, the seam for it is `@variance-authority/png`, and
-taking it is a dependency swap rather than a language migration. The larger win
-was structural and is already banked — spec 0011 item 0 made an unchanged
-subject decode nothing at all, which is worth more than any constant factor and
-is precisely the "fix the tiering" clause below.
+candidate is a PNG decoder, and the seam for it is `@variance-authority/png`.
+
+**And the fastest one available is already running.** Chromium decodes a
+1280×800 PNG in 12.4 ms against `pngjs`'s 24.7 ms — cold, distinct images, no
+cache — off Node's main thread, and across a pool of pages it takes the
+comparison stage from 57.3 ms per pair to 5.8 ms. `variance run` holds a
+persistent Chromium already, renders the document in it, has it encode a PNG, and
+then decodes that PNG in Node at half the speed of the process it came from.
+
+That does not weaken this ADR, it vindicates the shape of it: the answer to "is
+this too slow" was never a language, and here it is not even a dependency. What
+it needs settled first is how a 1 MP mask crosses back when the farm design
+returns an integer, whether two decoders agree byte for byte — a verdict that
+depends on which decoder read the file is not deterministic, and determinism is
+the product — and what the tribunal does, having no browser in reach. Those are
+a spec's questions, not a patch's.
+
+The larger win was structural and is already banked: spec 0011 item 0 made an
+unchanged subject decode nothing at all, which is worth more than any constant
+factor and is precisely the "fix the tiering" clause below.
 
 ## What this forecloses
 

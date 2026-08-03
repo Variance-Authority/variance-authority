@@ -113,85 +113,112 @@ would not want to.
    at current scale is evidence that the tiering is not working; the correct
    response is to fix the tiering."
 
-2. **The one honest native candidate is PNG decoding, and it is a dependency
-   swap rather than a migration.** `comparePngs` and `decode` are already the
-   seam. Replacing `pngjs` with a native decoder is a change to one package with
-   a parity suite over it, and the ceiling is the 12.9 ms of JS un-filtering per
-   full-viewport image — real, bounded, and available without writing a line of
-   Rust. **Nobody should port pixelmatch.** It is 4.8 ms.
+2. **The one honest candidate is PNG decoding, and the fast decoder is already
+   running.** `comparePngs` and `decode` are the seam, so this is a change to one
+   package with a parity suite over it. The addendum below measures the options:
+   a native Node decoder could recover the 12.9 ms of JS un-filtering, and
+   *Chromium* — a process `variance run` already launches — decodes at **2×
+   `pngjs`** and parallelises across a pool for **~10×** on comparison
+   throughput. Neither needs a line of Rust. **Nobody should port pixelmatch.**
+   It is 4.8 ms.
 
 3. **Nothing in the semantic tier qualifies yet.** G1 is grazed on a tree at the
    very top of the plausible range and comfortable everywhere below it.
 
-## Addendum — the browser-decode trick, and prior art that skips the question
+## Addendum — the browser-decode trick, measured three times
 
 Asked whether the decode should happen in Chromium instead, on the recollection
-that Node's PNG handling was once slow enough to make the round trip worth it.
-That recollection was correct when it was formed and **is no longer true**.
+that Node's PNG handling was slow enough to make the round trip worth it — a
+performance decision taken about six years ago in a predecessor tool.
 
-Same 1280×800 pair, decoded in headless Chromium via `createImageBitmap` →
-`OffscreenCanvas` → `getImageData`, compared in-page, with only a count returned:
+**It was right then and it is still right.** This section reported the opposite
+twice before getting there, and both mistakes are recorded below because each one
+is a way to fabricate a null result.
+
+### The honest numbers
+
+16 **distinct** 1280×800 PNGs, each decoded to RGBA, no image reused:
 
 | | |
 |---|---|
-| in-page decode of both images | **44.9 ms** |
-| `pngjs` decode of both images | 45.7 ms |
-| in-page per-pixel diff | 1.4 ms |
-| `pixelmatch` | 4.8 ms |
-| **in-page total, round trip from Node** | **65.0 ms** |
-| **`comparePngs` total, in Node** | **50.6 ms** |
+| Chromium, each image seen for the first time | **12.4 ms** |
+| Chromium, the same images a second time | 1.5 ms *(cache, not decode)* |
+| `pngjs` in Node | **24.7 ms** |
 
-The decoders are within 2% of each other, so the premise the trick rested on has
-evaporated — and once the CDP round trip is counted, moving the work into the
-browser is **28% worse**. The 1.4 ms against pixelmatch's 4.8 ms is not a
-like-for-like win either: that loop is a plain RGB inequality, where pixelmatch
-does antialiasing-aware YIQ. It is the cost of a weaker comparison, not a faster
-one.
+**Chromium's decoder is 2.0× `pngjs`** on the cold path, which is the only path
+a real run has. And decoding is off the main thread, so a *pair* costs less than
+two singles: `Promise.all` over both images inside one page comes in under the
+sum.
 
-### `whales-story-shots`, and a claim this journal got wrong
+Throughput over 24 distinct pairs, decode plus `pixelmatch`, against this repo's
+own `comparePngs`:
 
-A previous tool of this project's author, and the same thesis one step earlier:
-*hash the HTML and CSS, screenshot only the stories whose hash moved*. Its
-capture step prunes CSS to the classes actually present in the HTML before
-hashing, which is ADR-0003's applicability pruning arrived at independently.
+| | total | per pair |
+|---|---|---|
+| browser farm, 1 worker | 447 ms | **18.6 ms** |
+| browser farm, 4 workers | 183 ms | **7.6 ms** |
+| browser farm, 8 workers | 139 ms | **5.8 ms** |
+| Node, sequential, main thread | 1375 ms | **57.3 ms** |
 
-**This section first said "it never decodes a PNG anywhere", and that was
-wrong.** It was inferred from a dependency list (`playwright`, `plimited`,
-`sanitize-filename` — no `pngjs`, no `pixelmatch`, no canvas) and a grep over
-the source, without noticing that the source was incomplete. In the archive
-read:
+**~10× on the comparison stage**, and the transport that was supposed to sink it
+— 631 KiB of base64 per image over CDP — is visibly not the binding constraint.
 
-- `compare/pathRule/` is an **empty directory**.
-- `package.json` lists `compare` in `files`, so the stage is meant to ship, but
-  there is no `./compare` entry in `exports` and nothing in the tree imports
-  from it.
-- `test/img.png` is a real 1254×640 RGBA PNG that **no test in the archive
-  reads**.
+### The two ways this was measured wrong first
 
-Three signs of a comparison stage stripped from this snapshot, and the empty
-directory is the loudest. Absence of a decoder in a tree with its comparison
-removed is not evidence that the tool has no decoder; it is evidence about the
-archive. A dependency list is not a pipeline, and neither is a grep over the
-part of it that is present.
+**A per-byte JS loop, costing more than the decode it fed.** The first attempt
+built a `Blob` with `Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))` and ran
+`createImageBitmap` over it: **17.5 ms** of the 26.5 ms was that one line.
+Handing the base64 straight to `new Image()` as a data URL lets Chromium do the
+same work in native code. The benchmark was measuring my own string handling and
+attributing it to the browser.
 
-What the archive *does* support is narrower and still worth having: whales'
-**capture and process stages decode nothing**. Playwright writes each screenshot
-straight to disk, only for stories whose HTML or CSS hash already moved, and
-nothing in those stages reads the bytes back.
+**An image cache, mistaken for a decoder.** The second attempt decoded the *same*
+data URL twelve times and reported 1.4 ms. Chromium caches decoded bitmaps, so
+eleven of those twelve were a lookup. The cold figure is 12.4 ms — 9× worse than
+what the loop reported, and the difference is the entire finding.
 
-That is the same tiering claim this project makes, and the half of it that
-applies here is already taken — spec 0011 item 0 made an unchanged subject decode
-nothing at all. What whales does at compare time is unknown from here, and this
-journal should not have implied otherwise.
+Both produced a *plausible* number. Neither measured decoding.
 
-None of this moves the in-page measurement above, which was made against this
-repo's own images and stands on its own.
+### How the predecessor actually does it
 
-What remains genuinely round-trip-shaped is that **Chromium encodes a PNG and we
-immediately decode it**, both ends ours, purely because the transport between
-them is a file. The measurement above says the fix is not to move the decode into
-the browser. It would have to be a raw-pixel transport, which Playwright does not
-offer.
+A pool of eight browsers, each a page that has been prepared with
+`page.evaluate('var module = {}')` and then `addScriptTag({path:
+require.resolve('pixelmatch')})`. `pixelmatch` is CommonJS, so it assigns itself
+to the `module.exports` already sitting in page scope, and the injected matcher
+calls it there. Every story is fanned across the pool with `Promise.all`; each
+page decodes both images from data URLs, runs `pixelmatch`, and returns **a
+single integer**. A dimension mismatch short-circuits to a sentinel rather than
+comparing.
+
+Two things that design gets for nothing: the decode leaves Node's event loop
+entirely, and the parallelism costs no `worker_threads`, no native addon, and no
+thread pool of its own — it is a pool of processes that were going to be launched
+anyway.
+
+### What this means here
+
+The fastest PNG decoder in this system is **already running in a process this
+system already starts**. `variance run` holds a persistent Chromium, renders a
+document, has Chromium encode a PNG, ships it to Node, and decodes it there at
+half the speed the browser it came from would have managed.
+
+That is a real and available win — journal-measured at 2× on decode and ~10× on
+comparison throughput — and it needs no Rust, no native module, and no new
+dependency. What it needs is answers to three things this benchmark does not
+settle, which is why it is a spec and not a patch:
+
+- **The mask has to come back.** The farm returns an integer; this project needs
+  the changed-pixel mask, because clustering it into regions is what produces a
+  component and a file. A 1 MP mask is not an integer, and how it crosses back —
+  RLE, coordinate list, or region extraction done in-page — is the design.
+- **Two decoders must agree exactly.** A verdict that depends on which decoder
+  read the bytes is not deterministic, and determinism is the product. `pngjs`
+  and Chromium agreeing on 8-bit non-interlaced RGBA is likely and is not
+  established here.
+- **Not every consumer has a browser.** The tribunal is a Cloudflare Worker with
+  no Chromium in reach, so the Node path stays regardless and this becomes a
+  second implementation to hold in parity — exactly the shape
+  `packages/observe/src/parity.test.ts` exists for.
 
 ## What would change this
 
@@ -212,7 +239,17 @@ steady-state JIT rather than the first subject of a run. Nothing here was run
 under contention, which is what a CI runner actually is.
 
 The in-page figures carry two more. `getImageData` includes canvas compositing
-and a readback, so 44.9 ms is "browser decode as it could actually be used"
-rather than decode alone — which is the honest comparison to make, but it is not
-a decoder benchmark. And headless Chromium here is almost certainly on
-SwiftShader; a GPU-backed runner could move that number in either direction.
+and a readback, so 12.4 ms is "browser decode as it could actually be used"
+rather than decode alone — the honest comparison to make, but not a decoder
+benchmark. And headless Chromium here is almost certainly on SwiftShader; a
+GPU-backed runner could move it in either direction.
+
+The farm figures were taken with eight browsers on a laptop that has more cores
+than that. A CI runner with two vCPUs will not see 8-way scaling, and the
+per-worker memory of eight Chromium processes is a cost this benchmark did not
+weigh at all.
+
+**And the meta-limit, earned here rather than assumed:** two of the three
+measurements in the addendum were wrong in ways that produced believable numbers.
+A benchmark that agrees with a prior is not evidence; it is the case that most
+needs decomposing.
