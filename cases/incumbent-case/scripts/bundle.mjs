@@ -39,6 +39,17 @@ export async function bundle({ entry = ENTRY, outfile = OUTFILE, manifest = MANI
     metafile: true,
     entryPoints: [entry],
     outfile,
+    // Stated, so that the keys in `metafile.inputs` and the `base` recorded
+    // below are relative to the same directory *by construction*.
+    //
+    // Left to itself esbuild resolves them against its own service process's
+    // working directory, which is the cwd at the moment the service span up —
+    // not necessarily Node's cwd when `build()` is called. A caller that
+    // `chdir`s between those two points gets keys relative to one directory and
+    // a `base` naming another, and the reader then resolves a path that is not
+    // there. The first Linux run found it: `resolve('/tmp', 'tmp/…/helper.ts')`
+    // → `/tmp/tmp/…`, on a machine where `tmpdir()` is not a symlink.
+    absWorkingDir: process.cwd(),
     bundle: true,
     format: 'iife',
     target: 'es2022',

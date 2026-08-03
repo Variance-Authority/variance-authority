@@ -94,10 +94,10 @@ fi
 # apart: a skipped suite prints its own name too.
 #
 # That gap is not hypothetical, it is the most likely way this image fails. Every
-# browser suite is gated on `existsSync(chromium.executablePath())`, and the
-# image tag decides which browser build sits in `/ms-playwright` while the
-# lockfile decides which one Playwright goes looking for. Pinned apart — as they
-# were until 2026-08-03, `v1.49.0` against a resolved 1.62.1 — all ten gated
+# browser suite is gated on whether Playwright's resolved executable is present,
+# and the image tag decides which browser build sits in `/ms-playwright` while
+# the lockfile decides which one Playwright goes looking for. Pinned apart — as
+# they were until 2026-08-03, `v1.49.0` against a resolved 1.62.1 — all ten gated
 # files skip, the summary is green, and this harness reports that portability
 # holds without having executed one cross-platform measurement.
 #

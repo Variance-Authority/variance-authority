@@ -102,6 +102,30 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   the table implies. Still undecided, now with a number.
 - **`dialog-open/dialog`** is the only remaining contested case: the subject
   boundary for portalled content is a real open question, not a per-profile one.
+- **Two machines now, and the second one refuted something on its first run.**
+  `docker/linux-verify.sh` executed for the first time on 2026-08-03, native
+  arm64, Node 24. **ADR-0010 survived** — every semantic verdict agreed, and no
+  cross-platform divergence appeared in any band. What did not survive is the
+  `texture` band's *evidence*: the `text-smoothing` probe perturbs
+  `-webkit-font-smoothing`, which only macOS implements, so on Linux both renders
+  are byte-identical and the probe measures 0 changed pixels. The band is not
+  wrong and rasterization really does vary across machines; what this repository
+  had was a simulation that only works on the machine that wrote it — journal
+  0008's fixture convenience, arriving in the pixel corpus. Real evidence needs
+  two machines rendering one page, and now that there are two, nothing yet does.
+- **The cases have still never run on Linux.** All four case files skipped inside
+  the container and said why: `dist/` is excluded from the build context, so
+  `incumbent-case` has no page bundle, and `storybook-changed/` is gitignored, so
+  `storybook-case` has no second build. The strongest evidence in this repository
+  — the head-to-head against a real `toHaveScreenshot`, and the whole CLI over a
+  real Storybook — is exactly the part a second machine has not seen. Building
+  both inside the image is the fix and nothing does it.
+- **`observePair` over the wire is broken on Node 24.** `offload.chromium.test.tsx`
+  fails to collect with `RequestInit: Expected signal ("AbortSignal {}") to be an
+  instance of AbortSignal` — two `AbortSignal` realms meeting at `fetch`. It is a
+  runtime finding rather than a platform one: the image ships Node 24 and
+  `check.yml` pins Node 22, so nothing else here has met it. Unfixed, and it means
+  the remote renderer is untested on the newest runtime.
 - **One machine.** Every rect and the 27× ratio come from one mac, one Chromium.
   Fonts enter the environment key as a caller-supplied string rather than a
   content hash, so a second machine could render different geometry and the key
