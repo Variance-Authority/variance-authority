@@ -221,7 +221,8 @@ lines, once, per project. There is no plugin.*
 
 **Git-LFS, like Percy — or your own server, like Chromatic or Argos. You choose.**
 Git-LFS is the default because it needs no infrastructure, and because a baseline
-image is never hand-merged: you take one side.
+image is never hand-merged: you take one side. The five setups, and what each one
+cannot do, are laid out in [`docs/flows.md`](docs/flows.md).
 
 History is a different artifact with different rules — see the next question.
 
@@ -374,7 +375,7 @@ requirement gains a second owner, or an advertised entrypoint stops resolving.
 **The documentation is a test too** —
 [ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
 `tools/documentation.test.ts`, which resolves every link, every repository path
-and every `file:line` reference in this and the other 71 markdown files, and
+and every `file:line` reference in this and the other 73 markdown files, and
 compiles every README example against the built types with no unused import. An
 example is a call site the compiler could not see, which is why 11 of the 20 here
 had gone stale against APIs that had been renamed underneath them. It runs in
@@ -478,14 +479,16 @@ Current state, what is proven and what is open, is kept in
 
 1. [`docs/architecture.md`](docs/architecture.md) — the composition model: tools,
    their contracts, and why there is no pipeline
-2. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
-3. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
+2. [`docs/flows.md`](docs/flows.md) — the five setups, from git-LFS to a review
+   service, and what each one cannot do
+3. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
+4. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
    dependency order
-4. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
-5. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
-6. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
+5. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
+6. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
+7. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
    [0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the moat
-7. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
+8. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
 
 ## Development
 
