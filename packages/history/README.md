@@ -52,7 +52,7 @@ design that was built and killed by this argument.
 import { createAbsentStore } from '@variance-authority/history';
 
 const store = createAbsentStore();
-await store.churn(query);   // Unkept — "no record is kept", not an empty result
+await store.churn('Button', {});   // Unkept — "no record is kept", not an empty result
 ```
 
 An unreachable service returning an empty churn produces the sentence "nothing

@@ -47,7 +47,7 @@ jobs:
   variance:
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.49.0-noble
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
       # Chromium's renderer processes need more shared memory than a container's
       # default 64MB, and the failure without this is a browser that dies partway
       # through a suite — which arrives as a coverage hole, not as a crash.

@@ -18,7 +18,7 @@ it.
 import { provenanceOf } from '@variance-authority/react';
 import { collect } from '@variance-authority/dom';
 
-const capture = collect(container, { subject, profile: 'jsdom', provenanceOf });
+const capture = collect(container, { subject, viewport, engine: 'jsdom@30', provenanceOf });
 ```
 
 ## Two constraints shape everything here

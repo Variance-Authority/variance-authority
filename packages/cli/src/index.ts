@@ -20,6 +20,10 @@
  *   including the ones it did not observe, which is the failure this whole system
  *   exists to make impossible.
  * - `commands/report.ts` answers from that artifact and never re-runs.
+ * - `commands/comment.ts` renders that same artifact as a pull-request body —
+ *   report in, string out, no network and no clock, which is what lets the CI
+ *   action shell out to `variance comment` instead of carrying a second
+ *   renderer that would drift from this one.
  * - `commands/accept.ts` promotes an image the run already produced, and never
  *   produces one.
  * - `commands/doctor.ts` reports what this machine can observe, having observed
@@ -90,6 +94,9 @@ export type {
 
 export { serve } from './commands/serve.js';
 export type { ServeOptions } from './commands/serve.js';
+
+export { COMMENT_MARKER, DEFAULT_LIMITS, renderComment } from './commands/comment.js';
+export type { CommentLimits, CommentOptions } from './commands/comment.js';
 
 export {
   doctor,

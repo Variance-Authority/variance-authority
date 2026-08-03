@@ -1,0 +1,76 @@
+name: check
+
+# This repository's own gate. Everything in it that is a decision is commented as
+# one.
+#
+# `.github/workflows/variance.yml` is a different thing entirely: an *example* of
+# wiring the tool into somebody's project, which happens to live here. Until this
+# file existed, nothing ran `yarn build` or `yarn test` anywhere but a laptop —
+# so `tools/boundaries.test.ts` and `tools/documentation.test.ts` were enforcing
+# their rules only against whoever happened to type the command.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      # Build first, and not only to catch type errors: the documentation check
+      # compiles each README example against each package's built `.d.ts`,
+      # because that is the file a consumer's editor resolves (ADR-0014). A
+      # checker reading `src` would pass on things the published types refuse.
+      - name: build
+        shell: bash
+        run: yarn build
+
+      # `vitest run` is everything: the unit suites, the corpus, the package
+      # boundary rules (ADR-0013) and the documentation rules (ADR-0014).
+      - name: test
+        shell: bash
+        run: yarn test
+
+      # ## What this job does not do, stated rather than discovered
+      #
+      # **No browser.** Nothing here runs `npx playwright install`, so the suites
+      # across 10 files that need a Chromium announce themselves as skipped, each
+      # carrying the command that would fix it. That sentence is not taken on
+      # trust: `tools/skips.test.ts` asserts every gated file announces, and pins
+      # the count in this comment to the number of gated files it finds.
+      #
+      # That is a decision and not a cost saving. Every rect, ratio and pixel
+      # count this project asserts came from one Mac and one Chromium, so running
+      # those suites on a Linux runner would check a measurement against a
+      # machine that did not make it. Whether the numbers survive that move is
+      # `docker/linux-verify.sh`'s question, it is open, and a red check here
+      # would be the wrong way to ask it.
+      #
+      # The consequence is that a green check on this workflow is not a green
+      # suite, and the skip list in the step above is what keeps the two from
+      # being confused.
+      - name: say what was skipped
+        if: always()
+        shell: bash
+        run: |
+          echo "::notice::Browser suites did not run: no Chromium is installed. Every measurement in this repository comes from one Mac and one Chromium, and re-measuring on Linux is docker/linux-verify.sh, which has never been executed."

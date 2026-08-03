@@ -1,9 +1,11 @@
 # Spec 0002 — History service and drift queries
 
-**Status:** `built, not wired` — see [the status vocabulary](README.md#status-vocabulary)
-**Depends on:** [0001](0001-component-hashing.md)
-**Packages:** new — `@variance-authority/history` (interface, drift math, client),
-`@variance-authority/server` (the service)
+**Missing:** a caller, and a read that would let one exist — see
+[the contract gap](#the-read-a-run-needs-and-which-this-contract-does-not-have).
+**Built on:** per-component band hashing
+([ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md)).
+**Packages:** `@variance-authority/history` (interface, drift math, client),
+`@variance-authority/server` (the service). Both ship; nothing imports either.
 
 ## Purpose
 
@@ -95,16 +97,66 @@ reviewed as a diff, so it does not inherit the problem.
 
 ```ts
 export interface HistoryStore {
-  record(observations: readonly Observation[], tokens: readonly TokenValue[]): Promise<void>;
+  record(
+    run: RunRecord,
+    observations: readonly Observation[],
+    tokens: readonly TokenValue[],
+  ): Promise<void>;
 
-  lastChanged(subject: string, component: string, band?: Band): Promise<Observation | null>;
-  churn(component: string, window: Window): Promise<Churn>;
-  valueJourney(token: string, window: Window): Promise<readonly TokenValue[]>;
-  reach(component: string, window: Window): Promise<Reach>;
+  lastChanged(subject: string, component: string, band?: Band): Promise<Answer<Observation | null>>;
+  churn(component: string, window: Window): Promise<Answer<Churn>>;
+  valueJourney(token: string, window: Window): Promise<Answer<Journey>>;
+  reach(component: string, window: Window): Promise<Answer<Reach>>;
 }
 ```
 
 Every operation returns a small slice. Nothing loads a whole history.
+
+### The read a run needs, and which this contract does not have
+
+**Nothing here answers the question the write path has to ask**, and that — not
+absence of effort — is why this has sat built and unreachable for a cycle.
+
+`observationsFrom(hashes, run, previous)` needs `previous`: the rows currently
+recorded for the subject it is about to write. The rule that makes the whole
+design affordable depends on it — *"a row is written only when a hash moves; a
+300-subject run in which two components changed writes two rows"*. The four reads
+above are all **questions a human or an agent asks about the past**: when did this
+last change, how often does it churn, what did this token drift to, where does
+this component appear now. None of them is the one a run asks about the present,
+and the closest, `lastChanged`, returns a single row — so computing `previous`
+through it costs one request per component per band. A 300-subject project with
+ten components each is 9,000 round trips per run.
+
+Two shapes resolve it and they trade the same bytes in opposite directions.
+
+1. **A bulk read.** `current(subjects)` returns the latest row per
+   `(subject, component, band)` scope. The run compares and sends only movement,
+   which is what this document already describes everywhere else.
+2. **The server deduplicates on write.** The run sends everything it observed and
+   the service drops a row equal to the latest stored one. No new read, and the
+   comparison happens where the data already is — but the request body then
+   carries every component of every subject on every run, and `maxBodyBytes`
+   exists precisely to refuse bodies that size.
+
+Both are defensible; this spec picked neither, and a contract that specifies a
+write rule it gives nobody the means to implement is the reason there is code on
+both sides of a wire with nothing crossing it. **Deciding between them is the
+next step for B12** — not more implementation.
+
+**Two deviations from the first draft of this contract, both deliberate, both
+argued in `packages/history/src/store.ts` rather than here.** `record` takes the
+run as a required argument instead of inferring it from the rows, because a run in
+which nothing changed *has* no rows and is exactly the run that must not be lost —
+the draft's `record(observations, tokens)` cannot express a quiet run at all. And
+every answer is wrapped in `Answer<T>`, which is `T | Unkept`, because the
+alternative to saying *no record is being kept* is returning an empty result, and
+an agent handed an empty churn concludes the product is stable. That is the
+Behaviour section's first rule, expressed in the type rather than in a promise.
+
+This contract was corrected on 2026-08-03 after it was found to describe neither
+the draft's intent nor the shipped interface; the code had been right since it was
+written.
 
 ## Behaviour
 
@@ -158,4 +210,5 @@ style agrees across profiles on 0 of 107 component boundaries).
 - Operating the service for anyone. It ships as something to run, not as
   something running.
 - Approvals as a workflow. This records whether a change was accepted; deciding
-  that is [0005](0005-ci-integration.md)'s business.
+  that belongs to the pull-request surface
+  ([ADR-0019](../context/adr/0019-one-comment-that-leads-with-causes.md)).

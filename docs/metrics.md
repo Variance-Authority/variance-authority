@@ -173,7 +173,7 @@ and the win means nothing. The falsifier is therefore absolute:
 - On the component-level stratum, no measurable advantage over Chromatic. This is
   the expected result, not a risk — the story title already names the component.
 
-The predicted failure modes are named in `packages/core/src/source.ts` itself: a
+The predicted failure modes are named in `packages/core/src/attribute/source.ts` itself: a
 regex scan misses components produced by a factory, assigned dynamically, or
 re-exported under another name, and can name a capitalised non-component. None of
 those have ever occurred in a measurement, because the only measurement resolved
@@ -208,7 +208,7 @@ M2a = 1.0 would flatter every tool in the category including this one.
 close to absent: steps are clustered by the *shape* of their diff regions and one
 accept propagates across the batch. Percy, Chromatic and Argos group by fingerprint
 or not at all. This project groups by root id — `buildDocket` in
-`packages/core/src/docket.ts` aggregates by a root id constructed to be stable
+`packages/core/src/judge/docket.ts` aggregates by a root id constructed to be stable
 across subjects, so `token:--color-primary` is the same root wherever it lands
 and the grouping needs no similarity heuristic.
 
@@ -226,7 +226,7 @@ separate us from.
 
 - M2a above 1.0 on a single-root change — the docket failed to collapse.
   `buildDocket` has been exercised at **3 subjects**
-  (`packages/core/src/docket.test.ts`, 12 tests, constructed diffs). "One token,
+  (`packages/core/src/judge/docket.test.ts`, 12 tests, constructed diffs). "One token,
   300 collateral, one action" is demonstrated at 3, not 300, and the failure at
   40 is entirely plausible.
 - M2b below Applitools' shape-clustering precision on the adversarial case. If an
@@ -390,7 +390,7 @@ architecture. Against hosted vendors, ~1 day each on free tiers.
   caller-supplied **string, not a content hash**, so a second machine can render
   different geometry and the key will not say so — and the metric probe reports
   metric-compatible substitutes, which is exactly what a Linux container ships,
-  as *missing*. Spec 0007 asked for that false-alarm rate and it is open.
+  as *missing*. That false-alarm rate has never been measured.
 - A semantic verdict differing across platforms, which `docker/linux-verify.sh`
   states in its own closing lines **refutes ADR-0010** and is the finding rather
   than a failure to be retried away.
@@ -650,8 +650,8 @@ journal [0010](context/journal/0010-pixel-arm.md),
 [0012](context/journal/0012-instability.md),
 [0013](context/journal/0013-observability.md)
 
-**Code this document points at.** `packages/core/src/docket.ts` ·
-`packages/core/src/source.ts` · `packages/core/src/verdict.ts` ·
+**Code this document points at.** `packages/core/src/judge/docket.ts` ·
+`packages/core/src/attribute/source.ts` · `packages/core/src/judge/verdict.ts` ·
 `packages/cli/src/commands/run.ts` · `examples/todomvc/src/mutations.ts` ·
 `examples/todomvc/src/code-mutation.ts` ·
 `examples/todomvc/src/observe.chromium.test.ts` ·

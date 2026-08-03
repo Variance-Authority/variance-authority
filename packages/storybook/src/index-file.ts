@@ -6,7 +6,7 @@
  * id to the metadata the manager needs in order to load it. It is the only
  * artifact that knows what stories exist without evaluating any of them, which
  * is what makes it the subject list — subjects discovered here need no fixture
- * file and no second registry to drift out of date (spec 0006, acceptance 1).
+ * file and no second registry to drift out of date (ADR-0020).
  *
  * The reading is strict to the point of rudeness, and that is the design. Every
  * downstream sentence — *"these 240 subjects are the suite"*, *"this one

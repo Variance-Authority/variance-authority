@@ -178,6 +178,16 @@ afterAll(async () => {
 
 const chromium_ = BROWSER_AVAILABLE ? describe : describe.skip;
 
+// Announced at module scope, because that is the only place a reader of a
+// skipped run sees anything. `it.skip` titles are invisible under the default
+// reporter, which is the one CI uses.
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\nexamples/todomvc (observe): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
 chromium_('reading a pixel diff further than a number', () => {
   it('sees the change at all, which is the part a pixel differ already does', () => {
     expect(changedPixels).toBeGreaterThan(0);

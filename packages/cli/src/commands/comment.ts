@@ -253,7 +253,7 @@ function docketOf(report: CliRunReport): Docket {
       // with no geometry behind it. Grouped by the reason rather than listed one
       // per subject, because 300 subjects with no baseline share one sentence and
       // repeating it 300 times says nothing the count does not.
-      const key = `${observation.verdict} ${observation.because}`;
+      const key = `${observation.verdict}\u0000${observation.because}`;
       const group = groups.get(key) ?? {
         verdict: observation.verdict,
         because: observation.because,
@@ -345,8 +345,8 @@ function docketOf(report: CliRunReport): Docket {
  * wrong"), not three hundred.
  */
 function keyOf(region: RegionRecord): string {
-  if (region.unattributed === true) return ' unattributed';
-  return region.component ?? region.path ?? ' unknown';
+  if (region.unattributed === true) return '\u0000unattributed';
+  return region.component ?? region.path ?? '\u0000unknown';
 }
 
 function labelOf(region: RegionRecord): string {

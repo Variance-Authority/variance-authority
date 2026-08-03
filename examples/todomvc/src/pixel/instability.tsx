@@ -91,6 +91,27 @@ export const INSTABILITY_PROBES: readonly InstabilityProbe[] = [
   {
     id: 'text-smoothing',
     cause: 'the same commit rendered on a different OS, GPU, or driver',
+    /**
+     * **macOS only, and that is a finding rather than a caveat.**
+     *
+     * The declaration below is what a macOS Chromium does and it stands there.
+     * The first Linux run of this corpus (2026-08-03) measured 0 changed pixels,
+     * because the perturbation is `-webkit-font-smoothing` — a property no
+     * engine outside macOS implements. So on the platform this probe's own
+     * `cause` field is *about*, the perturbation is inert.
+     *
+     * What that refutes is narrow and worth stating exactly. It does not refute
+     * the `texture` band: rasterization really does vary across machines, and
+     * the semantic arm really cannot see it. It refutes **this repository's only
+     * evidence for it**, which turns out to be a simulation that works on the
+     * machine that wrote it — the same convenience journal 0008 caught in the
+     * token fixtures, arriving in the pixel corpus.
+     *
+     * Real evidence needs two machines rendering one page, which is what
+     * `docker/linux-verify.sh` exists for and what a CSS toggle was standing in
+     * for. Left declared as-is and skipped nowhere: a probe that quietly
+     * lowered its expectation on Linux would be the corpus adjusting to the run.
+     */
     expect: { pixels: 'moves', content: 'holds' },
     absorbedBy: 'construction',
     rationale:
@@ -98,7 +119,12 @@ export const INSTABILITY_PROBES: readonly InstabilityProbe[] = [
       '`texture` band of §5 exactly: sub-semantic rendering variance that no ' +
       'reviewer should ever be shown. The semantic arm cannot see it because ' +
       'glyph rasterization is not a property of the box tree — absorbed by ' +
-      'construction rather than by a threshold.',
+      'construction rather than by a threshold. ' +
+      'DECLARED ON macOS AND REFUTED AS A DEMONSTRATION ON LINUX, 2026-08-03: ' +
+      'the perturbation is `-webkit-font-smoothing`, which only macOS ' +
+      'implements, so on a Linux Chromium both renders are byte-identical and ' +
+      'this probe measures 0 changed pixels. The band is not wrong; its only ' +
+      'evidence here simulates "a different OS" with a property one OS honours.',
     css: (state) =>
       `.probe-copy { -webkit-font-smoothing: ${state === 'before' ? 'subpixel-antialiased' : 'antialiased'}; }`,
     render: () => (

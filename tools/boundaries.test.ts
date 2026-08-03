@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -296,6 +297,40 @@ function requirement(workspace: Workspace): string {
   return end === -1 ? text.slice(start) : text.slice(start, end);
 }
 
+/**
+ * A source file stays text, so the tools that read it keep reading it.
+ *
+ * Seven files here carried a literal NUL byte — a key separator, written as the
+ * byte rather than as an escape. Semantically identical, and it costs the one
+ * thing this repository cannot afford: `grep` classifies those files as binary
+ * and prints **nothing** for a pattern that is present, `file` calls them `data`,
+ * and `git diff` showed four of them as "Binary files differ", so a change to
+ * them was invisible in review. Every one of those is a search that returns
+ * nothing looking exactly like a search that found nothing — which is the failure
+ * this whole project is built to refuse, arriving in the codebase itself.
+ *
+ * It cost real time: a search for `scopeKey` in the file that defines it came
+ * back empty, twice, during the work that found this.
+ */
+describe('source stays greppable', () => {
+  const NUL = String.fromCharCode(0);
+
+  it.each(
+    execFileSync('git', ['ls-files', '*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+      .trim()
+      .split('\n'),
+  )('%s contains no literal NUL', (file) => {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+
+    // A `\u0000` escape is the same value and stays readable. `\0` is not the
+    // fix: followed by a digit it is an octal escape.
+    expect(text.includes(NUL)).toBe(false);
+  });
+});
+
 describe('every package says what it is', () => {
   it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
     '%s has a README',
@@ -353,4 +388,56 @@ describe('every package says what it is', () => {
       expect(undocumented).toEqual([]);
     },
   );
+});
+
+/**
+ * A pinned browser image is a declared requirement, and it must match the
+ * dependency it will be running.
+ *
+ * Three files pin `mcr.microsoft.com/playwright:<tag>` — the Linux verification
+ * image, the example workflow, and the Bitbucket recipe in the CLI README — and
+ * every one of them was pinned to `v1.49.0` while the lockfile resolved
+ * `playwright` to 1.62.1. The tag is what decides which browser build is baked
+ * into `/ms-playwright`; the resolved package is what decides which build
+ * `chromium.executablePath()` goes looking for. When they disagree the path does
+ * not exist.
+ *
+ * **And nothing goes red.** The browser suites are gated on
+ * `existsSync(executablePath())`, so a mismatched image *skips all ten of them*
+ * and reports a green run — which for the Linux harness means it would have
+ * confirmed portability without executing a single cross-platform measurement.
+ * That is the failure this repository exists to refuse, and it was sitting in the
+ * harness the same day it was repaired for a different one.
+ *
+ * The version is read from the lockfile rather than from `package.json`, because
+ * `^1.49.0` is the range and the resolution is what gets installed.
+ */
+describe('a pinned browser image matches the playwright it runs', () => {
+  const resolved = /^"playwright@npm:[^"]*":\n  version: (\S+)$/m.exec(
+    readFileSync(join(ROOT, 'yarn.lock'), 'utf8'),
+  )?.[1];
+
+  const pins = execFileSync('git', ['grep', '-n', 'mcr.microsoft.com/playwright:'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n')
+    // This file names the registry to find the pins, and is not one.
+    .filter((line) => !line.startsWith('tools/'));
+
+  it('reads a resolved playwright version out of the lockfile', () => {
+    expect(resolved).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it('finds the pins, so a moved file cannot empty this rule', () => {
+    expect(pins.length).toBeGreaterThan(0);
+  });
+
+  it.each(pins)('%s', (line) => {
+    const tag = /mcr\.microsoft\.com\/playwright:v([\d.]+)-/.exec(line)?.[1];
+
+    expect(tag, `${line} pins no \`vX.Y.Z-\` tag`).toBeDefined();
+    expect(tag, 'the image ships a browser build this playwright will not look for').toBe(resolved);
+  });
 });

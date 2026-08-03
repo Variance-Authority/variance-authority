@@ -21,7 +21,8 @@ can be reasoned about, replaced, and composed without reading the others.
 | **judge** | everything above | a verdict | a policy |
 | **record** | a verdict | an artifact, or a row that outlives the run | a store |
 
-Two of these need a browser. Two need nothing at all. That distribution is the
+Two of these need a host — a DOM to acquire from, a browser to render in.
+Three need nothing at all. That distribution is the
 whole economic argument, and it only exists because the kinds are separate.
 
 **prepare** is itself a set rather than a stage: resets, holds, waits and
@@ -131,7 +132,8 @@ different things to have.
 
 Two consequences worth stating, because they are the ones that get argued about:
 
-- **A package may be small.** `png` is one file. Splitting by requirement
+- **A package may be small.** `png` is three files and two entrypoints, and was
+  one file until a second comparator arrived. Splitting by requirement
   produces small boxes, and a small box with one requirement is better than a
   large one with four.
 - **The rule is enforced, not documented.** `tools/boundaries.test.ts` fails when

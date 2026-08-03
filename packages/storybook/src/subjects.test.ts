@@ -198,7 +198,7 @@ describe('per-story viewport', () => {
 
   it('lets one bad parameter cost one subject, not the run', async () => {
     // A throw here would let a typo on one story decide the fate of the other
-    // 239, which is the crashed-run failure spec 0006 rules out for stories and
+    // 239, which is the crashed-run failure ADR-0020 rules out for stories and
     // is no more acceptable for their configuration.
     const plan = await only({ 'components-button--primary': { viewport: { width: 'wide' } } }, VIEWPORT);
 

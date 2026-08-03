@@ -2,7 +2,7 @@
  * `@variance-authority/storybook` — a project's own Storybook as the subject list.
  *
  * Three steps, kept apart because they fail differently and are worth testing
- * separately (spec 0006):
+ * separately (ADR-0020):
  *
  * 1. {@link parseStoryIndex} reads what a built Storybook declares, and refuses
  *    anything that is not that. No browser, no evaluation, no `.storybook/`.

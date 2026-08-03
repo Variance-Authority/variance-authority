@@ -172,11 +172,29 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
-        VARIANCE_REPORT: ${{ steps.locate.outputs.report }}
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
         VARIANCE_RUN_URL: ${{ inputs.run-url }}
       run: |
-        node "${{ github.action_path }}/render-comment.mjs" \
-          --report "$VARIANCE_REPORT" \
+        set -euo pipefail
+
+        # The marker, asked for separately, because the poster needs it in the
+        # one case where there is no body to read it out of: a clean run, where
+        # a *previous* docket has to be found. It is a constant this build
+        # carries, so this costs a process and reads no report.
+        #
+        # $VARIANCE_COMMAND is unquoted so `node path/to/bin.js` splits.
+        # shellcheck disable=SC2086
+        marker=$($VARIANCE_COMMAND comment --config "$VARIANCE_CONFIG" --marker)
+        echo "marker=$marker" >> "$GITHUB_OUTPUT"
+
+        # The body, written even when it is empty — the poster distinguishes
+        # "nothing needs review" from "the render never ran", and only the first
+        # may clear a previous docket. An empty --run-url reads as absent, so a
+        # workflow that published nothing gets no link rather than a broken one.
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND comment \
+          --config "$VARIANCE_CONFIG" \
           --body-file "$RUNNER_TEMP/variance-comment.md" \
           --run-url "$VARIANCE_RUN_URL"
 

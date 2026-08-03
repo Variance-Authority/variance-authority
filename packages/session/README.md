@@ -41,17 +41,24 @@ See [ADR-0009](../../docs/context/adr/0009-sessions-detect-instead-of-rinse.md).
 ```ts
 import { createSession } from '@variance-authority/session';
 
-const session = createSession({ document, profile: 'jsdom' });
+const session = createSession({ document, viewport, engine: 'jsdom@30' });
 const root = createRoot(session.container);        // one root per session — see below
 
-for (const subject of subjects) {
-  session.run(subject.ref, (container) => {
-    root.render(subject.element);
-  });
-}
+// One function, used twice: once to collect, and once to replay.
+const render = (ref: { readonly id: string }): void => {
+  root.render(subjects.find((subject) => subject.ref.id === ref.id)?.element);
+};
 
-const findings = session.verify();                 // confirmed | suspected, with a cause and a fix
+for (const subject of subjects) session.run(subject.ref, () => render(subject.ref));
+
+const findings = session.verify(render);           // confirmed | suspected, with a cause and a fix
 ```
+
+**`verify` takes the renderer back, and that is not a convenience.** Confirming a
+suspicion means rendering the subject again and seeing whether its hash moves,
+and a `verify` that could not re-render would have to assert the coupling from
+the evidence alone — a finding shaped like proof with no replay behind it, which
+is worse than the silence it replaces.
 
 ## Two sharp edges, both deliberate
 

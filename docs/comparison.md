@@ -52,7 +52,7 @@ surface area is not one of them.
 | **Accumulated history** | Approval persists across a branch's lifespan; snapshot rules persist; 30-day (Free) / 12-month (paid) build history. **No longitudinal per-snapshot metric** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | Per-branch baselines with branch-point inheritance, squash/rebase detection via git provider APIs, browsable baseline revision history. Retention unpublished below Enterprise ([branching](https://www.chromatic.com/docs/branching-and-baselines/)) | **The strongest in the category.** Per-test flakiness over 24h–90d windows, changes grouped by fingerprint and ranked by recurrence, first/last seen, per-test discussion threads, account analytics with CSV ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Baselines keyed by app × test × OS × browser × viewport, with revision history, branch baselines and a merge UI; Insights charts. 1-year retention stated on Public Cloud only ([baselines](https://applitools.com/docs/eyes/getting-started/applitools-workflow/baselines)) | Designed and coded: per-component band hashes + resolved token values, append-only, no pixels. **Nothing has ever written a row** — see [§4.1](#41-nothing-has-ever-recorded-a-history-row) |
 | **Self-hosting** | **None, and the architecture forecloses it** — the SDK's function is to ship your DOM to Percy's API. "Automate Self-Hosted" is a different product | **None.** "On-premises" in their docs means self-hosted *git providers* ([FAQ](https://www.chromatic.com/docs/faq/chromatic-sso-on-premises-other-git/)) | MIT-licensed in full, **and the vendor states self-hosting "is not officially supported or documented"** — needs Postgres, RabbitMQ, Redis, S3, DynamoDB, a GitHub App and Stripe ([docs](https://argos-ci.com/docs/overview.md)) | **Yes** — on-premise Eyes server, images stored locally; also private dedicated cloud ([modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes), ~7 years old). Scoped to Eyes, not Autonomous | Nothing hosted exists, so nothing has to be opted out of: no telemetry, no phone-home, one outbound call to a renderer endpoint the operator supplies. That is not the same as a self-hosting *story* — **no license** (see the table above), no install path, no upgrade path, no backup story, and the history service is one SQLite file behind a bearer token with no concurrency test ([§4.5](#45-targets-never-measured-and-limits-never-tested)) |
 | **Data residency** | Geo Region Restriction, **Enterprise plan only, via an Account Executive**; metadata such as test names stays in the default region regardless ([GRR](https://www.browserstack.com/docs/enterprise/security/geo-region-restriction)) | **Undocumented publicly.** No stated provider, region, or EU option; SOC 2 Type 2 and 99.9% SLA are stated ([security](https://www.chromatic.com/security)) | **US only.** S3 in the US under Standard Contractual Clauses; no documented EU option. SOC 2 Type II ([security](https://argos-ci.com/security)) | Customer-selectable data-centre location including EU on Azure or customer premises; ISO 27001. GDPR page last updated May 2021 ([GDPR](https://applitools.com/legal/gdpr/)) | The operator's network, and the operator's compliance work. Nothing leaves that network, but that is the operator's claim about their own infrastructure, not an attestation: no SOC 2, no ISO 27001, no DPA, no retention policy, no deletion path, no pen test, no auditor has ever read this code. Residency becomes a question about the operator rather than an answer ([§5](#5-when-not-to-choose-this)) |
-| **Maturity** | Mature, broad, backed by BrowserStack | Mature; built by the Storybook maintainers | Mature enough to run production suites; small team, key-person concentration | Mature, enterprise sales motion, some docs 7–8 years old | **M0 spike.** 73 test files, 1308 passing / 3 skipped. Zero external users. Nothing published, nothing licensed. A test count is a poor maturity metric here and [§4](#4-what-is-written-and-unrun) says why |
+| **Maturity** | Mature, broad, backed by BrowserStack | Mature; built by the Storybook maintainers | Mature enough to run production suites; small team, key-person concentration | Mature, enterprise sales motion, some docs 7–8 years old | **M0 spike.** 76 test files, 1729 passing / 3 skipped. Zero external users. Nothing published, nothing licensed. A test count is a poor maturity metric here and [§4](#4-what-is-written-and-unrun) says why |
 
 ### The one commercial fact worth isolating
 
@@ -131,7 +131,7 @@ comparison: a known $283/mo against an unknown engineering commitment.
   Fixing a noisy subject here means editing code and waiting for another run.
 - **No-code on-ramps.** URL list, sitemap.xml, static directory, or a crawl-based
   Visual Scanner with no code changes. This project has no collection path out of
-  the box at all ([§4.3](#43-there-is-no-shipped-collector)).
+  the box at all ([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)).
 - **Unlimited users on every tier including Free.** Visual review is a team
   activity; Percy does not tax the reviewers.
 
@@ -140,14 +140,14 @@ comparison: a known $283/mo against an unknown engineering commitment.
 - **Zero-authoring test discovery.** If stories exist, tests exist. Play
   functions run as interaction tests before capture
   ([docs](https://www.chromatic.com/docs/storybook/test/)). Here the operator
-  writes a collector — about a hundred lines, once
-  ([§4.3](#43-there-is-no-shipped-collector)).
+  writes a collector — 234 lines in the only worked example, once
+  ([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)).
 - **Accessibility as a product, not a rule list.** axe on every snapshot, in a
   dashboard, with a triage flow and a history
   ([a11y](https://www.chromatic.com/docs/accessibility-tests/)). This project
   computes the accessibility tree and reports defects in it
   ([§3.5](#35-what-a-comparison-cannot-reach)) with a component and a file
-  attached, which axe does not do — but the rule list is five rules against
+  attached, which axe does not do — but the rule list is nine rules against
   axe's ~90, there is no UI, and nobody has triaged anything.
 - **Baseline and branching semantics worked out in production.** Per-branch
   baselines, branch-point inheritance, most-recent-approved-wins on ambiguous
@@ -302,7 +302,7 @@ Two configurations, because one would be a straw man whichever it was: `defaults
 fails on a single differing pixel, which no real suite survives; `tolerant` sets
 `maxDiffPixelRatio: 0.01`. On the two rows both arms detect, the difference is
 what is handed over — *5446 pixels (ratio 0.04) are different* against
-`Heading src/surface.tsx:87`.
+`Heading src/surface.tsx:153`.
 
 Three qualifications, in the same spirit as the rest of this section. The
 comparator is `pixelmatch` at Playwright's defaults — the differ behind most of
@@ -326,10 +326,10 @@ Supporting measurements:
 |---|---|---|
 | Owner chains resolve to component display names, without the React DevTools hook | `packages/react/src/provenance.test.ts` (23 tests) | Against React 19.2.8 |
 | Portals belong to the subject by component tree, not DOM containment (ADR-0007) | `packages/dom/src/portal.test.tsx` (6 tests) | Container hash is byte-identical whether the dialog is open or closed. The **342 bytes** that move is a one-off corpus measurement from journal 0003, restated as prose at `packages/react/src/portal.ts:12` and asserted by no test |
-| Semantic diff separates root from collateral; token attribution | `packages/core/src/diff/diff.test.ts` (18 tests) | — |
-| `impact` (`layout`/`paint`/`composite`) as an axis orthogonal to bands | `packages/core/src/diff/impact.test.ts` (18 tests) | `--brand` → `token/paint`; `--space` → `token/layout` (journal 0009) |
-| Component → file by reading the repo, with no build plugin | `packages/core/src/source.ts`, `examples/todomvc/src/source-index.ts` | **A regex scan**, not a source map — `_debugSource` is gone in React 19, so this is deliberate. It misses components produced by a factory, assigned dynamically or re-exported under another name, and can name a capitalised non-component; a name declared in two files is reported as ambiguous rather than guessed. Limits stated in `source.ts`. **No dedicated test**; exercised only end-to-end on one example app |
-| Region clustering from a change mask | `packages/core/src/region.ts`, `region.test.ts` (12 tests) | Grid `cell = 8` at `packages/core/src/region.ts:82` |
+| Semantic diff separates root from collateral; token attribution | `packages/core/src/compare/diff/diff.test.ts` (29 tests) | — |
+| `impact` (`layout`/`paint`/`composite`) as an axis orthogonal to bands | `packages/core/src/compare/diff/impact.test.ts` (18 tests) | `--brand` → `token/paint`; `--space` → `token/layout` (journal 0009) |
+| Component → file by reading the repo, with no build plugin | `packages/core/src/attribute/source.ts`, `examples/todomvc/src/source-index.ts` | **A regex scan**, not a source map — `_debugSource` is gone in React 19, so this is deliberate. It misses components produced by a factory, assigned dynamically or re-exported under another name, and can name a capitalised non-component; a name declared in two files is reported as ambiguous rather than guessed. Limits stated in `source.ts`. **No dedicated test**; exercised only end-to-end on one example app |
+| Region clustering from a change mask | `packages/core/src/attribute/region.ts`, `region.test.ts` (12 tests) | Grid `cell = 8` at `packages/core/src/attribute/region.ts:82` |
 
 **Claimed, not measured.**
 
@@ -341,7 +341,7 @@ Supporting measurements:
   one region").
 - **The cross-subject docket has never seen a real change set.** `buildDocket`
   aggregates roots by stable root id and is tested on constructed diffs at
-  **3 subjects** (`packages/core/src/docket.test.ts`, 12 tests). "One token, 300
+  **3 subjects** (`packages/core/src/judge/docket.test.ts`, 12 tests). "One token, 300
   collateral, one action" is demonstrated at 3, not 300.
 - **No Vue, Svelte or Angular application has been run through this.** What was
   written here until 2026-08-02 was stronger and wrong: "provenance is
@@ -350,7 +350,7 @@ Supporting measurements:
   callback, and attribution needs a renderer to supply exactly two things — a
   component name per element and a digest of what was passed in.
   `packages/dom/src/attributed.ts` is the second implementation and reads them
-  from two `data-*` attributes in **25 lines**;
+  from two `data-*` attributes in a **25-line** `attributeProvenance`;
   `packages/dom/src/attributed.test.ts` drives the whole chain — diff, docket,
   root versus collateral — from markup with no framework in the process, and
   asserts that the attributes are dropped before hashing so adding a build
@@ -395,7 +395,8 @@ asserted by no test. Journal 0011 records it as still blind and not fixable by
 extending the allowlist.
 
 **Measured** — cross-pollution attributed rather than prevented.
-`packages/session/src/session.test.ts` (21 tests) and `report.test.tsx` (5) keep
+`packages/session/src/session.test.ts` (21 tests) and
+`packages/session/src/report.test.tsx` (5) keep
 one standing world and derive what each subject *read* from its own capture, so
 pollution becomes a read-write conflict with a named writer and selector rather
 than a rebuild-the-world tax on every subject.
@@ -428,8 +429,8 @@ simply by being run later in a suite.
 - **Fonts are a caller-supplied string, not a content hash.** A second machine
   can render different geometry and the environment key will not say so. The
   metric probe reports metric-compatible substitutes — exactly what a Linux
-  container ships — as *missing*, and spec 0007's request to measure that false
-  alarm rate is open.
+  container ships — as *missing*, and the false-alarm rate that produces has
+  never been measured.
 - **Open blind spots no test closes**: an image swapped behind a stable URL
   (`assets` are caller-supplied content hashes,
   `packages/dom/src/collect.ts:81`); cross-origin stylesheets, which
@@ -452,16 +453,16 @@ cannot observe reports `unobserved` rather than passing (ADR-0002, ADR-0008).
 
 | Claim | File | Result |
 |---|---|---|
-| Corpus scored under `jsdom` against ground truth declared before the pipeline existed | `examples/kitchen-sink/src/measure.test.tsx` (59 tests) | **scorable 38, agreed 38/38, false unchanged 0, false changed 0**; 1 undecidable, 1 contested |
-| Same corpus under `chromium` | `examples/kitchen-sink/src/measure.chromium.test.tsx` (69 tests, 1 skip) | **scorable 39, agreed 39/39, false unchanged 0, false changed 0** |
+| Corpus scored under `jsdom` against ground truth declared before the pipeline existed | `examples/kitchen-sink/src/measure.test.tsx` (95 tests) | **scorable 38, agreed 38/38, false unchanged 0, false changed 0**; 1 undecidable, 1 contested |
+| Same corpus under `chromium` | `examples/kitchen-sink/src/measure.chromium.test.tsx` (103 tests, 1 skip) | **scorable 39, agreed 39/39, false unchanged 0, false changed 0** |
 | P4 — the two profiles agree on what both can observe | same file, one run, both halves | **comparable 38, agreement 38/38, undeclared divergence 0** |
-| Per-component band hashing: ancestors do not move on a descendant edit and vice-versa | `packages/core/src/component-hash.ts`, `component-hash.test.ts` (11 tests), corpus acceptance at `measure.chromium.test.tsx:363` | **structure 107/107 agree across profiles; style 0/107.** `structure` is the only cross-tier band; `style` and `geometry` are profile-scoped |
+| Per-component band hashing: ancestors do not move on a descendant edit and vice-versa | `packages/core/src/attribute/component-hash.ts`, `component-hash.test.ts` (11 tests), corpus acceptance at `measure.chromium.test.tsx:363` | **structure 107/107 agree across profiles; style 0/107.** `structure` is the only cross-tier band; `style` and `geometry` are profile-scoped |
 | The raster phases are separable, and separately installable — two need a browser, two need nothing | `packages/raster/src/assemble.test.ts` (6), `packages/png/src/compare.test.ts` (5) | — |
-| A jsdom-acquired document renders byte-identically in-process and over an HTTP hop | `packages/remote/src/renderer.test.ts` (5), `examples/todomvc/src/offload.chromium.test.tsx` (5) | — |
-| Baseline store partitioned by renderer identity | `packages/store/src/durable.test.ts` (11) | cross-identity → `incomparable`, never `unchanged` |
-| Identical verdicts and pixel counts across durable, git-LFS and remote stores | `packages/observe/src/parity.test.ts` (5) | 4 scenarios: `unchanged` / `changed` / `new` / `incomparable` |
-| A store that cannot be reached is an operator error, never `new` and never `unchanged` | `packages/remote/src/store.test.ts` (14) | Unreachable endpoint, refused token, hanging lookup, unreadable body; no baseline written |
-| Changes that never reach a pixel are decided with **no image consulted on either side** | `cases/incumbent-case/src/replacement.chromium.test.ts` (36 tests) | A dropped `aria-label`, a demoted heading and a devolved `<button>`: `pixels: 0, semanticOnly: true` for all three, against a real `toHaveScreenshot` that is silent on all three at **both** its configurations |
+| A jsdom-acquired document renders byte-identically in-process and over an HTTP hop | `packages/remote/src/renderer.test.ts` (7), `examples/todomvc/src/offload.chromium.test.tsx` (5) | — |
+| Baseline store partitioned by renderer identity | `packages/store/src/durable.test.ts` (17) | cross-identity → `incomparable`, never `unchanged` |
+| Identical verdicts and pixel counts across durable, git-LFS and remote stores | `packages/observe/src/parity.test.ts` (7) | 4 scenarios: `unchanged` / `changed` / `new` / `incomparable` |
+| A store that cannot be reached is an operator error, never `new` and never `unchanged` | `packages/remote/src/store.test.ts` (19) | Unreachable endpoint, refused token, hanging lookup, unreadable body; no baseline written |
+| Changes that never reach a pixel are decided with **no image consulted on either side** | `cases/incumbent-case/src/replacement.chromium.test.ts` (40 tests) | A dropped `aria-label`, a demoted heading and a devolved `<button>`: `pixels: 0, semanticOnly: true` for all three, against a real `toHaveScreenshot` that is silent on all three at **both** its configurations |
 
 **The strongest form of the cheap-tier argument, and the one worth stating
 separately.** The first three scenarios of `cases/incumbent-case` are not missed
@@ -488,7 +489,7 @@ checked by `yarn test`:
 
 | README claim | Actual source |
 |---|---|
-| **1007 CSS rules → 1** (99.90% pruned) | Asserted nowhere. `collect.test.ts:96` asserts `kept < 10` on a smaller (~210 rule) fixture. 1007 is a manual reproduction in journal 0005, re-quoted as prose in `packages/core/src/document.ts:30` |
+| **1007 CSS rules → 1** (99.90% pruned) | Asserted nowhere. `collect.test.ts:96` asserts `kept < 10` on a smaller (~210 rule) fixture. 1007 is a manual reproduction in journal 0005, re-quoted as prose in `packages/core/src/format/document.ts:30` |
 | **7.5 ms warm vs 205 ms cold — 27×** | `examples/kitchen-sink/scripts/bench.mjs` only. No test asserts it |
 | **65.4 ms screenshot vs 3.4 ms semantic — 19×** | `examples/todomvc/scripts/pixel-arm.mjs` only. Quoted in a doc comment at `examples/todomvc/src/offload.chromium.test.tsx:32`, asserted nowhere |
 
@@ -568,7 +569,7 @@ suffers is an argument, not a finding. Nobody has reported it to this project,
 and [§4.1](#41-nothing-has-ever-recorded-a-history-row) records that the pipeline
 has never produced the example once.
 
-**Built and unit-tested.** `packages/history/` (1,696 lines of implementation plus
+**Built and unit-tested.** `packages/history/` (1,719 lines of implementation plus
 905 of test): a `HistoryStore`
 interface, drift arithmetic as pure functions, an HTTP client, and
 `createAbsentStore`. `drift.test.ts` (29), `client.test.ts` (10),
@@ -580,7 +581,7 @@ product is stable, when what happened is that nobody was keeping a record.
 
 `packages/server/`: SQLite via `node:sqlite` behind a `HistoryBackend`, a real
 HTTP surface, bearer token. `backend-sqlite.test.ts` (17), `http.test.ts` (18),
-`bin.test.ts` (6) — including append-only enforced at the database level, schema
+`packages/server/src/bin.test.ts` (6) — including append-only enforced at the database level, schema
 version refusal, and two branches recording different hashes for one key both
 persisting with no merge.
 
@@ -619,9 +620,10 @@ broken render alone. A `<div>` with no role is not a defect in any render taken
 on its own — it becomes one only against the `<button>` it replaced. Inspection
 and comparison catch different things and neither contains the other.
 
-**Deliberately not an axe-core reimplementation**, and [spec
-0009](specs/0009-inspection-rules.md) fixes the boundary rather than leaving it
-to drift: a rule belongs here if a stored snapshot can decide it. Contrast does
+**Deliberately not an axe-core reimplementation**, and
+[ADR-0015](context/adr/0015-a-rule-is-what-a-stored-snapshot-can-decide.md) fixes
+the boundary rather than leaving it to drift: a rule belongs here if a stored
+snapshot can decide it. Contrast does
 not qualify and the file says why — the background a glyph is painted on is a
 stacking question a layout engine answers and a document does not, so a
 four-line check would be right most of the time, which for accessibility is worse
@@ -629,7 +631,7 @@ than no rule. Axe runs against a live DOM
 with computed visibility, contrast and focus order, and has roughly ninety rules
 to these nine. Chromatic ships axe with a dashboard and a triage flow, and that
 is the better product for a team whose requirement is accessibility checking.
-What these five do that axe does not: name the component and the file, and decide
+What these nine do that axe does not: name the component and the file, and decide
 **offline, from a stored artifact, months later**.
 
 **A message catalogue and a PNG have no key in common.** There is no relation
@@ -684,18 +686,24 @@ are met "against hand-constructed rows", `store-lfs.test.ts` injects a fake
 subjects.
 
 Everything **at and above** the CLI boundary is written and has never been run
-against anything real. The repository's own prose does not say this: `README.md`
-still states there is no CLI and no history, while ~16k lines implementing both
-landed in commits `e76bf0f`, `9be72b3`, `de7e8db`, `673c4a7`, `2e683d3` and
-`66f4662`, and all seven files in `docs/specs/` still carry `**Status:**
-specified, not built`.
+against anything real.
+
+**Corrected 2026-08-03.** When this section was written the repository's own
+prose did not say so — `README.md` still stated there was no CLI and no history
+while ~16k lines implementing both had landed in commits `e76bf0f`, `9be72b3`,
+`de7e8db`, `673c4a7`, `2e683d3` and `66f4662`, and every file in `docs/specs/`
+still carried one undifferentiated status. That is fixed: there are nine specs
+carrying four distinct statuses, the `Status` column in
+[`docs/specs/README.md`](specs/README.md) says which is which, and the string
+"specified, not built" appears nowhere. The finding this section makes — written
+is not run — survives the correction, and §4.1 onward is where it is evidenced.
 
 ### 4.1 Nothing has ever recorded a history row
 
 `hashComponents`, `observationsFrom` and `createHttpHistoryStore` are called by
 **no non-test code anywhere** — verified by grep across `packages/*/src` and
 `examples/*/src`; the only hits are the definitions and the re-exports in
-`packages/core/src/index.ts:74` and `packages/history/src/index.ts:19,51`.
+`packages/core/src/attribute/index.ts:34` and `packages/history/src/index.ts:19,51`.
 `variance run` does not record. `variance accept` explicitly refuses to
 (`packages/cli/src/commands/accept.ts:38`: "It does not write to the history
 store… the hashes are not in it and cannot be derived from it").
@@ -717,8 +725,9 @@ pipeline.
   Storybook built by Storybook and asserts the whole cycle —
   **new (exit 1) → accept (0) → unchanged (0) → 5 of 8 changed (exit 1)** on a
   build with one component edited, finding exactly the five stories that render
-  it. Spec 0003 acceptance 1 is met in substance against `storybook-case` rather
-  than against todomvc.
+  it. The CLI reaching the verdicts the library reaches is demonstrated against
+  `storybook-case` rather than against todomvc, which is the stronger of the two
+  because the subjects are not ours.
 
   **The first execution found five defects, and three made durable mode
   unusable** (journal 0014): the run never exited, because nothing closed the
@@ -729,8 +738,8 @@ pipeline.
   `describeIdentity` omitted the two fields the digest covers. Plus a coverage
   section printed twice, and component names lost to a minifying build.
 
-  That is the value of the entry rather than an argument against it: 21 cases in
-  `run.test.ts` with a fake `Collector` and a fake `Renderer` could not have found
+  That is the value of the entry rather than an argument against it: 28 cases in
+  `packages/cli/src/commands/run.test.ts` with a fake `Collector` and a fake `Renderer` could not have found
   any of them. What is still unrun: `variance serve` (MCP over stdio) has no test
   file of its own, and `variance run` has never been executed against a
   repository this project did not write.
@@ -742,11 +751,11 @@ pipeline.
   untested.
 - **Linux verification has not been run.** `docker/linux-verify.Dockerfile` and
   `docker/linux-verify.sh` exist; `docker/results/` does not, and there are no
-  `.log` files in the tree. All four of spec 0007's acceptance criteria are open,
+  `.log` files in the tree. Nothing it was built to establish is established,
   including the one that matters most: "a semantic verdict that differs across
   platforms refutes ADR-0010."
 - **CI integration is committed and has never run.**
-  `.github/actions/variance/{action.yml,locate-artifacts,render-comment,post-comment}`
+  `.github/actions/variance/{action.yml,locate-artifacts,post-comment}`
   and `.github/workflows/variance.yml` all exist and are tracked (commit
   `2e683d3`, corrected by `66f4662`); `packages/cli/src/commands/comment.ts`
   renders the body as a pure function and is covered by `comment.test.ts` (16
@@ -756,10 +765,11 @@ pipeline.
   run: the workflow's first step checks for a `variance.config.json` this
   repository does not contain and no-ops, so no job has launched a browser, no
   artifact has been uploaded, and no pull request has ever been commented on.
-  Spec 0005's acceptances are unmet by execution, not by absence of code.
+  What [ADR-0019](context/adr/0019-one-comment-that-leads-with-causes.md)
+  decided is therefore unproven by execution rather than by absence of code.
 - **The MCP layer has never served an agent.** Five tools shaped by argument
   about what an agent needs, tested against text (`packages/mcp/src/mcp.test.ts`,
-  38 tests, including chunk-boundary reframing).
+  27 tests, including chunk-boundary reframing).
 
 ### 4.3 There is no shipped collector, and that is the design
 
@@ -769,7 +779,8 @@ produces only a plan, and the Storybook package's driver — `collectStory` /
 `collectStories` — is not imported by the CLI at all.
 
 **Corrected 2026-08-02:** one now exists as a worked example.
-`cases/storybook-case/collector/` is about a hundred lines including its comments
+`cases/storybook-case/collector/` is 341 lines across three files including its
+comments — 234 of them in the module the config names
 — it serves its own build, declares which stories carry a readiness marker, and
 indexes its own source for component→file — and it is what the end-to-end run in
 [§4.2](#42-nothing-above-the-cli-boundary-has-been-run) is driven by. So "an
@@ -789,19 +800,21 @@ and `cases/storybook-case/src/storybook.chromium.test.js` drives the real previe
 against the `index.json` Storybook itself wrote. It also produced a finding the
 fixtures could not — the readiness gap, reproducibly: captured on Storybook's own
 `storyRendered` the deferred story is `loading…`, and captured on a declared
-marker it is the component. Acceptances 1 and 3 of spec 0006 (no fixture in the
-loop; one browser, one navigation over N stories) are met.
+marker it is the component. Two of the three things
+[ADR-0020](context/adr/0020-read-the-artifact-not-the-configuration.md) claims are
+demonstrated here: no fixture in the loop, and one browser with one navigation
+over N stories.
 
-What remains unmet is **acceptance 2** — that Storybook's own chrome contributes
-no rules to a subject, which is the exact case ADR-0003 was written for and is
-not asserted anywhere — and the CLI hop above it. The CLI still imports only
+What is **not** demonstrated is the third — that Storybook's own chrome
+contributes no rules to a subject, which is the exact case ADR-0003 was written
+for and is not asserted anywhere — nor the CLI hop above it. The CLI still imports only
 `readStoryIndex`, `storySubjectId` and `toSubjects`; `collectStory` /
 `collectStories` are exercised by the case and not by a run
-([§4.3](#43-there-is-no-shipped-collector)). Under the fixtures, what was already
+([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)). Under the fixtures, what was already
 proven stands: v3/v4/v5 index parsing (`index-file.test.ts`, 22), subject mapping
 with per-story exclusion and viewport (`subjects.test.ts`, 17), and a preview
 driver that reports a throwing story as a subject rather than crashing the run
-(`preview.test.ts`, 27).
+(`packages/storybook/src/preview.test.ts`, 33).
 
 ### 4.5 Targets never measured, and limits never tested
 
@@ -844,7 +857,7 @@ products above is the better answer, and in most cases it is not close.
 | **Non-engineers must review** | There is a JSON report and five MCP tools. No dashboard, no approval UI, no threaded discussion, no invite flow | Chromatic (UI Review), Percy, Applitools |
 | **Cost predictability matters more than cost structure** | There is no unit and no bill, but also no ceiling on the engineering time to operate a spike. A published $0.004/screenshot with a spend cap is a more predictable number than "your own infrastructure" | Argos |
 | **Longitudinal flake data is needed now** | Argos already ships per-test flakiness scores, fingerprint-grouped recurrence, and an audited ignore register. Here, the history tier is written and has never recorded a row ([§4.1](#41-nothing-has-ever-recorded-a-history-row)) | Argos |
-| **Storybook is the test surface and coverage should be automatic** | Chromatic turns every story into a test with no authoring, and maintains Storybook. Here the operator writes the collector — about a hundred lines, once, per project ([§4.3](#43-there-is-no-shipped-collector)) | Chromatic |
+| **Storybook is the test surface and coverage should be automatic** | Chromatic turns every story into a test with no authoring, and maintains Storybook. Here the operator writes the collector — about a hundred lines, once, per project ([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)) | Chromatic |
 | **The content under test is canvas, WebGL, video, or heavy third-party iframes** | The bitmap lives in a rendering context, not the document. This is structural, not a missing feature | A pixel differ — any of them |
 | **Regulated data with a contractual residency requirement, plus a vendor to sign it** | Self-hosting solves the residency problem and creates a supplier-risk problem: the supplier is a spike with no support commitment | Applitools (real on-premise), or Percy Enterprise GRR |
 | **A team that will not maintain its own tooling** | Every property in [§3](#3-where-this-project-is-genuinely-different) is bought with operator effort that the SaaS products absorb | Any of the four |
@@ -869,7 +882,7 @@ still has nowhere to go: nothing is published, nothing is licensed, the CLI has
 never completed a run, and this repository contains no `variance.config.json` to
 run it against. Nobody can trial this against their own codebase today. The
 realistic first move is to read `packages/core/src/diff/` and
-`packages/core/src/source.ts` and decide whether the approach is worth finishing
+`packages/core/src/attribute/source.ts` and decide whether the approach is worth finishing
 — because finishing it is what adoption would mean.
 
 A comparison that only finds in its own favour is an advertisement. On maturity,

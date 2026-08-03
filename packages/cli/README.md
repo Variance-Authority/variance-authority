@@ -18,6 +18,7 @@ variance report  [--config <path>] [--format text|json] [--subject <id>]
 variance accept  [--config <path>] <subject>... | --all
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
+variance comment [--config <path>] [--body-file <path>] [--run-url <url>] | --marker
 ```
 
 `run` produces the verdict and the exit code; `report` re-reads what it wrote;
@@ -27,13 +28,27 @@ last run wrote to an MCP client — an agent asks it what changed, which compone
 and which file, over stdio, without re-running anything; the tools are
 [`@variance-authority/mcp`](../mcp)'s.
 
+`comment` renders the same report as a pull-request body: causes first,
+collateral counted rather than listed, and **nothing when the check is green** —
+an empty body, because a bot that comments on every clean pull request teaches
+the team to filter it out, and the filter does not distinguish the clean ones.
+It writes to `--body-file` when given one and to stdout otherwise, and it posts
+nothing itself. `--marker` prints the HTML comment the poster searches for to
+find and rewrite its own previous docket; it is asked separately because it is
+needed in exactly the case where there is no body to read it out of. Exit `0`
+means *this rendered*, never *the run was clean* — the verdict belongs to `run`,
+which already said it.
+
 `--intent <text>` declares what the change was *meant* to do, overriding the
 config's `intent`. A run that matches its declared intent is adjudicated
 differently from one that does not: the claim is what lets a verdict say *this is
 the change you said you were making* instead of only *this changed*.
 
-Those five are the whole surface. There is no command that posts to a pull
-request; the exit code and the report are what a CI job has to work with.
+Those six are the whole surface. **No command posts anything anywhere.**
+`comment` produces the body; sending it is
+[`.github/actions/variance`](../../.github/actions/variance)'s job, with the
+operator's own token, and the exit code and the report remain what a CI job
+actually gates on.
 
 ## Exit codes, and why they are the interface
 
@@ -58,19 +73,44 @@ means*, *is this skip reported* — become integration tests with a browser in
 them, which is to say they stop being asked.
 
 ```ts
-import { run, loadConfig, exitFor, EXIT_REVIEW } from '@variance-authority/cli';
+import {
+  EXIT_REVIEW,
+  exitFor,
+  loadCollector,
+  loadConfig,
+  run,
+  storeFor,
+  writeArtifactToDisk,
+  writeCliRunReport,
+} from '@variance-authority/cli';
+import { createPlaywrightRenderer } from '@variance-authority/playwright';
 
 const config = await loadConfig('variance.config.json');
-const report = await run(config, { profile: 'chromium' });
+
+const report = await run({
+  config,
+  // Everything the run touches, handed to it. This is what the `bin` assembles.
+  deps: {
+    collector: await loadCollector(config.subjects.collector, { config }),
+    store: await storeFor(config),
+    renderer: () => createPlaywrightRenderer(),
+    now: () => new Date().toISOString(),
+    writeArtifact: writeArtifactToDisk,
+    writeReport: writeCliRunReport,
+  },
+});
 
 const code = exitFor(report);
 if (code === EXIT_REVIEW) console.log('changes need review');
 process.exitCode = code;
 ```
 
-The injection seams are types on the options: `Collector`, `RunDeps`,
-`CandidateReader`, `DoctorProbes`. A test supplies a fake renderer and a real
-store, or the reverse, and neither needs a browser.
+**`deps` is the whole argument, and it is why the example is this long.** The
+injection seams are types on it — `Collector`, `RunDeps`, `CandidateReader`,
+`DoctorProbes` — so a test supplies a fake renderer and a real store, or the
+reverse, and neither needs a browser. `now` is in there for the same reason: a
+report carries a timestamp, and a test that cannot fix the clock cannot assert
+the artifact it produced.
 
 ## The order it runs in, and why
 
@@ -103,7 +143,11 @@ downloaded, so the run's inputs are the ones in the repository.
   "profile": "chromium",
   "viewport": { "width": 1280, "height": 800 },
   "retention": "durable",
-  "subjects": { "kind": "storybook", "index": "storybook-static/index.json" },
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "variance/collector.mjs"
+  },
   "baselines": { "kind": "directory", "root": "baselines" },
   "fonts": ["Inter/400/normal/sha256-abc"],
   "report": "out/report.json"
@@ -111,9 +155,66 @@ downloaded, so the run's inputs are the ones in the repository.
 ```
 
 `subjects` is either `{ kind: "list", ids, collector }` or
-`{ kind: "storybook", index }`; `baselines` is `directory`, `lfs` or `remote`.
+`{ kind: "storybook", index, collector }` — **both need a collector**, because
+neither a list of ids nor a story index says how to mount anything, and the
+mounting half of a run is code you write. `baselines` is `directory`, `lfs` or
+`remote`.
 `retention: "ephemeral"` needs no baselines at all — both images are produced by
 this run.
+
+## Bitbucket Pipelines, and what carries to any CI
+
+There is a composite action for GitHub Actions
+([`.github/actions/variance`](../../.github/actions/variance)). There is no
+second integration to install, and there does not need to be: **the exit code
+above is the whole interface**, so a CI that can run a command already has the
+gate. What a platform integration adds is the comment, and that is the only part
+worth writing down twice.
+
+```yaml
+# bitbucket-pipelines.yml
+image: mcr.microsoft.com/playwright:v1.62.1-noble
+
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: variance
+          script:
+            - corepack enable && yarn install --immutable
+            - yarn build
+            # The gate. Nothing parses this output; the exit code is the verdict,
+            # and `set -e` is what turns 1 into a failed step.
+            - node packages/cli/dist/bin.js run --config variance.config.json --profile chromium
+          after-script:
+            # `after-script` runs whether or not the step passed, which is the
+            # point: the run that failed is the run whose docket is worth posting.
+            - node packages/cli/dist/bin.js comment --config variance.config.json --body-file body.md
+            - bash ./bitbucket-comment.sh body.md
+          artifacts:
+            - .variance/**
+```
+
+The poster is the platform-specific half, and it needs one thing from this CLI:
+
+```bash
+variance comment --marker
+```
+
+That prints the invisible marker the rendered body carries, and nothing else.
+Finding a previous comment by it and updating that comment — rather than adding
+one per run — is the whole of the "one comment, updated in place" rule; on
+Bitbucket that is a `GET` of
+`/2.0/repositories/{workspace}/{repo}/pullrequests/{id}/comments`, a search for
+the marker in `content.raw`, and a `PUT` to the one that has it or a `POST` if
+none does. `.github/actions/variance/post-comment.mjs` is the same three steps
+against GitHub's API and is the file to read while writing the other.
+
+**Never run.** Neither this nor the GitHub workflow has executed on a real pull
+request, and this section does not change that — see
+[ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md),
+which decides what a comment does and records that none has ever been posted.
+Treat the YAML as a starting point somebody still has to prove.
 
 ## Known gap
 
@@ -125,5 +226,5 @@ of anything that runs unattended.
 
 ## Reading
 
-- [spec 0003](../../docs/specs/0003-cli.md) — what the CLI had to answer
-- [spec 0005](../../docs/specs/0005-ci-integration.md) — the CI story around it
+- [ADR-0017](../../docs/context/adr/0017-the-exit-code-is-the-interface.md) — why the exit code carries the verdict and the config is a file
+- [ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md) — the CI story around it

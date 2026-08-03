@@ -11,7 +11,7 @@ import { base64Of, bytesOf, type D1Like, type R2Like, type VarianceBindings } fr
 import { createCloudflareStore } from './store.js';
 
 /**
- * The half [spec 0005](../../../docs/specs/0005-ci-integration.md) put out of
+ * The half [ADR-0019](../../../docs/context/adr/0019-one-comment-that-leads-with-causes.md) put out of
  * scope: somewhere a change can be looked at, and somewhere a decision about it
  * survives.
  *

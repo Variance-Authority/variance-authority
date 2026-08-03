@@ -43,7 +43,7 @@ export type Retention = 'durable' | 'ephemeral';
  * about the subject.
  *
  * A distinct type because the caller has to distinguish them and a message
- * cannot be matched on. Spec 0003 gives operator error its own exit code
+ * cannot be matched on. ADR-0017 gives operator error its own exit code
  * precisely so a CI job can tell "this needs review" from "this did not run",
  * and a verdict and a crash sharing a code is the thing that makes a red build
  * uninformative.

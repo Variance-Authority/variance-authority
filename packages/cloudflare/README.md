@@ -11,11 +11,11 @@ than the run put in it.
 The rest of this repository answers *what changed, why, where, and should anyone
 care?* and then the process ends. This is where those answers go so that a person
 can look at one and a decision about it survives — the half
-[spec 0005](../../docs/specs/0005-ci-integration.md) explicitly put out of scope
+[ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md) explicitly left out of scope
 ("a review UI", "approval workflows beyond `accept`") because there was nowhere
 for a review to live.
 
-**Status:** `built, never run` — see [spec 0010](../../docs/specs/0010-cloudflare-review-backend.md).
+**Status:** built, never deployed — see [ADR-0021](../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md).
 93 tests pass against the real SQL and an in-memory bucket. **Nothing here has
 ever run on Cloudflare.** Read [the limits](#what-has-not-been-measured) before
 believing any of the rest.
@@ -65,7 +65,15 @@ across two Workers, not because the package is trying to keep an install small.
 
 ```ts
 // worker.ts — yours, not ours
+import type { D1Like, R2Like } from '@variance-authority/cloudflare';
 import { createVarianceWorker } from '@variance-authority/cloudflare/worker';
+
+interface Env {
+  readonly DB: D1Like;
+  readonly BUCKET: R2Like;
+  readonly VARIANCE_INGEST_TOKEN: string;
+  readonly VARIANCE_REVIEW_TOKEN: string;
+}
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
@@ -97,20 +105,45 @@ and D1 has no advisory lock to serialize that with.
 // app/variance/page.tsx
 import { ReviewApp, REVIEW_STYLES, createReviewClient } from '@variance-authority/cloudflare/ui';
 
+declare function whoIsThis(): Promise<string>;
+
 const client = createReviewClient({ endpoint: '/variance' });
-export default () => (
-  <>
-    <style>{REVIEW_STYLES}</style>
-    <ReviewApp client={client} reviewer={await whoIsThis()} />
-  </>
-);
+
+export default async function VariancePage(): Promise<React.ReactElement> {
+  return (
+    <>
+      <style>{REVIEW_STYLES}</style>
+      <ReviewApp client={client} reviewer={await whoIsThis()} />
+    </>
+  );
+}
 ```
 
 ```ts
 // app/variance/[[...path]]/route.ts — the vinext half
+import type { D1Like, R2Like } from '@variance-authority/cloudflare';
+import { createVarianceRoutes } from '@variance-authority/cloudflare/next';
+import { createVarianceWorker } from '@variance-authority/cloudflare/worker';
+
+declare const env: {
+  readonly DB: D1Like;
+  readonly BUCKET: R2Like;
+  readonly VARIANCE_INGEST_TOKEN: string;
+  readonly VARIANCE_REVIEW_TOKEN: string;
+};
+declare function isSignedIn(request: Request): Promise<boolean>;
+
+const worker = createVarianceWorker({
+  db: env.DB,
+  bucket: env.BUCKET,
+  project: 'todomvc',
+  ingestToken: env.VARIANCE_INGEST_TOKEN,
+  reviewToken: env.VARIANCE_REVIEW_TOKEN,
+});
+
 export const { GET, POST, HEAD } = createVarianceRoutes(worker, {
   basePath: '/variance',
-  authorize: async (request) => ((await isSignedIn(request)) ? 'review' : null),
+  authorize: async (request: Request) => ((await isSignedIn(request)) ? 'review' : null),
   tokens: { ingest: env.VARIANCE_INGEST_TOKEN, review: env.VARIANCE_REVIEW_TOKEN },
 });
 ```
@@ -215,7 +248,14 @@ trigger or call it from CI.
 ## Testing your own wiring
 
 ```ts
-import { createSqliteD1, createMemoryR2 } from '@variance-authority/cloudflare/testing';
+import { createReviewStore } from '@variance-authority/cloudflare/review';
+import { createMemoryR2, createSqliteD1 } from '@variance-authority/cloudflare/testing';
+
+const review = createReviewStore({
+  db: await createSqliteD1(),
+  bucket: createMemoryR2(),
+  project: 'todomvc',
+});
 ```
 
 D1 *is* SQLite, so the double runs the real statements through `node:sqlite`: the
@@ -252,7 +292,9 @@ store and not reachable through the review path.
 
 ## Reading
 
-- [spec 0010](../../docs/specs/0010-cloudflare-review-backend.md) — the contract and the acceptance criteria
-- [spec 0004](../../docs/specs/0004-artifact-storage.md) — why a store failure is not a verdict
+- [ADR-0021](../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md) — why approving may not render
+- [ADR-0022](../../docs/context/adr/0022-deciding-is-not-writing.md) — why there are two tokens
+- [ADR-0023](../../docs/context/adr/0023-a-service-depends-on-what-it-needs.md) — why a service may depend on what it needs
+- [ADR-0016](../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) — why a store failure is not a verdict
 - [spec 0002](../../docs/specs/0002-history-store.md) — what a history row is allowed to contain
 - [ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md) — why the identity partition is the primary key

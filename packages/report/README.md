@@ -37,7 +37,9 @@ import type { RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 
 await writeRunReport('.variance/run.json', runReport);
-const report = await readRunReport('.variance/run.json');  // throws on anything that is not one
+
+// Throws on anything that is not one, so the type is earned rather than asserted.
+const report: RunReport = await readRunReport('.variance/run.json');
 ```
 
 ## What it refuses

@@ -29,9 +29,9 @@ import { toSubjects, collectStories, harnessPage } from '@variance-authority/sto
 import { readStoryIndex } from '@variance-authority/storybook/read';
 
 const index = await readStoryIndex('storybook-static/index.json');  // parseStoryIndex, off a disk
-const plan = toSubjects(index, { exclude: ['**/docs/**'] });
+const plan = toSubjects(index, { excludeTags: ['docs'] });
 
-const outcomes = await collectStories(harnessPage(harness), plan.subjects.map((s) => s.storyId), {
+const outcomes = await collectStories(harnessPage(harness), plan.subjects.map((s) => s.story.id), {
   baseUrl: 'http://localhost:6006',
   readySelector: '[data-testid="story-ready"]',
   observe: async (outcome) => { /* capture, compare, whatever you already do */ },
@@ -44,8 +44,9 @@ const outcomes = await collectStories(harnessPage(harness), plan.subjects.map((s
    a familiar shape is read and *warned about* rather than refused. Call it
    directly on an index you already hold; `readStoryIndex` is the same parser
    with a `readFile` in front of it, for the disk case above.
-2. **`toSubjects`** applies policy — exclusion, viewport, a deterministic order.
-   Pure.
+2. **`toSubjects`** applies policy — exclusion by tag, viewport, a deterministic
+   order. Excluded stories stay in the plan as `excluded` rather than being
+   dropped, so a run still accounts for them. Pure.
 3. **`collectStories`** drives a preview page that is already open, moving between
    stories over Storybook's own channel rather than reloading. One navigation for
    a whole run; a second one is *reported*, not counted internally.
@@ -74,5 +75,5 @@ A denylist would be a second normalization ruleset, versioned by nobody.
 
 ## Reading
 
-- [spec 0006](../../docs/specs/0006-storybook-adapter.md) — what this had to answer
+- [ADR-0020](../../docs/context/adr/0020-read-the-artifact-not-the-configuration.md) — why this reads `index.json` and not `.storybook/`
 - [`cases/storybook-case`](../../cases/storybook-case) — a real Storybook, built by Storybook, read from outside

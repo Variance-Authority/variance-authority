@@ -17,7 +17,7 @@ import type { ComponentHash, Digest, ProfileId } from '@variance-authority/core'
  * machines while doing it (epitaphs, ADR-0011).
  *
  * A content hash has neither problem. It moves when the component's own code moves
- * (spec 0001) and it means the same thing on every machine.
+ * (ADR-0018) and it means the same thing on every machine.
  */
 
 /**
@@ -228,8 +228,8 @@ export function observationsFrom(
  */
 function scopeKey(component: string, band: Band, profile: ProfileId): string {
   return band === 'structure'
-    ? `structure ${component}`
-    : `${band} ${profile} ${component}`;
+    ? `structure\u0000${component}`
+    : `${band}\u0000${profile}\u0000${component}`;
 }
 
 function digestOf(hash: ComponentHash, band: Band): Digest | undefined {

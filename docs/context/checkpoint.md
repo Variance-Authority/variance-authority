@@ -54,7 +54,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B13 | **the boundary** — what a package is, and what an entrypoint costs | landed; ADR-0013, enforced by `tools/boundaries.test.ts` |
 | B14 | **replacement** — what a case is, and whether an incumbent can actually be left | landed and measured against a real `toHaveScreenshot`; three rows no threshold reaches, one row we lose |
 | B15 | **limbs** — what a run knows with no baseline at all: bands split, inspection, locale, provenance without React | landed and measured; four capabilities and six defects, every one of them found by writing the capability rather than by looking for the defect |
-| B12 | **history** — what accumulates across runs, and where it lives | **specified, not built** ([specs 0001–0002](../specs/README.md)); first implementation refuted and retired ([epitaphs](epitaphs.md)) |
+| B12 | **history** — what accumulates across runs, and where it lives | **built, wired to nothing, and blocked on a contract decision** ([what is left](../specs/0002-history-store.md)): the hashing (ADR-0018), the rows, the drift arithmetic and the service all ship; no run calls any of them, and the wire has no read that would let one. First implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
 
@@ -73,7 +73,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M9 | B10 | `locate` and `source` — landmark orientation, component→file by reading the repo | **expected** — `_debugSource` is gone in React 19, so per-element source is a plugin story nothing tells |
 | M10 | B11 | Raster phases, durable/ephemeral retention (ADR-0011), MCP surface | **mixed** — the offload works and the ranking did not; area measures displacement, so the ordering now comes from the semantic tier (journal 0013) |
 | M12 | B13 | Cut packages by requirement rather than by feature; group `core`; enforce the rule as a test | **expected, and it found drift** — `raster` was four requirements in one box; four packages imported test-time requirements they never declared, which works in a workspace and breaks on a standalone install |
-| M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. specs 0001 and 0002 record what replaces both; nothing is implemented |
+| M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. What replaces both is now ADR-0018 and the history spec; the code landed later and reaches nobody |
 | M13 | B14 | Run a real `@playwright/test` against a corpus declared first; ask what an import costs | **expected, and it corrected us twice** — 35/36 assertions on the first run; `toHaveScreenshot` does measure across a size mismatch in 1.62, where the scenario was declared as a refusal to, and attribution named `Indicator` where `Toolbar` was predicted (journal 0014) |
 | M14 | B14 | Write the collector `cases/storybook-case` was missing and run the CLI over a real Storybook | **mixed, and the most productive move so far** — the workflow closes (new → accept → unchanged → 5 of 8 changed on a one-component edit, with the right five), and the first execution found five defects no unit test could reach. Three made durable mode unusable: the run never exited, `stabilization` was dropped by the identity codec so `accept` and `run` keyed on different digests, and the refusal that resulted named the same machine on both sides (journal 0014) |
 
@@ -81,6 +81,8 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M16 | B15 | `inspect` — five rules over one snapshot, so a defect present on the first run is reported rather than approved into the baseline | **expected, and it found the bug it was written to catch** — `<button><span aria-hidden="true">↻</span></button>` was named "↻", because name-from-content read `textContent`. The case did not notice for a session, because it reads a prebuilt bundle; it now refuses to run against one older than its inputs |
 | M17 | B15 | `compareLocales` — untranslated strings and boxes that stopped fitting, across two renders of one subject | **corrected twice by its own measurement** — the first run found nothing, because the rule read text nodes and the forgotten string was a `title`; and at 420px German fits, so whether a translation fits is a property of the container as much as the translation. `matchTrees` cannot be reused: it keys on the accessible name, which is exactly what a translation changes |
 | M18 | B15 | A second `provenanceOf`, reading `data-*` — 25 lines, no framework in the process | **expected, and it found two defects neither in the new code** — every plain `<section>` blew the stack on a `roleOf`/`accessibleName` mutual recursion, and a `prop` root labelled `Panel → Button` was attributing to `Button` in the per-component roles the report prints, sending a reviewer to a file nobody edited |
+| M19 | — | Read all nine specs against the code, correct what drifted, then empty the directory of everything that ships | **mixed, and it found one MUST with no code behind it** — the locale spec required an uncompared count that did not exist, so a subject whose tree diverged reported *fewer* findings and read as the cleaner one. The CLI spec named five of six commands; Linux verification said `not built` with a Dockerfile in the tree that could not have run its own contract; CI feedback promised a Bitbucket recipe nobody had written. Seven specs discharged into ADRs 0015–0020 and deleted, one deleted without an ADR for forcing no decision; **two remain, and both are genuinely unfinished** |
+| M20 | — | Build the product half — a self-hosted review backend on the operator's own D1 and R2 | **expected, and the interesting part was what it may not do** — the review surface promotes a candidate the run already uploaded and cannot render one, which forced the build to carry each candidate's document digest and identity rather than only its pixels (ADR-0021); the store joined `parity.test.ts` as a fourth backend and reached every pinned verdict, so ADR-0016 now holds across a *split* pair as well as three whole ones. **Nothing has been deployed** |
 
 ---
 
@@ -101,6 +103,31 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   the table implies. Still undecided, now with a number.
 - **`dialog-open/dialog`** is the only remaining contested case: the subject
   boundary for portalled content is a real open question, not a per-profile one.
+- **Two machines now, and the second one refuted something on its first run.**
+  `docker/linux-verify.sh` executed for the first time on 2026-08-03, native
+  arm64, Node 24. **ADR-0010 survived** — every semantic verdict agreed, and no
+  cross-platform divergence appeared in any band. What did not survive is the
+  `texture` band's *evidence*: the `text-smoothing` probe perturbs
+  `-webkit-font-smoothing`, which only macOS implements, so on Linux both renders
+  are byte-identical and the probe measures 0 changed pixels. The band is not
+  wrong and rasterization really does vary across machines; what this repository
+  had was a simulation that only works on the machine that wrote it — journal
+  0008's fixture convenience, arriving in the pixel corpus. Real evidence needs
+  two machines rendering one page, and now that there are two, nothing yet does.
+- **The review backend has never met Cloudflare.** `@variance-authority/cloudflare` is verified against real SQL through `node:sqlite` and an in-memory bucket — the schema, the append-only triggers, the promotion path, the routes and every refusal. What that cannot reach is the platform: whether D1's `batch` is transactional in the way the history backend's atomicity rests on, object-size ceilings, quotas, `STRICT` tables, and two Workers writing at once. Lineage under concurrency is also weaker than the SQLite backend's, which takes a write lock where two Workers cannot. One `wrangler deploy` against a throwaway account would settle most of it and nothing has run one.
+- **The cases have still never run on Linux.** All four case files skipped inside
+  the container and said why: `dist/` is excluded from the build context, so
+  `incumbent-case` has no page bundle, and `storybook-changed/` is gitignored, so
+  `storybook-case` has no second build. The strongest evidence in this repository
+  — the head-to-head against a real `toHaveScreenshot`, and the whole CLI over a
+  real Storybook — is exactly the part a second machine has not seen. Building
+  both inside the image is the fix and nothing does it.
+- **`observePair` over the wire is broken on Node 24.** `offload.chromium.test.tsx`
+  fails to collect with `RequestInit: Expected signal ("AbortSignal {}") to be an
+  instance of AbortSignal` — two `AbortSignal` realms meeting at `fetch`. It is a
+  runtime finding rather than a platform one: the image ships Node 24 and
+  `check.yml` pins Node 22, so nothing else here has met it. Unfixed, and it means
+  the remote renderer is untested on the newest runtime.
 - **One machine.** Every rect and the 27× ratio come from one mac, one Chromium.
   Fonts enter the environment key as a caller-supplied string rather than a
   content hash, so a second machine could render different geometry and the key
@@ -142,10 +169,13 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   so `variance run` reports every region as `collateral` and orders them by area
   — the ordering journal 0013 measured as backwards. The first real CLI run over
   `cases/storybook-case` names `Tokens`, the wrapper the edit displaced, where the
-  edit was to `Button`. `observePair` has both sides and does not have this
-  problem, which is why the asymmetry stayed invisible: the only things exercising
-  the durable path supplied `causes` by hand. Carrying a semantic baseline beside
-  the image is the fix and nothing does it.
+  edit was to `Button`. **`observePair` does not fix this either, and the
+  earlier claim that it did was wrong.** It carries a single snapshot and calls
+  `attributeRegions` and nothing else — it never reaches `rankRegions`, so it
+  attributes and stops. Cause-first ordering happens only where `core` is
+  composed by hand with *two* documents: `examples/todomvc`'s observe test and
+  the two `incumbent-case` suites, all of which supply `causes` themselves.
+  Carrying a semantic baseline beside the image is the fix and nothing does it.
 - **Regions in the space between boxes report `unattributed`.** A gap produced by
   `Stack`'s `gap` is inside `Stack` and inside no child, and comes back as "a
   region no box contained, which usually means the scale or origin was wrong" —
@@ -161,25 +191,43 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   subject's geometry that responds to its styling, over a socket, byte-identically
   — which is enough to offload and is not the same claim as "the image matches the
   page it was acquired from".
+- **The documentation is checked now, and one class of it still is not.**
+  `tools/documentation.test.ts` resolves every link, every backticked repository
+  path and every `file:line` reference across all 72 markdown files, and compiles
+  every README `ts` example against the built `.d.ts` with no unused import. It
+  found that **11 of the 20 examples did not compile** — wrong arity, options
+  that were renamed, a field that no longer exists — which is what a reader was
+  copying. What it deliberately does not *compile* is a fence in a spec or an
+  ADR: those are proposals about code that may not exist. Their type references
+  are checked, and so now is any block that lists the CLI's commands against the
+  binary — which found the CLI spec naming five of six. What still passes unread
+  is a spec's ordinary prose: a behaviour paragraph can describe a field that does
+  not exist, which is exactly what the locale spec's uncompared count was for a
+  whole branch.
 - **The layout is checked, the *naming* is not.** `tools/boundaries.test.ts`
   proves every import is declared and every requirement has one owner. Nothing
   proves a package's name still describes what it needs — `store` could grow a
   socket and only a reader would notice.
-- **The MCP layer has never served a real agent.** Four tools shaped by argument
+- **The MCP layer has never served a real agent.** Five tools shaped by argument
   about what an agent needs, tested against text rather than against use.
 - **The font probe reports metric-compatible substitutes as missing.** A false
   alarm rather than a false `unchanged`, and the same hole as "one machine".
-- **Nothing accumulates across runs.** Spec §5 has promised per-component change
-  frequency since the draft; specs 0001–0002 now say what it should record and where it
-  should live, and neither exists. Until it does, the README's third answer is
-  half built: pixels reach code lines, and no sum is kept.
+- **Nothing accumulates across runs, and it is no longer for want of code.** Spec
+  §5 has promised per-component change frequency since the draft; ADR-0018 and
+  [the history spec](../specs/0002-history-store.md) say what to record and where
+  it lives, and **both are implemented** —
+  `hashComponents` in `core/attribute`, the rows and drift arithmetic in
+  `@variance-authority/history`, the socket in `@variance-authority/server`. What
+  does not exist is a caller: `variance run` records nothing, so every one of those
+  is exercised only by its own unit tests. The README's third answer is still half
+  built, and the missing half moved from "write it" to "wire it".
 - **The README makes claims about deployment nothing has exercised.** Linux CI,
   git-LFS artifacts, a CI bot committing images back — all stated as intent and
   marked as such, none run once.
 - **Inspection has run against nothing anybody else wrote.** Nine rules, each
   with a non-firing case, and `cases/storybook-case` reports 0 findings across 8
   subjects — a real answer about that design system, not a measurement of the
-  rules. Whether the list should grow is *settled* rather than open (spec 0009:
+  rules. Whether the list should grow is *settled* rather than open (ADR-0015:
   a rule belongs here if a stored snapshot can decide it, which excludes
   contrast, focus order and motion, with reasons in the file). What is open is
   whether the nine hold up outside this repository.
@@ -208,13 +256,17 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 
 Two open fronts, and they are independent.
 
-**History (B12) is specified and unwritten.** Specs 0001–0002 settle what is recorded and
-where it lives; nothing implements it. The first step is per-component
-band hashing in `core` — `SemanticSnapshot` carries `structureHash` and
-`styleHash` at *subject* level only, and the boundary-scoped per-component
-version is what every history question is asked against. The store interface and
-its backing service come after, and neither should be started before the hashing
-is proven to move only when the component's own code moves.
+**History (B12) is built and wired to nothing, and the next step is a decision
+rather than code.** What is recorded and where it lives are settled — ADR-0018 and
+[the history spec](../specs/0002-history-store.md) — and both have code:
+`hashComponents` ships in `core/attribute`, and
+`@variance-authority/history` and `@variance-authority/server` implement the rows,
+the drift arithmetic and the service. What is missing is the only part that was
+ever the point — **no run calls any of it.** `variance run` records nothing, so no
+row has ever been written by a run and the per-component hashes have never been
+compared across two of them. The next step is not more implementation; it is a
+consumer path, and until one exists "the hashing moves only when the component's
+own code moves" is asserted by a unit test and by nothing else.
 
 **Generality remains unmeasured.** One corpus, one mutation behind the ranking,
 one machine behind every ratio, and an MCP surface nothing has used. The cheapest

@@ -170,7 +170,7 @@ which we measured as backwards. Import to get moving, re-record as you go.
 **What this does not cover:** the hosted products are half comparison and half
 product. Of the product half, a review UI and a team approval workflow now exist
 as code — [`@variance-authority/cloudflare`](packages/cloudflare), the operator's
-own D1 and R2, [spec 0010](docs/specs/0010-cloudflare-review-backend.md) — and
+own D1 and R2, [ADR-0021](docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md) — and
 **have never been deployed to Cloudflare**. A cross-browser grid and change
 detection at repository scale are not confronted at all.
 [`cases/README.md`](cases/README.md) says so at more length.
@@ -184,11 +184,13 @@ Two things, and neither is a better comparison.
 **A defect that was there on the first run.** A button that never had an
 accessible name compares equal to itself on every run there will ever be, so
 approving the first baseline approves the defect. `variance run` reads each
-render on its own and reports five kinds of defect in it — a control with no
+render on its own and reports nine kinds of defect in it — a control with no
 accessible name, an image with no `alt`, a heading level skipped, a control
-inside a control, a label pointing at nothing — each naming a component and a
-file. They never change the verdict; a tool that blocks a merge on day one over
-findings nobody asked for gets switched off in week one.
+inside a control, a reference pointing at nothing, an accessible name that does
+not contain its own visible label, two landmarks of one role that nothing tells
+apart, a table with no header cells, a positive `tabindex` — each naming a
+component and a file. They never change the verdict; a tool that blocks a merge
+on day one over findings nobody asked for gets switched off in week one.
 
 **Which string nobody translated.** A message catalogue and a PNG have no key in
 common, so the category's answer to a localized UI is N times as many screenshots
@@ -262,10 +264,10 @@ exist yet](#what-does-not-exist-yet).*
 phones anything, schedules anything, or needs a hosted control plane to reach a
 verdict.
 
-*Built: `variance run`, `accept`, `report`, `serve` and `doctor` — five commands,
-driven end to end over a Storybook this project did not write. Never run against a
-repository outside this one. The PR-comment renderer is written and unit-tested
-but is not one of them: nothing dispatches to it.*
+*Built: `variance run`, `accept`, `report`, `serve`, `comment` and `doctor` — six
+commands, driven end to end over a Storybook this project did not write. Never run
+against a repository outside this one. `comment` renders the pull-request body and
+posts nothing; sending it is the workflow's job, with your token.*
 
 ### "Who generates the images?"
 
@@ -276,18 +278,27 @@ only two of them need a browser. A document acquired in a unit test can be
 rendered by a pinned machine elsewhere, proven byte-identical in-process and over
 an HTTP hop.
 
-*Built: the phases, the remote renderer, the offload. Written but unreachable: the
-GitHub Action ([`.github/workflows/variance.yml`](.github/workflows/variance.yml))
-and the PR-comment renderer, neither of which has run. Not built: the
-commit-back.*
+*Built: the phases, the remote renderer, the offload, and `variance comment`,
+which renders the body. Also built, and off by default: the commit-back, which
+refuses three ways — no baselines to commit, no head branch, or a workspace on a
+detached merge ref. Written and never executed: the GitHub Action
+([`.github/workflows/variance.yml`](.github/workflows/variance.yml)) that would
+post any of it.*
 
 ### "Where does it work?"
 
 **Any Linux terminal** — your dev machine, GitHub Actions, Bitbucket Pipelines.
-It is Node and Playwright, with no service dependency and no daemon.
+It is Node and Playwright, with no service dependency and no daemon. The exit
+code is the whole gate, so a CI that can run a command already has it; the only
+platform-specific part is posting the comment, and both recipes are written down
+([GitHub](.github/actions/variance),
+[Bitbucket](packages/cli/README.md#bitbucket-pipelines-and-what-carries-to-any-ci)).
 
 *Honest limit: every measurement in this repository was taken on one Mac with one
-Chromium. Linux CI is the intended target and is not yet verified.*
+Chromium, and neither CI recipe has ever executed. Linux CI is the intended
+target and is not yet verified —
+[`docker/linux-verify.sh`](docker/linux-verify.sh) is the harness for it, and it
+has not been run either.*
 
 ### "SOC 2?"
 
@@ -360,6 +371,15 @@ The layout is a test rather than a convention — see
 and `tools/boundaries.test.ts`, which fails when an import goes undeclared, a
 requirement gains a second owner, or an advertised entrypoint stops resolving.
 
+**The documentation is a test too** —
+[ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
+`tools/documentation.test.ts`, which resolves every link, every repository path
+and every `file:line` reference in this and the other 71 markdown files, and
+compiles every README example against the built types with no unused import. An
+example is a call site the compiler could not see, which is why 11 of the 20 here
+had gone stale against APIs that had been renamed underneath them. It runs in
+`yarn typecheck` as well as `yarn test`.
+
 ## The two rendering surfaces
 
 | Surface | Driver | Profile | Can observe |
@@ -393,13 +413,16 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   `variance accept` explicitly refuses to record. So the 22px story above has
   never once been produced by the pipeline, which is the largest gap in the
   project. Per-component band hashing, which every history question is asked
-  against, is not written at all ([spec 0001](docs/specs/0001-component-hashing.md)).
-- **A GitHub Action, PR comments, commit-back.** The workflow and the comment
-  renderer are committed and have never run once; the comment renderer is not
-  even wired to a command, so there is no way to invoke it short of importing it.
-  The CLI itself does now run — see [`cases/storybook-case`](cases/storybook-case)
-  — but only against a project in this repository, and the mounting half of a
-  run is a collector each adopter writes.
+  against, *is* written and corpus-scored
+  ([ADR-0018](docs/context/adr/0018-a-component-hash-covers-its-own-nodes.md));
+  nothing calls it from a run.
+- **A GitHub Action, PR comments, commit-back.** The workflow and the composite
+  action are committed and have never run once. The body they would post is
+  `variance comment`, which has been run against a real report and never from
+  CI — so what is unexercised is the delivery, not the docket. The CLI itself
+  does now run — see [`cases/storybook-case`](cases/storybook-case) — but only
+  against a project in this repository, and the mounting half of a run is a
+  collector each adopter writes.
 - **Cause-vs-collateral ranking on the durable path.** It needs the previous
   revision's snapshot and a stored baseline is an image, so `variance run` passes
   no causes and reports every region as `collateral`, ordered by area — the
@@ -419,7 +442,7 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   adopter's to write, once, per project.
 - **Any framework but React, actually run.** Provenance needs a component name
   per element. React gets it from fibers; anything else gets it from two `data-*`
-  attributes and 25 lines
+  attributes and a 25-line `attributeProvenance`
   ([`packages/dom/src/attributed.ts`](packages/dom/src/attributed.ts)), which is
   what a Vue or Svelte build step already emits. No Vue, Svelte or Angular
   application has been through it.
@@ -443,7 +466,7 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   bucket — which verifies the queries, the triggers, the promotion path and the
   routes, and verifies nothing about the platform: batch atomicity, quotas,
   object-size ceilings and concurrent Workers are all unmeasured
-  ([spec 0010](docs/specs/0010-cloudflare-review-backend.md)).
+  ([ADR-0023](docs/context/adr/0023-a-service-depends-on-what-it-needs.md)).
 - **A real agent.** The MCP tools are shaped by argument about what an agent
   needs and tested against text, not against an agent that used them and either
   fixed the thing or did not.

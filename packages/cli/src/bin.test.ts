@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { USAGE, parseArgs } from './bin.js';
-import { OperatorError } from './exit.js';
+import { USAGE, openRenderer, parseArgs } from './bin.js';
+import { EXIT_OPERATOR, OperatorError } from './exit.js';
 
 describe('parseArgs', () => {
   it('reads a bare command with the default config path, made absolute', () => {
@@ -111,6 +111,53 @@ describe('parseArgs', () => {
     expect(Object.keys(parseArgs(['run'])).sort()).toEqual(['command', 'config']);
   });
 
+  it('takes the docket flags on comment, and drops an empty --run-url', () => {
+    expect(parseArgs(['comment', '--body-file', 'out.md', '--run-url', 'https://ci/1'])).toEqual({
+      command: 'comment',
+      config: resolve('variance.config.json'),
+      marker: false,
+      bodyFile: 'out.md',
+      runUrl: 'https://ci/1',
+    });
+
+    // A workflow that published nothing passes `--run-url ""`, and a comment
+    // linking to `''` is worse than one linking nowhere.
+    expect(parseArgs(['comment', '--run-url', ''])).toEqual({
+      command: 'comment',
+      config: resolve('variance.config.json'),
+      marker: false,
+    });
+  });
+
+  it('refuses --marker together with the flags that render a body', () => {
+    // Two different questions. Answering both at once would mean deciding which
+    // of them the exit code is about.
+    expect(attempt(['comment', '--marker', '--body-file', 'out.md']).message).toContain(
+      'prints the marker and nothing else',
+    );
+  });
+
+  it('names every flag each command accepts in its usage line', () => {
+    // The middle link of a chain: `PER_COMMAND` decides what is accepted, this
+    // asserts `USAGE` says so, and `tools/documentation.test.ts` asserts the
+    // README shows `USAGE`. A renamed flag then fails twice on its way to the
+    // documentation, instead of arriving there never.
+    const missing: string[] = [];
+
+    for (const line of USAGE.split('\n')) {
+      const command = /^variance (\w+)/.exec(line)?.[1];
+      if (command === undefined) continue;
+
+      // Every command takes `--config`, and each usage line shows it, so the
+      // per-command set is what this has to reach.
+      for (const flag of flagsOf(command)) {
+        if (!line.includes(flag)) missing.push(`${command}: ${flag}`);
+      }
+    }
+
+    expect(missing).toEqual([]);
+  });
+
   it('documents the three exit codes in its usage text', () => {
     // The usage is where an operator learns that a verdict and a crash differ.
     expect(USAGE).toContain('0 nothing needs review');
@@ -118,6 +165,54 @@ describe('parseArgs', () => {
     expect(USAGE).toContain('2 operator error');
   });
 });
+
+/**
+ * A machine that cannot open a browser, which is ADR-0017.
+ *
+ * The criterion — `run --profile chromium` with no Chromium exits 2, not 1 — was
+ * argued in a comment and asserted by nothing. It cannot be reached through
+ * `main` on a machine that has a browser, and the only alternative is to stop
+ * checking it, which is how a run that never happened comes to look like a run
+ * that found nothing.
+ */
+describe('opening a renderer', () => {
+  it('turns any failure to open one into an operator error, so a missing browser exits 2', async () => {
+    const failure = new Error('browserType.launch: Executable doesn’t exist at /ms-playwright');
+
+    const error = await openRenderer(() => Promise.reject(failure)).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
+
+    expect(error).toBeInstanceOf(OperatorError);
+    expect((error as OperatorError).exitCode).toBe(EXIT_OPERATOR);
+    // The underlying message intact, because "no renderer could be opened" alone
+    // does not tell an operator whether to install a browser or fix a path.
+    expect((error as OperatorError).message).toContain('Executable doesn’t exist');
+    expect((error as OperatorError).message).toContain('variance doctor');
+    expect((error as OperatorError).cause).toBe(failure);
+  });
+
+  it('is not in the way of a renderer that opens', async () => {
+    // The wrapper returns the value untouched. A guard that also transformed the
+    // success path would be a second thing to get wrong on every run.
+    const renderer = { opened: true };
+    await expect(openRenderer(() => Promise.resolve(renderer as never))).resolves.toBe(renderer);
+  });
+});
+
+/**
+ * What a command accepts, read out of its own refusal.
+ *
+ * The parser prints the accepted set when it rejects a flag, so this asks the
+ * code path an operator actually hits rather than keeping a second copy of the
+ * table. Only the sentence is read: the refusal appends the whole usage text,
+ * and matching flags in that would make the assertion vacuous.
+ */
+function flagsOf(command: string): readonly string[] {
+  const sentence = /it takes ([^\n]+)/.exec(attempt([command, '--not-a-flag']).message)?.[1];
+  return sentence === undefined ? [] : sentence.split(',').map((flag) => flag.trim());
+}
 
 function attempt(argv: readonly string[]): OperatorError {
   try {

@@ -45,7 +45,7 @@ export interface D1Like {
    * a quiet run that was not quiet.
    *
    * **Unverified against the platform.** See the known limits in
-   * [spec 0010](../../../docs/specs/0010-cloudflare-review-backend.md) — the
+   * [ADR-0023](../../../docs/context/adr/0023-a-service-depends-on-what-it-needs.md) — the
    * double used in tests is genuinely transactional, and the claim that D1 is
    * has never been measured here.
    */

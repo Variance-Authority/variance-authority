@@ -18,7 +18,7 @@ import { applySchema } from './schema.js';
  * ceilings, quotas, consistency between two Workers writing at once, and whether
  * D1's `batch` is transactional in the way this package needs — none of those are
  * measured, here or anywhere else in this repository. They are stated as unmet in
- * [spec 0010](../../../docs/specs/0010-cloudflare-review-backend.md) rather than
+ * [ADR-0023](../../../docs/context/adr/0023-a-service-depends-on-what-it-needs.md) and the checkpoint rather than
  * implied to be fine by a green suite.
  *
  * Exported as `@variance-authority/cloudflare/testing` because it is also the

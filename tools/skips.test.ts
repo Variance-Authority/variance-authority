@@ -1,0 +1,136 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
+import { describe, expect, it } from 'vitest';
+
+/**
+ * A suite that does not run says so, and says what would make it run.
+ *
+ * Ten test files need a Chromium this repository does not install, and on a
+ * machine without one they skip roughly two hundred tests. That is the correct
+ * behaviour — the alternative is a red suite about a missing binary — and it is
+ * also the most dangerous shape a check can take, because **a green run with two
+ * hundred silent skips is indistinguishable from a green run**. `cases/README.md`
+ * has claimed "both cases skip loudly, with the command attached" since before it
+ * was true.
+ *
+ * It was not true. When this was written, four of the ten files announced
+ * themselves and six printed nothing at all; three of those six carried an
+ * `it.skip('needs a Chromium download: …')` placeholder, which reads like an
+ * announcement in the source and emits nothing, because vitest's default reporter
+ * — the one CI runs — never prints a skipped test's name. Two hundred and six
+ * skipped tests, fifty-four of them explained.
+ *
+ * So the rule is checked here rather than described there.
+ *
+ * ## Why this is static
+ *
+ * The obvious implementation is to run the suite and assert that every fully
+ * skipped file emitted something. That check is **vacuous on any machine with a
+ * browser** — nothing skips, so it asserts nothing — which is every machine where
+ * this project's measurements were made, and it would only ever bite in CI. A
+ * check that passes by not applying is the failure this repository exists to
+ * argue against, so this reads the source instead and runs identically everywhere.
+ */
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** The command that makes the skipped suites run, spelled exactly as they must spell it. */
+const REMEDY = 'npx playwright install chromium';
+
+/**
+ * The gate, and therefore the files.
+ *
+ * Every browser-gated suite decides the same way — `existsSync(chromium.executablePath())`
+ * — so the gate is what discovers them. A filename convention would not: `harness.test.ts`
+ * is gated and carries no `chromium` in its name.
+ */
+const GATED: readonly string[] = execFileSync(
+  'git',
+  ['grep', '-l', 'chromium.executablePath()'],
+  { cwd: ROOT, encoding: 'utf8' },
+)
+  .trim()
+  .split('\n')
+  // This file names the gate in order to find it, and is not gated by it. Left
+  // in, it discovers itself, finds no announcement, and fails — a checker whose
+  // first finding is itself teaches everyone to distrust its second.
+  .filter((file) => !file.startsWith('tools/'));
+
+/** Every `console.warn` a reader reaches during collection: top level, or one `if` deep. */
+function announcements(file: string): readonly string[] {
+  const text = readFileSync(join(ROOT, file), 'utf8');
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true);
+  const found: string[] = [];
+
+  const collect = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.expression.getText(source) === 'console' &&
+      node.expression.name.text === 'warn'
+    ) {
+      found.push(node.getText(source));
+    }
+    ts.forEachChild(node, collect);
+  };
+
+  // Statements only — a `console.warn` inside a `describe` or an `it` never runs
+  // when the suite is skipped, which is the whole failure being prevented.
+  for (const statement of source.statements) {
+    if (ts.isIfStatement(statement) || ts.isExpressionStatement(statement)) collect(statement);
+  }
+  return found;
+}
+
+describe('a suite that does not run says why', () => {
+  it('finds the browser-gated suites', () => {
+    // If the gate is ever spelled differently this discovers nothing and the whole
+    // file passes by checking nothing, which is the defect it exists to prevent.
+    expect(GATED.length).toBeGreaterThan(5);
+  });
+
+  it.each(GATED)('%s announces itself', (file) => {
+    const spoken = announcements(file).join('\n');
+
+    // Not a search of the whole file: three of these carried the exact command
+    // inside an `it.skip` title and printed nothing. It has to be in something a
+    // skipped run actually executes.
+    expect(spoken).toContain(REMEDY);
+  });
+
+  it.each(GATED)('%s keeps no placeholder that announces nothing', (file) => {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    const placebo = /it\.skip\(\s*['"`][^'"`]*playwright install/.test(text);
+
+    // The shape that was here before: a skipped test whose *title* is the remedy.
+    // It reads like an announcement in review and is invisible in the log.
+    expect(placebo).toBe(false);
+  });
+});
+
+/**
+ * The number in the workflow's comment is the number of gated files.
+ *
+ * `.github/workflows/check.yml` explains what a green check does not cover. That
+ * paragraph is prose in a file no checker reads — YAML, so
+ * `documentation.test.ts` cannot see it — and it is exactly the kind of unenforced
+ * count this repository has had wrong six times. The file count is statically
+ * knowable, so it is pinned; the *test* count is not, and was removed rather than
+ * restated.
+ */
+describe('the workflow says how much it is not running', () => {
+  const workflow = readFileSync(join(ROOT, '.github/workflows/check.yml'), 'utf8');
+
+  it('names the browser-gated file count', () => {
+    expect(workflow).toContain(`${GATED.length} files`);
+  });
+
+  it('states no test count it cannot know', () => {
+    // A test total depends on a run. Writing one into a comment makes a claim
+    // that goes stale on the next `it` anybody adds, silently.
+    expect(/~?\d+ (?:tests|skipped tests)/.test(workflow)).toBe(false);
+  });
+});

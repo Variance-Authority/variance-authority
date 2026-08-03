@@ -41,8 +41,8 @@ different policy, and every team has a different policy.
 ```ts
 import { normalize, diffSnapshots, isolateRegions, attributeRegions } from '@variance-authority/core';
 
-const before = normalize(capture, { profile: 'chromium' });
-const after = normalize(recapture, { profile: 'chromium' });
+const before = normalize(capture);                  // the profile arrived with the capture;
+const after = normalize(recapture);                 // normalization does not choose one
 
 const diff = diffSnapshots(before, after);          // deltas, roots, matching — no verdict
                                                     // hand `diff` to core/judge for one
@@ -51,8 +51,13 @@ const diff = diffSnapshots(before, after);          // deltas, roots, matching �
 // ChangeMask from the raster tier (`@variance-authority/png` decodes and
 // compares); core never opens an image, which is why it requires nothing.
 const places = isolateRegions(mask, { cell: 8 });   // pixels → regions
-const named = attributeRegions(places.regions, after); // regions → components → files
+const named = attributeRegions(places.regions, after, { scale: 2 });
 ```
+
+`scale` is device pixels per CSS pixel, it is **required**, and it has no default
+on purpose: a 2x screenshot attributed at 1x lands every region in the top-left
+quadrant and names the wrong component for each — a full, plausible, entirely
+wrong report. That last step is where regions become components and files.
 
 ## What it refuses
 

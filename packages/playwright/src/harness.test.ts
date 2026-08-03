@@ -137,6 +137,12 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — failures', () => {
   }, 60_000);
 });
 
-describe.skipIf(BROWSER_AVAILABLE)('createHarness', () => {
-  it.skip('needs a Chromium download: npx playwright install chromium', () => {});
-});
+// Announced at module scope, because that is the only place a reader of a
+// skipped run sees anything. `it.skip` titles are invisible under the default
+// reporter, which is the one CI uses.
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\n@variance-authority/playwright (harness): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}

@@ -29,4 +29,4 @@ export { inspect, summarizeFindings } from './inspect.js';
 export type { Finding, FindingRule, InspectionReportOptions } from './inspect.js';
 
 export { compareLocales } from './locale.js';
-export type { LocaleComparison, LocaleOptions } from './locale.js';
+export type { LocaleComparison, LocaleOptions, Uncompared } from './locale.js';

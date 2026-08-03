@@ -43,7 +43,7 @@ export interface StoryParameters {
    *
    * The story is still reported, in {@link SubjectPlan.excluded}. A subject that
    * vanishes without a word is indistinguishable from one that passed, which is
-   * the failure the whole system exists to avoid (spec 0003).
+   * the failure the whole system exists to avoid (ADR-0017).
    */
   readonly exclude?: boolean;
 

@@ -409,12 +409,18 @@ describe.skipIf(!BROWSER_AVAILABLE)('M5 — collection under chromium', () => {
   });
 });
 
-describe.skipIf(BROWSER_AVAILABLE)('M5 — corpus under chromium', () => {
-  it.skip('needs a Chromium download: npx playwright install chromium', () => {});
-});
+// Announced at module scope, because that is the only place a reader of a
+// skipped run sees anything. `it.skip` titles are invisible under the default
+// reporter, which is the one CI uses.
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\nexamples/kitchen-sink (corpus under chromium): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
 
 /**
- * Spec 0001 acceptance, scored against the corpus's pre-declared ground truth.
+ * ADR-0018, scored against the corpus's pre-declared ground truth.
  *
  * Per-component hashes are the unit a history is kept in, so the questions that
  * matter are whether they move exactly when the corpus says something changed,
@@ -422,7 +428,7 @@ describe.skipIf(BROWSER_AVAILABLE)('M5 — corpus under chromium', () => {
  * here rather than on hand-written trees, because a hash that only behaves on
  * fixtures is a hash that has never met a real component boundary.
  */
-describe.skipIf(!BROWSER_AVAILABLE)('spec 0001 — per-component hashes', () => {
+describe.skipIf(!BROWSER_AVAILABLE)('ADR-0018 — per-component hashes', () => {
   function moved(pair: Pair): readonly string[] {
     const before = new Map(hashComponents(pair.base).map((h) => [h.component, h] as const));
     const after = hashComponents(pair.perturbed);

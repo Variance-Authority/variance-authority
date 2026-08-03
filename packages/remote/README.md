@@ -35,7 +35,7 @@ import { serveRenderer, connectRenderer } from '@variance-authority/remote/rende
 import { createPlaywrightRenderer } from '@variance-authority/playwright';
 
 // On the machine that pins its pixels:
-const server = await serveRenderer(await createPlaywrightRenderer({ viewport }), 7777);
+const server = await serveRenderer(await createPlaywrightRenderer(), 7777);
 
 // Anywhere else — the pipeline cannot tell the difference:
 const renderer = connectRenderer({ endpoint: 'http://pinned-runner:7777' });

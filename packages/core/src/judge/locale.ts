@@ -65,6 +65,44 @@ export interface LocaleComparison {
    * the profile had no layout engine.
    */
   readonly layoutObserved: boolean;
+
+  /**
+   * What the two trees did not have in common, and therefore what was not asked.
+   *
+   * {@link pairByPosition} refuses to guess across a structural difference: a
+   * node whose tag moved takes its whole subtree out of the comparison, and
+   * children past the shorter of the two lists are never reached. Both are the
+   * right call — a plural form with an extra element is not evidence about
+   * translation — and both make this function return **fewer findings**, which
+   * is the one direction a partial answer must never be reported in silently.
+   *
+   * A German plural that adds a `<span>`, or a locale whose date renders as
+   * `<time>` where English renders `<span>`, drops real strings out of the
+   * comparison. Without this field the run looks *cleaner* for it: zero
+   * untranslated strings, because zero strings were examined.
+   *
+   * Always present, never absent when the trees agree. `{ base: 0, other: 0 }`
+   * says the trees were walked and matched; a missing field would say nobody
+   * counted, and those are the two things this project exists to keep apart.
+   */
+  readonly uncompared: Uncompared;
+}
+
+export interface Uncompared {
+  /** Nodes in the base render that nothing in the other render was paired with. */
+  readonly base: number;
+  /** Nodes in the other render that nothing in the base render was paired with. */
+  readonly other: number;
+
+  /**
+   * Where pairing stopped, as paths in the *base* render, in document order.
+   *
+   * A count says the answer is partial; a path says where to look. Reported in
+   * the base render's addresses because that is the side a reader has a
+   * baseline for — the other locale's paths past a divergence are addresses in
+   * a tree nothing here compared.
+   */
+  readonly divergedAt: readonly NodePath[];
 }
 
 export interface LocaleOptions {
@@ -107,7 +145,7 @@ export function compareLocales(
   }
 
   const slack = options.slack ?? 1;
-  const pairs = pairByPosition(base.root, other.root);
+  const { pairs, uncompared } = pairByPosition(base.root, other.root);
 
   const findings: Finding[] = [];
   const identical: { node: SemanticNode; text: string; what: string }[] = [];
@@ -196,6 +234,7 @@ export function compareLocales(
     findings,
     ...(expansion !== undefined ? { expansion } : {}),
     layoutObserved,
+    uncompared,
   };
 }
 
@@ -323,12 +362,30 @@ interface Pair {
  * that branch rather than guessing, and the strings underneath it are simply not
  * compared. Under-reporting, which is the direction to fail in for a report that
  * does not block anything.
+ *
+ * **Under-reporting is only the safe direction while it is counted.** Silent, it
+ * is the failure this whole project refuses, wearing the most convincing
+ * disguise available: a subject whose tree diverged reports *fewer* untranslated
+ * strings than one that matched, so the locale nobody translated reads as the
+ * clean one. So every node the walk did not reach is counted, and every branch
+ * it stopped at is named.
  */
-function pairByPosition(base: SemanticNode, other: SemanticNode): readonly Pair[] {
+function pairByPosition(
+  base: SemanticNode,
+  other: SemanticNode,
+): { readonly pairs: readonly Pair[]; readonly uncompared: Uncompared } {
   const pairs: Pair[] = [];
+  const divergedAt: NodePath[] = [];
 
   const walk = (before: SemanticNode, after: SemanticNode, container?: Pair): void => {
-    if (before.tag !== after.tag) return;
+    if (before.tag !== after.tag) {
+      // This node and everything under it, on both sides. Recorded at the node
+      // that stopped the walk rather than at each of its descendants: one
+      // address a reader can open beats a list of addresses in a subtree that
+      // was never examined.
+      divergedAt.push(before.path);
+      return;
+    }
 
     const pair: Pair = {
       before,
@@ -341,11 +398,33 @@ function pairByPosition(base: SemanticNode, other: SemanticNode): readonly Pair[
     pairs.push(pair);
 
     const count = Math.min(before.children.length, after.children.length);
+    // The parent, because the unreached children are the ones the *shorter*
+    // list does not have — on whichever side that is, they have no counterpart
+    // to be addressed by.
+    if (before.children.length !== after.children.length) divergedAt.push(before.path);
+
     for (let index = 0; index < count; index += 1) {
       walk(before.children[index]!, after.children[index]!, pair);
     }
   };
 
   walk(base, other);
-  return pairs;
+
+  // Total minus paired, per side. A pair consumes exactly one node from each, so
+  // the two subtractions are independent and a lopsided divergence says which
+  // render carried the extra material.
+  return {
+    pairs,
+    uncompared: {
+      base: countNodes(base) - pairs.length,
+      other: countNodes(other) - pairs.length,
+      divergedAt,
+    },
+  };
+}
+
+function countNodes(node: SemanticNode): number {
+  let total = 1;
+  for (const child of node.children) total += countNodes(child);
+  return total;
 }
