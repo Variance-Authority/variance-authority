@@ -22,6 +22,8 @@ import {
   createLfsStore,
   type CommandRunner,
 } from '@variance-authority/store';
+import { createCloudflareStore } from '@variance-authority/cloudflare/store';
+import { createMemoryR2, createSqliteD1 } from '@variance-authority/cloudflare/testing';
 import { observeAgainstBaseline, type RasterVerdict } from './observe.js';
 
 /**
@@ -124,8 +126,10 @@ const TRACKED: CommandRunner = async (_command, args) =>
 
 const directories: string[] = [];
 const servers: StoreServer[] = [];
+const databases: { close(): void }[] = [];
 
 afterEach(async () => {
+  for (const database of databases.splice(0)) database.close();
   await Promise.all(servers.splice(0).map((server) => server.close()));
   await Promise.all(
     directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
@@ -158,6 +162,17 @@ const IMPLEMENTATIONS: readonly { readonly name: string; open(): Promise<RasterS
       const server = await serveRasterStore(createDurableStore(await directory()));
       servers.push(server);
       return createRemoteStore({ endpoint: server.url });
+    },
+  },
+  {
+    // A database and an object store, which is the first backend here that keeps
+    // the sidecar and the image in two different services. If a split pair can
+    // change a verdict, this is where it shows.
+    name: 'Cloudflare',
+    async open(): Promise<RasterStore> {
+      const db = await createSqliteD1();
+      databases.push(db);
+      return createCloudflareStore({ db, bucket: createMemoryR2(), project: 'parity' });
     },
   },
 ];
@@ -223,7 +238,12 @@ describe('switching where baselines are kept', () => {
       }
 
       const expected = { verdict: scenario.verdict, changed: scenario.changed };
-      expect(answers).toEqual({ durable: expected, 'git-LFS': expected, remote: expected });
+      expect(answers).toEqual({
+        durable: expected,
+        'git-LFS': expected,
+        remote: expected,
+        Cloudflare: expected,
+      });
     });
   }
 
@@ -252,7 +272,12 @@ describe('switching where baselines are kept', () => {
       theirs: { documentDigest: documentDigest(SAME), comparable: false, storedUnder: RUNNER },
       neither: null,
     };
-    expect(answers).toEqual({ durable: expected, 'git-LFS': expected, remote: expected });
+    expect(answers).toEqual({
+      durable: expected,
+      'git-LFS': expected,
+      remote: expected,
+      Cloudflare: expected,
+    });
   });
 
   it('explains an incomparable baseline by naming the machine that wrote it', async () => {

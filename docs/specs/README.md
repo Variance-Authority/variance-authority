@@ -6,7 +6,7 @@ that decide whether it is done.
 An ADR records a decision that constrains code that exists. A spec here records
 what a capability must do, written before the code and kept until the decisions
 it forced have been lifted into ADRs — at which point the spec is deleted. **A
-spec is therefore not a promise that the capability is missing.** Of the nine
+spec is therefore not a promise that the capability is missing.** Of the ten
 below, four are `built` and stay only because nobody has written their ADRs yet,
 three more have code that no consumer path reaches, and two are greenfield. The
 `Status` column, not the presence of the file, is what says which is which.
@@ -42,6 +42,7 @@ Ordered by dependency. Later entries assume earlier ones.
 | [0007](0007-linux-verification.md) | Linux verification | 0003 | `not built` | Every measurement comes from one Mac and one Chromium. |
 | [0008](0008-locale-runs.md) | Locale runs | 0003 | `built, not wired` | `compareLocales` ships in `core/judge` and answers two questions no image can be asked. Nothing calls it from a run; a locale comparison still means hand-writing a test. |
 | [0009](0009-inspection-rules.md) | Inspection rules, and where they stop | 0003 | `built` | Nine rules over one snapshot, and a written boundary: the list stays at what a stored snapshot can decide and does not grow toward axe. |
+| [0010](0010-cloudflare-review-backend.md) | Self-hosted review backend on Cloudflare | 0002, 0003, 0004, 0005 | `built, never run` | `@variance-authority/cloudflare` implements the baseline store, the history backend, the review model and the UI against D1 and R2. Verified through `node:sqlite` and an in-memory bucket; no deployment exists. |
 
 ## Standing constraints
 

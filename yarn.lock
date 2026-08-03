@@ -1455,6 +1455,24 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/cloudflare@workspace:^, @variance-authority/cloudflare@workspace:packages/cloudflare":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/cloudflare@workspace:packages/cloudflare"
+  dependencies:
+    "@types/react": "npm:^19"
+    "@types/react-dom": "npm:^19"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/history": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/remote": "workspace:^"
+    "@variance-authority/report": "workspace:^"
+    "@variance-authority/server": "workspace:^"
+    pngjs: "npm:^7.0.0"
+    react: "npm:^19"
+    react-dom: "npm:^19"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/core@workspace:^, @variance-authority/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@variance-authority/core@workspace:packages/core"
@@ -1538,6 +1556,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/observe@workspace:packages/observe"
   dependencies:
+    "@variance-authority/cloudflare": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/png": "workspace:^"
     "@variance-authority/raster": "workspace:^"
@@ -1607,7 +1626,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/server@workspace:packages/server":
+"@variance-authority/server@workspace:^, @variance-authority/server@workspace:packages/server":
   version: 0.0.0-use.local
   resolution: "@variance-authority/server@workspace:packages/server"
   dependencies:

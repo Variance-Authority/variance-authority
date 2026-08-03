@@ -18,8 +18,12 @@ edit* ([journal 0014](docs/context/journal/0014-the-incumbent.md)). A run also
 reports what no comparison can reach: accessibility defects present on the first
 run, and, across two locales, which string nobody translated and which box
 stopped fitting ([journal 0015](docs/context/journal/0015-without-a-baseline.md)).
-Nothing is published and there is no hosted anything. Read [what does not exist
-yet](#what-does-not-exist-yet) before believing any of the rest.
+A review surface with an approval workflow now exists too — builds, a docket
+ranked by cause, and an approval that promotes the candidate the run already
+produced — served from an operator's own Cloudflare account and **never once
+deployed to one**. Nothing is published and there is no hosted anything. Read
+[what does not exist yet](#what-does-not-exist-yet) before believing any of the
+rest.
 
 ---
 
@@ -164,9 +168,12 @@ so `incomparable` is unavailable — or a document, so ranking falls back to are
 which we measured as backwards. Import to get moving, re-record as you go.
 
 **What this does not cover:** the hosted products are half comparison and half
-product, and the product half — a review UI, a team approval workflow, a
-cross-browser grid, change detection at repository scale — is not confronted here
-at all. [`cases/README.md`](cases/README.md) says so at more length.
+product. Of the product half, a review UI and a team approval workflow now exist
+as code — [`@variance-authority/cloudflare`](packages/cloudflare), the operator's
+own D1 and R2, [spec 0010](docs/specs/0010-cloudflare-review-backend.md) — and
+**have never been deployed to Cloudflare**. A cross-browser grid and change
+detection at repository scale are not confronted at all.
+[`cases/README.md`](cases/README.md) says so at more length.
 
 ---
 
@@ -324,6 +331,7 @@ tiers are cheap in practice and not only on paper.
 | [`store`](packages/store) | a filesystem | baselines on disk, and in git-LFS |
 | [`remote`](packages/remote) | a socket | a renderer and a store across a hop |
 | [`server`](packages/server) | a database | the history service you run |
+| [`cloudflare`](packages/cloudflare) | your own D1 and R2 | baselines, history, and the review-and-approve surface, in an account you control. Never deployed |
 | [`mcp`](packages/mcp) | stdio | the observation, exposed to an agent |
 
 **Composes the above**
@@ -423,9 +431,19 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   the two collection paths implement one ruleset — not that the ruleset holds on
   someone else's component library.
 - **Parity with a hosted product.** The comparison half is measured against one
-  real incumbent ([`cases/`](cases)). The product half — review UI, team
-  approvals, a cross-browser grid, repository-scale change detection — does not
-  exist here and is not claimed.
+  real incumbent ([`cases/`](cases)). Of the product half, a review UI and team
+  approvals are written and unit-tested but have never been deployed — see the
+  next entry. A cross-browser grid and repository-scale change detection do not
+  exist here and are not claimed.
+- **A deployment of the review backend.**
+  [`@variance-authority/cloudflare`](packages/cloudflare) implements the baseline
+  store, the history backend, the build-and-approve model and the review surface
+  against D1 and R2, and **has never run on Cloudflare.** D1 is SQLite, so its
+  93 tests execute the real SQL through `node:sqlite` against an in-memory
+  bucket — which verifies the queries, the triggers, the promotion path and the
+  routes, and verifies nothing about the platform: batch atomicity, quotas,
+  object-size ceilings and concurrent Workers are all unmeasured
+  ([spec 0010](docs/specs/0010-cloudflare-review-backend.md)).
 - **A real agent.** The MCP tools are shaped by argument about what an agent
   needs and tested against text, not against an agent that used them and either
   fixed the thing or did not.

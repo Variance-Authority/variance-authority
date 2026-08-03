@@ -23,6 +23,7 @@
     "@variance-authority/raster": "workspace:^"
   },
   "devDependencies": {
+    "@variance-authority/cloudflare": "workspace:^",
     "@variance-authority/remote": "workspace:^",
     "@variance-authority/store": "workspace:^",
     "pngjs": "^7.0.0"

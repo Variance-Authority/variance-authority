@@ -142,6 +142,12 @@ change detection at repository scale, a place for a designer to click "approve".
 Nothing in `cases/` says anything about any of that, and a comparison that
 scored only the half we happen to have built would be an advertisement.
 
+Two of those now exist as code — a review UI and an approval workflow, in
+[`@variance-authority/cloudflare`](../packages/cloudflare) — and that changes
+nothing here. No scenario in `cases/` exercises them, nothing in this directory
+scores them against anybody, and the package has never been deployed. A product
+half that has not been run is not a product half that has been compared.
+
 What *does* carry across is claim 1. Their comparison is a comparison of images,
 so the invisible category is invisible to them too, whatever the review UI around
 it looks like. That is an argument from the shape of the thing rather than a
