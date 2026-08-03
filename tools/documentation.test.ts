@@ -852,6 +852,46 @@ describe('the documented command line is the real one', () => {
 });
 
 /**
+ * A count of the files this suite reads, stated in prose, is the count.
+ *
+ * Trivial to check and it has been wrong twice. The second time was a number
+ * measured *mid-transaction* — two files staged as deleted and two not yet
+ * tracked — which is the failure worth guarding, because the writer had just
+ * run the command and had every reason to believe the answer.
+ *
+ * Deliberately narrow: only the phrase "N markdown files", which can mean one
+ * thing. A rule that tried to check every number in the prose would be checking
+ * measurements, and a measurement is a claim about a run rather than about the
+ * repository as it stands.
+ *
+ * **"the other N" is read as N + 1**, because the root README says "this and the
+ * other 68 markdown files" and is right. The alternative was to reword that
+ * sentence so a simpler rule would accept it, which is the wrong direction: a
+ * checker that quietly forces one phrasing is a checker that edits the prose it
+ * was supposed to be checking.
+ */
+describe('a stated file count is the file count', () => {
+  const STATED = MARKDOWN.flatMap((file) => {
+    const text = prose(file);
+    return [...text.matchAll(/(the other )?(\d+)\s+markdown files/g)].map(
+      (match) =>
+        [
+          `${file}:${lineOf(text, match.index)}`,
+          Number(match[2]) + (match[1] === undefined ? 0 : 1),
+        ] as const,
+    );
+  });
+
+  it('finds a count to check, so this rule cannot pass by reading nothing', () => {
+    expect(STATED.length).toBeGreaterThan(0);
+  });
+
+  it.each(STATED)('%s', (_where, stated) => {
+    expect(stated).toBe(MARKDOWN.length);
+  });
+});
+
+/**
  * A spec says what it is, once.
  *
  * Three places carry a spec's status — its own header, the vocabulary that
