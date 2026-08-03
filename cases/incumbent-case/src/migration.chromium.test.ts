@@ -17,6 +17,8 @@ import {
   type SourceIndex,
 } from '@variance-authority/core';
 import { comparePngs } from '@variance-authority/png';
+// @ts-expect-error — a plain .mjs script, deliberately not part of the TS build.
+import { stale } from '../scripts/bundle.mjs';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { SCENARIOS } from './scenarios.js';
 
@@ -65,7 +67,10 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
-const READY = BROWSER_AVAILABLE && existsSync(BUNDLE) && existsSync(THEIRS);
+// Gated on `stale()` like the other two suites. It reads the same `case.js`,
+// so a bundle they refuse is one it must not quietly measure against.
+const STALE = stale();
+const READY = BROWSER_AVAILABLE && existsSync(BUNDLE) && existsSync(THEIRS) && STALE === null;
 
 function buildSourceIndex(): SourceIndex {
   const directory = join(PACKAGE_ROOT, 'src');
@@ -192,7 +197,8 @@ if (!READY) {
     '\ncases/incumbent-case (migration): skipped.' +
       (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
       (existsSync(BUNDLE) ? '' : '\n  no page bundle') +
-      (existsSync(THEIRS) ? '' : "\n  the incumbent has not recorded a baseline") +
+      (existsSync(THEIRS) ? '' : '\n  the incumbent has not recorded a baseline') +
+      (STALE === null ? '' : `\n  ${STALE}`) +
       '\n  yarn workspace @variance-authority/case-incumbent incumbent\n',
   );
 }

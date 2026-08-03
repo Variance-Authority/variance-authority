@@ -128,10 +128,23 @@ head-to-head stayed green against yesterday's implementation for a whole session
 
 That is a silently skipped case in a different shape — it reads in a summary
 exactly like one that ran and agreed. The bundle now writes esbuild's own input
-list and the case **refuses to run** when it is older than any of them, naming
-the file and the command. Rebuilding instead would be worse: our arm would then
-observe a newer page than the one the incumbent recorded its baselines against,
-and a head-to-head between two builds measures the builds.
+list with a digest of each, and the case **refuses to run** when any of them is
+not the file it was built from, naming the file and the command. Rebuilding
+instead would be worse: our arm would then observe a newer page than the one the
+incumbent recorded its baselines against, and a head-to-head between two builds
+measures the builds.
+
+**It compared timestamps first, and that was wrong in both directions.**
+`yarn typecheck` is `tsc --build --force`, which re-emits every `dist` file with
+the bytes already in it — 55 of the 68 recorded inputs get a new mtime and the
+bundle gets none, so the guard refused a correct bundle and 44 tests skipped. It
+fired on the two commands this repository tells a developer to run in sequence,
+and the only way out was to re-record the incumbent's baselines: the guard's noise
+was teaching a reader to run the command that silences it. In the other direction
+an mtime that moves *backwards* — a restored cache, an archive unpacked with its
+times — left a changed file looking older than the bundle and passed, which is the
+original failure exactly. Both are gone, and `bundle.test.ts` holds them: the rule
+this section states was prose with nothing behind it until then.
 
 ## What is not established here, and cannot be
 

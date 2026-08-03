@@ -53,7 +53,11 @@ const GATED: readonly string[] = execFileSync(
   { cwd: ROOT, encoding: 'utf8' },
 )
   .trim()
-  .split('\n');
+  .split('\n')
+  // This file names the gate in order to find it, and is not gated by it. Left
+  // in, it discovers itself, finds no announcement, and fails — a checker whose
+  // first finding is itself teaches everyone to distrust its second.
+  .filter((file) => !file.startsWith('tools/'));
 
 /** Every `console.warn` a reader reaches during collection: top level, or one `if` deep. */
 function announcements(file: string): readonly string[] {
