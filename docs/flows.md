@@ -15,7 +15,7 @@ less. What changes is what you can *ask*, and who can answer.
 |---|---|---|---|
 | 0. Ephemeral | nothing | inspection findings, locale comparison | yes |
 | 1. git-LFS | git-lfs | regression, in the repository | yes |
-| 2. Shared cache | a CI cache | cold runners stop re-rendering | **no** — [spec 0011](specs/0011-storage-and-cache-primitives.md) |
+| 2. Shared cache | a CI cache | cold runners stop re-rendering; documents, so the docket ranks by cause | **no** — [spec 0011](specs/0011-storage-and-cache-primitives.md) |
 | 3. Remote baselines | one service, one token | no bot commits, no LFS quota | yes |
 | 4. Tribunal | a database and a bucket, two tokens | a review UI, approval without a commit | yes |
 | 5. History | a history endpoint | drift across runs | ships, **no caller** — [spec 0002](specs/0002-history-store.md) |
@@ -42,6 +42,13 @@ read one snapshot and name a component and a file, plus locale comparison. This 
 the answer to the usual adoption cost — a visual-regression tool says nothing until
 it has a history, and this rung says something on the first run of a fresh
 checkout.
+
+It is also the cleanest demonstration that **the image is not the unit of review.**
+Nothing is stored here and there is still something to decide about, because a
+finding resolves to a component, a file and a reason by the same provenance chain a
+ranked region does. The pixels are one lens over the artifact; accessibility is
+another; locale is a third. What a reviewer is handed is the union of what the
+lenses found, and at this rung that union contains no images at all.
 
 **You cannot** detect a regression. `find` returns nothing, always, because there
 is no past to return. The config refuses a `baselines` key here rather than
@@ -83,7 +90,7 @@ is `variance accept` and a commit, or `commit-baselines: true` on the action.
   green builds and a 22px change nobody ever sees. Only rung 5 answers this, and
   it is the one thing no amount of care at this rung substitutes for.
 
-## Rung 2 — a shared render cache
+## Rung 2 — a shared cache
 
 **Not built.** Recorded here because the gap is easy to mistake for a
 misconfiguration.
@@ -101,6 +108,28 @@ baseline, where a lost lookup destroys the thing being compared against, and wro
 for a cache, where the right answer to every failure is to re-render. Splitting
 `RenderCache` out with the never-throws rule is what makes a CI cache, an S3
 bucket, or the tribunal a configuration choice instead of a fork.
+
+**And images are not the only thing this rung would hold.** The other artifact is
+the *document* each baseline was painted from — which is what supplies `before`
+and `causes`, and therefore what stops the docket ranking by area. It cannot go in
+the repository, and the reason is not its size (about 1KB gzipped, 14.1% of image
+bytes). A baseline image escapes the objection to committing derived state because
+it is never merged — a conflict is settled by taking one side. A document is
+structured text: git will line-merge two regenerated copies into a third that is
+neither, and nothing downstream can tell. Noisy, derived and conflict-prone is
+exactly the profile of a thing that belongs in a cache.
+
+Content addressing is what makes it tractable, because the awkward part of a
+shared cache is knowing when to delete. Key a document by the digest the sidecar
+already carries and the question disappears: a digest addresses exactly one
+document, so an entry is never stale, only absent — a branch may write without
+colliding with main, and eviction costs a lookup rather than an answer. Nothing
+has to be deleted at the right time, because nothing has to be deleted.
+
+**The consequence is how far back you can look.** Artifacts are what lenses read,
+and a lens written next year reports on everything still held. Held in a cache,
+that reaches until eviction; held in a service, indefinitely. Which is a better
+reason to climb to rung 4 than storage capacity is.
 
 ## Rung 3 — remote baselines
 

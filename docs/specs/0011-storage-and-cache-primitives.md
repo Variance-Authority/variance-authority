@@ -1,7 +1,7 @@
 # Spec 0011 — Storage and cache primitives
 
 **Missing:** four seams — a reduction, a render cache that is not the baseline
-store, a baseline layout, and an inspector. Plus one thing that must *not* be
+store, a baseline layout, and a lens. Plus one thing that must *not* be
 built, recorded here so nobody builds it.
 **Built on:** [ADR-0003](../context/adr/0003-cruft-removal-and-css-applicability.md)
 (pruning), [ADR-0007](../context/adr/0007-subject-boundary-is-the-component-tree.md)
@@ -25,7 +25,7 @@ the two that remain are not the two they look like.
 | Clean the HTML, match the CSS to what survives | CSS applicability pruning ships in `@variance-authority/dom`: 1007 rules to 1 on the todomvc corpus (ADR-0003). Structural aliasing ships for the *semantic* snapshot. | Nothing reduces the **render** document. It keeps ids and classes deliberately, and its digest churns on both. |
 | One global key, or a split by region | Component boundaries and per-band hashes ship, in `packages/core/src/attribute/component-hash.ts:45`. The boundary is the component tree, not an operator's choice (ADR-0007). | Nothing calls it from a run. And a per-region *raster* key is unsound, not merely unbuilt. |
 | Where the cache lives — PNG, CI cache, S3, service | Two backends implement `cached`/`cache`: a directory under `by-document/`, and a wire. | The cache is welded to the baseline store, and the two have opposite loss semantics. |
-| Scans, and how they reason about cache | `inspect packages/core/src/judge/inspect.ts:136` ships with nine rules; `compareLocales` adds two; both band as `a11y` (ADR-0015). | The rule set is a closed union. No operator can add one. |
+| Scans, and how they reason about cache | `inspect packages/core/src/judge/inspect.ts:136` ships with nine rules; `compareLocales` adds two; both band as `a11y` (ADR-0015). | The rule set is a closed union, and — the deeper miss — inspection is modelled as a *scan beside* the comparison rather than as a second **lens over the same artifact**. See §4. |
 | Where files live | `directory`, `lfs`, `remote` (ADR-0016). | The layout is a private function of one backend, so "next to the component" is unreachable. |
 
 The unifying constraint, and the reason these are one spec: **every item on that
@@ -134,11 +134,31 @@ backwards: a container that only reflowed outranks the edit by 6×. Since the PR
 comment is the whole review surface when no service is deployed, this is the gap
 that costs the most.
 
-The cost of closing it is measured, not estimated: storing the document beside the
-baseline is **14.1% of image bytes** across the fifteen todomvc subjects — 8.2% to
-10.5% for page-sized subjects, about 1KB gzipped each, against 107KB of PNG. So
-the sidecar should grow rather than be squeezed into the image, which inverts the
-premise the question started from.
+The cost of closing it is measured, not estimated: a document is **14.1% of image
+bytes** across the fifteen todomvc subjects — 8.2% to 10.5% for page-sized
+subjects, about 1KB gzipped each, against 107KB of PNG.
+
+**It does not go in the repository, and the reason is not size.** A document is
+derived, it changes on every edit, and it is structured text. Images escape the
+usual objection to committing derived state — that it puts a machine-produced
+artifact under human merge resolution — because a baseline is never *merged*: a
+conflict is settled by taking one side, in seconds, and cannot be got subtly
+half-right. **A document does not escape it.** Git will line-merge two
+regenerated documents into a third that is neither, and nothing downstream can
+tell. Committing it would buy cause-ranking with a class of corruption that the
+one file format in the store was chosen to avoid.
+
+So it belongs in the shared cache of §3, **content-addressed by the digest the
+sidecar already carries**. That is what dissolves the awkward part — knowing when
+to delete. A digest addresses exactly one document, so a cache entry is never
+stale, only absent; a branch may write safely because it cannot collide with a
+different document; and eviction costs a lookup rather than correctness. Nothing
+is ever deleted at the right time, because nothing ever has to be deleted.
+
+The degradation is graceful and must be **stated**: no document, no causes, so the
+docket ranks by area — which is today's behaviour, and the report has to say which
+ordering it used. A ranking that silently changes meaning with cache weather is
+worse than the bad ranking, because nobody can tell which one they are reading.
 
 ## 3. Where the cache lives — and why it must stop being the store
 
@@ -273,40 +293,66 @@ Healing is a separate command — a `heal` verb the CLI does not yet have — an
 a step inside `run`, because `run` must not write the baseline store: a gate that
 records is not a gate (ADR-0017).
 
-## 4. Scans — what they cache, which is nothing
+## 4. Lenses — and what is actually reviewable
 
-Nine rules ship in `inspect`, two more in `compareLocales`, and both band as
-`a11y` so one `blocking` policy covers regressions found by comparison and defects
-found by inspection.
+The framing this spec opened with was wrong, and correcting it is the largest
+change in it. Inspection was filed as *scans*: a side capability, adjacent to the
+comparison, rendered underneath it. It is not adjacent. It is a second **lens** over
+the same artifact, and the comparison is merely the first.
 
-How they reason about cache: **they do not, and that is the property to protect.**
+Look at what each produces. A ranked region resolves to a component, a file, and a
+reason. A `Finding` carries `component`, `owners`, `where`, `what` and a `band` — a
+component, a file, and a reason, reached through the same provenance chain. This
+project's thesis is that a change resolves to a component and a file rather than to
+a pixel count; a defect resolves exactly the same way, and nothing in the resulting
+sentence says which lens produced it.
 
-A finding is a pure function of a stored artifact. Nothing is stored, so nothing
-invalidates, so a rule written today reports on a snapshot recorded last year with
-no re-render and no mass-invalidation event. That is the capability `inspect`
-claims over a live-DOM scanner — it decides offline, from a stored artifact, months
-later — and it is bought entirely by not caching.
+So:
+
+> **Images are not the only artifact held, and they are not the unit of review.
+> What is reviewable is the union of what the lenses found.**
+
+Rung 0 of the [setup ladder](../flows.md) is the proof: ephemeral retention stores
+no image at all, and still has something to review.
+
+Two kinds of lens, distinguished by what they read.
+
+**Artifact lenses** read a stored snapshot or document — `inspect`'s nine rules,
+`compareLocales`'s two, and whatever anyone adds later. Each is a pure function of
+something already recorded, so nothing is cached and nothing invalidates. The
+payoff is retroactivity: **a lens written today reports on everything ever
+stored**, with no re-render and no mass-invalidation event. That is the capability
+`inspect` claims over a live-DOM scanner, and it is bought entirely by not caching.
+
+**The raster lens** reads two images. It is machine-bound, so it needs the identity
+partition, a store, and a cache — the whole apparatus this spec is about. One lens,
+and much the most expensive.
+
+Which gives the real rule, sharper than "an inspector may not read pixels":
+
+> **A lens that reads the raster pays for a machine. A lens that reads the artifact
+> is free and retroactive.** Nobody is forbidden the pixels; they are quoted the
+> price — and the price is why nine rules ship and no contrast rule does.
 
 ```ts
 // Proposed.
-export interface Inspector {
+export interface Lens {
   readonly name: string;
-  inspect(snapshot: SemanticSnapshot): readonly Finding[];
+  readonly band: Band;
+  look(artifact: SemanticSnapshot): readonly Finding[];
 }
 ```
 
-> **An inspector reads the snapshot and never the raster.** That single rule is
-> what keeps it storage-free and version-free. A scan over pixels needs the image,
-> which needs a machine, which needs the identity partition, which needs a cache,
-> which needs a version in the environment key — the entire apparatus, for a rule.
-> A scan over the snapshot needs none of it.
+Contrast stays refused, and an operator's own lens cannot smuggle it in: the
+background a glyph is painted on is a stacking fact a snapshot does not carry, and
+a rule that is right most of the time about accessibility is switched off after its
+second false alarm and takes the working ones with it. That is a statement about
+what a stored snapshot can decide (ADR-0015), not about who wrote the rule.
 
-ADR-0015 drew this line for the built-in rules. The seam makes it the price of
-admission for anyone else's, and the corollary should be said out loud: **contrast
-stays refused, and an operator's own inspector cannot smuggle it in**, because the
-background a glyph is painted on is a stacking fact that a snapshot does not carry.
-A rule that is right most of the time about accessibility gets switched off after
-its second false alarm and takes the working ones with it.
+**What this costs the ladder.** Retroactivity reaches exactly as far back as the
+artifacts do — in a cache, until eviction; in a service, indefinitely. So *how far
+back can a new lens look* is a real difference between rung 2 and rung 4, and a
+better argument for deploying the service than storage capacity ever was.
 
 ## 5. Where files live — layout as a value
 
@@ -381,10 +427,15 @@ In this order, because each unblocks the next.
 2. **`BaselineLayout` as a value**, with the identity partition applied by the
    store. Contained in `@variance-authority/store`; the existing path becomes the
    default layout and nothing moves on disk.
-3. **The `Inspector` seam**, with `inspect`'s nine rules as the first
-   implementation of it, and the snapshot-only rule enforced by the signature.
-4. **A region index beside the baseline**, so the durable path has `before` and
-   `causes` and the docket stops ranking by area. Measured at 14.1% of image bytes.
+3. **The `Lens` seam**, with `inspect`'s nine rules as its first implementation,
+   and the review surface leading with the union of what the lenses found rather
+   than with the images. The pixels are one lens, not the subject the others hang
+   off.
+4. **A document cache**, content-addressed by the digest the sidecar already
+   carries, so the durable path has `before` and `causes` and the docket stops
+   ranking by area — and so a lens written later has something to look back at.
+   Measured at 14.1% of image bytes; it goes in the cache and not the repository,
+   for the merge reason in §2.
 5. **The reduction package and the `heal` command**, together. A reduction ruleset
    with no heal is a mass re-render on every version bump, so neither half ships
    alone. The corpus score is the acceptance: strict-identical renders before and
@@ -398,5 +449,5 @@ make it safe to ship at all.
 
 **Measured while writing this, so nobody re-derives it.** pngjs 7.0.0 writes no
 `tEXt`, reads none, and strips one on re-encode without erroring — which is why §3
-puts nothing in the image. Storing the document beside the baseline costs 14.1% of
-image bytes across the fifteen todomvc subjects. Neither number is an estimate.
+puts nothing in the image. A document costs 14.1% of image bytes across the fifteen
+todomvc subjects. Neither number is an estimate.
