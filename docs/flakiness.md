@@ -63,9 +63,9 @@ The other half of flakiness is not the camera, it is the suite: subject B fails
 only when subject A ran first. The usual fix is to rebuild the world between
 subjects, which prevents the problem by paying for it on every subject forever.
 
-We do not rinse. We photograph shared state around each subject and derive what
-each subject *read* from its own capture, so pollution becomes a read-write
-conflict with a named writer:
+We do not rinse. `@variance-authority/session` photographs shared state around
+each subject and derives what each subject *read* from its own capture, so
+pollution becomes a read-write conflict with a named writer:
 
 ```
 [confirmed] story:card
@@ -80,6 +80,17 @@ conflict with a named writer:
 
 Measured at **3.4× faster** than rinsing, with the probe costing **~2%** of
 session time. Details in [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md).
+
+**A `variance run` does none of this**, and until 2026-08-04 this section said
+"we" in a voice that implied otherwise. The corner-cut ships — the harness holds
+one page across every capture, and a real run calls the adopter's collector in a
+loop — but the probe is a package nothing depends on, so a run today neither
+rinses *nor* detects, and a leak lands in the verdict as a change. Worse, the
+detection that was built re-runs a subject **in the same session**, which proves
+a hash is unstable and cannot see a leak that is deterministic — the kind that
+turns into a false regression rather than a flake. Both gaps, what closing them
+costs, and the one case where it costs more than isolation, are in
+[spec 0012](specs/0012-order-dependence-in-a-run.md).
 
 ## Where we differ from the state of the art
 
