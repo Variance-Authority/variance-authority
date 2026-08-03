@@ -4,6 +4,7 @@ import {
   RasterStoreError,
   REFUSAL,
   identityFrom,
+  neverFails,
   rasterFrom,
   recordFrom,
   type BaselineKey,
@@ -112,27 +113,37 @@ export function createRemoteStore(options: RemoteStoreOptions): RasterStore {
       await call(options, BASELINE_PUT_PATH, { key, raster });
     },
 
-    async cached(digest: Digest, identity: RenderIdentity): Promise<Raster | null> {
-      // The cache path throws on failure too, though a cache miss costs only a
-      // re-render. A store that answered "miss" to an outage would turn a broken
-      // endpoint into a run that is merely slow, and the operator would find out
-      // when `put` finally failed — after the renders had been paid for.
-      const body = recordFrom(await call(options, CACHE_FIND_PATH, { digest, identity }));
-      if (body === null || !('raster' in body)) {
-        throw malformed(options.endpoint, CACHE_FIND_PATH, 'no `raster` field');
-      }
-      if (body.raster === null) return null;
+    // This used to throw, and the comment that stood here argued for it while
+    // conceding the case against: *"the cache path throws on failure too, though
+    // a cache miss costs only a re-render"*. It reasoned that answering "miss"
+    // to an outage would turn a broken endpoint into a run that is merely slow.
+    // It would — and a run that is merely slow is the correct outcome, because
+    // the endpoint being down changes nothing about what any verdict should be.
+    // The baseline half of this store still refuses out loud, which is where an
+    // outage does change a verdict and therefore has to stop the run.
+    //
+    // The malformed-body checks stay inside the wrapper on purpose. A server
+    // answering nonsense is still a miss to this caller, and losing the shape
+    // check would let a `{ raster: 3 }` through as an image.
+    renderCache: neverFails({
+      async get(digest: Digest, identity: RenderIdentity): Promise<Raster | null> {
+        const body = recordFrom(await call(options, CACHE_FIND_PATH, { digest, identity }));
+        if (body === null || !('raster' in body)) {
+          throw malformed(options.endpoint, CACHE_FIND_PATH, 'no `raster` field');
+        }
+        if (body.raster === null) return null;
 
-      const raster = rasterFrom(body.raster);
-      if (raster === null) {
-        throw malformed(options.endpoint, CACHE_FIND_PATH, 'a `raster` that is not a raster');
-      }
-      return raster;
-    },
+        const raster = rasterFrom(body.raster);
+        if (raster === null) {
+          throw malformed(options.endpoint, CACHE_FIND_PATH, 'a `raster` that is not a raster');
+        }
+        return raster;
+      },
 
-    async cache(raster: Raster): Promise<void> {
-      await call(options, CACHE_PUT_PATH, { raster });
-    },
+      async put(raster: Raster): Promise<void> {
+        await call(options, CACHE_PUT_PATH, { raster });
+      },
+    }),
   };
 }
 
@@ -421,12 +432,15 @@ async function handle(
         return;
       }
       case CACHE_FIND_PATH: {
-        const raster = await store.cached(body.digest as Digest, body.identity as RenderIdentity);
+        const raster = await store.renderCache.get(
+          body.digest as Digest,
+          body.identity as RenderIdentity,
+        );
         send(response, 200, { raster });
         return;
       }
       case CACHE_PUT_PATH: {
-        await store.cache(body.raster as Raster);
+        await store.renderCache.put(body.raster as Raster);
         send(response, 200, { ok: true });
         return;
       }

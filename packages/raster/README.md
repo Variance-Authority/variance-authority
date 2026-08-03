@@ -35,8 +35,12 @@ socket.
 - **`Renderer`** — the contract every renderer satisfies, local or two networks
   away, plus `identityFor` (the lookup key and the write key must be one value).
 - **`RasterStore`** — the contract every backend satisfies, plus the in-memory
-  store, `renderCached`, and the checks a stored record passes before it is
-  believed, wherever it arrived from.
+  store and the checks a stored record passes before it is believed, wherever it
+  arrived from. A store failure is never a verdict: every one of them throws.
+- **`RenderCache`** — the other half of what a store used to be, split out because
+  the two have opposite loss semantics. Losing a baseline is fatal; losing a cache
+  entry costs a render, so **a `RenderCache` never throws** and `neverFails` holds
+  an implementation to that at construction.
 - **`DiffPolicy`** — `DEFAULT_POLICY` and `STRICT_POLICY`. A threshold and an
   antialiasing rule decide verdicts and belong in a plan's identity, and none of
   that requires the ability to decode a PNG.

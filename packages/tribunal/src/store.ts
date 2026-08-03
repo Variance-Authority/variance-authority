@@ -3,6 +3,7 @@ import {
   REFUSAL,
   RasterStoreError,
   messageOf,
+  neverFails,
   sidecarFrom,
   type BaselineKey,
   type Described,
@@ -167,60 +168,63 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
       );
     },
 
-    async cached(digest, identity): Promise<Raster | null> {
-      const where = `the render cache for document ${digest}`;
-      const row = await guard(
-        () =>
-          db
-            .prepare(
-              `SELECT identity, document_digest, width, height, missing_fonts, object_key
-                 FROM render_cache
-                WHERE project = ? AND identity_digest = ? AND document_digest = ?`,
-            )
-            .bind(project, identityDigest(identity), digest)
-            .first<SidecarRow>(),
-        where,
-      );
-      if (row === null) return null;
+    // Wrapped, so a bucket outage costs this run its renders and not its exit
+    // code. The comment that stood here argued the other way — that answering
+    // "miss" to an outage turns a broken bucket into a run that is merely slow —
+    // and a run that is merely slow is the correct outcome: nothing about the
+    // bucket being unreachable changes what any verdict should be. The baseline
+    // half above still refuses out loud, where an outage genuinely would.
+    renderCache: neverFails({
+      async get(digest, identity): Promise<Raster | null> {
+        const where = `the render cache for document ${digest}`;
+        const row = await guard(
+          () =>
+            db
+              .prepare(
+                `SELECT identity, document_digest, width, height, missing_fonts, object_key
+                   FROM render_cache
+                  WHERE project = ? AND identity_digest = ? AND document_digest = ?`,
+              )
+              .bind(project, identityDigest(identity), digest)
+              .first<SidecarRow>(),
+          where,
+        );
+        if (row === null) return null;
 
-      // A cache miss costs a re-render and a cache *failure* costs the run, and
-      // they are still not the same thing. A store that answered "miss" to an
-      // outage would turn a broken bucket into a run that is merely slow, and the
-      // operator would find out when `put` finally failed — after every render had
-      // already been paid for.
-      return { ...parse(row, where), bytes: await fetchBytes(bucket, row.object_key) };
-    },
+        return { ...parse(row, where), bytes: await fetchBytes(bucket, row.object_key) };
+      },
 
-    async cache(raster): Promise<void> {
-      const digest = identityDigest(raster.identity);
-      const where = `the render cache for document ${raster.documentDigest}`;
-      const objectKey = `${project}/cache/${digest}/${raster.documentDigest}.png`;
+      async put(raster): Promise<void> {
+        const digest = identityDigest(raster.identity);
+        const where = `the render cache for document ${raster.documentDigest}`;
+        const objectKey = `${project}/cache/${digest}/${raster.documentDigest}.png`;
 
-      await guard(() => bucket.put(objectKey, bytesOf(raster.bytes)), where);
-      await guard(
-        () =>
-          db
-            .prepare(
-              `INSERT OR REPLACE INTO render_cache
-                 (project, identity_digest, document_digest, identity, width, height,
-                  missing_fonts, object_key, at_ms)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            )
-            .bind(
-              project,
-              digest,
-              raster.documentDigest,
-              JSON.stringify(raster.identity),
-              raster.width,
-              raster.height,
-              JSON.stringify(raster.missingFonts),
-              objectKey,
-              Date.now(),
-            )
-            .run(),
-        where,
-      );
-    },
+        await guard(() => bucket.put(objectKey, bytesOf(raster.bytes)), where);
+        await guard(
+          () =>
+            db
+              .prepare(
+                `INSERT OR REPLACE INTO render_cache
+                   (project, identity_digest, document_digest, identity, width, height,
+                    missing_fonts, object_key, at_ms)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              )
+              .bind(
+                project,
+                digest,
+                raster.documentDigest,
+                JSON.stringify(raster.identity),
+                raster.width,
+                raster.height,
+                JSON.stringify(raster.missingFonts),
+                objectKey,
+                Date.now(),
+              )
+              .run(),
+          where,
+        );
+      },
+    }),
   };
 }
 

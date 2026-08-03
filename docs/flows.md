@@ -129,12 +129,18 @@ at. That is right, and it means the cache is **local to a machine**. A fresh CI
 runner starts cold and re-renders every subject, every time, even though the
 baselines came down with the checkout.
 
-What is missing is not a backend but a seam. `cached`/`cache` are welded into
-`RasterStore`, whose contract is that a failure must throw — correct for a
-baseline, where a lost lookup destroys the thing being compared against, and wrong
-for a cache, where the right answer to every failure is to re-render. Splitting
-`RenderCache` out with the never-throws rule is what makes a CI cache, an S3
-bucket, or the tribunal a configuration choice instead of a fork.
+**The seam is now open and the configuration is not**, which is a narrower gap
+than this rung had until 2026-08-04. `RenderCache` is its own contract with its
+own rule — it never throws, because the right answer to every cache failure is to
+re-render, where a baseline that cannot be read is the only copy of what the
+subject looked like and must stop the run. Four backends implement it and the
+parity suite checks all four survive their cache being unreachable.
+
+What is still missing is a way for an operator to *choose* one. The cache a run
+uses is whichever one its baseline store happens to carry, so pointing this at a
+CI cache, an S3 bucket, or the tribunal is still a fork rather than a config key.
+That is a field, not an architecture, and the argument for which field it should
+be is in [spec 0011](specs/0011-storage-and-cache-primitives.md).
 
 **And images are not the only thing this rung would hold.** The other artifact is
 the *document* each baseline was painted from — which is what supplies `before`

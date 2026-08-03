@@ -1,8 +1,9 @@
 # Spec 0011 — Storage and cache primitives
 
-**Missing:** four seams — a reduction, a render cache that is not the baseline
-store, a baseline layout, and a lens. Plus one thing that must *not* be
-built, recorded here so nobody builds it.
+**Missing:** three seams — a reduction, a baseline layout, and a lens. Plus one
+thing that must *not* be built, recorded here so nobody builds it. A fourth — a
+render cache that is not the baseline store — was built on 2026-08-04 and is kept
+below as item 1, because what it cost is the useful part.
 **Built on:** [ADR-0003](../context/adr/0003-cruft-removal-and-css-applicability.md)
 (pruning), [ADR-0007](../context/adr/0007-subject-boundary-is-the-component-tree.md)
 (boundaries), [ADR-0011](../context/adr/0011-durable-and-ephemeral-retention.md)
@@ -24,7 +25,7 @@ the two that remain are not the two they look like.
 |---|---|---|
 | Clean the HTML, match the CSS to what survives | CSS applicability pruning ships in `@variance-authority/dom`: 1007 rules to 1 on the todomvc corpus (ADR-0003). Structural aliasing ships for the *semantic* snapshot. | Nothing reduces the **render** document. It keeps ids and classes deliberately, and its digest churns on both. |
 | One global key, or a split by region | Component boundaries and per-band hashes ship, in `packages/core/src/attribute/component-hash.ts:45`. The boundary is the component tree, not an operator's choice (ADR-0007). | Nothing calls it from a run. And a per-region *raster* key is unsound, not merely unbuilt. |
-| Where the cache lives — PNG, CI cache, S3, service | Two backends implement `cached`/`cache`: a directory under `by-document/`, and a wire. | The cache is welded to the baseline store, and the two have opposite loss semantics. |
+| Where the cache lives — PNG, CI cache, S3, service | **`RenderCache` is its own contract** with its own rule — it never throws — and four backends implement it: a directory under `by-document/`, git-LFS, a wire, and a bucket. | Nothing yet lets an operator *choose* one independently of where baselines live. The seam is open; the configuration is not. |
 | Scans, and how they reason about cache | `inspect packages/core/src/judge/inspect.ts:136` ships with nine rules; `compareLocales` adds two; both band as `a11y` (ADR-0015). | The rule set is a closed union, and — the deeper miss — inspection is modelled as a *scan beside* the comparison rather than as a second **lens over the same artifact**. See §4. |
 | Where files live | `directory`, `lfs`, `remote` (ADR-0016). | The layout is a private function of one backend, so "next to the component" is unreachable. |
 
@@ -428,10 +429,26 @@ In this order, because each unblocks the next.
    a verdict that no font was substituted, and a codec that invents it is the
    `stabilization` failure again. The compiler catches a dropped field; only the
    parity suite catches a hardcoded one, so it has a case for that.
-1. **Split `RenderCache` out of `RasterStore`**, with the never-throws rule and its
-   tests. No new package, no new concepts, and it removes a class of red build that
-   is not about anybody's code. The parity suite gains a cache-loss case: every
-   backend must survive its cache being unreachable.
+1. ~~**Split `RenderCache` out of `RasterStore`**~~ **Done, 2026-08-04.**
+   `RasterStore` has a `renderCache` property instead of two methods, `neverFails`
+   holds an implementation to the rule at construction, and the parity suite has
+   the cache-loss case: all four backends answer a miss and resolve a write with
+   a cache that fails both ways, while still serving a real hit.
+
+   Three things came out of it that the item did not predict. The two tests that
+   pinned the *old* rule had written its argument down — *"a store that decides
+   for itself which failures are survivable has two rules"* — and that is exactly
+   the claim the split refutes: there are two rules because there are two objects,
+   and the fix is to put the rule in a type rather than in each backend's
+   judgement. Both now assert the same damage getting two answers from one store,
+   which is a better test than either was. Second, git-LFS's pointer refusal
+   becomes a *miss* on the cache path, which is right rather than a weakening: a
+   cached entry that is 130 bytes of pointer is not an image, and re-rendering
+   gets the run correct where returning it would compare against text. Third,
+   `renderCached` was deleted rather than ported. It had no caller outside its own
+   tests, and it carried the identity bug that `observe`'s `renderOnce` was written
+   to fix — reading under `renderer.identity` and writing under the raster's, so
+   above 1x the cache could never hit its own write.
 2. **`BaselineLayout` as a value**, with the identity partition applied by the
    store. Contained in `@variance-authority/store`; the existing path becomes the
    default layout and nothing moves on disk.

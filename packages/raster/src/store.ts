@@ -159,9 +159,90 @@ export interface RasterStore {
 
   put(key: BaselineKey, raster: Raster): Promise<void>;
 
-  /** Rasters already produced this run, keyed by document digest. See {@link renderCached}. */
-  cached(digest: Digest, identity: RenderIdentity): Promise<Raster | null>;
-  cache(raster: Raster): Promise<void>;
+  /**
+   * Images this machine has already painted. See {@link RenderCache}.
+   *
+   * A property rather than two methods, because it is a different object with a
+   * different contract that happens to be reachable from here. Every backend
+   * supplies its own today; the day one is configured separately, this is the
+   * field that changes and nothing else does.
+   */
+  readonly renderCache: RenderCache;
+}
+
+/**
+ * Rasters already painted, keyed by the digest of the document that produced
+ * them — the deferral lever, as an interface.
+ *
+ * ## Why this is not part of `RasterStore`
+ *
+ * It was, and the two have **opposite loss semantics**, which is the whole of
+ * the argument. Losing a baseline is fatal: the thing this run was meant to
+ * compare against is gone, and reporting that as "no baseline" would record
+ * whatever is on screen and overwrite it — so every failure must throw
+ * ({@link RasterStoreError}, {@link REFUSAL}). Losing a cache entry costs one
+ * render. Welded together, the cache inherits the baseline's paranoia, and a
+ * backend then writes what the remote store used to: *"the cache path throws on
+ * failure too, though a cache miss costs only a re-render"* — a red build for a
+ * condition that is not about anybody's code.
+ *
+ * ## The rule
+ *
+ * > **A `RenderCache` never throws.**
+ *
+ * `get` answers `null` for a miss, for an outage, for a permission error, for a
+ * corrupt entry, and for a response nobody can parse. `put` resolves whether or
+ * not anything was written. There is no failure a caller could usefully
+ * distinguish, because the response to every one of them is identical: paint it.
+ *
+ * *What that costs, stated rather than hidden.* A cache that is failing is
+ * indistinguishable from a cache that is cold, so a broken cache makes a run
+ * slow and never makes it red, and nobody is told. That is deliberate — the
+ * alternative is failing a build over an optimisation — but it does mean an
+ * operator watching CI get slower has to go looking. The place a warning would
+ * belong is a run's `warnings` array, and nothing puts one there yet.
+ *
+ * Correctness never rests on this. An entry is addressed by the digest of the
+ * document that painted it under the identity that painted it, so a hit is an
+ * image of exactly this document on exactly this machine. A wrong location, a
+ * stale entry or a cache shared between projects can cost a render and cannot
+ * produce a wrong image.
+ */
+export interface RenderCache {
+  get(digest: Digest, identity: RenderIdentity): Promise<Raster | null>;
+  put(raster: Raster): Promise<void>;
+}
+
+/**
+ * Hold an implementation to {@link RenderCache}'s rule.
+ *
+ * Backends build their cache out of a disk, a socket or a bucket, all of which
+ * throw, and every one of them would otherwise have to remember not to. Wrapping
+ * at construction makes the rule a property of the value rather than a promise
+ * in a comment — and the parity suite checks each backend survives its own cache
+ * being broken, because a backend that forgot this wrapper still type-checks.
+ */
+export function neverFails(cache: RenderCache): RenderCache {
+  return {
+    async get(digest, identity): Promise<Raster | null> {
+      try {
+        return await cache.get(digest, identity);
+      } catch {
+        // A miss and a failure are the same instruction. Swallowed rather than
+        // rethrown as a softer error, because there is no caller that would do
+        // anything different with one.
+        return null;
+      }
+    },
+    async put(raster): Promise<void> {
+      try {
+        await cache.put(raster);
+      } catch {
+        // The image is already in hand; failing to keep a copy of it changes
+        // nothing about this run and costs the next one a render.
+      }
+    },
+  };
 }
 
 /**
@@ -189,34 +270,17 @@ export function createEphemeralStore(): RasterStore {
       // Nothing is kept. Making this a silent no-op rather than a throw lets one
       // pipeline serve both modes, which is the point of the shared interface.
     },
-    async cached(digest, identity): Promise<Raster | null> {
-      return cache.get(`${digest}/${identityDigest(identity)}`) ?? null;
-    },
-    async cache(raster): Promise<void> {
-      cache.set(`${raster.documentDigest}/${identityDigest(raster.identity)}`, raster);
-    },
+    // Wrapped even though a `Map` cannot fail, so that the rule is visible at
+    // every construction site rather than at the ones that happen to need it.
+    renderCache: neverFails({
+      async get(digest, identity): Promise<Raster | null> {
+        return cache.get(`${digest}/${identityDigest(identity)}`) ?? null;
+      },
+      async put(raster): Promise<void> {
+        cache.set(`${raster.documentDigest}/${identityDigest(raster.identity)}`, raster);
+      },
+    }),
   };
-}
-
-/**
- * Render a document, unless an identical one has already been rendered.
- *
- * The deferral lever, in one function. Content addressing means "identical" is a
- * fact about the document rather than a guess about the branch (Principle 4), so
- * a rebase, a file move, or a rerun costs nothing, and a run over 300 subjects
- * where two changed pays for two images.
- */
-export async function renderCached(
-  renderer: Renderer,
-  store: RasterStore,
-  document: RenderDocument,
-): Promise<{ raster: Raster; rendered: boolean }> {
-  const hit = await store.cached(documentDigest(document), renderer.identity);
-  if (hit !== null) return { raster: hit, rendered: false };
-
-  const raster = await renderer.render(document);
-  await store.cache(raster);
-  return { raster, rendered: true };
 }
 
 /**

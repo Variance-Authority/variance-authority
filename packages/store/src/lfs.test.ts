@@ -92,8 +92,8 @@ describe('a baseline store in the repository', () => {
     await store.put({ subject: 's' }, rasterOf(MAC));
     await store.find({ subject: 's' }, MAC);
     await store.describe({ subject: 's' }, MAC);
-    await store.cache(rasterOf(MAC));
-    await store.cached('v1:doc', MAC);
+    await store.renderCache.put(rasterOf(MAC));
+    await store.renderCache.get('v1:doc', MAC);
 
     expect(calls).toEqual(['git check-attr filter -- probe.png', 'git lfs version']);
     expect(calls.length).toBe(during);

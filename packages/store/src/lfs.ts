@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Raster } from '@variance-authority/core';
+import { neverFails } from '@variance-authority/raster';
 import type { Described, Found, RasterStore } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 
@@ -217,15 +218,23 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
       return baselines.put(key, raster);
     },
 
-    async cached(digest, identity): Promise<Raster | null> {
-      const raster = await cache.cached(digest, identity);
-      if (raster !== null) refuseAPointer(raster, `the cached render of ${digest}`);
-      return raster;
-    },
+    // The pointer refusal stays, and under the never-throws rule it now reads as
+    // a miss rather than as an error — which is the right answer here and not a
+    // weakening. A cached entry that is 130 bytes of LFS pointer is not an
+    // image; treating it as absent re-renders and gets the run right, where
+    // returning it would compare against text. The baseline path still refuses
+    // out loud, because there is nothing there to re-derive.
+    renderCache: neverFails({
+      async get(digest, identity): Promise<Raster | null> {
+        const raster = await cache.renderCache.get(digest, identity);
+        if (raster !== null) refuseAPointer(raster, `the cached render of ${digest}`);
+        return raster;
+      },
 
-    cache(raster): Promise<void> {
-      return cache.cache(raster);
-    },
+      put(raster): Promise<void> {
+        return cache.renderCache.put(raster);
+      },
+    }),
   };
 }
 

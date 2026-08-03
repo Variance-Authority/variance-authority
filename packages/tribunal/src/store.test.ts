@@ -235,23 +235,23 @@ describe('the label encoding', () => {
 describe('the render cache', () => {
   it('returns an image already painted under this identity', async () => {
     const painted = raster(MAC);
-    await store().cache(painted);
+    await store().renderCache.put(painted);
 
-    expect(await store().cached(painted.documentDigest, MAC)).toEqual(painted);
+    expect(await store().renderCache.get(painted.documentDigest, MAC)).toEqual(painted);
   });
 
   it("does not hand another machine's render back as this one's", async () => {
     const painted = raster(RUNNER);
-    await store().cache(painted);
+    await store().renderCache.put(painted);
 
-    expect(await store().cached(painted.documentDigest, MAC)).toBeNull();
+    expect(await store().renderCache.get(painted.documentDigest, MAC)).toBeNull();
   });
 
   it('keeps the cache out of the baseline lookup', async () => {
     // A cached render is an image this run produced, not a baseline anybody
     // approved. If `find` could see it, the first run on a fresh subject would
     // compare against itself and report `unchanged` forever.
-    await store().cache(raster(MAC));
+    await store().renderCache.put(raster(MAC));
 
     expect(await store().find({ subject: 'story:a' }, MAC)).toBeNull();
     expect(identityDigest(MAC)).not.toBe(identityDigest(RUNNER));

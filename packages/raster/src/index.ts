@@ -38,14 +38,14 @@ export {
   REFUSAL,
   RasterStoreError,
   createEphemeralStore,
-  renderCached,
+  neverFails,
   identityFrom,
   rasterFrom,
   recordFrom,
   sidecarFrom,
   messageOf,
 } from './store.js';
-export type { RasterStore, Retention, BaselineKey, Found, Described } from './store.js';
+export type { RasterStore, RenderCache, Retention, BaselineKey, Found, Described } from './store.js';
 
 export {
   INTERVENTIONS,

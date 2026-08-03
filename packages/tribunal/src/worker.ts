@@ -208,7 +208,7 @@ async function route(
     const body = await asRecordBody(request);
     const digest = body['digest'];
     if (typeof digest !== 'string') throw new BadRequest('`digest` must be a string');
-    const raster = await surfaces.baselines.cached(
+    const raster = await surfaces.baselines.renderCache.get(
       digest as Digest,
       asIdentity(body['identity']),
     );
@@ -221,7 +221,7 @@ async function route(
     const body = await asRecordBody(request);
     const raster = rasterFrom(body['raster']);
     if (raster === null) throw new BadRequest('`raster` is not a raster');
-    await surfaces.baselines.cache(raster);
+    await surfaces.baselines.renderCache.put(raster);
     return json(200, { ok: true });
   }
 

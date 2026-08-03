@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
-import { documentDigest } from '@variance-authority/core';
-import { createEphemeralStore, identityFrom, rasterFrom, renderCached } from './store.js';
-import { identityAtScale, type Renderer } from './renderer.js';
+import { createEphemeralStore, identityFrom, neverFails, rasterFrom } from './store.js';
 
 /**
  * The ephemeral mode — and the fact that it needs nothing.
@@ -49,25 +47,6 @@ function documentOf(html: string): RenderDocument {
   };
 }
 
-/** A renderer that paints nothing and counts how often it was asked to. */
-function countingRenderer(identity: RenderIdentity): Renderer & { calls: number } {
-  const renderer = {
-    identity,
-    calls: 0,
-    identityFor: (document: RenderDocument): RenderIdentity =>
-      identityAtScale(identity, document),
-    async render(document: RenderDocument): Promise<Raster> {
-      renderer.calls += 1;
-      return {
-        ...rasterOf(identity, documentDigest(document)),
-        identity: renderer.identityFor(document),
-      };
-    },
-    async close(): Promise<void> {},
-  };
-  return renderer;
-}
-
 describe('the ephemeral mode', () => {
   it('has no past, so it never claims one', () => {
     // Both images are rendered in this run by one renderer, so there is no
@@ -76,39 +55,30 @@ describe('the ephemeral mode', () => {
     return expect(store.find({ subject: 's' }, MAC)).resolves.toBeNull();
   });
 
-  it('renders a document once however often it is asked for', async () => {
-    const store = createEphemeralStore();
-    const renderer = countingRenderer(MAC);
-    const document = documentOf('<div data-va-path="0">x</div>');
+  it('serves back an image it was given, under the digest that painted it', async () => {
+    const { renderCache } = createEphemeralStore();
+    const raster = rasterOf(MAC, 'v1:x');
 
-    const first = await renderCached(renderer, store, document);
-    const second = await renderCached(renderer, store, document);
-
-    expect(first.rendered).toBe(true);
-    expect(second.rendered).toBe(false);
-    expect(renderer.calls).toBe(1);
+    expect(await renderCache.get('v1:x', MAC)).toBeNull();
+    await renderCache.put(raster);
+    expect(await renderCache.get('v1:x', MAC)).toEqual(raster);
   });
 
-  it('re-renders when the document changes, and only then', async () => {
-    const store = createEphemeralStore();
-    const renderer = countingRenderer(MAC);
+  it('misses on a different document, which is what makes the lever content-addressed', async () => {
+    // "Identical" is a fact about the document rather than a guess about the
+    // branch (Principle 4), so a rebase or a file move costs nothing and an edit
+    // costs exactly the subjects it reached.
+    const { renderCache } = createEphemeralStore();
+    await renderCache.put(rasterOf(MAC, 'v1:x'));
 
-    await renderCached(renderer, store, documentOf('<div data-va-path="0">x</div>'));
-    await renderCached(renderer, store, documentOf('<div data-va-path="0">y</div>'));
-    await renderCached(renderer, store, documentOf('<div data-va-path="0">x</div>'));
-
-    expect(renderer.calls).toBe(2);
+    expect(await renderCache.get('v1:y', MAC)).toBeNull();
   });
 
   it('does not serve one machine`s render to another', async () => {
-    const store = createEphemeralStore();
-    const document = documentOf('<div data-va-path="0">x</div>');
+    const { renderCache } = createEphemeralStore();
+    await renderCache.put(rasterOf(MAC, 'v1:x'));
 
-    await renderCached(countingRenderer(MAC), store, document);
-    const other = countingRenderer(RUNNER);
-    await renderCached(other, store, document);
-
-    expect(other.calls).toBe(1);
+    expect(await renderCache.get('v1:x', RUNNER)).toBeNull();
   });
 
   it('has nothing to describe either, and says so the same way', async () => {
@@ -163,5 +133,39 @@ describe('a record that claims to be a raster', () => {
     // type is a writer this reader does not understand, and quietly discarding
     // it produces exactly the silent shortening above.
     expect(identityFrom({ ...MAC, stabilization: 7 })).toBeNull();
+  });
+});
+
+describe('a render cache never throws', () => {
+  /** A backend whose every operation fails, which is what an outage looks like. */
+  const broken = {
+    async get(): Promise<Raster | null> {
+      throw new Error('EACCES');
+    },
+    async put(): Promise<void> {
+      throw new Error('ENOSPC');
+    },
+  };
+
+  it('answers a failed lookup as a miss, because the response to both is to paint', async () => {
+    // The rule the split exists for. A baseline that cannot be read is fatal —
+    // reporting it as absent would record whatever is on screen over the only
+    // copy of what the subject looked like. A cache that cannot be read costs a
+    // render, and a build that goes red for it is red about an optimisation.
+    expect(await neverFails(broken).get('v1:x', MAC)).toBeNull();
+  });
+
+  it('resolves a failed write, because the image is already in hand', async () => {
+    await expect(neverFails(broken).put(rasterOf(MAC))).resolves.toBeUndefined();
+  });
+
+  it('still returns what a working cache returns', async () => {
+    // The guard must not become the reason a hit is missed. A wrapper that
+    // swallowed everything, including the answer, would turn the lever off
+    // without turning any test red.
+    const { renderCache } = createEphemeralStore();
+    await renderCache.put(rasterOf(MAC, 'v1:x'));
+
+    expect(await neverFails(renderCache).get('v1:x', MAC)).toEqual(rasterOf(MAC, 'v1:x'));
   });
 });

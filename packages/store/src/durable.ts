@@ -6,6 +6,7 @@ import {
   RasterStoreError,
   messageOf,
   sidecarFrom,
+  neverFails,
   type BaselineKey,
   type Described,
   type Found,
@@ -91,29 +92,36 @@ export function createDurableStore(root: string): RasterStore {
       );
     },
 
-    async cached(digest, identity): Promise<Raster | null> {
-      // A durable store is also a render cache: an unchanged document under an
-      // unchanged identity has an image already, and the cheapest render is the
-      // one that does not happen.
-      const path = join(root, identityDigest(identity), 'by-document', digest);
-      return readRaster(path);
-    },
+    // A durable store is also a render cache: an unchanged document under an
+    // unchanged identity has an image already, and the cheapest render is the
+    // one that does not happen.
+    //
+    // Wrapped, so an unreadable entry, a full disk or a directory somebody
+    // chmod-ed costs this run a render instead of ending it. The baseline half
+    // above still throws for all three, which is the difference the split is
+    // about: one of these is the thing being compared against and one is a copy
+    // of something we can make again.
+    renderCache: neverFails({
+      async get(digest, identity): Promise<Raster | null> {
+        return readRaster(join(root, identityDigest(identity), 'by-document', digest));
+      },
 
-    async cache(raster): Promise<void> {
-      const path = join(
-        root,
-        identityDigest(raster.identity),
-        'by-document',
-        raster.documentDigest,
-      );
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(`${path}.png`, Buffer.from(raster.bytes, 'base64'));
-      await writeFile(
-        `${path}.json`,
-        `${JSON.stringify({ ...raster, bytes: undefined })}\n`,
-        'utf8',
-      );
-    },
+      async put(raster): Promise<void> {
+        const path = join(
+          root,
+          identityDigest(raster.identity),
+          'by-document',
+          raster.documentDigest,
+        );
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(`${path}.png`, Buffer.from(raster.bytes, 'base64'));
+        await writeFile(
+          `${path}.json`,
+          `${JSON.stringify({ ...raster, bytes: undefined })}\n`,
+          'utf8',
+        );
+      },
+    }),
   };
 }
 
@@ -160,12 +168,19 @@ async function load(
  * looked like before — all of it reported as success. So the failure that cannot
  * be distinguished from an empty directory must never be answered as one.
  *
- * *What it costs.* A genuinely corrupt pair now stops the run until a person
- * removes it, including in the render cache where a re-render would have been
- * enough. That is accepted rather than special-cased: a store with two rules
- * about which failures are survivable is a store whose behaviour depends on
- * which path found the damage. The message names both files so the removal is a
- * command, not an investigation.
+ * *What it costs.* A genuinely corrupt pair stops the run until a person removes
+ * it. The message names both files so the removal is a command rather than an
+ * investigation.
+ *
+ * **This function is shared with the render cache and no longer decides what
+ * happens there.** It used to, and the note here argued for it: stopping the run
+ * over a corrupt cache entry was "accepted rather than special-cased", on the
+ * grounds that a store with two rules about survivable failures is a store whose
+ * behaviour depends on which path found the damage. The rules are two because the
+ * *objects* are two — losing the thing being compared against is not losing a
+ * copy of something we can paint again — so the distinction now lives in
+ * `RenderCache` and not in a judgement made here. This still throws; the cache
+ * wrapper reads the throw as a miss, and the baseline path does not.
  */
 async function readRaster(path: string): Promise<Raster | null> {
   const [sidecar, bytes] = await Promise.all([

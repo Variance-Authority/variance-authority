@@ -4,12 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
 import { documentDigest, identityDigest } from '@variance-authority/core';
-import {
-  RasterStoreError,
-  identityAtScale,
-  renderCached,
-  type Renderer,
-} from '@variance-authority/raster';
+import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 
 /**
@@ -49,25 +44,6 @@ function documentOf(html: string): RenderDocument {
     fonts: [],
     diagnostics: [],
   };
-}
-
-/** A renderer that paints nothing and counts how often it was asked to. */
-function countingRenderer(identity: RenderIdentity): Renderer & { calls: number } {
-  const renderer = {
-    identity,
-    calls: 0,
-    identityFor: (document: RenderDocument): RenderIdentity =>
-      identityAtScale(identity, document),
-    async render(document: RenderDocument): Promise<Raster> {
-      renderer.calls += 1;
-      return {
-        ...rasterOf(identity, documentDigest(document)),
-        identity: renderer.identityFor(document),
-      };
-    },
-    async close(): Promise<void> {},
-  };
-  return renderer;
 }
 
 let root: string;
@@ -154,17 +130,15 @@ describe('the durable mode', () => {
   it('caches renders across runs, keyed by what is painted', async () => {
     // The deferral lever surviving process exit: an unchanged document under an
     // unchanged identity has an image already, so a run over 300 subjects where
-    // two changed pays for two images.
-    const document = documentOf('<div data-va-path="0">x</div>');
+    // two changed pays for two images. Two stores over one root, because
+    // surviving *this* process is the whole claim.
+    const painted = rasterOf(MAC, documentDigest(documentOf('<div data-va-path="0">x</div>')));
 
-    const first = countingRenderer(MAC);
-    await renderCached(first, createDurableStore(root), document);
+    await createDurableStore(root).renderCache.put(painted);
 
-    const second = countingRenderer(MAC);
-    const result = await renderCached(second, createDurableStore(root), document);
-
-    expect(second.calls).toBe(0);
-    expect(result.rendered).toBe(false);
+    expect(await createDurableStore(root).renderCache.get(painted.documentDigest, MAC)).toEqual(
+      painted,
+    );
   });
 });
 
@@ -239,17 +213,29 @@ describe('a baseline the store cannot read', () => {
     },
   );
 
-  it('refuses a half-written cache entry rather than treating it as a miss', async () => {
-    // The render cache is regenerable, so silently repainting would cost only a
-    // render — but a store that decides for itself which failures are survivable
-    // has two rules, and the operator learns about the corrupt file on the day the
-    // other rule applies. It costs a run that stops until the file is deleted, and
-    // the message names it.
+  it('answers the same damage two ways, because a cache and a baseline are not one thing', async () => {
+    // **Reversed on 2026-08-04**, and the comment that stood here is the argument
+    // the split refuted: *"a store that decides for itself which failures are
+    // survivable has two rules"*. There are two rules and there always were —
+    // they belong to two different objects. A baseline that cannot be read is
+    // the only copy of what the subject looked like, so absence must never be
+    // reported. A cache entry that cannot be read is a copy of something this
+    // run is about to paint anyway. What changed is that the rule now lives in
+    // the type rather than in each backend's judgement.
+    //
+    // Both halves asserted in one test on purpose: identical damage, one store,
+    // two answers, and that is the whole of what the split bought.
     const store = createDurableStore(root);
-    await store.cache(rasterOf(MAC, 'v1:doc'));
-    await unlink(join(root, identityDigest(MAC), 'by-document', 'v1:doc.json'));
 
-    await expect(store.cached('v1:doc', MAC)).rejects.toBeInstanceOf(RasterStoreError);
+    await store.renderCache.put(rasterOf(MAC, 'v1:doc'));
+    await unlink(join(root, identityDigest(MAC), 'by-document', 'v1:doc.json'));
+    expect(await store.renderCache.get('v1:doc', MAC)).toBeNull();
+
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
+    await unlink(`${pathOf(MAC, 'todo--empty')}.json`);
+    await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toBeInstanceOf(
+      RasterStoreError,
+    );
   });
 });
 

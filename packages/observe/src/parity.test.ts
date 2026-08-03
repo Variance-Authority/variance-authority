@@ -14,6 +14,7 @@ import { RasterStoreError } from '@variance-authority/raster';
 import {
   DEFAULT_POLICY,
   identityAtScale,
+  neverFails,
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
@@ -282,6 +283,49 @@ describe('switching where baselines are kept', () => {
       },
       neither: null,
     };
+    expect(answers).toEqual({
+      durable: expected,
+      'git-LFS': expected,
+      remote: expected,
+      bucket: expected,
+    });
+  });
+
+  it('survives its render cache being broken, wherever the baseline is kept', async () => {
+    // Acceptance for the split: a cache failure costs a render in every backend,
+    // and a backend that forgot the wrapper still type-checks. So each one is
+    // handed a cache that fails both ways and asked for the two answers a caller
+    // depends on — a miss, and a write that resolves.
+    //
+    // The baseline half is deliberately not softened anywhere, and the parity
+    // cases above are what keep that true: a store that started swallowing
+    // baseline failures would go red there, not here.
+    const answers: Record<string, unknown> = {};
+
+    for (const implementation of IMPLEMENTATIONS) {
+      const store = await implementation.open();
+      const broken = neverFails({
+        async get(): Promise<Raster | null> {
+          throw new Error('the cache is unreachable');
+        },
+        async put(): Promise<void> {
+          throw new Error('the cache is unreachable');
+        },
+      });
+
+      answers[implementation.name] = {
+        miss: await broken.get(documentDigest(SAME), MAC),
+        wrote: await broken.put(baseline(MAC)).then(() => 'resolved'),
+        // And the real cache still works, so the guard is not the reason a hit
+        // is missed — the failure that would turn the lever off silently.
+        hit: await store.renderCache
+          .put(baseline(MAC))
+          .then(() => store.renderCache.get(documentDigest(SAME), MAC))
+          .then((raster) => raster?.documentDigest ?? null),
+      };
+    }
+
+    const expected = { miss: null, wrote: 'resolved', hit: documentDigest(SAME) };
     expect(answers).toEqual({
       durable: expected,
       'git-LFS': expected,

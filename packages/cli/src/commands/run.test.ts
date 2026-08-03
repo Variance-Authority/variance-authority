@@ -770,11 +770,11 @@ describe('storeFor', () => {
 
     const store = await storeFor(configOf({ baselines: { kind: 'lfs', root } }));
     const raster = rasterFor(documentFor('fixture:a'), IDENTITY);
-    await store.cache(raster);
+    await store.renderCache.put(raster);
 
     // Still a cache: pushing it out of the work tree must not cost the hit that
     // pays for the whole deferral.
-    expect(await store.cached(raster.documentDigest, raster.identity)).not.toBeNull();
+    expect(await store.renderCache.get(raster.documentDigest, raster.identity)).not.toBeNull();
     // Only the tracking entry the store writes on the way in.
     expect(await readdir(root)).toEqual(['.gitattributes']);
   });

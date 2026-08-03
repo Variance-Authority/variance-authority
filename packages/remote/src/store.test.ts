@@ -90,10 +90,10 @@ describe('a baseline store somewhere else', () => {
     server = await serveRasterStore(createDurableStore(root));
     const store = createRemoteStore({ endpoint: server.url });
 
-    await store.cache(rasterOf(MAC, 'QQ=='));
+    await store.renderCache.put(rasterOf(MAC, 'QQ=='));
 
-    expect((await store.cached('v1:doc', MAC))?.bytes).toBe('QQ==');
-    expect(await store.cached('v1:other', MAC)).toBeNull();
+    expect((await store.renderCache.get('v1:doc', MAC))?.bytes).toBe('QQ==');
+    expect(await store.renderCache.get('v1:other', MAC)).toBeNull();
   });
 
   it('reports a subject nobody has rendered as a miss, and only then', async () => {
@@ -234,13 +234,25 @@ describe('a store that cannot answer', () => {
     await expect(store.find({ subject: 's' }, MAC)).rejects.toThrow(/comparable/);
   });
 
-  it('refuses a cache answer it cannot read, rather than paying for a re-render', async () => {
-    const store = createRemoteStore({
-      endpoint: 'http://stub',
-      fetch: async () => new Response('{"raster":{"bytes":42}}', { status: 200 }),
-    });
+  it('answers a cache body it cannot read as a miss, where a baseline body refuses', async () => {
+    // **Reversed on 2026-08-04.** This asserted that an unreadable cache answer
+    // throws, on the reasoning that answering "miss" to an outage turns a broken
+    // endpoint into a run that is merely slow. It does, and that is right: the
+    // endpoint being down changes nothing about what any verdict should be. A
+    // baseline is the opposite — an outage there would produce `new`, and `new`
+    // records over the only copy of what the subject looked like.
+    //
+    // Same server, same nonsense, two answers.
+    const nonsense = (body: string): RasterStore =>
+      createRemoteStore({
+        endpoint: 'http://stub',
+        fetch: async () => new Response(body, { status: 200 }),
+      });
 
-    await expect(store.cached('v1:doc', MAC)).rejects.toThrow(/not a raster/);
+    expect(await nonsense('{"raster":{"bytes":42}}').renderCache.get('v1:doc', MAC)).toBeNull();
+    await expect(nonsense('{"found":{"bytes":42}}').find({ subject: 's' }, MAC)).rejects.toThrow(
+      RasterStoreError,
+    );
   });
 
   it('refuses a description body that is not an answer', async () => {

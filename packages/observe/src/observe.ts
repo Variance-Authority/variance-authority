@@ -166,23 +166,24 @@ export async function observeAgainstBaseline(
  * move, or a rerun costs nothing and a run over 300 subjects where two changed
  * pays for two images.
  *
- * Deliberately not `renderCached` from the store, which keys the read on
- * `renderer.identity` while `cache` keys the write on the raster's own. Those
- * differ by exactly the scale factor, so above 1x the cache can never hit its
- * own write and the lever is off precisely where images are most expensive.
- * Both halves key on `identityFor` here. The cost is six lines that look like
- * six lines elsewhere.
+ * Both halves key on `identityFor`, and the emphasis is earned: the raster
+ * package once shipped a `renderCached` that read under `renderer.identity` and
+ * wrote under the raster's own. Those differ by exactly the scale factor, so
+ * above 1x the cache could never hit its own write and the lever was off
+ * precisely where images are most expensive. That function is gone rather than
+ * fixed — this is the loop a run actually takes, and one of the two was always
+ * going to rot.
  */
 async function renderOnce(
   renderer: Renderer,
   store: RasterStore,
   document: RenderDocument,
 ): Promise<{ raster: Raster; rendered: boolean }> {
-  const hit = await store.cached(documentDigest(document), renderer.identityFor(document));
+  const hit = await store.renderCache.get(documentDigest(document), renderer.identityFor(document));
   if (hit !== null) return { raster: hit, rendered: false };
 
   const raster = await renderer.render(document);
-  await store.cache(raster);
+  await store.renderCache.put(raster);
   return { raster, rendered: true };
 }
 
