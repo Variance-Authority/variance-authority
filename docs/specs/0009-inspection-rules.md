@@ -5,8 +5,11 @@
 
 ## Purpose
 
-`judge/inspect.ts` reports five kinds of defect from one snapshot, with no
-baseline. It answers a question no comparison can — a defect present on the first
+`judge/inspect.ts` reported five kinds of defect from one snapshot when this was
+written, and reports nine now: the five below plus the four this spec qualified.
+(`FindingRule` carries eleven, because `compareLocales` contributes two more from
+a *pair* of renders, which one snapshot cannot answer.) It answers a question no
+comparison can — a defect present on the first
 run is invisible to a comparison forever — and it is deliberately narrow. This
 spec decides what happens next, because the two obvious directions lead to
 different products and picking neither is how a rule list rots.

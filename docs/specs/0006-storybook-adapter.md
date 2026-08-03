@@ -6,8 +6,11 @@
 ## Purpose
 
 Take subjects from a project's existing Storybook rather than from a
-purpose-written fixture. Story-shaped subjects already work; nothing reads a real
-`.storybook` configuration or a real story index.
+purpose-written fixture. Story-shaped subjects already worked when this was
+written; nothing read a real story index. `@variance-authority/storybook` now
+does, and [`cases/storybook-case`](../../cases/storybook-case) runs the whole CLI
+over an index `storybook build` produced. A real `.storybook` *configuration* is
+still not read and is out of scope below.
 
 ## Contract
 
