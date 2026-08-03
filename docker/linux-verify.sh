@@ -44,8 +44,29 @@ docker build -f "${ROOT}/docker/linux-verify.Dockerfile" -t "${IMAGE}" "${ROOT}"
 for run in 1 2 3; do
   echo "--- linux run ${run}"
   docker run --rm --ipc=host "${IMAGE}" \
-    bash -lc 'yarn build && yarn test 2>&1' | tee "${OUT}/linux-run-${run}.log"
+    bash -lc 'echo "arch: $(uname -m)"; yarn build && yarn test 2>&1' \
+    | tee "${OUT}/linux-run-${run}.log"
 done
+
+# Which machine actually ran, recorded rather than assumed.
+#
+# On an Apple Silicon host a linux/amd64 image runs under emulation. The semantic
+# verdicts survive that — nothing machine-bound reaches the box tree, which is
+# the claim being tested — but **the cost ratios do not**, and re-measuring
+# 7.5ms/205ms under Rosetta would produce numbers that describe an emulator and
+# read as a platform. Stated here so a reader of `${OUT}` knows which half of the
+# log to believe.
+guest="$(grep -m1 '^arch: ' "${OUT}/linux-run-1.log" | cut -d' ' -f2 || true)"
+host="$(uname -m)"
+case "${host}:${guest}" in
+  arm64:aarch64 | x86_64:x86_64) echo "arch: ${guest}, native" ;;
+  *)
+    echo >&2
+    echo "the container reports ${guest} on a ${host} host, so this ran emulated." >&2
+    echo "Semantic verdicts still stand; every timing in ${OUT} describes the" >&2
+    echo "emulator and must not be recorded as a Linux measurement." >&2
+    ;;
+esac
 
 # What ran, checked rather than assumed.
 #
@@ -53,8 +74,8 @@ done
 # 2026-08-03, so it would have printed a green Linux suite that had never
 # executed this repository's own rules. Nothing said so, because a suite that
 # does not collect a file reports one fewer file and no reader counts. These are
-# the two families whose absence is invisible in a summary, named individually so
-# the message says which one went missing.
+# the families whose absence is invisible in a summary, named individually so the
+# message says which one went missing.
 missing=()
 for family in 'tools/documentation.test.ts' 'tools/boundaries.test.ts' 'cases/' 'examples/kitchen-sink'; do
   grep -q -- "${family}" "${OUT}/linux-run-1.log" || missing+=("${family}")
@@ -66,6 +87,30 @@ if [ ${#missing[@]} -gt 0 ]; then
   echo "That is a partial suite reported as a whole one — the failure this" >&2
   echo "harness exists to catch, arriving in the harness. Check the build" >&2
   echo "context and .dockerignore before reading any number in ${OUT}." >&2
+  exit 1
+fi
+
+# **A named file is not a file that ran**, and the check above cannot tell them
+# apart: a skipped suite prints its own name too.
+#
+# That gap is not hypothetical, it is the most likely way this image fails. Every
+# browser suite is gated on `existsSync(chromium.executablePath())`, and the
+# image tag decides which browser build sits in `/ms-playwright` while the
+# lockfile decides which one Playwright goes looking for. Pinned apart — as they
+# were until 2026-08-03, `v1.49.0` against a resolved 1.62.1 — all ten gated
+# files skip, the summary is green, and this harness reports that portability
+# holds without having executed one cross-platform measurement.
+#
+# So: on Linux, with the right image, nothing may skip.
+# `tools/boundaries.test.ts` keeps the two pins from drifting again.
+if grep -qE '[0-9]+ skipped' "${OUT}/linux-run-1.log"; then
+  echo >&2
+  echo "suites skipped inside the container:" >&2
+  grep -E '^\s*↓|skipped\.' "${OUT}/linux-run-1.log" >&2 || true
+  echo >&2
+  echo "A skipped browser suite is the hollow pass this harness exists to refuse:" >&2
+  echo "the log is green and no cross-platform measurement was taken. Check that" >&2
+  echo "the image tag matches the playwright the lockfile resolves." >&2
   exit 1
 fi
 

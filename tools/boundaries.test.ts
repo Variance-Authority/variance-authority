@@ -389,3 +389,55 @@ describe('every package says what it is', () => {
     },
   );
 });
+
+/**
+ * A pinned browser image is a declared requirement, and it must match the
+ * dependency it will be running.
+ *
+ * Three files pin `mcr.microsoft.com/playwright:<tag>` — the Linux verification
+ * image, the example workflow, and the Bitbucket recipe in the CLI README — and
+ * every one of them was pinned to `v1.49.0` while the lockfile resolved
+ * `playwright` to 1.62.1. The tag is what decides which browser build is baked
+ * into `/ms-playwright`; the resolved package is what decides which build
+ * `chromium.executablePath()` goes looking for. When they disagree the path does
+ * not exist.
+ *
+ * **And nothing goes red.** The browser suites are gated on
+ * `existsSync(executablePath())`, so a mismatched image *skips all ten of them*
+ * and reports a green run — which for the Linux harness means it would have
+ * confirmed portability without executing a single cross-platform measurement.
+ * That is the failure this repository exists to refuse, and it was sitting in the
+ * harness the same day it was repaired for a different one.
+ *
+ * The version is read from the lockfile rather than from `package.json`, because
+ * `^1.49.0` is the range and the resolution is what gets installed.
+ */
+describe('a pinned browser image matches the playwright it runs', () => {
+  const resolved = /^"playwright@npm:[^"]*":\n  version: (\S+)$/m.exec(
+    readFileSync(join(ROOT, 'yarn.lock'), 'utf8'),
+  )?.[1];
+
+  const pins = execFileSync('git', ['grep', '-n', 'mcr.microsoft.com/playwright:'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n')
+    // This file names the registry to find the pins, and is not one.
+    .filter((line) => !line.startsWith('tools/'));
+
+  it('reads a resolved playwright version out of the lockfile', () => {
+    expect(resolved).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it('finds the pins, so a moved file cannot empty this rule', () => {
+    expect(pins.length).toBeGreaterThan(0);
+  });
+
+  it.each(pins)('%s', (line) => {
+    const tag = /mcr\.microsoft\.com\/playwright:v([\d.]+)-/.exec(line)?.[1];
+
+    expect(tag, `${line} pins no \`vX.Y.Z-\` tag`).toBeDefined();
+    expect(tag, 'the image ships a browser build this playwright will not look for').toBe(resolved);
+  });
+});

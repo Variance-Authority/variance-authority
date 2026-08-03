@@ -16,7 +16,7 @@
 # substitutes precisely so that layout does not move, and the font probe reads
 # those as missing. The false-alarm rate that produces is measured here rather
 # than assumed.
-FROM mcr.microsoft.com/playwright:v1.49.0-noble
+FROM mcr.microsoft.com/playwright:v1.62.1-noble
 
 WORKDIR /work
 

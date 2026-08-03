@@ -173,7 +173,7 @@ worth writing down twice.
 
 ```yaml
 # bitbucket-pipelines.yml
-image: mcr.microsoft.com/playwright:v1.49.0-noble
+image: mcr.microsoft.com/playwright:v1.62.1-noble
 
 pipelines:
   pull-requests:
