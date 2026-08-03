@@ -14,7 +14,7 @@ The short version, before the detail:
 |---|---|
 | **Code you write** | Three seams, three, one and one method. A worked example is 341 lines |
 | **Packages you install** | Between one and four, chosen by what you already have |
-| **Suites supported today** | Storybook end to end. Anything else, through a list of ids and the same collector contract |
+| **Suites supported today** | Storybook end to end. Anything else through the same collector contract — the run takes its subject list from the collector, not from the config, so a new subject source needs no change here |
 | **What cannot enter** | An image this system did not paint. Deliberately, and the refusal is a named error |
 
 ---
@@ -197,25 +197,39 @@ versioned by nobody.
 }
 ```
 
-`ListSubjects packages/cli/src/config.ts:108` is the arbitrary-suite path: you
-supply the ids, the collector supplies everything else. The CLI branches to
-`planList`, at `packages/cli/src/commands/run.ts:1008` and from there the run is
-identical — same normalizer, same bands, same docket, same store.
+`ListSubjects packages/cli/src/config.ts:108` is the arbitrary-suite path. The
+CLI branches to `planList`, at `packages/cli/src/commands/run.ts:1008`, and from
+there the run is identical — same normalizer, same bands, same docket, same store.
 
-**The plan is handed to you here too.** `CollectorContext.plan` is populated for
-both subject kinds, so a `list` collector returns `context.plan` from `plan()`
-and writes no planning of its own. Its doc comment said "present only for
-`subjects.kind: 'storybook'`" until 2026-08-03, which is the reading that costs
-something — an operator writing a `list` collector concludes the field is
+**The two-arm union is a much weaker constraint than it looks, and this is the
+most useful fact in the document.** `run()` never reads `config.subjects` — not
+once. The subject list is whatever `deps.collector.plan()` returns
+(`packages/cli/src/commands/run.ts:650`), and the loop iterates that. What the
+`kind` union actually decides is two things: which collector module to import,
+and which generic pre-plan to compute *for the collector's convenience*.
+
+So a collector may ignore `context.plan` entirely and return subjects read from a
+route table, a build manifest, or a suite's own discovery output — including
+`SubjectRef.kind: 'route'`, which the format declares and nothing yet constructs —
+with **no change to `packages/cli`**. Adding a genuinely new subject source is a
+module in your repository, not a pull request here. The `ids` array becomes a
+one-element formality in that case, because the parser refuses an empty one; that
+is an ergonomics complaint rather than a closed door.
+
+**The plan is handed to you either way.** `CollectorContext.plan` is populated for
+both subject kinds, so a `list` collector that *does* want the generic half
+returns `context.plan` from `plan()` and writes no planning of its own. Its doc
+comment said "present only for `subjects.kind: 'storybook'`" until 2026-08-03,
+which is the reading that costs something — an operator concludes the field is
 undefined and hand-rolls what the CLI already computed.
 
-**This path has no worked example.** It parses, it plans, and it is covered by
+**And this path has no worked example.** It parses, it plans, and it is covered by
 unit tests in `packages/cli/src/config.test.ts`,
 `packages/cli/src/commands/run.test.ts` and
-`packages/cli/src/commands/doctor.test.ts` with a fake collector. No real suite
-has ever entered through it. It is the arm the configuration advertises and the
-repository does not demonstrate, which is the reverse of the usual failure and
-still a failure.
+`packages/cli/src/commands/doctor.test.ts` with a fake collector, and documented
+in `packages/cli/README.md`. No real suite has ever entered through it. It is the
+arm the configuration advertises and the repository does not demonstrate, which is
+the reverse of the usual failure and still a failure.
 
 ### Playwright
 
@@ -337,7 +351,10 @@ Five properties, ordered by how much weight each actually carries.
 
 1. **Every seam is an argument, not a plugin.** Renderer, store, collector,
    provenance. Nothing is discovered; each is a value passed in or a path named
-   in a config file. There is no registry to fail mysteriously.
+   in a config file. There is no registry to fail mysteriously. The sharpest
+   instance is §3's: the run asks the collector what the subjects are and never
+   consults the config, so the config's closed two-arm union constrains almost
+   nothing about what can be observed.
 2. **The package graph is cut by requirement, so a cost can be declined.** No
    other tool in the category lets you refuse the browser, the image codec or the
    framework binding independently — because no other tool separates them.

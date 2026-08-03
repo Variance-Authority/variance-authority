@@ -202,18 +202,30 @@ repository where the next reader can see it.
 
 **You also cannot get a build in front of a reviewer without writing the upload
 yourself.** Nothing in `packages/cli` or in the shipped action posts to the
-ingest route; the only callers are the Worker's own tests and the review UI's
-client. The rung has the same no-caller hole rung 5 is marked for, on its write
-half, and this table did not say so until 2026-08-03.
+ingest route, and the only thing in the repository that does is the Worker's own
+test suite. The review UI's client speaks to the *review* half of the surface —
+list, detail, decide, image — and never to ingest, so it is not the counterexample
+it looks like. The rung has the same no-caller hole rung 5 is marked for, on its
+write half, and this table did not say so until 2026-08-03.
 
-**And the docket here leads with causes only when something supplied them.**
-Causes reach a build from the collector's `Collected.causes`, and a durable
-baseline is an image with no document behind it, so on the path this rung is
-reached by there are none — the ordering falls back to area, which
+**And the docket here leads with causes only when something supplied them.** The
+mechanism is worth stating exactly, because the obvious explanation is wrong: the
+run passes `collected.causes` on the durable path and the ephemeral path on
+identical terms (`packages/cli/src/commands/run.ts:874` and `:827`), so nothing
+in the retention mode suppresses them. What is missing is a wire *back*. Causes
+are derived by diffing two **snapshots**, and a durable baseline is an image, so a
+collector reaching this rung has nothing to derive them from and supplies none —
+at which point the ordering falls back to area, which
 [ADR-0021](context/adr/0021-approval-promotes-an-image-that-already-exists.md)
-records as measured backwards by 6×. Standing up a database and a bucket does not
-change what was collected. Rung 2 is the rung that would fix this, and it is the
-one that is not built.
+records as measured backwards by 6×.
+
+Two consequences follow, and neither is "the durable path cannot rank". A
+collector that can reach the previous revision's document — the same thing rung 0
+requires — can supply causes here today, unchanged. And **no collector ships at
+all**: the one in the tree is a case fixture that declines to supply causes and
+says so in a comment, so "supplies none" describes what has been written rather
+than what the code permits. Rung 2 is what would make it the default rather than
+the adopter's problem, and it is the one that is not built.
 
 ## Rung 5 — history: drift across runs
 
