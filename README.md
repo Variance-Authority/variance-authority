@@ -42,7 +42,7 @@ baselines compared by mistake, some need one policy decision, and some are real
 changes wearing a flake costume.
 
 **→ [Our vision on flakiness](docs/flakiness.md)** — the full taxonomy, what
-absorbs each cause, what we measured, and the four rows where we lose.
+absorbs each cause, what we measured, and the five rows where we lose.
 
 ### "VR is expensive."
 
@@ -213,9 +213,12 @@ Both rendering surfaces emit the same snapshot format and enter the same
 normalizer, so a subject can be decided in a unit test today and in a browser
 tomorrow without being written twice.
 
-*Built: Vitest/Jest via `jsdom`, and Playwright. `variance run` drives a real
-Storybook end to end through a collector the operator writes — a few hundred
-lines, once, per project. There is no plugin.*
+*Built: a library callable inside Vitest/Jest via `jsdom`, and a Playwright
+harness this project drives. `variance run` takes a real Storybook end to end
+through a collector the operator writes — 234 lines in the one worked example.
+There is no plugin — and no way to point this at an existing suite's screenshots
+either, because every subject is re-mounted. See
+[`docs/surface.md`](docs/surface.md) for what that costs.*
 
 ### "Where are results stored?"
 
@@ -266,7 +269,10 @@ phones anything, schedules anything, or needs a hosted control plane to reach a
 verdict.
 
 *Built: `variance run`, `accept`, `report`, `serve`, `comment` and `doctor` — six
-commands, driven end to end over a Storybook this project did not write. Never run
+commands. **Three of them** — `run`, `accept`, `report` — are driven end to end
+over a Storybook this project did not write; that credit used to be claimed for
+all six and is not transferable, because `comment`, `doctor` and `serve` are
+covered by unit tests only and `serve` has no test file of its own. Never run
 against a repository outside this one. `comment` renders the pull-request body and
 posts nothing; sending it is the workflow's job, with your token.*
 
@@ -295,11 +301,18 @@ platform-specific part is posting the comment, and both recipes are written down
 ([GitHub](.github/actions/variance),
 [Bitbucket](packages/cli/README.md#bitbucket-pipelines-and-what-carries-to-any-ci)).
 
-*Honest limit: every measurement in this repository was taken on one Mac with one
-Chromium, and neither CI recipe has ever executed. Linux CI is the intended
-target and is not yet verified —
-[`docker/linux-verify.sh`](docker/linux-verify.sh) is the harness for it, and it
-has not been run either.*
+*Honest limit: neither CI recipe has ever executed. What has run, once, is
+[`docker/linux-verify.sh`](docker/linux-verify.sh) — on 2026-08-03, native arm64,
+Node 24. **ADR-0010 survived**: every semantic verdict agreed and no
+cross-platform divergence appeared in any band. What did not survive is a piece of
+this README's own evidence — the `text-smoothing` probe perturbs
+`-webkit-font-smoothing`, which only macOS implements, so on Linux it moves 0
+pixels rather than 177. The band is not wrong and rasterization really does vary
+across machines; what this repository had was a simulation that works only on the
+machine that wrote it. Real evidence needs two machines rendering one page, and
+now that there are two, nothing yet does. `docker/results/` was never committed,
+so the run is recorded in
+[the checkpoint](docs/context/checkpoint.md) rather than in an artifact.*
 
 ### "SOC 2?"
 
@@ -343,7 +356,7 @@ tiers are cheap in practice and not only on paper.
 | [`store`](packages/store) | a filesystem | baselines on disk, and in git-LFS |
 | [`remote`](packages/remote) | a socket | a renderer and a store across a hop |
 | [`server`](packages/server) | a database | the history service you run |
-| [`cloudflare`](packages/tribunal) | your own D1 and R2 | baselines, history, and the review-and-approve surface, in an account you control. Never deployed |
+| [`tribunal`](packages/tribunal) | your own D1 and R2 | baselines, history, and the review-and-approve surface, in an account you control. Never deployed |
 | [`mcp`](packages/mcp) | stdio | the observation, exposed to an agent |
 
 **Composes the above**
@@ -375,7 +388,7 @@ requirement gains a second owner, or an advertised entrypoint stops resolving.
 **The documentation is a test too** —
 [ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
 `tools/documentation.test.ts`, which resolves every link, every repository path
-and every `file:line` reference in this and the other 73 markdown files, and
+and every `file:line` reference in this and the other 74 markdown files, and
 compiles every README example against the built types with no unused import. An
 example is a call site the compiler could not see, which is why 11 of the 20 here
 had gone stale against APIs that had been renamed underneath them. It runs in
@@ -479,16 +492,18 @@ Current state, what is proven and what is open, is kept in
 
 1. [`docs/architecture.md`](docs/architecture.md) — the composition model: tools,
    their contracts, and why there is no pipeline
-2. [`docs/flows.md`](docs/flows.md) — the five setups, from git-LFS to a review
+2. [`docs/surface.md`](docs/surface.md) — what you write and what you install, by
+   suite: Storybook, Playwright, jest/vitest, anything
+3. [`docs/flows.md`](docs/flows.md) — the six setups, from ephemeral to a review
    service, and what each one cannot do
-3. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
-4. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
+4. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
+5. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
    dependency order
-5. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
-6. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
-7. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
+6. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
+7. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
+8. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
    [0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the moat
-8. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
+9. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
 
 ## Development
 

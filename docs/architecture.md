@@ -117,7 +117,17 @@ second cut, made inside a box with entrypoints.
 | `server` | a database | the history service the operator runs |
 | `mcp` | stdio | the observation, exposed to an agent |
 | `observe` | the three it composes | one composition, shipped as an example |
+| `tribunal` | a database, a bucket, and a runtime to deploy into | baselines, history, and the review-and-approve surface, in an account the operator controls |
 | `cli` | all of it | the workflow, which is the one place a workflow belongs |
+
+`tribunal` is the deliberate exception to the rule this table is about, and it was
+missing from the table until 2026-08-03 — which read as though the rule had none.
+It is a **service**, not a linked tool: the requirement it names is a deployment
+rather than something a consumer supplies to a function, and it composes five
+packages because a deployed thing has to. Named for what it is rather than for the
+host it currently runs on
+([ADR-0023](context/adr/0023-a-service-is-named-for-what-it-is.md)), which is why
+the row does not say `cloudflare`.
 
 Five boxes require nothing at all. That is the same distribution the tool table
 shows, arrived at from the other end, and it is what makes the cheap tiers cheap

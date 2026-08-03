@@ -214,9 +214,15 @@ export type Collected =
  * its own definition of settled. Every tool that has claimed otherwise grew a
  * plugin system whose failures are undebuggable from either side.
  *
- * So the config names a module, this CLI imports it, and the contract is four
- * methods. An operator writes about thirty lines; in exchange, nothing in this
- * file has to guess what a subject is.
+ * So the config names a module, this CLI imports it, and the contract is the
+ * three methods below. In exchange, nothing in this file has to guess what a
+ * subject is.
+ *
+ * **What it costs the operator, measured rather than estimated.** This comment
+ * said "about thirty lines" until one was written: `cases/storybook-case/collector/`
+ * is 341 lines across three files, 234 of them in the module the config names.
+ * The estimate was optimistic by 8×, and the real figure is the integration cost
+ * a reader comparing this against a vendor's SDK should be given.
  */
 export interface Collector {
   /** Subjects to observe, plus the ones this source already refuses, with reasons. */
@@ -228,7 +234,21 @@ export interface Collector {
 /** What the collector module's default export is called with. */
 export interface CollectorContext {
   readonly config: Config;
-  /** Present only for `subjects.kind: 'storybook'`; already read and planned. */
+
+  /**
+   * The generic half of planning, already done — for **both** subject kinds.
+   *
+   * `storybook` supplies a story index parsed into subjects; `list` supplies the
+   * configured ids. The binary produces one either way (`planFor` in `bin.ts`),
+   * so a collector the CLI loaded can return `context.plan` from `plan()` and
+   * write no planning of its own.
+   *
+   * Optional because the type also describes a caller composing `RunDeps` by
+   * hand, who owes the collector nothing. This comment previously read "present
+   * only for `subjects.kind: 'storybook'`", which is the reading that costs
+   * something: an operator writing a `list` collector concludes the field is
+   * undefined and hand-rolls what {@link planList} already returned.
+   */
   readonly plan?: Plan;
 }
 

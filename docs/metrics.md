@@ -421,16 +421,28 @@ directory, or a crawler with no code changes at all. Argos is a CI step. All
 three are single-digit files and zero lines of operator-written code.
 
 **This project's current score is unbounded, and that is not a figure of speech.**
-There is no LICENSE file, nothing is published, no `variance.config.json` exists
-anywhere in the repository for a run to read, `loadCollector` imports a collector
-module *the operator writes*, and no `variance run` has ever completed against a
-real project. `--help` exits 0 and three commands exit 2 with specific operator
-errors; that is the argument parser working, not a verdict.
+There is no LICENSE file, nothing is published, every package is `private: true`,
+and `loadCollector` imports a collector module *the operator writes*.
+
+**Two clauses of this paragraph were stale and are corrected here (2026-08-03),
+because leaving them made the metric look unrunnable for the wrong reason.** It
+previously read that no `variance.config.json` existed anywhere in the repository
+and that no `variance run` had ever completed against a real project. Both are
+false: `cases/storybook-case/variance.config.json` is tracked, and the full cycle
+runs over a Storybook this project did not write — *new → accept → unchanged →
+5 of 8 changed* ([comparison §4.2](comparison.md#42-nothing-above-the-cli-boundary-has-been-run)).
+The correction does not move the score. M6 measures an outside operator starting
+from public documentation, and the blockers that remain — no package, no licence,
+and a collector every adopter writes themselves — are each individually
+sufficient to keep it at unbounded.
 
 **Cost to measure.** ~8 operator-hours across 5 tools plus coordination, and it
 requires outside operators — anyone who has read this repository is disqualified.
-Against this project it **cannot be run at all** until there is a shipped
-collector, a published package and a license.
+Against this project it **cannot be run at all** until there is a published
+package, a licence, and a collector story that is not "write one". Note the
+distinction the corrected paragraph turns on: a *worked* collector now exists for
+one project, which is evidence the contract is writable. A *shipped* collector,
+which is what this metric needs, does not.
 
 **What would mean we lose.** Today, everything. The target that would make this
 non-embarrassing, stated so it can be checked later: **under 30 minutes** on a

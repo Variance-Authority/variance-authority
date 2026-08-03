@@ -39,7 +39,7 @@ reading. What differs here is the last column.
 
 | Cause | Absorbed by | Notes |
 |---|---|---|
-| **Anti-aliasing, text smoothing** | construction | Glyph rasterization is not a property of the box tree. **Measured:** moves a pixel differ by 177px, does not move us, with no threshold set. |
+| **Anti-aliasing, text smoothing** | construction | Glyph rasterization is not a property of the box tree. **Measured:** moves a pixel differ by 177px, does not move us, with no threshold set. **And the measurement is macOS-only** — the probe perturbs `-webkit-font-smoothing`, which no other platform implements, so the first Linux run measured 0 changed pixels on both arms (2026-08-03, [checkpoint](context/checkpoint.md)). The absorption argument stands on construction; the 177px does not stand on Linux. |
 | **Device pixel ratio, retina runners** | environment-key | **Measured:** moves a pixel differ by 3015px. Here `deviceScaleFactor` is part of the key, so a 2× run and a 1× run are different baselines and never meet. |
 | **Different machine, GPU, driver** | environment-key | A durable baseline is stored *partitioned by renderer identity*, so a cross-machine comparison is `incomparable` — one sentence, not a day of unattributable red. See [ADR-0011](context/adr/0011-durable-and-ephemeral-retention.md). Or use the ephemeral mode, where there is no second machine to be wrong about. |
 | **Fonts substituted or not loaded** | environment-key, **and reported** | Fonts are in the key. The renderer also probes by metrics and names what it did not have, because two runs of a substituted font compare `unchanged` — true, and worthless. |
@@ -51,8 +51,11 @@ reading. What differs here is the last column.
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
 
-The last four rows are the honest half of the table. A comparison that only ever
-finds in its own favour is an advertisement.
+**Five** rows are absorbed by nothing, and they are the honest half of the table.
+This line said "the last four" until 2026-08-03, which quietly excluded
+*animations mid-flight* — the one of the five a reader is most likely to hit on
+their first run. A comparison that only ever finds in its own favour is an
+advertisement, and so is arithmetic that rounds its own losses down.
 
 ## Test order and shared state
 

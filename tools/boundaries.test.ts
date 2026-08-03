@@ -391,6 +391,52 @@ describe('every package says what it is', () => {
 });
 
 /**
+ * The one table a reader picks a package out of has to use the package's name.
+ *
+ * ADR-0023 renamed the review service from `cloudflare` to `tribunal` and argued
+ * the case in the ADR's own title: a service is named for what it is, not for the
+ * host it happens to run on. The rename reached the manifest, the entrypoints and
+ * every exported symbol — and did not reach the root README, whose package table
+ * went on labelling the row `cloudflare` while linking to `packages/tribunal`.
+ *
+ * Nothing caught it. The rules above check that a README *states* a requirement
+ * and documents its entrypoints; the documentation gate checks that the link
+ * *resolves*, and `packages/tribunal` resolves fine. A label is the one part of
+ * the row nothing read, so it drifted in the one direction that matters — the
+ * name a reader would type.
+ */
+describe('the root README calls every package by its name', () => {
+  const README = readFileSync(join(ROOT, 'README.md'), 'utf8');
+
+  it('finds package rows to check, so a reformatted table cannot empty this rule', () => {
+    expect([...README.matchAll(/\[`([^`]+)`\]\(packages\/([\w-]+)\)/g)].length).toBeGreaterThan(10);
+  });
+
+  it('labels each row with the manifest name', () => {
+    const wrong: string[] = [];
+
+    for (const [, label, dir] of README.matchAll(/\[`([^`]+)`\]\(packages\/([\w-]+)\)/g)) {
+      const manifest = join(ROOT, 'packages', dir!, 'package.json');
+      if (!existsSync(manifest)) {
+        wrong.push(`packages/${dir} does not exist`);
+        continue;
+      }
+
+      // Either spelling is a name. The table writes the bare segment for
+      // density and the prose writes the specifier a consumer would install;
+      // both are the package calling itself what it is, and only a third
+      // spelling is the drift this exists to catch.
+      const name = (JSON.parse(readFileSync(manifest, 'utf8')) as Manifest).name;
+      if (label !== name && label !== name.split('/').pop()) {
+        wrong.push(`packages/${dir} is labelled \`${label}\`, not \`${name}\``);
+      }
+    }
+
+    expect(wrong).toEqual([]);
+  });
+});
+
+/**
  * A pinned browser image is a declared requirement, and it must match the
  * dependency it will be running.
  *
