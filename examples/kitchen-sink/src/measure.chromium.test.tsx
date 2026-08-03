@@ -409,9 +409,15 @@ describe.skipIf(!BROWSER_AVAILABLE)('M5 — collection under chromium', () => {
   });
 });
 
-describe.skipIf(BROWSER_AVAILABLE)('M5 — corpus under chromium', () => {
-  it.skip('needs a Chromium download: npx playwright install chromium', () => {});
-});
+// Announced at module scope, because that is the only place a reader of a
+// skipped run sees anything. `it.skip` titles are invisible under the default
+// reporter, which is the one CI uses.
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\nexamples/kitchen-sink (corpus under chromium): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
 
 /**
  * Spec 0001 acceptance, scored against the corpus's pre-declared ground truth.

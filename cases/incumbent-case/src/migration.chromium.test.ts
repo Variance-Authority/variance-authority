@@ -190,6 +190,9 @@ const live = READY ? describe : describe.skip;
 if (!READY) {
   console.warn(
     '\ncases/incumbent-case (migration): skipped.' +
+      (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
+      (existsSync(BUNDLE) ? '' : '\n  no page bundle') +
+      (existsSync(THEIRS) ? '' : "\n  the incumbent has not recorded a baseline") +
       '\n  yarn workspace @variance-authority/case-incumbent incumbent\n',
   );
 }

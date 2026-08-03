@@ -101,6 +101,19 @@ afterAll(async () => {
 
 const live = BUILT && BROWSER_AVAILABLE ? describe : describe.skip;
 
+// One line per unmet precondition. A single line covering two reasons sends a
+// reader to fix whichever one they guess.
+if (!BUILT || !BROWSER_AVAILABLE) {
+  console.warn(
+    '\ncases/storybook-case (storybook): skipped.' +
+      (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
+      (BUILT
+        ? ''
+        : '\n  no Storybook — yarn workspace @variance-authority/case-storybook build-storybook') +
+      '\n',
+  );
+}
+
 live('reading a Storybook nobody wrote for us', () => {
   it('parses the real index and finds every story', () => {
     // The format the fixtures model, produced by the tool itself. A version bump

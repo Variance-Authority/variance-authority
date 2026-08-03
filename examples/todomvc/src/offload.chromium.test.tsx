@@ -85,6 +85,16 @@ afterAll(async () => {
 
 const chromium_ = BROWSER_AVAILABLE ? describe : describe.skip;
 
+// Announced at module scope, because that is the only place a reader of a
+// skipped run sees anything. `it.skip` titles are invisible under the default
+// reporter, which is the one CI uses.
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\nexamples/todomvc (offload): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
 chromium_('rendering a document jsdom produced', () => {
   it('paints a subject with real geometry, from a host that has none', () => {
     // jsdom reports zeros from `getBoundingClientRect`, so the document carries
