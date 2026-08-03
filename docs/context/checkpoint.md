@@ -54,7 +54,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B13 | **the boundary** — what a package is, and what an entrypoint costs | landed; ADR-0013, enforced by `tools/boundaries.test.ts` |
 | B14 | **replacement** — what a case is, and whether an incumbent can actually be left | landed and measured against a real `toHaveScreenshot`; three rows no threshold reaches, one row we lose |
 | B15 | **limbs** — what a run knows with no baseline at all: bands split, inspection, locale, provenance without React | landed and measured; four capabilities and six defects, every one of them found by writing the capability rather than by looking for the defect |
-| B12 | **history** — what accumulates across runs, and where it lives | **specified, not built** ([specs 0001–0002](../specs/README.md)); first implementation refuted and retired ([epitaphs](epitaphs.md)) |
+| B12 | **history** — what accumulates across runs, and where it lives | **specified and built, wired to nothing** ([specs 0001–0002](../specs/README.md)): the hashing, the rows, the drift arithmetic and the service all ship, and no run calls any of them. First implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
 
@@ -166,7 +166,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   page it was acquired from".
 - **The documentation is checked now, and one class of it still is not.**
   `tools/documentation.test.ts` resolves every link, every backticked repository
-  path and every `file:line` reference across all 68 markdown files, and compiles
+  path and every `file:line` reference across all 69 markdown files, and compiles
   every README `ts` example against the built `.d.ts` with no unused import. It
   found that **11 of the 20 examples did not compile** — wrong arity, options
   that were renamed, a field that no longer exists — which is what a reader was
@@ -182,10 +182,14 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   about what an agent needs, tested against text rather than against use.
 - **The font probe reports metric-compatible substitutes as missing.** A false
   alarm rather than a false `unchanged`, and the same hole as "one machine".
-- **Nothing accumulates across runs.** Spec §5 has promised per-component change
-  frequency since the draft; specs 0001–0002 now say what it should record and where it
-  should live, and neither exists. Until it does, the README's third answer is
-  half built: pixels reach code lines, and no sum is kept.
+- **Nothing accumulates across runs, and it is no longer for want of code.** Spec
+  §5 has promised per-component change frequency since the draft; specs 0001–0002
+  say what to record and where it lives, and **both are now implemented** —
+  `hashComponents` in `core/attribute`, the rows and drift arithmetic in
+  `@variance-authority/history`, the socket in `@variance-authority/server`. What
+  does not exist is a caller: `variance run` records nothing, so every one of those
+  is exercised only by its own unit tests. The README's third answer is still half
+  built, and the missing half moved from "write it" to "wire it".
 - **The README makes claims about deployment nothing has exercised.** Linux CI,
   git-LFS artifacts, a CI bot committing images back — all stated as intent and
   marked as such, none run once.
@@ -221,13 +225,16 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 
 Two open fronts, and they are independent.
 
-**History (B12) is specified and unwritten.** Specs 0001–0002 settle what is recorded and
-where it lives; nothing implements it. The first step is per-component
-band hashing in `core` — `SemanticSnapshot` carries `structureHash` and
-`styleHash` at *subject* level only, and the boundary-scoped per-component
-version is what every history question is asked against. The store interface and
-its backing service come after, and neither should be started before the hashing
-is proven to move only when the component's own code moves.
+**History (B12) is specified, built and wired to nothing.** Specs 0001–0002 settle
+what is recorded and where it lives, and both now have code: `hashComponents` ships
+in `core/attribute` with the contract spec 0001 wrote, and
+`@variance-authority/history` and `@variance-authority/server` implement the rows,
+the drift arithmetic and the service. What is missing is the only part that was
+ever the point — **no run calls any of it.** `variance run` records nothing, so no
+row has ever been written by a run and the per-component hashes have never been
+compared across two of them. The next step is not more implementation; it is a
+consumer path, and until one exists "the hashing moves only when the component's
+own code moves" is asserted by a unit test and by nothing else.
 
 **Generality remains unmeasured.** One corpus, one mutation behind the ranking,
 one machine behind every ratio, and an MCP surface nothing has used. The cheapest

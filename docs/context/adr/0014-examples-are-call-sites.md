@@ -96,14 +96,53 @@ back at them when they get it wrong, because it is the same string.
 
 ## What this does not cover, and why
 
-**A fence in a spec or an ADR is not compiled.** It is a *proposal* about code
-that may not exist: specs 0001 and 0002 are marked `not built`, and their
-interfaces describe the thing the spec exists to argue for. Demanding they
-compile would invert what a spec is. The cost is real — a spec can name a type
-that was renamed under it and nothing will say so. Checked by hand on
-2026-08-03: every type named in those fences (`Digest`, `SemanticSnapshot`,
-`ProfileId`, `ProfileExpectation`, `Undecidable`, `Band`, `Observation`,
-`Churn`, `TokenValue`, `Reach`) still exists under that name.
+**A fence in a spec or an ADR is not compiled**, and is name-checked instead. It
+is a *proposal* about code that may not exist — spec 0007 is `not built`, and an
+interface in a spec describes the thing the spec exists to argue for. Demanding
+those compile would invert what a spec is.
+
+But a proposal does not only propose. It also *borrows*: `Digest`, `ProfileId`,
+`SemanticSnapshot` are the repository's, quoted so the proposal has something to
+attach to. Those are checkable, and the mechanism needs no status field and no
+allowlist — **a proposal declares what it proposes and references what already
+exists**, so subtracting the declarations *is* the not-built exemption. Eleven
+repository types are borrowed across the seven such fences; all eleven exist.
+
+An earlier revision of this paragraph said "specs 0001 and 0002 are marked `not
+built`" and listed ten of those types. Both were wrong — 0002 is `built, not
+wired`, 0001 turned out to be too, and `Window` was the one omitted — which is
+the argument for checking rather than for a more careful hand-count.
+
+### Comparing members was tried and rejected, which is the more useful record
+
+The obvious stronger check is: when a fence declares a type the repository also
+exports, compare their members. It looks compelling, and on this repository it
+fires three times — and two of the three are wrong.
+
+| fence | says | ships | verdict |
+|---|---|---|---|
+| ADR-0002 `ObservationProfile` | `id: 'jsdom' \| 'chromium'` | `id: ProfileId` | **same type.** `ProfileId` is that union |
+| spec 0002 `Observation` | `band: 'structure' \| 'style' \| 'geometry'` | `band: Band` | **same type**, same way |
+| spec 0002 `HistoryStore` | `record(observations, tokens)`, bare `Promise<T>` | `record(run, observations, tokens)`, `Promise<Answer<T>>` | **real drift**, and deliberate |
+
+Two of three are alias substitution — a union spelled out in the proposal and
+named in the code. Telling that apart from a genuine change requires resolving
+type aliases, which requires a type checker, which is the compile this decision
+rejected two paragraphs ago. A check whose first run is two false alarms and one
+finding is a check that gets an exemption added rather than a fix, and then gets
+deleted.
+
+So the third row was fixed by hand instead — spec 0002's contract had described
+neither the draft's intent nor the shipped interface, and the code had been right
+since it was written — and this is recorded here so the next person to have the
+idea finds the measurement rather than the intuition.
+
+**What the name check therefore buys, stated narrowly:** a type renamed to
+*nothing* is caught. A type renamed to something else is not. A member that
+changed shape is not. Of the eleven documentation defects tabulated above, this
+check would have caught **none** — they were signature and property changes in
+compiled examples, which is what the compile gate is for. It covers a different
+surface, not a stronger one.
 
 **A number is not checked.** "1007 CSS rules → 1", "7.5 ms warm vs 205 ms cold",
 every pixel count in `cases/` — these are measurements, and the file that

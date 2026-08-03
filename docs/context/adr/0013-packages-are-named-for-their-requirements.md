@@ -61,7 +61,8 @@ tree of everyone who reads a story index.
 
 ## Consequences
 
-**Packages get small, and that is the intended direction.** `png` is one module.
+**Packages get small, and that is the intended direction.** `png` was one module when this was written and is three files behind two
+entrypoints now, still with one requirement.
 A small box with one requirement is more useful than a large one with four,
 because the consumer's question is "what does this cost me" and only the small
 box can answer it.

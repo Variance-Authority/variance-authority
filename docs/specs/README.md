@@ -8,7 +8,7 @@ what a capability must do, written before the code and kept until the decisions
 it forced have been lifted into ADRs — at which point the spec is deleted. **A
 spec is therefore not a promise that the capability is missing.** Of the nine
 below, four are `built` and stay only because nobody has written their ADRs yet,
-three more have code that no consumer path reaches, and two are greenfield. The
+four more have code that no consumer path reaches, and one is greenfield. The
 `Status` column, not the presence of the file, is what says which is which.
 
 Whoever moves a spec to `built` owns the rest of the move: writing the ADRs for
@@ -33,7 +33,7 @@ Ordered by dependency. Later entries assume earlier ones.
 
 | # | Capability | Depends on | Status | Where it stands |
 |---|---|---|---|---|
-| [0001](0001-component-hashing.md) | Per-component band hashing | — | `not built` | Every history question is asked against it. `SemanticSnapshot` hashes at subject level only. |
+| [0001](0001-component-hashing.md) | Per-component band hashing | — | `built, not wired` | The contract below ships verbatim — `ComponentHash` field for field and `hashComponents` signature for signature, in `core/attribute`, unit-tested. Nothing outside that test calls it, so no history question has ever been asked against it. |
 | [0002](0002-history-store.md) | History store and drift queries | 0001 | `built, not wired` | `@variance-authority/history` and `@variance-authority/server` implement the rows, the drift arithmetic and the service. `variance run` records nothing, so no row has ever been written by a run. |
 | [0003](0003-cli.md) | Command-line interface | — | `built` | `variance run`, `accept`, `report`, `serve`, `comment` and `doctor` ship as the `variance` bin, and drive [`cases/storybook-case`](../../cases/storybook-case) end to end. |
 | [0004](0004-artifact-storage.md) | Artifact storage: git-LFS and remote | 0003 | `built` | The directory store, the git-LFS store and the remote store all ship. git-LFS has never been exercised as git-LFS — no clean/smudge filter has run. |

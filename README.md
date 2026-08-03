@@ -177,11 +177,13 @@ Two things, and neither is a better comparison.
 **A defect that was there on the first run.** A button that never had an
 accessible name compares equal to itself on every run there will ever be, so
 approving the first baseline approves the defect. `variance run` reads each
-render on its own and reports five kinds of defect in it — a control with no
+render on its own and reports nine kinds of defect in it — a control with no
 accessible name, an image with no `alt`, a heading level skipped, a control
-inside a control, a label pointing at nothing — each naming a component and a
-file. They never change the verdict; a tool that blocks a merge on day one over
-findings nobody asked for gets switched off in week one.
+inside a control, a reference pointing at nothing, an accessible name that does
+not contain its own visible label, two landmarks of one role that nothing tells
+apart, a table with no header cells, a positive `tabindex` — each naming a
+component and a file. They never change the verdict; a tool that blocks a merge
+on day one over findings nobody asked for gets switched off in week one.
 
 **Which string nobody translated.** A message catalogue and a PNG have no key in
 common, so the category's answer to a localized UI is N times as many screenshots
@@ -421,7 +423,7 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   adopter's to write, once, per project.
 - **Any framework but React, actually run.** Provenance needs a component name
   per element. React gets it from fibers; anything else gets it from two `data-*`
-  attributes and 25 lines
+  attributes and a 25-line `attributeProvenance`
   ([`packages/dom/src/attributed.ts`](packages/dom/src/attributed.ts)), which is
   what a Vue or Svelte build step already emits. No Vue, Svelte or Angular
   application has been through it.

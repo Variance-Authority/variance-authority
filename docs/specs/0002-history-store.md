@@ -95,16 +95,34 @@ reviewed as a diff, so it does not inherit the problem.
 
 ```ts
 export interface HistoryStore {
-  record(observations: readonly Observation[], tokens: readonly TokenValue[]): Promise<void>;
+  record(
+    run: RunRecord,
+    observations: readonly Observation[],
+    tokens: readonly TokenValue[],
+  ): Promise<void>;
 
-  lastChanged(subject: string, component: string, band?: Band): Promise<Observation | null>;
-  churn(component: string, window: Window): Promise<Churn>;
-  valueJourney(token: string, window: Window): Promise<readonly TokenValue[]>;
-  reach(component: string, window: Window): Promise<Reach>;
+  lastChanged(subject: string, component: string, band?: Band): Promise<Answer<Observation | null>>;
+  churn(component: string, window: Window): Promise<Answer<Churn>>;
+  valueJourney(token: string, window: Window): Promise<Answer<Journey>>;
+  reach(component: string, window: Window): Promise<Answer<Reach>>;
 }
 ```
 
 Every operation returns a small slice. Nothing loads a whole history.
+
+**Two deviations from the first draft of this contract, both deliberate, both
+argued in `packages/history/src/store.ts` rather than here.** `record` takes the
+run as a required argument instead of inferring it from the rows, because a run in
+which nothing changed *has* no rows and is exactly the run that must not be lost —
+the draft's `record(observations, tokens)` cannot express a quiet run at all. And
+every answer is wrapped in `Answer<T>`, which is `T | Unkept`, because the
+alternative to saying *no record is being kept* is returning an empty result, and
+an agent handed an empty churn concludes the product is stable. That is the
+Behaviour section's first rule, expressed in the type rather than in a promise.
+
+This contract was corrected on 2026-08-03 after it was found to describe neither
+the draft's intent nor the shipped interface; the code had been right since it was
+written.
 
 ## Behaviour
 

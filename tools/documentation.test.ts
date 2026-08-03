@@ -380,20 +380,32 @@ interface Checked extends Fence {
 }
 
 /**
+ * Where a proposal lives, decided by directory rather than by filename.
+ *
+ * `docs/specs/README.md` ends in `README.md` and is not an example; a fence added
+ * to it would have gone to the compiler under the old filename rule. The two
+ * buckets happen to partition every `ts` fence today, and `every fence is checked
+ * one way or the other` below is what keeps that an arrangement rather than an
+ * accident.
+ */
+const PROPOSAL_DIRS = ['docs/specs/', 'docs/context/adr/'];
+
+const isTypeScript = (fence: Fence): boolean => fence.lang === 'ts' || fence.lang === 'tsx';
+const isProposal = (fence: Fence): boolean => PROPOSAL_DIRS.some((dir) => fence.file.startsWith(dir));
+const isExample = (fence: Fence): boolean => !isProposal(fence) && fence.file.endsWith('README.md');
+
+/**
  * Examples, which are READMEs only, and the distinction is not a convenience.
  *
  * A fence in a README is an instruction: it is there to be copied, and a reader
- * who copies it runs it. A fence in a spec or an ADR is a *proposal* — specs 0001
- * and 0002 are marked `not built`, and their interfaces describe types that do
- * not exist yet on purpose. Demanding those compile would demand the code the
- * spec exists to argue for, which inverts what a spec is.
+ * who copies it runs it. A fence in a spec or an ADR is a *proposal* — spec 0007
+ * is `not built`, and an interface in a spec describes the code the spec exists
+ * to argue for. Demanding those compile would invert what a spec is.
  *
- * The cost is real and belongs here rather than in a comment nobody reads: a
- * spec's fence can name a type that was renamed under it and nothing will say so.
+ * They are not unchecked, though: see `every type a proposal names still exists`
+ * below, which asks the weaker question a proposal can answer.
  */
-const EXAMPLES: readonly Checked[] = FENCES.filter(
-  (fence) => (fence.lang === 'ts' || fence.lang === 'tsx') && fence.file.endsWith('README.md'),
-).map(
+const EXAMPLES: readonly Checked[] = FENCES.filter((fence) => isTypeScript(fence) && isExample(fence)).map(
   (fence) => {
     const parsed = ts.createSourceFile('fence.tsx', fence.code, ts.ScriptTarget.ES2022, true);
     const declared = declaredIn(parsed);
@@ -530,6 +542,176 @@ describe('every documented example compiles', () => {
       expect([...imported].filter((name) => !used.has(name))).toEqual([]);
     },
   );
+});
+
+/**
+ * The weaker question a proposal can answer.
+ *
+ * A spec's fence cannot be compiled — it describes code the spec exists to argue
+ * for — but it does not only propose. It also *borrows*: `Digest`, `ProfileId`,
+ * `SemanticSnapshot` are the repository's, quoted so the proposal has something to
+ * attach to. Those borrowed names are checkable, and the mechanism needs no status
+ * field and no allowlist, because **a proposal declares what it proposes and
+ * references what already exists** — so subtracting the declarations is the
+ * not-built exemption.
+ *
+ * ## What this catches, and the much larger thing it does not
+ *
+ * It catches a rename to *nothing*: `Digest` becoming `Hash` with no `Digest` left
+ * anywhere. It does **not** catch a rename to something else, and it does not
+ * compare shapes at all. Spec 0002 was measured against its own implementation
+ * while this was written: every type it names exists, and its `HistoryStore` had
+ * drifted in all five methods anyway. That defect was found by reading and fixed
+ * by hand, and nothing here would have found it — see ADR-0014 for why member
+ * comparison was tried and rejected rather than merely skipped.
+ */
+const PROPOSAL_FENCES = FENCES.filter((fence) => isTypeScript(fence) && isProposal(fence));
+
+/**
+ * TypeScript's own, listed one at a time rather than exempting `lib.*.d.ts`.
+ *
+ * Exempting the whole lib would drop `Window`, which this repository declares in
+ * `packages/history/src/store.ts` and spec 0002 names three times — a rename of it
+ * would silently resolve to `lib.dom`'s and say nothing. The two hygiene tests
+ * below are what keep this list from growing into that hole.
+ */
+const BUILT_IN: Readonly<Record<string, string>> = {
+  Partial: "TypeScript's own utility type",
+  Record: "TypeScript's own utility type",
+  Promise: "the language's",
+};
+
+/** Every exported type-ish declaration in tracked source, by name. Source, so no build is needed. */
+const DECLARED: ReadonlyMap<string, readonly string[]> = (() => {
+  const found = new Map<string, string[]>();
+  const files = execFileSync('git', ['ls-files', '*.ts', '*.tsx'], { cwd: ROOT, encoding: 'utf8' })
+    .trim()
+    .split('\n')
+    .filter((file) => !/\.(test|spec)\.tsx?$/.test(file));
+
+  for (const file of files) {
+    const source = ts.createSourceFile(file, readFileSync(join(ROOT, file), 'utf8'), ts.ScriptTarget.ES2022, true);
+    for (const statement of source.statements) {
+      const exported =
+        ts.canHaveModifiers(statement) &&
+        ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) === true;
+      if (!exported) continue;
+
+      const name =
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isTypeAliasDeclaration(statement) ||
+        ts.isClassDeclaration(statement) ||
+        ts.isEnumDeclaration(statement) ||
+        ts.isFunctionDeclaration(statement)
+          ? statement.name?.text
+          : undefined;
+      if (name === undefined) continue;
+
+      const line = source.getLineAndCharacterOfPosition(statement.getStart(source)).line + 1;
+      found.set(name, [...(found.get(name) ?? []), `${file}:${line}`]);
+    }
+  }
+  return found;
+})();
+
+/**
+ * Type names a fence references, minus the ones it declares itself.
+ *
+ * The shapes matter. Two of the fences here are fragments — an interface member,
+ * an object literal — so each is tried as statements, as an interface body, and as
+ * a type alias, and the **union** over every shape that parses cleanly is taken.
+ * Not the first clean one: `{ expect: Band }` parses as a labelled statement with
+ * zero diagnostics and yields no references at all, so "first clean" would report
+ * a checked fence that checked nothing, which is the silent pass this repository
+ * refuses everywhere else.
+ */
+function referencedTypes(code: string): { readonly names: ReadonlySet<string>; readonly read: boolean } {
+  const shapes = [code, `interface __Fence__ {\n${code}\n}`, `type __Fence__ = ${code};`];
+  const names = new Set<string>();
+  const declared = new Set<string>();
+  let read = false;
+
+  for (const shape of shapes) {
+    const source = ts.createSourceFile('proposal.ts', shape, ts.ScriptTarget.ES2022, true);
+    // `parseDiagnostics` is not on the public type, and is the only way to ask
+    // whether recovery happened; a recovered parse invents nodes.
+    const diagnostics = (source as unknown as { parseDiagnostics?: readonly unknown[] }).parseDiagnostics ?? [];
+    if (diagnostics.length > 0) continue;
+    read = true;
+
+    const walk = (node: ts.Node): void => {
+      if (ts.isTypeReferenceNode(node) || ts.isExpressionWithTypeArguments(node)) {
+        const entity = ts.isTypeReferenceNode(node) ? node.typeName : node.expression;
+        let leftmost: ts.Node = entity;
+        while (ts.isQualifiedName(leftmost)) leftmost = leftmost.left;
+        if (ts.isIdentifier(leftmost)) names.add(leftmost.text);
+      }
+      if (
+        (ts.isInterfaceDeclaration(node) ||
+          ts.isTypeAliasDeclaration(node) ||
+          ts.isClassDeclaration(node) ||
+          ts.isFunctionDeclaration(node)) &&
+        node.name !== undefined
+      ) {
+        declared.add(node.name.text);
+      }
+      if (ts.isTypeParameterDeclaration(node)) declared.add(node.name.text);
+      ts.forEachChild(node, walk);
+    };
+    ts.forEachChild(source, walk);
+  }
+
+  declared.add('__Fence__');
+  return { names: new Set([...names].filter((name) => !declared.has(name))), read };
+}
+
+describe('every type a proposal names still exists', () => {
+  const ROSTER = new Set(PROPOSAL_FENCES.flatMap((fence) => [...referencedTypes(fence.code).names]));
+
+  it('checks every ts fence one way or the other', () => {
+    // A fence that is neither compiled nor name-checked is a fence nothing reads.
+    // Adding one to a journal, or to `docs/architecture.md`, has to be a decision
+    // rather than a default.
+    const unchecked = FENCES.filter((fence) => isTypeScript(fence) && !isExample(fence) && !isProposal(fence));
+    expect(unchecked.map((fence) => `${fence.file}:${fence.line}`)).toEqual([]);
+  });
+
+  it('finds proposals to check', () => {
+    expect(PROPOSAL_FENCES.length).toBeGreaterThan(0);
+  });
+
+  it.each(PROPOSAL_FENCES.map((fence) => [`${fence.file}:${fence.line}`, fence] as const))(
+    '%s is readable',
+    (_where, fence) => {
+      // A fence no shape can parse would otherwise be exempt in silence. An
+      // elision written as `…` is the likely cause, and the fix is to write a
+      // fragment TypeScript can parse rather than to widen this.
+      expect(referencedTypes(fence.code).read).toBe(true);
+    },
+  );
+
+  it.each(PROPOSAL_FENCES.map((fence) => [`${fence.file}:${fence.line}`, fence] as const))(
+    '%s',
+    (where, fence) => {
+      const missing = [...referencedTypes(fence.code).names]
+        .filter((name) => !(name in BUILT_IN) && !DECLARED.has(name))
+        .map((name) => `${where} → ${name}`);
+
+      // A spec borrows names from code that exists. When one stops existing, the
+      // fence still reads as though it had not.
+      expect(missing).toEqual([]);
+    },
+  );
+
+  it('exempts no built-in this repository also declares', () => {
+    // The `Window` guard. An exemption that shadows a real type is a hole shaped
+    // exactly like a passing test.
+    expect(Object.keys(BUILT_IN).filter((name) => DECLARED.has(name))).toEqual([]);
+  });
+
+  it('exempts no built-in no proposal names', () => {
+    expect(Object.keys(BUILT_IN).filter((name) => !ROSTER.has(name))).toEqual([]);
+  });
 });
 
 /**
