@@ -1,12 +1,20 @@
-# @variance-authority/cloudflare
+# @variance-authority/tribunal
 
-**Requires:** a Cloudflare account you control, with a D1 database and an R2
-bucket bound to a Worker you deploy. Two bearer tokens of at least 16 characters
-each, and they may not be the same value. Nothing else — no account here, no
-hosted anything, no outbound call.
+**Requires:** a database this deployment owns, an object store beside it, a
+runtime that serves `fetch`, and two bearer tokens of at least 16 characters that
+are not the same value. Nothing else — no account here, no hosted anything, no
+outbound call.
 
-Argos or Chromatic, with the backend on your own premises, holding nothing more
-than the run put in it.
+The venue where evidence is held and a verdict is reviewed and settled. Argos or
+Chromatic, on your own premises, holding nothing more than the run put in it.
+
+**Written against Cloudflare** — D1, R2 and a Worker — which is where the wiring
+below points and the only host it has been tried on. Nothing in the package is
+Cloudflare-specific: the bindings are the narrow structural subset actually used,
+the router speaks Web-standard `Request` and `Response`, and every test runs the
+real SQL through `node:sqlite`. The name says what it is rather than where it
+runs, for the reasons in
+[ADR-0023](../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md).
 
 The rest of this repository answers *what changed, why, where, and should anyone
 care?* and then the process ends. This is where those answers go so that a person
@@ -43,14 +51,14 @@ stores agreeing on a wrong answer is not a pass.
 
 | entrypoint | requires | holds |
 |---|---|---|
-| `@variance-authority/cloudflare` | nothing | the binding types, `SCHEMA`, `applySchema` |
-| `@variance-authority/cloudflare/store` | D1 and R2 | `createCloudflareStore` — baselines |
-| `@variance-authority/cloudflare/history` | D1 | `createD1Backend` — the drift record |
-| `@variance-authority/cloudflare/review` | D1 and R2 | `createReviewStore` — builds, decisions, retention |
-| `@variance-authority/cloudflare/worker` | D1, R2, two tokens | `createVarianceWorker` — one `fetch` handler |
-| `@variance-authority/cloudflare/ui` | React | the review surface, its JSON client, its stylesheet |
-| `@variance-authority/cloudflare/next` | an App Router app | `createVarianceRoutes` — the vinext wiring |
-| `@variance-authority/cloudflare/testing` | Node 22 | D1 over `node:sqlite`, an in-memory bucket |
+| `@variance-authority/tribunal` | nothing | the binding types, `SCHEMA`, `applySchema` |
+| `@variance-authority/tribunal/store` | D1 and R2 | `createBucketStore` — baselines |
+| `@variance-authority/tribunal/history` | D1 | `createD1Backend` — the drift record |
+| `@variance-authority/tribunal/review` | D1 and R2 | `createReviewStore` — builds, decisions, retention |
+| `@variance-authority/tribunal/worker` | D1, R2, two tokens | `createTribunal` — one `fetch` handler |
+| `@variance-authority/tribunal/ui` | React | the review surface, its JSON client, its stylesheet |
+| `@variance-authority/tribunal/next` | an App Router app | `createTribunalRoutes` — the vinext wiring |
+| `@variance-authority/tribunal/testing` | Node 22 | D1 over `node:sqlite`, an in-memory bucket |
 
 **The table is for reading, not for slimming an install.** Everywhere else in
 this repository a package is named for its requirements because a *tool* that
@@ -65,8 +73,8 @@ across two Workers, not because the package is trying to keep an install small.
 
 ```ts
 // worker.ts — yours, not ours
-import type { D1Like, R2Like } from '@variance-authority/cloudflare';
-import { createVarianceWorker } from '@variance-authority/cloudflare/worker';
+import type { D1Like, R2Like } from '@variance-authority/tribunal';
+import { createTribunal } from '@variance-authority/tribunal/worker';
 
 interface Env {
   readonly DB: D1Like;
@@ -77,7 +85,7 @@ interface Env {
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
-    return createVarianceWorker({
+    return createTribunal({
       db: env.DB,
       bucket: env.BUCKET,
       project: 'todomvc',
@@ -103,7 +111,7 @@ and D1 has no advisory lock to serialize that with.
 
 ```tsx
 // app/variance/page.tsx
-import { ReviewApp, REVIEW_STYLES, createReviewClient } from '@variance-authority/cloudflare/ui';
+import { ReviewApp, REVIEW_STYLES, createReviewClient } from '@variance-authority/tribunal/ui';
 
 declare function whoIsThis(): Promise<string>;
 
@@ -121,9 +129,9 @@ export default async function VariancePage(): Promise<React.ReactElement> {
 
 ```ts
 // app/variance/[[...path]]/route.ts — the vinext half
-import type { D1Like, R2Like } from '@variance-authority/cloudflare';
-import { createVarianceRoutes } from '@variance-authority/cloudflare/next';
-import { createVarianceWorker } from '@variance-authority/cloudflare/worker';
+import type { D1Like, R2Like } from '@variance-authority/tribunal';
+import { createTribunalRoutes } from '@variance-authority/tribunal/next';
+import { createTribunal } from '@variance-authority/tribunal/worker';
 
 declare const env: {
   readonly DB: D1Like;
@@ -133,7 +141,7 @@ declare const env: {
 };
 declare function isSignedIn(request: Request): Promise<boolean>;
 
-const worker = createVarianceWorker({
+const worker = createTribunal({
   db: env.DB,
   bucket: env.BUCKET,
   project: 'todomvc',
@@ -141,7 +149,7 @@ const worker = createVarianceWorker({
   reviewToken: env.VARIANCE_REVIEW_TOKEN,
 });
 
-export const { GET, POST, HEAD } = createVarianceRoutes(worker, {
+export const { GET, POST, HEAD } = createTribunalRoutes(worker, {
   basePath: '/variance',
   authorize: async (request: Request) => ((await isSignedIn(request)) ? 'review' : null),
   tokens: { ingest: env.VARIANCE_INGEST_TOKEN, review: env.VARIANCE_REVIEW_TOKEN },
@@ -248,8 +256,8 @@ trigger or call it from CI.
 ## Testing your own wiring
 
 ```ts
-import { createReviewStore } from '@variance-authority/cloudflare/review';
-import { createMemoryR2, createSqliteD1 } from '@variance-authority/cloudflare/testing';
+import { createReviewStore } from '@variance-authority/tribunal/review';
+import { createMemoryR2, createSqliteD1 } from '@variance-authority/tribunal/testing';
 
 const review = createReviewStore({
   db: await createSqliteD1(),
@@ -294,7 +302,7 @@ store and not reachable through the review path.
 
 - [ADR-0021](../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md) — why approving may not render
 - [ADR-0022](../../docs/context/adr/0022-deciding-is-not-writing.md) — why there are two tokens
-- [ADR-0023](../../docs/context/adr/0023-a-service-depends-on-what-it-needs.md) — why a service may depend on what it needs
+- [ADR-0023](../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md) — why a service may depend on what it needs
 - [ADR-0016](../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) — why a store failure is not a verdict
 - [spec 0002](../../docs/specs/0002-history-store.md) — what a history row is allowed to contain
 - [ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md) — why the identity partition is the primary key

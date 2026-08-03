@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Digest, RenderIdentity } from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
 import type { RunReport } from '@variance-authority/report';
-import { createCloudflareStore } from './store.js';
+import { createBucketStore } from './store.js';
 import { ReviewError, createReviewStore, type BuildIngest, type ReviewStore } from './review.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
 
@@ -200,7 +200,7 @@ describe('the docket leads with causes and counts collateral', () => {
 describe('approval promotes an image that already exists', () => {
   it('makes the candidate the baseline the next run compares against', async () => {
     await review.ingest(ingest());
-    const baselines = createCloudflareStore({ db, bucket, project: 'todomvc' });
+    const baselines = createBucketStore({ db, bucket, project: 'todomvc' });
 
     expect(await baselines.find({ subject: 'story:todos--populated' }, IDENTITY)).toBeNull();
 
@@ -270,7 +270,7 @@ describe('approval promotes an image that already exists', () => {
 
   it('rejects without touching a baseline', async () => {
     await review.ingest(ingest());
-    const baselines = createCloudflareStore({ db, bucket, project: 'todomvc' });
+    const baselines = createBucketStore({ db, bucket, project: 'todomvc' });
 
     await review.decide({
       build: 'ci-1001',
@@ -390,7 +390,7 @@ describe('retention holds nothing more than is needed', () => {
 
     await review.sweep(7);
 
-    const baselines = createCloudflareStore({ db, bucket, project: 'todomvc' });
+    const baselines = createBucketStore({ db, bucket, project: 'todomvc' });
     expect((await baselines.find({ subject: 'story:todos--populated' }, IDENTITY))?.raster.bytes).toBe(
       CANDIDATE,
     );

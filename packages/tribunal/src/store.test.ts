@@ -2,7 +2,7 @@ import { PNG } from 'pngjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { documentDigest, identityDigest, type Raster, type RenderIdentity } from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
-import { createCloudflareStore } from './store.js';
+import { createBucketStore } from './store.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
 
 /**
@@ -72,8 +72,8 @@ beforeEach(async () => {
   bucket = createMemoryR2();
 });
 
-function store(project = 'todomvc'): ReturnType<typeof createCloudflareStore> {
-  return createCloudflareStore({ db, bucket, project });
+function store(project = 'todomvc'): ReturnType<typeof createBucketStore> {
+  return createBucketStore({ db, bucket, project });
 }
 
 describe('a baseline split across D1 and R2', () => {
@@ -181,7 +181,7 @@ describe('a store failure is never a verdict', () => {
   });
 
   it('raises an operator error when D1 cannot be reached', async () => {
-    const broken = createCloudflareStore({
+    const broken = createBucketStore({
       db: {
         prepare: () => {
           throw new Error('no such table: baselines');

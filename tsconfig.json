@@ -16,7 +16,7 @@
     { "path": "./packages/history" },
     { "path": "./packages/server" },
     { "path": "./packages/mcp" },
-    { "path": "./packages/cloudflare" },
+    { "path": "./packages/tribunal" },
     { "path": "./packages/cli" },
     { "path": "./examples/kitchen-sink" },
     { "path": "./examples/todomvc" },

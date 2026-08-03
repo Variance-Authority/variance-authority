@@ -22,8 +22,8 @@ import {
   createLfsStore,
   type CommandRunner,
 } from '@variance-authority/store';
-import { createCloudflareStore } from '@variance-authority/cloudflare/store';
-import { createMemoryR2, createSqliteD1 } from '@variance-authority/cloudflare/testing';
+import { createBucketStore } from '@variance-authority/tribunal/store';
+import { createMemoryR2, createSqliteD1 } from '@variance-authority/tribunal/testing';
 import { observeAgainstBaseline, type RasterVerdict } from './observe.js';
 
 /**
@@ -168,11 +168,11 @@ const IMPLEMENTATIONS: readonly { readonly name: string; open(): Promise<RasterS
     // A database and an object store, which is the first backend here that keeps
     // the sidecar and the image in two different services. If a split pair can
     // change a verdict, this is where it shows.
-    name: 'Cloudflare',
+    name: 'bucket',
     async open(): Promise<RasterStore> {
       const db = await createSqliteD1();
       databases.push(db);
-      return createCloudflareStore({ db, bucket: createMemoryR2(), project: 'parity' });
+      return createBucketStore({ db, bucket: createMemoryR2(), project: 'parity' });
     },
   },
 ];
@@ -242,7 +242,7 @@ describe('switching where baselines are kept', () => {
         durable: expected,
         'git-LFS': expected,
         remote: expected,
-        Cloudflare: expected,
+        bucket: expected,
       });
     });
   }
@@ -276,7 +276,7 @@ describe('switching where baselines are kept', () => {
       durable: expected,
       'git-LFS': expected,
       remote: expected,
-      Cloudflare: expected,
+      bucket: expected,
     });
   });
 

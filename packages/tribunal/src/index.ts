@@ -14,7 +14,7 @@ export type {
   D1Value,
   R2Like,
   R2ObjectLike,
-  VarianceBindings,
+  TribunalBindings,
 } from './bindings.js';
 export { base64Of, bytesOf } from './bindings.js';
 export { SCHEMA, SCHEMA_VERSION, applySchema } from './schema.js';

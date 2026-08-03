@@ -169,7 +169,7 @@ which we measured as backwards. Import to get moving, re-record as you go.
 
 **What this does not cover:** the hosted products are half comparison and half
 product. Of the product half, a review UI and a team approval workflow now exist
-as code — [`@variance-authority/cloudflare`](packages/cloudflare), the operator's
+as code — [`@variance-authority/tribunal`](packages/tribunal), the operator's
 own D1 and R2, [ADR-0021](docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md) — and
 **have never been deployed to Cloudflare**. A cross-browser grid and change
 detection at repository scale are not confronted at all.
@@ -342,7 +342,7 @@ tiers are cheap in practice and not only on paper.
 | [`store`](packages/store) | a filesystem | baselines on disk, and in git-LFS |
 | [`remote`](packages/remote) | a socket | a renderer and a store across a hop |
 | [`server`](packages/server) | a database | the history service you run |
-| [`cloudflare`](packages/cloudflare) | your own D1 and R2 | baselines, history, and the review-and-approve surface, in an account you control. Never deployed |
+| [`cloudflare`](packages/tribunal) | your own D1 and R2 | baselines, history, and the review-and-approve surface, in an account you control. Never deployed |
 | [`mcp`](packages/mcp) | stdio | the observation, exposed to an agent |
 
 **Composes the above**
@@ -459,14 +459,14 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   next entry. A cross-browser grid and repository-scale change detection do not
   exist here and are not claimed.
 - **A deployment of the review backend.**
-  [`@variance-authority/cloudflare`](packages/cloudflare) implements the baseline
+  [`@variance-authority/tribunal`](packages/tribunal) implements the baseline
   store, the history backend, the build-and-approve model and the review surface
   against D1 and R2, and **has never run on Cloudflare.** D1 is SQLite, so its
   93 tests execute the real SQL through `node:sqlite` against an in-memory
   bucket — which verifies the queries, the triggers, the promotion path and the
   routes, and verifies nothing about the platform: batch atomicity, quotas,
   object-size ceilings and concurrent Workers are all unmeasured
-  ([ADR-0023](docs/context/adr/0023-a-service-depends-on-what-it-needs.md)).
+  ([ADR-0023](docs/context/adr/0023-a-service-is-named-for-what-it-is.md)).
 - **A real agent.** The MCP tools are shaped by argument about what an agent
   needs and tested against text, not against an agent that used them and either
   fixed the thing or did not.

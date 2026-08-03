@@ -9,7 +9,7 @@ import {
   CACHE_PUT_PATH,
 } from '@variance-authority/remote';
 import type { RunReport } from '@variance-authority/report';
-import { createVarianceWorker, type VarianceWorker } from './worker.js';
+import { createTribunal, type Tribunal } from './worker.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
 
 const INGEST = 'ingest-token-0123456789';
@@ -52,12 +52,12 @@ const RASTER = {
 
 let db: SqliteD1;
 let bucket: MemoryR2;
-let worker: VarianceWorker;
+let worker: Tribunal;
 
 beforeEach(async () => {
   db = await createSqliteD1();
   bucket = createMemoryR2();
-  worker = createVarianceWorker({
+  worker = createTribunal({
     db,
     bucket,
     project: 'todomvc',
@@ -359,13 +359,13 @@ describe('authentication happens before routing', () => {
 
   it('refuses to start with a token short enough to guess', () => {
     expect(() =>
-      createVarianceWorker({ db, bucket, project: 'p', ingestToken: 'short', reviewToken: REVIEW }),
+      createTribunal({ db, bucket, project: 'p', ingestToken: 'short', reviewToken: REVIEW }),
     ).toThrow(/shorter than 16/);
   });
 
   it('refuses to start when both tokens are one secret', () => {
     expect(() =>
-      createVarianceWorker({ db, bucket, project: 'p', ingestToken: INGEST, reviewToken: INGEST }),
+      createTribunal({ db, bucket, project: 'p', ingestToken: INGEST, reviewToken: INGEST }),
     ).toThrow(/one secret and not two/);
   });
 });

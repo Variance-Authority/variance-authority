@@ -9,7 +9,7 @@ import {
   type Found,
   type RasterStore,
 } from '@variance-authority/raster';
-import { base64Of, bytesOf, type D1Like, type R2Like, type VarianceBindings } from './bindings.js';
+import { base64Of, bytesOf, type D1Like, type R2Like, type TribunalBindings } from './bindings.js';
 
 /**
  * Baselines in R2, attributed in D1.
@@ -53,7 +53,7 @@ import { base64Of, bytesOf, type D1Like, type R2Like, type VarianceBindings } fr
  * stops the suite.
  */
 
-export interface CloudflareStoreOptions extends VarianceBindings {
+export interface BucketStoreOptions extends TribunalBindings {
   /**
    * The project these baselines belong to.
    *
@@ -78,7 +78,7 @@ interface SidecarRow {
   readonly object_key: string;
 }
 
-export function createCloudflareStore(options: CloudflareStoreOptions): RasterStore {
+export function createBucketStore(options: BucketStoreOptions): RasterStore {
   const { db, bucket, project } = options;
   const now = options.now ?? ((): Date => new Date());
 
@@ -337,7 +337,8 @@ async function guard<T>(call: () => Promise<T>, where: string): Promise<T> {
     return await call();
   } catch (error) {
     throw new RasterStoreError(
-      `the baseline store could not reach Cloudflare for ${where}: ${messageOf(error)}. ${REFUSAL}.`,
+      `the baseline store could not reach its database or its bucket for ${where}: ` +
+        `${messageOf(error)}. ${REFUSAL}.`,
       { cause: error },
     );
   }

@@ -15,7 +15,7 @@ import {
 import { RasterStoreError, identityFrom, rasterFrom } from '@variance-authority/raster';
 import type { RunReport } from '@variance-authority/report';
 import { HistoryWriteConflict, churnFrom, journeyFrom, lastChangedFrom, reachFrom } from '@variance-authority/server';
-import type { VarianceBindings } from './bindings.js';
+import type { TribunalBindings } from './bindings.js';
 import { createD1Backend } from './history.js';
 import {
   ReviewError,
@@ -24,7 +24,7 @@ import {
   type Decision,
   type SubjectImages,
 } from './review.js';
-import { createCloudflareStore } from './store.js';
+import { createBucketStore } from './store.js';
 
 /**
  * One `fetch` handler, three surfaces, and no outbound call.
@@ -67,7 +67,7 @@ import { createCloudflareStore } from './store.js';
  * two a route wants reveals nothing they could not learn by trying.
  */
 
-export interface WorkerOptions extends VarianceBindings {
+export interface TribunalOptions extends TribunalBindings {
   /** Scopes every row and object. One deployment, several repositories. */
   readonly project: string;
   /** Written into CI. Writes builds, baselines and history. At least 16 characters. */
@@ -85,7 +85,7 @@ export interface WorkerOptions extends VarianceBindings {
   readonly now?: () => Date;
 }
 
-export interface VarianceWorker {
+export interface Tribunal {
   fetch(request: Request): Promise<Response>;
 }
 
@@ -112,10 +112,10 @@ const CACHE_PUT_PATH = '/cache/put';
 /** The shortest token this will start with. A short shared secret is a public one. */
 const MIN_TOKEN = 16;
 
-export function createVarianceWorker(options: WorkerOptions): VarianceWorker {
+export function createTribunal(options: TribunalOptions): Tribunal {
   refuseWeakTokens(options);
 
-  const baselines = createCloudflareStore(options);
+  const baselines = createBucketStore(options);
   const history = createD1Backend(options.db);
   const review = createReviewStore(options);
   const retentionDays = options.retentionDays ?? 30;
@@ -158,7 +158,7 @@ export function createVarianceWorker(options: WorkerOptions): VarianceWorker {
 type Granted = 'ingest' | 'review';
 
 interface Surfaces {
-  readonly baselines: ReturnType<typeof createCloudflareStore>;
+  readonly baselines: ReturnType<typeof createBucketStore>;
   readonly history: ReturnType<typeof createD1Backend>;
   readonly review: ReturnType<typeof createReviewStore>;
   readonly retentionDays: number;
@@ -384,7 +384,7 @@ const UNAUTHENTICATED = 'a valid bearer token is required';
  * Both candidates are always checked, even after the first one matches, so that
  * "which token is this" costs the same either way.
  */
-async function grant(request: Request, options: WorkerOptions): Promise<Granted | null> {
+async function grant(request: Request, options: TribunalOptions): Promise<Granted | null> {
   const header = request.headers.get('authorization');
   if (header === null) return null;
 
@@ -412,7 +412,7 @@ function equal(left: Uint8Array, right: Uint8Array): boolean {
   return difference === 0;
 }
 
-function refuseWeakTokens(options: WorkerOptions): void {
+function refuseWeakTokens(options: TribunalOptions): void {
   for (const [name, token] of [
     ['ingestToken', options.ingestToken],
     ['reviewToken', options.reviewToken],

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createVarianceRoutes } from './next.js';
-import type { VarianceWorker } from './worker.js';
+import { createTribunalRoutes } from './next.js';
+import type { Tribunal } from './worker.js';
 
 /**
  * The adapter is four lines of behaviour, and every one of them can fail
@@ -11,7 +11,7 @@ const INGEST = 'ingest-token-0123456789';
 const REVIEW = 'review-token-0123456789';
 
 let seen: { url: string; authorization: string | null; method: string }[];
-let worker: VarianceWorker;
+let worker: Tribunal;
 
 beforeEach(() => {
   seen = [];
@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 
 function routes(authorize: (request: Request) => 'ingest' | 'review' | null, basePath = '/variance') {
-  return createVarianceRoutes(worker, {
+  return createTribunalRoutes(worker, {
     basePath,
     authorize,
     tokens: { ingest: INGEST, review: REVIEW },

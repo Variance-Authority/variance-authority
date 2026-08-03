@@ -68,7 +68,7 @@ this one promotes baselines. So the mounting adapter keeps both on the server an
 attaches one per request — which makes the *adapter*, not the token, the gate,
 and pushes the question onto the operator's own session.
 
-`createVarianceRoutes` therefore takes an `authorize` hook with **no default**.
+`createTribunalRoutes` therefore takes an `authorize` hook with **no default**.
 Defaulting it to "review" would publish an approve button to the internet, and a
 package that shipped that as a convenience would be shipping the failure. An
 operator who genuinely wants an open surface writes `() => 'review'` in their own

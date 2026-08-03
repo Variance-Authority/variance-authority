@@ -45,7 +45,7 @@ export interface D1Like {
    * a quiet run that was not quiet.
    *
    * **Unverified against the platform.** See the known limits in
-   * [ADR-0023](../../../docs/context/adr/0023-a-service-depends-on-what-it-needs.md) — the
+   * [ADR-0023](../../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md) — the
    * double used in tests is genuinely transactional, and the claim that D1 is
    * has never been measured here.
    */
@@ -82,7 +82,7 @@ export interface R2Like {
  * missing one is a wiring error at construction rather than a `TypeError` on the
  * first request that happens to need it.
  */
-export interface VarianceBindings {
+export interface TribunalBindings {
   readonly db: D1Like;
   readonly bucket: R2Like;
 }

@@ -7,8 +7,8 @@ import type {
   RegionRecord,
   RunReport,
 } from '@variance-authority/report';
-import { base64Of, bytesOf, type D1Like, type R2Like, type VarianceBindings } from './bindings.js';
-import { createCloudflareStore } from './store.js';
+import { base64Of, bytesOf, type D1Like, type R2Like, type TribunalBindings } from './bindings.js';
+import { createBucketStore } from './store.js';
 
 /**
  * The half [ADR-0019](../../../docs/context/adr/0019-one-comment-that-leads-with-causes.md) put out of
@@ -49,7 +49,7 @@ import { createCloudflareStore } from './store.js';
  * and `undefined` means nothing looked.
  */
 
-export interface ReviewOptions extends VarianceBindings {
+export interface ReviewOptions extends TribunalBindings {
   readonly project: string;
   /** Injected so tests can pin every `at`. Defaults to the wall clock. */
   readonly now?: () => Date;
@@ -204,7 +204,7 @@ export interface ReviewStore {
 export function createReviewStore(options: ReviewOptions): ReviewStore {
   const { db, bucket, project } = options;
   const now = options.now ?? ((): Date => new Date());
-  const baselines = createCloudflareStore(options);
+  const baselines = createBucketStore(options);
 
   return {
     async ingest(build): Promise<void> {

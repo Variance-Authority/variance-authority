@@ -1,4 +1,4 @@
-import type { VarianceWorker } from './worker.js';
+import type { Tribunal } from './worker.js';
 
 /**
  * The Worker, mounted inside a Next.js App Router app — which on Cloudflare means
@@ -6,21 +6,21 @@ import type { VarianceWorker } from './worker.js';
  *
  * The whole adapter is one idea: a Next route handler is
  * `(Request) => Response | Promise<Response>`, and so is
- * {@link VarianceWorker.fetch}. What is left is a mount prefix to strip and one
+ * {@link Tribunal.fetch}. What is left is a mount prefix to strip and one
  * decision the operator has to make, below.
  *
  * ```ts
  * // app/variance/[[...path]]/route.ts
- * import { createVarianceWorker } from '@variance-authority/cloudflare/worker';
- * import { createVarianceRoutes } from '@variance-authority/cloudflare/next';
+ * import { createTribunal } from '@variance-authority/tribunal/worker';
+ * import { createTribunalRoutes } from '@variance-authority/tribunal/next';
  *
- * const worker = createVarianceWorker({
+ * const worker = createTribunal({
  *   db: process.env.DB, bucket: process.env.BUCKET, project: 'todomvc',
  *   ingestToken: process.env.VARIANCE_INGEST_TOKEN!,
  *   reviewToken: process.env.VARIANCE_REVIEW_TOKEN!,
  * });
  *
- * export const { GET, POST, HEAD } = createVarianceRoutes(worker, {
+ * export const { GET, POST, HEAD } = createTribunalRoutes(worker, {
  *   basePath: '/variance',
  *   authorize: async (request) => (await isSignedIn(request)) ? 'review' : null,
  * });
@@ -44,7 +44,7 @@ import type { VarianceWorker } from './worker.js';
  * separate things, and neither is asked to be the other.
  */
 
-export interface VarianceRouteOptions {
+export interface TribunalRouteOptions {
   /**
    * Where the route is mounted, e.g. `/variance` for `app/variance/[[...path]]`.
    *
@@ -64,23 +64,23 @@ export interface VarianceRouteOptions {
   /**
    * The tokens the Worker was constructed with.
    *
-   * Passed again rather than read off the worker, because a `VarianceWorker` is
+   * Passed again rather than read off the worker, because a `Tribunal` is
    * deliberately a `fetch` handler and nothing else: a handler that could be
    * asked for its own secrets is a handler that can leak them by being logged.
    */
   readonly tokens: { readonly ingest: string; readonly review: string };
 }
 
-export interface VarianceRoutes {
+export interface TribunalRoutes {
   GET(request: Request): Promise<Response>;
   POST(request: Request): Promise<Response>;
   HEAD(request: Request): Promise<Response>;
 }
 
-export function createVarianceRoutes(
-  worker: VarianceWorker,
-  options: VarianceRouteOptions,
-): VarianceRoutes {
+export function createTribunalRoutes(
+  worker: Tribunal,
+  options: TribunalRouteOptions,
+): TribunalRoutes {
   const basePath = (options.basePath ?? '').replace(/\/$/, '');
 
   const handle = async (request: Request): Promise<Response> => {

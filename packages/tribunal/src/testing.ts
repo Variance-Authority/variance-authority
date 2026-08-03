@@ -18,10 +18,10 @@ import { applySchema } from './schema.js';
  * ceilings, quotas, consistency between two Workers writing at once, and whether
  * D1's `batch` is transactional in the way this package needs — none of those are
  * measured, here or anywhere else in this repository. They are stated as unmet in
- * [ADR-0023](../../../docs/context/adr/0023-a-service-depends-on-what-it-needs.md) and the checkpoint rather than
+ * [ADR-0023](../../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md) and the checkpoint rather than
  * implied to be fine by a green suite.
  *
- * Exported as `@variance-authority/cloudflare/testing` because it is also the
+ * Exported as `@variance-authority/tribunal/testing` because it is also the
  * thing an operator wants: a way to run their own wiring — their routes, their
  * ingest, their retention settings — in a plain `vitest` process, with no
  * `wrangler`, no container, and no account.
