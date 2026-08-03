@@ -352,12 +352,14 @@ The layout is a test rather than a convention — see
 and `tools/boundaries.test.ts`, which fails when an import goes undeclared, a
 requirement gains a second owner, or an advertised entrypoint stops resolving.
 
-**The documentation is a test too.** `tools/documentation.test.ts` resolves every
-link, every repository path and every `file:line` reference in this and the other
-67 markdown files, and compiles every README example against the built types with
-no unused import. An example is the only part of a README that can be executed,
-and until it is, it is the part most likely to be wrong: the first run of that
-test found that 11 of the 20 examples here did not compile.
+**The documentation is a test too** —
+[ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
+`tools/documentation.test.ts`, which resolves every link, every repository path
+and every `file:line` reference in this and the other 68 markdown files, and
+compiles every README example against the built types with no unused import. An
+example is a call site the compiler could not see, which is why 11 of the 20 here
+had gone stale against APIs that had been renamed underneath them. It runs in
+`yarn typecheck` as well as `yarn test`.
 
 ## The two rendering surfaces
 

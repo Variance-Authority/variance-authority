@@ -4,6 +4,9 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+// The real parser, not a restatement of its schema. Requires the build, as
+// everything else here does.
+import { parseConfig } from '@variance-authority/cli';
 
 /**
  * The documentation, checked against the code it describes.
@@ -26,12 +29,14 @@ import { describe, expect, it } from 'vitest';
  *    does not use
  * 5. the commands the documentation shows are the commands the binary dispatches
  *
- * Rule 4 is the one that pays. Four packages have shipped an example that could
- * not run — a `const` used before its declaration, an import never called, an
- * option named something the function does not accept — and every one of them
- * was copied from a README by whoever wrote it, which is exactly what a reader
- * does with it next. An example is the only part of a README that can be
- * *executed*, and until it is, it is the part most likely to be wrong.
+ * Rule 4 is the one that pays, and
+ * [ADR-0014](../docs/context/adr/0014-examples-are-call-sites.md) is the
+ * argument for it: **an example is a call site the compiler cannot see, so it is
+ * the only call site an API rename does not reach.** Eleven of the twenty
+ * examples here named a signature that had existed and had since changed — a
+ * removed option, a renamed field, a parameter that became required — every one
+ * of them safe to change precisely because the compiler found the other call
+ * sites, and every one of them left in the code a reader copies first.
  *
  * ## What a fence is compiled against
  *
@@ -534,6 +539,12 @@ describe('every documented example compiles', () => {
  * that the binary refuses is a reader typing something and getting `unknown
  * command`; a command the binary dispatches that nothing documents is a capability
  * nobody can find.
+ *
+ * Flags travel a chain rather than being checked here twice: `PER_COMMAND` is the
+ * truth, `bin.test.ts` asserts that `USAGE` names every flag in it, and the last
+ * link is below — the README shows `USAGE` itself, line for line. A renamed flag
+ * therefore reaches the README through two failing tests instead of through
+ * nobody noticing.
  */
 describe('the documented command line is the real one', () => {
   const bin = readFileSync(join(ROOT, 'packages/cli/src/bin.ts'), 'utf8');
@@ -543,6 +554,16 @@ describe('the documented command line is the real one', () => {
 
   it('reads the binary', () => {
     expect(dispatched.length).toBeGreaterThan(0);
+  });
+
+  it("shows the binary's own usage, line for line", () => {
+    const usage = [...bin.matchAll(/^ {2}'(variance [^']+)',$/gm)].map((match) => match[1]!);
+    const readme = readFileSync(join(ROOT, 'packages/cli/README.md'), 'utf8');
+
+    expect(usage.length).toBe(dispatched.length);
+    // Verbatim, not paraphrased. A synopsis a reader retypes has to be the one
+    // the parser prints back at them when they get it wrong.
+    expect(usage.filter((line) => !readme.includes(line))).toEqual([]);
   });
 
   it.each(MARKDOWN)('%s names no command the binary refuses', (file) => {
@@ -566,5 +587,38 @@ describe('the documented command line is the real one', () => {
   it('documents every command the binary dispatches', () => {
     const readme = readFileSync(join(ROOT, 'packages/cli/README.md'), 'utf8');
     expect(dispatched.filter((command) => !new RegExp(`variance ${command}\\b`).test(readme))).toEqual([]);
+  });
+});
+
+/**
+ * A documented config is parsed by the parser that would reject it.
+ *
+ * The same rule as the examples, one surface over: a config in a README is a file
+ * a reader copies, and the only thing that decides whether it is a config is
+ * `parseConfig`. A key that was renamed leaves the example looking exactly as
+ * plausible as it did before, and the reader finds out from an operator error on
+ * their first run.
+ *
+ * Identified by the comment naming the file, which is how a reader identifies it
+ * too — the `mcp` README's `jsonc` block says `claude_desktop_config.json` and is
+ * a different product's schema.
+ */
+describe('every documented config parses', () => {
+  const CONFIGS = FENCES.filter(
+    (fence) => fence.lang === 'jsonc' && /^\/\/\s*variance\.config\.json/.test(fence.code),
+  );
+
+  it('finds configs to check', () => {
+    expect(CONFIGS.length).toBeGreaterThan(0);
+  });
+
+  it.each(CONFIGS.map((fence) => [`${fence.file}:${fence.line}`, fence] as const))('%s', (where, fence) => {
+    // Comments out, because the fence is `jsonc` for the reader's benefit and the
+    // file a reader saves is JSON.
+    const json = fence.code.replace(/^\s*\/\/.*$/gm, '');
+
+    expect(() =>
+      parseConfig(JSON.parse(json), { source: where, baseDir: dirname(join(ROOT, fence.file)) }),
+    ).not.toThrow();
   });
 });

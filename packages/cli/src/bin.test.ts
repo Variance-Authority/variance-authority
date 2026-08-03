@@ -137,6 +137,27 @@ describe('parseArgs', () => {
     );
   });
 
+  it('names every flag each command accepts in its usage line', () => {
+    // The middle link of a chain: `PER_COMMAND` decides what is accepted, this
+    // asserts `USAGE` says so, and `tools/documentation.test.ts` asserts the
+    // README shows `USAGE`. A renamed flag then fails twice on its way to the
+    // documentation, instead of arriving there never.
+    const missing: string[] = [];
+
+    for (const line of USAGE.split('\n')) {
+      const command = /^variance (\w+)/.exec(line)?.[1];
+      if (command === undefined) continue;
+
+      // Every command takes `--config`, and each usage line shows it, so the
+      // per-command set is what this has to reach.
+      for (const flag of flagsOf(command)) {
+        if (!line.includes(flag)) missing.push(`${command}: ${flag}`);
+      }
+    }
+
+    expect(missing).toEqual([]);
+  });
+
   it('documents the three exit codes in its usage text', () => {
     // The usage is where an operator learns that a verdict and a crash differ.
     expect(USAGE).toContain('0 nothing needs review');
@@ -144,6 +165,19 @@ describe('parseArgs', () => {
     expect(USAGE).toContain('2 operator error');
   });
 });
+
+/**
+ * What a command accepts, read out of its own refusal.
+ *
+ * The parser prints the accepted set when it rejects a flag, so this asks the
+ * code path an operator actually hits rather than keeping a second copy of the
+ * table. Only the sentence is read: the refusal appends the whole usage text,
+ * and matching flags in that would make the assertion vacuous.
+ */
+function flagsOf(command: string): readonly string[] {
+  const sentence = /it takes ([^\n]+)/.exec(attempt([command, '--not-a-flag']).message)?.[1];
+  return sentence === undefined ? [] : sentence.split(',').map((flag) => flag.trim());
+}
 
 function attempt(argv: readonly string[]): OperatorError {
   try {

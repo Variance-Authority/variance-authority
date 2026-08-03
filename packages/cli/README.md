@@ -143,7 +143,11 @@ downloaded, so the run's inputs are the ones in the repository.
   "profile": "chromium",
   "viewport": { "width": 1280, "height": 800 },
   "retention": "durable",
-  "subjects": { "kind": "storybook", "index": "storybook-static/index.json" },
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "variance/collector.mjs"
+  },
   "baselines": { "kind": "directory", "root": "baselines" },
   "fonts": ["Inter/400/normal/sha256-abc"],
   "report": "out/report.json"
@@ -151,7 +155,10 @@ downloaded, so the run's inputs are the ones in the repository.
 ```
 
 `subjects` is either `{ kind: "list", ids, collector }` or
-`{ kind: "storybook", index }`; `baselines` is `directory`, `lfs` or `remote`.
+`{ kind: "storybook", index, collector }` — **both need a collector**, because
+neither a list of ids nor a story index says how to mount anything, and the
+mounting half of a run is code you write. `baselines` is `directory`, `lfs` or
+`remote`.
 `retention: "ephemeral"` needs no baselines at all — both images are produced by
 this run.
 
