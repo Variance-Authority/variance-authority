@@ -148,29 +148,44 @@ like-for-like win either: that loop is a plain RGB inequality, where pixelmatch
 does antialiasing-aware YIQ. It is the cost of a weaker comparison, not a faster
 one.
 
-### `whales-story-shots`, and what it does instead
+### `whales-story-shots`, and a claim this journal got wrong
 
 A previous tool of this project's author, and the same thesis one step earlier:
 *hash the HTML and CSS, screenshot only the stories whose hash moved*. Its
 capture step prunes CSS to the classes actually present in the HTML before
 hashing, which is ADR-0003's applicability pruning arrived at independently.
 
-Its answer to PNG cost is more radical than decoding in the browser: **it never
-decodes a PNG anywhere.** Its dependencies are `playwright`, `plimited` and
-`sanitize-filename` — no `pngjs`, no `pixelmatch`, no `sharp`, no canvas.
-Playwright writes the screenshot straight to disk and nothing reads the bytes
-back. Chromium's encoder is the only PNG code in the pipeline.
+**This section first said "it never decodes a PNG anywhere", and that was
+wrong.** It was inferred from a dependency list (`playwright`, `plimited`,
+`sanitize-filename` — no `pngjs`, no `pixelmatch`, no canvas) and a grep over
+the source, without noticing that the source was incomplete. In the archive
+read:
 
-That works because **it has no pixel verdict**. The comparison is the HTML and
-CSS hash; the image is an artifact for a person to look at, produced only for
-stories the hashes already flagged.
+- `compare/pathRule/` is an **empty directory**.
+- `package.json` lists `compare` in `files`, so the stage is meant to ship, but
+  there is no `./compare` entry in `exports` and nothing in the tree imports
+  from it.
+- `test/img.png` is a real 1254×640 RGBA PNG that **no test in the archive
+  reads**.
 
-So the decode cost measured above is not waste this project failed to remove. It
-is what the raster tier *buys*: a mask, clustered into regions, joined to the box
-tree, resolved to a component and a file. whales cannot produce that and does
-not pay for it. The half of its answer that does apply here is already taken —
-spec 0011 item 0 made an unchanged subject decode nothing at all, which is
-whales' rule for the settled path exactly.
+Three signs of a comparison stage stripped from this snapshot, and the empty
+directory is the loudest. Absence of a decoder in a tree with its comparison
+removed is not evidence that the tool has no decoder; it is evidence about the
+archive. A dependency list is not a pipeline, and neither is a grep over the
+part of it that is present.
+
+What the archive *does* support is narrower and still worth having: whales'
+**capture and process stages decode nothing**. Playwright writes each screenshot
+straight to disk, only for stories whose HTML or CSS hash already moved, and
+nothing in those stages reads the bytes back.
+
+That is the same tiering claim this project makes, and the half of it that
+applies here is already taken — spec 0011 item 0 made an unchanged subject decode
+nothing at all. What whales does at compare time is unknown from here, and this
+journal should not have implied otherwise.
+
+None of this moves the in-page measurement above, which was made against this
+repo's own images and stands on its own.
 
 What remains genuinely round-trip-shaped is that **Chromium encodes a PNG and we
 immediately decode it**, both ends ours, purely because the transport between
