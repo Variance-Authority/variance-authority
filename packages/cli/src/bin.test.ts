@@ -167,7 +167,7 @@ describe('parseArgs', () => {
 });
 
 /**
- * A machine that cannot open a browser, which is spec 0003 acceptance 2.
+ * A machine that cannot open a browser, which is ADR-0017.
  *
  * The criterion — `run --profile chromium` with no Chromium exits 2, not 1 — was
  * argued in a comment and asserted by nothing. It cannot be reached through

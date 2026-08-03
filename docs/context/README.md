@@ -36,9 +36,10 @@ eventually deleted. Nothing new is ever added to `spec/`.
 
 For ADRs. Journal entries carry no status — they are dated and append-only — and
 `spec/` carries the status it was frozen with. The per-capability specs in
-[`docs/specs/`](../specs/README.md) use [their own
-vocabulary](../specs/README.md#status-vocabulary), which tracks implementation
-rather than decision standing.
+[`docs/specs/`](../specs/README.md) carry **no status at all**, and that is the
+point: a spec there exists only while its capability is unfinished, so the file
+listing is the status. When the thing ships, its decisions become an ADR here and
+the spec is deleted.
 
 | Status | Meaning |
 |---|---|

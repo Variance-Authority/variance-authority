@@ -429,8 +429,8 @@ simply by being run later in a suite.
 - **Fonts are a caller-supplied string, not a content hash.** A second machine
   can render different geometry and the environment key will not say so. The
   metric probe reports metric-compatible substitutes — exactly what a Linux
-  container ships — as *missing*, and spec 0007's request to measure that false
-  alarm rate is open.
+  container ships — as *missing*, and the false-alarm rate that produces has
+  never been measured.
 - **Open blind spots no test closes**: an image swapped behind a stable URL
   (`assets` are caller-supplied content hashes,
   `packages/dom/src/collect.ts:81`); cross-origin stylesheets, which
@@ -725,8 +725,9 @@ pipeline.
   Storybook built by Storybook and asserts the whole cycle —
   **new (exit 1) → accept (0) → unchanged (0) → 5 of 8 changed (exit 1)** on a
   build with one component edited, finding exactly the five stories that render
-  it. Spec 0003 acceptance 1 is met in substance against `storybook-case` rather
-  than against todomvc.
+  it. The CLI reaching the verdicts the library reaches is demonstrated against
+  `storybook-case` rather than against todomvc, which is the stronger of the two
+  because the subjects are not ours.
 
   **The first execution found five defects, and three made durable mode
   unusable** (journal 0014): the run never exited, because nothing closed the
@@ -750,7 +751,7 @@ pipeline.
   untested.
 - **Linux verification has not been run.** `docker/linux-verify.Dockerfile` and
   `docker/linux-verify.sh` exist; `docker/results/` does not, and there are no
-  `.log` files in the tree. All four of spec 0007's acceptance criteria are open,
+  `.log` files in the tree. Nothing it was built to establish is established,
   including the one that matters most: "a semantic verdict that differs across
   platforms refutes ADR-0010."
 - **CI integration is committed and has never run.**
@@ -764,7 +765,8 @@ pipeline.
   run: the workflow's first step checks for a `variance.config.json` this
   repository does not contain and no-ops, so no job has launched a browser, no
   artifact has been uploaded, and no pull request has ever been commented on.
-  Spec 0005's acceptances are unmet by execution, not by absence of code.
+  What [ADR-0019](context/adr/0019-one-comment-that-leads-with-causes.md)
+  decided is therefore unproven by execution rather than by absence of code.
 - **The MCP layer has never served an agent.** Five tools shaped by argument
   about what an agent needs, tested against text (`packages/mcp/src/mcp.test.ts`,
   27 tests, including chunk-boundary reframing).
@@ -798,12 +800,14 @@ and `cases/storybook-case/src/storybook.chromium.test.js` drives the real previe
 against the `index.json` Storybook itself wrote. It also produced a finding the
 fixtures could not — the readiness gap, reproducibly: captured on Storybook's own
 `storyRendered` the deferred story is `loading…`, and captured on a declared
-marker it is the component. Acceptances 1 and 3 of spec 0006 (no fixture in the
-loop; one browser, one navigation over N stories) are met.
+marker it is the component. Two of the three things
+[ADR-0020](context/adr/0020-read-the-artifact-not-the-configuration.md) claims are
+demonstrated here: no fixture in the loop, and one browser with one navigation
+over N stories.
 
-What remains unmet is **acceptance 2** — that Storybook's own chrome contributes
-no rules to a subject, which is the exact case ADR-0003 was written for and is
-not asserted anywhere — and the CLI hop above it. The CLI still imports only
+What is **not** demonstrated is the third — that Storybook's own chrome
+contributes no rules to a subject, which is the exact case ADR-0003 was written
+for and is not asserted anywhere — nor the CLI hop above it. The CLI still imports only
 `readStoryIndex`, `storySubjectId` and `toSubjects`; `collectStory` /
 `collectStories` are exercised by the case and not by a run
 ([§4.3](#43-there-is-no-shipped-collector-and-that-is-the-design)). Under the fixtures, what was already

@@ -1,71 +1,68 @@
 # Specs
 
-Each capability's contract, its normative behaviour, and the acceptance criteria
-that decide whether it is done.
+**Everything in this directory is unfinished. That is the entry criterion.**
 
-An ADR records a decision that constrains code that exists. A spec here records
-what a capability must do, written before the code and kept until the decisions
-it forced have been lifted into ADRs — at which point the spec is deleted. **A
-spec is therefore not a promise that the capability is missing.** Of the seven
-below, two are `built` and stay only because nobody has written their ADRs yet,
-three more have code that no consumer path reaches, and two are committed and
-have never been executed at all. **None is greenfield**, and this sentence said
-one was until 2026-08-03 — spec 0007 has had a Dockerfile and a runner in
-[`docker/`](../../docker) since it was written. The `Status` column, not the
-presence of the file, is what says which is which; `tools/documentation.test.ts`
-fails when a spec's own header and the table below disagree.
+A spec says what a capability must do, written before the code, and it lives
+exactly as long as the capability is incomplete. The moment the thing ships, the
+decisions it forced move into an ADR and **the spec is deleted**. So the answer
+to "what is left to build" is `ls docs/specs/`, and it is not a table you have to
+read a status column out of.
 
-**Discharged, and therefore gone.** Numbers are not reused; a gap in the sequence
-means a spec completed its lifecycle rather than that one was skipped.
+That is a change, made on 2026-08-03. This directory previously held nine files
+in four states — `not built`, `built, not wired`, `built, never run`, `built` —
+five of which described capabilities that ship. A reader could not tell from a
+filename or a number whether `0006` was an idea or a shipped adapter, and neither
+could the person who wrote it: one file said `not built` while a Dockerfile for it
+sat in `docker/`, and another named five of the CLI's six commands. **A directory
+that needs decoding stops being read**, and the debt it was meant to make visible
+became the thing hiding it.
 
-| # | Capability | Lifted into |
+## What is left
+
+| Capability | What exists | What does not |
 |---|---|---|
-| 0004 | Artifact storage: git-LFS and remote | [ADR-0016](../context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) |
-| 0009 | Inspection rules, and where they stop | [ADR-0015](../context/adr/0015-a-rule-is-what-a-stored-snapshot-can-decide.md) |
+| [History service and drift queries](0002-history-store.md) | `@variance-authority/history` and `@variance-authority/server` — the rows, the drift arithmetic, the SQLite backend, the wire. Per-component hashing ships too and is recorded in [ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md). | **A caller, and the read one would need.** No run records anything, and the contract has no query that returns a subject's current rows — so the rule "write a row only when a hash moves" is unimplementable as specified. The two candidate shapes are in the file. Decide before building. |
+| [Locale runs](0008-locale-runs.md) | `compareLocales` — untranslated strings, boxes that stopped fitting, and what went uncompared — measured against real Chromium layout. | **The axis.** Nothing reads a `locales` key; the word does not appear in the CLI's config. A locale comparison still means hand-writing a test. |
 
-Whoever moves a spec to `built` owns the rest of the move: writing the ADRs for
-every decision it forced, updating [`docs/context/checkpoint.md`](../context/checkpoint.md),
-and then deleting the spec. Until all three are done the spec stays, marked
-`built`, and the debt is visible here rather than implied by silence.
+## Discharged
 
-Each spec states **what**, not **how it was arrived at**.
+Numbers are not reused. A gap in the sequence means a spec completed its
+lifecycle, not that one was skipped.
 
-## Status vocabulary
-
-| status | means |
+| Was | Lifted into |
 |---|---|
-| `not built` | no implementation; the spec is the whole of it |
-| `built, not wired` | the packages exist and are tested, and no consumer path reaches them, so an operator cannot use the capability at all |
-| `built, never run` | committed and reachable, never executed against anything |
-| `built` | implemented and exercised; awaiting ADR extraction and deletion |
+| Per-component band hashing | [ADR-0018 — a component's hash covers its own nodes](../context/adr/0018-a-component-hash-covers-its-own-nodes.md) |
+| Command-line interface | [ADR-0017 — the exit code is the interface](../context/adr/0017-the-exit-code-is-the-interface.md) |
+| Artifact storage: git-LFS and remote | [ADR-0016 — where a baseline is kept decides nothing](../context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) |
+| CI integration and PR feedback | [ADR-0019 — one comment, updated in place, leading with causes](../context/adr/0019-one-comment-that-leads-with-causes.md) |
+| Storybook adapter | [ADR-0020 — read the artifact, not the configuration](../context/adr/0020-read-the-artifact-not-the-configuration.md) |
+| Inspection rules, and where they stop | [ADR-0015 — a rule belongs here if a stored snapshot can decide it](../context/adr/0015-a-rule-is-what-a-stored-snapshot-can-decide.md) |
 
-**`built, not wired` says nothing about the acceptance criteria**, and it claimed
-the opposite until 2026-08-03 — "so the acceptance criteria are unmet". That is
-false for [0001](0001-component-hashing.md), whose eight criteria are all met by
-tests, three of them scored against the corpus's pre-declared ground truth; the
-missing thing is a caller, not a proof. It is true for
-[0008](0008-locale-runs.md), whose first criterion begins "`variance run` on a
-config declaring `locales`" and therefore cannot be met without one. One status
-was describing two situations, and the difference is exactly what a reader
-deciding where to spend a day needs.
+**Linux verification was deleted without an ADR**, and that is the honest
+outcome: it forced no decision of its own. It restated ADR-0010's portability
+claim and ADR-0011's `incomparable` rule and asked for them to be *measured* on a
+second machine, which is a task rather than a decision.
+[`docker/linux-verify.sh`](../../docker/linux-verify.sh) is that task, it carries
+its own argument, and it has never been run — which now lives in the checkpoint's
+open links, where unexercised claims belong.
 
-## Sequence
+## What a spec here owes
 
-Ordered by dependency. Later entries assume earlier ones.
+1. **State what is missing, not what exists.** The code is the record of what
+   exists, and a spec that describes shipped behaviour is a second copy of it
+   that drifts.
+2. **Say what would discharge it**, concretely enough that somebody could start.
+3. **Leave when the capability lands.** Write the ADRs for the decisions it
+   forced, update [`docs/context/checkpoint.md`](../context/checkpoint.md), and
+   delete the file. All three, or the debt moves somewhere less visible.
 
-| # | Capability | Depends on | Status | Where it stands |
-|---|---|---|---|---|
-| [0001](0001-component-hashing.md) | Per-component band hashing | — | `built, not wired` | The contract below ships verbatim — `ComponentHash` field for field and `hashComponents` signature for signature, in `core/attribute`, unit-tested. Nothing outside that test calls it, so no history question has ever been asked against it. |
-| [0002](0002-history-store.md) | History store and drift queries | 0001 | `built, not wired` | `@variance-authority/history` and `@variance-authority/server` implement the rows, the drift arithmetic and the service. `variance run` records nothing, so no row has ever been written by a run. |
-| [0003](0003-cli.md) | Command-line interface | — | `built` | `variance run`, `accept`, `report`, `serve`, `comment` and `doctor` ship as the `variance` bin, and drive [`cases/storybook-case`](../../cases/storybook-case) end to end. |
-| [0005](0005-ci-integration.md) | CI integration and PR feedback | 0003, 0004 | `built, never run` | [`.github/workflows/variance.yml`](../../.github/workflows/variance.yml) and the composite action around it are committed and have never executed. `variance comment`, which renders the body they post, is a command and has been run against a real report — but never from CI. |
-| [0006](0006-storybook-adapter.md) | Storybook adapter | 0003 | `built` | `@variance-authority/storybook` reads an index Storybook wrote; [`cases/storybook-case`](../../cases/storybook-case) runs the whole CLI over a real build. |
-| [0007](0007-linux-verification.md) | Linux verification | 0003 | `built, never run` | [`docker/linux-verify.Dockerfile`](../../docker/linux-verify.Dockerfile) and [`linux-verify.sh`](../../docker/linux-verify.sh) build the image and run the suite three times. Neither has ever been executed, and every measurement still comes from one Mac and one Chromium. |
-| [0008](0008-locale-runs.md) | Locale runs | 0003 | `built, not wired` | `compareLocales` ships in `core/judge` and answers two questions no image can be asked. Nothing calls it from a run; a locale comparison still means hand-writing a test. |
+`tools/documentation.test.ts` holds the parts of this that are checkable: every
+link resolves, every type a proposal names still exists, and any block listing the
+CLI's commands is the binary's own.
 
 ## Standing constraints
 
-These hold for every spec here and do not need restating in each.
+These hold for anything built here and do not need restating.
 
 - **Nothing is published and nothing is pushed.**
 - **No telemetry, no analytics, no phone-home.** The only outbound network call

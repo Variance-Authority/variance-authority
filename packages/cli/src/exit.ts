@@ -114,7 +114,7 @@ export interface ReviewableReport {
  *   *refused*, so nothing is known, and an unobservable difference is never
  *   reported as no difference.
  * - a `failed` entry in {@link ReviewableReport.notObserved} — the run meant to
- *   look and could not. This is the acceptance criterion of spec 0003 in one
+ *   look and could not. This is the rule ADR-0017 states, in one
  *   line: a subject that cannot be observed does not silently pass.
  * - an `error` diagnostic on an observation — the run *did* look, at less than
  *   the subject. A design system served from a cross-origin `<link>` is skipped

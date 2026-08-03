@@ -470,8 +470,8 @@ async function rendererFor(config: Config): Promise<Renderer> {
 /**
  * Any failure to open a renderer is an operator error, never a verdict.
  *
- * Exported, and taking the opener as an argument, for one reason: spec 0003
- * acceptance 2 requires `run --profile chromium` on a machine without Chromium to
+ * Exported, and taking the opener as an argument, for one reason: ADR-0017
+ * requires `run --profile chromium` on a machine without Chromium to
  * exit 2 rather than 1, and until 2026-08-03 that was argued in a comment and
  * asserted by nothing — the only criterion in the spec still carried by prose.
  * It cannot be tested through `main` on a machine that *has* a browser, and

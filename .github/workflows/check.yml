@@ -63,8 +63,8 @@ jobs:
       # count this project asserts came from one Mac and one Chromium, so running
       # those suites on a Linux runner would check a measurement against a
       # machine that did not make it. Whether the numbers survive that move is
-      # spec 0007's question, it is open, and a red check here would be the wrong
-      # way to ask it.
+      # `docker/linux-verify.sh`'s question, it is open, and a red check here
+      # would be the wrong way to ask it.
       #
       # The consequence is that a green check on this workflow is not a green
       # suite, and the skip list in the step above is what keeps the two from
@@ -73,4 +73,4 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "::notice::Browser suites did not run: no Chromium is installed. Every measurement in this repository comes from one Mac and one Chromium, and re-measuring on Linux is spec 0007, which is not built."
+          echo "::notice::Browser suites did not run: no Chromium is installed. Every measurement in this repository comes from one Mac and one Chromium, and re-measuring on Linux is docker/linux-verify.sh, which has never been executed."

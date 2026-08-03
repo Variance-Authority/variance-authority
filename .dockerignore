@@ -1,5 +1,5 @@
 # What must not cross from this machine into the image that exists to be a
-# different machine (spec 0007).
+# different machine.
 #
 # `docker/linux-verify.Dockerfile` copies the whole tree, because the suite needs
 # the whole tree — `cases/` is a declared workspace, `tools/` is in the vitest
@@ -10,7 +10,7 @@
 # Nothing would obviously break. `yarn install` would find the tree already
 # populated, the native binaries would be the wrong platform, and the failure
 # would surface as a suite behaving oddly on Linux — which is *precisely* the
-# finding spec 0007 exists to produce and would be a fabrication of this file's
+# finding this image exists to produce, and would be a fabrication of this file's
 # absence. The one thing a portability check must never do is import the machine
 # it is checking against.
 

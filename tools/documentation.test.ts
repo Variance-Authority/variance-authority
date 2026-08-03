@@ -398,9 +398,10 @@ const isExample = (fence: Fence): boolean => !isProposal(fence) && fence.file.en
  * Examples, which are READMEs only, and the distinction is not a convenience.
  *
  * A fence in a README is an instruction: it is there to be copied, and a reader
- * who copies it runs it. A fence in a spec or an ADR is a *proposal* — spec 0007
- * is `not built`, and an interface in a spec describes the code the spec exists
- * to argue for. Demanding those compile would invert what a spec is.
+ * who copies it runs it. A fence in a spec or an ADR is a *proposal* — a spec
+ * survives only while its capability is unfinished, so an interface in one
+ * describes the code the spec exists to argue for. Demanding those compile would
+ * invert what a spec is.
  *
  * They are not unchecked, though: see `every type a proposal names still exists`
  * below, which asks the weaker question a proposal can answer.
@@ -778,7 +779,7 @@ describe('the documented command line is the real one', () => {
    * Wherever a block lists the commands, it lists all of them, in the binary's
    * own words.
    *
-   * The two rules above are each half-blind in the same place. `spec 0003`
+   * The two rules above are each half-blind in the same place. The CLI spec
    * carried five of the six commands for a session inside a block that presents
    * itself as *the contract*, and neither rule fired: every command it named
    * exists, so the first rule passed, and the second reads only
@@ -892,54 +893,49 @@ describe('a stated file count is the file count', () => {
 });
 
 /**
- * A spec says what it is, once.
+ * The specs directory means one thing: what is not finished.
  *
- * Three places carry a spec's status — its own header, the vocabulary that
- * defines the words, and the sequence table that lists every spec — and they
- * have already disagreed: two `built` specs contradicted their own headers a
- * commit ago, and the table's prose still described a spec as greenfield while a
- * Dockerfile for it sat in `docker/`. A status is the one field a reader uses to
- * decide whether to implement something, so a stale one costs a session.
+ * It used to mean four things at once — nine files across `not built`, `built,
+ * not wired`, `built, never run` and `built` — and the states were not readable
+ * from a filename or a number. Five of the nine described capabilities that
+ * ship. One said `not built` while a Dockerfile for it sat in `docker/`. Another
+ * named five of the CLI's six commands. A directory that has to be decoded stops
+ * being read, and the debt it existed to make visible was what hid it.
  *
- * Checked rather than argued, because the three copies exist for good reasons —
- * a reader opening one spec should not have to open the index, and a reader
- * scanning the index should not have to open nine files — and the cost of a
- * legitimate duplication is that something has to hold it together.
+ * So the entry criterion is now the whole design: **a spec lives exactly as long
+ * as its capability is incomplete**, and the answer to "what is left" is the file
+ * listing. This holds the one thing that could quietly break it — a spec present
+ * but missing from the index, or listed there and gone from disk — because either
+ * puts a reader back to reading two places and believing the wrong one.
+ *
+ * What a spec *says* is deliberately not checked. Prose about work that has not
+ * happened has nothing to check it against; that is what makes it a spec.
  */
-describe('every spec agrees with the index about itself', () => {
-  const INDEX = readFileSync(join(ROOT, 'docs/specs/README.md'), 'utf8');
+describe('the specs directory lists exactly what is unfinished', () => {
+  const INDEX = 'docs/specs/README.md';
+  const index = readFileSync(join(ROOT, INDEX), 'utf8');
 
   const SPECS = MARKDOWN.filter((file) => /^docs\/specs\/\d{4}-/.test(file)).sort();
 
-  /** The words the vocabulary table defines, which are the only ones a spec may use. */
-  const VOCABULARY = [...INDEX.matchAll(/^\| `([^`]+)` \| /gm)].map((match) => match[1]!);
-
-  /** `| [0001](0001-…md) | … | … | `status` | … |` — number to status. */
-  const LISTED = new Map(
-    [...INDEX.matchAll(/^\| \[(\d{4})\]\([^)]+\) \|[^|]*\|[^|]*\| `([^`]+)` \|/gm)].map(
-      (match) => [match[1]!, match[2]!] as const,
-    ),
+  /** Spec filenames the index links to, from anywhere in it. */
+  const LINKED = new Set(
+    [...index.matchAll(/\((\d{4}-[\w-]+\.md)\)/g)].map((match) => `docs/specs/${match[1]!}`),
   );
 
-  const statusOf = (file: string): string | null =>
-    /^\*\*Status:\*\* `([^`]+)`/m.exec(readFileSync(join(ROOT, file), 'utf8'))?.[1] ?? null;
-
-  it('reads a vocabulary and a sequence table out of the index', () => {
-    expect(VOCABULARY.length).toBeGreaterThan(0);
-    expect(LISTED.size).toBe(SPECS.length);
+  it('has an index that links to something, so this cannot pass by matching nothing', () => {
+    expect(LINKED.size).toBeGreaterThan(0);
   });
 
-  it.each(SPECS)('%s', (file) => {
-    const number = /(\d{4})-/.exec(file)![1]!;
-    const status = statusOf(file);
-
-    expect(status, `${file} states no status`).not.toBeNull();
-    expect(VOCABULARY, `${file} uses a word the vocabulary does not define`).toContain(status);
-    expect(LISTED.get(number), `the sequence table and ${file} disagree`).toBe(status);
+  it.each(SPECS)('%s is listed in the index', (file) => {
+    expect([...LINKED], `${file} exists and the index does not mention it`).toContain(file);
   });
 
-  it('lists no spec that does not exist', () => {
-    expect([...LISTED.keys()].filter((number) => !SPECS.some((file) => file.includes(`/${number}-`)))).toEqual([]);
+  it('links to no spec that has been discharged', () => {
+    // The other direction, and the one deletion breaks: a discharged spec leaves
+    // a link behind that resolves to nothing. `every link resolves` above would
+    // also catch it — this says *which* rule was broken, which is the difference
+    // between "fix the link" and "you deleted a spec and stopped there".
+    expect([...LINKED].filter((file) => !SPECS.includes(file))).toEqual([]);
   });
 });
 

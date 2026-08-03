@@ -1,4 +1,4 @@
-# Linux verification (spec 0007).
+# Linux verification.
 #
 # Every measurement in this repository was taken on one Mac with one Chromium.
 # Several decisions rest on numbers that have therefore only ever been observed

@@ -97,9 +97,9 @@ back at them when they get it wrong, because it is the same string.
 ## What this does not cover, and why
 
 **A fence in a spec or an ADR is not compiled**, and is name-checked instead. It
-is a *proposal* about code that may not exist — spec 0007 is `not built`, and an
-interface in a spec describes the thing the spec exists to argue for. Demanding
-those compile would invert what a spec is.
+is a *proposal* about code that may not exist — a spec survives only while its
+capability is unfinished, so an interface in one describes the thing the spec
+exists to argue for. Demanding those compile would invert what a spec is.
 
 But a proposal does not only propose. It also *borrows*: `Digest`, `ProfileId`,
 `SemanticSnapshot` are the repository's, quoted so the proposal has something to

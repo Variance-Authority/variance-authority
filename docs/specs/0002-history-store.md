@@ -1,9 +1,11 @@
 # Spec 0002 — History service and drift queries
 
-**Status:** `built, not wired` — see [the status vocabulary](README.md#status-vocabulary)
-**Depends on:** [0001](0001-component-hashing.md)
-**Packages:** new — `@variance-authority/history` (interface, drift math, client),
-`@variance-authority/server` (the service)
+**Missing:** a caller, and a read that would let one exist — see
+[the contract gap](#the-read-a-run-needs-and-which-this-contract-does-not-have).
+**Built on:** per-component band hashing
+([ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md)).
+**Packages:** `@variance-authority/history` (interface, drift math, client),
+`@variance-authority/server` (the service). Both ship; nothing imports either.
 
 ## Purpose
 
@@ -113,7 +115,7 @@ Every operation returns a small slice. Nothing loads a whole history.
 ### The read a run needs, and which this contract does not have
 
 **Nothing here answers the question the write path has to ask**, and that — not
-absence of effort — is why 0001 and 0002 have sat `built, not wired` for a cycle.
+absence of effort — is why this has sat built and unreachable for a cycle.
 
 `observationsFrom(hashes, run, previous)` needs `previous`: the rows currently
 recorded for the subject it is about to write. The rule that makes the whole
@@ -208,4 +210,5 @@ style agrees across profiles on 0 of 107 component boundaries).
 - Operating the service for anyone. It ships as something to run, not as
   something running.
 - Approvals as a workflow. This records whether a change was accepted; deciding
-  that is [0005](0005-ci-integration.md)'s business.
+  that belongs to the pull-request surface
+  ([ADR-0019](../context/adr/0019-one-comment-that-leads-with-causes.md)).

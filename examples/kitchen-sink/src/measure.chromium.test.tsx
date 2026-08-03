@@ -420,7 +420,7 @@ if (!BROWSER_AVAILABLE) {
 }
 
 /**
- * Spec 0001 acceptance, scored against the corpus's pre-declared ground truth.
+ * ADR-0018, scored against the corpus's pre-declared ground truth.
  *
  * Per-component hashes are the unit a history is kept in, so the questions that
  * matter are whether they move exactly when the corpus says something changed,
@@ -428,7 +428,7 @@ if (!BROWSER_AVAILABLE) {
  * here rather than on hand-written trees, because a hash that only behaves on
  * fixtures is a hash that has never met a real component boundary.
  */
-describe.skipIf(!BROWSER_AVAILABLE)('spec 0001 — per-component hashes', () => {
+describe.skipIf(!BROWSER_AVAILABLE)('ADR-0018 — per-component hashes', () => {
   function moved(pair: Pair): readonly string[] {
     const before = new Map(hashComponents(pair.base).map((h) => [h.component, h] as const));
     const after = hashComponents(pair.perturbed);

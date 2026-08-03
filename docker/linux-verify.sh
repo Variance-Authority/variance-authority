@@ -3,9 +3,9 @@
 # Run the suite and both corpus measurements on Linux, and keep the output.
 #
 # Results are written next to the macOS numbers rather than replacing them.
-# Spec 0007 exists because a second platform can *refute* claims the first one
-# could only fail to contradict, and a run that overwrites the baseline it was
-# meant to be compared against has destroyed its own evidence.
+# This exists because a second platform can *refute* claims the first one could
+# only fail to contradict, and a run that overwrites the baseline it was meant to
+# be compared against has destroyed its own evidence.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -63,9 +63,9 @@ done
 if [ ${#missing[@]} -gt 0 ]; then
   echo >&2
   echo "the run did not include: ${missing[*]}" >&2
-  echo "That is a partial suite reported as a whole one — the failure spec 0007" >&2
-  echo "exists to catch, arriving in the harness. Check the build context and" >&2
-  echo ".dockerignore before reading any number in ${OUT}." >&2
+  echo "That is a partial suite reported as a whole one — the failure this" >&2
+  echo "harness exists to catch, arriving in the harness. Check the build" >&2
+  echo "context and .dockerignore before reading any number in ${OUT}." >&2
   exit 1
 fi
 

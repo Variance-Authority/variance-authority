@@ -75,5 +75,5 @@ A denylist would be a second normalization ruleset, versioned by nobody.
 
 ## Reading
 
-- [spec 0006](../../docs/specs/0006-storybook-adapter.md) — what this had to answer
+- [ADR-0020](../../docs/context/adr/0020-read-the-artifact-not-the-configuration.md) — why this reads `index.json` and not `.storybook/`
 - [`cases/storybook-case`](../../cases/storybook-case) — a real Storybook, built by Storybook, read from outside

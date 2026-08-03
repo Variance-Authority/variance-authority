@@ -1,7 +1,11 @@
 # Spec 0008 — Locale runs
 
-**Status:** `built, not wired` — see [the status vocabulary](README.md#status-vocabulary)
-**Depends on:** [0003](0003-cli.md)
+**Missing:** the axis. Nothing reads a `locales` key, so a locale comparison
+still means hand-writing a test.
+**Built on:** the command line
+([ADR-0017](../context/adr/0017-the-exit-code-is-the-interface.md)).
+`compareLocales` ships in `core/judge` and is measured against real Chromium
+layout.
 
 ## Purpose
 

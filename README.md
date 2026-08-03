@@ -290,7 +290,7 @@ platform-specific part is posting the comment, and both recipes are written down
 *Honest limit: every measurement in this repository was taken on one Mac with one
 Chromium, and neither CI recipe has ever executed. Linux CI is the intended
 target and is not yet verified —
-[spec 0007](docs/specs/0007-linux-verification.md) is the harness for it, and it
+[`docker/linux-verify.sh`](docker/linux-verify.sh) is the harness for it, and it
 has not been run either.*
 
 ### "SOC 2?"
@@ -366,7 +366,7 @@ requirement gains a second owner, or an advertised entrypoint stops resolving.
 **The documentation is a test too** —
 [ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
 `tools/documentation.test.ts`, which resolves every link, every repository path
-and every `file:line` reference in this and the other 68 markdown files, and
+and every `file:line` reference in this and the other 67 markdown files, and
 compiles every README example against the built types with no unused import. An
 example is a call site the compiler could not see, which is why 11 of the 20 here
 had gone stale against APIs that had been renamed underneath them. It runs in
@@ -405,7 +405,9 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   `variance accept` explicitly refuses to record. So the 22px story above has
   never once been produced by the pipeline, which is the largest gap in the
   project. Per-component band hashing, which every history question is asked
-  against, is not written at all ([spec 0001](docs/specs/0001-component-hashing.md)).
+  against, *is* written and corpus-scored
+  ([ADR-0018](docs/context/adr/0018-a-component-hash-covers-its-own-nodes.md));
+  nothing calls it from a run.
 - **A GitHub Action, PR comments, commit-back.** The workflow and the composite
   action are committed and have never run once. The body they would post is
   `variance comment`, which has been run against a real report and never from

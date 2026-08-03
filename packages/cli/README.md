@@ -211,10 +211,10 @@ none does. `.github/actions/variance/post-comment.mjs` is the same three steps
 against GitHub's API and is the file to read while writing the other.
 
 **Never run.** Neither this nor the GitHub workflow has executed on a real pull
-request — [spec 0005](../../docs/specs/0005-ci-integration.md) is `built, never
-run` and this section does not change that. It is written down because the
-contract said a documented equivalent would exist and, until 2026-08-03, none
-did; treat the YAML as a starting point somebody still has to prove.
+request, and this section does not change that — see
+[ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md),
+which decides what a comment does and records that none has ever been posted.
+Treat the YAML as a starting point somebody still has to prove.
 
 ## Known gap
 
@@ -226,5 +226,5 @@ of anything that runs unattended.
 
 ## Reading
 
-- [spec 0003](../../docs/specs/0003-cli.md) — what the CLI had to answer
-- [spec 0005](../../docs/specs/0005-ci-integration.md) — the CI story around it
+- [ADR-0017](../../docs/context/adr/0017-the-exit-code-is-the-interface.md) — why the exit code carries the verdict and the config is a file
+- [ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md) — the CI story around it

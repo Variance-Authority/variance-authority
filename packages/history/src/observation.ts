@@ -17,7 +17,7 @@ import type { ComponentHash, Digest, ProfileId } from '@variance-authority/core'
  * machines while doing it (epitaphs, ADR-0011).
  *
  * A content hash has neither problem. It moves when the component's own code moves
- * (spec 0001) and it means the same thing on every machine.
+ * (ADR-0018) and it means the same thing on every machine.
  */
 
 /**

@@ -54,7 +54,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B13 | **the boundary** — what a package is, and what an entrypoint costs | landed; ADR-0013, enforced by `tools/boundaries.test.ts` |
 | B14 | **replacement** — what a case is, and whether an incumbent can actually be left | landed and measured against a real `toHaveScreenshot`; three rows no threshold reaches, one row we lose |
 | B15 | **limbs** — what a run knows with no baseline at all: bands split, inspection, locale, provenance without React | landed and measured; four capabilities and six defects, every one of them found by writing the capability rather than by looking for the defect |
-| B12 | **history** — what accumulates across runs, and where it lives | **specified and built, wired to nothing** ([specs 0001–0002](../specs/README.md)): the hashing, the rows, the drift arithmetic and the service all ship, and no run calls any of them. First implementation refuted and retired ([epitaphs](epitaphs.md)) |
+| B12 | **history** — what accumulates across runs, and where it lives | **built, wired to nothing, and blocked on a contract decision** ([what is left](../specs/0002-history-store.md)): the hashing (ADR-0018), the rows, the drift arithmetic and the service all ship; no run calls any of them, and the wire has no read that would let one. First implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
 
@@ -73,7 +73,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M9 | B10 | `locate` and `source` — landmark orientation, component→file by reading the repo | **expected** — `_debugSource` is gone in React 19, so per-element source is a plugin story nothing tells |
 | M10 | B11 | Raster phases, durable/ephemeral retention (ADR-0011), MCP surface | **mixed** — the offload works and the ranking did not; area measures displacement, so the ordering now comes from the semantic tier (journal 0013) |
 | M12 | B13 | Cut packages by requirement rather than by feature; group `core`; enforce the rule as a test | **expected, and it found drift** — `raster` was four requirements in one box; four packages imported test-time requirements they never declared, which works in a workspace and breaks on a standalone install |
-| M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. specs 0001 and 0002 record what replaces both; nothing is implemented |
+| M11 | B12 | Answer the three objections in the README; settle what history records and where it lives | **refuted, then settled** — the pixel-count ledger was built and killed by its own measurement (1px → 4949px); the local-file design was killed by the merge argument. What replaces both is now ADR-0018 and the history spec; the code landed later and reaches nobody |
 | M13 | B14 | Run a real `@playwright/test` against a corpus declared first; ask what an import costs | **expected, and it corrected us twice** — 35/36 assertions on the first run; `toHaveScreenshot` does measure across a size mismatch in 1.62, where the scenario was declared as a refusal to, and attribution named `Indicator` where `Toolbar` was predicted (journal 0014) |
 | M14 | B14 | Write the collector `cases/storybook-case` was missing and run the CLI over a real Storybook | **mixed, and the most productive move so far** — the workflow closes (new → accept → unchanged → 5 of 8 changed on a one-component edit, with the right five), and the first execution found five defects no unit test could reach. Three made durable mode unusable: the run never exited, `stabilization` was dropped by the identity codec so `accept` and `run` keyed on different digests, and the refusal that resulted named the same machine on both sides (journal 0014) |
 
@@ -81,7 +81,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M16 | B15 | `inspect` — five rules over one snapshot, so a defect present on the first run is reported rather than approved into the baseline | **expected, and it found the bug it was written to catch** — `<button><span aria-hidden="true">↻</span></button>` was named "↻", because name-from-content read `textContent`. The case did not notice for a session, because it reads a prebuilt bundle; it now refuses to run against one older than its inputs |
 | M17 | B15 | `compareLocales` — untranslated strings and boxes that stopped fitting, across two renders of one subject | **corrected twice by its own measurement** — the first run found nothing, because the rule read text nodes and the forgotten string was a `title`; and at 420px German fits, so whether a translation fits is a property of the container as much as the translation. `matchTrees` cannot be reused: it keys on the accessible name, which is exactly what a translation changes |
 | M18 | B15 | A second `provenanceOf`, reading `data-*` — 25 lines, no framework in the process | **expected, and it found two defects neither in the new code** — every plain `<section>` blew the stack on a `roleOf`/`accessibleName` mutual recursion, and a `prop` root labelled `Panel → Button` was attributing to `Button` in the per-component roles the report prints, sending a reviewer to a file nobody edited |
-| M19 | — | Read all nine specs against the code, correct what drifted, and start the lifecycle they define | **mixed, and it found one MUST with no code behind it** — spec 0008's uncompared count did not exist, so a locale whose tree diverged reported *fewer* findings and read as the cleaner one. 0003 named five of six commands; 0007 said `not built` with a Dockerfile in the tree that could not have run the contract; 0005 promised a Bitbucket recipe nobody had written. Specs 0004 and 0009 discharged into ADR-0016 and ADR-0015 and deleted; 0003 and 0006 still owe theirs |
+| M19 | — | Read all nine specs against the code, correct what drifted, then empty the directory of everything that ships | **mixed, and it found one MUST with no code behind it** — the locale spec required an uncompared count that did not exist, so a subject whose tree diverged reported *fewer* findings and read as the cleaner one. The CLI spec named five of six commands; Linux verification said `not built` with a Dockerfile in the tree that could not have run its own contract; CI feedback promised a Bitbucket recipe nobody had written. Seven specs discharged into ADRs 0015–0020 and deleted, one deleted without an ADR for forcing no decision; **two remain, and both are genuinely unfinished** |
 
 ---
 
@@ -167,17 +167,17 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   page it was acquired from".
 - **The documentation is checked now, and one class of it still is not.**
   `tools/documentation.test.ts` resolves every link, every backticked repository
-  path and every `file:line` reference across all 69 markdown files, and compiles
+  path and every `file:line` reference across all 68 markdown files, and compiles
   every README `ts` example against the built `.d.ts` with no unused import. It
   found that **11 of the 20 examples did not compile** — wrong arity, options
   that were renamed, a field that no longer exists — which is what a reader was
   copying. What it deliberately does not *compile* is a fence in a spec or an
   ADR: those are proposals about code that may not exist. Their type references
-  are checked, and so now is a spec's status against the index and any block that
-  lists the CLI's commands against the binary — the last of which found spec 0003
-  naming five of six. What still passes unread is a spec's ordinary prose: a
-  behaviour paragraph can describe a field that does not exist, which is exactly
-  what spec 0008's uncompared count was for a whole branch.
+  are checked, and so now is any block that lists the CLI's commands against the
+  binary — which found the CLI spec naming five of six. What still passes unread
+  is a spec's ordinary prose: a behaviour paragraph can describe a field that does
+  not exist, which is exactly what the locale spec's uncompared count was for a
+  whole branch.
 - **The layout is checked, the *naming* is not.** `tools/boundaries.test.ts`
   proves every import is declared and every requirement has one owner. Nothing
   proves a package's name still describes what it needs — `store` could grow a
@@ -187,8 +187,9 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 - **The font probe reports metric-compatible substitutes as missing.** A false
   alarm rather than a false `unchanged`, and the same hole as "one machine".
 - **Nothing accumulates across runs, and it is no longer for want of code.** Spec
-  §5 has promised per-component change frequency since the draft; specs 0001–0002
-  say what to record and where it lives, and **both are now implemented** —
+  §5 has promised per-component change frequency since the draft; ADR-0018 and
+  [the history spec](../specs/0002-history-store.md) say what to record and where
+  it lives, and **both are implemented** —
   `hashComponents` in `core/attribute`, the rows and drift arithmetic in
   `@variance-authority/history`, the socket in `@variance-authority/server`. What
   does not exist is a caller: `variance run` records nothing, so every one of those
@@ -229,9 +230,10 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 
 Two open fronts, and they are independent.
 
-**History (B12) is specified, built and wired to nothing.** Specs 0001–0002 settle
-what is recorded and where it lives, and both now have code: `hashComponents` ships
-in `core/attribute` with the contract spec 0001 wrote, and
+**History (B12) is built and wired to nothing, and the next step is a decision
+rather than code.** What is recorded and where it lives are settled — ADR-0018 and
+[the history spec](../specs/0002-history-store.md) — and both have code:
+`hashComponents` ships in `core/attribute`, and
 `@variance-authority/history` and `@variance-authority/server` implement the rows,
 the drift arithmetic and the service. What is missing is the only part that was
 ever the point — **no run calls any of it.** `variance run` records nothing, so no

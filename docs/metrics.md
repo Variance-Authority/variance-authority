@@ -390,7 +390,7 @@ architecture. Against hosted vendors, ~1 day each on free tiers.
   caller-supplied **string, not a content hash**, so a second machine can render
   different geometry and the key will not say so — and the metric probe reports
   metric-compatible substitutes, which is exactly what a Linux container ships,
-  as *missing*. Spec 0007 asked for that false-alarm rate and it is open.
+  as *missing*. That false-alarm rate has never been measured.
 - A semantic verdict differing across platforms, which `docker/linux-verify.sh`
   states in its own closing lines **refutes ADR-0010** and is the finding rather
   than a failure to be retried away.

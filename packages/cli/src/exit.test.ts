@@ -39,7 +39,7 @@ describe('exitFor', () => {
   });
 
   it('needs review when a subject the run meant to observe failed', () => {
-    // Spec 0003's acceptance in one line: a subject that cannot be observed does
+    // ADR-0017 in one line: a subject that cannot be observed does
     // not silently pass.
     expect(
       exitFor({ observations: [{ verdict: 'unchanged' }], notObserved: [{ kind: 'failed' }] }),

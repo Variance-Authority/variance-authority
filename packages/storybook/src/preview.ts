@@ -59,7 +59,7 @@
  * **A story that throws is a subject, not a crash.** Every failure mode the
  * preview can report — a throwing render, a throwing play function, an errored
  * story, a story the preview does not have — comes back as an outcome carrying
- * the error. The remaining stories are still observed (spec 0006, acceptance 4).
+ * the error. The remaining stories are still observed (ADR-0020).
  */
 
 /** Path a built Storybook serves its preview from, relative to the base URL. */
@@ -553,7 +553,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       // Storybook's channel dispatches synchronously, so a story that throws
       // during render can throw straight back out of `emit`. Left unhandled that
       // rejects the evaluate and takes the rest of the run with it — precisely
-      // the crashed run spec 0006 forbids.
+      // the crashed run ADR-0020 forbids.
       const described = describeError(error);
       finish(
         result('errored', 'none', {
@@ -674,7 +674,7 @@ export interface StoryOutcome {
    *
    * `true` exactly once in a healthy run. A second `true` is the signal that the
    * saving ADR-0009 is built on is not being realised, so it is reported rather
-   * than counted internally (spec 0006, acceptance 3).
+   * than counted internally (ADR-0020).
    */
   readonly navigated: boolean;
   readonly status: ShowStatus;
