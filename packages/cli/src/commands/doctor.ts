@@ -7,7 +7,7 @@ import type {
 } from '@variance-authority/core';
 import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
-import type { Config } from '../config.js';
+import type { BrowserEngine, Config } from '../config.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 
 /**
@@ -60,6 +60,19 @@ export interface Diagnosis {
 
 export interface RendererFinding {
   readonly available: boolean;
+
+  /**
+   * Whether anything was actually tried. Defaults to `true`.
+   *
+   * `available` is a two-valued answer to a three-valued question — opened, would
+   * not open, *not checked* — and collapsing the third into `false` is the exact
+   * shape this command exists to refuse. A remote renderer is not contacted, so
+   * reporting it unavailable would fail `doctor` on a machine where nothing is
+   * wrong, and an operator who sees `NOT AVAILABLE` for a working endpoint stops
+   * reading the rest.
+   */
+  readonly checked?: boolean;
+
   readonly because: string;
   /** Present only when a renderer was actually opened. Never reconstructed. */
   readonly identity?: RenderIdentity;
@@ -90,10 +103,28 @@ export interface DoctorProbes {
   exists(path: string): Promise<boolean>;
 }
 
+/**
+ * Everything the config says about the renderer, in one expression.
+ *
+ * One expression because there are two call sites — this file and `rendererFor`
+ * in `bin.ts` — and they answer the same question. They had already drifted once
+ * by construction: `browser` arrived as a config field and `bin` read it while
+ * this did not, which makes `doctor` launch Chromium, report *a renderer opened*,
+ * and hand a green answer to an operator whose run is about to fail on a WebKit
+ * that is not installed. A doctor that is wrong in the direction of "fine" is
+ * worse than no doctor.
+ */
+export function rendererOptionsFor(config: Config): { fonts: readonly string[]; browser?: BrowserEngine } {
+  return {
+    fonts: config.fonts,
+    ...(config.browser === undefined ? {} : { browser: config.browser }),
+  };
+}
+
 /** The probes as they run for real: a browser, and the filesystem. */
 export function machineProbes(config: Config): DoctorProbes {
   return {
-    renderer: () => createPlaywrightRenderer({ fonts: config.fonts }),
+    renderer: () => createPlaywrightRenderer(rendererOptionsFor(config)),
     exists: async (path) => {
       try {
         await access(path);
@@ -108,6 +139,36 @@ export function machineProbes(config: Config): DoctorProbes {
 export async function doctor(config: Config, probes: DoctorProbes): Promise<Diagnosis> {
   let renderer: Renderer | null = null;
   let rendererFinding: RendererFinding;
+
+  // A remote renderer is reported, not opened. `connectRenderer` fetches the far
+  // end's identity at construction, which is a network call, and this command's
+  // whole position is that it makes none — the same treatment the remote
+  // baseline store gets below. Reporting "available" after a probe that never
+  // ran would be the failure doctor exists to prevent, pointed at itself.
+  if (config.renderer !== undefined) {
+    return {
+      renderer: {
+        available: false,
+        checked: false,
+        because:
+          `rendering is configured at ${config.renderer.endpoint}, and deliberately not ` +
+          'contacted — doctor makes no network calls, so this reports what the config says ' +
+          'and not whether that machine is up. Nothing local is required, and nothing local ' +
+          'was checked: the identity a baseline is partitioned by belongs to the far end',
+      },
+      fonts: {
+        probed: false,
+        asserted: config.fonts,
+        missing: [],
+        because:
+          'the fonts that matter are the remote renderer’s, and this machine cannot measure ' +
+          'them. An empty `missing` list here means no probe ran',
+      },
+      profile: config.profile,
+      baselines: await baselines(config, probes),
+      history: history(config),
+    };
+  }
 
   try {
     renderer = await probes.renderer();
@@ -298,6 +359,9 @@ function history(config: Config): HistoryFinding {
  * decides.
  */
 export function exitForDiagnosis(diagnosis: Diagnosis): ExitCode {
+  // Not-checked is not a failure. Exit 2 means *this machine cannot do the work*,
+  // and a machine that was never asked has not answered that question either way.
+  if (diagnosis.renderer.checked === false) return EXIT_CLEAN;
   return diagnosis.renderer.available ? EXIT_CLEAN : EXIT_OPERATOR;
 }
 
@@ -307,7 +371,13 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
   return [
     `profile: ${diagnosis.profile}`,
     '',
-    `renderer: ${diagnosis.renderer.available ? 'available' : 'NOT AVAILABLE'}`,
+    `renderer: ${
+      diagnosis.renderer.checked === false
+        ? 'not checked'
+        : diagnosis.renderer.available
+          ? 'available'
+          : 'NOT AVAILABLE'
+    }`,
     `  ${diagnosis.renderer.because}`,
     ...(identity !== undefined
       ? [

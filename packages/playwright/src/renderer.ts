@@ -1,4 +1,4 @@
-import { chromium, type Browser, type Page } from 'playwright';
+import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright';
 import {
   documentDigest,
   type Raster,
@@ -23,7 +23,7 @@ import {
 } from '@variance-authority/raster';
 
 /**
- * A local Chromium renderer: one browser, one page per viewport, N documents.
+ * A local renderer: one browser, one page per viewport, N documents.
  *
  * Persistent for the reason measured in journal 0007 — a browser launch and first
  * navigation dominate the work they enclose by roughly two orders of magnitude
@@ -36,8 +36,45 @@ import {
  * to navigate at all.
  */
 
+/**
+ * The engines this renderer can be. Defaults to `chromium`.
+ *
+ * ## Why cross-browser is a field here and a plan tier everywhere else
+ *
+ * The category prices coverage by multiplication — Percy states it as "two pages
+ * rendered across two browsers and three widths would result in twelve
+ * screenshots", and Chromatic bills `tests × builds × browsers × modes`. That
+ * arithmetic is a property of pipelines where a browser produces the *whole*
+ * observation, so observing in a second engine means running everything again.
+ *
+ * Here a `RenderDocument` is acquired once, by one collector, and rasterization
+ * is the only phase that is engine-bound. So a second engine costs one more
+ * paint of a document that already exists — not a second run. The multiplication
+ * is against the tier that is ~65 ms rather than against the tier that decides.
+ *
+ * ## Why this needs no new comparison rule
+ *
+ * The engine is already in {@link RenderIdentity}, which already keys the store
+ * and already decides comparability. A WebKit baseline therefore lands in its own
+ * directory, and a Chromium run that finds it reports `incomparable` and names
+ * both engines — by the machinery that was there for two laptops, unchanged.
+ * Nothing about cross-engine support required a cross-engine concept.
+ *
+ * **What is not claimed.** No suite in this repository has run WebKit or Firefox.
+ * What is verified is that the identity differs, which is what decides whether
+ * two images may be compared at all; the tricks in the stabilization recipe are
+ * written against Chromium's behaviour and have never been asked to hold another
+ * engine still.
+ */
+export type BrowserEngine = 'chromium' | 'firefox' | 'webkit';
+
+const ENGINES: Readonly<Record<BrowserEngine, BrowserType>> = { chromium, firefox, webkit };
+
 export interface PlaywrightRendererOptions {
   readonly headless?: boolean;
+
+  /** Which engine paints. Defaults to `chromium`. See {@link BrowserEngine}. */
+  readonly browser?: BrowserEngine;
 
   /**
    * Fonts this machine is asserted to have, as `family/weight/style/hash`.
@@ -92,7 +129,8 @@ export interface PlaywrightRendererOptions {
 export async function createPlaywrightRenderer(
   options: PlaywrightRendererOptions = {},
 ): Promise<Renderer> {
-  const browser = await chromium.launch({ headless: options.headless ?? true });
+  const engine = options.browser ?? 'chromium';
+  const browser = await ENGINES[engine].launch({ headless: options.headless ?? true });
   const recipe = options.stabilization ?? RASTER_RECIPE;
   const holdStill = recipeCss(recipe);
   const shot = recipeScreenshot(recipe);
@@ -110,8 +148,8 @@ export async function createPlaywrightRenderer(
 
   try {
     const identity: RenderIdentity = {
-      renderer: `playwright-chromium`,
-      engine: `chromium@${browser.version()}`,
+      renderer: `playwright-${engine}`,
+      engine: `${engine}@${browser.version()}`,
       platform: `${process.platform}/${process.arch}`,
       // The scale belongs to the document, not to the browser — one renderer
       // serves 1x and 2x viewports in the same run. Left at 1 so the machine

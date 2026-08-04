@@ -53,8 +53,8 @@ export type {
   PlannedSubject,
   SubjectSource,
 } from './collector.js';
-export { settle } from './settle.js';
-export type { Settlement } from './settle.js';
+export { settle } from '@variance-authority/raster';
+export type { Settlement } from '@variance-authority/raster';
 export { recordOf } from './record.js';
 export { decoderFor, renderCacheRoot, storeFor, writeArtifactToDisk } from './resources.js';
 export { readCliRunReport, writeCliRunReport } from './run-report.js';

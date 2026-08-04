@@ -10,6 +10,7 @@ import {
   identityAtScale,
   type Renderer,
 } from '@variance-authority/raster';
+import { fetchWithin } from './transport.js';
 
 /**
  * Offloading — the same renderer, on the other side of a hop.
@@ -115,25 +116,22 @@ async function request(
   body: unknown,
   timeoutMs: number,
 ): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await get(url, {
+  const response = await fetchWithin(
+    get,
+    url,
+    {
       method: body === undefined ? 'GET' : 'POST',
       ...(body === undefined
         ? {}
         : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
-      signal: controller.signal,
-    });
+    },
+    timeoutMs,
+  );
 
-    if (!response.ok) {
-      throw new Error(`render server ${url} returned ${response.status}: ${await response.text()}`);
-    }
-    return await response.json();
-  } finally {
-    clearTimeout(timer);
+  if (!response.ok) {
+    throw new Error(`render server ${url} returned ${response.status}: ${await response.text()}`);
   }
+  return await response.json();
 }
 
 export interface RenderServer {

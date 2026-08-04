@@ -14,7 +14,29 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Third-party requirements: what a consumer installs, as opposed to node's own. */
-export const OWNED_BY_ONE = ['playwright', 'pixelmatch', 'pngjs', 'react', 'react-dom', 'jsdom', 'sharp'];
+/**
+ * The packages an adopter is told to import, one per way in (ADR-0024).
+ *
+ * A list rather than a discovered set, because being a surface is a *promise* —
+ * that nobody has to look behind it — and a promise somebody makes is not a
+ * property a directory scan can find. Adding a name here is the decision; the
+ * check below is what stops it from quietly becoming false.
+ */
+export const SURFACES = [
+  '@variance-authority/playwright-test',
+  '@variance-authority/storybook-collector',
+  '@variance-authority/route-collector',
+];
+
+/**
+ * What a surface additionally entitles a consumer to name.
+ *
+ * Not a reach-through. `core` holds the types a surface's own signatures are
+ * written in — an adopter reading a verdict is already holding them — and `cli`
+ * is the next step rather than a collaborator: the workflow the verdict feeds
+ * into. Everything else a surface uses is its own business.
+ */
+export const NEXT_STEP = ['@variance-authority/core', '@variance-authority/cli'];
 
 export interface Workspace {
   readonly name: string;
@@ -36,7 +58,11 @@ export function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
     if (entry.isDirectory()) sourceFiles(path, out);
-    else if (/\.(ts|tsx|js|jsx)$/.test(entry.name)) out.push(path);
+    // `.mjs` and `.cjs` too. A collector module is very often `.mjs` — the CLI
+    // `import()`s it and an adopter reaches for the extension that says so — and
+    // leaving them out meant the one file this repository holds up as *the* thing
+    // an adopter writes was invisible to every import rule below.
+    else if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry.name)) out.push(path);
   }
   return out;
 }
@@ -88,7 +114,14 @@ export function workspaces(): readonly Workspace[] {
       const source = new Set<string>();
       const test = new Set<string>();
 
-      for (const file of sourceFiles(join(dir, 'src'))) {
+      // `src`, and `collector` — which is not a convention, it is a hole that was
+      // open. A collector module is production code: the CLI `import()`s it by
+      // the path a config names, at run time, in the adopter's process. Scanning
+      // only `src` meant `cases/storybook-case/collector/` declared `playwright`,
+      // `esbuild` and four workspace packages with **nothing checking any of
+      // them** — the exact class of failure rule 1 exists to catch, in the one
+      // directory this repository points at when asked what adoption costs.
+      for (const file of [...sourceFiles(join(dir, 'src')), ...sourceFiles(join(dir, 'collector'))]) {
         // `.spec.` counts as well as `.test.`, because the weaker rule is about
         // *when* code runs and not about which runner runs it. A case driving a
         // competitor's assertion library does so from a file that competitor's

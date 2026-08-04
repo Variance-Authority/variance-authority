@@ -10,6 +10,7 @@
     "build-storybook:changed": "VITE_CASE_MUTATION=wide-button storybook build -o storybook-changed --quiet"
   },
   "dependencies": {
+    "@variance-authority/storybook-collector": "workspace:^",
     "react": "^19",
     "react-dom": "^19"
   },

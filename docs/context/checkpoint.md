@@ -122,12 +122,20 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   — the head-to-head against a real `toHaveScreenshot`, and the whole CLI over a
   real Storybook — is exactly the part a second machine has not seen. Building
   both inside the image is the fix and nothing does it.
-- **`observePair` over the wire is broken on Node 24.** `offload.chromium.test.tsx`
-  fails to collect with `RequestInit: Expected signal ("AbortSignal {}") to be an
-  instance of AbortSignal` — two `AbortSignal` realms meeting at `fetch`. It is a
-  runtime finding rather than a platform one: the image ships Node 24 and
-  `check.yml` pins Node 22, so nothing else here has met it. Unfixed, and it means
-  the remote renderer is untested on the newest runtime.
+- **`observePair` over the wire was broken on Node 24, and is fixed.** The
+  failure was `RequestInit: Expected signal ("AbortSignal {}") to be an instance
+  of AbortSignal` — two `AbortSignal` realms meeting at `fetch`, because a jsdom
+  test environment installs its own DOM globals over the process's and the newer
+  runtime brand-checks the signal it is handed. jsdom is the environment this
+  package exists for, so the fix is in `packages/remote/src/transport.ts` rather
+  than in the test: the signal is used when the runtime accepts it and the
+  deadline is raced when it does not, demoted once per process. What that costs is
+  stated where it happens — on the fallback the request is abandoned rather than
+  cancelled, so the socket lingers.
+  `examples/todomvc/src/offload.chromium.test.tsx` now passes on **Node 26**,
+  including the byte-identical-over-a-socket assertion. **Node 24 itself is still
+  unrun here** — the machine has 22 and 26 — and `check.yml` now runs a `[22, 24]`
+  matrix rather than a single pin, which is the gap that let this hide.
 - **One machine.** Every rect and the 27× ratio come from one mac, one Chromium.
   Fonts enter the environment key as a caller-supplied string rather than a
   content hash, so a second machine could render different geometry and the key
@@ -193,7 +201,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   page it was acquired from".
 - **The documentation is checked now, and one class of it still is not.**
   `tools/docs-links.check.ts` resolves every link, every backticked repository
-  path and every `file:line` reference across all 78 markdown files, and compiles
+  path and every `file:line` reference across all 83 markdown files, and compiles
   every README `ts` example against the built `.d.ts` with no unused import. It
   found that **11 of the 20 examples did not compile** — wrong arity, options
   that were renamed, a field that no longer exists — which is what a reader was
@@ -205,7 +213,8 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   not exist, which is exactly what the locale spec's uncompared count was for a
   whole branch.
 - **The layout is checked, the *naming* is not.** `tools/boundaries.check.ts`
-  proves every import is declared and every requirement has one owner. Nothing
+  proves every import is declared and that adopter-facing code names one package
+  (ADR-0024, which retired the one-owner rule). Nothing
   proves a package's name still describes what it needs — `store` could grow a
   socket and only a reader would notice.
 - **The MCP layer has never served a real agent.** Five tools shaped by argument

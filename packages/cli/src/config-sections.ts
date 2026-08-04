@@ -114,6 +114,24 @@ export interface RemoteBaselines {
   readonly token?: string;
 }
 
+/**
+ * A renderer that is somewhere else.
+ *
+ * The field that makes the offload reachable from the binary. Until it existed,
+ * `remote`'s whole argument — send the machine-bound artifact to the one pinned
+ * machine, rather than pinning the pipeline everywhere — was reachable only by a
+ * caller composing the pieces by hand, which is nobody running `variance run`.
+ *
+ * Mutually exclusive with `browser`, and refused rather than resolved: a config
+ * naming both is asking a local engine to be selected for a render that happens
+ * on a machine this one does not own, and quietly ignoring one of the two is how
+ * an operator ends up certain they are testing WebKit.
+ */
+export interface RemoteRendererConfig {
+  readonly endpoint: string;
+  readonly timeoutMs?: number;
+}
+
 export interface HistoryConfig {
   readonly endpoint: string;
   readonly token: string;
@@ -231,6 +249,27 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
   return {
     kind: 'directory',
     root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
+  };
+}
+
+export function parseRenderer(value: unknown, options: ParseOptions): RemoteRendererConfig {
+  // **No `token`, deliberately.** The baseline store's remote arm takes one and
+  // sends it; `serveRenderer` has no authentication at all. A config field that
+  // accepted a credential nobody transmits would be worse than no field — an
+  // operator would read it as the endpoint being protected, and it is not. The
+  // render endpoint is expected to sit inside a network the operator controls,
+  // and that is a requirement rather than a default.
+  const source = object(value, 'renderer', ['endpoint', 'timeoutMs'], options);
+  // `integer` already refuses zero and negatives, which is the whole rule: a
+  // timeout of 0 is a renderer that always fails and reads like a disabled one.
+  const timeoutMs =
+    source['timeoutMs'] === undefined
+      ? undefined
+      : integer(source, 'timeoutMs', 'renderer.timeoutMs', options);
+
+  return {
+    endpoint: url(source, 'endpoint', 'renderer.endpoint', options),
+    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   };
 }
 

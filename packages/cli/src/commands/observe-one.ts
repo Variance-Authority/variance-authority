@@ -1,12 +1,11 @@
 import { documentDigest } from '@variance-authority/core';
 import { observeAgainstBaseline, observePair } from '@variance-authority/observe';
-import type { BaselineKey } from '@variance-authority/raster';
+import { settle, type BaselineKey } from '@variance-authority/raster';
 import { alone } from './alone.js';
 import type { Collected, PlannedSubject } from './collector.js';
 import { images } from './images.js';
 import { diagnosticsOf, findingsField, findingsOf, qualification, recordOf } from './record.js';
 import type { ObserveContext, Outcome } from './run-context.js';
-import { settle } from './settle.js';
 
 /**
  * One subject, from a collected document to the line the report will carry.
@@ -87,8 +86,15 @@ export async function observeOne(
   // up properly: one extra lookup per unsettled subject, paid so that comparison,
   // isolation, and attribution are not reimplemented here where they would be a
   // second, untested copy.
-  const described = await deps.store.describe(key, renderer.identity);
-  const settlement = settle(documentDigest(collected.document), described, renderer.identity);
+  // `identityFor`, never `renderer.identity`. The two differ by exactly the
+  // document's scale factor, so at 1x they coincide and above it the settlement
+  // asks about an identity nothing was ever written under — which does not
+  // produce a wrong verdict, because the observation below looks the baseline up
+  // properly, but it does switch this whole economy off for every run above 1x
+  // and say nothing. That is the drift `Renderer.identityFor` exists to prevent.
+  const identity = renderer.identityFor(collected.document);
+  const described = await deps.store.describe(key, identity);
+  const settlement = settle(documentDigest(collected.document), described, identity);
 
   if (settlement.kind === 'settled') {
     const missingFonts = settlement.missingFonts ?? [];

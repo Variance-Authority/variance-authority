@@ -104,18 +104,28 @@ happens to be the story's entry point. See
 [`examples/todomvc/src/code-mutation.ts`](../../examples/todomvc/src/code-mutation.ts),
 which records that mistake being made and undone.
 
-### The collector is the operator's half, written out in full
+### The collector is the operator's half, and it is now five lines
 
-[`collector/index.mjs`](collector/index.mjs) is the 234 lines
-`variance.config.json` names; [`collector/`](collector) is 341 lines across three
-files, once the page agent and its bundler are counted. That is the size of the
-half an adopter writes.
-The CLI supplies the generic half — read `index.json`, apply exclusion policy,
-plan — and this supplies what only this project can: it serves its own build,
-declares which stories have their own readiness marker, and indexes its own
-source for component→file. That seam exists because a CLI that guessed any of
-those would need a plugin system whose failures are undebuggable from either
-side.
+[`collector/index.mjs`](collector/index.mjs) was 234 lines, in a directory of 341
+across three files once the page agent and its bundler were counted. That figure
+was quoted across this repository as the honest cost of the seam.
+
+It is now **five lines of code**, and the rest moved into
+[`@variance-authority/storybook-collector`](../../packages/storybook-collector).
+What the 341 measured, in hindsight, was a boundary drawn one step too far out: a
+story index is a documented artifact and a preview owns its own mount, so
+serving the build, injecting the bundle, driving the channel, acquiring and
+normalizing were Storybook's contract being re-typed rather than knowledge this
+project held.
+
+What is still this project's is what it always genuinely knew — which story
+defers its own readiness and by what marker, and where its components live.
+
+The seam itself is unchanged: the config names a module, the module exports a
+function, and nothing is discovered. A CLI that *guessed* either of those two
+facts would need a plugin system whose failures are undebuggable from either
+side. `cli.chromium.test.js` was written against the hand-written collector, was
+not touched, and passes.
 
 ## What it caught
 

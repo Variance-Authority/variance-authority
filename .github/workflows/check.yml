@@ -26,12 +26,29 @@ jobs:
   check:
     runs-on: ubuntu-24.04
 
+    # A matrix rather than a pin, because the pin is what hid a bug.
+    #
+    # This said `node-version: '22'` from the day CI was added, chosen by nobody
+    # in particular, while `docker/linux-verify.sh` ran the same code on Node 24.
+    # Nothing tested the difference, and the difference was real: a remote call
+    # built its `AbortSignal` from whatever realm a jsdom test environment had
+    # installed, which the newer runtime brand-checks and refuses. It surfaced
+    # once, in the image, and CI could not have seen it.
+    #
+    # 22 is the floor this repository has always run on; 24 is what the
+    # verification image ships. A runtime nothing runs on is a runtime nobody
+    # supports, and stating that as one number was the mistake.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node }}
 
       - name: install
         shell: bash
@@ -72,7 +89,7 @@ jobs:
       # ## What this job does not do, stated rather than discovered
       #
       # **No browser.** Nothing here runs `npx playwright install`, so the suites
-      # across 11 files that need a Chromium announce themselves as skipped, each
+      # across 13 files that need a Chromium announce themselves as skipped, each
       # carrying the command that would fix it. That sentence is not taken on
       # trust: `tools/skips.test.ts` asserts every gated file announces, and pins
       # the count in this comment to the number of gated files it finds.

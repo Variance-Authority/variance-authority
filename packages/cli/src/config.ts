@@ -21,11 +21,13 @@ import {
   parseBaselines,
   parseFonts,
   parseHistory,
+  parseRenderer,
   parseSubjects,
   parseViewport,
   type AloneConfig,
   type BaselinesConfig,
   type HistoryConfig,
+  type RemoteRendererConfig,
   type SubjectsConfig,
 } from './config-sections.js';
 
@@ -119,6 +121,33 @@ export interface Config {
    */
   readonly fonts: readonly string[];
 
+  /**
+   * Which engine paints. Defaults to `chromium`.
+   *
+   * The one field that makes cross-browser reachable from the binary. It is a
+   * single word rather than a matrix because a run has *one* identity: the
+   * engine is part of the key a baseline is stored under, so two engines are two
+   * runs with two sets of baselines, and a config that named both would be a
+   * config describing two runs. CI shards them the way it shards anything else.
+   *
+   * That is also why this cannot silently change: a run that swaps `chromium` for
+   * `webkit` looks for baselines under a key nothing was written to and reports
+   * every subject `new` — correctly, and loudly, rather than diffing two engines
+   * against each other and blaming a component for a font stack.
+   */
+  readonly browser?: BrowserEngine;
+
+  /**
+   * A renderer on another machine. Mutually exclusive with {@link Config.browser}.
+   *
+   * This is the field that makes the offload a product rather than a library
+   * capability: `remote`'s argument is that the machine-bound artifact should be
+   * sent to the one pinned machine instead of pinning the pipeline everywhere,
+   * and until this existed `variance run` launched a local browser
+   * unconditionally, so the argument was unreachable from the binary.
+   */
+  readonly renderer?: RemoteRendererConfig;
+
   readonly history?: HistoryConfig;
 
   /** Where `run` writes, and where `report`, `accept`, and `serve` read. */
@@ -170,6 +199,18 @@ export interface Config {
   readonly concurrency?: number;
 }
 
+/**
+ * Engines the renderer can be, listed here rather than imported.
+ *
+ * Importing the type from `@variance-authority/playwright` would put a browser
+ * in the dependency graph of a config parser — the one file in this package that
+ * must be readable, and testable, with nothing installed. The list is three words
+ * and `rendererFor` fails loudly if they ever disagree.
+ */
+const BROWSERS = ['chromium', 'firefox', 'webkit'] as const;
+
+export type BrowserEngine = (typeof BROWSERS)[number];
+
 const TOP_LEVEL = [
   'project',
   'profile',
@@ -178,6 +219,8 @@ const TOP_LEVEL = [
   'subjects',
   'baselines',
   'fonts',
+  'browser',
+  'renderer',
   'history',
   'report',
   'images',
@@ -248,6 +291,25 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     fail('concurrency', `must be an integer of at least 1, not ${quote(String(concurrency))}`, options);
   }
 
+  const browser = root['browser'] === undefined ? undefined : text(root, 'browser', options);
+  if (browser !== undefined && !(BROWSERS as readonly string[]).includes(browser)) {
+    fail('browser', `must be one of ${BROWSERS.join(', ')}, not ${quote(browser)}`, options);
+  }
+
+  const renderer = root['renderer'] === undefined ? undefined : parseRenderer(root['renderer'], options);
+  if (renderer !== undefined && browser !== undefined) {
+    // Refused rather than resolved. A config naming both asks for a local engine
+    // to be selected for a render that happens on a machine this one does not
+    // own, and ignoring either half is how an operator ends up certain they are
+    // testing WebKit.
+    fail(
+      'browser',
+      'cannot be set together with `renderer`: the engine belongs to whichever machine paints, ' +
+        'and that machine is the remote one',
+      options,
+    );
+  }
+
   const decoder = root['decoder'] === undefined ? undefined : text(root, 'decoder', options);
   if (decoder !== undefined && decoder !== 'auto' && decoder !== 'pngjs' && decoder !== 'sharp') {
     fail('decoder', `must be "auto", "pngjs" or "sharp", not ${quote(decoder)}`, options);
@@ -255,6 +317,8 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
 
   return {
     project: nonEmpty(root, 'project', options),
+    ...(browser === undefined ? {} : { browser: browser as BrowserEngine }),
+    ...(renderer === undefined ? {} : { renderer }),
     profile: profile as ProfileId,
     viewport: parseViewport(root['viewport'], options),
     retention,

@@ -12,9 +12,9 @@ The short version, before the detail:
 
 | | |
 |---|---|
-| **Code you write** | Three seams, three, one and one method. A worked example is 341 lines |
+| **Code you write** | For Storybook or a set of served URLs, roughly five lines: a shipped collector plus the facts only you hold. For a Playwright suite, an import. For anything else, three seams — three methods, one and one — and the worked example that measured 341 lines |
 | **Packages you install** | Between one and four, chosen by what you already have |
-| **Suites supported today** | Storybook end to end. Anything else through the same collector contract — the run takes its subject list from the collector, not from the config, so a new subject source needs no change here |
+| **Suites supported today** | Storybook end to end with a shipped collector; a Playwright suite through a fixture where the test body is the collector; and any set of served URLs through a shipped route collector. Anything else through the same collector contract — the run takes its subject list from the collector, not from the config, so a new subject source needs no change here |
 | **What cannot enter** | An image this system did not paint. Deliberately, and the refusal is a named error |
 
 ---
@@ -47,10 +47,14 @@ plugin system whose failures are undebuggable from either side."
 **Size, measured rather than estimated:** `cases/storybook-case/collector/` is
 341 lines across three files, 234 of them in the module the config names. The
 source comment estimated "about thirty lines" until one was written and was
-optimistic by 8×; it now carries the measurement instead. That is the honest
-integration cost of this project against Percy's twenty-plus SDKs, and
-[comparison §4.3](comparison.md#43-there-is-no-shipped-collector-and-that-is-the-design)
-is where a buyer should read it as one.
+optimistic by 8×; it now carries the measurement instead.
+
+**That figure is now the cost where no collector is shipped.** Storybook has one
+as of 2026-08-04 — [`@variance-authority/storybook-collector`](../packages/storybook-collector)
+— and the same case is five lines of code against the same end-to-end test, which
+is what [comparison §4.3](comparison.md#43-there-is-one-shipped-collector-and-it-is-storybooks)
+now reads as. For every other subject source the 341 is still the honest number
+against Percy's twenty-plus SDKs.
 
 ### The page agent — one method
 
@@ -223,13 +227,17 @@ comment said "present only for `subjects.kind: 'storybook'`" until 2026-08-03,
 which is the reading that costs something — an operator concludes the field is
 undefined and hand-rolls what the CLI already computed.
 
-**And this path has no worked example.** It parses, it plans, and it is covered by
-unit tests in `packages/cli/src/config.test.ts`,
+**This path had no worked example until 2026-08-04.** It parsed, it planned, and
+it was covered by unit tests in `packages/cli/src/config.test.ts`,
 `packages/cli/src/commands/run.test.ts` and
-`packages/cli/src/commands/doctor.test.ts` with a fake collector, and documented
-in `packages/cli/README.md`. No real suite has ever entered through it. It is the
-arm the configuration advertises and the repository does not demonstrate, which is
-the reverse of the usual failure and still a failure.
+`packages/cli/src/commands/doctor.test.ts` with a fake collector — the arm the
+configuration advertised and the repository did not demonstrate, which is the
+reverse of the usual failure and was still a failure.
+[`@variance-authority/route-collector`](../packages/route-collector) enters
+through it, against pages a real server serves, in
+`packages/route-collector/src/collector.chromium.test.ts`. What is still absent is
+a `variance run` *end to end* over the `list` arm: the collector is exercised
+directly, the way the Storybook arm was before `cases/storybook-case`.
 
 ### Playwright
 
@@ -298,7 +306,7 @@ of your own reaches all three; `variance run` reaches none.
 
 | | The library | The binary |
 |---|---|---|
-| **A renderer across a network** | `connectRenderer` in `remote` satisfies the same contract, identity-guarded | `rendererFor` in `packages/cli/src/bin.ts` imports `createPlaywrightRenderer` unconditionally, and the config has no renderer field. Playwright-on-this-machine, always |
+| **A renderer across a network** | `connectRenderer` in `remote` satisfies the same contract, identity-guarded | **Closed 2026-08-04.** `"renderer": { "endpoint": … }` selects it, and `"browser": "chromium" \| "firefox" \| "webkit"` selects the engine when it is local. The two are refused together, because the engine belongs to whichever machine paints |
 | **Posting a build for review** | the tribunal's ingest route takes one | nothing in `packages/cli/src` or `.github` posts one. An operator writes the HTTP call themselves |
 | **One standing world across subjects** | `session`, measured at 3.4× with ~2% probe overhead | no caller. `session` has **zero** consumers in the entire repository — no package, no example, no case. Its only import site is the example in its own README, which the documentation gate type-checks and nothing runs |
 

@@ -1,12 +1,16 @@
 import type { Digest, RenderIdentity } from '@variance-authority/core';
-import type { Described } from '@variance-authority/raster';
-import type { ObservationRecord } from '@variance-authority/report';
+import { describeIdentity } from './renderer.js';
+import type { Described } from './store.js';
 
 /**
  * The question asked before any pixel is paid for: does this subject need an
  * image at all?
  *
- * Its own file because it is the economy the whole command rests on.
+ * Its own file, in the package that owns `RasterStore`, because it is the
+ * economy every composition rests on — the binary, a Playwright fixture, a jest
+ * matcher. It lived in `packages/cli` until 2026-08-04, where the one query that
+ * decides whether a run pays for an image was reachable only by spawning the
+ * binary, and every other surface either reimplemented it or went without.
  * Rasterization costs ~65ms against ~3.4ms for a semantic collection of the same
  * page (ADR-0010), and a suite is three hundred subjects of which two changed —
  * so the value of `variance run` is almost entirely the value of the answers
@@ -20,7 +24,7 @@ import type { ObservationRecord } from '@variance-authority/report';
 export type Settlement =
   | {
       readonly kind: 'settled';
-      readonly verdict: ObservationRecord['verdict'];
+      readonly verdict: 'unchanged' | 'incomparable';
       readonly because: string;
       /**
        * Fonts the renderer lacked when the baseline was painted.
@@ -150,8 +154,4 @@ export function settle(
     kind: 'render',
     because: 'the document differs from the one the baseline was painted from',
   };
-}
-
-function describeIdentity(identity: RenderIdentity): string {
-  return `${identity.renderer} (${identity.engine}, ${identity.platform}, ${identity.deviceScaleFactor}x)`;
 }

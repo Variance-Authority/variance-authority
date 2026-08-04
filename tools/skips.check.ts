@@ -48,7 +48,13 @@ const REMEDY = 'npx playwright install chromium';
  */
 const GATED: readonly string[] = execFileSync(
   'git',
-  ['grep', '-l', 'chromium.executablePath()'],
+  // `executablePath()`, not `chromium.executablePath()`. The narrower spelling
+  // was the hole this file's own comment predicted: a suite that gates on
+  // whichever engines are installed asks `engine.executablePath()` through a
+  // variable, gates correctly, announces correctly — and was discovered by
+  // nothing, so the rule that exists to prevent silent skips would have silently
+  // stopped covering it.
+  ['grep', '-l', 'executablePath()'],
   { cwd: ROOT, encoding: 'utf8' },
 )
   .trim()

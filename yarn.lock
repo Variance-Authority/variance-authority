@@ -1936,6 +1936,7 @@ __metadata:
     "@variance-authority/dom": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
+    "@variance-authority/storybook-collector": "workspace:^"
     esbuild: "npm:^0.25.0"
     playwright: "npm:^1.49.0"
     react: "npm:^19"
@@ -2058,6 +2059,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/playwright-test@workspace:packages/playwright-test":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/playwright-test@workspace:packages/playwright-test"
+  dependencies:
+    "@playwright/test": "npm:^1.62.1"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/observe": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    "@variance-authority/store": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/playwright@workspace:^, @variance-authority/playwright@workspace:packages/playwright":
   version: 0.0.0-use.local
   resolution: "@variance-authority/playwright@workspace:packages/playwright"
@@ -2130,6 +2146,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/route-collector@workspace:packages/route-collector":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/route-collector@workspace:packages/route-collector"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    playwright: "npm:^1.49.0"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/server@workspace:^, @variance-authority/server@workspace:packages/server":
   version: 0.0.0-use.local
   resolution: "@variance-authority/server@workspace:packages/server"
@@ -2160,6 +2188,18 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/raster": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/storybook-collector@workspace:^, @variance-authority/storybook-collector@workspace:packages/storybook-collector":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/storybook-collector@workspace:packages/storybook-collector"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    "@variance-authority/storybook": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -4838,6 +4878,7 @@ __metadata:
     "@types/pngjs": "npm:^6.0.5"
     "@types/react": "npm:^19"
     "@types/react-dom": "npm:^19"
+    esbuild: "npm:^0.25.0"
     jsdom: "npm:^30.0.1"
     oxlint: "npm:^1.77.0"
     pixelmatch: "npm:^7.2.0"

@@ -365,6 +365,9 @@ tiers are cheap in practice and not only on paper.
 | | |
 |---|---|
 | [`observe`](packages/observe) | two images to a verdict — `observePair` and `observeAgainstBaseline`, the ephemeral and durable modes. Take it when you want the whole answer without the CLI's config file; it is the only place in the repository where a phase order is hard-wired |
+| [`playwright-test`](packages/playwright-test) | one fixture and one matcher, for a suite whose test body already is the collector |
+| [`storybook-collector`](packages/storybook-collector) | the mounting half for a built or served Storybook, so an adopter writes five lines instead of 341 |
+| [`route-collector`](packages/route-collector) | a map of served URLs to subjects — the first thing to enter through `subjects.kind: "list"` |
 | [`cli`](packages/cli) | the workflow, which is the one place a workflow belongs |
 
 | | |
@@ -384,12 +387,13 @@ lets a capture cross a network hop to a remote renderer unchanged.
 The layout is a test rather than a convention — see
 [ADR-0013](docs/context/adr/0013-packages-are-named-for-their-requirements.md)
 and `tools/boundaries.check.ts`, which fails when an import goes undeclared, a
-requirement gains a second owner, or an advertised entrypoint stops resolving.
+adopter-facing code names a second package, or an advertised entrypoint stops
+resolving.
 
 **The documentation is a test too** —
 [ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
 `tools/docs-links.check.ts` and `tools/docs-claims.check.ts`, which resolve every link, every repository path
-and every `file:line` reference in this and the other 77 markdown files, and
+and every `file:line` reference in this and the other 82 markdown files, and
 compiles every README example against the built types with no unused import. An
 example is a call site the compiler could not see, which is why 11 of the 20 here
 had gone stale against APIs that had been renamed underneath them. It runs in
@@ -451,9 +455,12 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
   filter has ever run and no image has been committed through it, so the one
   failure that matters — an un-smudged checkout handing back a pointer file where
   a PNG should be — has only ever been simulated.
-- **A shipped collector.** Story-shaped subjects work and one worked example
-  exists ([`cases/storybook-case/collector/`](cases/storybook-case/collector),
-  341 lines across three files). There is no plugin, and mounting is the
+- **A shipped collector for anything but Storybook.** Storybook now has one —
+  [`@variance-authority/storybook-collector`](packages/storybook-collector) — and
+  the case that measured the hand-written cost at 341 lines across three files is
+  now [five lines of code](cases/storybook-case/collector/index.mjs) passing the
+  same end-to-end test. There is still no plugin and there is no discovery: the
+  config names a module, and for any other subject source that module is the
   adopter's to write, once, per project.
 - **Any framework but React, actually run.** Provenance needs a component name
   per element. React gets it from fibers; anything else gets it from two `data-*`
@@ -471,8 +478,14 @@ shared across a run; relaunching per subject costs 205 ms, **27× more** — see
 - **Parity with a hosted product.** The comparison half is measured against one
   real incumbent ([`cases/`](cases)). Of the product half, a review UI and team
   approvals are written and unit-tested but have never been deployed — see the
-  next entry. A cross-browser grid and repository-scale change detection do not
-  exist here and are not claimed.
+  next entry. Repository-scale change detection does not exist here and is not
+  claimed. A cross-browser *grid* does not either — `browser` became a config
+  field on 2026-08-04 and all three engines have painted one document
+  ([`packages/playwright/src/engines.chromium.test.ts`](packages/playwright/src/engines.chromium.test.ts):
+  827 px chromium/firefox, 630 px chromium/webkit, 1288 px firefox/webkit, and
+  **identical 352×77 dimensions in all three**). That is a selectable engine, not
+  a grid: no stabilization trick has been verified outside Chromium and nothing
+  runs the corpus twice.
 - **A deployment of the review backend.**
   [`@variance-authority/tribunal`](packages/tribunal) implements the baseline
   store, the history backend, the build-and-approve model and the review surface
@@ -497,14 +510,16 @@ Current state, what is proven and what is open, is kept in
    suite: Storybook, Playwright, jest/vitest, anything
 3. [`docs/flows.md`](docs/flows.md) — the six setups, from ephemeral to a review
    service, and what each one cannot do
-4. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
-5. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
+4. [`docs/replacing.md`](docs/replacing.md) — four things teams already run, and
+   what moving costs and buys
+5. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
+6. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
    dependency order
-6. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
-7. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
-8. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
+7. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
+8. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
+9. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
    [0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the moat
-9. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
+10. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
 
 ## Development
 

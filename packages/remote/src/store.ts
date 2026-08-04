@@ -12,6 +12,7 @@ import {
   type Found,
   type RasterStore,
 } from '@variance-authority/raster';
+import { fetchWithin } from './transport.js';
 
 /**
  * Baselines behind an HTTP endpoint the operator runs.
@@ -162,19 +163,20 @@ async function call(
 ): Promise<unknown> {
   const get = options.fetch ?? globalThis.fetch;
   const url = `${options.endpoint}${path}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-
   try {
-    const response = await get(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(options.token === undefined ? {} : { authorization: `Bearer ${options.token}` }),
+    const response = await fetchWithin(
+      get,
+      url,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(options.token === undefined ? {} : { authorization: `Bearer ${options.token}` }),
+        },
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    );
 
     if (!response.ok) {
       throw new RasterStoreError(
@@ -198,8 +200,6 @@ async function call(
         REFUSAL,
       { cause: error },
     );
-  } finally {
-    clearTimeout(timer);
   }
 }
 

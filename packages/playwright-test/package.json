@@ -1,0 +1,30 @@
+{
+  "name": "@variance-authority/playwright-test",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.62.1",
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/dom": "workspace:^",
+    "@variance-authority/observe": "workspace:^",
+    "@variance-authority/playwright": "workspace:^",
+    "@variance-authority/raster": "workspace:^",
+    "@variance-authority/react": "workspace:^",
+    "@variance-authority/store": "workspace:^"
+  }
+}

@@ -22,7 +22,13 @@ import { formatReport, type ReportFormat } from './commands/report.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
-import { doctor, exitForDiagnosis, formatDiagnosis, machineProbes } from './commands/doctor.js';
+import {
+  doctor,
+  exitForDiagnosis,
+  formatDiagnosis,
+  machineProbes,
+  rendererOptionsFor,
+} from './commands/doctor.js';
 
 /**
  * The command line, parsed by hand.
@@ -385,17 +391,43 @@ async function planFor(config: Config): Promise<Plan | undefined> {
 }
 
 /**
- * The renderer, imported lazily.
+ * The renderer the config asks for, imported lazily.
  *
  * `import()` rather than a top-level import so that `report`, `accept`, and
  * `serve` — none of which may render — do not load a browser driver in order to
  * read a file. The failure it produces when there is no browser is an operator
  * error with the underlying message intact, which is what makes `run --profile
  * chromium` on a machine without Chromium exit 2 rather than 1.
+ *
+ * **Exported because the library half needs it (ADR-0024).** `deps.renderer` has
+ * to be filled in by whoever composes a run, and this package's own README filled
+ * it in with `createPlaywrightRenderer` from `@variance-authority/playwright` —
+ * so the documented way to use the CLI as a library required knowing about the
+ * browser package, which is the reach-through that ADR forbids. That example was
+ * also wrong by then: it ignored `browser` and `renderer`, handing back a local
+ * Chromium whatever the config said. One function answers both.
  */
-async function rendererFor(config: Config): Promise<Renderer> {
+export async function rendererFor(config: Config): Promise<Renderer> {
+  // Somewhere else, if the config says so. Nothing downstream can tell: a remote
+  // renderer satisfies the same contract, answers `identityFor` by the same
+  // derivation, and is guarded by the same comparability check — which is what
+  // makes the offload a wiring decision rather than a second pipeline.
+  if (config.renderer !== undefined) {
+    const { connectRenderer } = await import('@variance-authority/remote');
+    const remote = config.renderer;
+    return openRenderer(() =>
+      connectRenderer({
+        endpoint: remote.endpoint,
+        ...(remote.timeoutMs === undefined ? {} : { timeoutMs: remote.timeoutMs }),
+      }),
+    );
+  }
+
   const { createPlaywrightRenderer } = await import('@variance-authority/playwright');
-  return openRenderer(() => createPlaywrightRenderer({ fonts: config.fonts }));
+  // The same expression `doctor` probes with. Two spellings of "what the config
+  // says about the renderer" is how a green doctor and a failing run stop being
+  // about the same machine.
+  return openRenderer(() => createPlaywrightRenderer(rendererOptionsFor(config)));
 }
 
 /**

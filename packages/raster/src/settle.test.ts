@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { documentDigest, type RenderIdentity } from '@variance-authority/core';
-import type { Described } from '@variance-authority/raster';
-import { settle } from './run.js';
-import { IDENTITY, documentFor } from './run-fixture.js';
+import {
+  documentDigest,
+  type RenderDocument,
+  type RenderIdentity,
+} from '@variance-authority/core';
+import { settle } from './settle.js';
+import type { Described } from './store.js';
 
 /**
  * The settlement, which is the economy the whole command rests on.
@@ -13,7 +16,32 @@ import { IDENTITY, documentFor } from './run-fixture.js';
  * comparison.
  */
 
+const IDENTITY: RenderIdentity = {
+  renderer: 'playwright-chromium',
+  engine: 'chromium@131',
+  platform: 'linux/x64',
+  // 1 here, as a real renderer reports it: the document's viewport supplies the
+  // scale a raster is actually painted at.
+  deviceScaleFactor: 1,
+  fonts: [],
+};
+
 const OTHER_MACHINE: RenderIdentity = { ...IDENTITY, platform: 'darwin/arm64' };
+
+/** Built here rather than imported: this file may not depend on a composition. */
+function documentFor(id: string, html = '<div data-va-path="0">x</div>'): RenderDocument {
+  return {
+    documentVersion: 1,
+    subject: { id, kind: 'fixture' },
+    html,
+    frame: { html: {}, body: {}, ancestors: [] },
+    css: [],
+    viewport: { width: 1024, height: 768, deviceScaleFactor: 1, colorScheme: 'light' },
+    inherited: {},
+    fonts: [],
+    diagnostics: [],
+  };
+}
 
 describe('settle', () => {
   const document = documentFor('fixture:a');

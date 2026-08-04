@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   ALL,
   AMBIENT,
-  OWNED_BY_ONE,
+  NEXT_STEP,
+  SURFACES,
   REQUIRED_WITHOUT_IMPORT,
   PACKAGES,
   ROOT,
@@ -91,17 +92,72 @@ describe('a package declares what it imports', () => {
 
 
 
-describe('a requirement has one owner', () => {
-  it.each(OWNED_BY_ONE)('%s is a production dependency of at most one package', (dependency) => {
-    const owners = PACKAGES.filter((workspace) =>
-      Object.keys(workspace.manifest.dependencies ?? {}).includes(dependency),
-    ).map((workspace) => workspace.name);
+/**
+ * The Law of Demeter, applied to the package graph (ADR-0024).
+ *
+ * This replaced "a third-party requirement has at most one owner", which held for
+ * fourteen packages and then stopped answering the question anybody had. When two
+ * adoption surfaces landed, the only thing that had changed was **how many boxes
+ * an adopter has to know** — and the old rule was green before and after, because
+ * neither surface declares `playwright`. It could not see the improvement it was
+ * supposed to be protecting: a collector that imported five variance packages
+ * became one that imports one.
+ *
+ * What is checked is the two kinds of adopter-facing code this repository holds.
+ * A README example is the thing somebody copies; a `collector/` directory is
+ * adopter code by definition, since the CLI imports it by a path a config names.
+ */
+function variancePackagesIn(text: string): Set<string> {
+  const found = new Set<string>();
+  for (const match of text.matchAll(/from\s+['"](@variance-authority\/[\w-]+)/g)) {
+    found.add(match[1]!);
+  }
+  return found;
+}
 
-    // The rule, stated as a number. Two owners means a consumer who wants one
-    // of them installs both, which is the thing the layout exists to prevent.
-    expect(owners.length).toBeLessThanOrEqual(1);
+/** Every fenced example in a README, whatever language it claims. */
+function fencedCode(text: string): string {
+  return [...text.matchAll(/^```[\w-]*\n([\s\S]*?)^```/gm)].map((match) => match[1] ?? '').join('\n');
+}
+
+describe('adopter-facing code knows one package', () => {
+  // The surfaces *and* the next-step packages. `cli` is not a reach-through for
+  // an adopter to import, and its own README example is still something somebody
+  // copies — so the example is held to the rule even though the package is on the
+  // allowed side of it.
+  const facing: (readonly [string, string])[] = [
+    ...[...SURFACES, ...NEXT_STEP].map((surface) => {
+      const workspace = PACKAGES.find((candidate) => candidate.name === surface);
+      const path = workspace === undefined ? '' : join(workspace.dir, 'README.md');
+      return [`${surface} README`, path === '' || !existsSync(path) ? '' : fencedCode(readFileSync(path, 'utf8'))] as const;
+    }),
+    ...execFileSync('git', ['ls-files', '*/collector/*', 'collector/*'], { cwd: ROOT, encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter((file) => /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(file))
+      .map((file) => [file, readFileSync(join(ROOT, file), 'utf8')] as const),
+  ];
+
+  it('finds adopter-facing code to check, so this cannot pass by reading nothing', () => {
+    expect(facing.length).toBeGreaterThan(1);
+    expect(facing.every(([, text]) => text !== '')).toBe(true);
   });
 
+  it.each(facing)('%s names at most one surface, and no collaborator', (_where, text) => {
+    const named = [...variancePackagesIn(text)].filter((name) => !NEXT_STEP.includes(name));
+    const reachThrough = named.filter((name) => !SURFACES.includes(name));
+
+    // A surface that leaves an adopter importing `playwright`, `dom` or
+    // `storybook` has not finished being a surface. The fix is a re-export, not
+    // an exception here.
+    expect({ reachThrough, surfaces: named.length }).toEqual({
+      reachThrough: [],
+      surfaces: named.length > 1 ? 1 : named.length,
+    });
+  });
+});
+
+describe('the boxes that require nothing', () => {
   it('keeps the packages that require nothing requiring nothing', () => {
     // `core` and `raster` are the two boxes whose whole value is being free. If
     // either ever grows a dependency, every argument about cheap tiers and

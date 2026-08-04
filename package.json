@@ -2,13 +2,16 @@
   "name": "variance-authority",
   "private": true,
   "packageManager": "yarn@4.18.0",
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "packages/*",
     "examples/*",
     "cases/*"
   ],
   "scripts": {
-    "build": "node tools/doc-examples.mjs && tsc --build",
+    "build": "node tools/doc-examples.mjs && tsc --build && node tools/page-agents.mjs",
     "check": "vitest run --config vitest.checks.config.ts",
     "clean": "tsc --build --clean",
     "lint": "oxlint",
@@ -22,6 +25,7 @@
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.25.0",
     "jsdom": "^30.0.1",
     "oxlint": "^1.77.0",
     "pixelmatch": "^7.2.0",

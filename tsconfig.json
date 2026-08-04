@@ -53,6 +53,15 @@
       "path": "./packages/tribunal"
     },
     {
+      "path": "./packages/playwright-test"
+    },
+    {
+      "path": "./packages/storybook-collector"
+    },
+    {
+      "path": "./packages/route-collector"
+    },
+    {
       "path": "./packages/cli"
     },
     {

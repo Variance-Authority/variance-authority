@@ -37,9 +37,16 @@ matter is from its neighbours.
 
 Four rules follow, and are enforced by `tools/boundaries.check.ts`:
 
-1. **One owner per third-party requirement.** `playwright` is a production
-   dependency of exactly one package, and so is each of `pixelmatch`, `pngjs`,
-   `react`. Two owners means a consumer who wants one installs both.
+1. ~~**One owner per third-party requirement.**~~ **Retired 2026-08-04 by
+   [ADR-0024](0024-a-consumer-knows-one-package.md).** It read: `playwright` is a
+   production dependency of exactly one package, and so is each of `pixelmatch`,
+   `pngjs`, `react`; two owners means a consumer who wants one installs both. It
+   held for fourteen packages and then could not see the only change that
+   mattered — two adoption surfaces landing, and an adopter's import list going
+   from five packages to one. What replaces it is the Law of Demeter applied to
+   the graph: **adopter-facing code names one package.** The half worth keeping is
+   kept as its own rule — `core` and `raster` have no third-party dependencies at
+   all.
 2. **Declared and imported are the same set.** An undeclared import resolves
    inside a workspace, because the hoisted tree hands it over, and fails when the
    package is installed alone. A declared-but-unused dependency is the same lie
@@ -47,7 +54,7 @@ Four rules follow, and are enforced by `tools/boundaries.check.ts`:
 3. **A requirement is what the manifest cannot state.** A browser binary an
    install does not fetch, a directory this process can write, a service already
    running, a tree `react-dom` has rendered. Naming a dependency instead
-   duplicates a machine-readable fact rule 1 already checks, and a prose copy of
+   duplicates a machine-readable fact rule 2 already checks, and a prose copy of
    an enforced fact only ever drifts away from it.
 4. **An entrypoint exists where the halves cost differently.** `store/lfs` needs
    `git`; `history/client` needs a network; `server/sqlite` needs `node:sqlite`;

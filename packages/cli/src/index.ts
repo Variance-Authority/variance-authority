@@ -113,3 +113,13 @@ export type {
   HistoryFinding,
   RendererFinding,
 } from './commands/doctor.js';
+
+/**
+ * The renderer the config asks for, from the package the config belongs to.
+ *
+ * Here rather than left to the caller so that composing a run needs one import
+ * (ADR-0024): filling `deps.renderer` in with `createPlaywrightRenderer` means
+ * knowing about the browser package, and means re-deciding `browser` and
+ * `renderer` — two config fields — in every composition that does it.
+ */
+export { rendererFor, openRenderer } from './bin.js';

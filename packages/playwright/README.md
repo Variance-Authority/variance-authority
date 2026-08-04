@@ -53,6 +53,36 @@ the harness cannot: it does not know what the previous subject installed.
 `capture` is sequential by contract. Two concurrent calls would render two
 subjects into one document and let one decide the other's verdict.
 
+## Which engine paints
+
+```ts
+import { createPlaywrightRenderer } from '@variance-authority/playwright';
+
+const safari = await createPlaywrightRenderer({ browser: 'webkit' });
+```
+
+`chromium` by default; `firefox` and `webkit` are the other two. The browser
+binary is still the caller's to install — `npx playwright install webkit`.
+
+**A second engine costs a second paint and nothing else.** A `RenderDocument` is
+engine-independent, so it is collected once and rasterized per engine — which is
+the whole difference from a category that prices coverage as
+`tests × browsers × widths`, because there a browser produces the entire
+observation.
+
+**And no cross-engine rule was needed.** The engine was already in
+`RenderIdentity`, which already keys the store, so a WebKit baseline lands in its
+own directory and a Chromium run that finds it reports `incomparable` naming both.
+Measured in `engines.chromium.test.ts`, which discovers whichever engines are
+installed and compares every pair. On one wrapped paragraph: **827** differing
+pixels chromium/firefox, **630** chromium/webkit, **1288** firefox/webkit — and
+**352×77 in all three**. The engines agreed on the box to the pixel and disagreed
+only on what they painted in it, which is the tier ladder's premise arriving as a
+measurement.
+
+Every trick in the stabilization recipe was written against Chromium and none has
+been asked to hold another engine still.
+
 ## The renderer: a document in, a raster out
 
 ```ts

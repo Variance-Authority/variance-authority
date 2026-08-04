@@ -42,6 +42,9 @@
       "path": "../packages/playwright"
     },
     {
+      "path": "../packages/playwright-test"
+    },
+    {
       "path": "../packages/png"
     },
     {
@@ -70,6 +73,12 @@
     },
     {
       "path": "../packages/storybook"
+    },
+    {
+      "path": "../packages/storybook-collector"
+    },
+    {
+      "path": "../packages/route-collector"
     },
     {
       "path": "../packages/tribunal"

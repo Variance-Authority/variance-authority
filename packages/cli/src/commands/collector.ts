@@ -100,11 +100,23 @@ export type Collected =
  * three methods below. In exchange, nothing in this file has to guess what a
  * subject is.
  *
- * **What it costs the operator, measured rather than estimated.** This comment
- * said "about thirty lines" until one was written: `cases/storybook-case/collector/`
- * is 341 lines across three files, 234 of them in the module the config names.
- * The estimate was optimistic by 8×, and the real figure is the integration cost
- * a reader comparing this against a vendor's SDK should be given.
+ * **What it costs the operator, measured rather than estimated, twice.** This
+ * comment said "about thirty lines" until one was written, and then said 341 —
+ * `cases/storybook-case/collector/`, three files, 234 of them in the module the
+ * config names. The estimate had been optimistic by 8×.
+ *
+ * Both numbers are now historical for Storybook specifically.
+ * `@variance-authority/storybook-collector` ships that half, and the same case
+ * is **five lines of code** against the same end-to-end test. What the 341
+ * measured, in hindsight, was one boundary drawn in the wrong place: a story
+ * index is a documented artifact and a preview owns its own mount, so nothing in
+ * those lines was knowledge only that project held except a ready selector and a
+ * source directory.
+ *
+ * The contract below is unchanged and is still the answer for everything else —
+ * a route table, a bespoke mount, a suite this repository has never seen. What a
+ * reader comparing this against a vendor's SDK should be given is both figures:
+ * five lines where a shipped collector exists, and 341 where one does not.
  */
 export interface Collector {
   /** Subjects to observe, plus the ones this source already refuses, with reasons. */

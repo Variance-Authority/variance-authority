@@ -25,7 +25,7 @@ export { createHarness, captureOnce } from './harness.js';
 export type { Harness, HarnessOptions } from './harness.js';
 
 export { createPlaywrightRenderer } from './renderer.js';
-export type { PlaywrightRendererOptions } from './renderer.js';
+export type { BrowserEngine, PlaywrightRendererOptions } from './renderer.js';
 
 export { AGENT_GLOBAL } from './agent.js';
 export type { CaptureRequest, PageAgent } from './agent.js';

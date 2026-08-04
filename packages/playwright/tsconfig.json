@@ -11,6 +11,7 @@
   "exclude": ["src/**/*.test.ts","src/**/*.test.tsx"],
   "references": [
     { "path": "../core" },
+    { "path": "../png" },
     { "path": "../raster" }
   ]
 }

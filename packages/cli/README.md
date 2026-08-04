@@ -78,12 +78,12 @@ import {
   exitFor,
   loadCollector,
   loadConfig,
+  rendererFor,
   run,
   storeFor,
   writeArtifactToDisk,
   writeCliRunReport,
 } from '@variance-authority/cli';
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
 
 const config = await loadConfig('variance.config.json');
 
@@ -93,7 +93,10 @@ const report = await run({
   deps: {
     collector: await loadCollector(config.subjects.collector, { config }),
     store: await storeFor(config),
-    renderer: () => createPlaywrightRenderer(),
+    // `rendererFor`, not `createPlaywrightRenderer`: it is the one expression that
+    // reads `browser` and `renderer` out of the config, so a composition cannot
+    // quietly launch a local Chromium for a run configured to paint elsewhere.
+    renderer: () => rendererFor(config),
     now: () => new Date().toISOString(),
     writeArtifact: writeArtifactToDisk,
     writeReport: writeCliRunReport,
@@ -150,15 +153,35 @@ downloaded, so the run's inputs are the ones in the repository.
   },
   "baselines": { "kind": "directory", "root": "baselines" },
   "fonts": ["Inter/400/normal/sha256-abc"],
+  "browser": "chromium",
   "report": "out/report.json"
 }
 ```
 
 `subjects` is either `{ kind: "list", ids, collector }` or
-`{ kind: "storybook", index, collector }` — **both need a collector**, because
-neither a list of ids nor a story index says how to mount anything, and the
-mounting half of a run is code you write. `baselines` is `directory`, `lfs` or
-`remote`.
+`{ kind: "storybook", index, collector }` — **both need a collector**, and for
+Storybook that collector is now
+[`@variance-authority/storybook-collector`](../storybook-collector) and five
+lines. For anything else, neither a list of ids nor a story index says how to
+mount, and the mounting half is code you write. `baselines` is `directory`, `lfs`
+or `remote`.
+
+`renderer` points the run at a machine that is not this one:
+`{ "endpoint": "http://pinned-runner:7777" }`, served by `serveRenderer` from
+[`@variance-authority/remote`](../remote). It carries no token because
+`serveRenderer` has no authentication — a field accepting a credential nobody
+transmits would read as the endpoint being protected. It is refused together with
+`browser`, since the engine belongs to whichever machine paints. `variance doctor`
+reports a remote renderer as **not checked** rather than unavailable, and exits
+clean: doctor makes no network calls, and an unasked question is not a failed one.
+
+`browser` is `chromium` (the default), `firefox` or `webkit`. **One word, not a
+matrix**, and that is a property of what a run is rather than a missing feature:
+the engine is part of the identity a baseline is stored under, so two engines are
+two runs with two sets of baselines. Switching it is safe by construction — a run
+under a new engine finds nothing under its key and reports every subject `new`,
+loudly, instead of diffing two engines and blaming a component for a font stack.
+The binary launched Chromium unconditionally until 2026-08-04.
 `retention: "ephemeral"` needs no baselines at all — both images are produced by
 this run.
 
