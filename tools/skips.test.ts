@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript-compiler-api';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -59,28 +58,28 @@ const GATED: readonly string[] = execFileSync(
   // first finding is itself teaches everyone to distrust its second.
   .filter((file) => !file.startsWith('tools/'));
 
-/** Every `console.warn` a reader reaches during collection: top level, or one `if` deep. */
+/**
+ * Every `console.warn` a reader reaches during collection: top level, or one
+ * `if` deep.
+ *
+ * Read as text with a column rule rather than parsed. A `console.warn` that runs
+ * during collection is written at column 0 or indented inside one top-level
+ * block, so it is reachable exactly when its `console` sits at an indent of four
+ * spaces or fewer. Anything deeper is inside a `describe` or an `it`, where it
+ * never runs on a skipped suite — which is the failure this rule exists to
+ * prevent.
+ *
+ * That is the whole reason the AST went: driving a compiler to answer "is this
+ * call nested" is what put the TypeScript API in the test suite, and the column
+ * answers it. A false negative here is a file that announces and is told it does
+ * not, which fails loudly; there is no way for it to produce a false pass.
+ */
 function announcements(file: string): readonly string[] {
   const text = readFileSync(join(ROOT, file), 'utf8');
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true);
   const found: string[] = [];
 
-  const collect = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.expression.getText(source) === 'console' &&
-      node.expression.name.text === 'warn'
-    ) {
-      found.push(node.getText(source));
-    }
-    ts.forEachChild(node, collect);
-  };
-
-  // Statements only — a `console.warn` inside a `describe` or an `it` never runs
-  // when the suite is skipped, which is the whole failure being prevented.
-  for (const statement of source.statements) {
-    if (ts.isIfStatement(statement) || ts.isExpressionStatement(statement)) collect(statement);
+  for (const match of text.matchAll(/^(\s*)console\.warn\(([\s\S]*?)^\1\);/gm)) {
+    if ((match[1] ?? '').length <= 4) found.push(match[0]);
   }
   return found;
 }

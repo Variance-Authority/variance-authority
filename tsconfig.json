@@ -1,26 +1,71 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/raster" },
-    { "path": "./packages/report" },
-    { "path": "./packages/dom" },
-    { "path": "./packages/react" },
-    { "path": "./packages/session" },
-    { "path": "./packages/png" },
-    { "path": "./packages/png-sharp" },
-    { "path": "./packages/playwright" },
-    { "path": "./packages/store" },
-    { "path": "./packages/remote" },
-    { "path": "./packages/observe" },
-    { "path": "./packages/storybook" },
-    { "path": "./packages/history" },
-    { "path": "./packages/server" },
-    { "path": "./packages/mcp" },
-    { "path": "./packages/tribunal" },
-    { "path": "./packages/cli" },
-    { "path": "./examples/kitchen-sink" },
-    { "path": "./examples/todomvc" },
-    { "path": "./cases/incumbent-case" }
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/raster"
+    },
+    {
+      "path": "./packages/report"
+    },
+    {
+      "path": "./packages/dom"
+    },
+    {
+      "path": "./packages/react"
+    },
+    {
+      "path": "./packages/session"
+    },
+    {
+      "path": "./packages/png"
+    },
+    {
+      "path": "./packages/png-sharp"
+    },
+    {
+      "path": "./packages/playwright"
+    },
+    {
+      "path": "./packages/store"
+    },
+    {
+      "path": "./packages/remote"
+    },
+    {
+      "path": "./packages/observe"
+    },
+    {
+      "path": "./packages/storybook"
+    },
+    {
+      "path": "./packages/history"
+    },
+    {
+      "path": "./packages/server"
+    },
+    {
+      "path": "./packages/mcp"
+    },
+    {
+      "path": "./packages/tribunal"
+    },
+    {
+      "path": "./packages/cli"
+    },
+    {
+      "path": "./examples/kitchen-sink"
+    },
+    {
+      "path": "./examples/todomvc"
+    },
+    {
+      "path": "./cases/incumbent-case"
+    },
+    {
+      "path": "./docs-examples"
+    }
   ]
 }

@@ -2171,14 +2171,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/tools@workspace:tools":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/tools@workspace:tools"
-  dependencies:
-    typescript-compiler-api: "npm:typescript@^5.9.3"
-  languageName: unknown
-  linkType: soft
-
 "@variance-authority/tribunal@workspace:^, @variance-authority/tribunal@workspace:packages/tribunal":
   version: 0.0.0-use.local
   resolution: "@variance-authority/tribunal@workspace:packages/tribunal"
@@ -4641,16 +4633,6 @@ __metadata:
   version: 2.8.1
   resolution: "tslib@npm:2.8.1"
   checksum: 10c0/9c4759110a19c53f992d9aae23aac5ced636e99887b51b9e61def52611732872ff7668757d4e4c61f19691e36f4da981cd9485e869b4a7408d689f6bf1f14e62
-  languageName: node
-  linkType: hard
-
-"typescript-compiler-api@npm:typescript@^5.9.3":
-  version: 5.9.3
-  resolution: "typescript@npm:5.9.3"
-  bin:
-    tsc: bin/tsc
-    tsserver: bin/tsserver
-  checksum: 10c0/6bd7552ce39f97e711db5aa048f6f9995b53f1c52f7d8667c1abdc1700c68a76a308f579cd309ce6b53646deb4e9a1be7c813a93baaf0a28ccd536a30270e1c5
   languageName: node
   linkType: hard
 

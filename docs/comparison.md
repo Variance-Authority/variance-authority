@@ -888,7 +888,7 @@ a run and that the repository contained no `variance.config.json`, both of which
 higher up the same document — `cases/storybook-case/variance.config.json` is
 tracked and the cycle runs. It named `packages/core/src/compare/diff/` as
 `packages/core/src/diff/`, a directory that does not exist. Three errors in one
-paragraph, none caught by `tools/documentation.test.ts`, because a stale
+paragraph, none caught by `tools/docs-links.test.ts`, because a stale
 *negative* resolves no link and a directory carries no extension for the path
 rule to check. Written-and-unrun sections rot in the one direction the gate
 cannot see: they stay pessimistic after the work lands.

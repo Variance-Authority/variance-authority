@@ -44,7 +44,7 @@ API, on their first ten minutes with the tool.
 **A fenced `ts` example in a README is source code, and is compiled against the
 package's published types on every run of the checks.**
 
-`tools/documentation.test.ts` extracts each fence, compiles it as a virtual
+`tools/doc-examples.mjs` extracts each fence and writes it as a real
 module sitting beside the README it came from — so `@variance-authority/observe`
 resolves through the package's own `exports` to its built `.d.ts`, exactly as it
 would for a consumer — and reports each diagnostic against the markdown line a
@@ -89,7 +89,7 @@ second thing to keep in step.
 `PER_COMMAND` in `bin.ts` decides what a command accepts; `bin.test.ts` asserts
 that `USAGE` names every flag in it, reading the accepted set out of the
 parser's own refusal message rather than out of a copy; and
-`documentation.test.ts` asserts the README shows `USAGE` line for line. A
+`tools/docs-claims.test.ts` asserts the README shows `USAGE` line for line. A
 renamed flag now fails two tests on its way to the documentation instead of
 arriving there never. The synopsis a reader retypes is the one the parser prints
 back at them when they get it wrong, because it is the same string.
