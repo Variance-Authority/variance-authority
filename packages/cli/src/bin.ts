@@ -45,12 +45,20 @@ import type { ReportFormat } from './commands/report.js';
  */
 
 export type Parsed =
-  | { readonly command: 'run'; readonly config: string; readonly profile?: ProfileId; readonly subjects?: string; readonly intent?: string }
+  | {
+      readonly command: 'run';
+      readonly config: string;
+      readonly profile?: ProfileId;
+      readonly subjects?: string;
+      readonly intent?: string;
+      readonly exitZeroOnChanges: boolean;
+    }
   | {
       readonly command: 'report';
       readonly config: string;
       readonly format: ReportFormat;
       readonly subject?: string;
+      readonly exitZeroOnChanges: boolean;
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
@@ -76,8 +84,8 @@ const DEFAULT_CONFIG = 'variance.config.json';
 const GLOBAL = ['--config'] as const;
 
 const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
-  run: ['--profile', '--subjects', '--intent'],
-  report: ['--format', '--subject'],
+  run: ['--profile', '--subjects', '--intent', '--exit-zero-on-changes'],
+  report: ['--format', '--subject', '--exit-zero-on-changes'],
   accept: ['--all'],
   serve: [],
   doctor: [],
@@ -85,8 +93,8 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
 };
 
 export const USAGE = [
-  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>]',
-  'variance report  [--config <path>] [--format text|json] [--subject <id>] [<report>...]',
+  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--exit-zero-on-changes]',
+  'variance report  [--config <path>] [--format text|json] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all',
   'variance serve   [--config <path>]              # MCP over stdio',
   'variance doctor  [--config <path>]',
@@ -130,6 +138,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(profile !== undefined ? { profile } : {}),
         ...(subjects !== undefined ? { subjects } : {}),
         ...(intent !== undefined ? { intent } : {}),
+        exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
       };
     }
 
@@ -145,6 +154,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         config,
         format,
         ...(subject !== undefined ? { subject } : {}),
+        exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
         // Named paths, not the configured one. A shard writes where its job told
         // it to, so `report` has to be able to read reports the config has never
         // heard of — and once it names them, adding the configured report to the

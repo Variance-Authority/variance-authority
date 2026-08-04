@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { doctor, exitForDiagnosis, formatDiagnosis } from './doctor.js';
+import { doctor } from './doctor.js';
+import { exitForDiagnosis, formatDiagnosis } from './doctor-report.js';
 import { EXIT_CLEAN } from '../exit.js';
 import type { Config } from '../config.js';
 
@@ -30,6 +31,7 @@ const PROBES = {
     throw new Error('doctor must not open a renderer when one is configured elsewhere');
   },
   exists: async () => true,
+  partitions: async () => [],
 };
 
 describe('doctor with a remote renderer', () => {

@@ -104,19 +104,15 @@ export type { ServeOptions } from './commands/serve.js';
 export { COMMENT_MARKER, DEFAULT_LIMITS, renderComment } from './commands/comment.js';
 export type { CommentLimits, CommentOptions } from './commands/comment.js';
 
-export {
-  doctor,
-  exitForDiagnosis,
-  fontProbeDocument,
-  formatDiagnosis,
-  machineProbes,
-} from './commands/doctor.js';
+export { doctor, fontProbeDocument, machineProbes } from './commands/doctor.js';
+export { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 export type {
   BaselineFinding,
   Diagnosis,
   DoctorProbes,
   FontFinding,
   HistoryFinding,
+  Partition,
   RendererFinding,
 } from './commands/doctor.js';
 

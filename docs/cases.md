@@ -11,12 +11,12 @@ asks *what does each vendor do better*; this asks *which side of each coin is
 each tool welded to, and what happens to the team standing on the other side*.
 
 **The claim being tested,** stated first so the rest can fail it: this project is
-unresolved on the six infrastructure coins — it can land either face from
+unresolved on the seven infrastructure coins — it can land either face from
 configuration — and firmly on one face of the product coins, where it loses. The
 last section names every place the coin is welded here too, which is the useful
 part.
 
-**Written 2026-08-04.** The four commercial products are placed from
+**Written 2026-08-04, corrected and extended 2026-08-05.** The four commercial products are placed from
 [comparison.md](comparison.md), which read vendor pages on 2026-08-02 and carries
 the links; nothing about them was re-verified today. **The five entrants added
 below are placed by their published architecture and were not verified against
@@ -105,18 +105,29 @@ by name; nobody has run it through a real filter on a real clone.
 
 ## Coin 3 — blocking the PR, or a side job
 
-| Face | Who assumes it | What it costs you |
-|---|---|---|
-| **A required check** | Chromatic UI Test, Argos, Percy, the runner matchers by construction | Every flake is now a merge block, which is how `maxDiffPixels` gets raised and never lowered |
-| **A side job** | Chromatic UI Review as a separate check; anything run nightly | Nobody looks at it. A signal off the critical path decays |
+**Corrected 2026-08-05.** An earlier version of this table had the category
+mostly on the blocking face. That is wrong, and Chromatic is the clearest
+counter-example: the CI job publishes, the job ends, and the review happens in
+their UI afterwards — `--exit-zero-on-changes` is a documented flag precisely so
+the job does not gate the merge. **Non-blocking is the norm, not the exception**,
+and a tool that can only block is the one with the missing face.
 
-**Here: whichever, because the exit code is the interface**
-([ADR-0017](context/adr/0017-the-exit-code-is-the-interface.md)) — `variance run`
-exits clean or exits review, so blocking is the absence of `|| true`. For the
-non-blocking face, `variance comment` writes one PR comment that leads with
-causes rather than with a count
-([ADR-0019](context/adr/0019-one-comment-that-leads-with-causes.md)), and
-ephemeral retention lets a side job run with nothing stored at all.
+| Face | What it costs you |
+|---|---|
+| **A required check** — the runner matchers by construction; anything the vendors do only if you make their status check required | Every flake is now a merge block, which is how `maxDiffPixels` gets raised and never lowered |
+| **A side job** — Chromatic by design, and most real Argos and Percy setups | Nobody looks at it. A signal off the critical path decays |
+
+**Here: whichever, and the second face was missing until today.** The exit code
+is the interface ([ADR-0017](context/adr/0017-the-exit-code-is-the-interface.md)),
+so blocking is the default and needs no configuration. Not blocking used to mean
+`|| true` — which also swallows **exit 2**, so a job whose browser never launched
+posts a green tick over a suite that observed nothing. `variance run
+--exit-zero-on-changes` suppresses exit 1 only, leaves operator errors at 2, and
+writes one line to stderr saying the code was suppressed, because a silently
+rewritten exit is indistinguishable in a log from a run that found nothing.
+`variance comment` then writes the one PR comment that leads with causes rather
+than a count ([ADR-0019](context/adr/0019-one-comment-that-leads-with-causes.md)),
+and ephemeral retention lets a side job run with nothing stored at all.
 
 **The thing that makes the choice cheap is not on this coin at all.** Chromatic
 needs TurboSnap — a module-graph walk, with a documented list of changes that
@@ -129,6 +140,49 @@ subject settles without a browser touching it
 against ~65 ms to paint, so "300 subjects of which two changed" costs two paints,
 decided by content addressing after the fact rather than by a dependency graph
 guessed before it.
+
+## Coin 3½ — who owns reproducibility
+
+Added 2026-08-05 because a reader's lived experience does not fit any coin above:
+*Argos runs locally, but does not define a container, and I failed using it.*
+
+That is not a gap in Argos's feature list. It falls out of Coin 1. A tool that
+renders in your infrastructure and stores images centrally has silently made
+pixel-reproducibility **your** problem, and then not handed you the one artifact
+that solves it. Your laptop's font stack is not your CI runner's; the images
+disagree; every subject is red and nothing says why.
+
+| Face | Who | The consequence |
+|---|---|---|
+| **The vendor owns it** | Percy, Chromatic, Applitools, Happo | Reproducible by construction, and unreachable — it is their container, and their upgrade to it is your baseline churn |
+| **You own it, and are handed nothing** | Argos, reg-suit, the runner matchers | Works perfectly in CI, and never on the machine of the person who has to review the diff. Pin it yourself, in a Dockerfile nobody wrote |
+| **It is made unnecessary** | — | Nothing in the category takes this face |
+
+**Here: the third face, and it is the strongest position this project holds.**
+Two mechanisms, neither of them a container:
+
+**Ephemeral retention deletes the problem.** Both images are painted *now*, by
+one renderer, in one run. The machine appears on both sides of the comparison and
+cancels out, so there is no baseline to be reproducible against and no container
+to pin. Nothing else in the table offers this, because everything else in the
+table is built around stored images.
+
+**Durable retention makes it legible instead of fatal.** A baseline is stored
+under an `identityDigest` of the machine that painted it, so a laptop physically
+cannot pick up CI's baselines: the run reports `incomparable` — never red — and
+the store says which identity it *did* find
+([durable.ts](../packages/store/src/durable.ts)).
+
+That is detection, and detection after a six-minute run is still an afternoon.
+So as of today `variance doctor` answers it **before** the run: the store's
+layout *is* the partition, so a `readdir` says whether any baseline here was
+painted by a machine like this one. When none was, doctor prints
+`NOT COMPARABLE HERE`, lays out the store one line per identity, exits 2, and
+names both ways out — ephemeral retention, or a `renderer` endpoint carrying the
+identity the baselines were written under
+([doctor.ts](../packages/cli/src/commands/doctor.ts)). The finding it replaces
+was a comment in that same file saying this was *"a question only a run can
+answer"*.
 
 ## Coin 4 — a small suite, or a big one
 
@@ -209,6 +263,8 @@ bought for a reason.
 | The diff must name a component and a file, not a rectangle | Here. Nothing else in the table does it |
 | Behind a login, on your VPN, against a staging build | Here, via the Playwright surface, or Argos via your own E2E suite |
 | You want the tool to decide as cheaply as it can, not to paint everything | Here. This is the whole design |
+| You render in your own CI and the baselines are never reproducible on a laptop | Here — ephemeral retention removes the baseline entirely, and `variance doctor` says so before the run rather than after it |
+| A reporting job, not a merge gate, without `\|\| true` swallowing real failures | Here, via `--exit-zero-on-changes`; or Chromatic, which has had the same flag for years |
 
 ---
 
@@ -227,8 +283,13 @@ welds is a brochure.
    ([accept.ts](../packages/cli/src/commands/accept.ts)).
 3. **No vendor fleet.** Coin 1, permanently.
 4. **No ignore or floating regions.** Coin 6.
-5. **Four surfaces short.** Cypress, WebdriverIO, Appium and a sitemap are still
-   the 341-line collector.
+5. **One modern surface short.** Cypress, WebdriverIO and Appium are explicitly
+   *not* on the list — a reader whose interest is modern tooling does not want
+   them, and building them would be breadth bought at the price of the thing this
+   project is for. What is genuinely missing is **Vitest browser mode**: a real
+   browser, driven by Playwright, with the test body already in the page. The
+   jsdom library path and the Playwright fixture both exist; nothing bridges the
+   arrangement where the test code itself runs in the browser.
 6. **Nothing is published or licensed.** Every package is `private: true`.
 
 A seventh was on this list while the document was being written — *a sharded run

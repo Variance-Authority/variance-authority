@@ -3,7 +3,14 @@ import { dirname } from 'node:path';
 import type { Renderer } from '@variance-authority/raster';
 import { messageOf } from './config-values.js';
 import { loadConfig, type Config } from './config.js';
-import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, exitFor, type ExitCode } from './exit.js';
+import {
+  EXIT_CLEAN,
+  EXIT_OPERATOR,
+  EXIT_REVIEW,
+  OperatorError,
+  exitFor,
+  type ExitCode,
+} from './exit.js';
 import {
   loadCollector,
   planList,
@@ -21,13 +28,8 @@ import { mergeReports } from './commands/merge.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
-import {
-  doctor,
-  exitForDiagnosis,
-  formatDiagnosis,
-  machineProbes,
-  rendererOptionsFor,
-} from './commands/doctor.js';
+import { doctor, machineProbes, rendererOptionsFor } from './commands/doctor.js';
+import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import type { Parsed } from './bin.js';
 
 /**
@@ -84,7 +86,7 @@ export async function dispatch(
         streams.out(
           `${formatReport({ report, format: 'text' })}\n\nreport: ${effective.report}\n`,
         );
-        return exitFor(report);
+        return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
       } finally {
         await collector.close();
       }
@@ -102,7 +104,7 @@ export async function dispatch(
       // The artifact decides the code, exactly as it decided the text. A `report`
       // that exited 0 while describing a change would make the two halves of this
       // tool disagree about the same file.
-      return exitFor(report);
+      return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
     }
 
     case 'accept': {
@@ -152,6 +154,34 @@ export async function dispatch(
       return EXIT_CLEAN;
     }
   }
+}
+
+/**
+ * `--exit-zero-on-changes`: a check that reports without gating the merge.
+ *
+ * The alternative an operator reaches for is `|| true`, and it is worse than it
+ * looks: it swallows exit 2 along with exit 1, so a job whose browser never
+ * launched — which observed nothing and therefore found nothing — becomes a
+ * green tick. That is the precise collapse ADR-0017 exists to prevent, arrived
+ * at by a shell operator rather than by this code, which does not make it less
+ * of a green check over an unwatched surface.
+ *
+ * So the suppression is narrow: exit 1 becomes exit 0, exit 2 stays exit 2, and
+ * the line to stderr is not optional. A run whose code was suppressed silently
+ * is indistinguishable in a log from a run that found nothing, and the whole
+ * value of a non-blocking check is that somebody still reads it.
+ */
+function sideJob(
+  code: ExitCode,
+  suppress: boolean,
+  streams: { err(text: string): void },
+): ExitCode {
+  if (!suppress || code !== EXIT_REVIEW) return code;
+  streams.err(
+    'changes need review, and --exit-zero-on-changes suppressed the exit code. ' +
+      'This job is reporting, not gating. Operator errors are still exit 2.\n',
+  );
+  return EXIT_CLEAN;
 }
 
 /**

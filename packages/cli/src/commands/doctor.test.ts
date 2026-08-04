@@ -3,13 +3,8 @@ import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance
 import type { Renderer } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import type { Config } from '../config.js';
-import {
-  doctor,
-  exitForDiagnosis,
-  fontProbeDocument,
-  formatDiagnosis,
-  type DoctorProbes,
-} from './doctor.js';
+import { doctor, fontProbeDocument, type DoctorProbes } from './doctor.js';
+import { exitForDiagnosis, formatDiagnosis } from './doctor-report.js';
 
 const VIEWPORT: Viewport = {
   width: 1280,
@@ -41,7 +36,11 @@ function configOf(overrides: Partial<Config> = {}): Config {
   };
 }
 
-function probesWith(missingFonts: readonly string[], exists = true): DoctorProbes {
+function probesWith(
+  missingFonts: readonly string[],
+  exists = true,
+  partitions: readonly { identity: string; baselines: number }[] = [],
+): DoctorProbes {
   return {
     async renderer(): Promise<Renderer> {
       return {
@@ -62,6 +61,7 @@ function probesWith(missingFonts: readonly string[], exists = true): DoctorProbe
       };
     },
     exists: async () => exists,
+    partitions: async () => partitions,
   };
 }
 
@@ -71,6 +71,7 @@ function refusingProbes(): DoctorProbes {
       throw new Error('Executable does not exist at /ms-playwright/chromium/chrome');
     },
     exists: async () => true,
+    partitions: async () => [],
   };
 }
 

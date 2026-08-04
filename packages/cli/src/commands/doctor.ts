@@ -1,14 +1,16 @@
-import { access } from 'node:fs/promises';
-import type {
-  ProfileId,
-  RenderDocument,
-  RenderIdentity,
-  Viewport,
+import { access, readdir } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { join } from 'node:path';
+import {
+  identityDigest,
+  type ProfileId,
+  type RenderDocument,
+  type RenderIdentity,
+  type Viewport,
 } from '@variance-authority/core';
 import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
-import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 
 /**
  * `variance doctor` — what *this* machine can observe, and nothing else.
@@ -89,6 +91,32 @@ export interface FontFinding {
 export interface BaselineFinding {
   readonly kind: 'ephemeral' | 'directory' | 'lfs' | 'remote';
   readonly because: string;
+
+  /**
+   * Whether a baseline in this store can be compared on this machine.
+   *
+   * `false` is the answer that costs an afternoon everywhere else. A tool that
+   * renders in your CI and stores images somewhere shared has one failure mode
+   * above all others — the machine you are on is not the machine that painted
+   * the baselines — and it usually surfaces as a full-red run with no
+   * explanation. It is a `readdir` here, because the store's layout *is* the
+   * partition: `<root>/<identityDigest>/<subject>.png`.
+   *
+   * Absent when nothing was looked at: a remote store is not contacted, and an
+   * ephemeral run has no baselines to be comparable with.
+   */
+  readonly comparable?: boolean;
+
+  /** What the store holds, per identity, most baselines first. Absent when not scanned. */
+  readonly partitions?: readonly Partition[];
+}
+
+export interface Partition {
+  /** The `identityDigest` the directory is named for. */
+  readonly identity: string;
+  readonly baselines: number;
+  /** Whether this is the identity a renderer opened here would write under. */
+  readonly mine: boolean;
 }
 
 export interface HistoryFinding {
@@ -101,6 +129,15 @@ export interface DoctorProbes {
   renderer(): Promise<Renderer>;
   /** Whether a path exists here. Used for baseline roots; never for a URL. */
   exists(path: string): Promise<boolean>;
+  /**
+   * The identity directories under a baseline root, and how many images each holds.
+   *
+   * A probe rather than a call into `@variance-authority/store` because doctor
+   * must answer for a root that is empty, absent, or holds something else
+   * entirely — none of which a store can open — and because the CLI does not
+   * reach into a backend's layout to ask a question the backend was not asked.
+   */
+  partitions(root: string): Promise<readonly { identity: string; baselines: number }[]>;
 }
 
 /**
@@ -133,7 +170,39 @@ export function machineProbes(config: Config): DoctorProbes {
         return false;
       }
     },
+    partitions: async (root) => {
+      let entries: Dirent[];
+      try {
+        entries = await readdir(root, { withFileTypes: true });
+      } catch {
+        // A root that cannot be listed is reported by `exists` in the same
+        // finding. Two ways to say "there is nothing here" would let the two
+        // disagree, and the one with the better sentence should win.
+        return [];
+      }
+
+      return (
+        await Promise.all(
+          entries
+            .filter((entry) => entry.isDirectory())
+            .map(async (entry) => ({
+              identity: entry.name,
+              baselines: (await orNone(join(root, entry.name))).filter((name) =>
+                name.endsWith('.png'),
+              ).length,
+            })),
+        )
+      ).sort((left, right) => right.baselines - left.baselines);
+    },
   };
+}
+
+async function orNone(directory: string): Promise<readonly string[]> {
+  try {
+    return await readdir(directory);
+  } catch {
+    return [];
+  }
 }
 
 export async function doctor(config: Config, probes: DoctorProbes): Promise<Diagnosis> {
@@ -165,7 +234,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
           'them. An empty `missing` list here means no probe ran',
       },
       profile: config.profile,
-      baselines: await baselines(config, probes),
+      baselines: await baselines(config, probes, undefined),
       history: history(config),
     };
   }
@@ -197,7 +266,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       profile: config.profile,
       renderer: rendererFinding,
       fonts,
-      baselines: await baselines(config, probes),
+      baselines: await baselines(config, probes, rendererFinding.identity),
       history: history(config),
     };
   } finally {
@@ -292,7 +361,11 @@ export function fontProbeDocument(
   };
 }
 
-async function baselines(config: Config, probes: DoctorProbes): Promise<BaselineFinding> {
+async function baselines(
+  config: Config,
+  probes: DoctorProbes,
+  identity: RenderIdentity | undefined,
+): Promise<BaselineFinding> {
   if (config.retention === 'ephemeral' || config.baselines === undefined) {
     return {
       kind: 'ephemeral',
@@ -314,13 +387,81 @@ async function baselines(config: Config, probes: DoctorProbes): Promise<Baseline
   }
 
   const present = await probes.exists(store.root);
+  if (!present) {
+    return {
+      kind: store.kind,
+      because:
+        `${store.root} does not exist yet, so every subject will be \`new\` on the first ` +
+        'run here — which is not a regression and is not a pass',
+    };
+  }
+
+  const scanned = await probes.partitions(store.root);
+  const stored = scanned.reduce((total, entry) => total + entry.baselines, 0);
+
+  // An empty root is the first run, not the wrong machine, and the two produce
+  // opposite advice from the same `readdir`. Nothing to compare against is why
+  // every subject will be `new`; nothing *of this machine's* to compare against
+  // is why every subject would be `incomparable`. Collapsing them would tell a
+  // developer setting the tool up for the first time that their machine is wrong.
+  if (stored === 0) {
+    return {
+      kind: store.kind,
+      because:
+        `${store.root} exists and holds no baseline yet, so every subject will be \`new\` ` +
+        'on the first run here — which is not a regression and is not a pass',
+    };
+  }
+
+  if (identity === undefined) {
+    // No renderer opened, so there is no digest to compare against and saying
+    // "incomparable" would be inventing the bad news rather than finding it.
+    return {
+      kind: store.kind,
+      because:
+        `${store.root} holds ${stored} baseline(s) across ${scanned.length} machine ` +
+        'identit(ies). Which of them is this machine cannot be said, because no renderer ' +
+        'opened here to be asked',
+      partitions: scanned.map((entry) => ({ ...entry, mine: false })),
+    };
+  }
+
+  const mine = identityDigest(identity);
+  const partitions = scanned.map((entry) => ({ ...entry, mine: entry.identity === mine }));
+  const ours = partitions.find((entry) => entry.mine);
+
+  if (ours !== undefined) {
+    return {
+      kind: store.kind,
+      comparable: true,
+      because:
+        `${ours.baselines} baseline(s) in ${store.root} were painted by a machine matching ` +
+        `this one (${mine.slice(0, 12)}…), so a run here compares rather than reports ` +
+        `\`incomparable\`${
+          partitions.length > 1
+            ? `. The other ${partitions.length - 1} identit(ies) in the store belong to other ` +
+              'machines and are left alone'
+            : ''
+        }`,
+      partitions,
+    };
+  }
+
   return {
     kind: store.kind,
-    because: present
-      ? `${store.root} exists on this machine; whether it holds a baseline for this ` +
-        "renderer's identity is a question only a run can answer"
-      : `${store.root} does not exist yet, so every subject will be \`new\` on the first ` +
-        'run here — which is not a regression and is not a pass',
+    // The finding this command was worth writing for. Everything else here is a
+    // prerequisite somebody can check by hand in a minute; this one is invisible
+    // until a run goes uniformly red, and then it looks like the product broke.
+    comparable: false,
+    because:
+      `no baseline in ${store.root} was painted by a machine like this one. This machine is ` +
+      `${mine.slice(0, 12)}… and the store holds ${stored} baseline(s) under ` +
+      `${scanned.length} other identit(ies), so every subject would report \`incomparable\` ` +
+      'rather than compare — a full run producing no verdicts at all. Two ways out: set ' +
+      '`"retention": "ephemeral"` so both images are painted here in one run and the machine ' +
+      'cancels out, or point `"renderer"` at an endpoint running the identity the baselines ' +
+      'were written under',
+    partitions,
   };
 }
 
@@ -344,75 +485,6 @@ function history(config: Config): HistoryFinding {
       `configured at ${config.history.endpoint}, and deliberately not contacted; whether ` +
       'it accepts this project\'s writes is decided at run time, by the token',
   };
-}
-
-/**
- * Doctor's exit code.
- *
- * `2` for exactly one condition: no renderer. That is the state in which a run
- * cannot happen at all, which is what code `2` means.
- *
- * Missing fonts deliberately do *not* move it. See this file's header: the probe
- * cannot distinguish an absent family from a metric-compatible substitute, and a
- * diagnostic that fails a build on a false positive is a diagnostic somebody
- * deletes. They are printed at the top of the output instead, where a person
- * decides.
- */
-export function exitForDiagnosis(diagnosis: Diagnosis): ExitCode {
-  // Not-checked is not a failure. Exit 2 means *this machine cannot do the work*,
-  // and a machine that was never asked has not answered that question either way.
-  if (diagnosis.renderer.checked === false) return EXIT_CLEAN;
-  return diagnosis.renderer.available ? EXIT_CLEAN : EXIT_OPERATOR;
-}
-
-export function formatDiagnosis(diagnosis: Diagnosis): string {
-  const identity = diagnosis.renderer.identity;
-
-  return [
-    `profile: ${diagnosis.profile}`,
-    '',
-    `renderer: ${
-      diagnosis.renderer.checked === false
-        ? 'not checked'
-        : diagnosis.renderer.available
-          ? 'available'
-          : 'NOT AVAILABLE'
-    }`,
-    `  ${diagnosis.renderer.because}`,
-    ...(identity !== undefined
-      ? [
-          `  identity: ${identity.renderer} (${identity.engine}, ${identity.platform}, ` +
-            `${identity.deviceScaleFactor}x)`,
-          `  fonts asserted into the identity: ${
-            identity.fonts.length === 0 ? 'none' : identity.fonts.join(', ')
-          }`,
-        ]
-      : []),
-    '',
-    `fonts: ${fontHeadline(diagnosis.fonts)}`,
-    `  ${diagnosis.fonts.because}`,
-    ...(diagnosis.fonts.probed
-      ? [
-          '  known limit: a family that is metric-compatible with a generic — Arimo, ' +
-            'Liberation Sans, the substitutes a container ships so layout does not move —',
-          '  is reported missing by this probe. It reports a doubt rather than swallowing ' +
-            'one, and does not change the exit code.',
-        ]
-      : []),
-    '',
-    `baselines: ${diagnosis.baselines.kind}`,
-    `  ${diagnosis.baselines.because}`,
-    '',
-    `history: ${diagnosis.history.configured ? 'configured' : 'none'}`,
-    `  ${diagnosis.history.because}`,
-  ].join('\n');
-}
-
-function fontHeadline(finding: FontFinding): string {
-  if (!finding.probed) return 'not probed';
-  return finding.missing.length === 0
-    ? `${finding.asserted.length} asserted, none reported missing`
-    : `${finding.missing.length} of ${finding.asserted.length} reported missing`;
 }
 
 function messageOf(error: unknown): string {

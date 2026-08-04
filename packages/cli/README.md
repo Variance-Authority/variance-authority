@@ -13,8 +13,8 @@ whose requirements are decided by a file rather than by its own code.
 ## Commands
 
 ```bash
-variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>]
-variance report  [--config <path>] [--format text|json] [--subject <id>] [<report>...]
+variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--exit-zero-on-changes]
+variance report  [--config <path>] [--format text|json] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
@@ -27,6 +27,19 @@ can observe before a run rather than after one. `serve` exposes the report the
 last run wrote to an MCP client — an agent asks it what changed, which component
 and which file, over stdio, without re-running anything; the tools are
 [`@variance-authority/mcp`](../mcp)'s.
+
+### Reporting without gating
+
+`--exit-zero-on-changes` turns exit 1 into exit 0 on `run` and `report`, for a
+job that reports rather than blocks the merge — which is how most of this
+category is actually run.
+
+The reason it is a flag and not a line of shell: `|| true` swallows exit **2** as
+well. A job whose browser never launched observed nothing and therefore found
+nothing, and `|| true` posts a green tick over it. This suppresses exit 1 only,
+leaves operator errors at 2, and writes one line to stderr saying the code was
+suppressed — a run whose exit was quietly rewritten is otherwise indistinguishable
+in a log from a run that found nothing.
 
 ### Sharding: `report` takes more than one file
 

@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { BOOLEAN } from './args.js';
 import { USAGE, parseArgs } from './bin.js';
 import { openRenderer } from './dispatch.js';
 import { EXIT_OPERATOR, OperatorError } from './exit.js';
@@ -108,8 +109,14 @@ describe('parseArgs', () => {
 
   it('omits absent optional flags rather than setting them undefined', () => {
     // `exactOptionalPropertyTypes` is on, and a present-but-undefined field would
-    // override a config value with nothing further down.
-    expect(Object.keys(parseArgs(['run'])).sort()).toEqual(['command', 'config']);
+    // override a config value with nothing further down. A boolean flag is the
+    // other case and is always present: `false` is its value, not its absence,
+    // and there is no config field underneath it to be overridden.
+    expect(Object.keys(parseArgs(['run'])).sort()).toEqual([
+      'command',
+      'config',
+      'exitZeroOnChanges',
+    ]);
   });
 
   it('takes shard reports as positionals on report and comment', () => {
@@ -119,6 +126,7 @@ describe('parseArgs', () => {
       command: 'report',
       config: resolve('variance.config.json'),
       format: 'text',
+      exitZeroOnChanges: false,
       reports: [resolve('a.json'), resolve('b.json')],
     });
 
@@ -162,6 +170,26 @@ describe('parseArgs', () => {
     expect(attempt(['comment', '--marker', '--body-file', 'out.md']).message).toContain(
       'prints the marker and nothing else',
     );
+  });
+
+  it('registers every flag shown without a value as a boolean', () => {
+    // The link `PER_COMMAND` cannot carry. It says a command accepts a flag and
+    // says nothing about whether the flag takes a value, so a boolean left out of
+    // `BOOLEAN` is not refused — it silently eats the next argument. `USAGE` is
+    // where the difference is already written down: `[--subjects <glob>]` has a
+    // placeholder and `[--exit-zero-on-changes]` does not.
+    const wrong: string[] = [];
+
+    for (const line of USAGE.split('\n')) {
+      for (const match of line.matchAll(/(--[\w-]+)(.*)$/g)) {
+        const [, flag, after] = match;
+        // Nothing follows, the bracket closes, or an alternative begins: no value.
+        const standalone = /^(\]|\s*\||$)/.test(after!);
+        if (standalone !== BOOLEAN.has(flag!)) wrong.push(`${flag!} in: ${line}`);
+      }
+    }
+
+    expect(wrong).toEqual([]);
   });
 
   it('names every flag each command accepts in its usage line', () => {

@@ -343,6 +343,19 @@ The README tabulates them; [comparison §3.3](comparison.md#33-deciding-at-the-c
 records that three of the six rows are asserted by no test, and that the cheap
 tier's advantage is **~5×, not the ~100× the architecture was drawn around**.
 
+**A reporting job is a flag, not `|| true`.** `variance run
+--exit-zero-on-changes` suppresses exit 1 and leaves exit 2 alone, so a
+non-blocking check still fails when the browser never launched — which is the
+distinction `|| true` destroys. One line to stderr says the code was suppressed.
+
+**Whether this machine can compare at all is answered before the run.** A durable
+store is partitioned by `identityDigest`, so `variance doctor` reads the layout
+and says whether any baseline in it was painted by a machine like this one. When
+none was, it prints `NOT COMPARABLE HERE`, lists the store one line per identity,
+exits 2, and names the two ways out. That is the failure mode of every tool that
+renders in your CI and stores images centrally, and it otherwise presents as
+three hundred components regressing at once on a runner nobody touched.
+
 **Sharding is a glob per job and one merge at the end.** `variance run --subjects
 <glob>` narrows a run to a slice; `variance report shard-1.json shard-2.json …`
 reads them back as one suite, so a split suite still has one exit code and one

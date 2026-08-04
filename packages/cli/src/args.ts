@@ -24,7 +24,18 @@ export interface Flags {
   readonly positionals: readonly string[];
 }
 
-const BOOLEAN = new Set(['--all', '--marker']);
+/**
+ * Flags that stand alone, and the one list that says so.
+ *
+ * A flag missing from here is not refused — it is quietly treated as
+ * value-taking, so `variance report --exit-zero-on-changes` consumes the next
+ * argument or complains that nothing followed it. Exported because that failure
+ * is invisible from the flag table: `PER_COMMAND` says a command accepts a flag
+ * and cannot say whether it carries a value. `bin.test.ts` closes the gap by
+ * reading `USAGE`, where a flag shown without a placeholder is a boolean by
+ * definition.
+ */
+export const BOOLEAN = new Set(['--all', '--marker', '--exit-zero-on-changes']);
 
 export function readFlags(
   argv: readonly string[],
