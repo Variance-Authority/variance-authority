@@ -65,7 +65,7 @@ describe('parseArgs', () => {
 
   it('refuses an invalid enum value for --profile and --format', () => {
     expect(attempt(['run', '--profile', 'webkit']).message).toContain('jsdom or chromium');
-    expect(attempt(['report', '--format', 'yaml']).message).toContain('text or json');
+    expect(attempt(['report', '--format', 'yaml']).message).toContain('text, json or html');
   });
 
   it('refuses positional arguments on commands that take none', () => {

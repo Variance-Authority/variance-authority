@@ -1,6 +1,5 @@
 import type { ObservationRecord, RegionRecord } from '@variance-authority/report';
 import type { CliRunReport, NotObserved } from './run.js';
-import { code } from './comment-text.js';
 
 /**
  * The docket: a run report folded into the review items a person can act on.
@@ -24,7 +23,13 @@ import { code } from './comment-text.js';
  * and a reviewer reads one line instead of scrolling past 299 restatements of it.
  */
 export interface CauseEntry {
+  /** Plain text. A renderer escapes it for its own medium; the fold never does. */
   readonly label: string;
+  /**
+   * `true` when the label is a component name rather than a sentence about why
+   * there is none. Decides code voice, which no renderer can infer from the text.
+   */
+  readonly named: boolean;
   readonly files: readonly string[];
   readonly wheres: readonly string[];
   readonly subjects: readonly string[];
@@ -73,6 +78,7 @@ export interface Docket {
 
 interface CauseAccumulator {
   label: string;
+  named: boolean;
   readonly files: Set<string>;
   readonly wheres: Set<string>;
   readonly subjects: string[];
@@ -134,7 +140,7 @@ export function docketOf(report: CliRunReport): Docket {
 
     const key = keyOf(lead);
     const entry = causes.get(key) ?? {
-      label: labelOf(lead),
+      ...labelOf(lead),
       files: new Set<string>(),
       wheres: new Set<string>(),
       subjects: [],
@@ -166,6 +172,7 @@ export function docketOf(report: CliRunReport): Docket {
   const entries = [...causes.values()]
     .map((entry) => ({
       label: entry.label,
+      named: entry.named,
       files: [...entry.files],
       wheres: [...entry.wheres],
       subjects: entry.subjects,
@@ -217,10 +224,30 @@ function keyOf(region: RegionRecord): string {
   return region.component ?? region.path ?? '\u0000unknown';
 }
 
-function labelOf(region: RegionRecord): string {
+/**
+ * The label as **plain text**, and a flag for whether it is a name or a sentence.
+ *
+ * It used to arrive markdown-escaped, which read as a small convenience and was
+ * a renderer decision taken inside the fold. The cost surfaced the moment a third
+ * rendering existed: an HTML page received a component name wrapped in backticks
+ * and would have had to *undo* another renderer's formatting to show it — two
+ * renderers disagreeing about one docket, which is the whole thing this file is
+ * separate in order to prevent.
+ *
+ * So the fold decides what the label *is* and each rendering decides how to show
+ * it. `named` is the distinction a renderer cannot recover from the string:
+ * `Button` is a thing somebody can grep for and belongs in code voice, while
+ * "a region no box contained" is a sentence and does not.
+ */
+function labelOf(region: RegionRecord): { label: string; named: boolean } {
   if (region.unattributed === true) {
-    return 'a region no box contained — usually a wrong scale or origin, not a component';
+    return {
+      label: 'a region no box contained — usually a wrong scale or origin, not a component',
+      named: false,
+    };
   }
   const name = region.component ?? region.path;
-  return name === undefined ? 'a region with no component and no path' : code(name);
+  return name === undefined
+    ? { label: 'a region with no component and no path', named: false }
+    : { label: name, named: true };
 }

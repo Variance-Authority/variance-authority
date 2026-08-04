@@ -94,7 +94,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
 
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--exit-zero-on-changes]',
-  'variance report  [--config <path>] [--format text|json] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
+  'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all',
   'variance serve   [--config <path>]              # MCP over stdio',
   'variance doctor  [--config <path>]',
@@ -144,8 +144,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'report': {
       const format = flags.values.get('--format') ?? 'text';
-      if (format !== 'text' && format !== 'json') {
-        throw new OperatorError(`--format must be text or json, not \`${format}\``);
+      if (format !== 'text' && format !== 'json' && format !== 'html') {
+        throw new OperatorError(`--format must be text, json or html, not \`${format}\``);
       }
       const subject = flags.values.get('--subject');
 

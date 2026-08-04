@@ -1,6 +1,6 @@
 import { EXIT_CLEAN, exitFor } from '../exit.js';
 import type { CliRunReport } from './run.js';
-import { docketOf } from './comment-docket.js';
+import { docketOf } from './docket.js';
 import {
   causeBlocks,
   clamp,
@@ -72,7 +72,7 @@ import {
  *
  * ## The three files
  *
- * `comment-docket.ts` folds the report into review items and counts what it
+ * `docket.ts` folds the report into review items and counts what it
  * refuses to list; `comment-blocks.ts` turns that docket into markdown;
  * `comment-text.ts` holds the two primitives both of them write through, so the
  * fold and the render can never escape a component name differently. This file

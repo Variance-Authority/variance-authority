@@ -1,6 +1,7 @@
 import { toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import type { CliRunReport } from './run.js';
+import { reportHtml } from './report-html.js';
 
 /**
  * `variance report` — ask questions of an artifact, never of a browser.
@@ -30,7 +31,7 @@ import type { CliRunReport } from './run.js';
  * their type does not carry it: the index warnings that belong to no subject.
  */
 
-export type ReportFormat = 'text' | 'json';
+export type ReportFormat = 'text' | 'json' | 'html';
 
 export interface ReportOptions {
   readonly report: CliRunReport;
@@ -47,7 +48,29 @@ export interface ReportOptions {
  * usable as a filter in a pipeline rather than only by a person.
  */
 export function formatReport(options: ReportOptions): string {
-  return options.format === 'json' ? asJson(options) : asText(options);
+  if (options.format === 'json') return asJson(options);
+  if (options.format === 'html') return asHtml(options);
+  return asText(options);
+}
+
+/**
+ * The page, and the one narrowing it refuses.
+ *
+ * `--subject` narrows the text and the JSON because both are answers to a
+ * question about one subject. A *page* narrowed to one subject would be a page
+ * that says nothing about coverage while looking complete, and the reader of an
+ * HTML artifact has no prompt to type the unnarrowed command in. So it is
+ * refused by name rather than honoured or ignored.
+ */
+function asHtml(options: ReportOptions): string {
+  if (options.subject !== undefined) {
+    throw new OperatorError(
+      '--subject narrows a report to one subject, and an HTML page narrowed that way ' +
+        'would look like a complete run that found one thing. Use --format text or json ' +
+        'for a single subject.',
+    );
+  }
+  return `${reportHtml(options.report)}\n`;
 }
 
 function asJson(options: ReportOptions): string {

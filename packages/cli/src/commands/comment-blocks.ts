@@ -1,6 +1,6 @@
 import type { CliRunReport } from './run.js';
 import type { CommentLimits, CommentOptions } from './comment.js';
-import type { CauseEntry, Collateral, Docket } from './comment-docket.js';
+import type { CauseEntry, Collateral, Docket } from './docket.js';
 import { code, count } from './comment-text.js';
 
 /**
@@ -8,7 +8,7 @@ import { code, count } from './comment-text.js';
  * states.
  *
  * Separate from `comment.ts` because that file owns one decision — whether a
- * comment exists at all — and separate from `comment-docket.ts` because this half
+ * comment exists at all — and separate from `docket.ts` because this half
  * carries none of the counting. Everything here is a function from an already
  * folded docket to markdown, which is what lets the prose be argued about without
  * touching a single number.
@@ -97,7 +97,8 @@ function causeItem(entry: CauseEntry, position: number, limits: CommentLimits): 
       ? `seen in ${named}`
       : `seen in ${named} and ${count(rest, 'other subject')} not listed`;
 
-  return [`${position}. **${entry.label}** — ${reach}`, ...place, subjects]
+  const label = entry.named ? code(entry.label) : entry.label;
+  return [`${position}. **${label}** — ${reach}`, ...place, subjects]
     .map((line, index) => (index === 0 ? line : `    ${line}`))
     .join('\n');
 }

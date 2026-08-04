@@ -14,7 +14,7 @@ whose requirements are decided by a file rather than by its own code.
 
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--exit-zero-on-changes]
-variance report  [--config <path>] [--format text|json] [--subject <id>] [--exit-zero-on-changes] [<report>...]
+variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
@@ -27,6 +27,30 @@ can observe before a run rather than after one. `serve` exposes the report the
 last run wrote to an MCP client — an agent asks it what changed, which component
 and which file, over stdio, without re-running anything; the tools are
 [`@variance-authority/mcp`](../mcp)'s.
+
+### `--format html`: the diff as one page, with no service behind it
+
+```bash
+variance report --format html > out/report.html
+```
+
+One file, written beside `report.json`, uploaded by whatever already uploads your
+CI artifacts. No account, no upload step, no retention policy, nothing to keep
+running — the cheapest rung of presentation infrastructure there is.
+
+It renders the same docket the pull-request body does: causes first with
+`file:line`, collateral counted rather than listed, an entry the semantic tier
+did not name marked as *largest region, not a named cause*, and coverage failures
+above the findings so the page cannot look complete when it is not. A fourth
+renderer must never produce a fourth answer, so `docket.ts` folds and the
+renderers only draw.
+
+Two constraints worth knowing. **Image paths are relative to the report**, so the
+page belongs beside it — a report written elsewhere shows broken images rather
+than wrong ones. And the page fetches nothing: no script, no stylesheet, no font,
+because a page that loads anything renders differently for the reviewer than it
+did in CI. `--subject` is refused here rather than honoured: a page narrowed to
+one subject says nothing about coverage while looking like a whole run.
 
 ### Reporting without gating
 
