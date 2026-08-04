@@ -1790,6 +1790,7 @@ __metadata:
   resolution: "@variance-authority/playwright@workspace:packages/playwright"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/png": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     playwright: "npm:^1.49.0"
   languageName: unknown

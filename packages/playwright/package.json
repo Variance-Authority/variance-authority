@@ -29,5 +29,8 @@
     "@variance-authority/core": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "playwright": "^1.49.0"
+  },
+  "devDependencies": {
+    "@variance-authority/png": "workspace:^"
   }
 }

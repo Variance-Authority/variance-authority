@@ -67,6 +67,26 @@ export interface PlaywrightRendererOptions {
    * than anybody's code.
    */
   readonly stabilization?: Recipe;
+
+  /**
+   * How many documents may be painted at once. Defaults to 1.
+   *
+   * Above 1 this renderer leases a *separate page* per render instead of sharing
+   * one per viewport, because `setContent` replaces a page's whole document —
+   * two concurrent renders into one page would paint each other's subject, which
+   * is the failure the harness has always warned about, arriving from the other
+   * direction.
+   *
+   * Pages, not browsers. A page costs a few MB against a browser's process, and
+   * the isolation a *render* needs is a document of its own: nothing here shares
+   * state between renders, since each one `setContent`s a complete document.
+   * That is exactly the property collection does **not** have (ADR-0009), which
+   * is why the collector stays serial while this does not.
+   *
+   * Worth having because the raster tier is where a run's time is: ~65 ms to
+   * paint against ~7.5 ms to collect.
+   */
+  readonly concurrency?: number;
 }
 
 export async function createPlaywrightRenderer(
@@ -102,8 +122,8 @@ export async function createPlaywrightRenderer(
       stabilization: recipeDigest(recipe),
     };
 
-    const pages = new Map<string, Page>();
-    const contexts: BrowserContext[] = [];
+    const concurrency = Math.max(1, options.concurrency ?? 1);
+    const pool = new PagePool(browser, concurrency);
 
     // One expression, used by `render` to stamp the raster and by the pipeline
     // to look a baseline up. Two expressions is how the write key and the lookup
@@ -116,49 +136,56 @@ export async function createPlaywrightRenderer(
       identityFor,
 
       async render(document: RenderDocument): Promise<Raster> {
-        const page = await pageFor(browser, pages, contexts, document.viewport);
+        const lease = await pool.acquire(document.viewport);
+        const page = lease.page;
 
-        await page.setContent(assemble(document, options.assemble ?? {}), {
-          waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
-        });
+        try {
+          await page.setContent(assemble(document, options.assemble ?? {}), {
+            waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
+          });
 
-        // After `setContent`, because `setContent` replaces the document and
-        // would discard a sheet added before it.
-        if (holdStill !== '') await page.addStyleTag({ content: holdStill });
+          // After `setContent`, because `setContent` replaces the document and
+          // would discard a sheet added before it.
+          if (holdStill !== '') await page.addStyleTag({ content: holdStill });
 
-        // Every wait the recipe asks for, and nothing else. A recipe with no
-        // waits — the structure-and-style rung — pays for none of this.
-        if (options.waitForFonts !== false) await settleRecipe(recipe, page);
+          // Every wait the recipe asks for, and nothing else. A recipe with no
+          // waits — the structure-and-style rung — pays for none of this.
+          if (options.waitForFonts !== false) await settleRecipe(recipe, page);
 
-        const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
+          const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
 
-        const subject = page.locator(`[data-va-path="${SUBJECT_PATH}"]`);
-        // Handed to the browser rather than emulated in CSS. It fast-forwards a
-        // finite animation to completion — the state a user comes to rest on —
-        // and cancels an infinite one to its initial frame, then replays it.
-        // Injected CSS can only pin frame zero, which captures a fade-in at the
-        // moment it is invisible.
-        const bytes = await subject.screenshot({ type: 'png', ...shot });
-        const box = await subject.boundingBox();
+          const subject = page.locator(`[data-va-path="${SUBJECT_PATH}"]`);
+          // Handed to the browser rather than emulated in CSS. It fast-forwards a
+          // finite animation to completion — the state a user comes to rest on —
+          // and cancels an infinite one to its initial frame, then replays it.
+          // Injected CSS can only pin frame zero, which captures a fade-in at the
+          // moment it is invisible.
+          const bytes = await subject.screenshot({ type: 'png', ...shot });
+          const box = await subject.boundingBox();
 
-        if (box === null) {
-          throw new Error(
-            `subject root has no box in the rendered document (${document.subject.id}); ` +
-              'the document assembled to something that lays out to nothing',
-          );
+          if (box === null) {
+            throw new Error(
+              `subject root has no box in the rendered document (${document.subject.id}); ` +
+                'the document assembled to something that lays out to nothing',
+            );
+          }
+
+          return {
+            documentDigest: documentDigest(document),
+            identity: identityFor(document),
+            // Device pixels, which is what the mask and the regions are in. The
+            // conversion back to CSS pixels happens once, in `attributeRegions`,
+            // where the caller has to name the scale.
+            width: Math.round(box.width * document.viewport.deviceScaleFactor),
+            height: Math.round(box.height * document.viewport.deviceScaleFactor),
+            bytes: bytes.toString('base64'),
+            missingFonts,
+          };
+        } finally {
+          // Released on the failure path too. A render that throws while holding
+          // the only page of a pool of one deadlocks every subject after it.
+          lease.release();
         }
-
-        return {
-          documentDigest: documentDigest(document),
-          identity: identityFor(document),
-          // Device pixels, which is what the mask and the regions are in. The
-          // conversion back to CSS pixels happens once, in `attributeRegions`,
-          // where the caller has to name the scale.
-          width: Math.round(box.width * document.viewport.deviceScaleFactor),
-          height: Math.round(box.height * document.viewport.deviceScaleFactor),
-          bytes: bytes.toString('base64'),
-          missingFonts,
-        };
       },
 
       async close(): Promise<void> {
@@ -225,24 +252,69 @@ function probeFonts(families: readonly string[]): string[] {
  * viewport rather than recreating per render keeps a run at one context in the
  * normal case, where every subject shares a viewport.
  */
-async function pageFor(
-  browser: Browser,
-  pages: Map<string, Page>,
-  contexts: BrowserContext[],
-  viewport: Viewport,
-): Promise<Page> {
-  const key = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor}/${viewport.colorScheme}`;
-  const existing = pages.get(key);
-  if (existing !== undefined) return existing;
+class PagePool {
+  readonly #browser: Browser;
+  readonly #limit: number;
+  /** Idle pages, per viewport key. A render takes one and puts it back. */
+  readonly #idle = new Map<string, Page[]>();
+  #leased = 0;
+  readonly #waiting: (() => void)[] = [];
 
-  const context = await browser.newContext({
-    viewport: { width: viewport.width, height: viewport.height },
-    deviceScaleFactor: viewport.deviceScaleFactor,
-    colorScheme: viewport.colorScheme,
-  });
-  contexts.push(context);
+  constructor(browser: Browser, limit: number) {
+    this.#browser = browser;
+    this.#limit = limit;
+  }
 
-  const page = await context.newPage();
-  pages.set(key, page);
-  return page;
+  /**
+   * Wait for a slot, then hand back a page nobody else is painting into.
+   *
+   * The slot count is global while pages are keyed by viewport, and those are
+   * deliberately different. The limit exists to bound *concurrent Chromium work*,
+   * which does not care what size the pages are; the key exists because a page's
+   * viewport and scale factor cannot be changed without recreating its context.
+   * A run at one viewport — the normal case — reuses the same pages forever.
+   */
+  async acquire(viewport: Viewport): Promise<{ page: Page; release: () => void }> {
+    while (this.#leased >= this.#limit) {
+      await new Promise<void>((resolve) => this.#waiting.push(resolve));
+    }
+    this.#leased += 1;
+
+    const key = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor}/${viewport.colorScheme}`;
+
+    try {
+      const free = this.#idle.get(key) ?? [];
+      const page = free.pop() ?? (await this.#open(viewport));
+      this.#idle.set(key, free);
+
+      let released = false;
+      return {
+        page,
+        release: () => {
+          // Guarded because a double release would let two renders hold the same
+          // page, which is the one thing this class exists to prevent.
+          if (released) return;
+          released = true;
+          (this.#idle.get(key) ?? []).push(page);
+          this.#leased -= 1;
+          this.#waiting.shift()?.();
+        },
+      };
+    } catch (error) {
+      this.#leased -= 1;
+      this.#waiting.shift()?.();
+      throw error;
+    }
+  }
+
+  async #open(viewport: Viewport): Promise<Page> {
+    // Not tracked for teardown: `close()` closes the browser, which takes every
+    // context with it. A second list to keep in step would only drift.
+    const context = await this.#browser.newContext({
+      viewport: { width: viewport.width, height: viewport.height },
+      deviceScaleFactor: viewport.deviceScaleFactor,
+      colorScheme: viewport.colorScheme,
+    });
+    return context.newPage();
+  }
 }
