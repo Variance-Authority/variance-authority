@@ -5,9 +5,10 @@ is a complete, honest deployment — not a trial version of the next one — and
 list exists so that the question "do I need the service?" has an answer that is
 not "it depends".
 
-This is one of two axes. It decides **where a baseline lives**; it says nothing
-about **how a subject arrives**, which is [`surface.md`](surface.md) and is chosen
-independently.
+This is one of three axes. It decides **where a baseline lives**. It says nothing
+about **how a subject arrives** — [`surface.md`](surface.md) — nor about **where
+the renderer runs**, which is the short ladder at the bottom of this file. All
+three are chosen independently.
 
 The rule the ladder is built on: **a rung buys a capability, never a better
 verdict.** Where a baseline is kept decides nothing
@@ -247,6 +248,33 @@ compares against the eleventh. This is the capability the service exists for, an
 the honest statement of the ladder is that rungs 1 through 4 are conveniences over
 each other, while rung 5 is a different question.
 
+## The other machine question: where the renderer runs
+
+A second ladder, orthogonal to the six above and much shorter, because it is a
+**bill rather than an architecture**. The renderer is one seam —
+`"renderer": { "endpoint": … }` in the config, satisfied by `serveRenderer` — and
+everything below it is a decision about whose account pays.
+
+| Rung | You stand up | What it costs | The catch |
+|---|---|---|---|
+| **A. Inside the CI job** | nothing | runner minutes you already buy | The default, and the least scalable: your concurrency limit is the farm's. Fine until a suite outgrows one job |
+| **B. A container you run** | one image, anywhere with scale-to-zero | per-second, and the load is small — 65 ms per painted subject, and the ladder paints very few | You own the Dockerfile, so the fonts and the engine version are pinned by you rather than by somebody's upgrade |
+| **C. A managed browser service** | an account | theirs | **Not Playwright.** The `Renderer` contract is `render(document) → Raster` plus `identityFor`, so an adapter over a hosted screenshot API is perhaps a hundred lines — but nobody has written one, and the engine, the fonts and the warm-reuse saving all become the vendor's to decide |
+| **D. Somebody else's, hosted** | an account | — | Does not exist. See [comparison.md](comparison.md) |
+
+**Rung A is not a starter tier.** Rendering in the job that already checked out
+the code is the arrangement with the fewest moving parts, and a suite that fits
+in one job should stay there.
+
+**Moving between rungs is not a migration**, and that is the property worth more
+than the ladder. Every rung paints under a different `RenderIdentity`, so
+baselines from one cannot be silently compared against another's: a run reports
+`incomparable` rather than red, the store says which identity it did find, and
+`variance doctor` says `NOT COMPARABLE HERE` before the run rather than after it.
+Rung C is safe *specifically because* it is not Playwright — the identity records
+what painted the image, so a hosted-Chromium baseline and a `playwright-chromium`
+baseline live in different directories and neither can pretend to be the other.
+
 ## Choosing
 
 - **You can build both revisions in CI, and want no stored artifact at all** —
@@ -258,3 +286,6 @@ each other, while rung 5 is a different question.
 - **Reviewers who are not the people running CI** — rung 4.
 - **You have been approving small changes for a year** — rung 5 is the only thing
   that will tell you what that added up to.
+- **Rendering**: start at rung A and stay there. Move to B when one CI job stops
+  being enough, or when you want the font stack pinned by you — those are the two
+  reasons, and neither is "it would be more proper".
