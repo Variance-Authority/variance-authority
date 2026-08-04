@@ -195,6 +195,30 @@ entirely, and the parallelism costs no `worker_threads`, no native addon, and no
 thread pool of its own — it is a pool of processes that were going to be launched
 anyway.
 
+### Is `pngjs` simply a bad decoder?
+
+No. It is mid, and every drop-in replacement tried is equal or worse. 16
+distinct 1280×800 images, cold, **every candidate verified byte-identical to
+`pngjs`'s RGBA** before being timed:
+
+| | |
+|---|---|
+| Chromium | **12.4 ms** |
+| `sharp` (libvips, native addon) | **14.5 ms** |
+| `pngjs` (current) | 23.5 ms |
+| `@cwasm/lodepng` (wasm) | 28.3 ms |
+| `@cf-wasm/png` (wasm) | 99.8 ms |
+
+Both wasm decoders are *slower* than the pure-JS one, and one is 4× slower.
+`png-rs` is not published to npm. `@jsquash/oxipng` is a compressor rather than
+a decoder and is not a candidate for this at all.
+
+That result is what makes the choice awkward rather than obvious. The only
+faster library is a **native addon**, which the tribunal cannot load — it is a
+Cloudflare Worker. Wasm is the portable option and wasm is the slow end. So
+there is no swap that helps everywhere, and the ~2× on the table is not sitting
+in a package: it is Chromium plus the pool, which is a design change.
+
 ### What this means here
 
 The fastest PNG decoder in this system is **already running in a process this
