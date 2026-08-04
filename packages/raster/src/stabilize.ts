@@ -268,7 +268,7 @@ export async function settleRecipe(recipe: Recipe, target: SettleTarget): Promis
  * component to blame.
  */
 export function recipeDigest(recipe: Recipe): Digest {
-  return digestValue([...recipe.map((intervention) => intervention.id)].sort());
+  return digestValue(recipe.map((intervention) => intervention.id).sort());
 }
 
 /** The recipe as a sentence, so the gap between image and product stays visible. */

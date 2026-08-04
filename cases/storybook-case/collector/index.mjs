@@ -26,7 +26,7 @@ import { dirname, extname, join, normalize as normalizePath, relative } from 'no
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { indexSource, mergeSourceIndexes, normalize } from '@variance-authority/core';
-import { collectStory, harnessPage, previewUrl } from '@variance-authority/storybook';
+import { collectStory, harnessPage } from '@variance-authority/storybook';
 import { AGENT, bundle } from './bundle.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));

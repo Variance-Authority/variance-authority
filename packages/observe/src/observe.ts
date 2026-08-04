@@ -207,7 +207,7 @@ async function report(
   options: ObserveOptions,
 ): Promise<Observation> {
   const comparison = await compareRasters(before, after, {
-    ...(options.compare ?? {}),
+    ...options.compare,
     ...(options.decoder !== undefined ? { decoder: options.decoder } : {}),
   });
   const policy = options.compare?.isolateWith ?? DEFAULT_POLICY;

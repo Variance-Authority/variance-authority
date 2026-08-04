@@ -1,4 +1,4 @@
-import { createElement as h, forwardRef, memo, version, StrictMode } from 'react';
+import { createElement as h, forwardRef, memo, version } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import {

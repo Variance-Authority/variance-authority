@@ -5,7 +5,7 @@ import {
   type MatchedRule,
 } from '@variance-authority/core';
 import { evaluateMedia, evaluateSupports, type ConditionEnvironment } from './media.js';
-import { mostSpecific, splitSelectorList, specificityOf, type Specificity } from './specificity.js';
+import { splitSelectorList, specificityOf, type Specificity } from './specificity.js';
 import { classNamesOf, items, propertyNames } from './dom-list.js';
 
 /**

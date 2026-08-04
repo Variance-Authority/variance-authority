@@ -64,7 +64,7 @@ export function differenceCurve(
   // One pass per level would be O(levels × pixels). Sorting the levels lets a
   // single pass over the pixels bucket each one into the highest level it meets,
   // after which the counts accumulate downwards. O(pixels + levels).
-  const atOrBetween = new Array<number>(levels.length).fill(0);
+  const atOrBetween = Array.from<number>({ length: levels.length }).fill(0);
 
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index]!;

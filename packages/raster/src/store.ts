@@ -1,12 +1,9 @@
 import {
-  documentDigest,
   identityDigest,
   type Digest,
   type Raster,
-  type RenderDocument,
   type RenderIdentity,
 } from '@variance-authority/core';
-import type { Renderer } from './renderer.js';
 
 /**
  * Retention — the two modes, and the honest difference between them.

@@ -8,11 +8,12 @@
     "cases/*"
   ],
   "scripts": {
-    "build": "tsc --build",
-    "clean": "tsc --build --clean",
+    "build": "node node_modules/tsgo/bin/tsc --build",
+    "clean": "node node_modules/tsgo/bin/tsc --build --clean",
+    "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --build --force && yarn typecheck:examples",
+    "typecheck": "node node_modules/tsgo/bin/tsc --build --force && yarn typecheck:examples",
     "typecheck:examples": "vitest run tools/documentation.test.ts"
   },
   "devDependencies": {
@@ -21,11 +22,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "jsdom": "^30.0.1",
+    "oxlint": "^1.77.0",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
     "react": "^19",
     "react-dom": "^19",
-    "typescript": "^5.7.2",
+    "tsgo": "npm:typescript@7.0.2",
+    "typescript": "^5.9.3",
     "vitest": "^2.1.8"
   }
 }

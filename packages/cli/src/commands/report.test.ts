@@ -99,7 +99,7 @@ describe('formatReport, text', () => {
   it.each([
     ['coverage: every planned subject was observed.', { ...REPORT, notObserved: [] }],
     ['not observed:', REPORT],
-    ['coverage: unknown', (({ notObserved, ...rest }) => rest)(REPORT)],
+    ['coverage: unknown', (({ notObserved: _notObserved, ...rest }) => rest)(REPORT)],
   ] as const)('says %s exactly once', (phrase, report) => {
     // Every other assertion in this file uses `toContain`, which is satisfied by
     // the first copy of a line printed twice — so a duplicated coverage section

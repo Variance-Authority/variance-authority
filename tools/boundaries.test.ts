@@ -194,7 +194,7 @@ describe('a package declares what it imports', () => {
     (_name, workspace) => {
       const used = new Set([...workspace.imports.source, ...workspace.imports.test]);
       const excused = new Set(REQUIRED_WITHOUT_IMPORT[workspace.name] ?? []);
-      const unused = [...Object.keys(workspace.manifest.dependencies ?? {})].filter(
+      const unused = Object.keys(workspace.manifest.dependencies ?? {}).filter(
         (dependency) => !used.has(dependency) && !excused.has(dependency),
       );
 

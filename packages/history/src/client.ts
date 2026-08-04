@@ -1,5 +1,5 @@
 import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
-import { BANDS, type Band, type Observation, type RunRecord, type TokenValue } from './observation.js';
+import { BANDS, type Band, type Observation, type TokenValue } from './observation.js';
 import {
   CHURN_PATH,
   LAST_CHANGED_PATH,

@@ -139,7 +139,7 @@ function fakePreview(script: Readonly<Record<string, Behaviour>>, withChannel = 
   document.body.replaceChildren(root);
 
   const fire = (event: string, payload: unknown): void => {
-    for (const handler of [...(handlers.get(event) ?? [])]) handler(payload);
+    for (const handler of handlers.get(event) ?? []) handler(payload);
   };
 
   const paragraph = (text: string): HTMLElement => {

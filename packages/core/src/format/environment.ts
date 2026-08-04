@@ -111,7 +111,7 @@ export function environmentKey(inputs: EnvironmentInputs): EnvironmentKey {
   // Layout depends on the viewport's size and colour scheme; rasterization also
   // depends on its scale factor. Splitting the viewport is what makes the two
   // keys differ, and it is the only difference between them.
-  const { deviceScaleFactor, ...layoutViewport } = inputs.viewport;
+  const { deviceScaleFactor: _scale, ...layoutViewport } = inputs.viewport;
 
   return {
     digest: digestValue({ ...shared, viewport: { ...inputs.viewport } }),

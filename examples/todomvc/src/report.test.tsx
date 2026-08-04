@@ -11,7 +11,7 @@ import {
   normalize,
   summarizeAdjudication,
   type SemanticDiff,
-  type SourceIndex,
+  
   type Viewport,
 } from '@variance-authority/core';
 import { collect } from '@variance-authority/dom';

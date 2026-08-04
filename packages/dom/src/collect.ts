@@ -186,7 +186,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
       // flattening. The second half is what lets the semantic key drop
       // `deviceScaleFactor` safely: a resolution-gated rule that resolves
       // differently on two machines splits the key through its outcome.
-      conditions: { ...(options.features ?? {}), ...index.evaluatedConditions },
+      conditions: { ...options.features, ...index.evaluatedConditions },
       assets: options.assets ?? {},
     },
     root: captureNode(root, profile, index, view, options, couplings),

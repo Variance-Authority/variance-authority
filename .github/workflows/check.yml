@@ -45,6 +45,13 @@ jobs:
         shell: bash
         run: yarn build
 
+      # Between build and test because it is the fastest of the three and its
+      # failures are the cheapest to act on: an unused import is a one-line fix,
+      # and finding it after a 35-second suite wastes the difference.
+      - name: lint
+        shell: bash
+        run: yarn lint
+
       # `vitest run` is everything: the unit suites, the corpus, the package
       # boundary rules (ADR-0013) and the documentation rules (ADR-0014).
       - name: test

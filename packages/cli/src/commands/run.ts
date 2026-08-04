@@ -758,7 +758,10 @@ async function observeAll(
   // observation order depended on which subject finished first would produce a
   // different file on every execution, and `variance run` writing a different
   // artifact from the same inputs would undo the whole determinism argument.
-  const slots: (Outcome | null)[] = new Array(plan.subjects.length).fill(null);
+  const slots: (Outcome | null)[] = Array.from(
+    { length: plan.subjects.length },
+    () => null,
+  );
 
   // The collector is a single standing world (ADR-0009), so exactly one call may
   // be in flight — collecting two subjects at once would render them into one

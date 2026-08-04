@@ -10,7 +10,7 @@ export default {
   viteFinal: async (config) => ({
     ...config,
     esbuild: {
-      ...(config.esbuild ?? {}),
+      ...config.esbuild,
       // Stated rather than inherited. Without it the stories compile against the
       // classic JSX runtime and every one of them throws `React is not defined` —
       // which the adapter reports correctly, and which would still be a case

@@ -109,7 +109,10 @@ export function matchTrees(baseline: SemanticNode, candidate: SemanticNode): Mat
     const taken = new Set<number>();
 
     /** Baseline index each candidate paired with, indexed by candidate position. */
-    const partner: (number | undefined)[] = new Array(after.children.length).fill(undefined);
+    const partner: (number | undefined)[] = Array.from(
+      { length: after.children.length },
+      () => undefined,
+    );
 
     // Pass 1 — identical content. A node that says the same thing is the same
     // node, wherever it moved to.
@@ -193,7 +196,10 @@ function outOfOrder(sequence: readonly number[]): readonly number[] {
   // length k+1; `previous` reconstructs which elements formed the longest one.
   const tails: number[] = [];
   const tailIndex: number[] = [];
-  const previous: (number | undefined)[] = new Array(sequence.length).fill(undefined);
+  const previous: (number | undefined)[] = Array.from(
+    { length: sequence.length },
+    () => undefined,
+  );
 
   for (let position = 0; position < sequence.length; position += 1) {
     const value = sequence[position]!;

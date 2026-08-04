@@ -25,7 +25,7 @@ import {
   expectationFor,
   scorableFor,
   undecidableFor,
-  type CorpusCase,
+  
   type Verdict,
 } from './corpus.js';
 import { CORPUS_FONTS, CORPUS_VIEWPORT, jsdomSnapshot } from './jsdom-profile.js';

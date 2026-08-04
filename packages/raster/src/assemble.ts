@@ -29,8 +29,6 @@ export interface AssembleOptions {
 }
 
 export function assemble(document: RenderDocument, options: AssembleOptions = {}): string {
-  const container = document.frame.ancestors.at(-1);
-
   return [
     '<!doctype html>',
     `<html${attributes(document.frame.html)}>`,

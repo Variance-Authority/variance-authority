@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 import {
   documentDigest,
   type Raster,

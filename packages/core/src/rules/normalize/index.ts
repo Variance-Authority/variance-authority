@@ -6,8 +6,7 @@ import type { CanonicalValue } from '../../format/canonical.js';
 import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../../format/snapshot.js';
 import { aliasAttributeValue, aliasStyleValue, buildAliasMap, type AliasResult } from './alias.js';
 import {
-  EMPTY_CONTEXT,
-  INHERITED_PROPERTIES,
+  
   resolveStyle,
   type InheritContext,
 } from './cascade.js';
@@ -303,7 +302,6 @@ function isInertWrapper(raw: RawNode, node: SemanticNode, state: WalkState): boo
 }
 
 const EMPTY_PROPERTIES: ReadonlySet<string> = new Set();
-const INHERITED = new Set(INHERITED_PROPERTIES);
 
 /**
  * Initial values for the properties a bare `div`/`span` legitimately carries.

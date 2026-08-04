@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
+import type { Raster, RenderIdentity } from '@variance-authority/core';
 import { createEphemeralStore, identityFrom, neverFails, rasterFrom } from './store.js';
 
 /**
@@ -16,7 +16,6 @@ import { createEphemeralStore, identityFrom, neverFails, rasterFrom } from './st
  * contract, which is declared here.
  */
 
-const VIEWPORT: Viewport = { width: 100, height: 100, deviceScaleFactor: 1, colorScheme: 'light' };
 
 const MAC: RenderIdentity = {
   renderer: 'playwright-chromium',
@@ -31,20 +30,6 @@ const RUNNER: RenderIdentity = { ...MAC, platform: 'linux/x64' };
 
 function rasterOf(identity: RenderIdentity, digest = 'v1:doc', bytes = 'AAAA'): Raster {
   return { documentDigest: digest, identity, width: 10, height: 10, bytes, missingFonts: [] };
-}
-
-function documentOf(html: string): RenderDocument {
-  return {
-    documentVersion: 1,
-    subject: { id: 's', kind: 'fixture' },
-    html,
-    frame: { html: {}, body: {}, ancestors: [] },
-    css: [],
-    viewport: VIEWPORT,
-    inherited: {},
-    fonts: [],
-    diagnostics: [],
-  };
 }
 
 describe('the ephemeral mode', () => {
