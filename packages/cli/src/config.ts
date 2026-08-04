@@ -99,6 +99,27 @@ export interface Config {
    * setting and never a verdict setting.
    */
   readonly decoder?: 'auto' | 'pngjs' | 'sharp';
+
+  /**
+   * How many subjects may be in the raster tier at once. Defaults to 1.
+   *
+   * Only the expensive half goes wide. Collection stays strictly serial however
+   * high this is set, because the collector owns one standing world (ADR-0009)
+   * and mounting two subjects into one document would let each decide the
+   * other's verdict. What parallelises is rendering, decoding, comparing and
+   * writing — which is also where the time is: ~65 ms to paint against ~7.5 ms
+   * to collect.
+   *
+   * Raising it is the operator's call because the cost is theirs. Each lane
+   * holds a browser page and the decoded pixels of two images, so on a large
+   * suite this is a memory decision as much as a speed one, and a two-vCPU
+   * runner will not reward the same number a laptop does.
+   *
+   * The report does not depend on it. Observations are written in plan order no
+   * matter which subject finishes first, so raising this changes what a run
+   * costs and never what it says.
+   */
+  readonly concurrency?: number;
 }
 
 /**
@@ -242,6 +263,7 @@ const TOP_LEVEL = [
   'intent',
   'alone',
   'decoder',
+  'concurrency',
 ] as const;
 
 /**
@@ -297,6 +319,14 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const intent = optionalText(root, 'intent', options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
 
+  const concurrency = root['concurrency'];
+  if (
+    concurrency !== undefined &&
+    (typeof concurrency !== 'number' || !Number.isInteger(concurrency) || concurrency < 1)
+  ) {
+    fail('concurrency', `must be an integer of at least 1, not ${quote(String(concurrency))}`, options);
+  }
+
   const decoder = root['decoder'] === undefined ? undefined : text(root, 'decoder', options);
   if (decoder !== undefined && decoder !== 'auto' && decoder !== 'pngjs' && decoder !== 'sharp') {
     fail('decoder', `must be "auto", "pngjs" or "sharp", not ${quote(decoder)}`, options);
@@ -319,6 +349,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(intent !== undefined ? { intent } : {}),
     ...(alone !== undefined ? { alone } : {}),
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
+    ...(concurrency === undefined ? {} : { concurrency: concurrency as number }),
   };
 }
 

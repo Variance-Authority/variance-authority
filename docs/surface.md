@@ -153,7 +153,7 @@ records this project's time-to-first-verdict as *unbounded*.
 
 ## 3. By suite
 
-`SubjectsConfig packages/cli/src/config.ts:157` is a two-arm union, and the second
+`SubjectsConfig packages/cli/src/config.ts:178` is a two-arm union, and the second
 arm is the general case.
 
 ### Storybook
@@ -197,7 +197,7 @@ versioned by nobody.
 }
 ```
 
-`ListSubjects packages/cli/src/config.ts:168` is the arbitrary-suite path. The
+`ListSubjects packages/cli/src/config.ts:189` is the arbitrary-suite path. The
 CLI branches to `planList`, at `packages/cli/src/commands/run.ts:1008`, and from
 there the run is identical — same normalizer, same bands, same docket, same store.
 

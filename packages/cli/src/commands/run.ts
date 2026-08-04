@@ -753,49 +753,87 @@ async function observeAll(
   const { config, deps, renderer } = context;
   const { observations, notObserved, warnings } = accumulated;
 
-  for (const planned of plan.subjects) {
+  // One slot per planned subject, filled out of order and read back in order.
+  // The report has to be a function of the plan and nothing else: a run whose
+  // observation order depended on which subject finished first would produce a
+  // different file on every execution, and `variance run` writing a different
+  // artifact from the same inputs would undo the whole determinism argument.
+  const slots: (Outcome | null)[] = new Array(plan.subjects.length).fill(null);
+
+  // The collector is a single standing world (ADR-0009), so exactly one call may
+  // be in flight — collecting two subjects at once would render them into one
+  // document and let each decide the other's verdict. The raster tier has no
+  // such constraint and is where the time is, so this is the shape: a serial
+  // lane for collection, everything downstream concurrent.
+  const collecting = serial();
+
+  let storeFailure: unknown;
+
+  await pool(concurrencyOf(config), plan.subjects, async (planned, index) => {
     const id = planned.subject.id;
 
+    // Once a store has failed the run is over, so later subjects stop rather
+    // than each paying a render to reach the same conclusion.
+    if (storeFailure !== undefined) return;
+
     if (options.subjects !== undefined && !matchesGlob(options.subjects, id)) {
-      notObserved.push({
-        subject: id,
-        kind: 'excluded',
-        because: `did not match --subjects ${options.subjects}`,
-      });
-      continue;
+      slots[index] = {
+        kind: 'not-observed',
+        entry: {
+          subject: id,
+          kind: 'excluded',
+          because: `did not match --subjects ${options.subjects}`,
+        },
+      };
+      return;
     }
 
-    const collected = await deps.collector.collect(planned);
+    const collected = await collecting(async () => deps.collector.collect(planned));
     if (!collected.ok) {
-      notObserved.push({ subject: id, kind: 'failed', because: collected.because });
-      continue;
+      slots[index] = {
+        kind: 'not-observed',
+        entry: { subject: id, kind: 'failed', because: collected.because },
+      };
+      return;
     }
 
     try {
-      const outcome = await observeOne(planned, collected, context);
-
-      if (outcome.kind === 'observed') observations.push(outcome.record);
-      else notObserved.push(outcome.entry);
+      slots[index] = await observeOne(planned, collected, context, collecting);
     } catch (error) {
       if (error instanceof RasterStoreError) {
         // Spec 0004: a store failure is not a verdict. Reporting an unreachable
         // endpoint as `new` would make the next `accept` overwrite the only copy
         // of what the subject looked like before, while reporting success.
-        throw new OperatorError(
+        // Captured rather than thrown, because throwing out of one worker while
+        // the others are mid-render leaves browser pages leased and the error
+        // racing whichever of them rejects next.
+        storeFailure ??= new OperatorError(
           `the baseline store failed while observing \`${id}\`: ${messageOf(error)}. ` +
             'No verdict was reached and no baseline was written.',
           { cause: error },
         );
+        return;
       }
       // Anything else is about this subject, not about the run. Recorded and the
       // run continues: one component that throws must not cost the other 299
       // their observations.
-      notObserved.push({
-        subject: id,
-        kind: 'failed',
-        because: `observing it failed: ${messageOf(error)}`,
-      });
+      slots[index] = {
+        kind: 'not-observed',
+        entry: {
+          subject: id,
+          kind: 'failed',
+          because: `observing it failed: ${messageOf(error)}`,
+        },
+      };
     }
+  });
+
+  if (storeFailure !== undefined) throw storeFailure;
+
+  for (const outcome of slots) {
+    if (outcome === null) continue;
+    if (outcome.kind === 'observed') observations.push(outcome.record);
+    else notObserved.push(outcome.entry);
   }
 
   const intent = options.intent ?? config.intent;
@@ -813,6 +851,75 @@ async function observeAll(
 
   await deps.writeReport(config.report, report);
   return report;
+}
+
+/**
+ * A queue of one. Every job runs to completion before the next begins.
+ *
+ * The collector owns a standing world — one browser, one page, one Storybook for
+ * the length of a run (ADR-0009) — so two collections in flight would mount two
+ * subjects into one document and let each decide the other's verdict. That is
+ * the same hazard the page pool removed from rendering, except here it cannot be
+ * removed: the shared world *is* the saving.
+ *
+ * So collection is serialized and everything downstream is not, which is the
+ * right way round: collecting costs ~7.5 ms and the raster tier ~65 ms.
+ */
+function serial(): <T>(job: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve();
+
+  return <T>(job: () => Promise<T>): Promise<T> => {
+    // Chained onto the tail's settlement rather than its value, so one job that
+    // rejects does not cancel every job queued behind it.
+    const next = tail.then(job, job);
+    tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  };
+}
+
+/**
+ * Run `worker` over every item, at most `limit` at a time, in index order.
+ *
+ * Index order of *starting*, not of finishing — workers take the next unclaimed
+ * item, so a slow subject delays nothing behind it. The caller is responsible
+ * for putting results back in order; here that is `slots`.
+ *
+ * A worker that rejects rejects the whole call, which is why `observeAll` catches
+ * inside the worker instead. Letting one subject's exception abandon the others
+ * mid-render would leave pages leased and the report short of subjects it never
+ * says it skipped.
+ */
+async function pool<T>(
+  limit: number,
+  items: readonly T[],
+  worker: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const lanes = Array.from({ length: Math.min(Math.max(1, limit), items.length) }, async () => {
+    for (;;) {
+      const index = next++;
+      const item = items[index];
+      if (item === undefined) return;
+      await worker(item, index);
+    }
+  });
+
+  await Promise.all(lanes);
+}
+
+/**
+ * How many subjects may be in the raster tier at once.
+ *
+ * Defaults to 1, which is what every run did before this existed. Raising it is
+ * the operator's call because the cost is theirs: each lane holds a browser page
+ * and the decoded pixels of two images, so a 300-subject suite at concurrency 8
+ * is a memory decision as much as a speed one.
+ */
+function concurrencyOf(config: Config): number {
+  return Math.max(1, config.concurrency ?? 1);
 }
 
 /**
@@ -880,6 +987,8 @@ async function observeOne(
   planned: PlannedSubject,
   collected: Extract<Collected, { ok: true }>,
   context: ObserveContext,
+  /** Serializes collector access. See {@link serial}. */
+  collecting: <T>(job: () => Promise<T>) => Promise<T>,
 ): Promise<Outcome> {
   const { config, deps, renderer } = context;
   const id = planned.subject.id;
@@ -925,7 +1034,7 @@ async function observeOne(
         ...(await images(id, observation, collected.document, renderer, config, deps, null)),
         diagnostics,
         ...findingsField(collected),
-        ...(await alone(planned, observation, null, context)),
+        ...(await alone(planned, observation, null, context, collecting)),
       }),
     };
   }
@@ -977,7 +1086,7 @@ async function observeOne(
       ...(await images(id, observation, collected.document, renderer, config, deps, key)),
       diagnostics,
       ...findingsField(collected),
-      ...(await alone(planned, observation, key, context)),
+      ...(await alone(planned, observation, key, context, collecting)),
     }),
   };
 }
@@ -1015,6 +1124,7 @@ async function alone(
   observation: Observation,
   key: BaselineKey | null,
   context: ObserveContext,
+  collecting: <T>(job: () => Promise<T>) => Promise<T>,
 ): Promise<{ alone?: CliObservationRecord['alone'] }> {
   const { config, deps, renderer, budget } = context;
 
@@ -1052,7 +1162,10 @@ async function alone(
 
   budget.remaining -= 1;
 
-  const fresh = await deps.collector.collectAlone(planned);
+  // Through the same lane as `collect`, because a clean world is still built out
+  // of the collector's one browser: two of these at once is the identical hazard.
+  const collectAlone = deps.collector.collectAlone.bind(deps.collector);
+  const fresh = await collecting(async () => collectAlone(planned));
   if (!fresh.ok) {
     return {
       alone: {
