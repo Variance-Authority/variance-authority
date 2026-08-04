@@ -9,11 +9,13 @@
   ],
   "scripts": {
     "build": "node tools/doc-examples.mjs && tsc --build",
+    "check": "vitest run --config vitest.checks.config.ts",
     "clean": "tsc --build --clean",
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "node tools/doc-examples.mjs && tsc --build --force"
+    "typecheck": "node tools/doc-examples.mjs && tsc --build --force",
+    "verify": "yarn lint && yarn check && yarn test"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

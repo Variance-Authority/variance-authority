@@ -274,7 +274,7 @@ exercising it was a test that supplied `causes` by hand.
 
 ## Cost paid elsewhere
 
-`tools/boundaries.test.ts` failed on the new workspace, correctly, and the fix was
+`tools/boundaries.check.ts` failed on the new workspace, correctly, and the fix was
 to the rule rather than to the case: `.spec.` now counts as a test file alongside
 `.test.`. The weaker import rule is about *when* code runs, not which runner runs
 it, and holding a competitor's spec to the production rule would have put a second

@@ -59,7 +59,7 @@ open links, where unexercised claims belong.
    forced, update [`docs/context/checkpoint.md`](../context/checkpoint.md), and
    delete the file. All three, or the debt moves somewhere less visible.
 
-`tools/docs-links.test.ts` and `tools/docs-proposals.test.ts` hold the parts of this that are checkable: every
+`tools/docs-links.check.ts` and `tools/docs-proposals.check.ts` hold the parts of this that are checkable: every
 link resolves, every type a proposal names still exists, and any block listing the
 CLI's commands is the binary's own.
 

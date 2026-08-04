@@ -383,12 +383,12 @@ lets a capture cross a network hop to a remote renderer unchanged.
 
 The layout is a test rather than a convention — see
 [ADR-0013](docs/context/adr/0013-packages-are-named-for-their-requirements.md)
-and `tools/boundaries.test.ts`, which fails when an import goes undeclared, a
+and `tools/boundaries.check.ts`, which fails when an import goes undeclared, a
 requirement gains a second owner, or an advertised entrypoint stops resolving.
 
 **The documentation is a test too** —
 [ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
-`tools/docs-links.test.ts` and `tools/docs-claims.test.ts`, which resolve every link, every repository path
+`tools/docs-links.check.ts` and `tools/docs-claims.check.ts`, which resolve every link, every repository path
 and every `file:line` reference in this and the other 77 markdown files, and
 compiles every README example against the built types with no unused import. An
 example is a call site the compiler could not see, which is why 11 of the 20 here

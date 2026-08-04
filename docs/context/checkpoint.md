@@ -51,7 +51,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B9 | **impact axis** — reflow vs repaint, orthogonal to the frequency bands | landed; answers B6's leftover band-cardinality question |
 | B10 | **intent / adjudication** — declared claims vs findings, and the locate/source chain | landed; a report is a cause, a place and a file |
 | B11 | **raster tier** — six phases, two retention modes, MCP surface | landed and measured; found that area ranks the displaced above the displacer |
-| B13 | **the boundary** — what a package is, and what an entrypoint costs | landed; ADR-0013, enforced by `tools/boundaries.test.ts` |
+| B13 | **the boundary** — what a package is, and what an entrypoint costs | landed; ADR-0013, enforced by `tools/boundaries.check.ts` |
 | B14 | **replacement** — what a case is, and whether an incumbent can actually be left | landed and measured against a real `toHaveScreenshot`; three rows no threshold reaches, one row we lose |
 | B15 | **limbs** — what a run knows with no baseline at all: bands split, inspection, locale, provenance without React | landed and measured; four capabilities and six defects, every one of them found by writing the capability rather than by looking for the defect |
 | B12 | **history** — what accumulates across runs, and where it lives | **built, wired to nothing, and blocked on a contract decision** ([what is left](../specs/0002-history-store.md)): the hashing (ADR-0018), the rows, the drift arithmetic and the service all ship; no run calls any of them, and the wire has no read that would let one. First implementation refuted and retired ([epitaphs](epitaphs.md)) |
@@ -192,7 +192,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   — which is enough to offload and is not the same claim as "the image matches the
   page it was acquired from".
 - **The documentation is checked now, and one class of it still is not.**
-  `tools/docs-links.test.ts` resolves every link, every backticked repository
+  `tools/docs-links.check.ts` resolves every link, every backticked repository
   path and every `file:line` reference across all 78 markdown files, and compiles
   every README `ts` example against the built `.d.ts` with no unused import. It
   found that **11 of the 20 examples did not compile** — wrong arity, options
@@ -204,7 +204,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   is a spec's ordinary prose: a behaviour paragraph can describe a field that does
   not exist, which is exactly what the locale spec's uncompared count was for a
   whole branch.
-- **The layout is checked, the *naming* is not.** `tools/boundaries.test.ts`
+- **The layout is checked, the *naming* is not.** `tools/boundaries.check.ts`
   proves every import is declared and every requirement has one owner. Nothing
   proves a package's name still describes what it needs — `store` could grow a
   socket and only a reader would notice.

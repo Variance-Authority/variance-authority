@@ -35,7 +35,7 @@ A package is named for its requirement — `dom`, `react`, `playwright`, `png`,
 nothing goes in a package that requires nothing, however different its subject
 matter is from its neighbours.
 
-Four rules follow, and are enforced by `tools/boundaries.test.ts`:
+Four rules follow, and are enforced by `tools/boundaries.check.ts`:
 
 1. **One owner per third-party requirement.** `playwright` is a production
    dependency of exactly one package, and so is each of `pixelmatch`, `pngjs`,

@@ -94,7 +94,7 @@ tiny — nine methods, all of them years old, all of them exercised by the doubl
 on every run.
 
 **The boundary gate reads dependencies per package, not per entrypoint**, so
-`tools/boundaries.test.ts` requires React in `dependencies` for `/ui` to import
+`tools/boundaries.check.ts` requires React in `dependencies` for `/ui` to import
 it. Under this ADR that is the correct answer rather than a limitation worked
 around: the declaration is honest, and the gate is enforcing the honest thing.
 

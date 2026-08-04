@@ -106,7 +106,7 @@ describe('nothing grows into a monster', () => {
     expect([...OVERSIZE].filter((file) => !existsSync(join(ROOT, file)))).toEqual([]);
   });
 
-  it.each(SOURCE.filter((file) => /\.(test|spec)\.(ts|tsx)$/.test(file)))(
+  it.each(SOURCE.filter((file) => /\.(test|spec|check)\.(ts|tsx)$/.test(file)))(
     '%s does not drive a compiler',
     (file) => {
       const text = readFileSync(join(ROOT, file), 'utf8');

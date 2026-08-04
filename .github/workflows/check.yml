@@ -52,8 +52,19 @@ jobs:
         shell: bash
         run: yarn lint
 
-      # `vitest run` is everything: the unit suites, the corpus, the package
-      # boundary rules (ADR-0013) and the documentation rules (ADR-0014).
+      # Before the tests, because a repository in an illegal state — a dangling
+      # link, an undeclared import, a file past the size limit — is cheaper to
+      # learn about in half a second than after a 35-second suite. These are
+      # checks and not tests: they exercise no behaviour and have no subject,
+      # they read the repository as data. `yarn test` used to run them too, and
+      # over half of what it reported as passing tests was this.
+      - name: check
+        shell: bash
+        run: yarn check
+
+      # `vitest run` is the unit suites and the corpus. The package boundary
+      # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
+      # 2026-08-04 and now run in the step above.
       - name: test
         shell: bash
         run: yarn test

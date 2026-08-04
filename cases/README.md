@@ -192,7 +192,7 @@ Two rules, and they are the reason the directory exists:
 
 Both cases skip loudly, with the command attached, when their prerequisite is
 missing. A silently skipped case reads in a summary exactly like one that ran and
-agreed — so this sentence is a test rather than a promise: `tools/skips.test.ts`
+agreed — so this sentence is a test rather than a promise: `tools/skips.check.ts`
 fails when any browser-gated suite stops announcing itself. It was written because
 the sentence was false when it was checked. Six of the ten gated files printed
 nothing, three of them carrying a skipped test whose *title* was the remedy, which

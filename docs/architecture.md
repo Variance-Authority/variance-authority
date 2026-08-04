@@ -146,7 +146,7 @@ Two consequences worth stating, because they are the ones that get argued about:
   one file until a second comparator arrived. Splitting by requirement
   produces small boxes, and a small box with one requirement is better than a
   large one with four.
-- **The rule is enforced, not documented.** `tools/boundaries.test.ts` fails when
+- **The rule is enforced, not documented.** `tools/boundaries.check.ts` fails when
   an import is undeclared, a declaration is unused, a third-party requirement
   gains a second owner, the production graph gains a cycle, or an advertised
   entrypoint does not resolve. It found four packages' worth of drift the first

@@ -89,7 +89,7 @@ second thing to keep in step.
 `PER_COMMAND` in `bin.ts` decides what a command accepts; `bin.test.ts` asserts
 that `USAGE` names every flag in it, reading the accepted set out of the
 parser's own refusal message rather than out of a copy; and
-`tools/docs-claims.test.ts` asserts the README shows `USAGE` line for line. A
+`tools/docs-claims.check.ts` asserts the README shows `USAGE` line for line. A
 renamed flag now fails two tests on its way to the documentation instead of
 arriving there never. The synopsis a reader retypes is the one the parser prints
 back at them when they get it wrong, because it is the same string.
@@ -162,5 +162,5 @@ risk is stated in the checkpoint rather than hidden here.
 - Adding a package means adding its README example to the same gate, at no cost:
   the checker discovers fences from `git ls-files`, so nothing has to be
   registered.
-- The checks require a build first, exactly as `tools/boundaries.test.ts` does.
+- The checks require a build first, exactly as `tools/boundaries.check.ts` does.
   They compile against `dist`, because that is what a consumer imports.
