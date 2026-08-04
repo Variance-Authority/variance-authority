@@ -1,0 +1,9 @@
+{
+  "name": "@variance-authority/tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "typescript-compiler-api": "npm:typescript@^5.9.3"
+  }
+}

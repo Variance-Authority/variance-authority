@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
+import ts from 'typescript-compiler-api';
 import { describe, expect, it } from 'vitest';
 // The real parser, not a restatement of its schema. Requires the build, as
 // everything else here does.

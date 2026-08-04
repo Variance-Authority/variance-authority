@@ -1,19 +1,20 @@
 {
   "name": "variance-authority",
   "private": true,
-  "packageManager": "yarn@4.12.0",
+  "packageManager": "yarn@4.18.0",
   "workspaces": [
     "packages/*",
     "examples/*",
-    "cases/*"
+    "cases/*",
+    "tools"
   ],
   "scripts": {
-    "build": "node node_modules/tsgo/bin/tsc --build",
-    "clean": "node node_modules/tsgo/bin/tsc --build --clean",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
     "lint": "oxlint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "node node_modules/tsgo/bin/tsc --build --force && yarn typecheck:examples",
+    "typecheck": "tsc --build --force && yarn typecheck:examples",
     "typecheck:examples": "vitest run tools/documentation.test.ts"
   },
   "devDependencies": {
@@ -27,8 +28,7 @@
     "pngjs": "^7.0.0",
     "react": "^19",
     "react-dom": "^19",
-    "tsgo": "npm:typescript@7.0.2",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vitest": "^2.1.8"
   }
 }

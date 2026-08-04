@@ -206,6 +206,50 @@ describe('a package declares what it imports', () => {
   );
 });
 
+/**
+ * Build tools are not product.
+ *
+ * Nothing here ships today — every package is `private: true` — but the question
+ * a reader asks about a visual-regression tool is *what does adopting it drag
+ * in*, and the honest answer has to be enforced rather than currently true. A
+ * compiler, a linter or a test runner in a package's `dependencies` is a
+ * consumer's install, not this repository's.
+ *
+ * `typescript` is the one worth naming. Two files under `tools/` import it for
+ * its AST — that is how README examples get compiled and imports get walked —
+ * and a reader who saw it in a manifest would reasonably conclude the product
+ * parses their TypeScript. It does not. It reads a rendered document.
+ */
+describe('no package ships a build tool', () => {
+  const TOOLING = ['typescript', 'tsgo', 'oxlint', 'vitest', 'esbuild', 'prettier', 'eslint'];
+
+  it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
+    '%s keeps its tooling out of `dependencies`',
+    (_name, workspace) => {
+      const shipped = Object.keys(workspace.manifest.dependencies ?? {}).filter((dependency) =>
+        TOOLING.includes(dependency),
+      );
+
+      expect(shipped).toEqual([]);
+    },
+  );
+
+  it('finds the tools it is checking for, so it cannot pass by naming nothing', () => {
+    // The rule is worthless if every name in it is a typo. At least one has to
+    // be a real devDependency somewhere, or this passes over a list of ghosts.
+    const anywhere = new Set(
+      ALL.flatMap((workspace) => Object.keys(workspace.manifest.devDependencies ?? {})).concat(
+        Object.keys(
+          (JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as Manifest)
+            .devDependencies ?? {},
+        ),
+      ),
+    );
+
+    expect(TOOLING.filter((tool) => anywhere.has(tool)).length).toBeGreaterThan(0);
+  });
+});
+
 describe('a requirement has one owner', () => {
   it.each(OWNED_BY_ONE)('%s is a production dependency of at most one package', (dependency) => {
     const owners = PACKAGES.filter((workspace) =>
