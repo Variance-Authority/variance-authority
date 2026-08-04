@@ -393,7 +393,7 @@ resolving.
 **The documentation is a test too** —
 [ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
 `tools/docs-links.check.ts` and `tools/docs-claims.check.ts`, which resolve every link, every repository path
-and every `file:line` reference in this and the other 82 markdown files, and
+and every `file:line` reference in this and the other 83 markdown files, and
 compiles every README example against the built types with no unused import. An
 example is a call site the compiler could not see, which is why 11 of the 20 here
 had gone stale against APIs that had been renamed underneath them. It runs in
@@ -512,14 +512,16 @@ Current state, what is proven and what is open, is kept in
    service, and what each one cannot do
 4. [`docs/replacing.md`](docs/replacing.md) — four things teams already run, and
    what moving costs and buys
-5. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
-6. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
+5. [`docs/cases.md`](docs/cases.md) — the six coins every tool in this category
+   has already called for you, and which face each one landed on
+6. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
+7. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
    dependency order
-7. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
-8. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
-9. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
-   [0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the moat
-10. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
+8. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
+9. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
+10. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
+    [0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the moat
+11. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
 
 ## Development
 

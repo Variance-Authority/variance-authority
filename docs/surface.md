@@ -241,15 +241,22 @@ directly, the way the Storybook arm was before `cases/storybook-case`.
 
 ### Playwright
 
-`@variance-authority/playwright` is **a renderer and a harness, not a test-suite
-integration.** There is no `expect(page).toMatchVariance()`, no fixture, no
-reporter. What the package gives you is a `Renderer packages/raster/src/renderer.ts:18`
-— a document in, a raster out — satisfying the same contract a renderer across a
-network satisfies.
+Two packages, and which one you want depends on whether you already have a suite.
 
-A Playwright suite adopts this by writing a collector that drives its own pages,
-not by importing a matcher. `cases/incumbent-case` installs `@playwright/test`
-and runs it, but as **the incumbent being measured**, not as an integration.
+[`@variance-authority/playwright-test`](../packages/playwright-test) is the
+fixture, landed 2026-08-04: `expect(await variance(locator)).toBeUnchanged()`
+inside the test body you already wrote. It is the one adoption path that needs no
+collector, because a Playwright test has navigated, mounted and waited by the
+time the fixture is reached — which is also why it is the answer for anything
+behind a login or several steps into a flow. See
+[replacing.md §1](replacing.md#1-replacing-expectpagetohavescreenshot).
+
+`@variance-authority/playwright` underneath it is **a renderer and a harness**: a
+`Renderer packages/raster/src/renderer.ts:18` — a document in, a raster out —
+satisfying the same contract a renderer across a network satisfies, and usable on
+its own by a collector that drives its own pages. `cases/incumbent-case` installs
+`@playwright/test` and runs it, but as **the incumbent being measured**, not as an
+integration.
 
 ### jest and vitest
 
@@ -335,6 +342,17 @@ instead of rinsing between subjects, and deciding semantically before rendering.
 The README tabulates them; [comparison §3.3](comparison.md#33-deciding-at-the-cheapest-representation-that-can-decide)
 records that three of the six rows are asserted by no test, and that the cheap
 tier's advantage is **~5×, not the ~100× the architecture was drawn around**.
+
+**Sharding is a glob per job and one merge at the end.** `variance run --subjects
+<glob>` narrows a run to a slice; `variance report shard-1.json shard-2.json …`
+reads them back as one suite, so a split suite still has one exit code and one
+pull-request comment. The merge refuses shards that were not one run — differing
+renderer identity, retention or `--intent`, or two shards that observed the same
+subject — and resolves each shard's `excluded` entries against what the others
+observed. The case worth knowing: **a subject every shard filtered out is
+promoted to `failed`**, because each shard exits `0` having done exactly what it
+was told while the suite quietly stopped watching a component. See
+[`packages/cli/README.md`](../packages/cli/README.md).
 
 **Signal is four refusals**, and refusing is the whole technique:
 

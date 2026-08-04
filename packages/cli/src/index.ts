@@ -20,6 +20,9 @@
  *   including the ones it did not observe, which is the failure this whole system
  *   exists to make impossible.
  * - `commands/report.ts` answers from that artifact and never re-runs.
+ * - `commands/merge.ts` makes N shard artifacts into one, and refuses the pairs
+ *   that were never one run — which is what lets a sharded suite have a single
+ *   exit code and a single pull-request comment.
  * - `commands/comment.ts` renders that same artifact as a pull-request body —
  *   report in, string out, no network and no clock, which is what lets the CI
  *   action shell out to `variance comment` instead of carrying a second
@@ -83,6 +86,9 @@ export type {
 export { formatReport } from './commands/report.js';
 export type { ReportFormat, ReportOptions } from './commands/report.js';
 
+export { mergeReports } from './commands/merge.js';
+export type { Shard } from './commands/merge.js';
+
 export { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 export type {
   AcceptOptions,
@@ -122,4 +128,4 @@ export type {
  * knowing about the browser package, and means re-deciding `browser` and
  * `renderer` — two config fields — in every composition that does it.
  */
-export { rendererFor, openRenderer } from './bin.js';
+export { rendererFor, openRenderer } from './dispatch.js';

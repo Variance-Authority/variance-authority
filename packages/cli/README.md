@@ -14,11 +14,11 @@ whose requirements are decided by a file rather than by its own code.
 
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>]
-variance report  [--config <path>] [--format text|json] [--subject <id>]
+variance report  [--config <path>] [--format text|json] [--subject <id>] [<report>...]
 variance accept  [--config <path>] <subject>... | --all
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
-variance comment [--config <path>] [--body-file <path>] [--run-url <url>] | --marker
+variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
 ```
 
 `run` produces the verdict and the exit code; `report` re-reads what it wrote;
@@ -27,6 +27,43 @@ can observe before a run rather than after one. `serve` exposes the report the
 last run wrote to an MCP client — an agent asks it what changed, which component
 and which file, over stdio, without re-running anything; the tools are
 [`@variance-authority/mcp`](../mcp)'s.
+
+### Sharding: `report` takes more than one file
+
+A suite big enough to split across CI jobs runs `variance run --subjects <glob>`
+once per job and ends with one artifact each. Name them all and `report` answers
+about the suite rather than about a slice — one exit code, one body for
+`comment`:
+
+```bash
+variance report shard-1.json shard-2.json shard-3.json
+```
+
+`comment` takes them the same way, so the pull request gets one body rather than
+one per job:
+
+```bash
+variance comment --body-file body.md shard-1.json shard-2.json shard-3.json
+```
+
+Naming any report replaces the configured one rather than adding to it, because
+a shard writes where its job told it to and merging in a file nobody asked for is
+not a thing a reader can undo.
+
+The merge refuses more than it accepts, and both halves are the point. Shards
+whose renderer identity, retention or `--intent` differ were not one run, and are
+refused naming both files — carrying one of the two answers under a single
+heading is how half a report gets attributed to a machine that never saw it. Two
+shards observing the same subject means the globs overlapped, which only the
+operator can resolve.
+
+What it does accept is the arithmetic nobody wants to do by hand. Each shard
+records every subject outside its slice as `excluded`, so three shards report
+each subject as excluded twice and observed once; the merge resolves those
+against what was actually observed. **A subject that every shard filtered out is
+promoted to `failed` and turns the merged run red** — each shard exits `0`
+because each did exactly what it was told, and the suite is missing a component.
+That is the case sharding introduces and nothing else can see.
 
 `comment` renders the same report as a pull-request body: causes first,
 collateral counted rather than listed, and **nothing when the check is green** —

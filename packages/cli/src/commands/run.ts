@@ -7,6 +7,7 @@ import { observeOne } from './observe-one.js';
 import { decoderFor } from './resources.js';
 import { concurrencyOf, pool, serial } from './schedule.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
+import { shardFilterBecause } from './run-report.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
 
 /**
@@ -179,7 +180,7 @@ async function observeAll(
         entry: {
           subject: id,
           kind: 'excluded',
-          because: `did not match --subjects ${options.subjects}`,
+          because: shardFilterBecause(options.subjects),
         },
       };
       return;

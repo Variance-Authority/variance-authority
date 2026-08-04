@@ -37,6 +37,31 @@ export interface NotObserved {
 }
 
 /**
+ * The one exclusion that is not a decision: a subject another shard was to take.
+ *
+ * `--subjects` narrows a run to a slice and records every subject outside it as
+ * `excluded`, which is the truth about *that* run and a lie about the suite —
+ * nobody chose to stop watching those components, they are simply somebody
+ * else's shard. Reading it as a decision is what would let a sharded suite lose a
+ * subject in silence: excluded everywhere, red nowhere.
+ *
+ * So the sentence is built here and recognized here, and both `run` and `merge`
+ * go through it. A prefix match on prose is normally a mistake; it is sound in
+ * this one case because the writer of the prose is the reader of it, in the same
+ * package, and the check below is what keeps them from drifting apart.
+ */
+const SHARD_FILTER = 'did not match --subjects ';
+
+export function shardFilterBecause(glob: string): string {
+  return `${SHARD_FILTER}${glob}`;
+}
+
+/** Whether an entry is another shard's subject rather than a decision. */
+export function isShardFilter(entry: NotObserved): boolean {
+  return entry.kind === 'excluded' && entry.because.startsWith(SHARD_FILTER);
+}
+
+/**
  * The run report as this CLI writes it: `RunReport` plus the coverage it cannot
  * express.
  *

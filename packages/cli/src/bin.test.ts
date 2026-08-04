@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { USAGE, openRenderer, parseArgs } from './bin.js';
+import { USAGE, parseArgs } from './bin.js';
+import { openRenderer } from './dispatch.js';
 import { EXIT_OPERATOR, OperatorError } from './exit.js';
 
 describe('parseArgs', () => {
@@ -111,6 +112,30 @@ describe('parseArgs', () => {
     expect(Object.keys(parseArgs(['run'])).sort()).toEqual(['command', 'config']);
   });
 
+  it('takes shard reports as positionals on report and comment', () => {
+    // Resolved here rather than at the read, so a relative path means the same
+    // thing as `--config` does: relative to where the operator typed it.
+    expect(parseArgs(['report', 'a.json', 'b.json'])).toEqual({
+      command: 'report',
+      config: resolve('variance.config.json'),
+      format: 'text',
+      reports: [resolve('a.json'), resolve('b.json')],
+    });
+
+    expect(parseArgs(['comment', 'a.json'])).toEqual({
+      command: 'comment',
+      config: resolve('variance.config.json'),
+      marker: false,
+      reports: [resolve('a.json')],
+    });
+  });
+
+  it('refuses a report beside --marker, which reads nothing', () => {
+    expect(attempt(['comment', '--marker', 'a.json']).message).toContain(
+      'prints the marker and nothing else',
+    );
+  });
+
   it('takes the docket flags on comment, and drops an empty --run-url', () => {
     expect(parseArgs(['comment', '--body-file', 'out.md', '--run-url', 'https://ci/1'])).toEqual({
       command: 'comment',
@@ -118,6 +143,7 @@ describe('parseArgs', () => {
       marker: false,
       bodyFile: 'out.md',
       runUrl: 'https://ci/1',
+      reports: [],
     });
 
     // A workflow that published nothing passes `--run-url ""`, and a comment
@@ -126,6 +152,7 @@ describe('parseArgs', () => {
       command: 'comment',
       config: resolve('variance.config.json'),
       marker: false,
+      reports: [],
     });
   });
 

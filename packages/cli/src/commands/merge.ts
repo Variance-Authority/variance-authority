@@ -1,0 +1,222 @@
+import { identityDigest } from '@variance-authority/core';
+import { OperatorError } from '../exit.js';
+import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
+
+/**
+ * N shard reports into one, or a refusal naming which two disagreed.
+ *
+ * A suite big enough to shard runs `variance run --subjects <glob>` once per CI
+ * job and ends with N artifacts. Every question anyone actually asks is about the
+ * *suite* — did anything change, what needs review, what should the one PR
+ * comment say — and none of the N can answer it. Posting N comments is the
+ * workaround, and it is the reason a sharded suite drifts into being read by
+ * nobody.
+ *
+ * ## The whole design is in one rule
+ *
+ * A merged report must not be able to say anything a single run could not. So
+ * every field that is *singular* in a run report — the renderer identity, the
+ * retention, the intent — has to agree across the shards or the merge is refused
+ * by name. Picking one and carrying on would attribute half the observations to a
+ * machine that never saw them, which is precisely the failure `identityDigest`
+ * partitioning exists to prevent (ADR-0011). A merge that guesses is worse than
+ * no merge, because the artifact it produces looks exactly like a real one.
+ *
+ * ## What sharding does to the coverage list, and what this does back
+ *
+ * `--subjects` records every subject outside the slice as `excluded`. Merge
+ * three shards naively and each subject is observed once and excluded twice — a
+ * report that contradicts itself. The resolution is not to drop exclusions,
+ * because that would throw away the only evidence of the case that matters:
+ *
+ * **A subject no shard claimed is a hole in the split, and it exits 1.** If every
+ * shard filtered a subject out, then the globs did not cover the suite and
+ * nobody looked at that component. Left as `excluded` it would be a green build
+ * over an unwatched surface — the exact thing `notObserved` was added to prevent —
+ * so it is promoted to `failed` and `exitFor` refuses the run. This is the
+ * property that makes sharding safe here, and it costs the operator nothing: a
+ * correct split never produces one.
+ */
+
+export interface Shard {
+  /** Where it was read from. Named in every refusal, because "two disagree" is useless without both. */
+  readonly path: string;
+  readonly report: CliRunReport;
+}
+
+export function mergeReports(shards: readonly Shard[]): CliRunReport {
+  const [first, ...rest] = shards;
+  if (first === undefined) throw new OperatorError('merging needs at least one report');
+  if (rest.length === 0) return first.report;
+
+  agree(shards, 'renderer identity', (shard) => identityDigest(shard.report.identity));
+  agree(shards, 'retention', (shard) => shard.report.retention);
+  agree(shards, 'run version', (shard) => String(shard.report.runVersion));
+  // Absent is a value here, not a skip: one shard run with `--intent` and one
+  // without were given different questions to answer, and the merged report
+  // carries the answer into every sentence it prints.
+  agree(shards, 'intent', (shard) => shard.report.intent ?? '(none)');
+
+  // Field by field rather than a spread of the first shard, and the difference
+  // matters twice. `notObserved` must be able to come out *absent* when a shard
+  // never said what it skipped, which a spread of a shard that did say would
+  // quietly overwrite. And a field added to `RunReport` later stops compiling
+  // here if it is required — which is the only moment anyone will think about
+  // whether N shards can have one of it.
+  return {
+    runVersion: first.report.runVersion,
+    at: earliest(shards),
+    identity: first.report.identity,
+    retention: first.report.retention,
+    ...(first.report.intent !== undefined ? { intent: first.report.intent } : {}),
+    observations: observationsOf(shards),
+    ...coverageOf(shards),
+    ...warningsOf(shards),
+  };
+}
+
+function agree(shards: readonly Shard[], field: string, of: (shard: Shard) => string): void {
+  const [first, ...rest] = shards;
+  const mine = of(first!);
+
+  for (const other of rest) {
+    if (of(other) === mine) continue;
+    throw new OperatorError(
+      `these reports were not one run: ${first!.path} has ${field} ${mine} and ` +
+        `${other.path} has ${of(other)}. Shards of one suite must be produced by ` +
+        'the same configuration on the same machine image; merging them anyway ' +
+        'would put both answers under one heading with no way to tell which is which.',
+    );
+  }
+}
+
+/**
+ * The oldest, so a merged report is never fresher than its stalest part.
+ *
+ * `report` cannot tell whether a report is stale ‒ it says so in its own header ‒
+ * and the only defence a reader has is the timestamp. Carrying the newest would
+ * make a merge a way to launder an hour-old shard into a current answer.
+ */
+function earliest(shards: readonly Shard[]): string {
+  let best = shards[0]!;
+  let bestAt = parse(best);
+
+  for (const shard of shards.slice(1)) {
+    const at = parse(shard);
+    if (at < bestAt) {
+      best = shard;
+      bestAt = at;
+    }
+  }
+  return best.report.at;
+}
+
+function parse(shard: Shard): number {
+  const at = Date.parse(shard.report.at);
+  if (Number.isNaN(at)) {
+    throw new OperatorError(
+      `${shard.path} has \`at\`: ${JSON.stringify(shard.report.at)}, which is not a date. ` +
+        'A merged report states when the oldest shard ran, and cannot state it from this.',
+    );
+  }
+  return at;
+}
+
+/**
+ * Every shard's observations, in shard order, with an overlap refused.
+ *
+ * Two observations of one subject means the globs overlapped, and there is no
+ * safe resolution: the two ran at different times against the same baseline, so
+ * keeping either one is a choice about which verdict is real. The operator wrote
+ * the globs and is the only one who can say which shard should have had it.
+ */
+function observationsOf(shards: readonly Shard[]): CliRunReport['observations'] {
+  const seen = new Map<string, string>();
+  const merged: CliRunReport['observations'][number][] = [];
+
+  for (const shard of shards) {
+    for (const record of shard.report.observations) {
+      const earlier = seen.get(record.subject);
+      if (earlier !== undefined) {
+        throw new OperatorError(
+          `\`${record.subject}\` was observed by both ${earlier} and ${shard.path}. ` +
+            'The --subjects globs overlap; one subject can only have one verdict, and ' +
+            'this will not choose between two runs of it.',
+        );
+      }
+      seen.set(record.subject, shard.path);
+      merged.push(record);
+    }
+  }
+  return merged;
+}
+
+/**
+ * The coverage list, with shard filters resolved against what was observed.
+ *
+ * One shard that never said what it skipped poisons the whole thing to `absent`,
+ * and that is the field's own rule rather than a decision taken here: `undefined`
+ * means *the writer never said*, and no amount of other shards saying can turn
+ * one silence into a claim about the suite. `exitFor` reads that as needing
+ * review, which is the conservative end and the right one.
+ */
+function coverageOf(shards: readonly Shard[]): { notObserved?: readonly NotObserved[] } {
+  if (shards.some((shard) => shard.report.notObserved === undefined)) return {};
+
+  const observed = new Set(
+    shards.flatMap((shard) => shard.report.observations.map((record) => record.subject)),
+  );
+
+  const bySubject = new Map<string, { entries: NotObserved[]; paths: string[] }>();
+  for (const shard of shards) {
+    for (const entry of shard.report.notObserved ?? []) {
+      const found = bySubject.get(entry.subject) ?? { entries: [], paths: [] };
+      found.entries.push(entry);
+      found.paths.push(shard.path);
+      bySubject.set(entry.subject, found);
+    }
+  }
+
+  const notObserved: NotObserved[] = [];
+  for (const [subject, { entries, paths }] of bySubject) {
+    const decisions = entries.filter((entry) => !isShardFilter(entry));
+
+    if (observed.has(subject)) {
+      // A shard filter beside an observation is the normal case and is exactly
+      // what merging is for. Anything else is a contradiction about one subject
+      // in one suite, and has the same cause as a duplicate observation.
+      if (decisions.length === 0) continue;
+      throw new OperatorError(
+        `\`${subject}\` was observed by one shard and reported as not observed by ` +
+          `${paths.join(', ')}: ${decisions[0]!.because}. Two shards disagree about ` +
+          'whether it was looked at, so neither answer can be printed as the suite\'s.',
+      );
+    }
+
+    if (decisions.length === 0) {
+      notObserved.push({
+        subject,
+        kind: 'failed',
+        because:
+          `no shard observed it: all ${entries.length} reports filtered it out with ` +
+          '--subjects. The globs do not cover the suite, so this subject is unwatched ' +
+          'rather than excluded.',
+      });
+      continue;
+    }
+
+    // A failure outranks an exclusion. A subject the operator excluded in one
+    // shard and that crashed in another is a coverage hole either way, and
+    // printing the exclusion would file it under decisions somebody made.
+    notObserved.push(decisions.find((entry) => entry.kind === 'failed') ?? decisions[0]!);
+  }
+
+  return { notObserved };
+}
+
+function warningsOf(shards: readonly Shard[]): { warnings?: readonly string[] } {
+  // Deduplicated because every shard loads the same subject index and therefore
+  // repeats the same complaint about it N times, which reads as N problems.
+  const warnings = [...new Set(shards.flatMap((shard) => shard.report.warnings ?? []))];
+  return warnings.length === 0 ? {} : { warnings };
+}
