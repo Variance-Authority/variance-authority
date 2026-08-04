@@ -1,38 +1,15 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  attributeRegions,
-  buildDocket,
-  diffSnapshots,
-  formatSource,
-  indexSource,
-  inspect,
-  isolateRegions,
-  mergeSourceIndexes,
-  normalize,
-  rankRegions,
-  resolveSource,
-  type RankedRegion,
-  type SemanticSnapshot,
-  type SourceIndex,
-} from '@variance-authority/core';
-import { comparePngs } from '@variance-authority/png';
+import { inspect, type SemanticSnapshot } from '@variance-authority/core';
 // @ts-expect-error — a plain .mjs script, deliberately not part of the TS build.
 import { stale } from '../scripts/bundle.mjs';
 import { createHarness, type Harness } from '@variance-authority/playwright';
-import {
-  CONFIGURATIONS,
-  SCENARIOS,
-  mark,
-  type Expectation,
-  type Handed,
-  type Scenario,
-  type Told,
-  type Variant,
-} from './scenarios.js';
+import { readIncumbent, type IncumbentResult } from './incumbent-report.js';
+import { runOurArm, type Finding } from './replacement-arm.js';
+import { CONFIGURATIONS, SCENARIOS, mark } from './scenarios.js';
 
 /**
  * The head-to-head: eight edits, two arms, one page.
@@ -57,6 +34,11 @@ import {
  * component produced each node, and the component resolves to a file. And below
  * the pixels there is a tier that answers three of these eight scenarios without
  * a screenshot at all, because nothing they changed was ever visible.
+ *
+ * Neither arm is driven from this file. Theirs is read off disk by
+ * `incumbent-report.ts`, ours is run by `replacement-arm.ts`, and what is left
+ * here is the only thing a head-to-head is entitled to assert: what each of them
+ * hands a reviewer, against expectations `scenarios.ts` fixed before either ran.
  *
  * Run:
  *   yarn workspace @variance-authority/case-incumbent incumbent
@@ -92,239 +74,25 @@ const STALE = stale();
 
 const READY = BROWSER_AVAILABLE && existsSync(BUNDLE) && existsSync(RESULTS) && STALE === null;
 
-// ---------------------------------------------------------------------------
-// the incumbent's report, read rather than reproduced
-// ---------------------------------------------------------------------------
-
-interface JsonSuite {
-  readonly specs?: readonly {
-    readonly title: string;
-    readonly tests?: readonly {
-      readonly projectName: string;
-      readonly status: string;
-      readonly results?: readonly { readonly error?: { readonly message?: string } }[];
-    }[];
-  }[];
-  readonly suites?: readonly JsonSuite[];
-}
-
-interface IncumbentResult extends Expectation {
-  /** Their sentence, stripped of terminal colour. What a reviewer actually sees. */
-  readonly says: string;
-  /** Differing pixels, when their message carried a count. */
-  readonly pixels: number | null;
-  /** The two dimensions, when their message named them. */
-  readonly resized: string | null;
-}
-
-/**
- * Their outcome, in our vocabulary.
- *
- * Classified from the message rather than from the exit status, because a status
- * cannot distinguish the three things a red `toHaveScreenshot` means: pixels
- * differ, the sizes differ, or there was no baseline. Only the last is not a
- * finding, and reading it as one is the failure this project refuses everywhere
- * else — `absent is not empty`.
- */
-function classify(status: string, says: string): { told: Told; handed: Handed } {
-  if (status === 'expected') return { told: 'silent', handed: 'nothing' };
-  if (/snapshot doesn't exist/i.test(says)) return { told: 'deferred', handed: 'no baseline' };
-  return { told: 'told', handed: 'a number' };
-}
-
-function readIncumbent(): ReadonlyMap<string, IncumbentResult> {
-  const report = JSON.parse(readFileSync(RESULTS, 'utf8')) as { readonly suites: readonly JsonSuite[] };
-  const found = new Map<string, IncumbentResult>();
-
-  const walk = (suite: JsonSuite): void => {
-    for (const spec of suite.specs ?? []) {
-      for (const test of spec.tests ?? []) {
-        const says = (test.results?.[0]?.error?.message ?? '')
-          // eslint-disable-next-line no-control-regex -- the JSON reporter keeps ANSI
-          .replace(/\[[0-9;]*m/g, '')
-          .trim();
-
-        const pixels = /(\d+) pixels \(ratio/.exec(says);
-        const resized = /Expected an image (\d+px by \d+px), received (\d+px by \d+px)/.exec(says);
-
-        found.set(`${test.projectName}/${spec.title}`, {
-          ...classify(test.status, says),
-          says,
-          pixels: pixels === null ? null : Number(pixels[1]),
-          resized: resized === null ? null : `${resized[1]} → ${resized[2]}`,
-        });
-      }
-    }
-    for (const child of suite.suites ?? []) walk(child);
-  };
-  for (const suite of report.suites) walk(suite);
-
-  return found;
-}
-
-// ---------------------------------------------------------------------------
-// our arm
-// ---------------------------------------------------------------------------
-
-interface Finding extends Expectation {
-  /** Names, deduplicated, in the order a report would print them. */
-  readonly names: readonly string[];
-  /** `component → file:line`, for the ones the source index resolves. */
-  readonly files: readonly string[];
-  /** Differing pixels under the default policy, or `null` when nothing was rendered. */
-  readonly pixels: number | null;
-  readonly regions: readonly RankedRegion[];
-  /** `true` when the cheap tier settled it and no image was needed to. */
-  readonly semanticOnly: boolean;
-  readonly because: string;
-}
-
-/** This case's own source, indexed by component name — the same way todomvc does it. */
-function buildSourceIndex(): SourceIndex {
-  const directory = join(PACKAGE_ROOT, 'src');
-  const files = readdirSync(directory).filter(
-    (name) => /\.tsx?$/.test(name) && !name.includes('.test.') && !name.includes('.spec.'),
-  );
-
-  return mergeSourceIndexes(
-    files.map((name) =>
-      indexSource(relative(PACKAGE_ROOT, join(directory, name)), readFileSync(join(directory, name), 'utf8')),
-    ),
-  );
-}
-
-const SOURCE = buildSourceIndex();
-
 let harness: Harness | undefined;
-const OURS = new Map<string, Finding>();
-
-/** Capture and shoot the same mount, in that order. */
-async function observe(
-  scenario: Scenario,
-  variant: Variant,
-): Promise<{ snapshot: SemanticSnapshot; shot: Buffer; origin: { x: number; y: number } }> {
-  // `capture` mounts and then collects, so the screenshot below is of the tree
-  // this snapshot describes. Shooting first would photograph the previous
-  // scenario and attribute this one's regions to it — a complete, plausible
-  // report about the wrong components.
-  const snapshot = normalize(await harness!.capture(scenario.id, variant));
-  const shot = await harness!.page.locator(CLIP).screenshot();
-
-  // Read rather than assumed. The snapshot's root is the mount host and the
-  // screenshot is clipped to the box above it; the two share an origin only by
-  // coincidence of this page's layout.
-  const origin = await harness!.page.evaluate((selector) => {
-    const rect = window.document.querySelector(selector)!.getBoundingClientRect();
-    return { x: rect.x, y: rect.y };
-  }, CLIP);
-
-  return { snapshot, shot, origin };
-}
+let incumbent: ReadonlyMap<string, IncumbentResult> = new Map();
 
 /**
- * Every scenario's post-edit snapshot, kept so the inspection arm can read the
- * broken render *without* the baseline the comparison arm needs.
+ * Our arm, as `replacement-arm.ts` handed it back.
+ *
+ * Filled once, in `beforeAll`, and read by every group below — because the run
+ * is a single pass over the corpus in one browser. Per-group runs would let two
+ * groups disagree about the same scenario and leave nothing to say which pass
+ * was right.
  */
-const AFTER = new Map<string, SemanticSnapshot>();
-const BEFORE = new Map<string, SemanticSnapshot>();
-
-async function runOurArm(): Promise<void> {
-  for (const scenario of SCENARIOS) {
-    // The record phase, mirroring theirs: the new-subject scenario gets no
-    // baseline, because the absence *is* the scenario.
-    const baseline =
-      scenario.baseline === 'none' ? null : await observe(scenario, 'before');
-
-    const after = await observe(scenario, 'after');
-    AFTER.set(scenario.id, after.snapshot);
-    if (baseline !== null) BEFORE.set(scenario.id, baseline.snapshot);
-
-    if (baseline === null) {
-      OURS.set(scenario.id, {
-        told: 'deferred',
-        handed: 'no baseline',
-        names: [],
-        files: [],
-        pixels: null,
-        regions: [],
-        semanticOnly: false,
-        because: `no baseline for \`${scenario.id}\`; nothing to compare against`,
-      });
-      continue;
-    }
-
-    // The cheap tier first, and this ordering is the economic claim rather than
-    // an implementation detail: three of these eight scenarios are settled here,
-    // by two trees, with no image consulted on either side.
-    const diff = diffSnapshots(baseline.snapshot, after.snapshot);
-    const causes = buildDocket([diff]).entries.flatMap((entry) =>
-      entry.components.filter((component) => component.role === 'root').map((component) => component.name),
-    );
-
-    const comparison = comparePngs(baseline.shot, after.shot);
-    const pixels = comparison.changed['default'] ?? 0;
-    const moved = pixels > 0 || comparison.dimensionsChanged;
-
-    const regions = moved
-      ? rankRegions(
-          attributeRegions(isolateRegions(comparison.mask).regions, after.snapshot, {
-            scale: VIEWPORT.deviceScaleFactor,
-            origin: after.origin,
-          }),
-          causes,
-        )
-      : [];
-
-    if (diff.identical && !moved) {
-      OURS.set(scenario.id, {
-        told: 'silent',
-        handed: 'nothing',
-        names: [],
-        files: [],
-        pixels,
-        regions: [],
-        semanticOnly: true,
-        because: 'the two documents hash the same and no pixel differs',
-      });
-      continue;
-    }
-
-    // Semantic causes first: they are the ones with provenance. Raster regions
-    // add the components the pixels landed in, which for a reflow is mostly
-    // collateral — see `examples/todomvc/src/observe.chromium.test.ts`.
-    const names = [
-      ...new Set([
-        ...causes,
-        ...regions.map((region) => region.component).filter((name): name is string => name !== undefined),
-      ]),
-    ];
-
-    OURS.set(scenario.id, {
-      told: 'told',
-      handed: names.length > 0 ? 'components and files' : 'a number',
-      names,
-      files: names
-        .map((name) => {
-          const source = resolveSource(name, SOURCE);
-          return source === null ? null : `${name} ${formatSource(source)}`;
-        })
-        .filter((line): line is string => line !== null),
-      pixels,
-      regions,
-      semanticOnly: !moved,
-      because: moved
-        ? `${pixels} pixel(s) differ across ${regions.length} region(s)`
-        : 'no pixel differs, and the documents do not hash the same',
-    });
-  }
-}
-
-let incumbent: ReadonlyMap<string, IncumbentResult> = new Map();
+let OURS: ReadonlyMap<string, Finding> = new Map();
+let AFTER: ReadonlyMap<string, SemanticSnapshot> = new Map();
+let BEFORE: ReadonlyMap<string, SemanticSnapshot> = new Map();
 
 beforeAll(async () => {
   if (!READY) return;
 
-  incumbent = readIncumbent();
+  incumbent = readIncumbent(RESULTS);
 
   // The bundle is *read*, never rebuilt. The incumbent ran against these exact
   // bytes; rebuilding would let the two arms observe two builds and turn any
@@ -336,7 +104,14 @@ beforeAll(async () => {
     fonts: ['ui-sans-serif/400/normal/incumbent-case'],
   });
 
-  await runOurArm();
+  const run = await runOurArm(harness, {
+    packageRoot: PACKAGE_ROOT,
+    clip: CLIP,
+    scale: VIEWPORT.deviceScaleFactor,
+  });
+  OURS = run.findings;
+  AFTER = run.after;
+  BEFORE = run.before;
 }, 180_000);
 
 afterAll(async () => {

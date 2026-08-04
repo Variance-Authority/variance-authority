@@ -175,3 +175,15 @@ export type RootKind =
 export function deltaSignature(delta: Delta): string {
   return `${delta.kind}:${delta.path}:${delta.property ?? ''}`;
 }
+
+/**
+ * How a delta counts towards an aggregate impact.
+ *
+ * A structural delta has no `impact` because the question does not apply to it —
+ * a node that appeared did not reflow, it arrived. `'structural'` says that,
+ * rather than leaving every aggregation site to re-decide what a missing field
+ * means; there are three of them, and they must agree.
+ */
+export function impactTag(delta: Delta): PropertyImpact | 'structural' {
+  return delta.impact ?? 'structural';
+}

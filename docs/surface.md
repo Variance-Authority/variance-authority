@@ -26,7 +26,7 @@ operator supplies, named in a config file or passed as an argument.
 
 ### The collector — three methods
 
-`Collector` at `packages/cli/src/commands/run.ts:227` is the half of a run this
+`Collector` at `packages/cli/src/commands/collector.ts:109` is the half of a run this
 project declines to write, and the reason is in the source above it: planning
 from a story index is generic because the index is a file with a documented
 shape, and *mounting* a project's components is not — it needs the project's own
@@ -39,7 +39,7 @@ close()    -> release whatever plan() opened
 ```
 
 The config names a module path, the CLI imports it by path, and that is the whole
-extension mechanism — `loadCollector` at `packages/cli/src/commands/run.ts:1023` is
+extension mechanism — `loadCollector` at `packages/cli/src/commands/collector.ts:226` is
 twenty-five lines of `import()` and a type check. Not a registry lookup, not a
 download, not a plugin protocol. "Every tool that has claimed otherwise grew a
 plugin system whose failures are undebuggable from either side."
@@ -153,7 +153,7 @@ records this project's time-to-first-verdict as *unbounded*.
 
 ## 3. By suite
 
-`SubjectsConfig packages/cli/src/config.ts:178` is a two-arm union, and the second
+`SubjectsConfig packages/cli/src/config-sections.ts:81` is a two-arm union, and the second
 arm is the general case.
 
 ### Storybook
@@ -197,14 +197,14 @@ versioned by nobody.
 }
 ```
 
-`ListSubjects packages/cli/src/config.ts:189` is the arbitrary-suite path. The
-CLI branches to `planList`, at `packages/cli/src/commands/run.ts:1008`, and from
+`ListSubjects packages/cli/src/config-sections.ts:92` is the arbitrary-suite path. The
+CLI branches to `planList`, at `packages/cli/src/commands/collector.ts:211`, and from
 there the run is identical — same normalizer, same bands, same docket, same store.
 
 **The two-arm union is a much weaker constraint than it looks, and this is the
 most useful fact in the document.** `run()` never reads `config.subjects` — not
 once. The subject list is whatever `deps.collector.plan()` returns
-(`packages/cli/src/commands/run.ts:650`), and the loop iterates that. What the
+(`packages/cli/src/commands/run.ts:169`), and the loop iterates that. What the
 `kind` union actually decides is two things: which collector module to import,
 and which generic pre-plan to compute *for the collector's convenience*.
 

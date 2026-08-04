@@ -1,11 +1,4 @@
-import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
-import {
-  BANDS,
-  type Band,
-  type Observation,
-  type RunRecord,
-  type TokenValue,
-} from '@variance-authority/history';
+import type { Observation, RunRecord, TokenValue } from '@variance-authority/history';
 import {
   HistoryWriteConflict,
   type AreaQuery,
@@ -18,6 +11,15 @@ import {
   type WindowQuery,
 } from '@variance-authority/server';
 import type { D1Like, D1PreparedLike, D1Value } from './bindings.js';
+import {
+  instant,
+  number,
+  text,
+  toObservation,
+  toRunRecord,
+  toTokenValue,
+  type Row,
+} from './history-rows.js';
 
 /**
  * The history record, on D1.
@@ -47,6 +49,13 @@ import type { D1Like, D1PreparedLike, D1Value } from './bindings.js';
  * to produce a sentence naming both commits, because a caller who gets
  * `UNIQUE constraint failed` has to come and read this file to find out what
  * happened.
+ *
+ * ## What is next door
+ *
+ * Reading a stored value back is [`history-rows.ts`](./history-rows.ts), and it
+ * is a separate file for the same reason no arithmetic happens here: what a row
+ * is allowed to be is not a property of any one query, and this file knows
+ * nothing about it.
  */
 
 export function createD1Backend(db: D1Like): HistoryBackend {
@@ -217,8 +226,6 @@ function conflict(run: RunRecord, recorded: string): HistoryWriteConflict {
 function carriesAnApproval(observations: readonly Observation[]): boolean {
   return observations.length === 0 || observations.some((row) => row.accepted);
 }
-
-type Row = Record<string, unknown>;
 
 interface Filter {
   readonly sql: string;
@@ -396,116 +403,4 @@ async function reachRows(db: D1Like, query: ComponentWindowQuery): Promise<Reach
   }
 
   return { subjects, arrived, omittedSubjects: Math.max(0, total - listed.results.length) };
-}
-
-/**
- * An instant as a comparable number.
- *
- * Refuses rather than defaults. A row whose `at` cannot be parsed would land with
- * a NULL ordering key, sort ahead of or behind everything depending on the query,
- * and turn `12px → 20px` into `20px → 12px` — a confident sentence that is exactly
- * backwards.
- */
-function instant(at: string, what: string): number {
-  const parsed = Date.parse(at);
-  if (Number.isNaN(parsed)) {
-    throw new Error(`${what} carries "${at}", which is not an ISO-8601 instant`);
-  }
-  return parsed;
-}
-
-/**
- * Reading a row back is validation, not a cast.
- *
- * SQLite is typed per value rather than per column, and `STRICT` only constrains
- * what this build writes. A row written by a future version, or by a person at a
- * `wrangler d1 execute` prompt, arrives here as whatever it is; casting it would
- * let a number become a component name and a NULL become the string "null" three
- * layers later.
- */
-function text(row: Row, column: string, what: string): string {
-  const value = row[column];
-  if (typeof value !== 'string') {
-    throw new Error(`${what} has a \`${column}\` that is not text: ${describe(value)}`);
-  }
-  return value;
-}
-
-function optionalText(row: Row, column: string, what: string): string | undefined {
-  const value = row[column];
-  if (value === null || value === undefined) return undefined;
-  if (typeof value !== 'string') {
-    throw new Error(`${what} has a \`${column}\` that is neither text nor null: ${describe(value)}`);
-  }
-  return value;
-}
-
-function number(row: Row, column: string, what: string): number {
-  const value = row[column];
-  if (typeof value === 'bigint') return Number(value);
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error(`${what} has a \`${column}\` that is not a number: ${describe(value)}`);
-  }
-  return value;
-}
-
-function band(row: Row, what: string): Band {
-  const value = text(row, 'band', what);
-  if (!BANDS.includes(value as Band)) throw new Error(`${what} has an unknown band "${value}"`);
-  return value as Band;
-}
-
-/** Checked against `core`'s table, so a new tier does not become a rejected row. */
-function profile(row: Row, what: string): ProfileId {
-  const value = text(row, 'profile', what);
-  const known: unknown = profileById(value as ProfileId);
-  if (known === undefined) throw new Error(`${what} has an unknown profile "${value}"`);
-  return value as ProfileId;
-}
-
-function toObservation(row: Row): Observation {
-  const what = 'a stored observation';
-  const file = optionalText(row, 'file', what);
-
-  return {
-    project: text(row, 'project', what),
-    subject: text(row, 'subject', what),
-    component: text(row, 'component', what),
-    band: band(row, what),
-    hash: text(row, 'hash', what) as Digest,
-    profile: profile(row, what),
-    commit: text(row, 'commit', what),
-    run: text(row, 'run', what),
-    at: text(row, 'at', what),
-    accepted: number(row, 'accepted', what) !== 0,
-    ...(file !== undefined ? { file } : {}),
-  };
-}
-
-function toRunRecord(row: Row): RunRecord {
-  const what = 'a stored run';
-  return {
-    project: text(row, 'project', what),
-    run: text(row, 'run', what),
-    commit: text(row, 'commit', what),
-    profile: profile(row, what),
-    at: text(row, 'at', what),
-  };
-}
-
-function toTokenValue(row: Row): TokenValue {
-  const what = 'a stored token value';
-  return {
-    project: text(row, 'project', what),
-    token: text(row, 'token', what),
-    value: text(row, 'value', what),
-    commit: text(row, 'commit', what),
-    at: text(row, 'at', what),
-  };
-}
-
-function describe(value: unknown): string {
-  if (value === undefined) return 'absent';
-  if (value === null) return 'null';
-  return `${typeof value} (${String(value).slice(0, 60)})`;
 }

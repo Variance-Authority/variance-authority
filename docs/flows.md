@@ -49,7 +49,7 @@ subject** — the revision under test and the one to compare against. No store, 
 bucket, no credentials, no container, nothing committed. That is genuinely no
 infrastructure, and it is not no work: a collector that can mount only the current
 checkout does not satisfy this rung. Every subject it cannot supply a `before` for
-is recorded `failed` with that as the reason (`packages/cli/src/commands/run.ts:805`),
+is recorded `failed` with that as the reason (`packages/cli/src/commands/observe-one.ts:52`),
 so the run reports nothing about it rather than reporting it clean.
 
 **You get regression detection — this is a comparison rung, and the cheapest one.**
@@ -217,7 +217,7 @@ write half, and this table did not say so until 2026-08-03.
 **And the docket here leads with causes only when something supplied them.** The
 mechanism is worth stating exactly, because the obvious explanation is wrong: the
 run passes `collected.causes` on the durable path and the ephemeral path on
-identical terms (`packages/cli/src/commands/run.ts:874` and `:827`), so nothing
+identical terms (`packages/cli/src/commands/observe-one.ts:70` and `:122`), so nothing
 in the retention mode suppresses them. What is missing is a wire *back*. Causes
 are derived by diffing two **snapshots**, and a durable baseline is an image, so a
 collector reaching this rung has nothing to derive them from and supplies none —

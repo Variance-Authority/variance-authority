@@ -773,7 +773,7 @@ pipeline.
 
 ### 4.3 There is no shipped collector, and that is the design
 
-`loadCollector` in `packages/cli/src/commands/run.ts` imports a module *the
+`loadCollector` in `packages/cli/src/commands/collector.ts` imports a module *the
 operator writes*, named in the config rather than discovered. `planStorybook`
 produces only a plan, and the Storybook package's driver — `collectStory` /
 `collectStories` — is not imported by the CLI at all.
@@ -814,7 +814,7 @@ for and is not asserted anywhere — nor the CLI hop above it. The CLI still imp
 proven stands: v3/v4/v5 index parsing (`index-file.test.ts`, 22), subject mapping
 with per-story exclusion and viewport (`subjects.test.ts`, 17), and a preview
 driver that reports a throwing story as a subject rather than crashing the run
-(`packages/storybook/src/preview.test.ts`, 33).
+(`packages/storybook/src/preview*.test.ts`, 33).
 
 ### 4.5 Targets never measured, and limits never tested
 

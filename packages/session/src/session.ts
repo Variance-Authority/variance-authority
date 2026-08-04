@@ -1,13 +1,12 @@
 import {
   normalize,
-  type Digest,
   type Provenance,
-  type RawCapture,
-  type SemanticSnapshot,
   type SubjectRef,
   type Viewport,
 } from '@variance-authority/core';
 import { collect } from '@variance-authority/dom';
+import { formatFindings, type Finding } from './findings.js';
+import { Ledger, type SubjectRun } from './ledger.js';
 import { readsOf } from './reads.js';
 import {
   SheetRegistry,
@@ -49,7 +48,14 @@ import {
  * cannot attribute. Together they produce the sentence an agent can act on:
  * *"`story:card` is order-dependent; `story:button` wrote `sheet:<style:3>`,
  * which `story:card` matched via `.btn`."*
+ *
+ * This file holds the standing world and the two paths through it. The record of
+ * what ran and the inference over it are in `ledger.ts`; the wording of an
+ * accusation is in `findings.ts`.
  */
+
+export type { SubjectRun } from './ledger.js';
+export type { Finding } from './findings.js';
 
 export interface SessionOptions {
   readonly document: Document;
@@ -71,48 +77,6 @@ export interface SessionOptions {
   readonly clearContainer?: boolean;
 }
 
-export interface SubjectRun {
-  readonly subject: SubjectRef;
-  readonly capture: RawCapture;
-  readonly snapshot: SemanticSnapshot;
-  readonly reads: ReadonlySet<StateKey>;
-  readonly writes: ReadonlySet<StateKey>;
-  /** Position in the session. Ordering is what makes a conflict directional. */
-  readonly sequence: number;
-  /**
-   * Wall clock from the clearing of the container to the recorded run.
-   *
-   * A subject that declares its readiness is timed with its own waiting
-   * included, because that waiting is what the session actually spent. It also
-   * means a session full of asynchronous subjects dilutes `probeShare` — the
-   * probe did not get cheaper, the denominator got larger.
-   */
-  readonly durationMs: number;
-}
-
-export interface Finding {
-  /** `suspected` from read/write overlap; `confirmed` by a hash that moved. */
-  readonly confidence: 'suspected' | 'confirmed';
-  readonly victim: string;
-  /** Absent when a hash moved but no earlier writer explains it. */
-  readonly culprit?: string;
-  readonly key?: StateKey;
-  readonly evidence: string;
-  /** What an agent should do about it. */
-  readonly remedy: string;
-
-  /**
-   * Components the culprit subject rendered, innermost-first, deduplicated.
-   *
-   * A subject id names a *story*; a component name names the file to edit. An
-   * agent handed "story:button polluted story:card" still has to find where the
-   * stylesheet was injected — handed "…, rendered by Button ← Toolbar" it can go
-   * straight there. Empty when no provenance provider was configured, which is
-   * itself worth seeing: it means this session cannot attribute to code.
-   */
-  readonly culpritComponents?: readonly string[];
-}
-
 export interface SessionStats {
   readonly subjects: number;
   readonly totalMs: number;
@@ -128,9 +92,7 @@ export function createSession(options: SessionOptions): Session {
 export class Session {
   readonly #options: SessionOptions;
   readonly #registry = new SheetRegistry();
-  readonly #runs: SubjectRun[] = [];
-  readonly #firstHash = new Map<string, Digest>();
-  readonly #evidence = new Map<string, ReadonlyMap<StateKey, string>>();
+  readonly #ledger = new Ledger();
   readonly #container: HTMLElement;
   #probeMs = 0;
   #totalMs = 0;
@@ -265,15 +227,11 @@ export class Session {
       snapshot,
       reads: reads.keys,
       writes: written,
-      sequence: this.#runs.length,
+      sequence: this.#ledger.nextSequence,
       durationMs: now() - started,
     };
 
-    this.#runs.push(run);
-    this.#evidence.set(subject.id, reads.evidence);
-    if (!this.#firstHash.has(subject.id)) {
-      this.#firstHash.set(subject.id, snapshot.renderHash);
-    }
+    this.#ledger.record(run, reads.evidence);
     this.#totalMs += run.durationMs;
 
     return run;
@@ -356,7 +314,7 @@ export class Session {
     replay: (subject: SubjectRef, container: HTMLElement) => unknown,
     sample?: readonly string[],
   ): readonly Finding[] | Promise<readonly Finding[]> {
-    const targets = sample ?? [...new Set(this.#runs.map((run) => run.subject.id))];
+    const targets = sample ?? this.#ledger.subjectIds();
     return this.#verifyFrom(0, targets, replay, []);
   }
 
@@ -380,7 +338,7 @@ export class Session {
       const id = targets[index];
       if (id === undefined) continue;
 
-      const original = this.#runs.find((run) => run.subject.id === id);
+      const original = this.#ledger.first(id);
       if (!original) continue;
 
       const outcome = this.#runOnce(original.subject, (container) =>
@@ -403,35 +361,8 @@ export class Session {
 
   /** Record a confirmed finding when a subject's hash moved between its runs. */
   #confirm(confirmed: Finding[], original: SubjectRun, rerun: SubjectRun): void {
-    const id = original.subject.id;
-    const expected = this.#firstHash.get(id);
-    if (expected === undefined || rerun.snapshot.renderHash === expected) return;
-
-    const culprit = this.#culpritBetween(original, rerun);
-
-    confirmed.push({
-      confidence: 'confirmed',
-      victim: id,
-      ...(culprit
-        ? {
-            culprit: culprit.subject.id,
-            key: culprit.key,
-            culpritComponents: this.#componentsOf(culprit.subject.id),
-          }
-        : {}),
-      evidence:
-        `re-running \`${id}\` in the same session produced a different render hash ` +
-        `(${short(expected)} → ${short(rerun.snapshot.renderHash)}) with no code change` +
-        (culprit
-          ? `; \`${culprit.subject.id}\` wrote \`${culprit.key}\`, which this subject ` +
-            `${this.#why(id, culprit.key)}`
-          : '; no earlier subject wrote anything this one reads, so the instability is ' +
-            'inside the subject itself — a timer, a random value, or an unsettled animation'),
-      remedy: culprit
-        ? `make \`${culprit.subject.id}\` clean up \`${culprit.key}\`, or scope it so it ` +
-          `cannot reach \`${id}\``
-        : `make \`${id}\` deterministic; a session cannot stabilise what re-renders differently`,
-    });
+    const finding = this.#ledger.confirm(original, rerun);
+    if (finding !== null) confirmed.push(finding);
   }
 
   /**
@@ -442,34 +373,7 @@ export class Session {
    * anyone — that is just a component managing its own stylesheet.
    */
   findings(): readonly Finding[] {
-    const found: Finding[] = [];
-
-    for (const victim of this.#runs) {
-      for (const key of victim.reads) {
-        for (const writer of this.#runs) {
-          if (writer.sequence >= victim.sequence) continue;
-          if (writer.subject.id === victim.subject.id) continue;
-          if (!writer.writes.has(key)) continue;
-
-          found.push({
-            confidence: 'suspected',
-            victim: victim.subject.id,
-            culprit: writer.subject.id,
-            culpritComponents: this.#componentsOf(writer.subject.id),
-            key,
-            evidence:
-              `\`${writer.subject.id}\` wrote \`${key}\`; \`${victim.subject.id}\` ` +
-              `${this.#why(victim.subject.id, key)}`,
-            remedy:
-              `confirm with \`verify()\`. If the hash moves, scope \`${key}\` to ` +
-              `\`${writer.subject.id}\` or clean it up; if it does not, the coupling is ` +
-              `real but currently harmless`,
-          });
-        }
-      }
-    }
-
-    return dedupe(found);
+    return this.#ledger.findings();
   }
 
   /** Restore shared state to what it was before a given subject ran. */
@@ -489,7 +393,7 @@ export class Session {
 
   stats(): SessionStats {
     return {
-      subjects: this.#runs.length,
+      subjects: this.#ledger.runs().length,
       totalMs: this.#totalMs,
       probeMs: this.#probeMs,
       probeShare: this.#totalMs === 0 ? 0 : this.#probeMs / this.#totalMs,
@@ -497,7 +401,7 @@ export class Session {
   }
 
   runs(): readonly SubjectRun[] {
-    return this.#runs;
+    return this.#ledger.runs();
   }
 
   /**
@@ -507,30 +411,7 @@ export class Session {
    * spend its first move on a coupling that may never bite.
    */
   report(findings: readonly Finding[] = this.findings()): string {
-    if (findings.length === 0) return 'No cross-pollution detected.';
-
-    const ordered = [...findings].sort((a, b) =>
-      a.confidence === b.confidence ? 0 : a.confidence === 'confirmed' ? -1 : 1,
-    );
-
-    return ordered
-      .map((finding) => {
-        const where =
-          finding.culpritComponents && finding.culpritComponents.length > 0
-            ? ` (rendered by ${finding.culpritComponents.join(', ')})`
-            : '';
-
-        return [
-          `[${finding.confidence}] ${finding.victim}`,
-          `  cause:    ${finding.culprit ?? 'none — unstable on its own'}${where}`,
-          finding.key ? `  via:      ${finding.key}` : null,
-          `  evidence: ${finding.evidence}`,
-          `  fix:      ${finding.remedy}`,
-        ]
-          .filter((line) => line !== null)
-          .join('\n');
-      })
-      .join('\n\n');
+    return formatFindings(findings);
   }
 
   dispose(): void {
@@ -543,68 +424,6 @@ export class Session {
       registry: this.#registry,
     });
   }
-
-  /**
-   * Who wrote something the victim reads, *between* its two runs.
-   *
-   * The window matters. A subject that wrote before the victim's first run
-   * affected both runs equally and cannot explain a hash that moved between them
-   * — naming it would send an agent to fix code that is not the cause. Only
-   * writes in the interval are candidates.
-   */
-  #culpritBetween(
-    original: SubjectRun,
-    rerun: SubjectRun,
-  ): { subject: SubjectRef; key: StateKey } | null {
-    for (const writer of this.#runs) {
-      if (writer.sequence <= original.sequence || writer.sequence >= rerun.sequence) continue;
-      if (writer.subject.id === original.subject.id) continue;
-
-      for (const key of writer.writes) {
-        if (original.reads.has(key) || rerun.reads.has(key)) {
-          return { subject: writer.subject, key };
-        }
-      }
-    }
-    return null;
-  }
-
-  #why(subjectId: string, key: StateKey): string {
-    return this.#evidence.get(subjectId)?.get(key) ?? 'reads it';
-  }
-
-  /** Distinct component names a subject rendered, outermost last. */
-  #componentsOf(subjectId: string): readonly string[] {
-    const run = this.#runs.find((candidate) => candidate.subject.id === subjectId);
-    if (!run) return [];
-
-    const names = new Set<string>();
-    const visit = (node: { provenance?: { owners: readonly { name: string }[] }; children: readonly unknown[] }): void => {
-      for (const owner of node.provenance?.owners ?? []) names.add(owner.name);
-      for (const child of node.children) visit(child as Parameters<typeof visit>[0]);
-    };
-    visit(run.snapshot.root);
-
-    return [...names];
-  }
-}
-
-function dedupe(findings: readonly Finding[]): Finding[] {
-  const seen = new Set<string>();
-  const unique: Finding[] = [];
-
-  for (const finding of findings) {
-    const signature = `${finding.victim}|${finding.culprit ?? ''}|${finding.key ?? ''}`;
-    if (seen.has(signature)) continue;
-    seen.add(signature);
-    unique.push(finding);
-  }
-
-  return unique;
-}
-
-function short(digest: Digest): string {
-  return digest.slice(0, 11);
 }
 
 function now(): number {

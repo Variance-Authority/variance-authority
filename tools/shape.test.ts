@@ -75,36 +75,19 @@ describe('nothing grows into a monster', () => {
   const LIMIT = 500;
 
   /**
-   * Files over the limit on the day it was introduced.
+   * Files over the limit, and there are none.
    *
-   * Not an exemption list — a debt list. A file may leave it and may not join
-   * it, which the second test below enforces. Nothing here is blessed; every
-   * entry is work somebody has not done yet.
+   * This was a list of twenty-two on the day the rule landed — a debt list
+   * rather than an exemption list, on the argument that a file may leave it and
+   * may not join it. It emptied on 2026-08-04, which is the only outcome that
+   * makes the argument true rather than merely stated.
+   *
+   * Kept as an empty set rather than deleted along with the tests below,
+   * because the next long file will want somewhere to go, and re-deriving the
+   * rules for it — a name, not a pattern; leaving is allowed, joining is not —
+   * is how an exemption list gets born instead.
    */
-  const OVERSIZE = new Set([
-    'cases/incumbent-case/src/replacement.chromium.test.ts',
-    'examples/kitchen-sink/src/corpus.ts',
-    'examples/kitchen-sink/src/measure.chromium.test.tsx',
-    'packages/cli/src/bin.ts',
-    'packages/cli/src/commands/comment.ts',
-    'packages/cli/src/commands/run.test.ts',
-    'packages/cli/src/commands/run.ts',
-    'packages/cli/src/config.ts',
-    'packages/core/src/compare/diff/index.ts',
-    'packages/core/src/rules/normalize/normalize.test.ts',
-    'packages/dom/src/css.ts',
-    'packages/history/src/drift.ts',
-    'packages/mcp/src/tools.ts',
-    'packages/server/src/backend-sqlite.ts',
-    'packages/server/src/http.ts',
-    'packages/session/src/session.ts',
-    'packages/storybook/src/preview.test.ts',
-    'packages/storybook/src/preview.ts',
-    'packages/tribunal/src/history.ts',
-    'packages/tribunal/src/review.ts',
-    'packages/tribunal/src/ui/review.tsx',
-    'packages/tribunal/src/worker.ts',
-  ]);
+  const OVERSIZE = new Set<string>([]);
 
   const lines = (file: string): number => readFileSync(join(ROOT, file), 'utf8').split('\n').length;
 

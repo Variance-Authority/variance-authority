@@ -1,30 +1,39 @@
-import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core';
 import {
-  BANDS,
   CHURN_PATH,
   LAST_CHANGED_PATH,
   OBSERVATIONS_PATH,
   REACH_PATH,
   VALUE_JOURNEY_PATH,
-  type Band,
-  type Observation,
-  type RunRecord,
-  type TokenValue,
-  type Window,
 } from '@variance-authority/history';
-import { RasterStoreError, identityFrom, rasterFrom } from '@variance-authority/raster';
-import type { RunReport } from '@variance-authority/report';
+import { RasterStoreError, rasterFrom } from '@variance-authority/raster';
 import { HistoryWriteConflict, churnFrom, journeyFrom, lastChangedFrom, reachFrom } from '@variance-authority/server';
 import type { TribunalBindings } from './bindings.js';
 import { createD1Backend } from './history.js';
-import {
-  ReviewError,
-  createReviewStore,
-  type BuildIngest,
-  type Decision,
-  type SubjectImages,
-} from './review.js';
+import { ReviewError, createReviewStore } from './review.js';
 import { createBucketStore } from './store.js';
+import { UNAUTHENTICATED, grant, refuseWeakTokens, requires, type Granted } from './worker-auth.js';
+import {
+  BadRequest,
+  Forbidden,
+  MethodNotAllowed,
+  asRecordBody,
+  count,
+  json,
+  optional,
+  requireMethod,
+  required,
+  string,
+} from './worker-http.js';
+import {
+  asBand,
+  asBuildIngest,
+  asDecision,
+  asIdentity,
+  asKey,
+  asRecordRequest,
+  windowOf,
+} from './worker-input.js';
 
 /**
  * One `fetch` handler, three surfaces, and no outbound call.
@@ -65,6 +74,14 @@ import { createBucketStore } from './store.js';
  * The *capability* check happens after routing, and deliberately: it can only be
  * reached by someone already holding a valid token, so telling them which of the
  * two a route wants reveals nothing they could not learn by trying.
+ *
+ * ## What is next door
+ *
+ * The token comparison and the capability rule are in
+ * [`worker-auth.ts`](./worker-auth.ts); the refusals and the readers every route
+ * validates in are in [`worker-http.ts`](./worker-http.ts) and
+ * [`worker-input.ts`](./worker-input.ts). What is left here is the composition and
+ * the routing table, which is the part an operator has to read.
  */
 
 export interface TribunalOptions extends TribunalBindings {
@@ -109,9 +126,6 @@ const BASELINE_PUT_PATH = '/baseline/put';
 const CACHE_FIND_PATH = '/cache/find';
 const CACHE_PUT_PATH = '/cache/put';
 
-/** The shortest token this will start with. A short shared secret is a public one. */
-const MIN_TOKEN = 16;
-
 export function createTribunal(options: TribunalOptions): Tribunal {
   refuseWeakTokens(options);
 
@@ -153,9 +167,6 @@ export function createTribunal(options: TribunalOptions): Tribunal {
     },
   };
 }
-
-/** Which of the two secrets a request presented, or nothing at all. */
-type Granted = 'ingest' | 'review';
 
 interface Surfaces {
   readonly baselines: ReturnType<typeof createBucketStore>;
@@ -363,400 +374,6 @@ async function route(
       '/review/builds. A path from a different API version is a client and a service that ' +
       'disagree about a recorded shape',
   });
-}
-
-/**
- * The one sentence a caller holding neither token ever gets.
- *
- * Identical for a missing token, a wrong token, and a path that does not exist.
- * Any variation between those three is an oracle.
- */
-const UNAUTHENTICATED = 'a valid bearer token is required';
-
-/**
- * Which token was presented, compared in constant time.
- *
- * Both are hashed to a fixed 32 bytes before comparison and the comparison never
- * exits early. `===` on strings leaks the length of the common prefix through
- * timing; comparing raw strings of different lengths leaks the token's length. A
- * digest makes every comparison the same shape whatever arrives.
- *
- * Both candidates are always checked, even after the first one matches, so that
- * "which token is this" costs the same either way.
- */
-async function grant(request: Request, options: TribunalOptions): Promise<Granted | null> {
-  const header = request.headers.get('authorization');
-  if (header === null) return null;
-
-  const match = /^Bearer (.+)$/i.exec(header.trim());
-  const presented = match?.[1];
-  if (presented === undefined) return null;
-
-  const digest = await fingerprint(presented);
-  const isIngest = equal(digest, await fingerprint(options.ingestToken));
-  const isReview = equal(digest, await fingerprint(options.reviewToken));
-
-  return isIngest ? 'ingest' : isReview ? 'review' : null;
-}
-
-async function fingerprint(token: string): Promise<Uint8Array> {
-  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)));
-}
-
-function equal(left: Uint8Array, right: Uint8Array): boolean {
-  if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
-  }
-  return difference === 0;
-}
-
-function refuseWeakTokens(options: TribunalOptions): void {
-  for (const [name, token] of [
-    ['ingestToken', options.ingestToken],
-    ['reviewToken', options.reviewToken],
-  ] as const) {
-    if (token.trim().length < MIN_TOKEN) {
-      throw new Error(
-        `\`${name}\` is shorter than ${MIN_TOKEN} characters. This deployment holds every ` +
-          'baseline and every observation a project has produced, and it can promote one; a ' +
-          'guessable shared secret in front of that is not a configuration mistake anybody ' +
-          'notices until it matters',
-      );
-    }
-  }
-
-  if (options.ingestToken === options.reviewToken) {
-    throw new Error(
-      'the ingest token and the review token are the same value, so this deployment has one ' +
-        'secret and not two. The separation is the whole point: the ingest token lives in CI ' +
-        'configuration, and approving promotes a baseline — anything that can read a build log ' +
-        'would be able to approve a regression',
-    );
-  }
-}
-
-class BadRequest extends Error {
-  override readonly name = 'BadRequest';
-}
-
-/** A valid token that is not the one this route wants. Never a 401 and never a 404. */
-class Forbidden extends Error {
-  override readonly name = 'Forbidden';
-}
-
-class MethodNotAllowed extends Error {
-  override readonly name = 'MethodNotAllowed';
-  constructor(
-    message: string,
-    readonly allow: string,
-  ) {
-    super(message);
-  }
-}
-
-function requires(granted: Granted, needed: Granted, path: string): void {
-  if (granted === needed) return;
-  throw new Forbidden(
-    `${path} is served to the ${needed} token and this request presented the ${granted} one. ` +
-      (needed === 'review'
-        ? 'Deciding promotes a baseline, so it is not something a build log can do'
-        : 'Writing to this deployment is something CI does, not something a reviewer does'),
-  );
-}
-
-function requireMethod(request: Request, method: string): void {
-  if (request.method === method) return;
-  throw new MethodNotAllowed(
-    `this path is answered over ${method}, not ${request.method}`,
-    method,
-  );
-}
-
-function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8', ...headers },
-  });
-}
-
-async function asRecordBody(request: Request): Promise<Readonly<Record<string, unknown>>> {
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch (error) {
-    throw new BadRequest(
-      `the request body is not JSON: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
-  return record(parsed, 'the request body');
-}
-
-function record(value: unknown, what: string): Readonly<Record<string, unknown>> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new BadRequest(`${what} must be an object; received ${describe(value)}`);
-  }
-  return value as Readonly<Record<string, unknown>>;
-}
-
-function asKey(value: unknown): { readonly subject: string; readonly label?: string } {
-  const source = record(value, '`key`');
-  const label = source['label'];
-  if (label !== undefined && typeof label !== 'string') {
-    throw new BadRequest('`key.label` must be a string when present');
-  }
-  return {
-    subject: string(source, 'subject', '`key`'),
-    ...(typeof label === 'string' ? { label } : {}),
-  };
-}
-
-function asIdentity(value: unknown): ReturnType<typeof identityFrom> & object {
-  const identity = identityFrom(value);
-  if (identity === null) {
-    // Never defaulted, and never partially rebuilt. An identity missing a field
-    // is a different machine from the one that wrote the baseline, and inventing
-    // the field would make a wrong-machine comparison look comparable.
-    throw new BadRequest(
-      '`identity` is not a renderer identity. Every field is required, because the identity is ' +
-        'the partition that decides whether two images may be compared at all',
-    );
-  }
-  return identity;
-}
-
-function asDecision(value: unknown): Decision {
-  if (value !== 'approved' && value !== 'rejected') {
-    throw new BadRequest(`\`decision\` must be "approved" or "rejected"; received ${describe(value)}`);
-  }
-  return value;
-}
-
-/**
- * A build, checked before any of it is stored.
- *
- * The report itself is handed to `review.ingest` as-is rather than rebuilt field
- * by field, and that is a deliberate asymmetry with the baseline routes. A
- * misread *response* becomes a verdict; a misread *request* becomes a 4xx nobody
- * mistakes for an answer. What is checked here is what the store would otherwise
- * crash on or silently mis-record — the version, and the shape of the wrapper.
- */
-async function asBuildIngest(request: Request): Promise<BuildIngest> {
-  const body = await asRecordBody(request);
-  const report = record(body['report'], '`report`');
-
-  if (report['runVersion'] !== 1) {
-    throw new BadRequest(
-      `\`report.runVersion\` must be 1; received ${describe(report['runVersion'])}. A report from ` +
-        'a writer this deployment does not understand would be partly stored and wholly believed',
-    );
-  }
-  if (!Array.isArray(report['observations'])) {
-    throw new BadRequest('`report.observations` must be an array');
-  }
-
-  const branch = body['branch'];
-  const images = body['images'];
-
-  return {
-    build: string(body, 'build', 'the build'),
-    commit: string(body, 'commit', 'the build'),
-    report: report as unknown as RunReport,
-    ...(typeof branch === 'string' && branch !== '' ? { branch } : {}),
-    ...(images === undefined || images === null
-      ? {}
-      : { images: record(images, '`images`') as Readonly<Record<string, SubjectImages>> }),
-  };
-}
-
-function string(source: Readonly<Record<string, unknown>>, key: string, what: string): string {
-  const value = source[key];
-  if (typeof value !== 'string' || value === '') {
-    throw new BadRequest(`${what}.${key} must be a non-empty string; received ${describe(value)}`);
-  }
-  return value;
-}
-
-function required(url: URL, name: string): string {
-  const value = url.searchParams.get(name);
-  if (value === null || value === '') {
-    throw new BadRequest(`\`${name}\` is required on ${url.pathname}`);
-  }
-  return value;
-}
-
-function optional(url: URL, name: string): string | undefined {
-  const value = url.searchParams.get(name);
-  return value === null || value === '' ? undefined : value;
-}
-
-function count(value: string): number {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new BadRequest(`a count must be a whole number of at least 0; received "${value}"`);
-  }
-  return parsed;
-}
-
-/**
- * The window, validated before it can quietly select nothing.
- *
- * An unparseable `since` would reach the query as `NaN`, bind as NULL, match no
- * row, and answer a churn of zero over zero runs — indistinguishable from a
- * component that has never changed. A limit of zero is refused for the same
- * reason: it asks for an answer computed over nothing, dressed as an answer.
- */
-function windowOf(url: URL): Window {
-  const since = optional(url, 'since');
-  const until = optional(url, 'until');
-  const limit = optional(url, 'limit');
-
-  if (since !== undefined && Number.isNaN(Date.parse(since))) {
-    throw new BadRequest(`\`since\` must be an ISO-8601 instant; received "${since}"`);
-  }
-  if (until !== undefined && Number.isNaN(Date.parse(until))) {
-    throw new BadRequest(`\`until\` must be an ISO-8601 instant; received "${until}"`);
-  }
-
-  let parsedLimit: number | undefined;
-  if (limit !== undefined) {
-    parsedLimit = Number(limit);
-    if (!Number.isInteger(parsedLimit) || parsedLimit < 1) {
-      throw new BadRequest(
-        `\`limit\` must be a whole number of at least 1; received "${limit}". A limit of 0 asks ` +
-          'for a drift answer computed over no rows, which reads as stability',
-      );
-    }
-  }
-
-  return {
-    ...(since !== undefined ? { since } : {}),
-    ...(until !== undefined ? { until } : {}),
-    ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
-  };
-}
-
-/**
- * A write, validated completely before any of it is appended.
- *
- * The history store is append-only, so this is the last moment anything can be
- * refused. A row with an unknown band or an unparseable instant that gets in
- * stays in, and every later query over that window either throws or silently
- * misorders — so the strictness here is not politeness about input, it is the
- * only place the invariant can still be enforced.
- */
-async function asRecordRequest(request: Request): Promise<{
-  readonly run: RunRecord;
-  readonly observations: readonly Observation[];
-  readonly tokens: readonly TokenValue[];
-}> {
-  const body = await asRecordBody(request);
-
-  return {
-    run: asRunRecord(body['run']),
-    observations: array(body['observations'], '`observations`').map((row, index) =>
-      asObservation(row, `observations[${index}]`),
-    ),
-    tokens: array(body['tokens'], '`tokens`').map((row, index) =>
-      asTokenValue(row, `tokens[${index}]`),
-    ),
-  };
-}
-
-function array(value: unknown, what: string): readonly unknown[] {
-  if (!Array.isArray(value)) {
-    throw new BadRequest(`${what} must be an array; received ${describe(value)}`);
-  }
-  return value as readonly unknown[];
-}
-
-function instant(source: Readonly<Record<string, unknown>>, key: string, what: string): string {
-  const value = string(source, key, what);
-  if (Number.isNaN(Date.parse(value))) {
-    throw new BadRequest(
-      `${what}.${key} must be an ISO-8601 instant; received "${value}". A row whose time cannot ` +
-        'be parsed orders a journey wrongly, and a journey read backwards is a confident sentence ' +
-        'that is exactly reversed',
-    );
-  }
-  return value;
-}
-
-function flag(source: Readonly<Record<string, unknown>>, key: string, what: string): boolean {
-  const value = source[key];
-  if (typeof value !== 'boolean') {
-    throw new BadRequest(`${what}.${key} must be a boolean; received ${describe(value)}`);
-  }
-  return value;
-}
-
-function asBand(value: unknown, what: string): Band {
-  if (typeof value !== 'string' || !BANDS.includes(value as Band)) {
-    throw new BadRequest(`${what} must be one of ${BANDS.join(', ')}; received ${describe(value)}`);
-  }
-  return value as Band;
-}
-
-/** Checked against `core`'s own table, so a tier added there needs no edit here. */
-function asProfile(value: unknown, what: string): ProfileId {
-  const known: unknown = typeof value === 'string' ? profileById(value as ProfileId) : undefined;
-  if (known === undefined) {
-    throw new BadRequest(`${what}.profile is not a known observation profile: ${describe(value)}`);
-  }
-  return value as ProfileId;
-}
-
-function asRunRecord(value: unknown): RunRecord {
-  const what = '`run`';
-  const source = record(value, what);
-  return {
-    project: string(source, 'project', what),
-    run: string(source, 'run', what),
-    commit: string(source, 'commit', what),
-    profile: asProfile(source['profile'], what),
-    at: instant(source, 'at', what),
-  };
-}
-
-function asObservation(value: unknown, what: string): Observation {
-  const source = record(value, what);
-  const file = source['file'];
-
-  if (file !== undefined && file !== null && typeof file !== 'string') {
-    throw new BadRequest(`${what}.file must be a string when present; received ${describe(file)}`);
-  }
-
-  return {
-    project: string(source, 'project', what),
-    subject: string(source, 'subject', what),
-    component: string(source, 'component', what),
-    band: asBand(source['band'], `${what}.band`),
-    hash: string(source, 'hash', what) as Digest,
-    profile: asProfile(source['profile'], what),
-    commit: string(source, 'commit', what),
-    run: string(source, 'run', what),
-    at: instant(source, 'at', what),
-    accepted: flag(source, 'accepted', what),
-    ...(typeof file === 'string' && file !== '' ? { file } : {}),
-  };
-}
-
-function asTokenValue(value: unknown, what: string): TokenValue {
-  const source = record(value, what);
-  return {
-    project: string(source, 'project', what),
-    token: string(source, 'token', what),
-    value: string(source, 'value', what),
-    commit: string(source, 'commit', what),
-    at: instant(source, 'at', what),
-  };
-}
-
-function describe(value: unknown): string {
-  if (value === undefined) return 'nothing';
-  if (value === null) return 'null';
-  return `${typeof value} (${String(value).slice(0, 60)})`;
 }
 
 /** Re-exported so a Worker entry can recognise a store failure without a second import. */

@@ -66,7 +66,7 @@ know that happened.
 |---|---|
 | `collect` | the tree, its ARIA, and the declarations that reached each node |
 | `document` | markup plus applicable CSS, ready to be assembled and painted |
-| `css` | which rules match, indexed rather than re-queried per node |
+| `css` | which rules match, indexed rather than re-queried per node — `css-index` flattens the sheets once per document, `css-match` answers once per element |
 | `media` / `specificity` | `@media`/`@supports` evaluation, and cascade order |
 | `aria` | role, accessible name, and state — computed, not read off attributes |
 

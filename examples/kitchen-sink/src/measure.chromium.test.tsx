@@ -1,22 +1,8 @@
 // @vitest-environment jsdom
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  buildDocket,
-  diffSnapshots,
-  hashComponents,
-  loudestBand,
-  normalize,
-  type Band,
-  type SemanticDiff,
-  type SemanticSnapshot,
-} from '@variance-authority/core';
-import { createHarness, type Harness } from '@variance-authority/playwright';
+import { hashComponents } from '@variance-authority/core';
 import {
   CONTESTED_CORPUS,
   CORPUS,
@@ -25,47 +11,19 @@ import {
   expectationFor,
   scorableFor,
   undecidableFor,
-  
   type Verdict,
 } from './corpus.js';
-import { CORPUS_FONTS, CORPUS_VIEWPORT, jsdomSnapshot } from './jsdom-profile.js';
-
-/**
- * Paths from the workspace root rather than from `import.meta.url`.
- *
- * Under Vitest's jsdom environment `import.meta.url` is an `http://` URL — the
- * module graph is served, not read — so the usual relative-to-this-file idiom
- * throws. Vitest runs with the config root as cwd, and the existence check below
- * turns a wrong assumption into a sentence instead of a missing page.
- */
-const PACKAGE_ROOT = join(process.cwd(), 'examples', 'kitchen-sink');
-const HARNESS_PAGE = join(PACKAGE_ROOT, 'page', 'harness.html');
-const AGENT_BUILDER = join(PACKAGE_ROOT, 'scripts', 'agent-bundle.mjs');
-const HARNESS_PAGE_URL = pathToFileURL(HARNESS_PAGE).href;
-
-/**
- * Build the page agent in a child process and read the bytes back.
- *
- * Not `import { buildAgentBundle }`: this file runs under Vitest's jsdom
- * environment so that the `jsdom` half of the comparison can collect in-process,
- * and esbuild refuses to start there — jsdom's `TextEncoder` produces a
- * `Uint8Array` from another realm, which esbuild checks for and rejects. Building
- * out-of-process is what keeps both profiles in one file, and both profiles have
- * to be in one file or P4 is comparing two runs rather than two observers.
- */
-function agentBundle(): string {
-  if (!existsSync(AGENT_BUILDER)) {
-    throw new Error(`expected the workspace root as cwd; ${AGENT_BUILDER} does not exist`);
-  }
-
-  const outfile = join(tmpdir(), `va-agent-${process.pid}.js`);
-  try {
-    execFileSync(process.execPath, [AGENT_BUILDER, outfile], { stdio: 'pipe' });
-    return readFileSync(outfile, 'utf8');
-  } finally {
-    rmSync(outfile, { force: true });
-  }
-}
+import {
+  CHROMIUM,
+  JSDOM,
+  PAIR_CHROMIUM,
+  PAIR_JSDOM,
+  closeHarness,
+  collectBothProfiles,
+  engineName,
+  type Observation,
+  type Pair,
+} from './observation.js';
 
 /**
  * M0 move M5 — the corpus under `chromium`, and claim P4.
@@ -80,10 +38,24 @@ function agentBundle(): string {
  * `@variance-authority/playwright` — one browser, one page, no reload —
  * so adding subjects costs a `page.evaluate`, not a process launch.
  *
+ * Both collections live in `observation.ts`, which holds the apparatus and no
+ * assertions; every `describe` below is a reading of the maps that one run
+ * fills. The split is a length limit, not a second measurement — a `describe`
+ * moved to a file of its own would launch a second browser and compare two runs.
+ *
  * Skipped, loudly, when Chromium is not downloaded. A machine with no browser has
  * not disproved P4.
  */
 
+/**
+ * Checked here rather than beside the collection it guards.
+ *
+ * `playwright` is a devDependency, and `tools/boundaries.test.ts` holds
+ * non-test sources to what the manifest ships. `observation.ts` is a source
+ * file, so it reaches a browser only through `@variance-authority/playwright` —
+ * the one package that owns the requirement — and the executable check stays in
+ * the test, where reaching for the devDependency is what devDependencies are for.
+ */
 const BROWSER_AVAILABLE = ((): boolean => {
   try {
     return existsSync(chromium.executablePath());
@@ -92,109 +64,12 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
-interface Observation {
-  readonly verdict: Verdict;
-  readonly roots: number;
-  /** Worst band present, which is what a blocking policy would read. */
-  readonly band: Band | 'none';
-  readonly bands: readonly Band[];
-  /** Delta kinds observed, so a band disagreement names its own evidence. */
-  readonly kinds: readonly string[];
-  /** Who the report blames. See `CorpusCase.blames`. */
-  readonly blames: readonly string[];
-  readonly diagnostics: readonly string[];
-}
-
-const CHROMIUM: Map<string, Observation> = new Map();
-const JSDOM: Map<string, Observation> = new Map();
-
-/** Both snapshots of each pair, kept so the same renders can be hashed per component. */
-interface Pair {
-  readonly base: SemanticSnapshot;
-  readonly perturbed: SemanticSnapshot;
-}
-const PAIR_CHROMIUM: Map<string, Pair> = new Map();
-const PAIR_JSDOM: Map<string, Pair> = new Map();
-
-let harness: Harness | undefined;
-let engine = 'chromium@unknown';
-
-function observe(before: SemanticSnapshot, after: SemanticSnapshot): Omit<Observation, 'diagnostics'> {
-  const diff = diffSnapshots(before, after);
-  const bands = [...new Set(diff.deltas.map((delta) => delta.band))];
-
-  return {
-    verdict: diff.identical ? 'hash-stable' : 'hash-changed',
-    roots: diff.roots.length,
-    band: worst(bands),
-    bands,
-    kinds: [...new Set(diff.deltas.map((delta) => delta.kind))],
-    blames: blamedBy(diff),
-  };
-}
-
-/**
- * The names the report puts in front of a reviewer.
- *
- * Read from the docket rather than from the diff, because the docket is what a
- * reader is handed and the two can disagree. A `token` root blames no component,
- * so it carries its label instead.
- */
-function blamedBy(diff: SemanticDiff): readonly string[] {
-  return buildDocket([diff]).entries.flatMap((entry) => {
-    const components = entry.components
-      .filter((component) => component.role === 'root')
-      .map((component) => component.name);
-
-    return components.length > 0 ? components : [entry.label];
-  });
-}
-
-/** Loudest band present — what a blocking policy reads. `BANDS` fixes the order. */
-function worst(bands: readonly Band[]): Band | 'none' {
-  return loudestBand(bands) ?? 'none';
-}
-
 beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
-
-  harness = await createHarness({
-    url: HARNESS_PAGE_URL,
-    bundle: agentBundle(),
-    viewport: CORPUS_VIEWPORT,
-    fonts: CORPUS_FONTS,
-  });
-  engine = harness.engine;
-
-  // Every capture in the run goes through this one page. The corpus's own
-  // `renderCase` contract says one case per document, and the page agent honours
-  // it by tearing the previous case down — sheets, portal host, React root —
-  // before installing the next. If that teardown ever leaks, the symptom is a
-  // `hash-stable` verdict that means nothing, so it is worth restating: the
-  // persistence is in the *browser*, never in the document's contents.
-  for (const corpusCase of CORPUS) {
-    const before = await harness.capture(corpusCase.subject, corpusCase.baseVariant);
-    const after = await harness.capture(corpusCase.subject, corpusCase.perturbedVariant);
-
-    const chromiumPair: Pair = { base: normalize(before), perturbed: normalize(after) };
-    CHROMIUM.set(corpusCase.id, {
-      ...observe(chromiumPair.base, chromiumPair.perturbed),
-      diagnostics: [...before.diagnostics, ...after.diagnostics].map((d) => d.code),
-    });
-    PAIR_CHROMIUM.set(corpusCase.id, chromiumPair);
-
-    const jsdomPair: Pair = {
-      base: jsdomSnapshot(corpusCase.subject, corpusCase.baseVariant),
-      perturbed: jsdomSnapshot(corpusCase.subject, corpusCase.perturbedVariant),
-    };
-    JSDOM.set(corpusCase.id, { ...observe(jsdomPair.base, jsdomPair.perturbed), diagnostics: [] });
-    PAIR_JSDOM.set(corpusCase.id, jsdomPair);
-  }
+  await collectBothProfiles();
 }, 300_000);
 
-afterAll(async () => {
-  await harness?.close();
-});
+afterAll(closeHarness);
 
 function chromiumOf(id: string): Observation {
   const observation = CHROMIUM.get(id);
@@ -236,7 +111,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('M5 — corpus agreement (chromium)', () => 
     console.log(
       [
         '',
-        `M5 CORPUS MEASUREMENT — chromium (${engine})`,
+        `M5 CORPUS MEASUREMENT — chromium (${engineName()})`,
         `  scorable cases:       ${SCORABLE.length}  (${declared('hash-stable')} stable, ${declared('hash-changed')} changed)`,
         `  undecidable here:     ${undecidable.length}   ${undecidable.map((c) => c.id).join(', ')}`,
         `  contested (excluded): ${CONTESTED_CORPUS.length}   ${CONTESTED_CORPUS.map((c) => c.id).join(', ')}`,
@@ -405,7 +280,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('M5 — collection under chromium', () => {
   });
 
   it('detected the profile from the host rather than being told', () => {
-    expect(engine).toMatch(/^chromium@\d+\./);
+    expect(engineName()).toMatch(/^chromium@\d+\./);
   });
 });
 

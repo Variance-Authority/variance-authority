@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ProfileId } from '@variance-authority/core';
 import type { Renderer } from '@variance-authority/raster';
+import { noPositionals, readFlags } from './args.js';
 import { loadConfig, type Config } from './config.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, exitFor, type ExitCode } from './exit.js';
 import {
@@ -50,6 +51,13 @@ import { doctor, exitForDiagnosis, formatDiagnosis, machineProbes } from './comm
  *
  * `--flag=value` and `--flag value` are both accepted because both are muscle
  * memory, and `--` ends flag parsing so a subject id may begin with a dash.
+ *
+ * The hyphen-level work — reading `--flag=value`, honouring `--`, refusing a
+ * repeated flag — is in `args.ts`, which is told what is accepted and decides
+ * nothing about it. The table below is the part that is a statement about the
+ * product: which commands exist, which flags each one takes, and what a reader
+ * who gets it wrong is shown. Those two change for different reasons and are
+ * read by different people, which is the whole of why they are apart.
  */
 
 export type Parsed =
@@ -108,7 +116,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     );
   }
 
-  const flags = readFlags(argv.slice(1), first);
+  const flags = readFlags(argv.slice(1), first, [...GLOBAL, ...(PER_COMMAND[first] ?? [])], USAGE);
   const config = resolve(flags.values.get('--config') ?? DEFAULT_CONFIG);
 
   switch (first) {
@@ -205,83 +213,6 @@ export function parseArgs(argv: readonly string[]): Parsed {
   }
 }
 
-interface Flags {
-  readonly values: Map<string, string>;
-  /** Flags that appeared, valued or not. Lets `--all` be a boolean without a value. */
-  readonly present: Set<string>;
-  readonly positionals: readonly string[];
-}
-
-const BOOLEAN = new Set(['--all', '--marker']);
-
-function readFlags(argv: readonly string[], command: (typeof COMMANDS)[number]): Flags {
-  const accepted = [...GLOBAL, ...(PER_COMMAND[command] ?? [])];
-  const values = new Map<string, string>();
-  const present = new Set<string>();
-  const positionals: string[] = [];
-
-  let index = 0;
-  let flagsEnded = false;
-
-  while (index < argv.length) {
-    const argument = argv[index] as string;
-    index += 1;
-
-    if (flagsEnded || !argument.startsWith('-')) {
-      positionals.push(argument);
-      continue;
-    }
-
-    if (argument === '--') {
-      flagsEnded = true;
-      continue;
-    }
-
-    const equals = argument.indexOf('=');
-    const name = equals === -1 ? argument : argument.slice(0, equals);
-
-    if (!accepted.includes(name)) {
-      throw new OperatorError(
-        `\`${name}\` is not a flag \`variance ${command}\` accepts; it takes ` +
-          `${accepted.join(', ')}\n\n${USAGE}`,
-      );
-    }
-    if (present.has(name)) {
-      // Repeated flags are refused rather than last-wins: two contradicting
-      // `--subjects` on one line means the operator believes one of them is in
-      // force, and picking either silently makes half of those beliefs wrong.
-      throw new OperatorError(`\`${name}\` was given more than once`);
-    }
-    present.add(name);
-
-    if (BOOLEAN.has(name)) {
-      if (equals !== -1) throw new OperatorError(`\`${name}\` takes no value`);
-      continue;
-    }
-
-    const inline = equals === -1 ? undefined : argument.slice(equals + 1);
-    const value = inline ?? argv[index];
-
-    if (value === undefined || (inline === undefined && value.startsWith('-'))) {
-      throw new OperatorError(
-        `\`${name}\` needs a value; nothing followed it. A missing value is a mistake, ` +
-          'not a request for the default.',
-      );
-    }
-    if (inline === undefined) index += 1;
-    values.set(name, value);
-  }
-
-  return { values, present, positionals };
-}
-
-function noPositionals(positionals: readonly string[], command: string): void {
-  if (positionals.length > 0) {
-    throw new OperatorError(
-      `\`variance ${command}\` takes no positional arguments, and got ${positionals.join(', ')}`,
-    );
-  }
-}
 
 function isCommand(value: string): value is (typeof COMMANDS)[number] {
   return (COMMANDS as readonly string[]).includes(value);

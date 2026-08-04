@@ -1,0 +1,102 @@
+import { OperatorError } from './exit.js';
+
+/**
+ * The flag lexer: hyphens, `=`, `--`, and nothing about what any command means.
+ *
+ * Split out of `bin.ts` because the two halves fail differently and are read at
+ * different times. The command table — which commands exist, which flags each
+ * takes, what `USAGE` prints — is a statement about the product and stays where a
+ * reader of the binary meets it. This file is the mechanical part: it is handed
+ * the accepted set and reports what was typed, and every refusal it makes is
+ * about *syntax*.
+ *
+ * The refusals are the reason this is hand-written at all, and the argument for
+ * that is in `bin.ts` where the table it serves lives. What is worth restating
+ * here is the one rule that makes the split safe: this file never decides what is
+ * accepted. It is told, so a flag added to `PER_COMMAND` and nowhere else is
+ * accepted, and a flag added here and nowhere else does not exist.
+ */
+
+export interface Flags {
+  readonly values: Map<string, string>;
+  /** Flags that appeared, valued or not. Lets `--all` be a boolean without a value. */
+  readonly present: Set<string>;
+  readonly positionals: readonly string[];
+}
+
+const BOOLEAN = new Set(['--all', '--marker']);
+
+export function readFlags(
+  argv: readonly string[],
+  command: string,
+  /** Every flag this command takes, global ones included. Refusals print it. */
+  accepted: readonly string[],
+  /** Appended to an unknown-flag refusal, so a typo answers with the whole synopsis. */
+  usage: string,
+): Flags {
+  const values = new Map<string, string>();
+  const present = new Set<string>();
+  const positionals: string[] = [];
+
+  let index = 0;
+  let flagsEnded = false;
+
+  while (index < argv.length) {
+    const argument = argv[index] as string;
+    index += 1;
+
+    if (flagsEnded || !argument.startsWith('-')) {
+      positionals.push(argument);
+      continue;
+    }
+
+    if (argument === '--') {
+      flagsEnded = true;
+      continue;
+    }
+
+    const equals = argument.indexOf('=');
+    const name = equals === -1 ? argument : argument.slice(0, equals);
+
+    if (!accepted.includes(name)) {
+      throw new OperatorError(
+        `\`${name}\` is not a flag \`variance ${command}\` accepts; it takes ` +
+          `${accepted.join(', ')}\n\n${usage}`,
+      );
+    }
+    if (present.has(name)) {
+      // Repeated flags are refused rather than last-wins: two contradicting
+      // `--subjects` on one line means the operator believes one of them is in
+      // force, and picking either silently makes half of those beliefs wrong.
+      throw new OperatorError(`\`${name}\` was given more than once`);
+    }
+    present.add(name);
+
+    if (BOOLEAN.has(name)) {
+      if (equals !== -1) throw new OperatorError(`\`${name}\` takes no value`);
+      continue;
+    }
+
+    const inline = equals === -1 ? undefined : argument.slice(equals + 1);
+    const value = inline ?? argv[index];
+
+    if (value === undefined || (inline === undefined && value.startsWith('-'))) {
+      throw new OperatorError(
+        `\`${name}\` needs a value; nothing followed it. A missing value is a mistake, ` +
+          'not a request for the default.',
+      );
+    }
+    if (inline === undefined) index += 1;
+    values.set(name, value);
+  }
+
+  return { values, present, positionals };
+}
+
+export function noPositionals(positionals: readonly string[], command: string): void {
+  if (positionals.length > 0) {
+    throw new OperatorError(
+      `\`variance ${command}\` takes no positional arguments, and got ${positionals.join(', ')}`,
+    );
+  }
+}
