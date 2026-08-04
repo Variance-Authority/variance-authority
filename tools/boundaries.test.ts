@@ -37,7 +37,7 @@ import { describe, expect, it } from 'vitest';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Third-party requirements: what a consumer installs, as opposed to node's own. */
-const OWNED_BY_ONE = ['playwright', 'pixelmatch', 'pngjs', 'react', 'react-dom', 'jsdom'];
+const OWNED_BY_ONE = ['playwright', 'pixelmatch', 'pngjs', 'react', 'react-dom', 'jsdom', 'sharp'];
 
 interface Workspace {
   readonly name: string;

@@ -26,6 +26,7 @@
     "@variance-authority/observe": "workspace:^",
     "@variance-authority/playwright": "workspace:^",
     "@variance-authority/png": "workspace:^",
+    "@variance-authority/png-sharp": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/remote": "workspace:^",
     "@variance-authority/report": "workspace:^",

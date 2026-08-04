@@ -14,4 +14,12 @@
  * caller who never opens a PNG.
  */
 
-export { compareRasters, comparePngs, decode, diffImage } from './compare.js';
+export {
+  compareRasters,
+  comparePngs,
+  comparePixels,
+  decode,
+  diffImage,
+  pngjsDecoder,
+} from './compare.js';
+export type { DecodedImage, PngDecoder } from './compare.js';

@@ -9,7 +9,7 @@ import {
   type SourceIndex,
 } from '@variance-authority/core';
 import { documentDigest, formatSource, resolveSource } from '@variance-authority/core';
-import { compareRasters } from '@variance-authority/png';
+import { compareRasters, type PngDecoder } from '@variance-authority/png';
 import {
   DEFAULT_POLICY,
   describeIdentity,
@@ -84,6 +84,18 @@ export interface ObserveOptions {
   readonly source?: SourceIndex;
 
   readonly compare?: CompareOptions;
+
+  /**
+   * How PNG bytes become pixels. Defaults to `pngjs`, which requires nothing.
+   *
+   * Decoding is 90% of a comparison (journal 0016), so this is the single
+   * largest lever on raster cost — `@variance-authority/png-sharp` measures 1.5×
+   * per image and 12× when several decode at once, because libvips runs off the
+   * event loop. It is a separate package because it is a native addon, and a
+   * consumer that cannot load one keeps the default rather than losing the
+   * comparison.
+   */
+  readonly decoder?: PngDecoder;
   /** Grid at which neighbouring changed pixels count as one place. */
   readonly cell?: number;
   readonly limit?: number;
@@ -105,7 +117,7 @@ export async function observePair(
   const left = await renderOnce(options.renderer, options.store, before);
   const right = await renderOnce(options.renderer, options.store, after);
 
-  return report(after.subject.id, left.raster, right.raster, left.rendered || right.rendered, options);
+  return await report(after.subject.id, left.raster, right.raster, left.rendered || right.rendered, options);
 }
 
 /**
@@ -155,7 +167,7 @@ export async function observeAgainstBaseline(
     };
   }
 
-  return report(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
+  return await report(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
 }
 
 /**
@@ -187,14 +199,17 @@ async function renderOnce(
   return { raster, rendered: true };
 }
 
-function report(
+async function report(
   subject: string,
   before: Raster,
   after: Raster,
   rendered: boolean,
   options: ObserveOptions,
-): Observation {
-  const comparison = compareRasters(before, after, options.compare ?? {});
+): Promise<Observation> {
+  const comparison = await compareRasters(before, after, {
+    ...(options.compare ?? {}),
+    ...(options.decoder !== undefined ? { decoder: options.decoder } : {}),
+  });
   const policy = options.compare?.isolateWith ?? DEFAULT_POLICY;
   const changed = comparison.changed[policy.id] ?? 0;
 

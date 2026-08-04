@@ -8,6 +8,7 @@
     { "path": "./packages/react" },
     { "path": "./packages/session" },
     { "path": "./packages/png" },
+    { "path": "./packages/png-sharp" },
     { "path": "./packages/playwright" },
     { "path": "./packages/store" },
     { "path": "./packages/remote" },

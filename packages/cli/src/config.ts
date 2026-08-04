@@ -83,6 +83,22 @@ export interface Config {
   readonly intent?: string;
 
   readonly alone?: AloneConfig;
+
+  /**
+   * Which PNG decoder the raster tier uses.
+   *
+   * Decoding is 90% of a comparison (journal 0016), so this is the largest lever
+   * on how long a red run takes. `auto` prefers `@variance-authority/png-sharp`
+   * — libvips, 1.5× per image and up to 12× when several decode at once because
+   * it runs off the event loop — and silently keeps `pngjs` when the native
+   * addon is not loadable, which is the case on any platform its binaries do not
+   * cover. `pngjs` pins the portable one, so a run cannot get faster or slower
+   * because a machine happened to have a binary.
+   *
+   * Both decoders are held to producing identical RGBA, so this is a speed
+   * setting and never a verdict setting.
+   */
+  readonly decoder?: 'auto' | 'pngjs' | 'sharp';
 }
 
 /**
@@ -225,6 +241,7 @@ const TOP_LEVEL = [
   'images',
   'intent',
   'alone',
+  'decoder',
 ] as const;
 
 /**
@@ -280,6 +297,11 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const intent = optionalText(root, 'intent', options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
 
+  const decoder = root['decoder'] === undefined ? undefined : text(root, 'decoder', options);
+  if (decoder !== undefined && decoder !== 'auto' && decoder !== 'pngjs' && decoder !== 'sharp') {
+    fail('decoder', `must be "auto", "pngjs" or "sharp", not ${quote(decoder)}`, options);
+  }
+
   return {
     project: nonEmpty(root, 'project', options),
     profile: profile as ProfileId,
@@ -296,6 +318,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     images: images === undefined ? resolve(dirname(report), 'images') : resolveFrom(options.baseDir, images),
     ...(intent !== undefined ? { intent } : {}),
     ...(alone !== undefined ? { alone } : {}),
+    ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
   };
 }
 

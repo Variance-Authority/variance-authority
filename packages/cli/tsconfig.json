@@ -15,6 +15,7 @@
     { "path": "../observe" },
     { "path": "../playwright" },
     { "path": "../png" },
+    { "path": "../png-sharp" },
     { "path": "../raster" },
     { "path": "../remote" },
     { "path": "../report" },

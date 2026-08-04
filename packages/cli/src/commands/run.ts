@@ -24,7 +24,7 @@ import {
   observePair,
   type Observation,
 } from '@variance-authority/observe';
-import { decode, diffImage } from '@variance-authority/png';
+import { decode, diffImage, type PngDecoder } from '@variance-authority/png';
 import {
   DEFAULT_POLICY,
   RasterStoreError,
@@ -715,8 +715,13 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
 
   try {
     const budget = { remaining: config.alone?.limit ?? DEFAULT_ALONE_LIMIT };
+    const decoder = await decoderFor(config);
 
-    return await observeAll(plan, { config, deps, renderer, budget }, options, {
+    return await observeAll(
+      plan,
+      { config, deps, renderer, budget, ...(decoder !== undefined ? { decoder } : {}) },
+      options,
+      {
       observations,
       notObserved,
       warnings,
@@ -810,6 +815,46 @@ async function observeAll(
   return report;
 }
 
+/**
+ * Pick the PNG decoder, preferring the fast one and never failing over it.
+ *
+ * Decoding is 90% of a raster comparison (journal 0016), and libvips is 1.5×
+ * `pngjs` per image and up to 12× when several decode at once, because it runs
+ * on libuv's threadpool instead of the main thread. That is the largest single
+ * lever on how long a red run takes.
+ *
+ * It is also a **native addon**, which means it is absent on any platform its
+ * prebuilt binaries do not cover and inside any bundle that cannot carry one. So
+ * `auto` degrades to `pngjs` instead of refusing to run: a machine without the
+ * binary should produce the same verdicts more slowly, never no verdicts. The
+ * two decoders are held to byte-identical RGBA by `decoder.test.ts`, which is
+ * what makes silent substitution safe — this changes what a run *costs* and
+ * never what it *decides*.
+ *
+ * `sharp` explicitly is the one setting that does fail loudly. An operator who
+ * asked for it on a build machine wants to know the binary is missing, rather
+ * than discover it as an unexplained slowdown six months later.
+ */
+export async function decoderFor(config: Config): Promise<PngDecoder | undefined> {
+  const choice = config.decoder ?? 'auto';
+  if (choice === 'pngjs') return undefined;
+
+  try {
+    const { sharpDecoder } = await import('@variance-authority/png-sharp');
+    return sharpDecoder;
+  } catch (error) {
+    if (choice === 'sharp') {
+      throw new OperatorError(
+        'config sets `decoder: "sharp"` and the native decoder could not be loaded: ' +
+          `${messageOf(error)}. Remove the key to fall back to pngjs automatically, or ` +
+          'install a sharp build for this platform.',
+        { cause: error },
+      );
+    }
+    return undefined;
+  }
+}
+
 interface ObserveContext {
   readonly config: Config;
   readonly deps: RunDeps;
@@ -823,6 +868,8 @@ interface ObserveContext {
    * callable from a test with a budget of its own.
    */
   readonly budget: { remaining: number };
+  /** Absent means `pngjs`. See {@link decoderFor}. */
+  readonly decoder?: PngDecoder;
 }
 
 type Outcome =
@@ -848,6 +895,7 @@ async function observeOne(
     store: deps.store,
     ...(collected.snapshot !== undefined ? { snapshot: collected.snapshot } : {}),
     ...(collected.source !== undefined ? { source: collected.source } : {}),
+    ...(context.decoder !== undefined ? { decoder: context.decoder } : {}),
   };
 
   if (config.retention === 'ephemeral') {
@@ -1019,6 +1067,7 @@ async function alone(
     store: deps.store,
     ...(fresh.snapshot !== undefined ? { snapshot: fresh.snapshot } : {}),
     ...(fresh.source !== undefined ? { source: fresh.source } : {}),
+    ...(context.decoder !== undefined ? { decoder: context.decoder } : {}),
   };
 
   // The same comparison the first pass made, against the same other side. Not a

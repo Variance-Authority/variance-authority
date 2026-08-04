@@ -15,7 +15,7 @@ do it, and with the codec boxed on its own neither does.
 import { compareRasters, decode, diffImage } from '@variance-authority/png';
 import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
 
-const comparison = compareRasters(before, after, {
+const comparison = await compareRasters(before, after, {
   policies: [DEFAULT_POLICY, STRICT_POLICY],
   isolateWith: DEFAULT_POLICY,
 });
