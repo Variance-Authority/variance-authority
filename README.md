@@ -393,7 +393,7 @@ resolving.
 **The documentation is a test too** —
 [ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
 `tools/docs-links.check.ts` and `tools/docs-claims.check.ts`, which resolve every link, every repository path
-and every `file:line` reference in this and the other 83 markdown files, and
+and every `file:line` reference in this and the other 85 markdown files, and
 compiles every README example against the built types with no unused import. An
 example is a call site the compiler could not see, which is why 11 of the 20 here
 had gone stale against APIs that had been renamed underneath them. It runs in
