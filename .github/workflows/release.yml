@@ -1,0 +1,65 @@
+# Publish every package to npm when a release tag is pushed.
+#
+# The flow is deliberately two-step so a release is a commit before it is a
+# side effect:
+#
+#   node tools/release-version.mjs 0.0.0-beta.2   # stamp, commit, push
+#   git tag v0.0.0-beta.2 && git push origin v0.0.0-beta.2
+#
+# The workflow then refuses a tag whose version the manifests do not already
+# carry — versioning happens in the repository, publishing happens here, and
+# the tag is the wire between them.
+#
+# `yarn npm publish` is load-bearing: internal dependencies are declared as
+# `workspace:^`, which Yarn rewrites to the real version at publish time and
+# plain `npm publish` would ship verbatim, breaking every install.
+#
+# The dist-tag is derived from the version: a prerelease publishes as `beta`,
+# anything else as `latest`.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: corepack enable
+
+      - run: yarn install --immutable
+
+      - name: The tag names the version the manifests already carry
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION="$(node -p "require('./packages/core/package.json').version")"
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "tag v$TAG_VERSION does not match manifest $MANIFEST_VERSION"
+            echo "run: node tools/release-version.mjs $TAG_VERSION — then commit, and re-tag"
+            exit 1
+          fi
+
+      - run: yarn build
+
+      - run: yarn verify
+
+      - name: Publish, dependencies first
+        env:
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          case "$GITHUB_REF_NAME" in
+            *-*) DIST_TAG=beta ;;
+            *)   DIST_TAG=latest ;;
+          esac
+          yarn workspaces foreach --all --no-private --topological \
+            npm publish --access public --tag "$DIST_TAG"
