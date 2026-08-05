@@ -7,11 +7,11 @@ import { ALL, ROOT, type Manifest } from './workspaces.js';
 /**
  * Build tools are not product.
  *
- * Nothing here ships today — every package is `private: true` — but the question
- * a reader asks about a visual-regression tool is *what does adopting it drag
- * in*, and the honest answer has to be enforced rather than currently true. A
- * compiler, a linter or a test runner in a package's `dependencies` is a
- * consumer's install, not this repository's.
+ * Every package here is publishable — MIT, versioned, one pushed tag from a
+ * registry — so the question a reader asks about a visual-regression tool,
+ * *what does adopting it drag in*, now has a consequence rather than a
+ * hypothetical answer. A compiler, a linter or a test runner in a package's
+ * `dependencies` is a consumer's install, not this repository's.
  *
  * `typescript` is the one worth naming. A reader who saw it in a manifest would
  * reasonably conclude the product parses their TypeScript. It does not — it

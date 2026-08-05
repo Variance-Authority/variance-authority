@@ -8,9 +8,10 @@ three of the four there is something.
 [`surface.md`](surface.md) answers *how does my suite get in*, [`flows.md`](flows.md)
 answers *how much infrastructure do I stand up*. This answers *why would I move*.
 
-Nothing here is a migration guide. Every package is `private: true` and there is
-no install path, so all four begin with vendoring this repository — see
-[surface.md §2](surface.md#2-what-you-install).
+Nothing here is a migration guide. The packages are MIT and publishable, but no
+tag has been pushed and nothing has reached a registry, so all four still begin
+with vendoring this repository — see [surface.md §2](surface.md#2-what-you-install)
+and [spec 0015](specs/0015-the-first-published-release.md).
 
 ---
 

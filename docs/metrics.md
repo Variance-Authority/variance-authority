@@ -421,8 +421,12 @@ directory, or a crawler with no code changes at all. Argos is a CI step. All
 three are single-digit files and zero lines of operator-written code.
 
 **This project's current score is unbounded, and that is not a figure of speech.**
-There is no LICENSE file, nothing is published, every package is `private: true`,
-and `loadCollector` imports a collector module *the operator writes*.
+Nothing is published. The 21 packages are MIT-licensed and none is `private`, but
+no `v*` tag has ever been pushed, so the release workflow has never run and
+`@variance-authority/*` resolves to nothing from outside a clone
+([spec 0015](specs/0015-the-first-published-release.md)). The operator's first
+move after the clone in the procedure above is to add the tool, and there is no
+tool to add.
 
 **Two clauses of this paragraph were stale and are corrected here (2026-08-03),
 because leaving them made the metric look unrunnable for the wrong reason.** It
@@ -432,23 +436,32 @@ false: `cases/storybook-case/variance.config.json` is tracked, and the full cycl
 runs over a Storybook this project did not write — *new → accept → unchanged →
 5 of 8 changed* ([comparison §4.2](comparison.md#42-nothing-above-the-cli-boundary-has-been-run)).
 The correction does not move the score. M6 measures an outside operator starting
-from public documentation, and the blockers that remain — no package, no licence,
-and a collector every adopter writes themselves — are each individually
-sufficient to keep it at unbounded.
+from public documentation, and no such operator could obtain the tool at all.
+
+**Two of the three blockers that paragraph rested on have since fallen, and the
+score still does not move (2026-08-05).** The licence and the manifests were
+fixed together — 21 packages, MIT, `0.0.0-beta.1`, no `private` field — and
+`@variance-authority/storybook-collector` now ships what
+`cases/storybook-case/collector/index.mjs` used to hand-write, taking that file
+from 234 lines to five. One blocker is left where there were three, and it is the
+one that zeroes the product: an operator who cannot install a package never
+writes the five lines. The distance to a bounded number is now a single un-pushed
+tag ([spec 0015](specs/0015-the-first-published-release.md)) — narrower than it
+was, and one sufficient blocker holds the score exactly where three did.
 
 **Cost to measure.** ~8 operator-hours across 5 tools plus coordination, and it
 requires outside operators — anyone who has read this repository is disqualified.
 Against this project it **cannot be run at all** until there is a published
-package, a licence, and a collector story that is not "write one". Note the
-distinction the corrected paragraph turns on: a *worked* collector now exists for
-one project, which is evidence the contract is writable. A *shipped* collector,
-which is what this metric needs, does not.
+package. Note how far the distinction the corrections turn on has moved: a
+*worked* collector was evidence the contract is writable, a *shipped* collector
+now exists for Storybook, and what this metric needs is a *published* one.
 
 **What would mean we lose.** Today, everything. The target that would make this
 non-embarrassing, stated so it can be checked later: **under 30 minutes** on a
 repository that already has a Storybook, **≤ 2 files added**, **0 lines of code
-written by the operator**. Until `loadCollector` stops requiring the operator to
-write a module, the third of those is 0% and the metric is not runnable.
+written by the operator**. `loadCollector` still imports a module the operator
+writes, so the third of those is still 0% — five lines rather than 234, but not
+zero — and until a package installs, the metric is not runnable at all.
 
 ### M7. Cause/collateral ranking accuracy
 
@@ -593,7 +606,7 @@ is the finding.
 | 7 | **M5** cross-machine | Coin flip | The repository has pre-committed that a bad result refutes ADR-0010. Fonts are a string, not a content hash |
 | 8 | **M4b** false miss | Lost on non-DOM strata by construction | — |
 | 9= | **M8** drift | Unmeasurable: nothing has ever recorded a row | — |
-| 9= | **M6** time-to-first-verdict | Unbounded today. No license, no package, no shipped collector | — |
+| 9= | **M6** time-to-first-verdict | Unbounded today. Licensed, versioned and publishable; no published package | — |
 | — | **M9** blind spots | Designed to be lost. Only the completeness claim is falsifiable | Two gaps found in one afternoon |
 
 ### 4.2 By how much a buyer cares

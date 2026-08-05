@@ -257,7 +257,7 @@ bought for a reason.
 | A handful of screens, no budget, no services | The matcher you already have. Stop reading |
 | A design system, designers must approve without repo access | **Chromatic.** No contest — see [§5 of comparison.md](comparison.md#5-when-not-to-choose-this) |
 | A real browser matrix including Safari on macOS | **Applitools** or **Percy.** Nothing here rents a fleet |
-| Your compute, your bucket, no vendor, and the workflow you already know | **reg-suit** or **Lost Pixel OSS** today; this project when it is licensed and published |
+| Your compute, your bucket, no vendor, and the workflow you already know | **reg-suit** or **Lost Pixel OSS** today; this project when the first release is published ([spec 0015](specs/0015-the-first-published-release.md)) |
 | Flaky suite, need to know *which* tests are unreliable over time | **Argos.** Nothing here has ever written a history row ([§4.1](comparison.md#41-nothing-has-ever-recorded-a-history-row)) |
 | Nothing may leave your network, ever | Here, or a self-hosted Applitools — with the compliance caveats in [comparison.md](comparison.md) fully read |
 | The diff must name a component and a file, not a rectangle | Here. Nothing else in the table does it |
@@ -290,7 +290,11 @@ welds is a brochure.
    browser, driven by Playwright, with the test body already in the page. The
    jsdom library path and the Playwright fixture both exist; nothing bridges the
    arrangement where the test code itself runs in the browser.
-6. **Nothing is published or licensed.** Every package is `private: true`.
+6. **Nothing is published.** The 21 packages are MIT, carry a version and are no
+   longer private, and a pushed tag would send them to the registry
+   ([release.yml](../.github/workflows/release.yml)) — no tag has been pushed,
+   so obtaining this still means cloning the repository
+   ([spec 0015](specs/0015-the-first-published-release.md)).
 
 A seventh was on this list while the document was being written — *a sharded run
 produces N reports and nothing merges them* — and came off it, which is the only

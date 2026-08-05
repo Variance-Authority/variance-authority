@@ -145,13 +145,18 @@ paperwork:
   no pinned runner, no stored artifact* demonstrates that in the package graph
   instead of asserting it in a comment.
 
-**Every package is `private: true`.** Nothing is published, no licence has been
-chosen, and there is no install path. The table above describes an intended
-surface; today the only way to obtain any of it is to vendor the repository.
-That is the top item of
-[comparison §5](comparison.md#5-when-not-to-choose-this) and it is not a
-formality — it is why [metrics.md M6](metrics.md#m6-time-to-first-verdict-on-a-cold-repository)
-records this project's time-to-first-verdict as *unbounded*.
+**Nothing is published.** The 21 packages are no longer `private: true` — each
+carries MIT, version `0.0.0-beta.1` and a repository field, and a pushed `v*`
+tag would send every one of them to the registry
+([release.yml](../.github/workflows/release.yml)). No tag has ever been pushed,
+so `npm install` reaches nothing: the table above prices an install that cannot
+yet be performed, and obtaining any of this still means cloning the repository.
+What is left is one tag and one install demonstrated from outside a clone,
+tracked in [spec 0015](specs/0015-the-first-published-release.md). That is the
+top item of [comparison §5](comparison.md#5-when-not-to-choose-this) and it is
+not a formality — it is why
+[metrics.md M6](metrics.md#m6-time-to-first-verdict-on-a-cold-repository) records
+this project's time-to-first-verdict as *unbounded*.
 
 ---
 

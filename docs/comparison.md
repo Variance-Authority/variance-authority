@@ -29,7 +29,7 @@ The specific consequences, so they are not left to be inferred:
 | A hosted dashboard designers and PMs use without repo access | A JSON report and five MCP tools |
 | Years of contact with third-party component libraries | One corpus, written by the same people who wrote the implementation |
 | Support, SLAs, and someone to call | A git repository |
-| MIT (Argos), or a commercial contract legal can sign | No licence chosen yet. The project is scaffolding — nothing is published and no distribution has been decided, so there is nothing to license *to* anyone. A reader evaluating it for adoption should read the rest as a description of an approach rather than of something obtainable |
+| MIT (Argos), or a commercial contract legal can sign | MIT, with nothing published under it. A root `LICENSE` and 21 non-private manifests at `0.0.0-beta.1` make the packages licensed and publishable; no `v*` tag has ever been pushed, so no registry has seen one and obtaining this still means cloning the repository ([spec 0015](specs/0015-the-first-published-release.md)). A reader evaluating it for adoption should read the rest as a description of an approach rather than of something installable |
 | A working install path: `npx`, a token, a green check on a PR | A CLI executed end to end against one Storybook this project did not write, and against nothing else ([§4.2](#42-nothing-above-the-cli-boundary-has-been-run)) |
 | Linux CI, verified by every customer who runs it | Every measurement in this repository from one M-series Mac |
 
@@ -956,9 +956,14 @@ the evidence supports:
   evidentially: the MCP surface has never served an agent.
 
 **There is no evaluation path.** A reader who agrees with every condition above
-still has nowhere to go: nothing is published, nothing is licensed, every package
-is `private: true`, and the collector that mounts an adopter's own components is
-theirs to write. Nobody can trial this against their own codebase today.
+still has nowhere to go: the packages are MIT and publishable, but no tag has
+ever been pushed, so nothing has reached a registry and there is no version of
+this to install ([spec 0015](specs/0015-the-first-published-release.md)).
+Outside the three surfaces that landed 2026-08-04 — a built or served
+Storybook, a map of served URLs, a Playwright suite — the collector that mounts
+an adopter's own components is theirs to write
+([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)). Nobody can
+trial this against their own codebase today.
 
 **Corrected 2026-08-03.** This paragraph also claimed the CLI had never completed
 a run and that the repository contained no `variance.config.json`, both of which

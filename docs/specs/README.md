@@ -78,7 +78,11 @@ CLI's commands is the binary's own.
 
 These hold for anything built here and do not need restating.
 
-- **Nothing is published and nothing is pushed.**
+- **Nothing has been published, and no tag has been pushed.** The packages are
+  MIT and publishable, so what stands between them and a registry is the `v*`
+  tag the release workflow waits for — until it exists, obtaining this software
+  means cloning it, and no installed version constrains a change made here
+  ([0015](0015-the-first-published-release.md)).
 - **No telemetry, no analytics, no phone-home.** The only outbound network call
   in the system is to a renderer endpoint the operator supplies.
 - **The cheap path requires no infrastructure.** Any capability that needs a
