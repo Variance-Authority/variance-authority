@@ -25,9 +25,20 @@ not what is missing.
 
 What is missing is that a capability is **all** it resolves to.
 
-**Consequence A — one deployment is one project.** No row carries a project, so a
-second customer means a second deployment. That is survivable for one tenant and
-is a rewrite of every key at two.
+**Consequence A — the project is chosen by the caller, not established by the
+credential.** Corrected 2026-08-05: the schema is *already* multi-tenant. Every
+table in `schema.ts` carries a `project` column and it is the leading term of
+every primary key and every index — `baselines` is keyed by
+`(project, identity_digest, subject, label)`. That was the item this spec
+originally said had to land before anything else, and it landed before the spec
+was written.
+
+What is missing sits one layer up. `project` arrives from `TribunalOptions` — a
+deployment setting — and on several routes from a `?project=` query parameter.
+Neither is the token. With one project that is harmless, because there is nothing
+to cross into; with two it is the entire problem, since a caller holding the
+review secret may name any project it likes. **The credential has to establish
+the project, and no route may accept one.**
 
 **Consequence B — an approval has no approver.** A row records that *somebody
 holding the review secret* promoted a baseline. Nobody can be asked about it
@@ -144,9 +155,8 @@ CI, so nothing above depends on closing this.
 ## What would discharge this spec
 
 1. Decide option 1 or option 2 above, and write the ADR.
-2. **Put a project on every row now**, while there is one project. Adding the
-   column later is a migration; assuming it away is a rewrite. This is the single
-   item that must land before the first self-hosted deployment rather than after.
+2. Resolve the project **from the credential**, and delete `?project=` from every
+   route that reads one. The storage half of this is already done.
 3. Make approval require a named subject, and make the ingest capability unable
    to reach it.
 4. Implement metering as a walk over stored artifacts, and publish the walk so a
@@ -154,6 +164,6 @@ CI, so nothing above depends on closing this.
 5. Give `serveRenderer` a bearer token, and the CLI's `renderer` config the field
    it has been missing.
 
-Items 1 and 2 are what "start using it ourselves" actually requires. Items 3
-through 5 are what a second tenant requires, and none of them is hard once 2 is
-true.
+Only item 1 blocks running this for ourselves, and only because it decides the
+shape of 2 and 3. Items 2 through 4 are what a *second* tenant requires. Item 5
+belongs to a rung `flows.md` argues against reaching for.

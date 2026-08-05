@@ -56,6 +56,7 @@ stores agreeing on a wrong answer is not a pass.
 | `@variance-authority/tribunal/history` | D1 | `createD1Backend` — the drift record |
 | `@variance-authority/tribunal/review` | D1 and R2 | `createReviewStore` — builds, decisions, retention |
 | `@variance-authority/tribunal/worker` | D1, R2, two tokens | `createTribunal` — one `fetch` handler |
+| `@variance-authority/tribunal/worker-entry` | the bindings, as an `env` | the deployable module: `export default { fetch }`, and `wrangler.jsonc` beside it |
 | `@variance-authority/tribunal/ui` | React | the review surface, its JSON client, its stylesheet |
 | `@variance-authority/tribunal/next` | an App Router app | `createTribunalRoutes` — the vinext wiring |
 | `@variance-authority/tribunal/testing` | Node 22 | D1 over `node:sqlite`, an in-memory bucket |
@@ -106,6 +107,51 @@ Apply the schema yourself, once — `applySchema(db)`, or the statements in
 `SCHEMA` through whatever you use for migrations. Nothing here migrates on a
 request: a handler that migrates on first use migrates concurrently under load,
 and D1 has no advisory lock to serialize that with.
+
+### Or deploy the one that ships
+
+The module above is the shape to copy when you want your own. If you do not,
+`worker-entry` **is** that module, and `wrangler.jsonc` beside it declares the
+Worker, the D1 database and the R2 bucket:
+
+```bash
+wrangler d1 create variance-tribunal
+```
+
+Put the id it prints into `wrangler.jsonc`, then:
+
+```bash
+wrangler r2 bucket create variance-tribunal
+```
+
+```bash
+wrangler d1 migrations apply variance-tribunal --remote
+```
+
+```bash
+wrangler secret put INGEST_TOKEN
+```
+
+```bash
+wrangler secret put REVIEW_TOKEN
+```
+
+```bash
+wrangler deploy
+```
+
+**Never deployed.** Not by anybody, not once — every line above is read from the
+platform's documentation rather than reported from a deployment, and the first
+person to run it should expect to correct this section. It is checked in because
+the distance between this repository and a running review surface should be a
+command with a known failure mode rather than an unknown amount of work.
+
+Two properties worth knowing before you run it. The migration in `migrations/` is
+**generated** from `SCHEMA` by `tools/tribunal-migrations.mjs` and asserted
+against it by `migrations.test.ts` — editing the `.sql` by hand deploys a table
+no test in this repository knows about, so change `schema.ts` and rebuild. And
+the secrets are secrets: `wrangler.jsonc` carries the project name and nothing
+else, because a token in a checked-in config is a token in everybody's clone.
 
 ### The review surface
 

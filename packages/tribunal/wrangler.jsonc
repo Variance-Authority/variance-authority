@@ -1,0 +1,48 @@
+{
+  // The deployment descriptor for `@variance-authority/tribunal`.
+  //
+  // NEVER DEPLOYED. This file has not been run against a Cloudflare account by
+  // anybody, and every claim below is a reading of the platform's documentation
+  // rather than a report of a deployment. It is checked in so that the distance
+  // between this repository and a running review surface is one command with a
+  // known failure mode, instead of an unknown amount of work.
+  //
+  // What it declares: a Worker, a D1 database for rows, an R2 bucket for bytes.
+  // The two secrets are NOT here and must never be — see the README.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "variance-tribunal",
+  "main": "dist/worker-entry.js",
+  "compatibility_date": "2026-08-05",
+
+  // Rows: builds, verdicts, decisions, baselines metadata, history observations.
+  // `migrations_dir` holds one file, generated from `schema.ts` by
+  // `tools/tribunal-migrations.mjs` and gated by `migrations.test.ts` — a
+  // hand-edited migration is a table the tests do not know about.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "variance-tribunal",
+      "database_id": "PLACEHOLDER — replace with the id `wrangler d1 create` prints",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Bytes: baseline and candidate images. Never a row, and never anything a
+  // query has to scan.
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "variance-tribunal"
+    }
+  ],
+
+  "vars": {
+    // Scopes every row and object. One deployment, one project — spec 0014 is
+    // where the reason that has to change before a second tenant is written down.
+    "PROJECT": "default"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
