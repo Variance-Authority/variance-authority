@@ -2,85 +2,36 @@
 
 > Percy shows you pixels. Variance Authority tells you `Button` broke the hero.
 
-A deterministic verification layer for frontend surfaces, built for agent-driven
-development. It answers *"what changed, why, where, and should anyone care?"* at
-the cheapest representation capable of deciding — in your own infrastructure.
+A deterministic verification layer for frontend surfaces. A run mounts a
+project's own components, decides what it can from the document, renders only
+what is left, and resolves whatever changed to a component and a `file:line`.
+Everything happens in the operator's infrastructure: no hosted service, no
+telemetry, no network egress except a renderer the operator runs.
 
-**Status: M0 spike.** The pipeline runs end to end under **both** profiles and is
-measured against a corpus with pre-declared ground truth — 38/38 under `jsdom`,
-39/39 under `chromium`, zero false verdicts either way. Above the semantic tiers
-sits a raster tier that resolves changed pixels to components; baselines are kept
-either **durably**, addressed by renderer identity, or **ephemerally**, with both
-images rendered by one renderer in the same run and nothing stored; and an MCP
-surface hands the whole observation to an agent. `variance run` completes over a
-real Storybook — *new → accept → unchanged → 5 of 8 changed on a one-component
-edit* ([journal 0014](docs/context/journal/0014-the-incumbent.md)). A run also
-reports what no comparison can reach: accessibility defects present on the first
-run, and, across two locales, which string nobody translated and which box
-stopped fitting ([journal 0015](docs/context/journal/0015-without-a-baseline.md)).
-A review surface with an approval workflow now exists too — builds, a docket
-ranked by cause, and an approval that promotes the candidate the run already
-produced — served from an operator's own Cloudflare account and **never once
-deployed to one**. Nothing is published and there is no hosted anything. Read
-[what does not exist yet](#what-does-not-exist-yet) before believing any of the
-rest.
+The unit of review is a document, not an image. That is what lets a run answer
+questions a comparison cannot reach — which control lost its accessible name,
+which string nobody translated — and what lets a changed pixel resolve to the
+component that produced it.
+
+**Status: M0 spike**, the milestone that asked whether normalization quality was
+achievable. The pipeline runs end to end under both observation profiles and
+scores 38/38 under `jsdom` and 39/39 under `chromium`, with zero false verdicts
+in either direction, against [one corpus](examples/kitchen-sink) whose ground
+truth was declared before the run.
+
+Obtaining it is a clone until the first release lands
+([spec 0015](docs/specs/0015-the-first-published-release.md)). What is left to
+build is [`ls docs/specs/`](docs/specs/README.md) — a directory whose entry
+criterion is that everything in it is unfinished, and whose files are deleted the
+day the capability ships.
 
 ---
 
-## Questions people actually ask
+## What a run reports
 
-### "VR is flaky."
-
-Yes. Visual regression demands careful handling and a total understanding of what
-causes variance and why — and most tools answer it with retries and tolerances,
-which trade a false alarm for a missed regression at a rate nobody measures.
-
-Our position is that **"is it flaky" is the wrong question**. The right one is
-*what would it take to absorb this?*, and the answers are not interchangeable:
-some causes cannot reach the representation at all, some are two different
-baselines compared by mistake, some need one policy decision, and some are real
-changes wearing a flake costume.
-
-**→ [Our vision on flakiness](docs/flakiness.md)** — the full taxonomy, what
-absorbs each cause, what we measured, and the five rows where we lose.
-
-### "VR is expensive."
-
-Also yes. Normal VR costs far more than unit or integration testing, and there
-are real reasons for that — it renders, it stores, it compares images, and it
-usually pins an entire container to make any of that reproducible.
-
-And it is not only the direct cost. **It is the time.** Nobody enjoys watching
-every other check go green while VR keeps grinding away for no apparent reason.
-
-So the architecture is organised around not doing the expensive thing:
-
-| What | Measured |
-|---|---|
-| Cruft removal before anything is compared | **1007 CSS rules parsed → 1 reached the normalizer** |
-| One browser, one page, one navigation per run | **7.5 ms/capture warm vs 205 ms cold — 27×** |
-| One standing world instead of rinsing between subjects | **3.4× faster**, probe overhead **~2%** of session time |
-| Deciding semantically before rendering | **3.4 ms** semantic collection vs **65.4 ms** for a screenshot |
-| Content-addressed render cache | an unchanged document under an unchanged identity is **not re-rendered** |
-| Settling from the sidecar | and **not re-read** — a durable run where nothing moved decodes no baseline image, because the digest that settles it is a few hundred bytes of text beside the PNG rather than in it |
-| Ephemeral mode | both images rendered now by one renderer, so the machine cancels out **by construction** — no container, no pinned runner, no stored artifact |
-
-The last row matters most. Everyone else stabilises pixels by pinning the whole
-pipeline everywhere; we confine the machine-bound artifact to the tier that
-actually has one, and offer a mode with no stored artifact at all.
-
-### "Yeah, for *no reason*. VR is a trivially simple signal to generate — so it provides no value."
-
-Absolutely right about the first half. Everybody develops review blindness in a
-blink: the hundredth screenshot in a run gets the same glance as the first, and
-the three-hundred-and-first is approved without being read.
-
-That is exactly what we approach differently, in two ways.
-
-**Connecting pixels to code lines.** *(built and measured — see the limit below
-the block)* A comparison stops at a mask rather than a number; the mask clusters
-into regions; regions join the box tree; the tree knows which component produced
-each node; the component resolves to a file:
+A comparison stops at a mask rather than a number. The mask clusters into
+regions, the regions join the box tree, the tree knows which component produced
+each node, and the component resolves to a file:
 
 ```
 --- broken-toggle on page/todos--populated
@@ -92,48 +43,107 @@ what this reports:            5 region(s)
   collateral  511px in 1 region(s) — Stack    src/ds/components.tsx:27
 ```
 
-The third column is the point. Ranked by area that report is *wrong* — `Stack`
-was never edited, only reflowed, and it outranks the edit by 6×. Area measures
-displacement, so the ordering comes from the tier that has provenance.
+The split in the first column carries as much as the file in the third. Ranked
+by area, that report is inverted: `Stack` was never edited, only reflowed, and it
+outranks the edit by 6×. Area measures displacement, so the ordering has to come
+from the tier that holds provenance.
 
-**Which surface emits it.** That block comes from
+Separating cause from collateral costs two documents, so it runs wherever both
+are in hand — the block above comes from
 [`examples/todomvc/src/observe.chromium.test.ts`](examples/todomvc/src/observe.chromium.test.ts),
-composing [`core`](packages/core) directly: `diffSnapshots` over *two* documents
-names the causes, then `isolateRegions` → `attributeRegions` → `rankRegions` orders
-them. **Two documents are what the `cause`/`collateral` split costs.** `variance
-run` has the same wiring and ranks by cause whenever it is handed one — but on the
-durable path the baseline is an image with no document behind it, so it is handed
-none and the ordering falls back to area, which this block just called wrong.
-`observePair` does not rank at all: it renders both images but carries a single
-snapshot, so it attributes and stops. Component and file survive in every case;
-only the ordering does not. See
-[what does not exist yet](#what-does-not-exist-yet).
+which composes [`core`](packages/core) directly. Reaching the same ordering from
+a stored baseline is
+[spec 0017](docs/specs/0017-cause-first-ranking-on-every-path.md).
 
-**Tracking accumulated change over time.** *(designed, not built — see
-[spec 0002](docs/specs/0002-history-store.md))* A button gains 2px,
-eleven times, each approved correctly, and nobody ever sees the 22px change. No
-threshold catches that, because the quantity that would have is a **sum** and
-nothing in a one-run-at-a-time tool is summing. What gets recorded is one content
-hash per band per component boundary plus the resolved token values — never
-pixels, never images, never coordinates — so `--va-space-3: 12px → 20px across
-eight approvals` becomes an exact, machine-independent sentence.
+Two further findings need no baseline at all. Each render is read on its own for
+nine kinds of accessibility defect — a control with no accessible name, an image
+with no `alt`, a heading level skipped, a control inside a control, and five more
+— each naming a component and a file. A button that never had an accessible name
+compares equal to itself on every run there will ever be, so approving the first
+baseline approves the defect. Across two locales, a run reports which string is
+identical where others moved and which box stopped fitting its container.
+Neither changes the verdict: a tool that blocks a merge on day one over findings
+nobody asked for is switched off in week one. Both are facts about a document, so
+both cost no screenshot.
 
-> Between them: a change you can hand to whoever owns the file, and a change too
-> small to notice that still gets counted.
+## How it decides
 
-### "We already have Playwright screenshots. Why would we switch?"
-
-**Mostly you would not switch — you would keep the runner and replace what
-happens after the screenshot.** We use Playwright ourselves.
-
-So the question is answered by running theirs. `@playwright/test` is installed in
-[`cases/incumbent-case`](cases/incumbent-case), its own runner executes its own
-`toHaveScreenshot` in its own process, over the same page and the same clip we
-read. Eight edits, each declared with its argument *before* either arm ran, scored
-against *must a reviewer be told?* rather than *did the image change*:
+Five tiers, each settling what it can and passing the rest on:
 
 ```
-scenario            ground truth  incumbent (defaults)  incumbent (tolerant)  ours         and we name
+reachability → structure+CSS digest → jsdom semantic → chromium semantic → raster
+   free              ~ms                   ~ms              7.5 ms          ~s
+```
+
+Two observation profiles feed them, and they are never compared against each
+other:
+
+| Profile | Driver | Observes |
+|---|---|---|
+| `jsdom` | jest, vitest | structure, ARIA, declared CSS — **no layout** |
+| `chromium` | playwright, agent-browser | the above **+ computed style + layout rects + raster** |
+
+The profile is part of the environment key, so a band a profile cannot observe
+reports `unobserved` rather than passing. `jsdom` is not a cheap browser; it is
+an earlier gate that settles the token band and structural geometry in
+milliseconds, inside the unit-test process
+([ADR-0002](docs/context/adr/0002-observation-profiles.md)).
+
+Refusal is the technique the whole design rests on. Two results whose identities
+differ are `incomparable`, never `different`, because a difference in conditions
+reported as a difference in the product is a confident wrong answer. Not
+measured, measured as zero, and unobservable stay three distinct states;
+collapsing any two produces a pass nobody earned.
+
+## What it costs
+
+The architecture is organised around not reaching the expensive tier.
+
+| Mechanism | Measured |
+|---|---|
+| Cruft removal before anything is compared | **1007 CSS rules parsed → 1 reached the normalizer** |
+| One browser, one page, one navigation per run | **7.5 ms/capture warm vs 205 ms cold — 27×** |
+| Deciding semantically before rendering | **3.4 ms** semantic collection vs **65.4 ms** for a screenshot |
+| One standing world instead of rinsing between subjects | **3.1×–3.9×** across runs, probe overhead **~2%** |
+| Content-addressed render cache | an unchanged document under an unchanged identity is not re-rendered |
+| Settling from the sidecar | and not re-read: a durable run where nothing moved decodes no baseline image, because the digest that settles it is a few hundred bytes of text beside the PNG rather than inside it |
+| Ephemeral retention | both images rendered in the same run by one renderer, so the machine cancels out by construction — no container, no pinned runner, no stored artifact |
+
+The last row is the one that distinguishes the approach. Stabilising pixels
+elsewhere means pinning the whole pipeline everywhere; here the machine-bound
+artifact is confined to the tier that actually has one, and one retention mode
+has no stored artifact at all
+([ADR-0011](docs/context/adr/0011-durable-and-ephemeral-retention.md)).
+
+## Variance, and what absorbs it
+
+Rendering varies. The usual treatment is a retry count and a pixel tolerance,
+which trade a false alarm for a missed regression at a rate nobody measures. The
+treatment here is a taxonomy rather than a threshold: each cause is absorbed by
+the cheapest mechanism that can absorb it. Some causes never reach the
+representation. Some are two baselines compared under different identities, and
+are refused rather than diffed. Some are one policy decision. Some are real
+changes that look like noise.
+
+The false-miss rate against the corpus is 0/20. Sizing the opposite rate against
+a library nobody here wrote is
+[spec 0022](docs/specs/0022-evidence-from-code-this-project-did-not-write.md).
+
+**→ [`docs/flakiness.md`](docs/flakiness.md)** — the eleven causes, what absorbs
+each, and the five rows where this loses.
+
+## Measured against a Playwright incumbent
+
+`@playwright/test` is installed in [`cases/incumbent-case`](cases/incumbent-case);
+its own runner executes its own `toHaveScreenshot` in its own process, over the
+same page and the same clip. Eight edits, each declared with its argument before
+either arm ran, scored against whether a reviewer must be told rather than
+whether the image changed. `hit` and `miss` are against that question, `hold` is
+a silent pass on a subject with no defect, and `deferral` is a subject with no
+baseline to compare against:
+
+```
+scenario            ground truth  incumbent (defaults)  incumbent (tolerant)  variance     names (first two)
 label-dropped       regression    miss                  miss                  hit          IconButton
 heading-demoted     regression    miss                  miss                  hit          Heading
 control-devolved    regression    miss                  miss                  hit          RowAction
@@ -144,196 +154,136 @@ unseen-subject      no defect     deferral              deferral              de
 note-reindented     no defect     hold                  hold                  false alarm  Note
 ```
 
-Three things that table is for:
-
-**A category no threshold reaches.** The first three rows are missed at *every*
+**A category no threshold reaches.** The first three rows are missed at every
 configuration the incumbent has. An `aria-label` deleted, a heading demoted, a
-`<button>` devolved to a `<div>` — none reach a pixel, so there is nothing for a
-comparator to find. We settle all three with **no image consulted on either
-side**. This is a property of comparing images rather than of any product, so it
-holds against every raster tool on the market.
+`<button>` devolved to a `<div>` — none reach a pixel, so a comparator has
+nothing to find. All three settle here with no image consulted on either side.
+That is a property of comparing images rather than of any product, so it holds
+against every raster tool in the category.
 
-**A tolerance is measured against the wrong thing.** `maxDiffPixelRatio: 0.01` of
-a 420×312 clip is **1310px** of licence; the status indicator that vanished is
+**A tolerance is measured against the wrong quantity.** `maxDiffPixelRatio: 0.01`
+of a 420×312 clip is **1310px** of licence; the status indicator that vanished is
 **36px**. The regression fits 36 times inside the setting that makes the suite
-survivable — and nothing in the output says which of the two it just absorbed.
+survivable, and nothing in the output distinguishes which of the two it absorbed.
 
-**We lose a row, and it is in the table.** A reindented block renders identically
-and moves our hash. It is asserted as a false alarm, so the day somebody fixes it
-the suite goes red.
+**The eighth row is where this arm scores worst, and the corpus asserts it.** A
+reindented block renders identically and still moves the structural hash, so the
+scenario is declared a false alarm and the suite goes red the day it stops being
+one. Sizing that class of alarm is
+[spec 0022](docs/specs/0022-evidence-from-code-this-project-did-not-write.md).
 
-**Leaving is cheap; leaving cleanly is a generation.** Their baselines are
-ordinary PNGs, so the reading end answers from them with components and files on
-the first run, with nothing re-recorded. What a PNG cannot carry is an identity —
-so `incomparable` is unavailable — or a document, so ranking falls back to area,
-which we measured as backwards. Import to get moving, re-record as you go.
+**→ [`docs/replacing.md`](docs/replacing.md)** — what moving off four incumbents
+costs and buys ·
+**[`docs/comparison.md`](docs/comparison.md)** — where each competitor wins, and
+[ten conditions](docs/comparison.md#5-when-not-to-choose-this) under which one of
+them is the better answer.
 
-**What this does not cover:** the hosted products are half comparison and half
-product. Of the product half, a review UI and a team approval workflow now exist
-as code — [`@variance-authority/tribunal`](packages/tribunal), the operator's
-own D1 and R2, [ADR-0021](docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md) — and
-**have never been deployed to Cloudflare**. A cross-browser grid and change
-detection at repository scale are not confronted at all.
-[`cases/README.md`](cases/README.md) says so at more length.
+## Running it
 
----
+A run happens inside a clone, over a project vendored beside it, until the first
+release lands ([spec 0015](docs/specs/0015-the-first-published-release.md)).
+Node 22 and Yarn 4 through corepack:
 
-### "What can you tell me that a screenshot cannot?"
+```bash
+git clone https://github.com/Variance-Authority/variance-authority.git
+cd variance-authority && corepack enable && yarn install && yarn build
+npx playwright install chromium
+```
 
-Two things, and neither is a better comparison.
+A run takes a config file and a collector. Nothing is discovered, registered or
+scanned for, and nothing is downloaded, so a run's inputs are the ones in the
+repository:
 
-**A defect that was there on the first run.** A button that never had an
-accessible name compares equal to itself on every run there will ever be, so
-approving the first baseline approves the defect. `variance run` reads each
-render on its own and reports nine kinds of defect in it — a control with no
-accessible name, an image with no `alt`, a heading level skipped, a control
-inside a control, a reference pointing at nothing, an accessible name that does
-not contain its own visible label, two landmarks of one role that nothing tells
-apart, a table with no header cells, a positive `tabindex` — each naming a
-component and a file. They never change the verdict; a tool that blocks a merge
-on day one over findings nobody asked for gets switched off in week one.
+```jsonc
+// variance.config.json
+{
+  "project": "acme",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "variance/collector.mjs"
+  },
+  "baselines": { "kind": "directory", "root": "baselines" },
+  "report": ".variance/report.json"
+}
+```
 
-**Which string nobody translated.** A message catalogue and a PNG have no key in
-common, so the category's answer to a localized UI is N times as many screenshots
-and a person to look at all of them. Comparing one subject across two languages
-is arithmetic here: a string identical in both where others moved, and a box that
-fitted its container in one language and does not in the other. Measured on one
-panel in English and German against real Chromium layout — 16 strings translated,
-one left behind, 2 boxes overflowing at a 300px width and none at 420px.
+The collector is the half of a run this project declines to write: mounting a
+project's components needs its bundle, its providers and its own definition of
+settled. For a built Storybook that is five lines, because
+[`storybook-collector`](packages/storybook-collector) owns the generic part —
+serving the build, driving the preview channel, and acquiring the document and
+the capture from one mount:
 
-*Both are facts about a document, so they cost no screenshot. Neither has been
-run against an application anybody else wrote.*
+```js
+import { storybookCollector } from '@variance-authority/storybook-collector';
 
-### "Where do test cases come from?"
+export default storybookCollector({
+  ready: { 'panel--async': '[data-testid="loaded"]' },
+  source: { dirs: ['src'] },
+});
+```
 
-**From you.** Jest, Vitest, Storybook, Playwright — you choose. There is no
-separate test format to author and no DSL to learn; a subject is whatever your
-existing suite already mounts.
+What remains is what only the project knows: which story defers its own readiness
+and by what marker, and where its components live. A set of served URLs is the
+same shape through [`route-collector`](packages/route-collector), and a
+Playwright suite needs no collector at all — its test body already is one. Any
+other subject source is a module the adopter writes, once. Component attribution
+also needs a build that preserves function names: a minified Storybook reports
+`a` instead of `Button`.
 
-Both rendering surfaces emit the same snapshot format and enter the same
-normalizer, so a subject can be decided in a unit test today and in a browser
-tomorrow without being written twice.
+The cycle, driven from a clone:
 
-*Built: a library callable inside Vitest/Jest via `jsdom`, and a Playwright
-harness this project drives. `variance run` takes a real Storybook end to end
-through a collector the operator writes — 234 lines in the one worked example.
-There is no plugin — and no way to point this at an existing suite's screenshots
-either, because every subject is re-mounted. See
-[`docs/surface.md`](docs/surface.md) for what that costs.*
+```bash
+node packages/cli/dist/bin.js run
+node packages/cli/dist/bin.js accept --all
+```
 
-### "Where are results stored?"
+The exit code is the interface — `0` nothing needs review, `1` changes need
+review, `2` operator error — so a first run is red by design. A verdict and a
+crash never share a code, because a red build that could mean either "a component
+changed" or "the store was unreachable" is a red build nobody investigates
+([ADR-0017](docs/context/adr/0017-the-exit-code-is-the-interface.md)). Measured
+over a Storybook this project did not write
+([`cases/storybook-case`](cases/storybook-case), eight stories, one component
+edited):
 
-**Git-LFS, like Percy — or your own server, like Chromatic or Argos. You choose.**
-Git-LFS is the default because it needs no infrastructure, and because a baseline
-image is never hand-merged: you take one side. The five setups, and what each one
-cannot do, are laid out in [`docs/flows.md`](docs/flows.md).
+| step | verdicts | exit |
+|---|---|---|
+| `run` on a fresh checkout | 8 new | **1** |
+| `accept --all` | 8 accepted | 0 |
+| `run` again | 8 unchanged, nothing to review | 0 |
+| `run` on the changed build | 3 unchanged, **5 changed** | **1** |
 
-History is a different artifact with different rules — see the next question.
+`Button` appears in five of those eight stories, and the run finds exactly those
+five.
 
-*Built: a local directory partitioned by renderer identity, a git-LFS store, and
-a remote store, all three producing identical verdicts on the same four
-scenarios. Never exercised: git-LFS as git-LFS — no clean/smudge filter has run
-and no image has been committed through it.*
+Name subjects explicitly — `variance accept story:card--populated …` — anywhere a
+first baseline and a changed one need different answers, and keep `--all` to
+runs a person is watching. Teaching the command that difference itself is
+[spec 0023](docs/specs/0023-accept-tells-new-from-changed.md).
 
-### "Who runs the backend?"
+**→ [`cli`](packages/cli)** — the six commands, sharding across CI jobs, the
+single-file HTML report, and the CI recipes.
 
-**You do. And the backend is optional — git-LFS is the default.**
+## Where things are kept, and who runs them
 
-The backend is part of this project and runs in your own infrastructure: a
-process, a port, and a token you set. Nothing is shared with anyone and nothing
-is operated on your behalf.
+| | | |
+|---|---|---|
+| **Subjects** | Come from an existing suite — jest, vitest, Storybook, Playwright. Both profiles emit one snapshot format, so a subject decided in a unit test today can be decided in a browser tomorrow without being written twice. There is no separate test format and no DSL | [`docs/surface.md`](docs/surface.md) |
+| **Baselines** | git-LFS by default, because it needs no infrastructure and a baseline image is never hand-merged. Also a directory, a service the operator runs, or nothing at all under ephemeral retention. Where a baseline is kept decides nothing about the verdict | [`docs/flows.md`](docs/flows.md) |
+| **The pipeline** | The operator, locally or in CI. Node and Playwright, no daemon and no service dependency, so a CI that can run a command already has the gate, and the exit code is what it gates on | [`cli`](packages/cli#bitbucket-pipelines-and-what-carries-to-any-ci) |
+| **Rendering** | Wherever the operator points it. Acquisition, assembly, rendering, comparison, isolation and attribution are six independent phases and only two need a browser, so a document acquired in a unit test can be rendered by a pinned machine elsewhere, byte-identically | [`remote`](packages/remote) |
+| **Data** | In the operator's infrastructure, in full. [`core`](packages/core) depends on nothing in this repository and on no host environment — no DOM, no Node, no globals — enforced by the compiler | [`docs/architecture.md`](docs/architecture.md) |
 
-Without a backend you get every single-run answer: what changed, which component,
-which file. With one you additionally get history — when an area last changed, how
-often it churns, what a token's value has drifted to across approvals.
+## Packages
 
-When there is no backend the tool **says so** rather than reporting no drift. An
-agent told "no drift" concludes the product is stable; what actually happened is
-that nobody was keeping a record.
-
-History cannot be a local file, and that is a settled decision rather than a
-preference: a committed lock file puts derived state under human merge
-resolution, and the hashes of a merge commit are neither branch's. A database has
-no merge conflicts because it stores *observations*, not state. See
-[spec 0002](docs/specs/0002-history-store.md).
-
-*Built and unit-tested — the hashing, the drift arithmetic, the SQLite backend,
-the HTTP surface, append-only enforced at the database level. **Never called from
-a run**: `variance accept` explicitly refuses to record, so no row exists. This
-is the largest gap in the project and it is the first entry under [what does not
-exist yet](#what-does-not-exist-yet).*
-
-### "Who runs the pipeline?"
-
-**You do — locally, on pre-commit, or in CI. You configure it.** Nothing here
-phones anything, schedules anything, or needs a hosted control plane to reach a
-verdict.
-
-*Built: `variance run`, `accept`, `report`, `serve`, `comment` and `doctor` — six
-commands. **Three of them** — `run`, `accept`, `report` — are driven end to end
-over a Storybook this project did not write; that credit used to be claimed for
-all six and is not transferable, because `comment`, `doctor` and `serve` are
-covered by unit tests only and `serve` has no test file of its own. Never run
-against a repository outside this one. `comment` renders the pull-request body and
-posts nothing; sending it is the workflow's job, with your token.*
-
-### "Who generates the images?"
-
-**Your CI bot can, and commit them back to the PR with comments. Bring your own
-workflow.** The pieces are deliberately separable — acquisition, assembly,
-rendering, comparison, isolation and attribution are six independent phases, and
-only two of them need a browser. A document acquired in a unit test can be
-rendered by a pinned machine elsewhere, proven byte-identical in-process and over
-an HTTP hop.
-
-*Built: the phases, the remote renderer, the offload, and `variance comment`,
-which renders the body. Also built, and off by default: the commit-back, which
-refuses three ways — no baselines to commit, no head branch, or a workspace on a
-detached merge ref. Written and never executed: the GitHub Action
-([`.github/workflows/variance.yml`](.github/workflows/variance.yml)) that would
-post any of it.*
-
-### "Where does it work?"
-
-**Any Linux terminal** — your dev machine, GitHub Actions, Bitbucket Pipelines.
-It is Node and Playwright, with no service dependency and no daemon. The exit
-code is the whole gate, so a CI that can run a command already has it; the only
-platform-specific part is posting the comment, and both recipes are written down
-([GitHub](.github/actions/variance),
-[Bitbucket](packages/cli/README.md#bitbucket-pipelines-and-what-carries-to-any-ci)).
-
-*Honest limit: neither CI recipe has ever executed. What has run, once, is
-[`docker/linux-verify.sh`](docker/linux-verify.sh) — on 2026-08-03, native arm64,
-Node 24. **ADR-0010 survived**: every semantic verdict agreed and no
-cross-platform divergence appeared in any band. What did not survive is a piece of
-this README's own evidence — the `text-smoothing` probe perturbs
-`-webkit-font-smoothing`, which only macOS implements, so on Linux it moves 0
-pixels rather than 177. The band is not wrong and rasterization really does vary
-across machines; what this repository had was a simulation that works only on the
-machine that wrote it. Real evidence needs two machines rendering one page, and
-now that there are two, nothing yet does. `docker/results/` was never committed,
-so the run is recorded in
-[the checkpoint](docs/context/checkpoint.md) rather than in an artifact.*
-
-### "SOC 2?"
-
-**Your data is your data.** Everything runs in your infrastructure. There is no
-telemetry, no analytics, no phone-home, and no network egress other than a remote
-renderer you run yourself. `core` depends on nothing in this repo and on no host
-environment — no DOM, no Node, no globals — enforced by the compiler.
-
-### "Where do you make money?"
-
-**If you like Variance, let's talk** about custom-tailored solutions and premium
-features. The core is meant to work without any of that.
-
----
-
-## What exists
-
-**A package is named for what it needs, not for what it does.** Five of them need
-nothing at all — no browser, no codec, no disk, no socket — which is why the cheap
-tiers are cheap in practice and not only on paper.
+**A package is named for what it needs, not for what it does.** Five need nothing
+at all — no browser, no codec, no disk, no socket — which is why the cheap tiers
+are cheap in practice and not only on paper.
 
 **Requires nothing**
 
@@ -354,174 +304,86 @@ tiers are cheap in practice and not only on paper.
 | [`session`](packages/session) | a live DOM | many subjects in one standing world |
 | [`playwright`](packages/playwright) | a browser | the persistent harness, and a renderer |
 | [`png`](packages/png) | a PNG codec | decoding, comparison, the diff image |
+| [`png-sharp`](packages/png-sharp) | a compiled native addon | the same comparison. Decoding is **90%** of one, at **15.0 ms** against `pngjs`'s 22.6 ms per image |
 | [`store`](packages/store) | a filesystem | baselines on disk, and in git-LFS |
 | [`remote`](packages/remote) | a socket | a renderer and a store across a hop |
-| [`server`](packages/server) | a database | the history service you run |
-| [`tribunal`](packages/tribunal) | your own D1 and R2 | baselines, history, and the review-and-approve surface, in an account you control. Never deployed |
+| [`server`](packages/server) | a database | the history service the operator runs |
+| [`tribunal`](packages/tribunal) | a deployment with a database and a bucket | baselines, history, and the review-and-approve surface, in an account the operator controls |
 | [`mcp`](packages/mcp) | stdio | the observation, exposed to an agent |
 
 **Composes the above**
 
 | | |
 |---|---|
-| [`observe`](packages/observe) | two images to a verdict — `observePair` and `observeAgainstBaseline`, the ephemeral and durable modes. Take it when you want the whole answer without the CLI's config file; it is the only place in the repository where a phase order is hard-wired |
+| [`observe`](packages/observe) | two images to a verdict, in either retention mode — the whole answer without the CLI's config file, and the only place in the repository where a phase order is hard-wired |
 | [`playwright-test`](packages/playwright-test) | one fixture and one matcher, for a suite whose test body already is the collector |
 | [`storybook-collector`](packages/storybook-collector) | the mounting half for a built or served Storybook, so an adopter writes five lines instead of 341 |
-| [`route-collector`](packages/route-collector) | a map of served URLs to subjects — the first thing to enter through `subjects.kind: "list"` |
+| [`route-collector`](packages/route-collector) | a map of served URLs to subjects |
 | [`cli`](packages/cli) | the workflow, which is the one place a workflow belongs |
 
-| | |
-|---|---|
-| [`examples/kitchen-sink`](examples/kitchen-sink) | 8 subjects, 40 declared cases — the measurement's ground truth |
-| [`examples/todomvc`](examples/todomvc) | a small design system, the pixel arm, and the end-to-end |
-| [`cases/`](cases) | confrontations with things we did not author — a real Storybook, a real `toHaveScreenshot` |
-| [`docs/context/`](docs/context) | the paper trail: decisions that constrain the code, what each attempt cost, and current state — what is proven and what is open |
+Beside them: [`examples/kitchen-sink`](examples/kitchen-sink), 8 subjects and 40
+declared cases, which is the measurement's ground truth;
+[`examples/todomvc`](examples/todomvc), a small design system and the pixel arm;
+[`cases/`](cases), confrontations with software this project did not write; and
+[`docs/context/`](docs/context), the paper trail of decisions, attempts and
+current state.
 
-Every package has a README stating what it requires and what its entrypoints
-cost.
+Dependencies point downward only, and collectors extract while `core` normalizes.
+That split is what makes one ruleset serve both profiles by construction, and
+what lets a capture cross a network hop unchanged. `tribunal` is the deliberate
+exception to the naming rule: it is a service rather than a linked tool, so the
+requirement it names is a deployment
+([ADR-0023](docs/context/adr/0023-a-service-is-named-for-what-it-is.md)).
 
-Dependencies point downward only. Collectors extract; `core` normalizes. That
-split is what makes one ruleset serve both profiles by construction, and what
-lets a capture cross a network hop to a remote renderer unchanged.
+The layout is a test rather than a convention
+([ADR-0013](docs/context/adr/0013-packages-are-named-for-their-requirements.md),
+[ADR-0024](docs/context/adr/0024-a-consumer-knows-one-package.md)):
+`tools/boundaries.check.ts` fails when an import goes undeclared, when
+adopter-facing code names a second package, or when an advertised entrypoint
+stops resolving. The documentation is a test too
+([ADR-0014](docs/context/adr/0014-examples-are-call-sites.md)):
+`tools/docs-links.check.ts` and `tools/docs-claims.check.ts` resolve every link,
+repository path and `file:line` reference across all
+95 markdown files, and every README example is compiled against the built types.
+An example
+is a call site the compiler could not see, which is how 11 of the 20 that existed
+when the check first ran turned out to be stale against APIs renamed underneath
+them.
 
-The layout is a test rather than a convention — see
-[ADR-0013](docs/context/adr/0013-packages-are-named-for-their-requirements.md)
-and `tools/boundaries.check.ts`, which fails when an import goes undeclared, a
-adopter-facing code names a second package, or an advertised entrypoint stops
-resolving.
+## What is left to build
 
-**The documentation is a test too** —
-[ADR-0014](docs/context/adr/0014-examples-are-call-sites.md) and
-`tools/docs-links.check.ts` and `tools/docs-claims.check.ts`, which resolve every link, every repository path
-and every `file:line` reference in this and the other 85 markdown files, and
-compiles every README example against the built types with no unused import. An
-example is a call site the compiler could not see, which is why 11 of the 20 here
-had gone stale against APIs that had been renamed underneath them. It runs in
-`yarn typecheck` as well as `yarn test`.
-
-## The two rendering surfaces
-
-| Surface | Driver | Profile | Can observe |
-|---|---|---|---|
-| **JSDOM** | jest, vitest | `jsdom` | structure, ARIA, declared CSS — **no layout** |
-| **REAL-DOM** | playwright, agent-browser | `chromium` | the above **+ computed style + layout rects + raster** |
-
-They are never compared: the profile is part of the environment key, and a band a
-profile cannot observe reports `unobserved` rather than passing. JSDOM is not a
-cheap browser — it is an earlier gate that settles the token band and structural
-geometry in milliseconds, in the unit-test process.
-
-See [ADR-0002](docs/context/adr/0002-observation-profiles.md).
-
-## The tier ladder
-
-```
-reachability → structure+CSS digest → jsdom semantic → chromium semantic → raster
-   free              ~ms                   ~ms              7.5 ms          ~s
-```
-
-Each rung decides what it can and passes the rest on. The `chromium` rung costs
-7.5 ms per subject only because the browser, the page and the navigation are
-shared across a run; relaunching per subject costs 205 ms, **27× more** — see
-[journal 0007](docs/context/journal/0007-persistent-harness-and-p4.md).
-
-## What does not exist yet
-
-- **A history with a row in it.** The drift arithmetic, the store and the service
-  are written and unit-tested; **nothing has ever called them from a run.**
-  `variance accept` explicitly refuses to record. So the 22px story above has
-  never once been produced by the pipeline, which is the largest gap in the
-  project. Per-component band hashing, which every history question is asked
-  against, *is* written and corpus-scored
-  ([ADR-0018](docs/context/adr/0018-a-component-hash-covers-its-own-nodes.md));
-  nothing calls it from a run.
-- **A GitHub Action, PR comments, commit-back.** The workflow and the composite
-  action are committed and have never run once. The body they would post is
-  `variance comment`, which has been run against a real report and never from
-  CI — so what is unexercised is the delivery, not the docket. The CLI itself
-  does now run — see [`cases/storybook-case`](cases/storybook-case) — but only
-  against a project in this repository, and the mounting half of a run is a
-  collector each adopter writes.
-- **Cause-vs-collateral ranking on the durable path.** It needs the previous
-  revision's snapshot and a stored baseline is an image, so `variance run` passes
-  no causes and reports every region as `collateral`, ordered by area — the
-  ordering [journal 0013](docs/context/journal/0013-observability.md) measured as
-  backwards. The wiring is there; the input is not. `observePair` does not rank
-  either — it carries one snapshot, so it attributes and stops. Cause-first
-  ordering runs today only where `core` is composed by hand with both documents:
-  `examples/todomvc/src/observe.chromium.test.ts` and the two
-  [`cases/incumbent-case`](cases/incumbent-case) suites.
-- **git-LFS exercised as git-LFS.** The store is written, but no clean/smudge
-  filter has ever run and no image has been committed through it, so the one
-  failure that matters — an un-smudged checkout handing back a pointer file where
-  a PNG should be — has only ever been simulated.
-- **A shipped collector for anything but Storybook.** Storybook now has one —
-  [`@variance-authority/storybook-collector`](packages/storybook-collector) — and
-  the case that measured the hand-written cost at 341 lines across three files is
-  now [five lines of code](cases/storybook-case/collector/index.mjs) passing the
-  same end-to-end test. There is still no plugin and there is no discovery: the
-  config names a module, and for any other subject source that module is the
-  adopter's to write, once, per project.
-- **Any framework but React, actually run.** Provenance needs a component name
-  per element. React gets it from fibers; anything else gets it from two `data-*`
-  attributes and a 25-line `attributeProvenance`
-  ([`packages/dom/src/attributed.ts`](packages/dom/src/attributed.ts)), which is
-  what a Vue or Svelte build step already emits. No Vue, Svelte or Angular
-  application has been through it.
-- **A localized application.** `compareLocales` finds untranslated strings and
-  boxes that stopped fitting, measured against real Chromium layout on one panel
-  in two languages. One panel is not an application.
-- **Linux verification.** Every number here is from one Mac and one Chromium.
-- **Generality.** One corpus, built by us. Both profiles agree on it, which proves
-  the two collection paths implement one ruleset — not that the ruleset holds on
-  someone else's component library.
-- **Parity with a hosted product.** The comparison half is measured against one
-  real incumbent ([`cases/`](cases)). Of the product half, a review UI and team
-  approvals are written and unit-tested but have never been deployed — see the
-  next entry. Repository-scale change detection does not exist here and is not
-  claimed. A cross-browser *grid* does not either — `browser` became a config
-  field on 2026-08-04 and all three engines have painted one document
-  ([`packages/playwright/src/engines.chromium.test.ts`](packages/playwright/src/engines.chromium.test.ts):
-  827 px chromium/firefox, 630 px chromium/webkit, 1288 px firefox/webkit, and
-  **identical 352×77 dimensions in all three**). That is a selectable engine, not
-  a grid: no stabilization trick has been verified outside Chromium and nothing
-  runs the corpus twice.
-- **A deployment of the review backend.**
-  [`@variance-authority/tribunal`](packages/tribunal) implements the baseline
-  store, the history backend, the build-and-approve model and the review surface
-  against D1 and R2, and **has never run on Cloudflare.** D1 is SQLite, so its
-  93 tests execute the real SQL through `node:sqlite` against an in-memory
-  bucket — which verifies the queries, the triggers, the promotion path and the
-  routes, and verifies nothing about the platform: batch atomicity, quotas,
-  object-size ceilings and concurrent Workers are all unmeasured
-  ([ADR-0023](docs/context/adr/0023-a-service-is-named-for-what-it-is.md)).
-- **A real agent.** The MCP tools are shaped by argument about what an agent
-  needs and tested against text, not against an agent that used them and either
-  fixed the thing or did not.
-
-Current state, what is proven and what is open, is kept in
+`ls docs/specs/` — and that is the whole answer, because a spec here exists only
+while its capability is unfinished and is deleted the day it ships. The
+[index](docs/specs/README.md) states what each one is missing and what would
+discharge it, in dependency order. Decisions that survive a spec move into
+[`docs/context/adr/`](docs/context/adr/); what each attempt cost is in
+[`docs/context/journal/`](docs/context/journal/); current state is
 [`docs/context/checkpoint.md`](docs/context/checkpoint.md).
 
 ## Reading order
 
 1. [`docs/architecture.md`](docs/architecture.md) — the composition model: tools,
    their contracts, and why there is no pipeline
-2. [`docs/surface.md`](docs/surface.md) — what you write and what you install, by
+2. [`docs/surface.md`](docs/surface.md) — what an adopter writes and installs, by
    suite: Storybook, Playwright, jest/vitest, anything
-3. [`docs/flows.md`](docs/flows.md) — the six setups, from ephemeral to a review
+3. [`docs/flows.md`](docs/flows.md) — six setups, from ephemeral to a review
    service, and what each one cannot do
-4. [`docs/replacing.md`](docs/replacing.md) — four things teams already run, and
-   what moving costs and buys
-5. [`docs/cases.md`](docs/cases.md) — the six coins every tool in this category
-   has already called for you, and which face each one landed on
-6. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
-7. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
+4. [`docs/comparison.md`](docs/comparison.md) — where each competitor wins, and
+   when not to choose this
+5. [`docs/replacing.md`](docs/replacing.md) — four things teams already run, and
+   what moving costs
+6. [`docs/cases.md`](docs/cases.md) — the six coins every tool in this category
+   has already called, and which face each one landed on
+7. [`docs/flakiness.md`](docs/flakiness.md) — the position on variance
+8. [`docs/metrics.md`](docs/metrics.md) — what would settle the disagreements
+   with a number
+9. [`docs/specs/`](docs/specs/README.md) — what is decided and not yet built, in
    dependency order
-8. [`docs/context/README.md`](docs/context/README.md) — how the paper trail works
-9. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — current state
-10. [`docs/context/adr/`](docs/context/adr/) — decisions that constrain the code;
-    [0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the moat
-11. [`docs/context/journal/`](docs/context/journal/) — what was attempted and what it cost
+10. [`docs/context/README.md`](docs/context/README.md) — how the paper trail
+    works: [`checkpoint.md`](docs/context/checkpoint.md) for current state,
+    [`adr/`](docs/context/adr/) for the decisions that constrain the code
+    ([0003](docs/context/adr/0003-cruft-removal-and-css-applicability.md) is the
+    moat), [`journal/`](docs/context/journal/) for what each attempt cost
 
 ## Development
 
@@ -530,16 +392,18 @@ yarn install
 ```
 
 ```bash
-yarn build && yarn test
+yarn build && yarn verify
 ```
 
-The M0 measurement, which scores the pipeline against the corpus:
+`verify` is lint, the documentation and boundary checks, and the test suite. The
+M0 measurement, which scores the pipeline against the corpus:
 
 ```bash
 yarn vitest run examples/kitchen-sink/src/measure.test.tsx
 ```
 
-The `chromium` half needs a browser, and skips itself with a reason if there is none:
+The `chromium` half needs a browser, and skips itself with a reason when there is
+none:
 
 ```bash
 npx playwright install chromium
@@ -555,8 +419,12 @@ Pixels to code lines, end to end:
 yarn vitest run examples/todomvc/src/observe.chromium.test.ts
 ```
 
-What the persistent harness is worth, cold versus warm:
+What the persistent harness is worth, cold against warm:
 
 ```bash
 yarn workspace @variance-authority/example-kitchen-sink bench
 ```
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Mechanic Garden.
