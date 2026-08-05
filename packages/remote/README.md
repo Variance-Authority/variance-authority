@@ -46,6 +46,32 @@ what is behind it, which is why the local and remote sides cannot answer
 `identityFor` differently — they share the derivation rather than each having
 one.
 
+## Renders that overlap travel together
+
+`render(document)` is unchanged and takes one document. Underneath, calls that
+overlap in time leave as **one request** to `/render/batch`, because a run's
+raster tier goes as wide as the operator allowed and one request per subject pays
+a connection, a round trip and — on a farm that scales to zero — a chance of a
+cold start, per subject, around a paint that costs ~65 ms.
+
+The batching is under the interface rather than in it: nothing upstream learns a
+new shape, no caller picks a size, and the local and remote renderers stay
+interchangeable.
+
+| option | default | when to change it |
+|---|---|---|
+| `maxBatch` | 16 | A farm with a request-size limit, or one whose per-request timeout is tighter than a batch of paints |
+| `batchWindowMs` | `0` | Raise it only against a farm billed **per invocation**. Zero sends what is already waiting on the next turn of the loop, so a serial caller pays nothing; a window taxes that caller on every item and cannot help them |
+
+Two properties the batch does not get to soften. **The identity check stays per
+document** — it is the thing that stops a raster being filed under a key nobody
+looks up, and a saving that widened it to "somewhere in these sixteen" would be
+the worst possible trade. And **one document's failure is one document's**: the
+server answers per item, so a malformed subject cannot turn the fifteen it
+travelled with into failures somebody has to re-run to find innocent. A transport
+failure is the one thing that belongs to the whole batch, because nothing came
+back to attribute.
+
 ## Nothing that arrives is believed on different terms
 
 A record off a socket passes the same checks a record off a disk passes, from

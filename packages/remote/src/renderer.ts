@@ -11,6 +11,7 @@ import {
   type Renderer,
 } from '@variance-authority/raster';
 import { fetchWithin } from './transport.js';
+import { batching, type Settled } from './batch.js';
 
 /**
  * Offloading — the same renderer, on the other side of a hop.
@@ -31,9 +32,28 @@ import { fetchWithin } from './transport.js';
  */
 
 export const RENDER_PATH = '/render';
+/**
+ * Several documents, one request, one answer per document.
+ *
+ * The path a client actually uses. `RENDER_PATH` stays for a caller holding one
+ * document and for anything already speaking it; nothing here prefers it,
+ * because a farm charged per invocation is charged once for a batch of sixteen
+ * and sixteen times for the same work sent one at a time.
+ */
+export const BATCH_PATH = '/render/batch';
 export const IDENTITY_PATH = '/identity';
 
 export interface RemoteRendererOptions {
+  /** Most documents in one request. Defaults to 16. */
+  readonly maxBatch?: number;
+  /**
+   * Milliseconds to keep collecting documents before sending. Defaults to `0`.
+   *
+   * Zero sends what is already waiting on the next turn of the loop, which costs
+   * a serial caller nothing. Raise it only against a farm billed per invocation
+   * rather than per second, where waiting is cheaper than a second call.
+   */
+  readonly batchWindowMs?: number;
   /** Base URL of a server started by {@link serveRenderer}, e.g. `http://box:7777`. */
   readonly endpoint: string;
   /** Milliseconds. A render that hangs must fail, not stall the run. */
@@ -74,17 +94,45 @@ export async function connectRenderer(options: RemoteRendererOptions): Promise<R
   const identityFor = (document: RenderDocument): RenderIdentity =>
     identityAtScale(identity, document);
 
+  /**
+   * One request per burst rather than per document.
+   *
+   * The identity check below stays per document deliberately. It is the thing
+   * that stops a raster being filed under a key nobody looks up, and batching is
+   * a transport decision — a saving that quietly widened a correctness check to
+   * "somewhere in these sixteen" would be the worst possible trade.
+   */
+  const send = batching<RenderDocument, Raster>(
+    async (documents) => {
+      const answered = (await request(
+        get,
+        `${options.endpoint}${BATCH_PATH}`,
+        { documents },
+        // The window is the whole batch's, so a batch of sixteen paints is
+        // allowed sixteen paints' worth of it. A per-document timeout applied to
+        // a batch would fail the large ones for being large.
+        timeoutMs * documents.length,
+      )) as { readonly results?: readonly Settled<Raster>[] };
+
+      if (!Array.isArray(answered.results)) {
+        throw new Error(
+          `render server ${options.endpoint} answered ${BATCH_PATH} without a \`results\` array`,
+        );
+      }
+      return answered.results;
+    },
+    {
+      ...(options.maxBatch === undefined ? {} : { maxBatch: options.maxBatch }),
+      ...(options.batchWindowMs === undefined ? {} : { windowMs: options.batchWindowMs }),
+    },
+  );
+
   return {
     identity,
     identityFor,
 
     async render(document: RenderDocument): Promise<Raster> {
-      const raster = (await request(
-        get,
-        `${options.endpoint}${RENDER_PATH}`,
-        document,
-        timeoutMs,
-      )) as Raster;
+      const raster = await send(document);
 
       const expected = identityFor(document);
       if (identityDigest(raster.identity) !== identityDigest(expected)) {
@@ -179,6 +227,16 @@ async function handle(
       return;
     }
 
+    if (request_.url === BATCH_PATH && request_.method === 'POST') {
+      const body = JSON.parse(await readBody(request_)) as { documents?: readonly RenderDocument[] };
+      if (!Array.isArray(body.documents)) {
+        send(response, 400, { error: `${BATCH_PATH} takes { "documents": [ … ] }` });
+        return;
+      }
+      send(response, 200, { results: await renderEach(renderer, body.documents) });
+      return;
+    }
+
     if (request_.url !== RENDER_PATH || request_.method !== 'POST') {
       send(response, 404, { error: `no route for ${request_.method ?? '?'} ${request_.url ?? '?'}` });
       return;
@@ -192,6 +250,36 @@ async function handle(
     // subject changed, and the report then blames the component.
     send(response, 500, { error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+/**
+ * Every document in the batch, each answered for itself.
+ *
+ * Concurrent rather than serial because the renderer underneath already bounds
+ * its own concurrency — the Playwright one holds a page pool — and a second
+ * limiter here would fight it for a number neither can see.
+ *
+ * One document's failure is recorded against that document. A rejected batch
+ * would let a malformed subject decide the fate of the fifteen it travelled
+ * with, and those fifteen would come back as failures the operator then has to
+ * re-run to find innocent.
+ */
+async function renderEach(
+  renderer: Renderer,
+  documents: readonly RenderDocument[],
+): Promise<readonly Settled<Raster>[]> {
+  return Promise.all(
+    documents.map(async (document) => {
+      try {
+        return { ok: true as const, value: await renderer.render(document) };
+      } catch (error) {
+        return {
+          ok: false as const,
+          because: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }),
+  );
 }
 
 async function readBody(request_: IncomingMessage): Promise<string> {

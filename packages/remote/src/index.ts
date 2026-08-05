@@ -19,9 +19,13 @@ export {
   connectRenderer,
   serveRenderer,
   RENDER_PATH,
+  BATCH_PATH,
   IDENTITY_PATH,
 } from './renderer.js';
 export type { RemoteRendererOptions, RenderServer } from './renderer.js';
+
+export { batching } from './batch.js';
+export type { BatchOptions, SendBatch, Settled } from './batch.js';
 
 export {
   createRemoteStore,

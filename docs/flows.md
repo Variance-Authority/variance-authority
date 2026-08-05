@@ -258,9 +258,15 @@ everything below it is a decision about whose account pays.
 | Rung | You stand up | What it costs | The catch |
 |---|---|---|---|
 | **A. Inside the CI job** | nothing | runner minutes you already buy | The default, and the least scalable: your concurrency limit is the farm's. Fine until a suite outgrows one job |
-| **B. A container you run** | one image, anywhere with scale-to-zero | per-second, and the load is small — 65 ms per painted subject, and the ladder paints very few | You own the Dockerfile, so the fonts and the engine version are pinned by you rather than by somebody's upgrade |
+| **B. A container you run** | one image, anywhere with scale-to-zero | per-second, and the load is small — 65 ms per painted subject, and the ladder paints very few. Overlapping renders leave as one request, so the cost is paints rather than round trips | You own the Dockerfile, so the fonts and the engine version are pinned by you rather than by somebody's upgrade |
 | **C. A managed browser service** | an account | theirs | **Not Playwright.** The `Renderer` contract is `render(document) → Raster` plus `identityFor`, so an adapter over a hosted screenshot API is perhaps a hundred lines — but nobody has written one, and the engine, the fonts and the warm-reuse saving all become the vendor's to decide |
 | **D. Somebody else's, hosted** | an account | — | Does not exist. See [comparison.md](comparison.md) |
+
+**This is not `tribunal`.** The renderer is a browser and `tribunal` is a review
+surface over D1 and R2 — one needs a machine that can paint and the other runs on
+a platform that cannot. They are separate services, deployed separately, and the
+Worker one-click path in [`packages/tribunal`](../packages/tribunal) buys nothing
+here.
 
 **Rung A is not a starter tier.** Rendering in the job that already checked out
 the code is the arrangement with the fewest moving parts, and a suite that fits

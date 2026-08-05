@@ -175,6 +175,60 @@ describe('rendering somewhere else', () => {
     expect(remote.identityFor(document).deviceScaleFactor).toBe(VIEWPORT.deviceScaleFactor);
   });
 
+  it('sends concurrent renders as one request', async () => {
+    // The saving, over a real socket. A run's raster tier goes as wide as the
+    // operator allowed, and one request per subject pays a connection, a round
+    // trip and — on a farm that scales to zero — a chance of a cold start, per
+    // subject, around a paint that costs ~65 ms.
+    const renderer = echoRenderer();
+    const requests: string[] = [];
+
+    server = await serveRenderer(renderer);
+    const remote = await connectRenderer({
+      endpoint: server.url,
+      fetch: async (input, init) => {
+        requests.push(String(input));
+        return globalThis.fetch(input as string, init);
+      },
+    });
+
+    const documents = ['a', 'b', 'c', 'd'].map((id) => documentOf(`<div data-va-path="0">${id}</div>`));
+    const rasters = await Promise.all(documents.map((document) => remote.render(document)));
+
+    expect(renderer.seen).toHaveLength(4);
+    expect(rasters.map((raster) => raster.documentDigest)).toEqual(
+      documents.map((document) => documentDigest(document)),
+    );
+    // One render request for four documents. The identity probe is its own GET
+    // and happens at connect, before any of this.
+    expect(requests.filter((url) => url.includes('/render'))).toHaveLength(1);
+  });
+
+  it('fails one document in a batch without failing the rest', async () => {
+    // A malformed subject travelling with fifteen good ones must not turn the
+    // fifteen into failures the operator has to re-run to find innocent.
+    const renderer = echoRenderer();
+    const failing: Renderer = {
+      ...renderer,
+      async render(document: RenderDocument) {
+        if (document.html.includes('bad')) throw new Error('this document is broken');
+        return renderer.render(document);
+      },
+    };
+
+    server = await serveRenderer(failing);
+    const remote = await connectRenderer({ endpoint: server.url });
+
+    const [good, bad] = await Promise.allSettled([
+      remote.render(documentOf('<div data-va-path="0">fine</div>')),
+      remote.render(documentOf('<div data-va-path="0">bad</div>')),
+    ]);
+
+    expect(good.status).toBe('fulfilled');
+    expect(bad).toMatchObject({ status: 'rejected' });
+    expect((bad as PromiseRejectedResult).reason.message).toContain('this document is broken');
+  });
+
   it('refuses a raster the far end rendered under a different identity', async () => {
     // Silence here is the expensive failure: the caller has already keyed its
     // baseline lookup on the predicted identity, so storing a raster stamped
