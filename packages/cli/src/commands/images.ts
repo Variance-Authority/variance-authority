@@ -1,9 +1,11 @@
 import { dirname, join, relative } from 'node:path';
 import {
   documentDigest,
+  hashComponents,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
+  type SemanticSnapshot,
 } from '@variance-authority/core';
 import type { Observation } from '@variance-authority/observe';
 import { decode, diffImage } from '@variance-authority/png';
@@ -53,9 +55,18 @@ export async function images(
    * out.
    */
   key: BaselineKey | null,
+  /** This run's snapshot of the same render, when the collector supplied one. */
+  snapshot?: SemanticSnapshot,
 ): Promise<{ images?: ObservationRecord['images'] }> {
-  const raster = await candidateRaster(deps.store, document, renderer);
-  if (raster === null) return {};
+  const cached = await candidateRaster(deps.store, document, renderer);
+  if (cached === null) return {};
+
+  // The hashes are attached here rather than read back out of the cache. They
+  // describe the snapshot this run collected, and the cache is keyed by the
+  // document — so a cache hit is the right *image* and says nothing about whose
+  // components it was written beside (ADR-0027, and `withComponents`).
+  const raster: Raster =
+    snapshot === undefined ? cached : { ...cached, components: hashComponents(snapshot) };
 
   const base = join(config.images, encodeURIComponent(id));
   const reportDir = dirname(config.report);

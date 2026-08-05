@@ -270,3 +270,116 @@ describe('formatAcceptance', () => {
     expect(text).toContain('[refused]  fixture:b: no image');
   });
 });
+
+describe('accepting a difference shape', () => {
+  const region = (fingerprint: string, pixels = 40) => ({
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 4,
+    pixels,
+    cause: false,
+    fingerprint,
+  });
+
+  const FLAKE = 'v1:2c4f9a1e0b7d3856a91c4e2f8b06d735';
+  const OTHER = 'v1:ffffffffffffffffffffffffffffffff';
+
+  async function acceptShape(
+    observations: readonly ObservationRecord[],
+    shapes: readonly string[],
+  ) {
+    const { store, puts } = recordingStore();
+    const result = await accept({
+      report: reportOf(observations),
+      reportDir: '/repo/out',
+      store,
+      subjects: [],
+      all: false,
+      shapes,
+      read: async () => CANDIDATE,
+    });
+    return { result, puts };
+  }
+
+  it('covers every subject the shape reached, in one action', async () => {
+    // The bulk path. One change across forty screenshots is one decision, and
+    // the shape is what makes "the same change" a fact rather than a hope.
+    const { result } = await acceptShape(
+      [
+        observation({ subject: 'fixture:a', regions: [region(FLAKE)] }),
+        observation({ subject: 'fixture:b', regions: [region(FLAKE)] }),
+        observation({ subject: 'fixture:c', regions: [region(OTHER)] }),
+      ],
+      [FLAKE],
+    );
+
+    expect(result.accepted.map((entry) => entry.subject)).toEqual(['fixture:a', 'fixture:b']);
+  });
+
+  it('leaves a subject where something else also moved, and names it', async () => {
+    // The safety property, and the reason a bulk accept is defensible at all.
+    // Sweeping this one along would baseline the other change silently — and
+    // saying nothing about it would be its own surprise.
+    const { result, puts } = await acceptShape(
+      [observation({ subject: 'fixture:a', regions: [region(FLAKE), region(OTHER)] })],
+      [FLAKE],
+    );
+
+    expect(result.accepted).toEqual([]);
+    expect(puts).toEqual([]);
+    expect(result.refused[0]?.because).toContain('something else changed too');
+  });
+
+  it('names a partial subject even when others were accepted', async () => {
+    const { result } = await acceptShape(
+      [
+        observation({ subject: 'fixture:a', regions: [region(FLAKE)] }),
+        observation({ subject: 'fixture:b', regions: [region(FLAKE), region(OTHER)] }),
+      ],
+      [FLAKE],
+    );
+
+    expect(result.accepted.map((entry) => entry.subject)).toEqual(['fixture:a']);
+    expect(result.refused.map((entry) => entry.subject)).toEqual(['fixture:b']);
+  });
+
+  it('leaves a subject whose region list was capped', async () => {
+    // A truncated list is not a complete one, so "this shape is the entire
+    // change" is unsupported — the regions the run dropped could be anything.
+    const { result } = await acceptShape(
+      [
+        observation({
+          subject: 'fixture:a',
+          regions: [region(FLAKE)],
+          truncated: { regions: 3, pixels: 90 },
+        }),
+      ],
+      [FLAKE],
+    );
+
+    expect(result.accepted).toEqual([]);
+    expect(result.refused[0]?.because).toContain('capped its region list');
+  });
+
+  it('refuses the whole command when the shape appears nowhere at all', async () => {
+    // "accepted 0 subjects" and "that fingerprint does not appear in this run"
+    // are different answers, and only one of them tells the operator to check
+    // what they pasted.
+    await expect(
+      acceptShape([observation({ subject: 'fixture:a', regions: [region(OTHER)] })], [FLAKE]),
+    ).rejects.toBeInstanceOf(OperatorError);
+  });
+
+  it('takes several shapes at once', async () => {
+    const { result } = await acceptShape(
+      [
+        observation({ subject: 'fixture:a', regions: [region(FLAKE)] }),
+        observation({ subject: 'fixture:b', regions: [region(FLAKE), region(OTHER)] }),
+      ],
+      [FLAKE, OTHER],
+    );
+
+    expect(result.accepted.map((entry) => entry.subject)).toEqual(['fixture:a', 'fixture:b']);
+  });
+});

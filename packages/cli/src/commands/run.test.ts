@@ -167,6 +167,27 @@ describe('run', () => {
     ]);
   });
 
+  it('names an ignore that resolved nowhere, rather than carrying it silently', async () => {
+    // The wiring test. Everything else about ignores is unit-tested either side
+    // of the run; what only this can show is that a rule written in a config
+    // reaches the artifact — and that the state worth reporting is the one where
+    // it caught nothing, which no per-subject count can express.
+    const config = configOf({
+      ignore: [{ id: 'carousel', reason: 'auto-advances', select: '.carousel' }],
+    });
+
+    const { report } = await runWith(config, collectsBoth, storeAnswering(null));
+
+    expect(report.ignores?.dead).toEqual(['carousel']);
+    expect(report.ignores?.rules[0]).toMatchObject({ unresolved: true, pixels: 0 });
+  });
+
+  it('has no ledger at all when nothing was excluded', async () => {
+    const { report } = await runWith(configOf(), collectsBoth, storeAnswering(null));
+
+    expect(report.ignores).toBeUndefined();
+  });
+
   it('carries the plan’s own exclusions into the report', async () => {
     // A subject that vanishes without a word is indistinguishable from one that
     // passed. The adapter's reason has to reach the artifact, not a log line.

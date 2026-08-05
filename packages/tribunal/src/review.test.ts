@@ -116,7 +116,13 @@ describe('a build is the report a run already wrote', () => {
 
     const detail = await review.build('ci-1001');
 
-    expect(detail?.verdicts).toEqual({ changed: 1, unchanged: 1, new: 0, incomparable: 0 });
+    expect(detail?.verdicts).toEqual({
+      changed: 1,
+      unchanged: 1,
+      new: 0,
+      incomparable: 0,
+      ignored: 0,
+    });
     expect(detail?.subjects[0]?.regions).toHaveLength(2);
     expect(detail?.subjects[0]?.findings).toEqual([]);
     expect(detail?.intent).toBe('tighten the toolbar');

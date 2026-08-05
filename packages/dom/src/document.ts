@@ -7,7 +7,8 @@ import {
   type SubjectRef,
   type Viewport,
 } from '@variance-authority/core';
-import { detectProfile, inheritedSeed } from './collect.js';
+import { detectProfile } from './collect.js';
+import { inheritedSeed } from './inherit.js';
 import { indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
 import type { ConditionEnvironment } from './media.js';
 import { attributesOf, elements } from './dom-list.js';
@@ -187,6 +188,26 @@ function applicableCss(
   };
   walk(root);
 
+  // And the frame, which is rendered and was not collected.
+  //
+  // `frameOf` reproduces `<html>`, `<body>` and every ancestor by tag and
+  // attributes, and `assemble` emits them — so they are part of the page the
+  // renderer paints. Their *rules* were not, because this walk started at the
+  // subject and went down. A Storybook preview that centres its story with
+  // `body { display: flex; justify-content: center }` therefore painted the
+  // subject full-width at the top-left, and `cases/storybook-case` measured the
+  // gap at 1024 device pixels against an acquired subject 147.33 CSS pixels wide.
+  // Every baseline it had was a photograph of a layout that exists in no browser.
+  //
+  // Ancestors carry no `data-va-path` — they are reconstructed from tag and
+  // attributes, not serialized — so they produce no binding and `verify` cannot
+  // re-test them. That is the honest limit and it is narrower than it sounds: a
+  // rule that fails to match an ancestor in the render can only *lose* styling
+  // the page had, and `subject-size-diverged` is the detector for the outcome.
+  for (const ancestor of frameChain(root)) {
+    for (const rule of matchRulesFor(ancestor, index).matched) byOrder.set(rule.order, rule);
+  }
+
   const rules = [...byOrder.values()].sort((a, b) => a.order - b.order);
   const text = rules.map(
     (rule) =>
@@ -202,6 +223,22 @@ function applicableCss(
 interface Binding {
   readonly path: string;
   readonly selector: string;
+}
+
+/**
+ * Every element the frame reproduces, outermost first.
+ *
+ * The same walk `frameOf` makes, and deliberately a separate function rather
+ * than a second reading of its output: what is *rendered* is elements, and what
+ * `frameOf` returns is tags and attribute bags. Matching a rule needs the live
+ * element.
+ */
+function frameChain(root: Element): readonly Element[] {
+  const chain: Element[] = [];
+  for (let node = root.parentElement; node !== null; node = node.parentElement) {
+    chain.unshift(node);
+  }
+  return chain;
 }
 
 /** Tags, ids, classes and attributes above the subject, outermost first. */

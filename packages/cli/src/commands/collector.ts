@@ -42,6 +42,20 @@ export interface PlannedSubject {
   readonly subject: SubjectRef;
   /** Overrides the run's viewport, when the subject declared its own. */
   readonly viewport?: Viewport;
+
+  /**
+   * What the subject declares itself to be, from the artifact that produced it.
+   *
+   * Storybook's built index carries `tags` and does not carry a story's
+   * `parameters`, so a tag is the only per-story declaration that survives a
+   * build — and it is the right one anyway: what a subject *is* belongs in its
+   * own name, next to it, rather than in a central file repeating every id.
+   *
+   * Selection lives here; definition lives in the config. A tag is a word a
+   * story wears, and what that word *means* is the operator's to write down
+   * once, where a typo can be refused by name.
+   */
+  readonly tags?: readonly string[];
 }
 
 export interface Plan {
@@ -209,6 +223,7 @@ export async function planStorybook(
     subjects: plan.subjects.map((story) => ({
       subject: story.subject,
       ...(story.viewport !== undefined ? { viewport: story.viewport } : {}),
+      ...(story.story.tags.length > 0 ? { tags: story.story.tags } : {}),
     })),
     notObserved: plan.excluded.map((entry) => ({
       subject: storySubjectId(entry.id),

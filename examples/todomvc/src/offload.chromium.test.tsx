@@ -108,17 +108,42 @@ chromium_('rendering a document jsdom produced', () => {
   });
 
   it('carries the tokens that pruning correctly removed', async () => {
-    // `:root` is outside every subject, so applicability pruning drops the rule
-    // that defines the design tokens — correctly. If the inherited floor did not
-    // carry them, `var(--va-color-accent)` would resolve to nothing and this
-    // image would be the design system with its colours deleted.
+    // `:root` is outside every subject, so the walk *down* from the subject drops
+    // the rule that defines the design tokens. If nothing carried them,
+    // `var(--va-color-accent)` would resolve to nothing and this image would be
+    // the design system with its colours deleted.
+    //
+    // Two things carry them now, and the second arrived on 2026-08-06 when
+    // `applicableCss` started collecting the frame's own rules: `:root` matches
+    // `<html>`, which the frame reproduces and the renderer paints, so the real
+    // rule ships. Stripping the inherited floor alone therefore changes nothing —
+    // which is why this test asserts against *both* being gone rather than
+    // against either, and why it would have passed vacuously if left as it was.
     const withTokens = await renderer!.render(acquire());
 
     const stripped = acquire();
-    const blank = await renderer!.render({ ...stripped, inherited: {} });
+    const blank = await renderer!.render({
+      ...stripped,
+      inherited: {},
+      css: stripped.css.map((sheet) =>
+        sheet
+          .split('\n')
+          .filter((rule) => !rule.includes('--va-color-accent'))
+          .join('\n'),
+      ),
+    });
 
     const comparison = comparePngs(decode(withTokens.bytes), decode(blank.bytes));
     expect(comparison.changed['default']).toBeGreaterThan(0);
+  });
+
+  it('ships the token rule itself, rather than only its flattened values', () => {
+    // The mechanism, pinned. A floor of computed values is a second, lossy copy
+    // of a rule the frame could simply carry; now that `<html>` is reproduced,
+    // the rule that defines the tokens is applicable and is shipped as authored.
+    const document = acquire();
+
+    expect(document.css.join('\n')).toContain('--va-color-accent');
   });
 
   it('repaints when the document changes and not otherwise', async () => {

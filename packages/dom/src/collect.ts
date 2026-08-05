@@ -1,9 +1,7 @@
 import {
   CHROMIUM_PROFILE,
   JSDOM_PROFILE,
-  EMPTY_CONTEXT,
   admits,
-  resolveStyle,
   type Diagnostic,
   type ObservationProfile,
   type Provenance,
@@ -13,7 +11,9 @@ import {
   type Viewport,
 } from '@variance-authority/core';
 import { ariaOf } from './aria.js';
+import { resolveIgnores, type IgnoreSelector } from './ignore.js';
 import { conditionKey, indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
+import { inheritedSeed } from './inherit.js';
 import type { ConditionEnvironment } from './media.js';
 import { attributesOf, childNodesOf, elements, propertyNames } from './dom-list.js';
 
@@ -107,6 +107,21 @@ export interface CollectOptions {
 
   /** Defaults to `chromium` when the host has a layout engine, else `jsdom`. */
   readonly profile?: ObservationProfile;
+
+  /**
+   * Subtrees the operator excluded, as `(rule id, selector)` pairs (spec 0024).
+   *
+   * Resolved here because running a selector needs a document and nothing above
+   * this has one. What is produced is a *mark* — `RawNode.ignoredBy` — never a
+   * deletion: an element removed from the capture would be absent from every
+   * count downstream, and "absorbed by the `carousel` rule" and "was never
+   * there" are the two states this whole mechanism exists to keep apart.
+   *
+   * Markup markers (`data-variance-ignore`) are honoured whether or not this is
+   * supplied, because they are the operator's declaration too. Neither form
+   * reaches a hash.
+   */
+  readonly ignore?: readonly IgnoreSelector[];
 }
 
 /**
@@ -160,6 +175,26 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     });
   }
 
+  const ignores = resolveIgnores(
+    root,
+    options.ignore ? { selectors: options.ignore } : {},
+  );
+
+  for (const selector of ignores.unmatched) {
+    // A warning rather than an error, and per subject rather than per run: a
+    // rule scoped to a page header legitimately matches nothing in a button
+    // story. What makes an unmatched selector worth reporting is the run-level
+    // register finding that it matched nothing *anywhere*, and this is the
+    // evidence that answer is assembled from.
+    diagnostics.push({
+      severity: 'warn',
+      code: 'ignore-unmatched',
+      message:
+        `ignore rule "${selector.id}" selector \`${selector.select}\` matched nothing in this ` +
+        'subject; if it matches nothing anywhere, it is a hole in the suite that absorbs nothing',
+    });
+  }
+
   const portalRoots = options.portalsOf?.(root) ?? [];
   const couplings = new Set<string>();
 
@@ -189,13 +224,13 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
       conditions: { ...options.features, ...index.evaluatedConditions },
       assets: options.assets ?? {},
     },
-    root: captureNode(root, profile, index, view, options, couplings),
+    root: captureNode(root, profile, index, view, options, couplings, ignores.marks),
     inheritedSeed: inheritedSeed(root, profile, view, index),
     ...(couplings.size > 0 ? { couplings: [...couplings].sort() } : {}),
     ...(portalRoots.length > 0
       ? {
           portals: portalRoots.map((host) =>
-            captureNode(host, profile, index, view, options, couplings),
+            captureNode(host, profile, index, view, options, couplings, ignores.marks),
           ),
         }
       : {}),
@@ -236,6 +271,7 @@ function captureNode(
   view: Window | null,
   options: CollectOptions,
   couplingSink: Set<string>,
+  marks: ReadonlyMap<Element, readonly string[]>,
 ): RawNode {
   const attributes = attributesOf(element);
 
@@ -246,13 +282,14 @@ function captureNode(
   }
 
   const provenance = options.provenanceOf?.(element);
+  const ignoredBy = marks.get(element);
   const { matched, couplings } = matchRulesFor(element, index);
   for (const coupling of couplings) couplingSink.add(coupling);
 
   const children: RawNode[] = [];
   for (const child of childNodesOf(element)) {
     if (child.nodeType === 1) {
-      children.push(captureNode(child as Element, profile, index, view, options, couplingSink));
+      children.push(captureNode(child as Element, profile, index, view, options, couplingSink, marks));
       continue;
     }
 
@@ -271,7 +308,7 @@ function captureNode(
   const shadowChildren: RawNode[] = [];
   if (shadow) {
     for (const child of elements(shadow.children)) {
-      shadowChildren.push(captureNode(child, profile, index, view, options, couplingSink));
+      shadowChildren.push(captureNode(child, profile, index, view, options, couplingSink, marks));
     }
   }
 
@@ -286,6 +323,10 @@ function captureNode(
     ...(provenance ? { provenance } : {}),
     children,
     ...(shadowChildren.length > 0 ? { shadowChildren } : {}),
+    // Marked here and nowhere else. Only the element that matched carries the
+    // rule; containment is a question about paths, which `core` answers without
+    // a DOM — so a deep subtree costs one mark rather than one per node.
+    ...(ignoredBy ? { ignoredBy } : {}),
   };
 }
 
@@ -340,89 +381,6 @@ function rectOf(element: Element): { x: number; y: number; width: number; height
   };
 }
 
-/**
- * Inherited values in force at the subject root.
- *
- * Mandatory, not an optimization (ADR-0003). Applicability pruning drops every
- * rule matching nothing inside the subtree — including rules on ancestors
- * *outside* it whose inheritable properties still reach in. Without this seed
- * the cheap tier reports false `unchanged`.
- *
- * Under a profile without computed style there is no way to read the ancestors'
- * resolved values, so the seed is empty and the tier is correspondingly weaker.
- * That is reported by the profile, not papered over here.
- */
-export function inheritedSeed(
-  root: Element,
-  profile: ObservationProfile,
-  view: Window | null,
-  index: StyleIndex,
-): Record<string, string> {
-  if (!root.parentElement) return {};
-
-  if (profile.computedStyle && view) {
-    const parent = view.getComputedStyle(root.parentElement);
-    const seed: Record<string, string> = {};
-
-    for (const property of INHERITABLE) {
-      const value = parent.getPropertyValue(property);
-      if (value) seed[property] = value;
-    }
-    for (const property of propertyNames(parent)) {
-      if (property.startsWith('--')) seed[property] = parent.getPropertyValue(property);
-    }
-
-    return seed;
-  }
-
-  return declaredAncestorSeed(root, index);
-}
-
-/**
- * Resolve the ancestor cascade by hand, for profiles with no computed style.
- *
- * Returning `{}` here — which this did — quietly disabled the entire token
- * dimension under JSDOM. Design tokens are declared on `:root`, `:root` is
- * outside every subject's subtree, so applicability pruning correctly drops the
- * rule that defines them; with no seed to carry them in, `var(--brand)` resolved
- * to nothing and every token-driven value in the snapshot was empty. The corpus
- * missed it because its overrides are inline on the subject root; a real project
- * declares them on `:root` and would have found the token band inert.
- *
- * The fix walks `documentElement → …  → root.parentElement`, matching rules and
- * running `core`'s cascade at each step, threading the inherit context down. It
- * is the same resolver the subject itself uses, so the seed cannot drift from the
- * ruleset that consumes it — the ADR-0001 property, applied one level up.
- */
-function declaredAncestorSeed(root: Element, index: StyleIndex): Record<string, string> {
-  const chain: Element[] = [];
-  for (let node = root.parentElement; node; node = node.parentElement) chain.unshift(node);
-
-  let context = EMPTY_CONTEXT;
-  for (const ancestor of chain) {
-    const inline = (ancestor as HTMLElement).style;
-    const inlineStyle: Record<string, string> = {};
-    for (const property of propertyNames(inline)) {
-      inlineStyle[property] = inline.getPropertyValue(property);
-    }
-
-    context = resolveStyle({
-      matchedRules: matchRulesFor(ancestor, index).matched,
-      ...(Object.keys(inlineStyle).length > 0 ? { inlineStyle } : {}),
-      context,
-    }).childContext;
-  }
-
-  return { ...context.inherited, ...context.customProperties };
-}
-
-const INHERITABLE: readonly string[] = [
-  'color', 'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
-  'font-stretch', 'line-height', 'letter-spacing', 'word-spacing',
-  'text-align', 'text-indent', 'text-transform', 'white-space', 'word-break',
-  'overflow-wrap', 'visibility', 'direction', 'writing-mode',
-  'caption-side', 'border-collapse', 'border-spacing',
-];
 
 /**
  * Wrap `CSS.supports`, which throws on a prelude it cannot parse.

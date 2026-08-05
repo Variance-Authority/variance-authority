@@ -68,10 +68,43 @@ export interface NotObserved {
 
 export interface ObservationRecord {
   readonly subject: string;
-  readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable';
+
+  /**
+   * `ignored` is green and is not `unchanged`.
+   *
+   * Pixels differed and every one of them landed inside a subtree the operator
+   * excluded (spec 0024). Kept as its own word so a report can be asked how much
+   * of its green was earned and how much was declared — a question `unchanged`
+   * absorbs and can never answer again.
+   */
+  readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable' | 'ignored';
   readonly because: string;
-  /** Differing pixels at the policy the run isolated on. */
+
+  /**
+   * Differing pixels at the policy the run isolated on, **after** exclusions.
+   *
+   * What was ignored is in {@link ObservationRecord.ignored} rather than folded
+   * in here, so the two numbers cannot be added by accident and a subject with a
+   * mask over half of it does not read as a subject that barely moved.
+   */
   readonly changedPixels: number;
+
+  /**
+   * What the operator's ignores took out of this comparison.
+   *
+   * Present whenever the subject had an excluded subtree at all, including when
+   * nothing was absorbed — `pixels: 0` with `boxes: 2` is a rule that caught
+   * nothing this run, which is the state that turns an ignore into a blind spot
+   * and therefore the one a report must be able to state.
+   */
+  readonly ignored?: {
+    readonly pixels: number;
+    readonly boxes: number;
+    /** Boxes covering no changed pixel: the raster half of a dead ignore. */
+    readonly inert: number;
+    /** Pixels each rule absorbed here. A rule present with `0` caught nothing. */
+    readonly byRule: Readonly<Record<string, number>>;
+  };
   readonly regions: readonly RegionRecord[];
   /** Regions found but not recorded, with their pixels. Never silently dropped. */
   readonly truncated?: { readonly regions: number; readonly pixels: number };
@@ -171,4 +204,13 @@ export interface RegionRecord {
   readonly cause: boolean;
   /** `true` when no box contained the region; a wrong scale or origin. */
   readonly unattributed?: boolean;
+
+  /**
+   * The shape of this difference, with position and values removed.
+   *
+   * Printed so that writing a shape-scoped ignore is copying a digest out of the
+   * report rather than deriving one. Two regions with the same fingerprint are
+   * the same kind of thing happening, wherever on the canvas they landed.
+   */
+  readonly fingerprint?: string;
 }

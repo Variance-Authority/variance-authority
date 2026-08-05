@@ -1,6 +1,7 @@
 import type { Diagnostic, SubjectRef } from './capture.js';
 import type { Viewport } from './environment.js';
 import { digestValue, type Digest } from './hash.js';
+import type { ComponentHash } from './snapshot.js';
 
 /**
  * The render document: what gets *sent* somewhere to become an image.
@@ -239,4 +240,26 @@ export interface Raster {
   readonly bytes: string;
   /** Fonts the document declared that the renderer did not have. */
   readonly missingFonts: readonly string[];
+
+  /**
+   * What the document that painted this said about its own components (ADR-0018).
+   *
+   * The field that makes a baseline self-describing, and the reason it is here
+   * rather than only in a history store. Separating the component that *caused* a
+   * change from the components the change merely moved needs both revisions, and
+   * a stored baseline is an image: without this, a run has one document and ranks
+   * by area — which
+   * [journal 0013](../../../../docs/context/journal/0013-observability.md)
+   * measured as backwards.
+   *
+   * Text, and small: one line per component boundary. It rides in the sidecar
+   * beside a PNG that dominates it, so a baseline carries its own explanation
+   * wherever it is copied, and a store or a transport that drops it degrades to
+   * ranking by area rather than to a wrong answer.
+   *
+   * Optional because a baseline written before this existed does not have it, and
+   * because a profile or a collector that supplies no snapshot cannot produce it.
+   * Absent means *unknown*, never *no components*.
+   */
+  readonly components?: readonly ComponentHash[];
 }

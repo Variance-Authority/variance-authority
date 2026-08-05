@@ -1,106 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { attributeRegions, isolateRegions, type ChangeMask } from './region.js';
+import { attributeRegions, rankRegions } from './region.js';
 import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
- * The two phases that turn a pixel count into a place, tested on hand-written
- * inputs.
+ * Joining a place on the canvas to a node in the tree, on hand-written inputs.
  *
- * Neither needs a browser, a PNG, or a render — which is the point of splitting
- * them out of the comparison. A mask is a bitmask and a snapshot is a value, so
- * the question "does 5482 pixels become a sentence about `Toggle`" is answerable
- * in milliseconds and does not depend on the thing that produced the pixels.
+ * A snapshot is a value, so "does 5482 pixels become a sentence about `Toggle`"
+ * is answerable in milliseconds with no browser and no PNG. `mask.test.ts` covers
+ * the phase before this one: the two are separated because they fail differently,
+ * and reading one to find out about the other is how they came to share a file.
  */
-
-function mask(rows: readonly string[]): ChangeMask {
-  const width = rows[0]!.length;
-  const height = rows.length;
-  const data = new Uint8Array(width * height);
-  let changed = 0;
-
-  for (const [y, row] of rows.entries()) {
-    for (let x = 0; x < width; x += 1) {
-      if (row[x] === '#') {
-        data[y * width + x] = 1;
-        changed += 1;
-      }
-    }
-  }
-
-  return { width, height, data, changed };
-}
-
-describe('isolating a change', () => {
-  it('finds nothing in an empty mask', () => {
-    const isolation = isolateRegions(mask(['....', '....']), { cell: 1 });
-    expect(isolation.regions).toHaveLength(0);
-  });
-
-  it('reports one region per separated cluster', () => {
-    const isolation = isolateRegions(
-      mask([
-        '##....##',
-        '##....##',
-        '........',
-        '........',
-      ]),
-      { cell: 1 },
-    );
-
-    expect(isolation.regions).toHaveLength(2);
-    expect(isolation.regions.map((r) => r.pixels)).toEqual([4, 4]);
-  });
-
-  it('tightens the box onto the changed pixels, not the grid it clustered on', () => {
-    // The clustering is coarse; the coordinates are not. A region reported at
-    // grid resolution would land attribution on whatever the padding overlapped.
-    const isolation = isolateRegions(
-      mask([
-        '........',
-        '..##....',
-        '..##....',
-        '........',
-      ]),
-      { cell: 4 },
-    );
-
-    expect(isolation.regions).toEqual([
-      { x: 2, y: 1, width: 2, height: 2, pixels: 4, density: 1 },
-    ]);
-  });
-
-  it('groups neighbouring changes into one place at the default grid', () => {
-    // Antialiased text produces a fragment per glyph edge. At cell 1 this is
-    // four regions; at the default it is the word someone would point at.
-    const fragments = mask(['#.#.#.#.', '#.#.#.#.']);
-
-    expect(isolateRegions(fragments, { cell: 1 }).regions).toHaveLength(4);
-    expect(isolateRegions(fragments).regions).toHaveLength(1);
-  });
-
-  it('says what it dropped when it caps the list', () => {
-    const scattered = mask([
-      '#.#.#.#.',
-      '........',
-      '#.#.#.#.',
-    ]);
-
-    const isolation = isolateRegions(scattered, { cell: 1, limit: 3 });
-
-    expect(isolation.regions).toHaveLength(3);
-    expect(isolation.truncated).toBe(5);
-    expect(isolation.truncatedPixels).toBe(5);
-  });
-
-  it('survives a mask that changed everywhere', () => {
-    // One component covering every cell. A recursive flood fill overflows here.
-    const rows = Array.from({ length: 200 }, () => '#'.repeat(200));
-    const isolation = isolateRegions(mask(rows), { cell: 1 });
-
-    expect(isolation.regions).toHaveLength(1);
-    expect(isolation.regions[0]!.pixels).toBe(40_000);
-  });
-});
 
 function node(
   path: string,
@@ -140,6 +49,187 @@ const TREE = snapshotOf(
     ],
   }),
 );
+
+/**
+ * A wrapper that shrink-wraps its only child, with the flagship case's own rects.
+ *
+ * `cases/storybook-case` renders `<Tokens><Button/></Tokens>`, and both elements
+ * measure `454.34,359 115.33×50` — byte-identical, because the wrapper is a block
+ * whose one child decides its size. `TREE` above deliberately never has that
+ * shape, which is why the join looked correct for months while reporting the
+ * wrapper on the only real suite anyone has run.
+ */
+
+describe('a region whose author and enclosure differ', () => {
+  const SLOTTED = snapshotOf(
+    node('0', { x: 0, y: 0, width: 200, height: 60 }, {
+      children: [
+        node('0/0', { x: 4, y: 4, width: 100, height: 20 }, {
+          // `<Card title={<h3/>} />` — `Page` wrote the JSX, `Card` contains it.
+          provenance: { owners: [{ name: 'Card', propsDigest: 'v1:a' }], createdBy: 'Page' },
+        }),
+      ],
+    }),
+  );
+
+  const REGION = { x: 10, y: 10, width: 20, height: 8, pixels: 160, density: 1 };
+
+  it('reports the author as the component and the enclosure beside it', () => {
+    const [attributed] = attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 } });
+
+    expect(attributed!.component).toBe('Page');
+    expect(attributed!.owner).toBe('Card');
+  });
+
+  it('is a cause when the cause list names the enclosure', () => {
+    // Component hashes are keyed by enclosure (ADR-0018) and regions by author
+    // (ADR-0007). A one-sided match finds nothing here and the ordering silently
+    // falls back to area — the failure carrying hashes on the baseline was for.
+    const [ranked] = rankRegions(
+      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 } }),
+      ['Card'],
+    );
+
+    expect(ranked!.cause).toBe(true);
+  });
+
+  it('is a cause when the cause list names the author', () => {
+    const [ranked] = rankRegions(
+      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 } }),
+      ['Page'],
+    );
+
+    expect(ranked!.cause).toBe(true);
+  });
+
+  it('is not a cause when the list names neither', () => {
+    // The control. Matching two namespaces must not become matching anything.
+    const [ranked] = rankRegions(
+      attributeRegions([REGION], SLOTTED, { scale: 1, origin: { x: 0, y: 0 } }),
+      ['Sidebar'],
+    );
+
+    expect(ranked!.cause).toBe(false);
+  });
+
+  it('omits `owner` when it would only repeat the component', () => {
+    const [attributed] = attributeRegions(
+      [{ x: 30, y: 25, width: 20, height: 10, pixels: 200, density: 1 }],
+      TREE,
+      { scale: 1, origin: { x: 0, y: 0 } },
+    );
+
+    expect(attributed!.component).toBe('Toggle');
+    expect(attributed!.owner).toBe('Card');
+  });
+});
+
+/**
+ * A wrapper that shrink-wraps its only child, with the flagship case's own rects.
+ *
+ * `cases/storybook-case` renders `<Tokens><Button/></Tokens>`, and both elements
+ * measure `454.34,359 115.33×50` — byte-identical, because the wrapper is a block
+ * whose one child decides its size. `TREE` above deliberately never has that
+ * shape, which is why the join looked correct for months while reporting the
+ * wrapper on the only real suite anyone has run.
+ */
+const TIE = snapshotOf(
+  node('0', { x: 438.34, y: 343, width: 147.33, height: 82 }, {
+    children: [
+      node('0/0', { x: 454.34, y: 359, width: 115.33, height: 50 }, {
+        provenance: { owners: [{ name: 'Tokens', propsDigest: 'v1:a' }] },
+        children: [
+          node('0/0/0', { x: 454.34, y: 359, width: 115.33, height: 50 }, {
+            provenance: { owners: [{ name: 'Tokens', propsDigest: 'v1:a' }], createdBy: 'Button' },
+          }),
+        ],
+      }),
+    ],
+  }),
+);
+
+describe('two boxes of exactly the same size', () => {
+  it('names the inner one, which is the component that was edited', () => {
+    // The recorded region from the flagship run: 1356 changed pixels, one region,
+    // at the scale and origin that run used. It reported `Tokens` — the wrapper
+    // nothing edited — because neither box is tighter and the walk broke the tie
+    // towards whichever it saw first, which is always the outer one.
+    const [attributed] = attributeRegions(
+      [{ x: 17, y: 17, width: 113, height: 48, pixels: 1356, density: 0.25 }],
+      TIE,
+      { scale: 1 },
+    );
+
+    expect(attributed!.path).toBe('0/0/0');
+    expect(attributed!.component).toBe('Button');
+  });
+
+  it('still names a strictly larger wrapper when only the wrapper contains it', () => {
+    // The control against "return the deepest containing node". That rule is
+    // wrong on every gap and every padding change: a region in the space a
+    // parent's own `gap` produced is inside the parent and inside no child.
+    const [attributed] = attributeRegions(
+      [{ x: 0, y: 0, width: 140, height: 80, pixels: 11200, density: 1 }],
+      TIE,
+      { scale: 1, origin: { x: 438.34, y: 343 } },
+    );
+
+    expect(attributed!.path).toBe('0');
+  });
+
+  it('does not attribute a region that is mostly outside the tightest box', () => {
+    // The control against making the flagship case green by lowering
+    // `DEFAULT_CONTAINMENT` instead. Half in, half out stays unattributed, and
+    // the hint is offered as `nearest` rather than asserted as the answer.
+    const [attributed] = attributeRegions(
+      [{ x: 100, y: 17, width: 113, height: 48, pixels: 1356, density: 0.25 }],
+      TIE,
+      { scale: 1 },
+    );
+
+    expect(attributed!.unattributed).toBe(true);
+    expect(attributed!.nearest?.component).toBe('Button');
+  });
+
+  it('reaches the innermost of a chain of identical boxes, not the second one', () => {
+    // Transitivity, and it is not free. A design system stacks wrappers — a theme
+    // provider inside a layout primitive inside a story decorator — and each one
+    // shrink-wraps the next, so a real tree ties three or four deep. A rule that
+    // only walked one level past the first tie would name the second wrapper,
+    // which is the same defect one box further in.
+    const chain = snapshotOf(
+      node('0', { x: 0, y: 0, width: 100, height: 40 }, {
+        children: [
+          node('0/0', { x: 0, y: 0, width: 100, height: 40 }, {
+            provenance: { owners: [{ name: 'Theme', propsDigest: 'v1:a' }] },
+            children: [
+              node('0/0/0', { x: 0, y: 0, width: 100, height: 40 }, {
+                provenance: { owners: [{ name: 'Stack', propsDigest: 'v1:a' }] },
+                children: [
+                  node('0/0/0/0', { x: 0, y: 0, width: 100, height: 40 }, {
+                    provenance: {
+                      owners: [{ name: 'Stack', propsDigest: 'v1:a' }],
+                      createdBy: 'Chip',
+                    },
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const [attributed] = attributeRegions(
+      [{ x: 10, y: 10, width: 20, height: 10, pixels: 200, density: 1 }],
+      chain,
+      { scale: 1, origin: { x: 0, y: 0 } },
+    );
+
+    expect(attributed!.path).toBe('0/0/0/0');
+    expect(attributed!.component).toBe('Chip');
+  });
+});
 
 describe('attributing a region to the tree', () => {
   it('names the tightest box that contains the region, not the outermost', () => {

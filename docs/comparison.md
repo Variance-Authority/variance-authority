@@ -181,11 +181,17 @@ comparison: a known $283/mo against an unknown engineering commitment.
   ignore that outlived its flake does not stay a blind spot
   ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)).
   This project has an accumulation design and no accumulated data.
-- **Fingerprint-scoped ignores.** An ignore is a (test, diff-shape) pair, not a
-  muted screenshot and not a masked coordinate region, so silencing a known flake
-  does not blind the suite to a different regression in the same image. The
-  implementation is public
-  ([mask-fingerprint](https://github.com/argos-ci/mask-fingerprint)).
+- **Fingerprint-scoped ignores, in production.** An ignore is a (test,
+  diff-shape) pair, not a muted screenshot and not a masked coordinate region, so
+  silencing a known flake does not blind the suite to a different regression in
+  the same image. The implementation is public
+  ([mask-fingerprint](https://github.com/argos-ci/mask-fingerprint)). Since
+  2026-08-05 this project has the same idea — [`ignores.md`](ignores.md),
+  [ADR-0025](context/adr/0025-an-ignore-names-a-place-or-a-shape.md) — with the
+  semantic fingerprint additionally carrying the component responsible, so a
+  flake silenced in `Avatar` is not silenced in `Badge`. What Argos still has and
+  this does not is the *longitudinal* half above: the register here reports what
+  each ignore absorbed in **this** run, and nothing accumulates across runs.
 - **An inspectable diff engine.** Two `odiff` passes at thresholds 0.15 and
   0.0225 with antialiasing on, in a file the vendor links to
   ([source](https://github.com/argos-ci/argos/blob/main/apps/backend/src/screenshot-diff/diff/image/index.ts)).
@@ -213,6 +219,10 @@ comparison: a known $283/mo against an unknown engineering commitment.
 - **Triage that scales by grouping.** Steps are clustered by the *shape* of their
   diff regions and one accept propagates across the batch
   ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)).
+  Since 2026-08-05 `variance accept --shape <fingerprint>` does the same thing
+  from a command line, and refuses by name any subject where something else also
+  moved. What Applitools has that this does not is the *clustering* — it groups
+  the batch for you, and here the operator copies one digest out of a report.
 - **Genuine on-premise deployment.** The Eyes server installed inside the
   customer network with images stored locally
   ([modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes)) —
@@ -375,6 +385,19 @@ The position taken here is that each cause of variance gets absorbed by
 *nothing*, and that lumping all four under "flaky" is what makes the category
 feel unmanageable. The full table, including the rows where this loses, is in
 [`docs/flakiness.md`](flakiness.md).
+
+Since 2026-08-05 the *policy* row has a mechanism rather than only a name:
+[ignores](ignores.md) scope to a subtree or to a difference shape, never to a
+coordinate, and every run reports what each rule absorbed and names the rules
+that absorbed nothing ([ADR-0025](context/adr/0025-an-ignore-names-a-place-or-a-shape.md),
+[ADR-0026](context/adr/0026-ignored-is-not-unchanged.md)). Two things follow that
+are worth stating against the competitors: a subject silenced this way reports
+`ignored` rather than `unchanged`, so a suite can be asked how much of its green
+it earned; and the semantic fingerprint carries the component responsible, so a
+flake silenced in one component is not silenced in another that produces an
+identical-looking difference. What is still missing next to Argos is the
+longitudinal half — the register answers for *this* run, and nothing accumulates
+across runs.
 
 **Measured** — `examples/todomvc/src/pixel.chromium.test.ts` (20 tests, 1 skip)
 runs both arms over the same instability probes:

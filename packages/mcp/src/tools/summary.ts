@@ -58,7 +58,15 @@ export const summarize: Tool = {
       ...(report.intent !== undefined ? [`intent: ${report.intent}`] : []),
     ];
 
-    const notable = report.observations.filter((o) => o.verdict !== 'unchanged');
+    // `ignored` is counted in the header and does not get a line of its own.
+    // It is a real state and it is not a finding: a shared header carrying a
+    // clock puts every subject in the suite here, and three hundred lines saying
+    // "you already decided not to look at this" is the output nobody reads —
+    // which is how the *other* lines get missed. The header count keeps it
+    // visible, and `variance run` prints the per-rule ledger beneath it.
+    const notable = report.observations.filter(
+      (o) => o.verdict !== 'unchanged' && o.verdict !== 'ignored',
+    );
 
     return [
       ...header,

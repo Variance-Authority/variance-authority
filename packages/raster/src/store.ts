@@ -1,5 +1,6 @@
 import {
   identityDigest,
+  type ComponentHash,
   type Digest,
   type Raster,
   type RenderIdentity,
@@ -307,13 +308,58 @@ export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
     return null;
   }
 
+  const components = componentsFrom(sidecar.components);
+
   return {
     documentDigest: sidecar.documentDigest,
     identity,
     width: sidecar.width,
     height: sidecar.height,
     missingFonts,
+    ...(components !== undefined ? { components } : {}),
   };
+}
+
+/**
+ * Component hashes off a wire, or `undefined`.
+ *
+ * The one field on a sidecar that is dropped rather than refused when it will not
+ * parse, and the asymmetry is deliberate. Every other field decides a *verdict* —
+ * a missing identity cannot be partitioned, a missing digest can never settle —
+ * so a malformed one has to be loud. These decide an *ordering*: without them a
+ * run ranks regions by area, which is what every run did before they existed.
+ * Failing a build over the field that makes a correct report better-ordered would
+ * trade a working comparison for a tidy one.
+ *
+ * Absent means *unknown*, never *no components*, and nothing downstream may read
+ * an empty array out of a missing field.
+ */
+function componentsFrom(value: unknown): readonly ComponentHash[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const parsed: ComponentHash[] = [];
+  for (const entry of value) {
+    const row = recordFrom(entry);
+    if (
+      row === null ||
+      typeof row['component'] !== 'string' ||
+      typeof row['instances'] !== 'number' ||
+      typeof row['structure'] !== 'string' ||
+      typeof row['style'] !== 'string'
+    ) {
+      return undefined;
+    }
+
+    parsed.push({
+      component: row['component'],
+      instances: row['instances'],
+      structure: row['structure'],
+      style: row['style'],
+      ...(typeof row['geometry'] === 'string' ? { geometry: row['geometry'] } : {}),
+    });
+  }
+
+  return parsed;
 }
 
 /** As {@link sidecarFrom}, for a record that is expected to carry its bytes. */

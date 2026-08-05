@@ -198,7 +198,10 @@ live('the durable workflow, end to end', () => {
     expect(status).toBe(1);
     expect(out).toContain('3 unchanged, 5 changed');
 
-    const changed = [...out.matchAll(/\[changed\] (\S+):/g)].map((match) => match[1]).sort();
+    // Anchored on the id rather than on what follows it. The summary now names
+    // the causing component after the subject, so a pattern that leaned on the
+    // next colon started capturing `story`.
+    const changed = [...out.matchAll(/\[changed\] (story:[\w-]+)/g)].map((m) => m[1]).sort();
     expect(changed).toEqual([
       'story:case-surface--button-primary',
       'story:case-surface--button-secondary',
@@ -223,15 +226,15 @@ live('the durable workflow, end to end', () => {
     // component, the component resolves to a file an editor opens. That works
     // here against a Storybook nobody wrote for us.
     //
-    // What it cannot do on this path is say which of those components is the
-    // *cause*. Ranking cause above collateral needs the previous revision's
-    // snapshot, and a durable run has a baseline image without one — so every
-    // region is reported `collateral` and the ordering falls back to area, which
-    // journal 0013 measured as backwards. The edit is to `Button`; the largest
-    // region belongs to the wrapper it displaced.
+    // And it names the *cause*. It could not until 2026-08-06, and two separate
+    // things had to be true. A baseline carries the component hashes of the
+    // document that painted it (ADR-0027), so the run knows `Button`'s own
+    // content moved and `Tokens`'s did not. And the geometric join stopped
+    // breaking a tie towards the outer box: `Tokens` wraps `Button` and measures
+    // `454.34,359 115.33×50` — byte-identical to it — so neither is tighter and
+    // the walk decided, in document order, which is always the wrapper first.
     //
-    // Asserted as it stands so that the day a semantic baseline is carried, this
-    // goes red and says so.
+    // The edit is to `Button`. The report says `Button`, at `Button`'s file.
     const { out } = varianceWith(
       changedConfigPath,
       'report',
@@ -240,8 +243,22 @@ live('the durable workflow, end to end', () => {
     );
 
     expect(out).toMatch(/src\/ds\.jsx:\d+/);
-    expect(out).toContain('collateral');
-    expect(out).not.toContain('cause ');
+    expect(out).toContain('cause ');
+    expect(out).toContain('Button');
+    expect(out).not.toContain('collateral');
+
+    // And the image is of the page it was acquired from. It was not until
+    // 2026-08-06: Storybook's preview centres its story with a rule on `body`,
+    // `applicableCss` walked only the subject and its descendants, so the rule
+    // never reached the render and the subject was painted full-width. The
+    // reported size was `1024×76 to 1024×82` against an acquired subject 147.33
+    // CSS pixels wide — every coordinate converted between two layouts.
+    //
+    // `subject-size-diverged` was the detector, and its silence is the assertion:
+    // a warning that never fires is indistinguishable from one that cannot, so
+    // the size is checked directly too.
+    expect(out).not.toContain('subject-size-diverged');
+    expect(out).toMatch(/resized from 1\d\d×\d+ to 1\d\d×\d+/);
   }, 240_000);
 
   /**

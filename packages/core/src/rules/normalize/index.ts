@@ -2,9 +2,9 @@ import type { Diagnostic, RawCapture, RawNode } from '../../format/capture.js';
 import { environmentKey } from '../../format/environment.js';
 import { digestCombine, digestValue, type Digest } from '../../format/hash.js';
 import { ALLOWLIST_VERSION, RULESET_VERSION, admitsAttribute } from '../ruleset.js';
-import type { CanonicalValue } from '../../format/canonical.js';
 import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../../format/snapshot.js';
 import { aliasAttributeValue, aliasStyleValue, buildAliasMap, type AliasResult } from './alias.js';
+import { sitesIn, structureOf, styleOf } from './project.js';
 import {
   
   resolveStyle,
@@ -114,6 +114,12 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
   const structureHash = digestValue(structureOf(root));
   const styleHash = digestValue(styleOf(root, capture.profile.layout));
 
+  // Resolved from the *finished* tree rather than during the walk. Wrapper
+  // collapse re-paths whole subtrees, so a path recorded on the way down names a
+  // node that may not be there on the way out — and an ignore that quietly moved
+  // one level up absorbs a sibling nobody excluded.
+  const ignoreSites = sitesIn(root);
+
   const environment = environmentKey({
     ...capture.environment,
     ruleset: RULESET_VERSION,
@@ -133,6 +139,7 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
     styleHash,
     root,
     styleProvenance,
+    ...(ignoreSites.length > 0 ? { ignoreSites } : {}),
     diagnostics,
   };
 }
@@ -222,6 +229,10 @@ function normalizeNode(
       ...(capture.profile.layout && node.rect ? { rect: node.rect } : {}),
       ...(text !== undefined ? { text } : {}),
       ...(node.provenance ? { provenance: node.provenance } : {}),
+      // Carried, never acted on. `structureOf` and `styleOf` project the fields
+      // they hash by name, so this reaches the snapshot without reaching the
+      // identity — which is the whole contract an ignore is under.
+      ...(node.ignoredBy && node.ignoredBy.length > 0 ? { ignoredBy: node.ignoredBy } : {}),
       children,
     };
 
@@ -275,6 +286,18 @@ function isInertWrapper(raw: RawNode, node: SemanticNode, state: WalkState): boo
   if (node.alias !== undefined || node.text !== undefined) return false;
   if (Object.keys(node.attributes).length > 0) return false;
   if (raw.shadowChildren !== undefined && raw.shadowChildren.length > 0) return false;
+
+  // A wrapper the operator excluded is never inert, whatever it declares.
+  //
+  // The mark is not an attribute — `data-variance-ignore` is deliberately outside
+  // the allowlist so that adding it re-baselines nothing — so the check above
+  // cannot see it, and a bare marked `<div>` is exactly the shape this function
+  // deletes. Collapsing it drops the mark with it, `sitesIn` finds no site, and
+  // the exclusion silently evaporates: the operator reads their config, sees the
+  // rule, and the run compares the region anyway. An ignore that stops working
+  // without saying so is the same failure as one that absorbs too much, pointed
+  // the other way.
+  if (node.ignoredBy !== undefined && node.ignoredBy.length > 0) return false;
 
   const declaredHere = state.declaredBy.get(node) ?? EMPTY_PROPERTIES;
 
@@ -369,46 +392,7 @@ function repath(node: SemanticNode, path: string): SemanticNode {
   };
 }
 
-/**
- * Structure alone: shape, roles, names, descriptions, states, admitted
- * attributes, text.
- *
- * Hashed separately from style so the docket can say *which* held. "The DOM is
- * identical, only styling moved" is the sentence that turns a diff into a
- * token-band root instead of a structural review.
- */
-function structureOf(node: SemanticNode): CanonicalValue {
-  return {
-    tag: node.tag,
-    alias: node.alias,
-    portalled: node.portalled,
-    role: node.role,
-    name: node.name,
-    description: node.description,
-    state: node.state as CanonicalValue | undefined,
-    attributes: node.attributes,
-    text: node.text,
-    children: node.children.map(structureOf),
-  };
-}
 
-function styleOf(node: SemanticNode, includeLayout: boolean): CanonicalValue {
-  const entries: CanonicalValue[] = [];
-
-  const visit = (current: SemanticNode): void => {
-    entries.push({
-      path: current.path,
-      style: current.style,
-      tokens: current.tokens,
-      // Absent, never zeroed, under a profile without layout (ADR-0002).
-      rect: includeLayout && current.rect ? { ...current.rect } : undefined,
-    });
-    for (const child of current.children) visit(child);
-  };
-
-  visit(node);
-  return entries;
-}
 
 /**
  * Collapse runs of whitespace to a single space, without trimming.

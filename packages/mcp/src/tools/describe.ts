@@ -24,9 +24,10 @@ export const describe: Tool = {
   name: 'variance_describe',
   description:
     'Everything known about one subject: the ranked regions, the component each belongs to, ' +
-    'a landmark description of where it is on the page, and the source file to edit. ' +
-    'Causes are listed before collateral. A subject the run did not observe is answered ' +
-    'with why, not refused.',
+    'a landmark description of where it is on the page, the source file to edit, and each ' +
+    "region's shape fingerprint — which is what `variance accept --shape` and an `ignore` " +
+    'rule are keyed on when a difference is not a code problem. Causes are listed before ' +
+    'collateral. A subject the run did not observe is answered with why, not refused.',
   inputSchema: {
     type: 'object',
     properties: { subject: { type: 'string', description: 'Subject id from variance_summary.' } },
@@ -116,6 +117,12 @@ function regionLine(region: RegionRecord): string {
       `at ${region.x},${region.y} ${region.width}×${region.height} — ${head}`,
     region.where !== undefined ? `      in ${region.where}` : null,
     region.file !== undefined ? `      ${region.file}` : null,
+    // The digest, on the region it describes. An agent's two non-code responses
+    // to a recurring difference are `variance accept --shape <it>` and an
+    // `ignore` rule keyed on it, and neither is reachable without the value —
+    // printing it in a different section would make an agent guess which line it
+    // belonged to.
+    region.fingerprint !== undefined ? `      shape ${region.fingerprint}` : null,
   ]
     .filter((line): line is string => line !== null)
     .join('\n');

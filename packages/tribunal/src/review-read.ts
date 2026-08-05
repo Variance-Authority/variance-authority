@@ -37,11 +37,16 @@ export async function summarize(db: D1Like, project: string, row: Row): Promise<
     .bind(project, build)
     .all<Row>();
 
+  // Every verdict, including the ones nothing pends on. A map missing a key
+  // reports `undefined` where a build genuinely had none, and a review surface
+  // that cannot tell "no ignored subjects" from "this build predates ignores" is
+  // one an operator has to go to the database to trust.
   const verdicts: Record<ObservationRecord['verdict'], number> = {
     unchanged: 0,
     changed: 0,
     new: 0,
     incomparable: 0,
+    ignored: 0,
   };
   for (const entry of counted.results) {
     const verdict = text(entry, 'verdict', 'a verdict count') as ObservationRecord['verdict'];

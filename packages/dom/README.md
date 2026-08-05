@@ -69,6 +69,8 @@ know that happened.
 | `css` | which rules match, indexed rather than re-queried per node — `css-index` flattens the sheets once per document, `css-match` answers once per element |
 | `media` / `specificity` | `@media`/`@supports` evaluation, and cascade order |
 | `aria` | role, accessible name, and state — computed, not read off attributes |
+| `ignore` | which subtrees the operator excluded, from selectors and from `data-variance-ignore` — resolved here because that is the only step needing a document, and recorded as a **mark** rather than a deletion |
+| `inherit` | what the ancestors outside the subject contribute, which is the only part of collection that looks outward |
 
 ## Owner chains are optional and injected
 

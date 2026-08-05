@@ -53,7 +53,10 @@ choose, from a directory to a service you deploy.
   matrix, mobile and real devices are out.
 - **No retries and no tolerances.** A subject that will not hold still is
   reported, not re-observed — [`docs/flakiness.md`](docs/flakiness.md) is the
-  position and the five cases where it loses.
+  position and the five cases where it loses. What you *can* say is that a
+  subtree or a difference shape is not the subject, and every run tells you what
+  each of those absorbed and which of them absorbed nothing
+  ([`docs/ignores.md`](docs/ignores.md)).
 
 ## What you own
 
@@ -116,6 +119,7 @@ build when they do not.
 | Weighing a move from a hosted product | [`docs/replacing.md`](docs/replacing.md) for what the move involves, then [`docs/cases.md`](docs/cases.md) for what a measurement alongside a real `toHaveScreenshot` run found |
 | Getting your suite in | [`docs/surface.md`](docs/surface.md) — what you write and install, by suite |
 | Choosing where baselines live | [`docs/flows.md`](docs/flows.md) — six setups and what each cannot do |
+| Silencing a clock, a carousel or a flake | [`docs/ignores.md`](docs/ignores.md) — the two forms, a case each, and the ledger that stops one becoming a blind spot |
 | Running the binary in CI | [`cli`](packages/cli) — six commands, exit codes, sharding, the HTML report, CI recipes |
 | Composing it as a library | [`observe`](packages/observe) for the assembled answer, [`core`](packages/core) for the pieces |
 | Serving a coding agent | [`mcp`](packages/mcp) — the observation over stdio |

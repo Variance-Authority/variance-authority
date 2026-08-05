@@ -62,7 +62,14 @@ export type Parsed =
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
-  | { readonly command: 'accept'; readonly config: string; readonly subjects: readonly string[]; readonly all: boolean }
+  | {
+      readonly command: 'accept';
+      readonly config: string;
+      readonly subjects: readonly string[];
+      readonly all: boolean;
+      /** Difference shapes to accept wherever they are the whole change. */
+      readonly shapes: readonly string[];
+    }
   | { readonly command: 'serve'; readonly config: string }
   | { readonly command: 'doctor'; readonly config: string }
   | {
@@ -86,7 +93,7 @@ const GLOBAL = ['--config'] as const;
 const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
   run: ['--profile', '--subjects', '--intent', '--exit-zero-on-changes'],
   report: ['--format', '--subject', '--exit-zero-on-changes'],
-  accept: ['--all'],
+  accept: ['--all', '--shape'],
   serve: [],
   doctor: [],
   comment: ['--body-file', '--run-url', '--marker'],
@@ -95,7 +102,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--exit-zero-on-changes]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
-  'variance accept  [--config <path>] <subject>... | --all',
+  'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]',
   'variance serve   [--config <path>]              # MCP over stdio',
   'variance doctor  [--config <path>]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
@@ -165,22 +172,35 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'accept': {
       const all = flags.present.has('--all');
-      if (!all && flags.positionals.length === 0) {
+      const shapes = (flags.values.get('--shape') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value !== '');
+
+      if (!all && shapes.length === 0 && flags.positionals.length === 0) {
         throw new OperatorError(
-          'accept needs a subject id, or --all. Accepting nothing and accepting everything ' +
-            'are different requests and this will not guess which was meant.',
+          'accept needs a subject id, --shape, or --all. Accepting nothing and accepting ' +
+            'everything are different requests and this will not guess which was meant.',
         );
       }
-      if (all && flags.positionals.length > 0) {
+      if (all && (flags.positionals.length > 0 || shapes.length > 0)) {
         // Refused rather than resolved in either direction: honouring --all would
         // silently accept subjects the operator did not name, and honouring the
         // names would silently ignore a flag they typed.
         throw new OperatorError(
-          `--all accepts every changed subject, but ${flags.positionals.join(', ')} ` +
+          `--all accepts every changed subject, but ${[...flags.positionals, ...shapes].join(', ')} ` +
             'was also named; pass one or the other',
         );
       }
-      return { command: 'accept', config, subjects: flags.positionals, all };
+      if (shapes.length > 0 && flags.positionals.length > 0) {
+        // A shape selects subjects. Naming subjects as well asks two different
+        // questions at once, and every answer to it is somebody's surprise.
+        throw new OperatorError(
+          '--shape selects the subjects to accept by what changed in them, so naming ' +
+            `${flags.positionals.join(', ')} as well is asking for two different sets`,
+        );
+      }
+      return { command: 'accept', config, subjects: flags.positionals, all, shapes };
     }
 
     case 'serve':

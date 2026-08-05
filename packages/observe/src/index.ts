@@ -16,4 +16,5 @@
  */
 
 export { observePair, observeAgainstBaseline, summarizeObservation } from './observe.js';
-export type { Observation, ObserveOptions, RasterVerdict } from './observe.js';
+export { declaredIgnores } from './decide.js';
+export type { Observation, ObserveOptions, RasterVerdict, IgnoredPixels } from './observe.js';

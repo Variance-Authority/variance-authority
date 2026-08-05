@@ -2,6 +2,7 @@ import { toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import type { CliRunReport } from './run.js';
 import { reportHtml } from './report-html.js';
+import { summarizeLedger } from './ignores.js';
 
 /**
  * `variance report` — ask questions of an artifact, never of a browser.
@@ -128,7 +129,7 @@ function asText(options: ReportOptions): string {
     return tool('variance_describe', report, { subject });
   }
 
-  return [tool('variance_summary', report, {}), warnings(report)]
+  return [tool('variance_summary', report, {}), ignores(report), warnings(report)]
     .filter((section) => section !== '')
     .join('\n\n');
 }
@@ -151,7 +152,17 @@ function asText(options: ReportOptions): string {
  * `warnings` genuinely is. It is on `CliRunReport` and not on `RunReport`, so no
  * MCP tool can see it, and an index complaint that belongs to no single subject
  * would otherwise be written to the file and never read aloud.
+ *
+ * `ignores` is the second, on the same terms. A ledger of what each ignore rule
+ * absorbed is a fact about the *configuration*, and the MCP tools read reports
+ * that no config produced. What the tools can see is the consequence — an
+ * `ignored` verdict, which is not `unchanged` — so nothing here is the only
+ * evidence of anything.
  */
+function ignores(report: CliRunReport): string {
+  return summarizeLedger(report.ignores).join('\n');
+}
+
 function warnings(report: CliRunReport): string {
   if (report.warnings === undefined || report.warnings.length === 0) return '';
   return ['warnings:', ...report.warnings.map((warning) => `  ${warning}`)].join('\n');

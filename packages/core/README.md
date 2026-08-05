@@ -20,7 +20,7 @@ entrypoint is all six and is what most callers want.
 | `core/rules` | the versioned opinions: allowlist, applicability, cascade, canonicalization |
 | `core/compare` | two snapshots become deltas — and **no verdict** |
 | `core/attribute` | a position becomes a component becomes a file |
-| `core/judge` | policy: verdicts, intent claims, the docket a reader is handed |
+| `core/judge` | policy: verdicts, intent claims, ignores, the docket a reader is handed |
 | `core/plan` | the whole configuration of a run — profile, ruleset version, viewport, policy, interventions — as one value, plus the identity digest derived from it |
 
 The groups exist for callers who genuinely want one. Somebody implementing the

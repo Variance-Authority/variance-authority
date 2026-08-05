@@ -48,6 +48,20 @@ export interface SemanticSnapshot {
   readonly styleProvenance: readonly StyleProvenanceEntry[];
 
   /**
+   * Subtrees the operator declared out of scope, resolved against *this* tree.
+   *
+   * Deliberately outside the hash, for the reason `styleProvenance` is: an ignore
+   * changes what a run says about a render, never the render. Folding it into the
+   * identity would invalidate every baseline in the repository the first time
+   * somebody masked a clock, which is the surest way to make a safety feature the
+   * thing people turn off.
+   *
+   * Present only when something was excluded, so a snapshot from a run with no
+   * ignores is byte-identical to one produced before this field existed.
+   */
+  readonly ignoreSites?: readonly IgnoreSite[];
+
+  /**
    * What the collector or the normalizer could not do, carried forward.
    *
    * Outside the hash: a diagnostic describes the *observation*, not the render,
@@ -133,7 +147,67 @@ export interface SemanticNode {
    */
   readonly portalled?: boolean;
 
+  /**
+   * Ignore rules this node was found under. Outside every hash, like its origin
+   * on `RawNode`. See {@link SemanticSnapshot.ignoreSites}.
+   */
+  readonly ignoredBy?: readonly string[];
+
   readonly children: readonly SemanticNode[];
+}
+
+/**
+ * A subtree the operator excluded, resolved to a path and a box (spec 0024).
+ *
+ * Lives in `format` rather than beside the rules that consume it, because it is
+ * part of what a snapshot *is*: the collector produced it, it travels with the
+ * document over every wire this project has, and `core/judge` is only its first
+ * reader. A type the wire format needs cannot live in the policy layer.
+ */
+export interface IgnoreSite {
+  /** Root of the excluded subtree, in this snapshot's own path space. */
+  readonly path: NodePath;
+
+  /** Which rule put it here, matched exactly against `IgnoreRule.id`. */
+  readonly rule: string;
+
+  /**
+   * The box it occupied, for the raster tier.
+   *
+   * Absent under a profile with no layout — which is ADR-0002 rather than a
+   * failure: a profile that cannot measure a box cannot decide pixels either, so
+   * there is nothing for the box to subtract from.
+   */
+  readonly rect?: Rect;
+}
+
+/**
+ * A component's own content, hashed per band (ADR-0018).
+ *
+ * In `format` rather than beside `hashComponents`, which computes it, because a
+ * baseline carries these: a stored image plus the component hashes of the
+ * document that painted it is what lets a later run tell the component that
+ * *caused* a change from the components the change merely moved. That makes this
+ * part of the wire format every store and every transport has to preserve, and a
+ * type the wire needs cannot live in the layer that derives it.
+ */
+export interface ComponentHash {
+  readonly component: string;
+
+  /** Boundaries of this component in the subject, counted in document order. */
+  readonly instances: number;
+
+  readonly structure: Digest;
+  readonly style: Digest;
+
+  /**
+   * Absent under a profile without layout — absent, never empty (ADR-0002).
+   *
+   * An empty geometry digest would compare equal between a run that observed no
+   * movement and a run that could not observe movement at all, which is the
+   * false `unchanged` this system must never produce.
+   */
+  readonly geometry?: Digest;
 }
 
 export interface StyleProvenanceEntry {

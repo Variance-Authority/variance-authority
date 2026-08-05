@@ -15,14 +15,16 @@ whose requirements are decided by a file rather than by its own code.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance accept  [--config <path>] <subject>... | --all
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
 ```
 
 `run` produces the verdict and the exit code; `report` re-reads what it wrote;
-`accept` promotes a candidate image to baseline; `doctor` says what this machine
+`accept` promotes a candidate image to baseline — by subject, by `--all`, or by
+`--shape`, which accepts a difference *shape* wherever it is the whole change and
+refuses by name any subject where something else moved too; `doctor` says what this machine
 can observe before a run rather than after one. `serve` exposes the report the
 last run wrote to an MCP client — an agent asks it what changed, which component
 and which file, over stdio, without re-running anything; the tools are
@@ -228,7 +230,14 @@ downloaded, so the run's inputs are the ones in the repository.
   "baselines": { "kind": "directory", "root": "baselines" },
   "fonts": ["Inter/400/normal/sha256-abc"],
   "browser": "chromium",
-  "report": "out/report.json"
+  "report": "out/report.json",
+
+  // What is not the subject. Every rule needs an id and a reason, and every rule
+  // must name a `select` or a `fingerprints` — a rule scoped only by band would
+  // be a tolerance. See ../../docs/ignores.md.
+  "ignore": [
+    { "id": "clock", "reason": "renders wall time", "select": "header time" }
+  ]
 }
 ```
 
@@ -248,6 +257,15 @@ transmits would read as the endpoint being protected. It is refused together wit
 `browser`, since the engine belongs to whichever machine paints. `variance doctor`
 reports a remote renderer as **not checked** rather than unavailable, and exits
 clean: doctor makes no network calls, and an unasked question is not a failed one.
+
+`ignore` is the one setting that makes a run *less* observant, so it is the one
+with the most rules attached. Each entry excludes a subtree (`select`) or a
+difference shape (`fingerprints`, copied out of a previous run's regions), may be
+narrowed by `subjects`, and may carry an `until` date after which it
+stops absorbing. A subject whose only differences were absorbed reports
+**`ignored`**, never `unchanged`, and every run prints a ledger naming the rules
+that absorbed nothing — the two states that make a masked suite rot. Full
+treatment with a case per situation in [`docs/ignores.md`](../../docs/ignores.md).
 
 `browser` is `chromium` (the default), `firefox` or `webkit`. **One word, not a
 matrix**, and that is a property of what a run is rather than a missing feature:

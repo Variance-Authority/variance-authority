@@ -109,8 +109,14 @@ function walkTo(root: SemanticNode, path: NodePath): readonly SemanticNode[] {
   let current = root;
 
   for (const segment of segments.slice(1)) {
+    // `portal:N` names the *N-th* portal, not "a portal". Taking the first meant
+    // every node in a second or later portalled subtree was located through the
+    // wrong one, and produced a confident landmark phrase about somewhere else —
+    // a subject with two dialogs open is the ordinary case.
     const next = segment.startsWith('portal:')
-      ? current.children.find((child) => child.portalled === true)
+      ? current.children.filter((child) => child.portalled === true)[
+          Number.parseInt(segment.slice('portal:'.length), 10)
+        ]
       : current.children[Number.parseInt(segment, 10)];
 
     if (next === undefined) return chain;

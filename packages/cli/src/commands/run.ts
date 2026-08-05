@@ -4,6 +4,7 @@ import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
 import { matchesGlob, type Plan } from './collector.js';
 import { observeOne } from './observe-one.js';
+import { ledgerOf } from './ignores.js';
 import { decoderFor } from './resources.js';
 import { concurrencyOf, pool, serial } from './schedule.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
@@ -56,6 +57,8 @@ export type {
 } from './collector.js';
 export { settle } from '@variance-authority/raster';
 export type { Settlement } from '@variance-authority/raster';
+export { ledgerOf, liveIgnores, summarizeLedger } from './ignores.js';
+export type { IgnoreLedger, IgnoreUsage } from './ignores.js';
 export { recordOf } from './record.js';
 export { decoderFor, renderCacheRoot, storeFor, writeArtifactToDisk } from './resources.js';
 export { readCliRunReport, writeCliRunReport } from './run-report.js';
@@ -235,16 +238,28 @@ async function observeAll(
   }
 
   const intent = options.intent ?? config.intent;
+  const at = deps.now();
+
+  // Folded from the observations rather than accumulated during the loop, so it
+  // is a function of the report and not of the order subjects finished in — and
+  // so a rule that resolved nowhere is visible, which no per-subject count can
+  // say on its own.
+  // The plan's vocabulary, so a rule naming a tag nothing wears can be reported.
+  // Read from the plan rather than the config: what words *exist* is the
+  // artifact's to say, and what they *mean* is the operator's.
+  const worn = new Set(plan.subjects.flatMap((planned) => planned.tags ?? []));
+  const ignores = ledgerOf(config.ignore ?? [], observations, at, worn);
 
   const report: CliRunReport = {
     runVersion: 1,
-    at: deps.now(),
+    at,
     identity: renderer.identity,
     retention: config.retention,
     ...(intent !== undefined ? { intent } : {}),
     observations,
     notObserved,
     ...(warnings.length > 0 ? { warnings } : {}),
+    ...(ignores !== undefined ? { ignores } : {}),
   };
 
   await deps.writeReport(config.report, report);

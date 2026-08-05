@@ -17,21 +17,23 @@
 export { locate } from './locate.js';
 export type { Location, LocationStep } from './locate.js';
 
-export { isolateRegions, attributeRegions, rankRegions } from './region.js';
+export { isolateRegions, subtractRegions, excludedBoxes } from './mask.js';
 export type {
   ChangeMask,
   DiffRegion,
+  ExcludedBox,
   Isolation,
   IsolationOptions,
-  AttributedRegion,
-  AttributionOptions,
-  RankedRegion,
-} from './region.js';
+  Subtraction,
+} from './mask.js';
+
+export { attributeRegions, rankRegions } from './region.js';
+export type { AttributedRegion, AttributionOptions, RankedRegion } from './region.js';
 
 export { resolveSource, formatSource, indexSource, mergeSourceIndexes } from './source.js';
 export type { SourceIndex, SourceRef, Resolution } from './source.js';
 
-export { hashComponents, UNATTRIBUTED } from './component-hash.js';
+export { hashComponents, causesBetween, UNATTRIBUTED } from './component-hash.js';
 export type { ComponentHash } from './component-hash.js';
 
 export { coverageOf, alsoCovering, summarizeCoverage } from './coverage.js';

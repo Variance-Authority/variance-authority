@@ -1,6 +1,7 @@
 import { identityDigest } from '@variance-authority/core';
 import { OperatorError } from '../exit.js';
 import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
+import { ledgerOf, type IgnoreLedger } from './ignores.js';
 
 /**
  * N shard reports into one, or a refusal naming which two disagreed.
@@ -72,7 +73,35 @@ export function mergeReports(shards: readonly Shard[]): CliRunReport {
     observations: observationsOf(shards),
     ...coverageOf(shards),
     ...warningsOf(shards),
+    ...ignoresOf(shards),
   };
+}
+
+/**
+ * The ignore ledger, recomputed over the merged observations.
+ *
+ * Not summed from the shards, and the difference is the whole reason this exists.
+ * A rule is dead when it absorbed nothing *anywhere*, so a shard that saw none of
+ * the subjects a rule matches would call it dead and a shard that saw all of them
+ * would not — and adding those two answers together produces neither. The counts
+ * are a fold over observations, so the merged report folds the merged list.
+ *
+ * The rules come from the first shard because `agree` has already refused a merge
+ * across shards that were configured differently, and an ignore is configuration.
+ * Absent when no shard had a ledger: a merged report must be able to say the
+ * writer never configured any, which is not the same as "none absorbed anything".
+ */
+function ignoresOf(shards: readonly Shard[]): { ignores?: IgnoreLedger } {
+  const rules = shards
+    .map((shard) => shard.report.ignores)
+    .find((ledger): ledger is IgnoreLedger => ledger !== undefined);
+  if (rules === undefined) return {};
+
+  const merged = ledgerOf(
+    rules.rules.map((entry) => ({ id: entry.rule, reason: entry.reason })),
+    observationsOf(shards),
+  );
+  return merged === undefined ? {} : { ignores: merged };
 }
 
 function agree(shards: readonly Shard[], field: string, of: (shard: Shard) => string): void {

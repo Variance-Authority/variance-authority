@@ -15,6 +15,9 @@
 export { collect, conditionsFor } from './collect.js';
 export type { CollectOptions } from './collect.js';
 
+export { resolveIgnores, IGNORE_ATTRIBUTE, MARKED_RULE } from './ignore.js';
+export type { IgnoreSelector, ResolveIgnoresOptions, ResolvedIgnores } from './ignore.js';
+
 export { conditionKey, indexStyleSheets, matchRulesFor } from './css.js';
 export type { StyleIndex, IndexedRule } from './css.js';
 

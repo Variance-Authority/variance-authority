@@ -53,11 +53,27 @@ export function recordOf(
     readonly alone?: ObservationRecord['alone'];
   } = {},
 ): CliObservationRecord {
-  const changed = observation.comparison?.changed[DEFAULT_POLICY.id] ?? 0;
-  const strict = observation.comparison?.changed[STRICT_POLICY.id] ?? 0;
-  const regions = rankRegions(observation.regions, options.causes ?? []);
+  // Net of exclusions, on both policies. The comparison counts every differing
+  // pixel including the ones inside an excluded box, and a record that carried
+  // that number would report a subject with a mask over half of it as a subject
+  // that moved half of itself. What was absorbed is on `ignored` instead, where
+  // it cannot be added to this one by accident (spec 0024).
+  const absorbed = observation.ignored?.pixels ?? 0;
+  const changed = Math.max(0, (observation.comparison?.changed[DEFAULT_POLICY.id] ?? 0) - absorbed);
+  const strict = Math.max(0, (observation.comparison?.changed[STRICT_POLICY.id] ?? 0) - absorbed);
+  // The collector's causes first, then the observation's own. A collector that
+  // held both documents named them from a full semantic diff, which is strictly
+  // better evidence than a comparison of per-component hashes; the hashes are
+  // what the durable path has when nobody held two documents (spec 0017).
+  const regions = rankRegions(
+    observation.regions,
+    options.causes ?? observation.causes ?? [],
+  );
   const truncated = observation.isolation;
-  const diagnostics = options.diagnostics ?? [];
+  // The collector's complaints and the comparison's own, in one list. A reader
+  // asks "what is wrong with this subject" once, and a field that answered half
+  // the question would send them looking for the other half.
+  const diagnostics = [...(options.diagnostics ?? []), ...(observation.diagnostics ?? [])];
 
   return {
     subject: observation.subject,
@@ -69,6 +85,10 @@ export function recordOf(
       ? { truncated: { regions: truncated.truncated, pixels: truncated.truncatedPixels } }
       : {}),
     ...(observation.missingFonts.length > 0 ? { missingFonts: observation.missingFonts } : {}),
+    // Carried whenever the subject had an excluded subtree, including when it
+    // absorbed nothing: `pixels: 0, boxes: 2` is a rule that caught nothing this
+    // run, which is exactly the state a register has to be able to report.
+    ...(observation.ignored !== undefined ? { ignored: observation.ignored } : {}),
     // Present-and-empty, not omitted. `[]` means the render was inspected and
     // was clean; absent means nothing inspected it, because the collector
     // supplied no snapshot. Those are different claims, and the second must
@@ -133,7 +153,13 @@ export function findingsOf(
  * that is only visible under a stricter reading is exactly that.
  */
 function because(observation: Observation, changed: number, strict: number): string {
-  if (observation.verdict !== 'unchanged' || strict <= changed) return observation.because;
+  // Both green verdicts, not one. `ignored` is the other way a subject reports
+  // nothing to review, and gating this on `unchanged` alone meant a subject that
+  // went green through an exclusion stopped disclosing the differences the
+  // default policy forgave — an unobservable difference rendered as no
+  // difference, in the one place this project refuses that (ADR-0002, ADR-0026).
+  const green = observation.verdict === 'unchanged' || observation.verdict === 'ignored';
+  if (!green || strict <= changed) return observation.because;
 
   return (
     `${observation.because}; ${strict} pixel(s) do differ under the strict policy ` +
@@ -229,6 +255,7 @@ function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecor
       pixels: region.region.pixels,
       cause: region.cause,
       unattributed: true,
+      ...(region.fingerprint !== undefined ? { fingerprint: region.fingerprint } : {}),
       ...(phrase !== undefined ? { where: phrase } : {}),
     };
   }
@@ -244,5 +271,6 @@ function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecor
     ...(region.path !== undefined ? { path: region.path } : {}),
     ...(region.where !== undefined ? { where: region.where } : {}),
     ...(resolved !== null ? { file: formatSource(resolved) } : {}),
+    ...(region.fingerprint !== undefined ? { fingerprint: region.fingerprint } : {}),
   };
 }

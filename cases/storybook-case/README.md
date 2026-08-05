@@ -90,10 +90,19 @@ stories, and the run finds exactly those five — the three that hold are `Spinn
 
 ```
 [changed] story:case-surface--button-primary
-1356 pixel(s) differ across 1 region(s), and the subject resized from 1024×76 to 1024×82
-  collateral 1356px at 17,17 113×48 — Tokens
-      src/ds.jsx:26
+1356 pixel(s) differ across 1 region(s) in Button, and the subject resized from
+1024×76 to 1024×82; the collection of this subject reported subject-size-diverged
+(warn), so what was compared may be less than the whole subject
+
+  cause      1356px at 17,17 113×48 — Button
+      in button "Continue"
+      src/ds.jsx:51
+      shape v1:c7cbe0de55f9e1492488cbc07b69bb1d
 ```
+
+The edit is to `Button`. The report says `Button`, at `Button`'s file — `ds.jsx:51`
+is the component, not `ds.jsx:26`, which is the `Tokens` wrapper it is rendered
+inside. That sentence was false here until 2026-08-06 and is the whole claim.
 
 **The edit is not threaded as a prop.** `VITE_CASE_MUTATION=wide-button` produces
 a second Storybook in which `Button` declares different padding, so nothing in
@@ -155,21 +164,42 @@ is worse than naming nothing. [`.storybook/main.js`](.storybook/main.js) sets
 `esbuild.keepNames: true` and says so at length. Any project wanting component
 names in its reports pays the same, and nobody would guess it.
 
-## The gap this case leaves open
+## What this case closed, and what it opened
 
-**Nothing on the durable path is a `cause`.** Every region above reads
-`collateral`, and the largest one belongs to `Tokens` — the wrapper the edit
-displaced — rather than to `Button`, which is the edit.
+**It reported `Tokens` for eleven weeks, and two separate defects were doing it.**
+The line above used to read `collateral 1356px … — Tokens` — the wrapper the edit
+displaced rather than the component that was edited. Fixing it needed both:
 
-That is not attribution failing. Regions land in the tree, name a component and
-resolve to a file. It is *ranking* failing, and for a reason with a name:
-separating cause from collateral needs the previous revision's **snapshot**, and a
-durable run has a baseline image without one. So the ordering falls back to area,
-which [journal 0013](../../docs/context/journal/0013-observability.md) measured as
+1. **A durable run had no way to know what caused anything.** Separating cause
+   from collateral needs the previous revision, and a stored baseline is an image.
+   A baseline now carries the component hashes of the document that painted it
+   ([ADR-0027](../../docs/context/adr/0027-a-baseline-carries-what-its-document-said.md)),
+   so the run can see that `Button`'s own content moved and `Tokens`'s did not.
+2. **And the geometric join could not place it anyway.** `Tokens` wraps `Button`
+   and measures `454.34,359 115.33×50` — *byte-identical* to it, because a block
+   wrapper is exactly as big as its only child. Neither box is tighter, so the
+   walk decided the tie, in document order, which puts the wrapper first. One
+   character in `packages/core/src/attribute/region.ts`.
+
+Neither fix alone would have moved this line, which is why it survived a
+measurement that was looking straight at it.
+
+**What it opened is larger.** The report now carries `subject-size-diverged`: the
+acquired subject is **147.33** CSS pixels wide and the image is **1024**. Storybook's
+preview centres the story, and `applicableCss` collects only rules matching the
+subject and its descendants — so a rule on `body` or on the preview wrapper never
+reaches the render, while the frame it reconstructs still declares a container
+width. **Every baseline in this case is a photograph of a layout that exists in no
+browser.**
+
+It attributed correctly here regardless, because this story sits at its
+container's origin and the two spaces disagree by zero at that corner. The first
+subject that does not — anything centred, right-aligned, or shrink-to-fit inside a
+wider frame — gets a complete, confident report about a neighbouring component.
+The warning is the detector; its going silent is the acceptance test for the fix.
+
+The related gap [`cases/incumbent-case`](../incumbent-case) measures from the other
+end still stands: *a PNG is not a semantic baseline*, and an imported foreign image
+carries no hashes, so it ranks by area — which
+[journal 0013](../../docs/context/journal/0013-observability.md) measured as
 backwards.
-
-It is the same gap [`cases/incumbent-case`](../incumbent-case) measures from the
-other end when it imports a foreign baseline: *a PNG is not a semantic baseline.*
-Here it is not an import problem — it is that nothing in the durable pipeline
-carries one. The test asserts the current behaviour, so the day one is carried it
-goes red and says so.

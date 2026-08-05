@@ -124,6 +124,24 @@ export interface RawNode {
 
   /** Nodes inside a shadow root, kept distinct from light-DOM children. */
   readonly shadowChildren?: readonly RawNode[];
+
+  /**
+   * Ignore rules the collector found this element under (spec 0024).
+   *
+   * A mark, not a removal. The collector is the only thing holding a live DOM, so
+   * it is the only thing that can run a selector or read a marker attribute — but
+   * it must not act on what it finds. An element deleted from the capture would
+   * be invisible to every count downstream, and the difference between "absorbed
+   * by the `carousel` rule" and "was never there" is the difference between an
+   * ignore and a blind spot.
+   *
+   * Never hashed. Normalization turns these into
+   * {@link import('./snapshot.js').SemanticSnapshot.ignoreSites}, which sits
+   * beside `styleProvenance` outside the render hash for the same reason: masking
+   * a clock changes what a run *says*, not what it *renders*, and must not
+   * re-baseline the repository.
+   */
+  readonly ignoredBy?: readonly string[];
 }
 
 export interface RawAria {

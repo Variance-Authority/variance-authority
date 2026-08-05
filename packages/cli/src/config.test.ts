@@ -153,6 +153,68 @@ describe('parseConfig', () => {
   });
 });
 
+
+describe('ignore rules', () => {
+  const rule = (over: Record<string, unknown> = {}) => ({
+    id: 'clock',
+    reason: 'renders wall time',
+    select: '.site-header time',
+    ...over,
+  });
+
+  it('accepts a rule that names a place and a reason', () => {
+    const config = parseConfig(withField('ignore', [rule()]), OPTIONS);
+
+    expect(config.ignore).toEqual([
+      { id: 'clock', reason: 'renders wall time', select: '.site-header time' },
+    ]);
+  });
+
+  it('refuses a rule with no reason', () => {
+    // The field that decides whether an ignore can ever be removed. A rule
+    // nobody can evaluate later is a rule nobody dares delete.
+    expect(attempt(withField('ignore', [rule({ reason: '' })])).field).toBe('ignore[0].reason');
+  });
+
+  it('refuses a rule that names neither a place nor a shape', () => {
+    // A rule that is only a subject list is a tolerance with extra steps.
+    const bare = { id: 'noisy', reason: 'flaky', subjects: ['story:*'] };
+
+    expect(attempt(withField('ignore', [bare])).field).toBe('ignore[0]');
+  });
+
+  it('accepts a fingerprint with no selector', () => {
+    const shaped = { id: 'avatar', reason: 'CDN crops', fingerprints: ['v1:abc'] };
+
+    expect(parseConfig(withField('ignore', [shaped]), OPTIONS).ignore).toHaveLength(1);
+  });
+
+  it('refuses `bands`, which core has and no run reads', () => {
+    // `IgnoreRule.bands` narrows an ignore over a pair of snapshots. The binary
+    // compares against a stored image and never builds that pair, so accepting
+    // the key here would sell a setting that parses and does nothing.
+    expect(attempt(withField('ignore', [rule({ bands: ['token'] })])).field).toBe(
+      'ignore[0].bands',
+    );
+  });
+
+  it('refuses two rules with the same id', () => {
+    // One id, two decisions, one line in the register. Deleting the flake that
+    // one of them names would silently leave the other absorbing.
+    expect(attempt(withField('ignore', [rule(), rule({ select: '.other' })])).field).toBe('ignore');
+  });
+
+  it('refuses an unknown key rather than ignoring it', () => {
+    expect(attempt(withField('ignore', [rule({ selector: '.typo' })])).field).toBe(
+      'ignore[0].selector',
+    );
+  });
+
+  it('refuses an expiry that is not a date', () => {
+    expect(attempt(withField('ignore', [rule({ until: 'next tuesday' })])).field).toBe('ignore[0]');
+  });
+});
+
 function attempt(value: unknown): ConfigError {
   try {
     parseConfig(value, OPTIONS);

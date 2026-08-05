@@ -1,5 +1,6 @@
 import type { Rect } from '../format/capture.js';
 import { locate } from './locate.js';
+import type { DiffRegion } from './mask.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
@@ -11,8 +12,8 @@ import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapsho
  * the image and look, which is the expensive act the tool was supposed to replace.
  *
  * Two phases turn it into something else, and they are separate because they fail
- * differently. {@link isolateRegions} is arithmetic on a bitmask — no DOM, no
- * snapshot, no notion of what a component is — and answers *where on the canvas*.
+ * differently. `mask.ts` is arithmetic on a bitmask — no DOM, no snapshot, no
+ * notion of what a component is — and answers *where on the canvas*.
  * {@link attributeRegions} joins those coordinates to the box tree and answers
  * *what is there*. The first can be tested with a hand-written mask; the second
  * with a hand-written snapshot; neither needs a browser, which is what makes the
@@ -24,171 +25,6 @@ import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapsho
  * a system that resolved those by picking the nearest node would produce confident
  * attributions of exactly the kind an agent then acts on.
  */
-
-/**
- * Per-pixel changed/unchanged, row-major, one byte per pixel.
- *
- * A mask rather than a diff image: an image is for looking at, and everything
- * downstream of here wants to compute. Producing one is the comparison phase's
- * job and involves PNG decoding; consuming one is pure.
- */
-export interface ChangeMask {
-  readonly width: number;
-  readonly height: number;
-  /** `1` where the pixel differs. Length is `width * height`. */
-  readonly data: Uint8Array;
-  /** Count of set bytes, carried so callers need not rescan. */
-  readonly changed: number;
-}
-
-export interface DiffRegion extends Rect {
-  /** Changed pixels inside the box. Always ≤ `width * height`. */
-  readonly pixels: number;
-  /** `pixels / (width * height)`. Low means scattered; high means a solid block. */
-  readonly density: number;
-}
-
-export interface IsolationOptions {
-  /**
-   * Grid size, in pixels, at which neighbouring changes are considered one place.
-   *
-   * Not a tuning knob so much as a statement about what a region *is*. At cell 1
-   * every antialiased glyph edge is its own region and a paragraph of restyled
-   * text produces four hundred of them, which is the same unreadable output as a
-   * single number, only longer. At cell 8 a word is one region and a button is
-   * one region, which is the granularity a person names when they point at a
-   * screen.
-   */
-  readonly cell?: number;
-
-  /**
-   * Cap on regions returned, largest first.
-   *
-   * Truncation is reported in {@link Isolation.truncated} rather than applied
-   * silently. A capped list that does not say it was capped reads as complete
-   * coverage, and the reader has no way to know the difference.
-   */
-  readonly limit?: number;
-}
-
-export interface Isolation {
-  readonly regions: readonly DiffRegion[];
-  /** Regions found but not returned, because of `limit`. `0` in the normal case. */
-  readonly truncated: number;
-  /** Changed pixels in the truncated tail. Nothing is lost silently. */
-  readonly truncatedPixels: number;
-}
-
-const DEFAULT_CELL = 8;
-const DEFAULT_LIMIT = 32;
-
-/**
- * Cluster a change mask into regions.
- *
- * Connected components are computed on a coarse grid rather than on the pixels
- * themselves. That is a performance decision and a semantic one at once: the
- * coarse pass is one linear sweep instead of a merge over thousands of glyph-edge
- * fragments, and it produces the grouping a reader would have produced by eye.
- * Bounding boxes are then tightened back onto the actual changed pixels, so a
- * region's coordinates are exact even though its *membership* was decided coarsely.
- */
-export function isolateRegions(mask: ChangeMask, options: IsolationOptions = {}): Isolation {
-  const cell = Math.max(1, Math.floor(options.cell ?? DEFAULT_CELL));
-  const limit = options.limit ?? DEFAULT_LIMIT;
-
-  const columns = Math.ceil(mask.width / cell);
-  const rows = Math.ceil(mask.height / cell);
-  const occupied = new Uint8Array(columns * rows);
-
-  for (let y = 0; y < mask.height; y += 1) {
-    const rowOffset = y * mask.width;
-    const gridRow = ((y / cell) | 0) * columns;
-    for (let x = 0; x < mask.width; x += 1) {
-      if (mask.data[rowOffset + x] !== 0) occupied[gridRow + ((x / cell) | 0)] = 1;
-    }
-  }
-
-  const seen = new Uint8Array(occupied.length);
-  const found: DiffRegion[] = [];
-
-  for (let index = 0; index < occupied.length; index += 1) {
-    if (occupied[index] === 0 || seen[index] !== 0) continue;
-
-    // Explicit stack. A full-page change is a single component covering every
-    // cell, and recursion at that depth is a stack overflow rather than a slow path.
-    const stack = [index];
-    seen[index] = 1;
-    const cells: number[] = [];
-
-    while (stack.length > 0) {
-      const current = stack.pop()!;
-      cells.push(current);
-
-      const cx = current % columns;
-      const cy = (current / columns) | 0;
-
-      for (let dy = -1; dy <= 1; dy += 1) {
-        for (let dx = -1; dx <= 1; dx += 1) {
-          const nx = cx + dx;
-          const ny = cy + dy;
-          if (nx < 0 || ny < 0 || nx >= columns || ny >= rows) continue;
-
-          const neighbour = ny * columns + nx;
-          if (occupied[neighbour] === 0 || seen[neighbour] !== 0) continue;
-
-          seen[neighbour] = 1;
-          stack.push(neighbour);
-        }
-      }
-    }
-
-    found.push(tighten(mask, cells, cell, columns));
-  }
-
-  found.sort((a, b) => b.pixels - a.pixels || a.y - b.y || a.x - b.x);
-
-  const kept = found.slice(0, limit);
-  const dropped = found.slice(limit);
-
-  return {
-    regions: kept,
-    truncated: dropped.length,
-    truncatedPixels: dropped.reduce((sum, region) => sum + region.pixels, 0),
-  };
-}
-
-/** Exact extent and count of the changed pixels inside one component's cells. */
-function tighten(mask: ChangeMask, cells: readonly number[], cell: number, columns: number): DiffRegion {
-  let minX = mask.width;
-  let minY = mask.height;
-  let maxX = -1;
-  let maxY = -1;
-  let pixels = 0;
-
-  for (const index of cells) {
-    const startX = (index % columns) * cell;
-    const startY = ((index / columns) | 0) * cell;
-    const endX = Math.min(startX + cell, mask.width);
-    const endY = Math.min(startY + cell, mask.height);
-
-    for (let y = startY; y < endY; y += 1) {
-      const rowOffset = y * mask.width;
-      for (let x = startX; x < endX; x += 1) {
-        if (mask.data[rowOffset + x] === 0) continue;
-        pixels += 1;
-        if (x < minX) minX = x;
-        if (x > maxX) maxX = x;
-        if (y < minY) minY = y;
-        if (y > maxY) maxY = y;
-      }
-    }
-  }
-
-  const width = maxX - minX + 1;
-  const height = maxY - minY + 1;
-
-  return { x: minX, y: minY, width, height, pixels, density: pixels / (width * height) };
-}
 
 export interface AttributedRegion {
   readonly region: DiffRegion;
@@ -230,6 +66,36 @@ export interface AttributedRegion {
    * the confidence of the first.
    */
   readonly nearest?: { readonly path: NodePath; readonly component?: string; readonly where?: string };
+
+  /**
+   * Nearest enclosing component, when it is not the one that authored the node.
+   *
+   * Two namespaces meet here and neither is wrong. `component` is `createdBy` —
+   * who wrote the JSX (ADR-0007) — and a component *hash* is named for the
+   * enclosure (ADR-0018). They diverge exactly where an element is passed as a
+   * prop: `<Card title={<h3>Invoice</h3>} />` gives the `<h3>` `createdBy: Page`
+   * and `owners[0]: Card`.
+   *
+   * Carried so that ranking can match a cause list without guessing which of the
+   * two it is written in. Matching one namespace against the other does not
+   * fail loudly — it silently finds nothing, and the ordering falls back to area,
+   * which is the thing the cause list exists to prevent.
+   */
+  readonly owner?: string;
+
+  /**
+   * The shape of this difference, with its position and values removed.
+   *
+   * Filled in by whoever held the mask — `attributeRegions` never sets it,
+   * because a fingerprint is computed from pixels and this function is given
+   * boxes. It exists on this type rather than beside it so that the digest
+   * travels with the region a reader is looking at: writing an ignore means
+   * copying the fingerprint of the thing that annoyed you, and a digest printed
+   * in a different section is a digest nobody matches up.
+   *
+   * See `fingerprintOfMask` in `core/judge`.
+   */
+  readonly fingerprint?: string;
 }
 
 export interface AttributionOptions {
@@ -300,10 +166,21 @@ export function attributeRegions(
 
       const nodeArea = rect.width * rect.height;
 
+      // `<=`, not `<`, and the difference is one component name in every report
+      // over a design system. A wrapper that shrink-wraps its only child carries
+      // a *byte-identical* rect — measured on `cases/storybook-case`, where
+      // `Tokens` and `Button` are both `454.34,359 115.33×50` — so neither is
+      // tighter than the other and the walk decides. `collectBoxes` is pre-order,
+      // so a strict `<` keeps whichever came first, which is always the outer
+      // one: the run then names the wrapper nothing edited and sends a reviewer
+      // to its file. Ties go to the last box seen, which is the innermost, and is
+      // also the one the browser painted on top.
       if (area > 0 && shared / area >= containment) {
-        if (inside === undefined || nodeArea < inside.rect!.width * inside.rect!.height) inside = node;
+        if (inside === undefined || nodeArea <= inside.rect!.width * inside.rect!.height) inside = node;
       }
-      if (overlapping === undefined || nodeArea < overlapping.rect!.width * overlapping.rect!.height) {
+      // The same rule for `nearest`. It is orientation rather than attribution,
+      // and a hint should point at the same node the join would have picked.
+      if (overlapping === undefined || nodeArea <= overlapping.rect!.width * overlapping.rect!.height) {
         overlapping = node;
       }
     }
@@ -377,7 +254,12 @@ export function rankRegions(
   return regions
     .map((region) => ({
       ...region,
-      cause: region.component !== undefined && named.has(region.component),
+      // Either namespace. A cause list is named for enclosures and a region is
+      // named for its author, and where those differ a one-sided test finds
+      // nothing and silently reverts the ordering to area.
+      cause:
+        (region.component !== undefined && named.has(region.component)) ||
+        (region.owner !== undefined && named.has(region.owner)),
     }))
     .sort((a, b) => Number(b.cause) - Number(a.cause) || b.region.pixels - a.region.pixels);
 }
@@ -385,14 +267,18 @@ export function rankRegions(
 function describe(
   snapshot: SemanticSnapshot,
   node: SemanticNode,
-): { component?: string; where?: string } {
+): { component?: string; owner?: string; where?: string } {
   // `createdBy` before `owners[0]`: the component whose JSX produced this element
   // owns its appearance, while the nearest enclosing component merely contains it.
-  const component = node.provenance?.createdBy ?? node.provenance?.owners[0]?.name;
+  const owner = node.provenance?.owners[0]?.name;
+  const component = node.provenance?.createdBy ?? owner;
   const where = locate(snapshot.root, node.path).where;
 
   return {
     ...(component !== undefined ? { component } : {}),
+    // Only when it says something `component` does not. An `owner` that repeats
+    // the author is noise in every report that prints it.
+    ...(owner !== undefined && owner !== component ? { owner } : {}),
     ...(where !== '' ? { where } : {}),
   };
 }

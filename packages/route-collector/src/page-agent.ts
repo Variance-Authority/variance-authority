@@ -21,6 +21,16 @@ export interface AcquireRequest {
   readonly viewport: Viewport;
   readonly engine: string;
   readonly fonts?: readonly string[];
+
+  /**
+   * Subtrees this run excludes, as `(rule id, selector)` pairs (spec 0024).
+   *
+   * Carried into the page because a selector needs a document, and the document
+   * is here. What comes back is a *mark* on the capture, never a deletion — the
+   * counts downstream must be able to say that a difference was absorbed rather
+   * than that it never happened.
+   */
+  readonly ignore?: readonly { readonly id: string; readonly select: string }[];
   /** Subject roots, tightest first. */
   readonly roots: readonly string[];
 }
@@ -66,6 +76,7 @@ export function acquire(request: AcquireRequest): string {
     engine: request.engine,
     portalsOf: portalContentOf,
     provenanceOf,
+    ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
   });
 
   return JSON.stringify({ document, capture });

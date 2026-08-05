@@ -72,7 +72,7 @@ export class OperatorError extends Error {
  */
 export interface ReviewableReport {
   readonly observations: readonly {
-    readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable';
+    readonly verdict: 'unchanged' | 'changed' | 'new' | 'incomparable' | 'ignored';
 
     /**
      * What the collection of this subject could not do, carried from the record.
@@ -101,6 +101,16 @@ export interface ReviewableReport {
 }
 
 /**
+ * Verdicts that do not, on their own, hold a run open.
+ *
+ * A list rather than a `!== 'unchanged'`, because there are now two ways for a
+ * subject to be green and they mean different things: nothing moved, or nothing
+ * moved *outside what the operator excluded*. Writing the second as the first is
+ * how the distinction would quietly disappear from every count downstream.
+ */
+const GREEN: readonly string[] = ['unchanged', 'ignored'];
+
+/**
  * The verdict code for a completed run: `0` or `1`, never `2`.
  *
  * Five things move it to `1`, and the last three are the ones a pixel-diff tool
@@ -123,7 +133,12 @@ export interface ReviewableReport {
  *   its styling missing. No verdict can express that, because the verdict is a
  *   statement about two images and this is a statement about what went into them.
  *
- * Two things deliberately do not move it. `excluded` entries: the operator's own
+ * Three things deliberately do not move it. `ignored` observations: pixels moved
+ * and every one of them fell inside a subtree the operator excluded, which is the
+ * same decision an `excluded` entry records one level up. It is a separate
+ * verdict from `unchanged` rather than the same one precisely so that it can be
+ * counted here without being confused with earned green — see spec 0024, and the
+ * register that reports an ignore absorbing nothing. `excluded` entries: the operator's own
  * configuration saying "do not look here" is a decision that was already made and
  * reviewed. And `warn` diagnostics: they state a standing limit of the profile or
  * the configuration — `unverified-fonts` fires on every subject of a suite that
@@ -134,7 +149,7 @@ export interface ReviewableReport {
 export function exitFor(report: ReviewableReport): typeof EXIT_CLEAN | typeof EXIT_REVIEW {
   const needsReview = report.observations.some(
     (observation) =>
-      observation.verdict !== 'unchanged' ||
+      !GREEN.includes(observation.verdict) ||
       (observation.diagnostics ?? []).some((diagnostic) => diagnostic.severity === 'error'),
   );
   if (needsReview) return EXIT_REVIEW;

@@ -24,6 +24,7 @@ import {
   type Plan,
 } from './commands/run.js';
 import { formatReport } from './commands/report.js';
+import { liveIgnores } from './commands/ignores.js';
 import { mergeReports } from './commands/merge.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { serve } from './commands/serve.js';
@@ -63,8 +64,19 @@ export async function dispatch(
       const effective: Config =
         parsed.profile === undefined ? config : { ...config, profile: parsed.profile };
       const plan = await planFor(effective);
+
+      // The collector is handed the rules that are still live. Expiry is a
+      // run-level decision with a clock in it, and a collector — which runs in a
+      // browser — is the wrong place to make one. An expired rule is simply never
+      // sent, so what it used to absorb is reported again with no other machinery.
+      const today = new Date().toISOString();
       const collector = await loadCollector(effective.subjects.collector, {
-        config: effective,
+        config: {
+          ...effective,
+          ...(effective.ignore !== undefined
+            ? { ignore: liveIgnores(effective.ignore, today) }
+            : {}),
+        },
         ...(plan !== undefined ? { plan } : {}),
       });
 
@@ -115,6 +127,7 @@ export async function dispatch(
         store: await storeFor(config),
         subjects: parsed.subjects,
         all: parsed.all,
+        shapes: parsed.shapes,
         read: readCandidate,
       });
 

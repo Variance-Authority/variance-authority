@@ -1,5 +1,5 @@
 import { test as base, type Locator, type TestInfo } from '@playwright/test';
-import { documentDigest, normalize } from '@variance-authority/core';
+import { documentDigest, hashComponents, normalize } from '@variance-authority/core';
 import type {
   SemanticSnapshot,
   SourceIndex,
@@ -220,7 +220,7 @@ export const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>({
       });
 
       if (accepting(testInfo) && observation.verdict !== 'unchanged') {
-        await promote(varianceStore, varianceRenderer, document, key);
+        await promote(varianceStore, varianceRenderer, document, key, snapshot);
       }
 
       return observation;
@@ -244,6 +244,8 @@ async function promote(
   renderer: Renderer,
   document: Parameters<typeof documentDigest>[0],
   key: BaselineKey,
+  /** This run's snapshot of the same render. See below. */
+  snapshot: SemanticSnapshot,
 ): Promise<void> {
   const identity = renderer.identityFor(document);
   const candidate = await store.renderCache.get(documentDigest(document), identity);
@@ -255,7 +257,13 @@ async function promote(
     );
   }
 
-  await store.put(key, candidate);
+  // The image comes from the cache and the hashes do not. A render cache is keyed
+  // by document digest and holds images; component hashes describe a snapshot,
+  // which carries provenance a document does not (ADR-0027). Promoting the cached
+  // raster as-is would record a baseline with no hashes at all, so every later run
+  // against it would rank regions by area — the ordering journal 0013 measured as
+  // backwards — on the one surface where both documents were in hand.
+  await store.put(key, { ...candidate, components: hashComponents(snapshot) });
 }
 
 export { expect } from './matcher.js';

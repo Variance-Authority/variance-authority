@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { normalize as normalizeCapture } from '@variance-authority/core';
+import { matchesGlob, normalize as normalizeCapture } from '@variance-authority/core';
 import type {
   RenderDocument,
   SemanticSnapshot,
@@ -53,12 +53,53 @@ import { scanSource, type SourceScan } from './source.js';
 export interface CollectorConfig {
   readonly viewport: Viewport;
   readonly fonts?: readonly string[];
+  /**
+   * Subtrees this project excludes, from `config.ignore` (spec 0024).
+   *
+   * Only the two fields a page needs: a rule id to record the mark under, and a
+   * selector to find it with. Everything else about a rule — its reason, its
+   * expiry, the bands it narrows to — is decided after collection, where a clock
+   * and the whole run's diffs are available and a browser is not.
+   */
+  readonly ignore?: readonly {
+    readonly id: string;
+    readonly select?: string;
+    /**
+     * Subjects the rule names. Read here to decide what to send, and never sent.
+     *
+     * A page can resolve a selector and cannot know which subject it is one of,
+     * so scoping has to happen on this side of the boundary. Without it a rule
+     * written for one route marks its element in every subject that renders the
+     * same shared layout, and a real regression inside that element is absorbed
+     * everywhere — an ignore silencing more than it says, which is the one thing
+     * the mechanism must not do.
+     */
+    readonly subjects?: readonly string[];
+
+    /** Tags the subject must carry. Read here to decide what to send, never sent. */
+    readonly tags?: readonly string[];
+  }[];
+
   readonly subjects: { readonly index: string };
 }
 
 export interface PlannedSubject {
   readonly subject: SubjectRef;
   readonly viewport?: Viewport;
+
+  /**
+   * What the subject declares itself to be, from the artifact that produced it.
+   *
+   * Storybook's built index carries `tags` and does not carry a story's
+   * `parameters`, so a tag is the only per-story declaration that survives a
+   * build — and it is the right one anyway: what a subject *is* belongs in its
+   * own name, next to it, rather than in a central file repeating every id.
+   *
+   * Selection lives here; definition lives in the config. A tag is a word a
+   * story wears, and what that word *means* is the operator's to write down
+   * once, where a typo can be refused by name.
+   */
+  readonly tags?: readonly string[];
 }
 
 export interface Plan {
@@ -252,11 +293,25 @@ export function storybookCollector(
           };
         }
 
+        const worn = new Set(planned.tags ?? []);
+        const selectable = (config.ignore ?? []).flatMap((rule) =>
+          rule.select === undefined ||
+          (rule.subjects !== undefined &&
+            !rule.subjects.some((pattern) => matchesGlob(planned.subject.id, pattern))) ||
+          (rule.tags !== undefined && !rule.tags.some((tag) => worn.has(tag)))
+            ? []
+            : [{ id: rule.id, select: rule.select }],
+        );
+
         const request: AcquireRequest = {
           subjectId: planned.subject.id,
           viewport,
           engine,
           ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
+          // Only the rules that name a selector cross into the page. A
+          // fingerprint rule has nothing for a document to resolve, and sending
+          // one would put a digest in a browser that cannot use it.
+          ...(selectable.length > 0 ? { ignore: selectable } : {}),
           roots,
         };
 

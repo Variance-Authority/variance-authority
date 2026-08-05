@@ -50,6 +50,21 @@ export interface AcceptOptions {
   /** Subject ids named on the command line. Ignored when {@link all} is set. */
   readonly subjects: readonly string[];
   readonly all: boolean;
+
+  /**
+   * Difference shapes to accept wherever they are the *whole* change.
+   *
+   * The bulk path, and the reason it is safe: a shape names what changed rather
+   * than which screenshots it landed in, so accepting one covers every subject
+   * it reached — and a subject where something *else* also moved is refused by
+   * name instead of being swept along. That refusal is the feature. "One accept
+   * across forty screenshots" is only better than forty accepts if the forty
+   * were genuinely the same change, and this is the only way to be sure.
+   *
+   * A fingerprint is copied out of a report; every region carries its own
+   * (ADR-0025).
+   */
+  readonly shapes?: readonly string[];
   /** Reads a candidate image and its sidecar. Injected so this is testable on no disk. */
   readonly read: CandidateReader;
 }
@@ -85,16 +100,52 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
   const refused: Refused[] = [];
   let alreadyBaseline = 0;
 
-  if (!options.all && options.subjects.length === 0) {
+  if (!options.all && (options.shapes ?? []).length === 0 && options.subjects.length === 0) {
     throw new OperatorError(
       'name at least one subject, or pass --all. Accepting nothing is not the same as ' +
         'accepting everything, and this command will not guess which was meant.',
     );
   }
 
-  const targets = options.all
-    ? report.observations
-    : options.subjects.map((subject) => find(report, subject));
+  const shapes = new Set(options.shapes ?? []);
+  let targets: readonly ObservationRecord[];
+
+  if (options.all) {
+    targets = report.observations;
+  } else if (shapes.size > 0) {
+    const selected = selectByShape(report.observations, shapes);
+
+    if (selected.whole.length === 0 && selected.partial.length === 0) {
+      // Distinct from "nothing was accepted". A fingerprint is pasted from a
+      // report, and the overwhelmingly likely cause of no match at all is that
+      // it came from a different run — which is worth saying, because the
+      // operator can check it.
+      throw new OperatorError(
+        `the shape(s) ${[...shapes].join(', ')} appear in no region of this run. ` +
+          'A fingerprint is copied from a region in a report; check it came from this one.',
+      );
+    }
+
+    // Named, not silently skipped. These are subjects the operator was thinking
+    // about — the shape is in them — and being told which ones were left behind
+    // is the difference between a bulk accept and a bulk surprise.
+    for (const observation of selected.partial) {
+      refused.push({
+        subject: observation.subject,
+        because:
+          observation.truncated !== undefined && observation.truncated.regions > 0
+            ? `this shape is present, but the run capped its region list ` +
+              `(${observation.truncated.regions} more, ${observation.truncated.pixels}px), so ` +
+              'there is no evidence it is the whole change; accept this subject by name'
+            : 'this shape is present and something else changed too, so accepting it here ' +
+              'would baseline that as well; accept this subject by name once you have read it',
+      });
+    }
+
+    targets = selected.whole;
+  } else {
+    targets = options.subjects.map((subject) => find(report, subject));
+  }
 
   for (const observation of targets) {
     if (observation.verdict === 'unchanged') {
@@ -206,6 +257,51 @@ export function formatAcceptance(result: AcceptResult): string {
     ...result.refused.map((entry) => `  [refused]  ${entry.subject}: ${entry.because}`),
   ];
   return lines.join('\n');
+}
+
+/**
+ * Split the run by what the named shapes explain: all of a subject, or part of it.
+ *
+ * *All*, not *any*, is the safety property the whole flag rests on. A subject
+ * where the accepted shape appears alongside something else is not a subject
+ * where the accepted change is what happened, and promoting it would baseline
+ * the other thing silently — the failure a bulk accept is most likely to cause
+ * and the one nobody would find afterwards.
+ *
+ * The partial set is returned rather than discarded because those subjects are
+ * the ones the operator was thinking about. Being told which were left behind is
+ * the difference between a bulk accept and a bulk surprise.
+ *
+ * A subject with no regions is in neither set: there is no evidence about what
+ * changed in it, and `--all` remains the way to accept a change nothing could
+ * attribute.
+ */
+function selectByShape(
+  observations: readonly ObservationRecord[],
+  shapes: ReadonlySet<string>,
+): { whole: readonly ObservationRecord[]; partial: readonly ObservationRecord[] } {
+  const whole: ObservationRecord[] = [];
+  const partial: ObservationRecord[] = [];
+
+  for (const observation of observations) {
+    if (observation.regions.length === 0) continue;
+
+    const hits = observation.regions.filter(
+      (region) => region.fingerprint !== undefined && shapes.has(region.fingerprint),
+    );
+    if (hits.length === 0) continue;
+
+    // A capped list is not a complete one. Regions the run found and chose not
+    // to record could be anything, so a subject whose evidence was truncated
+    // cannot support "this shape is the entire change" however its recorded
+    // regions look.
+    const capped = observation.truncated !== undefined && observation.truncated.regions > 0;
+
+    if (!capped && hits.length === observation.regions.length) whole.push(observation);
+    else partial.push(observation);
+  }
+
+  return { whole, partial };
 }
 
 function find(report: CliRunReport, subject: string): ObservationRecord {

@@ -21,12 +21,14 @@ import {
   parseBaselines,
   parseFonts,
   parseHistory,
+  parseIgnores,
   parseRenderer,
   parseSubjects,
   parseViewport,
   type AloneConfig,
   type BaselinesConfig,
   type HistoryConfig,
+  type IgnoreConfig,
   type RemoteRendererConfig,
   type SubjectsConfig,
 } from './config-sections.js';
@@ -84,6 +86,7 @@ export type {
   BaselinesConfig,
   DirectoryBaselines,
   HistoryConfig,
+  IgnoreConfig,
   LfsBaselines,
   ListSubjects,
   RemoteBaselines,
@@ -162,6 +165,24 @@ export interface Config {
   readonly alone?: AloneConfig;
 
   /**
+   * Subtrees and difference shapes this project is not testing (spec 0024).
+   *
+   * The one setting on this page that makes a run *less* observant, which is why
+   * it is the one with the most rules attached to it. Every entry needs an id and
+   * a reason; every entry must name a selector or a fingerprint, because a rule
+   * scoped only by band is a tolerance and this project does not have those; and
+   * every entry is counted in the report, including when it absorbs nothing —
+   * `variance run` names a rule that caught nothing as dead, because an ignore
+   * that outlived its flake is a hole in the suite nobody can see.
+   *
+   * Outside the environment key, deliberately. Editing this changes what a run
+   * says, never what it renders, so baselines survive an ignore edit. The
+   * alternative would re-baseline the repository the first time somebody masked a
+   * clock, which is how a safety feature becomes the thing people turn off.
+   */
+  readonly ignore?: readonly IgnoreConfig[];
+
+  /**
    * Which PNG decoder the raster tier uses.
    *
    * Decoding is 90% of a comparison (journal 0016), so this is the largest lever
@@ -226,6 +247,7 @@ const TOP_LEVEL = [
   'images',
   'intent',
   'alone',
+  'ignore',
   'decoder',
   'concurrency',
 ] as const;
@@ -282,6 +304,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const images = path(root, 'images', options);
   const intent = optionalText(root, 'intent', options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
+  const ignore = root['ignore'] === undefined ? undefined : parseIgnores(root['ignore'], options);
 
   const concurrency = root['concurrency'];
   if (
@@ -333,6 +356,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     images: images === undefined ? resolve(dirname(report), 'images') : resolveFrom(options.baseDir, images),
     ...(intent !== undefined ? { intent } : {}),
     ...(alone !== undefined ? { alone } : {}),
+    ...(ignore !== undefined ? { ignore } : {}),
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
     ...(concurrency === undefined ? {} : { concurrency: concurrency as number }),
   };

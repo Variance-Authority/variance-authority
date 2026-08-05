@@ -1,7 +1,8 @@
 import {
-  attributeRegions,
-  isolateRegions,
+  hashComponents,
   type AttributedRegion,
+  type ComponentHash,
+  type Diagnostic,
   type Isolation,
   type Raster,
   type RenderDocument,
@@ -9,9 +10,8 @@ import {
   type SourceIndex,
 } from '@variance-authority/core';
 import { documentDigest, formatSource, resolveSource } from '@variance-authority/core';
-import { compareRasters, type PngDecoder } from '@variance-authority/png';
+import type { PngDecoder } from '@variance-authority/png';
 import {
-  DEFAULT_POLICY,
   describeIdentity,
   type BaselineKey,
   type CompareOptions,
@@ -19,6 +19,7 @@ import {
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
+import { decide, declaredIgnores } from './decide.js';
 
 /**
  * The composition — the phases, wired, and nothing else.
@@ -49,7 +50,18 @@ export type RasterVerdict =
    * here: an unobservable difference must never be reported as no difference
    * (ADR-0002, ADR-0008).
    */
-  | 'incomparable';
+  | 'incomparable'
+  /**
+   * Pixels differed, and every one of them fell inside something the operator
+   * excluded (spec 0024).
+   *
+   * A word of its own rather than `unchanged`, and the distinction is the whole
+   * reason ignores are safe to have. It exits `0` — the operator declared this is
+   * not the subject, and nothing needs review — while remaining countable, so a
+   * suite can be asked how many of its green subjects are green because nobody
+   * looked. `unchanged` cannot answer that question and would never be asked it.
+   */
+  | 'ignored';
 
 export interface Observation {
   readonly subject: string;
@@ -66,6 +78,60 @@ export interface Observation {
   readonly rendered: boolean;
   /** Fonts the document declared and the renderer did not have. */
   readonly missingFonts: readonly string[];
+
+  /**
+   * What the operator's ignores took out of this comparison.
+   *
+   * Present whenever the snapshot carried an excluded subtree, including when it
+   * absorbed nothing — because "this run had ignores and they caught nothing" is
+   * the state that turns a rule into a blind spot, and a field that vanishes when
+   * the count is zero cannot report it.
+   */
+  readonly ignored?: IgnoredPixels;
+
+  /**
+   * Components whose own content differs from the baseline's (spec 0017).
+   *
+   * The list `rankRegions` needs, and the reason a baseline carries its component
+   * hashes. Without it the ordering falls back to area, which measures
+   * displacement rather than cause — an edit that reflows its surroundings moves
+   * far more of them than of itself, so the component nothing edited outranks the
+   * one that was.
+   *
+   * Absent when either side has no hashes to compare: a baseline written before
+   * they existed, a store that dropped them, or a run with no snapshot. Absent
+   * means *unknown*, and a caller must not read it as "nothing caused this".
+   */
+  readonly causes?: readonly string[];
+
+  /**
+   * What this comparison could not do, or did under a condition worth stating.
+   *
+   * Beside `causes` rather than folded into `because`, for the reason every other
+   * diagnostic in this system is a field: a sentence is read once and a code can
+   * be counted across a suite. `recordOf` merges these with the collector's own,
+   * so a reader meets one list per subject.
+   */
+  readonly diagnostics?: readonly Diagnostic[];
+}
+
+export interface IgnoredPixels {
+  /** Changed pixels that fell inside an excluded box. */
+  readonly pixels: number;
+  /** Boxes that were excluded. Counted, not listed, so a report stays readable. */
+  readonly boxes: number;
+  /** Boxes covering no changed pixel: the raster half of a dead ignore. */
+  readonly inert: number;
+
+  /**
+   * Pixels each rule absorbed here, by rule id.
+   *
+   * A rule present with `0` is the whole reason this is a map rather than a
+   * total: a run-level register has to be able to say "`carousel` excluded a
+   * subtree in 40 subjects and absorbed nothing in any of them", and a field that
+   * only records what was caught can never report a rule that caught nothing.
+   */
+  readonly byRule: Readonly<Record<string, number>>;
 }
 
 export interface ObserveOptions {
@@ -99,6 +165,21 @@ export interface ObserveOptions {
   /** Grid at which neighbouring changed pixels count as one place. */
   readonly cell?: number;
   readonly limit?: number;
+
+  /**
+   * Difference shapes to absorb, as `fingerprint → rule id` (spec 0024).
+   *
+   * The half of an ignore that a place cannot express: a flake that moves has no
+   * stable node to name, and a rectangle drawn where it was last seen silences
+   * whatever lands there next. A shape follows the artifact instead, so a
+   * *different* regression in the same place still has a different fingerprint
+   * and is still reported.
+   *
+   * Applied after isolation, because a fingerprint is a property of a clustered
+   * region rather than of a pixel — which also means it can only absorb what the
+   * isolation actually returned, and a truncated tail is never silently absorbed.
+   */
+  readonly ignoreShapes?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -115,9 +196,9 @@ export async function observePair(
   options: ObserveOptions,
 ): Promise<Observation> {
   const left = await renderOnce(options.renderer, options.store, before);
-  const right = await renderOnce(options.renderer, options.store, after);
+  const right = await renderOnce(options.renderer, options.store, after, componentsOf(options));
 
-  return await report(after.subject.id, left.raster, right.raster, left.rendered || right.rendered, options);
+  return await decide(after.subject.id, left.raster, right.raster, left.rendered || right.rendered, options);
 }
 
 /**
@@ -139,8 +220,15 @@ export async function observeAgainstBaseline(
 ): Promise<Observation> {
   const identity = options.renderer.identityFor(document);
 
+  const components = componentsOf(options);
   const found = await options.store.find(key, identity);
-  const fresh = await renderOnce(options.renderer, options.store, document);
+  const fresh = await renderOnce(options.renderer, options.store, document, components);
+
+  // Carried on the paths that never reach a comparison. What the operator
+  // excluded is a fact about this subject whether or not anything was compared,
+  // and a run that omitted it told the ledger the rule had resolved nowhere.
+  const declared = declaredIgnores(options.snapshot, fresh.raster.identity.deviceScaleFactor);
+  const declaredField = declared === undefined ? {} : { ignored: declared };
 
   if (found === null) {
     return {
@@ -150,6 +238,7 @@ export async function observeAgainstBaseline(
       regions: [],
       rendered: fresh.rendered,
       missingFonts: fresh.raster.missingFonts,
+      ...declaredField,
     };
   }
 
@@ -164,10 +253,23 @@ export async function observeAgainstBaseline(
       regions: [],
       rendered: fresh.rendered,
       missingFonts: fresh.raster.missingFonts,
+      ...declaredField,
     };
   }
 
-  return await report(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
+  return await decide(document.subject.id, found.raster, fresh.raster, fresh.rendered, options);
+}
+
+/**
+ * This render's component hashes, when a snapshot of it was supplied.
+ *
+ * Computed here rather than by the collector so that the hashes and the pixels
+ * come from one mount by construction: a collector that hashed separately could
+ * hash a document the renderer never saw, and the ordering would then be about a
+ * page that was not painted.
+ */
+function componentsOf(options: ObserveOptions): readonly ComponentHash[] | undefined {
+  return options.snapshot === undefined ? undefined : hashComponents(options.snapshot);
 }
 
 /**
@@ -190,94 +292,55 @@ async function renderOnce(
   renderer: Renderer,
   store: RasterStore,
   document: RenderDocument,
+  /** This document's component hashes, folded into the raster it produces. */
+  components?: readonly ComponentHash[],
 ): Promise<{ raster: Raster; rendered: boolean }> {
-  const hit = await store.renderCache.get(documentDigest(document), renderer.identityFor(document));
-  if (hit !== null) return { raster: hit, rendered: false };
+  const identity = renderer.identityFor(document);
+  const hit = await store.renderCache.get(documentDigest(document), identity);
 
-  const raster = await renderer.render(document);
-  await store.renderCache.put(raster);
-  return { raster, rendered: true };
+  // A cache hit is an image of exactly this document, so the hashes computed
+  // *here* describe it as well as the ones written with it did. What the cache
+  // kept is discarded either way — see `withComponents`.
+  if (hit !== null) return { raster: withComponents(hit, components), rendered: false };
+
+  const painted = await renderer.render(document);
+  // Pixels only. A render cache is addressed by document digest and holds
+  // *images*; component hashes describe a snapshot, which carries provenance a
+  // document does not, so two different snapshots share one cache key. Storing
+  // them here is what let a warm machine answer with a previous run's hashes —
+  // and, because `images.ts` builds the candidate sidecar out of this cache, what
+  // would have let `accept` promote a baseline whose hashes belong to a document
+  // it is not an image of.
+  await store.renderCache.put(painted);
+  return { raster: withComponents(painted, components), rendered: true };
 }
 
-async function report(
-  subject: string,
-  before: Raster,
-  after: Raster,
-  rendered: boolean,
-  options: ObserveOptions,
-): Promise<Observation> {
-  const comparison = await compareRasters(before, after, {
-    ...options.compare,
-    ...(options.decoder !== undefined ? { decoder: options.decoder } : {}),
-  });
-  const policy = options.compare?.isolateWith ?? DEFAULT_POLICY;
-  const changed = comparison.changed[policy.id] ?? 0;
-
-  const missingFonts = [...new Set([...before.missingFonts, ...after.missingFonts])];
-
-  if (changed === 0 && !comparison.dimensionsChanged) {
-    return {
-      subject,
-      verdict: 'unchanged',
-      because:
-        missingFonts.length > 0
-          ? `no pixels differ, but the renderer lacked ${missingFonts.join(', ')} on both sides, ` +
-            'so both images are of a substituted font'
-          : 'no pixels differ',
-      comparison,
-      regions: [],
-      rendered,
-      missingFonts,
-    };
-  }
-
-  const isolation = isolateRegions(comparison.mask, {
-    ...(options.cell !== undefined ? { cell: options.cell } : {}),
-    ...(options.limit !== undefined ? { limit: options.limit } : {}),
-  });
-
-  const regions =
-    options.snapshot === undefined
-      ? []
-      : attributeRegions(isolation.regions, options.snapshot, {
-          scale: after.identity.deviceScaleFactor,
-        });
-
-  return {
-    subject,
-    verdict: 'changed',
-    because: describeChange(comparison, isolation, regions, changed),
-    comparison,
-    isolation,
-    regions,
-    rendered,
-    missingFonts,
-  };
-}
-
-function describeChange(
-  comparison: RasterComparison,
-  isolation: Isolation,
-  regions: readonly AttributedRegion[],
-  changed: number,
-): string {
-  const size = comparison.dimensionsChanged
-    ? `, and the subject resized from ${comparison.before.width}×${comparison.before.height} ` +
-      `to ${comparison.after.width}×${comparison.after.height}`
-    : '';
-
-  const named = [...new Set(regions.map((region) => region.component).filter(Boolean))];
-  const where =
-    named.length > 0
-      ? ` in ${named.slice(0, 3).join(', ')}${named.length > 3 ? ` (+${named.length - 3} more)` : ''}`
-      : '';
-
-  const capped =
-    isolation.truncated > 0
-      ? ` (+${isolation.truncated} smaller region(s) not listed, ${isolation.truncatedPixels}px)`
-      : '';
-
-  return `${changed} pixel(s) differ across ${isolation.regions.length} region(s)${where}${size}${capped}`;
+/**
+ * Stamp this run's component hashes onto a raster, and remove anybody else's.
+ *
+ * The removal is the important half, and it was missing. A render cache is keyed
+ * by document digest, and component hashes are not derived from the document —
+ * they are derived from the *snapshot*, which carries provenance the document
+ * does not. So a cache entry can legitimately hold hashes computed from a
+ * different snapshot of the same bytes: rename a component, change nothing it
+ * renders, and the digest holds while the hashes move.
+ *
+ * Left in place, that makes the answer a function of cache warmth. A run with no
+ * snapshot returns whatever the cache kept and reports causes; the same run on a
+ * cold machine returns none and reports none. ADR-0027 chose *carry* over *fetch*
+ * precisely so that ranking could not depend on that, and this is the same
+ * failure arriving one layer down.
+ *
+ * So the rule is unconditional: the hashes on a raster are the ones this run
+ * computed, or there are none.
+ */
+function withComponents(
+  raster: Raster,
+  components: readonly ComponentHash[] | undefined,
+): Raster {
+  const { components: stale, ...pixels } = raster;
+  void stale;
+  return components === undefined ? pixels : { ...pixels, components };
 }
 
 /**

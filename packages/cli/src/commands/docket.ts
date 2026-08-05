@@ -68,7 +68,15 @@ export interface Docket {
   readonly causes: readonly CauseEntry[];
   readonly collateral: Collateral;
   readonly withoutCause: readonly Group[];
-  /** Observations whose verdict is not `unchanged`. */
+  /**
+   * Observations a person has to decide about.
+   *
+   * Both green verdicts are excluded, not one. `ignored` means pixels moved and
+   * every one of them fell inside something the operator already excluded — the
+   * decision was made when the rule was written, and `exitFor`, `variance_summary`
+   * and the review backend all treat it as green. A docket that counted it would
+   * put a number in the pull-request comment that the exit code contradicts.
+   */
   readonly reviewable: number;
   readonly failed: readonly NotObserved[];
   readonly excluded: number;
@@ -117,7 +125,7 @@ export function docketOf(report: CliRunReport): Docket {
       missingFonts.set(font, (missingFonts.get(font) ?? 0) + 1);
     }
 
-    if (observation.verdict === 'unchanged') continue;
+    if (observation.verdict === 'unchanged' || observation.verdict === 'ignored') continue;
     reviewable += 1;
 
     const lead = observation.regions.find((region) => region.cause) ?? observation.regions[0];

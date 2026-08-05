@@ -73,6 +73,15 @@ export const explain: Tool = {
         ].join('\n');
       case 'unchanged':
         return `${observation.subject} was compared and did not change: ${observation.because}`;
+      case 'ignored':
+        return [
+          observation.because,
+          '',
+          'This subject changed. Every changed pixel landed inside a region the project ' +
+            'excluded, so the run is green and nothing here was reviewed. That is a ' +
+            'configuration decision, not a fact about the code: if the change should have ' +
+            'been caught, the ignore is too wide.',
+        ].join('\n');
       case 'changed':
         return `${observation.subject} was compared and changed. Call variance_describe for the regions.`;
     }

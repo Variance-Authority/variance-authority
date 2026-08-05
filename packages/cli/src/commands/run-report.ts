@@ -1,6 +1,7 @@
 import type { Diagnostic } from '@variance-authority/core';
 import type { ObservationRecord, RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
+import type { IgnoreLedger } from './ignores.js';
 
 /**
  * The artifact a run leaves behind: its shape, and the reader that refuses a
@@ -85,6 +86,20 @@ export interface CliRunReport extends RunReport {
 
   /** Complaints from the subject index that belong to no single subject. */
   readonly warnings?: readonly string[];
+
+  /**
+   * What each configured ignore absorbed, and which absorbed nothing (spec 0024).
+   *
+   * On the CLI's superset rather than on `RunReport`, because an ignore is a
+   * configuration fact and the MCP tools read reports that no config produced.
+   * What the tools *can* see is the consequence — an `ignored` verdict on the
+   * subject, which is a different word from `unchanged` precisely so that no
+   * reader has to have this field to notice.
+   *
+   * Absent when the run configured no ignores. Present-and-empty never happens:
+   * a ledger exists exactly when there was something to account for.
+   */
+  readonly ignores?: IgnoreLedger;
 }
 
 /**

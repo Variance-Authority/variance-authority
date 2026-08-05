@@ -79,8 +79,26 @@ describe('parseArgs', () => {
       config: resolve('variance.config.json'),
       subjects: ['story:button', 'story:card'],
       all: false,
+      shapes: [],
     });
     expect(parseArgs(['accept', '--all']).all).toBe(true);
+  });
+
+  it('splits --shape on commas, so one accept can name several shapes', () => {
+    expect(parseArgs(['accept', '--shape', 'v1:aaa, v1:bbb'])).toMatchObject({
+      command: 'accept',
+      shapes: ['v1:aaa', 'v1:bbb'],
+      subjects: [],
+      all: false,
+    });
+  });
+
+  it('refuses --shape together with named subjects', () => {
+    // A shape selects the subjects. Naming subjects as well asks two questions
+    // at once, and every answer to it is somebody's surprise.
+    expect(attempt(['accept', '--shape', 'v1:aaa', 'story:button']).message).toContain(
+      'two different sets',
+    );
   });
 
   it('refuses --all together with named subjects', () => {
@@ -90,7 +108,7 @@ describe('parseArgs', () => {
   });
 
   it('refuses accept with neither subjects nor --all', () => {
-    expect(attempt(['accept']).message).toContain('needs a subject id, or --all');
+    expect(attempt(['accept']).message).toContain('needs a subject id, --shape, or --all');
   });
 
   it('refuses a value on a boolean flag', () => {

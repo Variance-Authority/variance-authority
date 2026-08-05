@@ -49,6 +49,8 @@ export type {
   SemanticNode,
   NodePath,
   StyleProvenanceEntry,
+  IgnoreSite,
+  ComponentHash,
 } from './snapshot.js';
 
 export { documentDigest, identityDigest } from './document.js';
