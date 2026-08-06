@@ -7,7 +7,7 @@ import {
   type SourceIndex,
 } from '@variance-authority/core';
 import type { Found } from '@variance-authority/raster';
-import { EXIT_REVIEW, exitFor } from '../exit.js';
+import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
 import type { Collected, Collector, Plan } from './run.js';
 import {
   VIEWPORT,
@@ -362,6 +362,74 @@ describe('a subject that does not read the same way twice', () => {
     );
 
     expect(report.observations[0]?.unstable).toBeUndefined();
+  });
+
+  it('does not demand stability in a band the subject says it does not assert on', async () => {
+    // The boundary, and without it this whole check would undo route-level VR. A
+    // route declared `layout` has said in the config that it does not assert on
+    // what the page is painted with; a clock ticking inside it is then a fact
+    // about the page, not a defect in it. Reporting it would make every route
+    // test red for exactly the reason its level was written.
+    const collector = ticking(['route/home'], { snapshots: true });
+    const config = configOf({
+      sensitivity: [
+        {
+          id: 'routes',
+          reason: 'a route asserts the page assembles, not what it is painted',
+          level: 'layout',
+          subjects: ['route/*'],
+        },
+      ],
+    });
+
+    // A baseline the first reading settles against, so the *only* thing in
+    // question is the instability. A `changed` verdict would exit 1 on its own
+    // and the assertion below would pass without the boundary existing.
+    const store = storeAnswering(whiteBaselineOf(reading('route/home', '12:00')));
+
+    const { report } = await runWith(config, collector, store, {
+      renderer: painter(),
+      flakes: true,
+    });
+
+    expect(report.observations[0]?.verdict).toBe('unchanged');
+
+    // Recorded, not dropped — the same rule `ignored` follows for pixels, one
+    // level up and about kinds. A suite has to stay answerable about how much of
+    // its green came from a declaration.
+    expect(report.observations[0]?.unstable?.absorbed).toEqual({ rule: 'routes', level: 'layout' });
+    expect(report.observations[0]?.unstable?.bands).toEqual(['content']);
+    expect(report.observations[0]?.unstable?.because).toContain('not asserted on');
+    expect(exitFor(report)).toBe(EXIT_CLEAN);
+  });
+
+  it('still demands it in a band the subject does assert on', async () => {
+    // The counterweight. `strict` is a real answer and is how the exception
+    // inside a relaxed group is spelled — a declaration that absorbed everything
+    // whatever it said would not be a boundary, it would be an off switch.
+    const collector = ticking(['route/checkout'], { snapshots: true });
+    const config = configOf({
+      sensitivity: [
+        {
+          id: 'checkout-is-strict',
+          reason: 'the one page where what it says is the product',
+          level: 'strict',
+          subjects: ['route/*'],
+        },
+      ],
+    });
+
+    const store = storeAnswering(whiteBaselineOf(reading('route/checkout', '12:00')));
+
+    const { report } = await runWith(config, collector, store, {
+      renderer: painter(),
+      flakes: true,
+    });
+
+    expect(report.observations[0]?.verdict).toBe('unchanged');
+
+    expect(report.observations[0]?.unstable?.absorbed).toBeUndefined();
+    expect(exitFor(report)).toBe(EXIT_REVIEW);
   });
 
   it('turns off at zero, in the same breath as the clean-world pass', async () => {

@@ -208,6 +208,31 @@ export interface ObservationRecord {
     }[];
     /** Frequency bands the disagreement fell in, e.g. `content`, `geometry`. */
     readonly bands: readonly string[];
+
+    /**
+     * The declaration that put every band of this movement outside what the
+     * subject is asserted on.
+     *
+     * **Present means this is not a finding.** It does not gate, `accept` does
+     * not refuse it, and the summary files it under a different heading — because
+     * a route declared `layout` has said, in the config, that it does not assert
+     * on what the page is painted with, and a clock inside it is then a fact
+     * about the page rather than a defect in it. Stability is required inside the
+     * boundary the subject declares, and demanding it outside would make the
+     * declaration worthless: every route-level test would go red over the exact
+     * movement it was written to ignore.
+     *
+     * Recorded rather than dropped, for the reason `ignored` is a word of its own
+     * and never `unchanged` (ADR-0026): a suite has to be answerable about how
+     * much of its green came from a declaration. `bands` above still lists
+     * everything that moved, so the register can say what was absorbed and by
+     * which rule.
+     */
+    readonly absorbed?: {
+      readonly rule: string;
+      readonly level: string;
+    };
+
     readonly because: string;
   };
 

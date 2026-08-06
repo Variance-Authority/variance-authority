@@ -47,7 +47,7 @@ export const describe: Tool = {
       // world re-collection was never taken on this subject — its answer would
       // have been a comparison between two readings that do not agree anyway —
       // so there is no order-dependence claim here to place second.
-      ...(observation.unstable !== undefined
+      ...(observation.unstable !== undefined && observation.unstable.absorbed === undefined
         ? [
             `NOT A COMPONENT CHANGE: ${observation.unstable.because}. The regions below are`,
             'the difference between one of those two readings and the baseline, so which',
@@ -62,12 +62,25 @@ export const describe: Tool = {
                     : ` (${observation.unstable.bands.join(', ')}).`)),
           ]
         : []),
-      // Placed second, directly under the verdict, because it changes what every
-      // line below it means. The regions are still correct — those pixels really
-      // did move, in those components — but they are the shape of a leak rather
-      // than the shape of an edit, and an agent that reads the region list first
-      // starts editing a component whose source nobody changed.
-      ...(observation.unstable === undefined && observation.alone?.reproduced === false
+      // The same movement, inside the boundary the subject declared. Said rather
+      // than suppressed: an agent that later sees this subject go green wants to
+      // know a level was doing work, and the rule's name is what makes that
+      // auditable. It carries no instruction, because there is nothing to do.
+      ...(observation.unstable?.absorbed !== undefined
+        ? [
+            `read differently between two readings in ${(observation.unstable.bands ?? []).join(', ')}, ` +
+              `and \`${observation.unstable.absorbed.rule}\` asserts on ` +
+              `${observation.unstable.absorbed.level} — so none of it is asserted on here. ` +
+              'Working as declared; the regions below are the comparison, not the movement.',
+          ]
+        : []),
+      // Placed under the verdict, because it changes what every line below it
+      // means. The regions are still correct — those pixels really did move, in
+      // those components — but they are the shape of a leak rather than the shape
+      // of an edit, and an agent that reads the region list first starts editing a
+      // component whose source nobody changed.
+      ...((observation.unstable === undefined || observation.unstable.absorbed !== undefined) &&
+      observation.alone?.reproduced === false
         ? [
             `NOT A COMPONENT CHANGE: ${observation.alone?.because}. The regions below are real`,
             'but they are what the leak did, not what an edit did. Do not change these',
@@ -136,10 +149,12 @@ export const describe: Tool = {
  */
 function label(observation: {
   readonly verdict: string;
-  readonly unstable?: unknown;
+  readonly unstable?: { readonly absorbed?: unknown };
   readonly alone?: { readonly reproduced: boolean };
 }): string {
-  if (observation.unstable !== undefined) return 'unstable';
+  if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
+    return 'unstable';
+  }
   if (observation.alone?.reproduced === false) return 'order-dependent';
   return observation.verdict;
 }

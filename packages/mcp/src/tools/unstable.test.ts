@@ -113,6 +113,30 @@ describe('a subject that did not agree with itself', () => {
     expect(answer).not.toContain('[order-dependent]');
   });
 
+  it('is not a finding when every band that moved is one the subject does not assert on', () => {
+    // The boundary. A route declared `layout` said in its config that it does not
+    // assert on what the page is painted with, so a clock inside it is a fact
+    // about the page rather than a defect in it — and an agent told to go fix it
+    // would be told to go fix the thing the declaration exists to allow.
+    const answer = summary(
+      reportWith({
+        unstable: {
+          ...UNSTABLE.unstable,
+          absorbed: { rule: 'routes', level: 'layout' },
+        },
+      }),
+    );
+
+    expect(answer).not.toContain('UNSTABLE');
+    expect(answer).not.toContain('[unstable]');
+
+    // Counted and named all the same, the way `ignored` is never spelled
+    // `unchanged`: a declaration nobody re-reads is how a suite stops watching
+    // something, and the rule's name is what makes it auditable a year later.
+    expect(answer).toContain('not asserted on: 1 subject(s)');
+    expect(answer).toContain('absorbed by `routes` (asserts on layout)');
+  });
+
   it('says nothing at all when every subject agreed with itself', () => {
     // Absence of the section is absence of a *finding*, never a certificate: two
     // readings put a floor under flakiness and no ceiling on it. The section is

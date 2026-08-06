@@ -91,11 +91,13 @@ export interface ReviewableReport {
     /**
      * Set when two readings of this subject, seconds apart, disagreed.
      *
-     * Read structurally — only whether it is there. What it *says* is a component
-     * and a band, which is a statement about the page and is somebody's work; what
-     * this module needs is the one bit that decides an exit code.
+     * Only `absorbed` is read, and only for whether it is there. What the field
+     * *says* — a component, a file, a band — is a statement about the page and is
+     * somebody's work; what this module needs is the one bit that decides an exit
+     * code, and that bit is whether the movement fell inside what the subject
+     * declared it asserts on. Outside it, the operator has already answered.
      */
-    readonly unstable?: unknown;
+    readonly unstable?: { readonly absorbed?: unknown };
   }[];
 
   /**
@@ -135,12 +137,14 @@ const GREEN: readonly string[] = ['unchanged', 'ignored'];
  * - a `failed` entry in {@link ReviewableReport.notObserved} — the run meant to
  *   look and could not. This is the rule ADR-0017 states, in one
  *   line: a subject that cannot be observed does not silently pass.
- * - an `unstable` observation — the subject was read twice with nothing changed
- *   in between and the two readings disagreed, so its verdict was decided by
- *   whichever came first. On an ordinary run this changes nothing, because such
- *   a subject is already `changed`; under `--flakes` it is the whole point, and a
- *   sweep that found six unstable subjects and exited `0` would have told CI
- *   nothing it could act on.
+ * - an `unstable` observation the subject's own declaration did not absorb — it
+ *   was read twice with nothing changed in between and the two readings
+ *   disagreed, so its verdict was decided by whichever came first. On an ordinary
+ *   run this changes nothing, because such a subject is already `changed`; under
+ *   `--flakes` it is the whole point, and a sweep that found six and exited `0`
+ *   would have told CI nothing it could act on. An instability whose every band
+ *   falls outside what the subject asserts on is *not* one of these — see the
+ *   fourth entry below.
  * - an `error` diagnostic on an observation — the run *did* look, at less than
  *   the subject. A design system served from a cross-origin `<link>` is skipped
  *   by the collector on both sides of the comparison, so the images agree, the
@@ -148,7 +152,11 @@ const GREEN: readonly string[] = ['unchanged', 'ignored'];
  *   its styling missing. No verdict can express that, because the verdict is a
  *   statement about two images and this is a statement about what went into them.
  *
- * Three things deliberately do not move it. `ignored` observations: pixels moved
+ * Four things deliberately do not move it. An **absorbed** instability: the
+ * subject declared what it asserts on, every band that moved falls outside it,
+ * and a route written to ignore what the page is painted with must not go red
+ * over exactly that — the same decision `ignored` records about pixels, one level
+ * up and about kinds. `ignored` observations: pixels moved
  * and every one of them fell inside a subtree the operator excluded, which is the
  * same decision an `excluded` entry records one level up. It is a separate
  * verdict from `unchanged` rather than the same one precisely so that it can be
@@ -165,7 +173,7 @@ export function exitFor(report: ReviewableReport): typeof EXIT_CLEAN | typeof EX
   const needsReview = report.observations.some(
     (observation) =>
       !GREEN.includes(observation.verdict) ||
-      observation.unstable !== undefined ||
+      (observation.unstable !== undefined && observation.unstable.absorbed === undefined) ||
       (observation.diagnostics ?? []).some((diagnostic) => diagnostic.severity === 'error'),
   );
   if (needsReview) return EXIT_REVIEW;

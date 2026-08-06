@@ -86,6 +86,11 @@ Wednesday.
 Unstable subjects exit **1** even when every verdict is green — a sweep that
 found six and exited 0 would have told CI nothing it could act on.
 
+Stability is demanded only inside the boundary a subject declares. A route with
+`sensitivity.level: layout` has said it does not assert on what the page is
+painted with, so a clock ticking inside it is listed under *not asserted on*,
+does not gate, and is not refused by `accept`. `strict` absorbs nothing.
+
 ### Reporting without gating
 
 `--exit-zero-on-changes` turns exit 1 into exit 0 on `run` and `report`, for a

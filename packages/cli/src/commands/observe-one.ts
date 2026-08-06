@@ -134,7 +134,14 @@ export async function observeOne(
     // on its digests and never builds an `Observation` at all, so a mode whose
     // whole purpose is finding the subjects that would flake *tomorrow* has to be
     // asked on the path that today's green subjects actually take.
-    const swept = await again(planned, collected, settlement.verdict, context, collecting);
+    const swept = await again(
+      planned,
+      collected,
+      settlement.verdict,
+      relaxation,
+      context,
+      collecting,
+    );
 
     return {
       kind: 'observed',
@@ -196,7 +203,14 @@ async function investigate(
   unstable?: CliObservationRecord['unstable'];
   alone?: CliObservationRecord['alone'];
 }> {
-  const unstable = await again(planned, collected, observation.verdict, context, collecting);
+  const unstable = await again(
+    planned,
+    collected,
+    observation.verdict,
+    sensitivityFor(context.config, planned),
+    context,
+    collecting,
+  );
   if (unstable.unstable !== undefined) return unstable;
 
   return alone(planned, observation, key, context, collecting);

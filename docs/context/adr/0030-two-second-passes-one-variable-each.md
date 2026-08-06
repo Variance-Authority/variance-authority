@@ -68,6 +68,21 @@ pays nothing and an investigated subject spends one either way.
 dependence: the image on disk is one of two readings, chosen by a race, and
 promoting it makes the coin flip the thing every later run is measured against.
 
+**Stability is demanded inside the boundary the subject declared, and nowhere
+else.** A sensitivity level is a statement about which frequency bands a subject
+is asserted on, and a movement entirely outside them has already been answered
+for: a route declared `layout` said it does not assert on what the page is
+painted with, so a clock inside it is a fact about the page and not a defect in
+it. Without this, the check would have made every route-level test red for
+exactly the movement its level exists to ignore — the feature undoing another
+feature two commits later.
+
+The predicate is `absorbsEntirely`, shared with the verdict path so the two
+cannot answer *is this subject asserted on this band* differently. Absorbed
+instability is recorded rather than dropped, and names the rule, for the reason
+`ignored` is never spelled `unchanged` (ADR-0026): a suite has to stay answerable
+about how much of its green came from a declaration.
+
 **Absence is not a stability certificate, and the report says so.** A subject
 that reads differently one time in fifty passes twice-in-a-row forty-nine runs
 out of fifty. Two readings put a floor under flakiness; nothing here puts a

@@ -118,6 +118,35 @@ runs only on subjects the run already called `changed`, inside the same
 dependence. The image on disk is one of two readings, chosen by a race, and
 promoting it makes the coin flip the thing every later run is measured against.
 
+### Stability is required inside the boundary, not outside it
+
+A subject that declared what it asserts on has already answered for movement
+outside it. A route declared `layout` ([`ignores.md`](ignores.md),
+[`comparison.md`](comparison.md)) has said in the config that it does not assert
+on what the page is painted with — so a clock ticking inside it is a fact about
+the page rather than a defect in it:
+
+```
+not asserted on: 1 subject(s) read differently between two readings,
+  entirely in bands their declared level does not assert on. Working as declared, and
+  listed because a declaration nobody re-reads is how a suite stops watching something:
+    route/home — content, absorbed by `routes` (asserts on layout)
+```
+
+That line is not a finding. It does not gate, `accept` does not refuse it, and no
+agent is told to go fix it. The alternative was a check that made **every**
+route-level test red for exactly the movement its level was written to ignore.
+
+It is still counted and still names the rule, which is the same rule `ignored`
+follows for pixels — one level up and about *kinds* rather than *places*. A
+declaration nobody re-reads is how a suite quietly stops watching something, and
+the rule's name is what makes that auditable a year later.
+
+The decision uses `absorbsEntirely`, the same predicate the verdict uses, so the
+two cannot drift: **entirely**, so a subject where any moved band *is* asserted on
+is reported in full, including the bands that would have been absorbed. `strict`
+absorbs nothing and is how the exception inside a relaxed group is spelled.
+
 **The sweep, for the other half of the question.** The rule above fires only on a
 subject the run already called `changed`, which means the first time a flake is
 seen it has already cost a red build. `variance run --flakes` reads *every*

@@ -85,6 +85,15 @@ three different people:
 | `order-dependent` | the difference is gone when the subject is collected with nothing else in the world | do not change the component; bisect run order to find the subject that writes the state this one reads |
 | `changed` | it survived both | review it |
 
+A fourth state is deliberately *not* on that list. A subject whose two readings
+differed entirely in bands its declared sensitivity level does not assert on is
+listed under **not asserted on** and carries no instruction: a route declared
+`layout` said in its config that it does not assert on what the page is painted
+with, so a clock inside it is a fact about the page rather than a defect in it.
+It is named and counted anyway, with the rule that absorbed it, for the same
+reason `ignored` is never spelled `unchanged` — a declaration nobody re-reads is
+how a suite quietly stops watching something.
+
 `accept` refuses the first two, so an agent that proposes promoting one is
 proposing something that will be rejected. The precedence is the order above:
 instability disqualifies the clean-world answer, because that answer's whole

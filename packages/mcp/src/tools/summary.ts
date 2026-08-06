@@ -72,7 +72,9 @@ export const summarize: Tool = {
     // every subject agrees with its baseline, and the whole point of the mode is
     // what agreeing with a baseline does not say — so it was not an edge.
     const notable = report.observations.filter(
-      (o) => (o.verdict !== 'unchanged' && o.verdict !== 'ignored') || o.unstable !== undefined,
+      (o) =>
+        (o.verdict !== 'unchanged' && o.verdict !== 'ignored') ||
+        (o.unstable !== undefined && o.unstable.absorbed === undefined),
     );
 
     return [
@@ -88,13 +90,21 @@ export const summarize: Tool = {
               // stays `changed` — the pixels really did move — but a reader who
               // acts on that word reviews a component that nothing edited. The
               // two need opposite actions, so they get different words.
-              const label = observation.unstable
+              // An absorbed instability is not one of these. The subject declared
+              // that it does not assert on what moved, so it is neither a defect
+              // nor a different word for its verdict — it is listed further down,
+              // under a heading that says so.
+              const reported =
+                observation.unstable !== undefined && observation.unstable.absorbed === undefined
+                  ? observation.unstable
+                  : undefined;
+              const label = reported
                 ? 'unstable'
                 : observation.alone?.reproduced === false
                   ? 'order-dependent'
                   : observation.verdict;
-              const because = observation.unstable
-                ? observation.unstable.because
+              const because = reported
+                ? reported.because
                 : observation.alone?.reproduced === false
                   ? observation.alone.because
                   : observation.because;
@@ -135,8 +145,10 @@ export const summarize: Tool = {
  * rather than a tolerance to widen.
  */
 function instability(report: RunReport): readonly string[] {
-  const unstable = report.observations.filter((o) => o.unstable !== undefined);
-  if (unstable.length === 0) return [];
+  const unstable = report.observations.filter(
+    (o) => o.unstable !== undefined && o.unstable.absorbed === undefined,
+  );
+  if (unstable.length === 0) return absorbedInstability(report);
 
   const bands = new Set(unstable.flatMap((o) => o.unstable?.bands ?? []));
 
@@ -158,6 +170,37 @@ function instability(report: RunReport): readonly string[] {
       return [`    ${observation.subject}${where}${inBands}`];
     }),
     ...remedies(bands),
+    ...absorbedInstability(report),
+  ];
+}
+
+/**
+ * Subjects that moved between two readings, in bands they do not claim to assert
+ * on.
+ *
+ * Counted and named, never silent — the same rule `ignored` follows for pixels,
+ * one level up and about kinds. A route declared `layout` with a live clock in it
+ * is *working as declared*, and reporting it as a defect would make every
+ * route-level test red for exactly the reason its level was written. But a
+ * declaration that is quietly absorbing movement is also how a suite ends up
+ * green over a surface nobody watches, so it gets a line and names the rule that
+ * did it — which is what makes it auditable later.
+ */
+function absorbedInstability(report: RunReport): readonly string[] {
+  const absorbed = report.observations.filter((o) => o.unstable?.absorbed !== undefined);
+  if (absorbed.length === 0) return [];
+
+  return [
+    '',
+    `not asserted on: ${absorbed.length} subject(s) read differently between two readings,`,
+    '  entirely in bands their declared level does not assert on. Working as declared, and',
+    '  listed because a declaration nobody re-reads is how a suite stops watching something:',
+    ...absorbed.map((observation) => {
+      const bands = observation.unstable?.bands ?? [];
+      const rule = observation.unstable?.absorbed?.rule ?? 'a sensitivity rule';
+      const level = observation.unstable?.absorbed?.level ?? 'its level';
+      return `    ${observation.subject} — ${bands.join(', ')}, absorbed by \`${rule}\` (asserts on ${level})`;
+    }),
   ];
 }
 

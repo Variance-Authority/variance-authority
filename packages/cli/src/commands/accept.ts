@@ -173,7 +173,14 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
     // image on disk is one of the two readings, chosen by which one the renderer
     // happened to be handed, and approving it makes the coin flip the baseline
     // that every later run is measured against.
-    if (observation.unstable !== undefined) {
+    //
+    // Unless the subject said it does not assert on any of it. A route declared
+    // `layout` whose clock ticks between readings is promotable: the two readings
+    // differ in a band nothing here is measured on, and refusing it would make
+    // every route-level baseline unpromotable for the exact reason the level was
+    // declared. The image is still one of two — that is what the declaration is
+    // for.
+    if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
       refused.push({
         subject: observation.subject,
         because:

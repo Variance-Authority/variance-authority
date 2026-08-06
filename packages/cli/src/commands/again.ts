@@ -1,11 +1,14 @@
 import {
   bandsBetween,
   causesBetween,
+  absorbsEntirely,
   documentDigest,
   formatSource,
   hashComponents,
   resolveSource,
+  type Band,
   type ComponentHash,
+  type Level,
   type SemanticSnapshot,
   type SourceIndex,
 } from '@variance-authority/core';
@@ -77,6 +80,8 @@ export async function again(
   planned: PlannedSubject,
   collected: Extract<Collected, { ok: true }>,
   verdict: string,
+  /** What this subject is asserted on, when a rule declared it. See `sensitivityFor`. */
+  sensitivity: { readonly rule: string; readonly reason: string; readonly level: Level } | undefined,
   context: ObserveContext,
   collecting: <T>(job: () => Promise<T>) => Promise<T>,
 ): Promise<{ unstable?: NonNullable<CliObservationRecord['unstable']> }> {
@@ -137,19 +142,37 @@ export async function again(
 
   const moved = movedBetween(collected.snapshot, second.snapshot, collected.source);
 
+  // The boundary. A subject that declared what it asserts on has already said
+  // which movements are not its business, and demanding stability outside that
+  // would make the declaration worthless — every route-level test written to
+  // ignore what the page is painted with would go red over exactly that.
+  //
+  // The same predicate the verdict uses, deliberately: two answers to *is this
+  // subject asserted on this band* that could disagree is a hole shaped like the
+  // config. `strict` absorbs nothing and is how the exception is spelled.
+  const absorbed =
+    sensitivity !== undefined && moved !== undefined && absorbsEntirely(sensitivity.level, moved.bands)
+      ? { rule: sensitivity.rule, level: sensitivity.level }
+      : undefined;
+
   return {
     unstable: {
       components: moved?.components ?? [],
       bands: moved?.bands ?? [],
+      ...(absorbed !== undefined ? { absorbed } : {}),
       because:
         'read twice in the same world, seconds apart, with nothing changed in between, ' +
-        `and the two readings disagree${describeMovement(moved)}. The subject does not ` +
-        'read the same way twice, so ' +
-        (verdict === 'changed'
-          ? 'its difference against the baseline is neither confirmed nor cleared'
-          : `its verdict of \`${verdict}\` was reached from one of two readings that do ` +
-            'not agree, and the next run may reach the other one') +
-        ' — no comparison of it means anything until that is fixed',
+        `and the two readings disagree${describeMovement(moved)}. ` +
+        (absorbed !== undefined
+          ? `Every band that moved is one this subject is not asserted on, by \`${absorbed.rule}\` ` +
+            `(${sensitivity?.reason ?? absorbed.level}), so this is a fact about the page rather ` +
+            'than a defect in it: nothing here gates, and nothing here is refused'
+          : 'The subject does not read the same way twice, so ' +
+            (verdict === 'changed'
+              ? 'its difference against the baseline is neither confirmed nor cleared'
+              : `its verdict of \`${verdict}\` was reached from one of two readings that do ` +
+                'not agree, and the next run may reach the other one') +
+            ' — no comparison of it means anything until that is fixed'),
     },
   };
 }
@@ -158,7 +181,7 @@ type Unstable = NonNullable<CliObservationRecord['unstable']>;
 
 interface Movement {
   readonly components: Unstable['components'];
-  readonly bands: readonly string[];
+  readonly bands: readonly Band[];
 }
 
 /**
