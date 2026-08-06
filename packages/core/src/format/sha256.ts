@@ -37,7 +37,19 @@ const INITIAL = new Uint32Array([
 
 /** Hash a UTF-8 string, returning lowercase hex. */
 export function sha256Hex(input: string): string {
-  const bytes = utf8Bytes(input);
+  return sha256HexBytes(utf8Bytes(input));
+}
+
+/**
+ * Hash raw bytes, returning lowercase hex.
+ *
+ * The string form is this with one encoding step in front of it, and not the
+ * other way round: an image is bytes, and routing it through a string would mean
+ * choosing an encoding that survives arbitrary octets — which is a second
+ * decision, made in the wrong place, that changes the digest if it is ever
+ * revisited.
+ */
+export function sha256HexBytes(bytes: Uint8Array): string {
   const state = new Uint32Array(INITIAL);
 
   // Padding: a single 1 bit, zeros, then the 64-bit big-endian bit length.

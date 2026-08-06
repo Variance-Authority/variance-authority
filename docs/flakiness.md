@@ -46,21 +46,27 @@ reading. What differs here is the last column.
 | **Dates, clocks, dynamic content** | policy | Both arms move; both are right. The difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. **But:** headless Chromium uses overlay scrollbars, so the classic scrollbar reflow does not reproduce in CI at all — a blind spot we share with every headless pipeline, [written up rather than deleted](context/journal/0012-instability.md). |
 | **Animations mid-flight** | **construction**, since 2026-08-06 | A transform caught in flight is a computed style value and it does reach the representation — so the page is now held still *before the subject is read*, not only before it is painted. Pinned at the first frame by CSS, with the recipe's digest in the environment key so an unstabilized baseline is `incomparable` rather than a diff. **Measured:** one page, a 4s animation, read twice a second apart — the hash moves untouched and holds under the recipe ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
-| **Lazy loading, network latency** | **nothing** | Content that arrives late is a structural difference, and correctly so. Wait for it. |
+| **Lazy loading, network latency** | **construction**, since 2026-08-06 | Content that arrives late is a structural difference, and correctly so — the question is whether you were still waiting when it landed. `wait-for-images` polls `document.images`, which misses anything appended during the wait and has no entry for a `background-image`; the driver watches the wire instead and knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
+| **An asset whose bytes moved behind its URL** | **environment-key**, since 2026-08-06 | Newly listed, because it was a silent false `unchanged` and nothing here said so: `EnvironmentInputs.assets` existed from the beginning and was filled by nobody, so a re-exported logo compared equal. Every image, font and media response is now hashed into the key by the only party that sees the bytes. |
+| **Animated GIFs** | **construction**, since 2026-08-06 | Newly listed for the same reason. No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. **Measured** on real screenshots. |
 | **Random seeds, unsorted data** | **nothing** | This is a real change. The fixture is the bug. |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
 
-**Four** rows are absorbed by nothing, and they are the honest half of the table.
+**Three** rows are absorbed by nothing, and they are the honest half of the table.
 
-The count has moved twice and both moves are the point. It said "the last four"
-until 2026-08-03, which quietly excluded *animations mid-flight* — the one a
-reader is most likely to hit on their first run — and became five. On 2026-08-06
-animations moved to *construction*, because the row had sat there as a confession
-for three days when it was a bug with a fix that took an afternoon. A comparison
-that only ever finds in its own favour is an advertisement; a limitation left
-standing because writing it down felt like enough is the same failure with better
-manners.
+The count has moved three times and every move is the point. It said "the last
+four" until 2026-08-03, which quietly excluded *animations mid-flight* — the one
+a reader is most likely to hit on their first run — and became five. On
+2026-08-06 animations and lazy loading moved to *construction* and two rows were
+**added**: an asset whose bytes moved behind its URL, and animated GIFs. Both
+were live false `unchanged` verdicts that this table did not mention, which is
+worse than a row admitting a gap.
+
+A comparison that only ever finds in its own favour is an advertisement. A
+limitation left standing because writing it down felt like enough is the same
+failure with better manners — three of these rows sat here as confessions and
+were each a bug with a fix that took an afternoon.
 
 ## Test order and shared state
 

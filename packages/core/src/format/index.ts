@@ -16,7 +16,7 @@ export type { CanonicalValue } from './canonical.js';
 export { canonicalize, canonicalNumber } from './canonical.js';
 
 export type { Digest } from './hash.js';
-export { digestString, digestValue, digestCombine } from './hash.js';
+export { digestString, digestBytes, digestValue, digestCombine } from './hash.js';
 
 export type { ObservationProfile, ProfileId } from './profile.js';
 export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById, tierOfProfile } from './profile.js';

@@ -26,8 +26,8 @@ edited anything.
 
 That is worse than an unexplained pixel diff, and the difference is the whole
 argument of this project turned against itself. A reviewer reads *`Card` moved at
-`opacity`, `src/Card.tsx:14`* and goes looking for the edit. Attribution makes a
-false alarm credible.
+`opacity`*, with the file and line that rendered it, and goes looking for the
+edit. Attribution makes a false alarm credible.
 
 [`flakiness.md`](../../flakiness.md) had this row filed under **absorbed by
 nothing** and noted it was "the one of the five a reader is most likely to hit on

@@ -8,7 +8,12 @@ import type {
   SubjectRef,
   Viewport,
 } from '@variance-authority/core';
-import { createHarness, type Harness } from '@variance-authority/playwright';
+import {
+  createHarness,
+  observeNetwork,
+  type Harness,
+  type NetworkObservation,
+} from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import { scanSource, type SourceScan } from './source.js';
@@ -156,6 +161,21 @@ export interface RouteCollectorOptions {
   readonly headless?: boolean;
 
   /**
+   * Watch what the page is served. Defaults to `true`.
+   *
+   * On, this is where `EnvironmentInputs.assets` comes from — a field that has
+   * existed since the format did and was filled by nobody, leaving an image
+   * swapped under the same URL as a false `unchanged`. It is also where animated
+   * GIFs are frozen, which no CSS can reach.
+   *
+   * Off is a position for a page whose assets are content-addressed URLs
+   * already, or a run that cannot afford routing's loss of the browser's HTTP
+   * cache. The cost is stated in `@variance-authority/playwright`'s
+   * `network.ts`; the assets map is then empty and says so by being empty.
+   */
+  readonly network?: boolean;
+
+  /**
    * Stabilization tricks to hold each page still with, by id. Defaults to
    * `COLLECT_RECIPE`, which is almost certainly what you want.
    *
@@ -224,12 +244,25 @@ export function routeCollector(
     // re-injected per navigation below. A route run navigates per subject by
     // definition — that is what a route is — so the one-navigation saving a
     // Storybook gets is not available here and is not pretended to be.
+    // Installed through `prepare`, before the harness's own first navigation.
+    // Attaching afterwards would miss every asset that first document pulled in,
+    // and the only repair for that is a second page load — one per run, to
+    // observe the one already paid for.
+    let network: NetworkObservation | undefined;
+
     const harness: Harness = await createHarness({
       url: entries[0]![1],
       bundle,
       viewport: config.viewport,
       ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
       ...(options.headless !== undefined ? { headless: options.headless } : {}),
+      ...(options.network === false
+        ? {}
+        : {
+            prepare: async (page): Promise<void> => {
+              network = await observeNetwork(page);
+            },
+          }),
     });
 
     const page = harness.page;
@@ -274,7 +307,14 @@ export function routeCollector(
         }
 
         try {
-          if (page.url() !== url) await page.goto(url, { waitUntil: 'load' });
+          if (page.url() !== url) {
+            // Cleared before the navigation, not after: a route run visits one
+            // page per subject, so what this page fetches *is* this subject's
+            // asset set. Reusing one page across subjects would make it the
+            // union, which over-invalidates rather than under-invalidates.
+            network?.reset();
+            await page.goto(url, { waitUntil: 'load' });
+          }
 
           const ready = options.ready?.[id];
           if (ready !== undefined) {
@@ -294,6 +334,12 @@ export function routeCollector(
           };
         }
 
+        // After readiness, before reading. `load` fires when the document is
+        // parsed, and an image requested by a script that ran on `load` is still
+        // in flight — which the page cannot see (it is not in `document.images`
+        // yet) and the wire can.
+        await network?.settle();
+
         await ensureAgent();
 
         const worn = new Set(planned.tags ?? []);
@@ -311,6 +357,13 @@ export function routeCollector(
           viewport: planned.viewport ?? config.viewport,
           engine,
           ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
+          // Sent into the page so the capture records them, because the
+          // environment key is assembled where the capture is. The driver is the
+          // only party that saw the bytes; the page is the only party that
+          // builds the key. Neither can do it alone.
+          ...(network !== undefined && Object.keys(network.assets).length > 0
+            ? { assets: { ...network.assets } }
+            : {}),
           // Only the rules that name a selector cross into the page. A
           // fingerprint rule has nothing for a document to resolve, and sending
           // one would put a digest in a browser that cannot use it.
@@ -344,6 +397,7 @@ export function routeCollector(
       },
 
       async close(): Promise<void> {
+        await network?.close();
         await harness.close();
       },
     };

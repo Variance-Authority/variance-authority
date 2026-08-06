@@ -24,6 +24,16 @@ export interface AcquireRequest {
   readonly fonts?: readonly string[];
 
   /**
+   * Content hashes for what the page was served, keyed by request URL.
+   *
+   * Observed by the driver and sent *in*, because only the driver saw the bytes
+   * and only the page assembles the environment key. A URL is not an identity:
+   * the same `url(...)` resolves to different bytes the day somebody re-exports
+   * a logo, and without this the run compares the two as `unchanged`.
+   */
+  readonly assets?: Readonly<Record<string, string>>;
+
+  /**
    * Subtrees this run excludes, as `(rule id, selector)` pairs (spec 0024).
    *
    * Carried into the page because a selector needs a document, and the document
@@ -95,6 +105,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   const capture = collect(root, {
     ...shared,
     engine: request.engine,
+    ...(request.assets !== undefined ? { assets: request.assets } : {}),
     portalsOf: portalContentOf,
     provenanceOf,
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),

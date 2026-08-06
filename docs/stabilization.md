@@ -128,8 +128,8 @@ blocking on it turns a missing asset into a timeout with no cause.
 
 **Limits.** `document.images` at the moment of the wait. Anything appended while
 the wait is running is missed, and CSS `background-image` has no load event at
-all, so it is not covered here. Both are addressed at the network layer — see
-[what is next](#what-is-not-here-yet).
+all, so it is not covered here. Both are answered a layer down, on the wire —
+see [the wire](#the-wire-which-knows-what-the-page-cannot).
 
 ### `hide-scrollbars` — scrollbar width
 
@@ -264,6 +264,23 @@ apart through the real collector.
 | the two together | different `semanticDigest`, so they are never compared |
 | the injected sheet | appears nowhere in the subject |
 
+And for the wire, in
+[`packages/playwright/src/network.chromium.test.ts`](../packages/playwright/src/network.chromium.test.ts)
+and
+[`packages/route-collector/src/network.chromium.test.ts`](../packages/route-collector/src/network.chromium.test.ts):
+
+| | |
+|---|---|
+| an animated GIF, unwatched | screenshots of it **differ** |
+| the same GIF, frozen on the wire | three seconds of screenshots, all **identical** |
+| an image swapped behind its URL | the environment key **moves**, with no DOM change at all |
+| the same run with `network: false` | the asset map is empty, and visibly so |
+
+The GIF fixture is built byte by byte in the test, with real LZW, and every
+sampling run first asserts `naturalWidth === 8` — because a GIF that failed to
+decode paints nothing in *both* arms, and "held still" and "never arrived" would
+otherwise have the same signature.
+
 The first row is asserted as a *reproduction*: if the flake ever stops
 reproducing, that test goes red rather than quietly guarding nothing. Every other
 instability measurement in this repository simulates its cause — a smoothing mode
@@ -272,30 +289,116 @@ one does not.
 
 ---
 
-## What is not here yet
+## The wire, which knows what the page cannot
+
+Everything above happens *inside* the page, and inside the page is the wrong
+place for a whole class of question. `document.images` is a list of nodes that
+existed at one moment: it misses an image appended while you were waiting, it
+has no entry for a CSS `background-image` (which has no load event at all), and
+it cannot tell you what the bytes were.
+
+The driver sees every response. So since 2026-08-06 it watches.
+
+### Every asset is hashed into the environment key
+
+```ts
+snapshot.environment.inputs.assets
+// { 'https://app.test/logo.png': 'v1:9f3c…', 'https://app.test/Inter.woff2': 'v1:20ab…' }
+```
+
+`EnvironmentInputs.assets` has existed since the format did, documented as
+"external assets keyed by request URL, valued by content hash", with its own
+warning that an uncovered input is a false `unchanged`. **It was filled by
+nobody.** Every run in this repository's history hashed an empty object, so a
+logo re-exported at a different compression, a hero image swapped behind a CDN
+path, or a font replaced under the same URL produced a different picture under an
+identical key — and the run said `unchanged`.
+
+That is the one failure this product exists to prevent, and it was open the whole
+time because the field that closes it had no source. A page cannot be that
+source: it can read a URL and not the bytes behind it.
+
+Hashed: `image`, `font`, `media`. Not hashed: documents, scripts and stylesheets,
+whose effect on the render arrives through the capture itself — the DOM, the rule
+text — so hashing them buys a second copy of a covered input.
+
+### Animated GIFs are frozen on the wire
+
+A GIF has been animating since it decoded, and no CSS reaches it —
+`animation-play-state` governs CSS animations and a GIF is not one.
+
+Argos solves this in the page and the design is careful: build a *fresh* `Image`,
+draw it to a canvas, take `toDataURL('image/png')` as frame zero, swap it into
+`src`. Fresh, because the element already on the page has been animating since
+load and cannot be seeked back. Its documented failure mode is cross-origin: no
+CORS grant means a tainted canvas, `toDataURL` throws, and the GIF keeps
+spinning.
+
+Doing it on the wire removes the problem rather than handling it. The bytes have
+not been decoded yet, so there is nothing to seek back and no second decode to
+pay for; cross-origin stops mattering, because the fulfilment is ours and nothing
+asks the page to read anything; and the result is **the original bytes minus some
+of them** — a GIF truncated to its first image block plus a trailer, which is a
+valid single-frame GIF. The palette, the transparency, the dimensions and the
+compression are exactly what the author shipped, where a canvas round-trip
+re-encodes through RGBA into a different image from the one under test.
+
+No decoder, no encoder, no dependency. What it will not do is guess: bytes that
+are not a GIF, a GIF that already holds one frame, and a file whose blocks it
+could not parse are all passed through untouched, because a truncation taken from
+a position the parse cannot vouch for is a corrupt asset served to a browser.
+
+It also **says what it froze** — `network.frozen` is the list of URLs — because a
+stabilizer that rewrites an asset silently can change the picture a reviewer is
+looking at with no record that it did.
+
+### Waiting on what was actually requested
+
+`network.settle()` resolves when nothing is in flight. Not a poll over the nodes
+that existed at one moment: a count of what has been asked for and not yet
+answered, which is the honest version of "the images have loaded".
+
+On timeout it does not throw. A page holding a long-poll open is a normal page,
+so the outstanding URLs become a diagnostic and the subject is read anyway —
+recorded, which is what the reader of a surprising diff needs.
+
+### What it costs
+
+Routing disables the browser's HTTP cache for what it routes, and every routed
+request makes a round trip into Node. Only asset requests are fetched and read;
+everything else is continued without its body. Set `network: false` on the
+collector to turn it off — the assets map is then empty, and an empty map is
+visibly a run that recorded nothing rather than a run that had nothing.
+
+Wired into the route collector today. **Not yet into the Storybook collector**,
+and the reason is worth stating: a Storybook run is one navigation and N
+subjects, so the wire cannot tell which story an image belonged to, and every
+story would carry the whole page's asset set. That over-invalidates rather than
+under-invalidates — the safe direction — but it is noise, and the fix is for the
+page to report which URLs its subject actually references.
+
+---
+
+## What is still not here
 
 Stated rather than left for you to find.
 
-- **Animated GIFs keep playing.** A GIF has been animating since it decoded and
-  no CSS reaches it. Argos solves this well: decode a *fresh* copy to a canvas,
-  take frame zero as a PNG data URL, swap it in — which fails on a cross-origin
-  image without CORS, because the canvas is tainted.
-- **CSS `background-image` has no load event**, so nothing waits for one.
-- **Images that arrive during the wait** are missed, because `document.images` is
-  read once.
+- **CSS `background-image`** is fetched and therefore *hashed*, but nothing pins
+  a subject's wait to it specifically; `settle()` covers it only because it
+  covers every request.
 - **`srcset` re-resolution** on a viewport change can leave a fractional height
-  difference, because browsers reuse a cached candidate.
+  difference, because browsers reuse a cached candidate. Argos parses `srcset`
+  and pins a single candidate; this does not.
 - **Dates, clocks and dynamic content** are absorbed by *policy*, not here — see
   [`ignores.md`](ignores.md), which masks the element or the shape of the
   difference rather than a coordinate region.
 - **Hover state** is not reset before a subject is read.
+- **Sticky and fixed positioning** are not neutralized for a full-page capture.
+- **Spellcheck squiggles** and **subpixel image sizing** are not addressed.
 
-The first four are all the same shape, and it is the shape that argues for doing
-this at the **network layer** rather than in the page: something that sees every
-response knows exactly which images exist, when the last one landed, and what
-the bytes were — which is knowledge no amount of polling `document.images` can
-recover. That is the next piece of work, and it is a level of control nobody in
-the category currently operates at.
+The last four are all tricks Argos ships and this does not, and none of them is
+hard — they are `Intervention` values nobody has written yet. The registry is
+open precisely so that adding one is a value and not a fork.
 
 ---
 

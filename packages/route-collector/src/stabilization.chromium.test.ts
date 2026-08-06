@@ -39,6 +39,13 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\npackages/route-collector (stabilization): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
 /**
  * A four-second loop, sampled twice about a second apart.
  *

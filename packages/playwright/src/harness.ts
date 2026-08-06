@@ -50,6 +50,21 @@ export interface HarnessOptions {
 
   /** Defaults to `true`. Set false to watch a case that is behaving oddly. */
   readonly headless?: boolean;
+
+  /**
+   * Run against the page *before* it is navigated for the first time.
+   *
+   * The hook exists because of a class of thing that has to be installed before
+   * a load rather than after one: `observeNetwork` watches requests, and a
+   * watcher attached after `goto` has already missed every asset the document
+   * pulled in. The alternative — attach afterwards and reload — pays a second
+   * page load per run to observe the first one, on every subject of every suite.
+   *
+   * Deliberately a hook and not a `network` option. The harness owns a browser
+   * and nothing else; teaching it what an asset hash is would put a second
+   * decision about the environment key in a file whose job is a page.
+   */
+  readonly prepare?: (page: Page) => Promise<void>;
 }
 
 export interface Harness {
@@ -88,6 +103,8 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     page.on('console', (message) => {
       if (message.type() === 'error') errors.push(message.text());
     });
+
+    if (options.prepare !== undefined) await options.prepare(page);
 
     await page.goto(options.url, { waitUntil: 'load' });
     await installAgent(page, options.bundle, errors);

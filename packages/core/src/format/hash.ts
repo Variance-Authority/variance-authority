@@ -1,5 +1,5 @@
 import { canonicalize, type CanonicalValue } from './canonical.js';
-import { sha256Hex } from './sha256.js';
+import { sha256Hex, sha256HexBytes } from './sha256.js';
 
 /**
  * Content addressing (Principle 4).
@@ -30,6 +30,18 @@ const HEX_LENGTH = 32;
  */
 export function digestString(input: string): Digest {
   return `${PREFIX}:${sha256Hex(input).slice(0, HEX_LENGTH)}`;
+}
+
+/**
+ * Hash raw bytes — an image, a font file, anything whose identity is its octets.
+ *
+ * Same prefix and same truncation as every other digest here, so an asset hash
+ * and a render hash are the same kind of value and neither can be mistaken for
+ * the other's domain. What it is for is `EnvironmentInputs.assets`: a URL is not
+ * an identity, and the same `url(...)` can resolve to different bytes tomorrow.
+ */
+export function digestBytes(bytes: Uint8Array): Digest {
+  return `${PREFIX}:${sha256HexBytes(bytes).slice(0, HEX_LENGTH)}`;
 }
 
 /** Canonicalize then hash. The only correct way to hash a structure. */

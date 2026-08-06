@@ -12,6 +12,9 @@
  *   page, a Storybook, or a route.
  * - a **renderer**: a `RenderDocument` in, a `Raster` out, satisfying the contract
  *   in `@variance-authority/raster` that a renderer across a network satisfies too.
+ * - a **network observation**: what the page was actually served, which is the
+ *   only place `EnvironmentInputs.assets` can come from and the only place an
+ *   animated GIF can be frozen without a canvas and a CORS grant.
  *
  * `./agent` is a third entrypoint and the reason there are entrypoints at all: it
  * is the page-side half, bundled into the browser, and it must be importable
@@ -26,6 +29,11 @@ export type { Harness, HarnessOptions } from './harness.js';
 
 export { createPlaywrightRenderer } from './renderer.js';
 export type { BrowserEngine, PlaywrightRendererOptions } from './renderer.js';
+
+export { observeNetwork } from './network.js';
+export type { NetworkObservation, NetworkOptions } from './network.js';
+
+export { freezeGif } from './gif.js';
 
 export { AGENT_GLOBAL } from './agent.js';
 export type { CaptureRequest, PageAgent } from './agent.js';
