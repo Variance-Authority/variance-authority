@@ -1,4 +1,5 @@
-import { digestValue, type Digest } from '@variance-authority/core';
+import { digestValue, type Digest } from './hash.js';
+import { tierReaches, type Tier } from './tier.js';
 
 /**
  * Interventions as separate, nameable tricks — not a fixed set of switches.
@@ -36,10 +37,21 @@ import { digestValue, type Digest } from '@variance-authority/core';
  *   the trade is worth it — that is the point of an open set.
  * - **A contract the subject implements** — a readiness marker. Real design
  *   damage, and reserved for what the outside genuinely cannot know.
+ *
+ * ## Why this is in `format` and not in the raster package
+ *
+ * It was in `@variance-authority/raster` until 2026-08-06, on the reading that
+ * holding a page still is something you do before you photograph it. That
+ * reading was wrong in a way that cost correctness: an animation in flight is a
+ * *computed style value*, so it reaches the cheap representation too — and the
+ * allowlist excludes `animation-*` and `transition-*` precisely because it
+ * assumed a snapshot is taken with animation already disabled. Nothing disabled
+ * it. See {@link COLLECT_RECIPE} and ADR-0028.
+ *
+ * So a recipe is a render input on every tier, `EnvironmentInputs` carries its
+ * digest, and the vocabulary belongs beside the key it is part of.
  */
 
-/** The cheapest tier that can observe what a trick fixes. */
-export type Tier = 'semantic' | 'layout' | 'raster';
 
 /** What kind of move it is, for reading a recipe at a glance. */
 export type Trick =
@@ -61,6 +73,30 @@ export interface ScreenshotOptions {
 /** The page surface a `settle` step may use. Structural, so no driver leaks in. */
 export interface SettleTarget {
   evaluate<T>(fn: () => T | Promise<T>): Promise<T>;
+}
+
+/**
+ * The page's globals, as the little of them a settle step needs.
+ *
+ * A settle closure is the one place in `core` that reads a live document, and it
+ * gets away with it because it never runs here: it is handed to
+ * {@link SettleTarget.evaluate}, which ships it into a page. ADR-0001's
+ * enforcement is `core`'s `tsconfig`, which has no `lib.dom` — so writing
+ * `window.document.fonts` is a compile error and this shape is what remains.
+ *
+ * That is a stricter arrangement than the convention it replaced, not a
+ * loophole. Everything a settle step may touch is enumerated here, in one
+ * declaration a reader can check, and a trick that wants more of the DOM has to
+ * widen it in public rather than reach for an ambient global.
+ */
+interface PageGlobals {
+  readonly document: {
+    readonly fonts?: { readonly ready: Promise<unknown> };
+    readonly images: ArrayLike<{
+      readonly complete: boolean;
+      addEventListener(type: string, listener: () => void, options?: { once?: boolean }): void;
+    }>;
+  };
 }
 
 export interface Intervention {
@@ -157,8 +193,14 @@ export const waitForFonts: Intervention = {
   needs: 'layout',
   governs: 'fonts',
   because: 'waited for web fonts, whose advances change every metric on the page',
+  // Written without a module-scope helper on purpose: a settle closure is
+  // shipped to a page as source text, so anything it names by identifier is a
+  // `ReferenceError` on the far side. Types are erased and therefore free.
   settle: async (target) => {
-    await target.evaluate(() => window.document.fonts.ready.then(() => undefined));
+    await target.evaluate(async () => {
+      const view = globalThis as unknown as PageGlobals;
+      await view.document.fonts?.ready;
+    });
   },
 };
 
@@ -169,9 +211,10 @@ export const waitForImages: Intervention = {
   governs: 'images',
   because: 'waited for images to decode, since their intrinsic size participates in layout',
   settle: async (target) => {
-    await target.evaluate(() =>
-      Promise.all(
-        Array.from(window.document.images)
+    await target.evaluate(async () => {
+      const view = globalThis as unknown as PageGlobals;
+      await Promise.all(
+        Array.from(view.document.images)
           .filter((image) => !image.complete)
           .map(
             (image) =>
@@ -180,8 +223,8 @@ export const waitForImages: Intervention = {
                 image.addEventListener('error', () => resolve(), { once: true });
               }),
           ),
-      ).then(() => undefined),
-    );
+      );
+    });
   },
 };
 
@@ -210,10 +253,78 @@ export const LAYOUT_RECIPE: Recipe = [holdAnimations, hideScrollbars, waitForFon
 
 export const RASTER_RECIPE: Recipe = [...LAYOUT_RECIPE, hideCaret];
 
+/**
+ * What is applied to a live page *before a subject is observed*, as opposed to
+ * before it is painted.
+ *
+ * The two are different recipes and it is not a preference. {@link
+ * holdAnimations} is a *screenshot option* — it asks the browser to settle
+ * animations for the image it is about to take — and there is no screenshot at
+ * collection time, so it would be a trick that silently does nothing. The CSS
+ * variant is the one that works where nobody is holding a camera, which is the
+ * whole reason both exist as separate values rather than as one switch.
+ *
+ * ## Why the cheap tier needs this at all
+ *
+ * The claim in [`ruleset.ts`](../rules/ruleset.ts) that `transition-*` and
+ * `animation-*` "describe a journey the snapshot does not contain" is only true
+ * if the snapshot is taken with the journey stopped. `transform`, `opacity`,
+ * `filter`, `color` and every geometric longhand *are* admitted, and an
+ * animation in flight moves all of them — so an unstabilized collection turns a
+ * 300ms fade into a component-attributed regression with a real file name on it,
+ * which is worse than an unexplained pixel diff because it is credible.
+ *
+ * Filtered by {@link forTier}, so jsdom applies none of it: with no layout
+ * engine and no animation clock there is nothing to hold still, and paying a
+ * `fonts.ready` wait per subject on the rung that exists to be cheap is exactly
+ * the trade {@link SEMANTIC_RECIPE} refuses.
+ */
+export const COLLECT_RECIPE: Recipe = [
+  pinAnimations,
+  hideScrollbars,
+  waitForFonts,
+  waitForImages,
+];
+
+/**
+ * Resolve a trick by the name a caller wrote down.
+ *
+ * The boundary a collection recipe crosses is a `page.evaluate`, and an
+ * `Intervention` does not survive it — `settle` is a function. Ids do survive,
+ * and the page holds this same registry, so a recipe travels as the list of
+ * names it is. A name nothing answers to is a caller error worth failing on
+ * rather than a trick to skip quietly: under-stabilizing is how a suite gets a
+ * flake it has already paid to prevent.
+ */
+export function interventionById(id: string): Intervention | undefined {
+  return INTERVENTIONS.find((intervention) => intervention.id === id);
+}
+
+/**
+ * A recipe from the names it travels as.
+ *
+ * Throws on a name nothing answers to, and names it. The quiet alternative —
+ * skip what cannot be resolved — turns a typo in a config into a suite that is
+ * one trick less stable than its operator believes, discovered later as a flake
+ * they have already paid to prevent. Failing here costs one run and one reading
+ * of the message.
+ */
+export function recipeOf(ids: readonly string[]): Recipe {
+  return ids.map((id) => {
+    const intervention = interventionById(id);
+    if (intervention === undefined) {
+      throw new Error(
+        `no stabilization trick is called \`${id}\`; this build knows ` +
+          INTERVENTIONS.map((known) => `\`${known.id}\``).join(', '),
+      );
+    }
+    return intervention;
+  });
+}
+
 /** Only the tricks a tier can observe the effect of. */
 export function forTier(recipe: Recipe, tier: Tier): Recipe {
-  const rank: Record<Tier, number> = { semantic: 0, layout: 1, raster: 2 };
-  return recipe.filter((intervention) => rank[intervention.needs] <= rank[tier]);
+  return recipe.filter((intervention) => tierReaches(tier, intervention.needs));
 }
 
 /**

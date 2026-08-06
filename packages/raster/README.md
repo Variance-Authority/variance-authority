@@ -44,24 +44,22 @@ socket.
 - **`DiffPolicy`** — `DEFAULT_POLICY` and `STRICT_POLICY`. A threshold and an
   antialiasing rule decide verdicts and belong in a plan's identity, and none of
   that requires the ability to decode a PNG.
-- **Interventions** — an open registry of tricks, each declaring what it governs,
-  the cheapest tier that can observe its effect, and why it is worth the damage.
 - **The stability gate** — two cheap documents compared. Never a third sample.
 - **The default plan** — the shipped composition, declared.
 
-## Interventions are a registry, not a stage
+## Interventions used to be here
 
-```ts
-import { RASTER_RECIPE, forTier, conflicts, recipeCss, recipeDigest } from '@variance-authority/raster';
+They are in [`@variance-authority/core/format`](../core) as of 2026-08-06, and
+the move was a correction rather than tidying. Holding a page still looked like
+something you do before you photograph it — until an animation in flight turned
+out to move `transform`, which the *cheap* representation carries. A
+stabilization recipe is a render input on every tier, its digest is a field of
+`EnvironmentInputs`, and it belongs beside the key it is part of. See
+[`docs/stabilization.md`](../../docs/stabilization.md).
 
-forTier(RASTER_RECIPE, 'semantic');   // [] — an unloaded font cannot change which rules match
-conflicts(RASTER_RECIPE);             // two tricks over one property: reported, never resolved
-recipeCss(RASTER_RECIPE);             // the stylesheet a renderer injects, readable before it runs
-recipeDigest(RASTER_RECIPE);          // folds into the plan identity, so retuning moves the address
-```
-
-Two tricks governing one property is a **conflict to report**, not a precedence
-rule to invent.
+What is still here is the plan that names one:
+`defaultPlan({ stabilization })` folds `recipeDigest` into the plan identity, so
+retuning the tricks moves the address of everything they produced.
 
 ## The gate refuses rather than retries
 

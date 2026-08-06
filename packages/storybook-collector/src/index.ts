@@ -317,7 +317,7 @@ export function storybookCollector(
 
         const raw = await page.evaluate(
           ([global, sent]: readonly [string, AcquireRequest]) => {
-            const agent = (globalThis as unknown as Record<string, { acquire(r: AcquireRequest): string }>)[
+            const agent = (globalThis as unknown as Record<string, { acquire(r: AcquireRequest): Promise<string> }>)[
               global
             ];
             if (agent === undefined) throw new Error(`missing page agent ${global}`);

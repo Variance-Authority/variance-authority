@@ -1,5 +1,6 @@
-import { acquireDocument, collect } from '@variance-authority/dom';
+import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
+import { recipeOf } from '@variance-authority/core';
 import type { RawCapture, RenderDocument, SubjectRef, Viewport } from '@variance-authority/core';
 
 /**
@@ -40,6 +41,17 @@ export interface AcquireRequest {
    * moving a line of code.
    */
   readonly fonts?: readonly string[];
+
+  /**
+   * Stabilization tricks to hold the page still with, by id.
+   *
+   * Absent means `COLLECT_RECIPE` — the default is *on*, because a suite that
+   * has to ask for determinism is a suite that discovers it needed it from a
+   * red build. Ids rather than interventions because this value crosses a
+   * `page.evaluate`, and a trick with a `settle` step is a closure that does
+   * not survive the trip; the page holds the same registry and resolves them.
+   */
+  readonly stabilize?: readonly string[];
 }
 
 export interface Acquired {
@@ -47,7 +59,16 @@ export interface Acquired {
   readonly capture: RawCapture;
 }
 
-export function acquire(root: Element, request: AcquireRequest): string {
+export async function acquire(root: Element, request: AcquireRequest): Promise<string> {
+  // Before anything is read, and by default. An animation in flight moves
+  // `transform` and `opacity`, both of which the semantic representation
+  // carries — so an unstabilized collection reports a fade as a regression with
+  // a component and a file attached. See `docs/stabilization.md`.
+  const held = await stabilizeForObservation(
+    root.ownerDocument,
+    request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) },
+  );
+
   const shared = {
     subject: request.subject,
     viewport: request.viewport,
@@ -63,13 +84,14 @@ export function acquire(root: Element, request: AcquireRequest): string {
     engine: request.engine,
     portalsOf: portalContentOf,
     provenanceOf,
+    ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
   });
 
   return JSON.stringify({ document, capture });
 }
 
 export interface InstalledAgent {
-  readonly acquire: (root: Element, request: AcquireRequest) => string;
+  readonly acquire: (root: Element, request: AcquireRequest) => Promise<string>;
   readonly version: string;
 }
 

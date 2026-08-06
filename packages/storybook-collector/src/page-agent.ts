@@ -1,5 +1,6 @@
-import { acquireDocument, collect } from '@variance-authority/dom';
+import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
+import { recipeOf } from '@variance-authority/core';
 import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core';
 
 /**
@@ -32,6 +33,17 @@ export interface AcquireRequest {
    * than that it never happened.
    */
   readonly ignore?: readonly { readonly id: string; readonly select: string }[];
+  /**
+   * Stabilization tricks to hold the page still with, by id.
+   *
+   * Absent means `COLLECT_RECIPE` — the default is *on*, because a suite that
+   * has to ask for determinism is a suite that discovers it needed it from a
+   * red build. Ids rather than interventions because this value crosses a
+   * `page.evaluate`, and a trick with a `settle` step is a closure that does
+   * not survive the trip; the page holds the same registry and resolves them.
+   */
+  readonly stabilize?: readonly string[];
+
   /** Story mount points, tightest first. */
   readonly roots: readonly string[];
 }
@@ -58,8 +70,17 @@ function rootOf(selectors: readonly string[]): Element {
   throw new Error(`no story root among ${selectors.join(', ')}`);
 }
 
-export function acquire(request: AcquireRequest): string {
+export async function acquire(request: AcquireRequest): Promise<string> {
   const root = rootOf(request.roots);
+
+  // Before anything is read, and by default. An animation in flight moves
+  // `transform` and `opacity`, both of which the semantic representation
+  // carries — so an unstabilized collection reports a fade as a regression with
+  // a component and a file attached. See `docs/stabilization.md`.
+  const held = await stabilizeForObservation(
+    root.ownerDocument,
+    request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) },
+  );
 
   const shared = {
     subject: { id: request.subjectId, kind: 'story' as const },
@@ -77,6 +98,7 @@ export function acquire(request: AcquireRequest): string {
     engine: request.engine,
     portalsOf: portalContentOf,
     provenanceOf,
+    ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
     ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
   });
 

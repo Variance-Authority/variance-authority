@@ -18,8 +18,8 @@ import { AGENT_VERSION, acquire, type AcquireRequest } from './page-agent.js';
 
 const STORY_ROOTS = ['#storybook-root', '#root'] as const;
 
-function acquireFor(request: CaptureRequest): string {
-  return acquire({
+async function acquireFor(request: CaptureRequest): Promise<string> {
+  return await acquire({
     subjectId: request.subjectId,
     viewport: request.viewport,
     engine: request.engine,
@@ -31,5 +31,6 @@ function acquireFor(request: CaptureRequest): string {
 (globalThis as unknown as Record<string, unknown>)[AGENT_GLOBAL] = {
   version: AGENT_VERSION,
   acquire: (request: AcquireRequest) => acquire(request),
-  capture: (request: CaptureRequest) => JSON.stringify(JSON.parse(acquireFor(request)).capture),
+  capture: async (request: CaptureRequest) =>
+    JSON.stringify(JSON.parse(await acquireFor(request)).capture),
 };

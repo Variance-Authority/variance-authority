@@ -1,4 +1,5 @@
 import { digestCombine, digestValue, type Digest } from '../format/hash.js';
+import { tierReaches, type Tier } from '../format/tier.js';
 
 /**
  * The declaration every tool carries, and the plan a caller assembles from them.
@@ -30,21 +31,7 @@ export type ToolKind =
   | 'judge'
   | 'record';
 
-/**
- * The cheapest representation that can answer a question.
- *
- * Ordered, and the order is the cost. A tool declares the rung it needs, and a
- * plan running at a lower rung is told which of its tools cannot do their job —
- * rather than running them anyway and reporting whatever they manage.
- */
-export type Tier = 'reachability' | 'semantic' | 'layout' | 'raster';
-
-const TIER_ORDER: Record<Tier, number> = {
-  reachability: 0,
-  semantic: 1,
-  layout: 2,
-  raster: 3,
-};
+export type { Tier };
 
 /**
  * What a tool contributes to the identity of what it produces.
@@ -131,7 +118,7 @@ export function validatePlan(plan: Plan, tier: Tier): readonly PlanProblem[] {
     }
     seen.add(tool.id);
 
-    if (TIER_ORDER[tool.needs] > TIER_ORDER[tier]) {
+    if (!tierReaches(tier, tool.needs)) {
       problems.push({
         severity: 'error',
         tool: tool.id,
@@ -157,7 +144,7 @@ export function validatePlan(plan: Plan, tier: Tier): readonly PlanProblem[] {
 
 /** The tools a plan will actually run at a given tier. */
 export function planForTier(plan: Plan, tier: Tier): Plan {
-  return plan.filter((tool) => TIER_ORDER[tool.needs] <= TIER_ORDER[tier]);
+  return plan.filter((tool) => tierReaches(tier, tool.needs));
 }
 
 /**

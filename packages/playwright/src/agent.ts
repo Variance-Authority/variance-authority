@@ -64,7 +64,14 @@ export interface CaptureRequest {
  * DOM handle, or a cycle fails here rather than three transports later.
  */
 export interface PageAgent {
-  readonly capture: (request: CaptureRequest) => string;
+  /**
+   * A string, or a promise of one — because holding the page still before it is
+   * read is asynchronous. Fonts have to land and two frames have to pass before
+   * a pinned animation has come to rest where the recipe put it, and a bundle
+   * that could only answer synchronously would be one that captures a page
+   * mid-flight. `page.evaluate` resolves either.
+   */
+  readonly capture: (request: CaptureRequest) => string | Promise<string>;
   /** Bundle identity, echoed into diagnostics when a run looks wrong. */
   readonly version?: string;
 }

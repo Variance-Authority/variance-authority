@@ -50,6 +50,24 @@ export interface EnvironmentInputs {
    * identities: the same `url(...)` can resolve to different bytes tomorrow.
    */
   readonly assets: Readonly<Record<string, string>>;
+
+  /**
+   * Identity of the stabilization recipe the page was held still with, from
+   * `recipeDigest` — absent when the subject was observed untouched.
+   *
+   * A render input, and one of the more consequential ones: pinning animations
+   * changes `transform` and `opacity` on every animated node, so a baseline
+   * collected without it and a run collected with it disagree everywhere and
+   * agree about nothing. Without this field that disagreement arrives as a
+   * change with a component and a file attached — a confident, specific, wrong
+   * answer. With it, the two are different baselines and never meet.
+   *
+   * Optional rather than required because *not stabilizing* is a real state a
+   * caller may be in — a jsdom capture has nothing to hold still — and
+   * `undefined` is omitted from the canonical form, so the untouched case hashes
+   * as the absence it is rather than as an empty recipe.
+   */
+  readonly stabilization?: Digest;
 }
 
 export interface Viewport {
@@ -106,6 +124,10 @@ export function environmentKey(inputs: EnvironmentInputs): EnvironmentKey {
     fonts: [...inputs.fonts].sort(),
     conditions: { ...inputs.conditions },
     assets: { ...inputs.assets },
+    // In `shared`, so it reaches the semantic key too. That is the whole point:
+    // the recipe's first job is to stop an animation from moving `transform`,
+    // which is a value the semantic representation carries.
+    stabilization: inputs.stabilization,
   };
 
   // Layout depends on the viewport's size and colour scheme; rasterization also
@@ -148,6 +170,7 @@ export function diffEnvironments(
   scalar('fonts', [...before.fonts].sort(), [...after.fonts].sort());
   scalar('conditions', before.conditions, after.conditions);
   scalar('assets', before.assets, after.assets);
+  scalar('stabilization', before.stabilization, after.stabilization);
 
   return deltas;
 }
@@ -160,7 +183,8 @@ export type EnvironmentField =
   | 'viewport'
   | 'fonts'
   | 'conditions'
-  | 'assets';
+  | 'assets'
+  | 'stabilization';
 
 export interface EnvironmentDelta {
   readonly field: EnvironmentField;

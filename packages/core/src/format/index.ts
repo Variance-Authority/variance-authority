@@ -19,7 +19,10 @@ export type { Digest } from './hash.js';
 export { digestString, digestValue, digestCombine } from './hash.js';
 
 export type { ObservationProfile, ProfileId } from './profile.js';
-export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById } from './profile.js';
+export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById, tierOfProfile } from './profile.js';
+
+export type { Tier } from './tier.js';
+export { tierRank, tierReaches } from './tier.js';
 
 export type {
   EnvironmentInputs,
@@ -29,6 +32,36 @@ export type {
   Viewport,
 } from './environment.js';
 export { environmentKey, diffEnvironments } from './environment.js';
+
+export {
+  INTERVENTIONS,
+  SEMANTIC_RECIPE,
+  COLLECT_RECIPE,
+  LAYOUT_RECIPE,
+  RASTER_RECIPE,
+  holdAnimations,
+  pinAnimations,
+  hideCaret,
+  hideScrollbars,
+  waitForFonts,
+  waitForImages,
+  forTier,
+  conflicts,
+  interventionById,
+  recipeOf,
+  recipeCss,
+  recipeScreenshot,
+  recipeDigest,
+  settleRecipe,
+  describeRecipe,
+} from './stabilize.js';
+export type {
+  Intervention,
+  Recipe,
+  Trick,
+  ScreenshotOptions,
+  SettleTarget,
+} from './stabilize.js';
 
 export type { Provenance, OwnerFrame, SourceLocation } from './provenance.js';
 export { propsDigest } from './provenance.js';

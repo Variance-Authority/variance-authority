@@ -7,6 +7,7 @@ import { evaluateMedia, evaluateSupports, type ConditionEnvironment } from './me
 import { splitSelectorList, specificityOf, type Specificity } from './specificity.js';
 import { items, propertyNames } from './dom-list.js';
 import { lastCompound } from './selector-parts.js';
+import { STABILIZE_ATTRIBUTE } from './stabilize.js';
 
 /**
  * The per-document half of the pruning: sheets flattened into a matchable index.
@@ -127,6 +128,30 @@ export function conditionKey(environment: ConditionEnvironment): string {
  * subject. Deciding *whether* the sheets changed is the caller's, because only
  * the caller watches them.
  */
+/**
+ * The one sheet this project injects into somebody else's page.
+ *
+ * Skipped rather than collected, and that is what makes stabilization *outside
+ * the subject* damage rather than content. Its rules are universal by
+ * construction — `*, *::before, *::after` — so collecting them would attach a
+ * matched rule to every node in every subject, churn every hash, and put a
+ * declaration nobody wrote into the attribution of a component that did not
+ * write it. What survives into the capture is the *effect* of the sheet, which
+ * is the thing that was wanted; the sheet itself is the tool, and the tool is
+ * not the subject.
+ *
+ * Matched on the owning element's attribute rather than on the rule text,
+ * because rule text is something an application could legitimately contain.
+ */
+function isStabilizationSheet(sheet: CSSStyleSheet): boolean {
+  const owner = sheet.ownerNode;
+  return (
+    owner !== null &&
+    typeof (owner as Element).getAttribute === 'function' &&
+    (owner as Element).hasAttribute(STABILIZE_ATTRIBUTE)
+  );
+}
+
 export function indexStyleSheets(
   document: Document,
   environment: ConditionEnvironment,
@@ -138,7 +163,9 @@ export function indexStyleSheets(
   let order = 0;
   let totalRules = 0;
 
-  const sheets: CSSStyleSheet[] = items(document.styleSheets).filter(isStyleSheet);
+  const sheets: CSSStyleSheet[] = items(document.styleSheets)
+    .filter(isStyleSheet)
+    .filter((sheet) => !isStabilizationSheet(sheet));
   for (const adopted of adoptedSheets(document)) sheets.push(adopted);
 
   for (const [index, sheet] of sheets.entries()) {

@@ -4,9 +4,14 @@
  * This package needs nothing. No browser, no image codec, no filesystem, no
  * socket. What is left when those are taken away turns out to be most of the
  * interesting part: what a document assembles to, what a renderer promises, what
- * a store promises, which policy a comparison ran under, which tricks a subject
- * was held still with, whether it held still at all, and what the composition
- * that produced an answer was.
+ * a store promises, which policy a comparison ran under, whether a subject held
+ * still at all, and what the composition that produced an answer was.
+ *
+ * The *tricks* a subject is held still with used to be here and moved to
+ * `@variance-authority/core/format` on 2026-08-06. They turned out not to be a
+ * pixel-tier concern: an animation in flight moves `transform`, which the cheap
+ * representation carries, so the recipe is a render input on every tier and its
+ * digest is part of `EnvironmentInputs`.
  *
  * The split is deliberate and it is the point. A team extending their own
  * Playwright tests needs the vocabulary without a second browser; a team storing
@@ -46,27 +51,6 @@ export {
   messageOf,
 } from './store.js';
 export type { RasterStore, RenderCache, Retention, BaselineKey, Found, Described } from './store.js';
-
-export {
-  INTERVENTIONS,
-  SEMANTIC_RECIPE,
-  LAYOUT_RECIPE,
-  RASTER_RECIPE,
-  holdAnimations,
-  pinAnimations,
-  hideCaret,
-  hideScrollbars,
-  waitForFonts,
-  waitForImages,
-  forTier,
-  conflicts,
-  recipeCss,
-  recipeScreenshot,
-  recipeDigest,
-  settleRecipe,
-  describeRecipe,
-} from './stabilize.js';
-export type { Intervention, Recipe, Tier, Trick, ScreenshotOptions, SettleTarget } from './stabilize.js';
 
 export { settle } from './settle.js';
 export type { Settlement } from './settle.js';

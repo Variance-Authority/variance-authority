@@ -1,13 +1,15 @@
 import {
   ALLOWLIST_VERSION,
+  RASTER_RECIPE,
   RULESET_VERSION,
   digestValue,
   planIdentity,
+  recipeDigest,
   type Plan,
+  type Recipe,
   type ToolDeclaration,
 } from '@variance-authority/core';
 import { DEFAULT_POLICY, type DiffPolicy } from './policy.js';
-import { RASTER_RECIPE, recipeDigest, type Recipe } from './stabilize.js';
 
 /**
  * The composition this project ships, declared rather than implied.

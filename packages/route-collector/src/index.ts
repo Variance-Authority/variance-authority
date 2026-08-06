@@ -154,6 +154,22 @@ export interface RouteCollectorOptions {
 
   /** Defaults to `true`. Set false to watch a run by hand. */
   readonly headless?: boolean;
+
+  /**
+   * Stabilization tricks to hold each page still with, by id. Defaults to
+   * `COLLECT_RECIPE`, which is almost certainly what you want.
+   *
+   * The knob exists for two callers. One is a page whose own determinism story
+   * is better than ours — a suite that already freezes its own clock and its own
+   * animations, where a second `!important` sheet is damage buying nothing. The
+   * other is this repository's own test for what happens *without* it, which
+   * needs to be able to ask for nothing and get nothing.
+   *
+   * `[]` means observed untouched, and is recorded as such: the environment key
+   * carries no stabilization digest, so an untouched baseline and a held-still
+   * one are two baselines rather than a diff nobody can explain.
+   */
+  readonly stabilize?: readonly string[];
 }
 
 const DEFAULT_ROOTS = ['body'];
@@ -299,12 +315,13 @@ export function routeCollector(
           // fingerprint rule has nothing for a document to resolve, and sending
           // one would put a digest in a browser that cannot use it.
           ...(selectable.length > 0 ? { ignore: selectable } : {}),
+          ...(options.stabilize !== undefined ? { stabilize: options.stabilize } : {}),
           roots,
         };
 
         const raw = await page.evaluate(
           ([global, sent]: readonly [string, AcquireRequest]) => {
-            const agent = (globalThis as unknown as Record<string, { acquire(r: AcquireRequest): string }>)[
+            const agent = (globalThis as unknown as Record<string, { acquire(r: AcquireRequest): Promise<string> }>)[
               global
             ];
             if (agent === undefined) throw new Error(`missing page agent ${global}`);

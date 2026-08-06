@@ -45,17 +45,22 @@ reading. What differs here is the last column.
 | **Fonts substituted or not loaded** | environment-key, **and reported** | Fonts are in the key. The renderer also probes by metrics and names what it did not have, because two runs of a substituted font compare `unchanged` — true, and worthless. |
 | **Dates, clocks, dynamic content** | policy | Both arms move; both are right. The difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. **But:** headless Chromium uses overlay scrollbars, so the classic scrollbar reflow does not reproduce in CI at all — a blind spot we share with every headless pipeline, [written up rather than deleted](context/journal/0012-instability.md). |
-| **Animations mid-flight** | **nothing** | A transform caught in flight is a computed style value and it reaches the representation. We do not pause animations today. Pause or disable them, as you would anywhere else. |
+| **Animations mid-flight** | **construction**, since 2026-08-06 | A transform caught in flight is a computed style value and it does reach the representation — so the page is now held still *before the subject is read*, not only before it is painted. Pinned at the first frame by CSS, with the recipe's digest in the environment key so an unstabilized baseline is `incomparable` rather than a diff. **Measured:** one page, a 4s animation, read twice a second apart — the hash moves untouched and holds under the recipe ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
 | **Lazy loading, network latency** | **nothing** | Content that arrives late is a structural difference, and correctly so. Wait for it. |
 | **Random seeds, unsorted data** | **nothing** | This is a real change. The fixture is the bug. |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
 
-**Five** rows are absorbed by nothing, and they are the honest half of the table.
-This line said "the last four" until 2026-08-03, which quietly excluded
-*animations mid-flight* — the one of the five a reader is most likely to hit on
-their first run. A comparison that only ever finds in its own favour is an
-advertisement, and so is arithmetic that rounds its own losses down.
+**Four** rows are absorbed by nothing, and they are the honest half of the table.
+
+The count has moved twice and both moves are the point. It said "the last four"
+until 2026-08-03, which quietly excluded *animations mid-flight* — the one a
+reader is most likely to hit on their first run — and became five. On 2026-08-06
+animations moved to *construction*, because the row had sat there as a confession
+for three days when it was a bug with a fix that took an afternoon. A comparison
+that only ever finds in its own favour is an advertisement; a limitation left
+standing because writing it down felt like enough is the same failure with better
+manners.
 
 ## Test order and shared state
 

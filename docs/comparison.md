@@ -120,12 +120,16 @@ comparison: a known $283/mo against an unknown engineering commitment.
   CI critical path. This project renders one engine per renderer, has run two of
   the three it offers, and has no cross-browser *arm* — no grid, no matrix run
   — which is a large fraction of what real VR spend buys.
-- **Deterministic-by-default rendering.** JS disabled on re-render, animated GIFs
-  frozen on the first frame, most CSS animations and transitions frozen
-  automatically ([animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations)).
-  This project does not pause animations; a transform caught in flight reaches
-  the representation and is listed as absorbed by *nothing*
-  ([flakiness.md](flakiness.md)).
+- **Deterministic-by-default rendering, including the parts CSS cannot reach.**
+  JS disabled on re-render and animated GIFs frozen on the first frame
+  ([animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations)).
+  Percy can disable JavaScript because it re-renders from a serialized DOM; here
+  the page is the adopter's own and its JavaScript is the subject. Since
+  2026-08-06 CSS animations and transitions *are* pinned before the subject is
+  read, not only before it is painted, with the recipe's digest in the
+  environment key ([stabilization.md](stabilization.md)) — which is a thing
+  neither Percy nor Argos records. What Percy still has and this does not: GIFs,
+  and a JS-free re-render.
 - **Retroactive rules without re-running tests.** On-demand snapshot rules apply
   from the dashboard, auto-save, and persist to future branches
   ([rules](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/snapshot-rules)).
@@ -192,6 +196,18 @@ comparison: a known $283/mo against an unknown engineering commitment.
   flake silenced in `Avatar` is not silenced in `Badge`. What Argos still has and
   this does not is the *longitudinal* half above: the register here reports what
   each ignore absorbed in **this** run, and nothing accumulates across runs.
+- **A dozen stabilization mechanisms, each its own documented page.** Fresh-decode
+  GIF freezing to a canvas, `srcset` re-resolution, sticky-to-relative with a
+  rollback if the box moved, spellcheck squiggles, subpixel image rounding,
+  background-image preloading, hover reset, and font-rendering launch flags
+  ([flaky tests](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-tests.md)).
+  This project ships six tricks and names the gap in
+  [stabilization.md](stabilization.md). Two things go the other way: Argos does
+  no animation work of its own — it passes Playwright's `animations: 'disabled'`,
+  a *screenshot* option, so a semantic tier would have the same hole this one
+  had — and nothing on either side of their pipeline records which stabilizers
+  ran in the identity of the baseline, so retuning one is a mass diff attributed
+  to your code.
 - **An inspectable diff engine.** Two `odiff` passes at thresholds 0.15 and
   0.0225 with antialiasing on, in a file the vendor links to
   ([source](https://github.com/argos-ci/argos/blob/main/apps/backend/src/screenshot-diff/diff/image/index.ts)).

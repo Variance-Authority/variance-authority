@@ -1,8 +1,7 @@
 import {
-  CHROMIUM_PROFILE,
-  JSDOM_PROFILE,
   admits,
   type Diagnostic,
+  type Digest,
   type ObservationProfile,
   type Provenance,
   type RawCapture,
@@ -16,6 +15,8 @@ import { conditionKey, indexStyleSheets, matchRulesFor, type StyleIndex } from '
 import { inheritedSeed } from './inherit.js';
 import type { ConditionEnvironment } from './media.js';
 import { attributesOf, childNodesOf, elements, propertyNames } from './dom-list.js';
+import { detectProfile } from './profile.js';
+export { detectProfile } from './profile.js';
 
 /**
  * Extract a `RawCapture` from a live DOM.
@@ -80,6 +81,19 @@ export interface CollectOptions {
 
   /** Content hashes for external assets, keyed by request URL. */
   readonly assets?: Readonly<Record<string, string>>;
+
+  /**
+   * Identity of the stabilization recipe this page was held still with, from
+   * `stabilizeForObservation`.
+   *
+   * Passed in rather than detected, because the collector cannot tell the
+   * difference between a page that was pinned and a page with nothing to pin —
+   * both look like a document with no animation running. Omitting it on a page
+   * that *was* stabilized is the dangerous direction: two recipes then share one
+   * baseline and their disagreement is reported as a change with a component's
+   * name on it.
+   */
+  readonly stabilization?: Digest;
 
   /**
    * A style index already built for this document, from `indexStyleSheets`.
@@ -223,6 +237,9 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
       // differently on two machines splits the key through its outcome.
       conditions: { ...options.features, ...index.evaluatedConditions },
       assets: options.assets ?? {},
+      ...(options.stabilization !== undefined
+        ? { stabilization: options.stabilization }
+        : {}),
     },
     root: captureNode(root, profile, index, view, options, couplings, ignores.marks),
     inheritedSeed: inheritedSeed(root, profile, view, index),
@@ -404,22 +421,3 @@ function supportsProbe(view: Window | null): ((condition: string) => boolean | n
   };
 }
 
-/**
- * Decide the profile from what the host can actually do.
- *
- * JSDOM reports zeros from `getBoundingClientRect` because it has no layout
- * engine. Probing for that is more honest than sniffing for a JSDOM global: the
- * question the profile answers is "can this host observe geometry", and the way
- * to know is to ask it.
- */
-export function detectProfile(view: Window | null): ObservationProfile {
-  if (!view) return JSDOM_PROFILE;
-
-  const probe = view.document.createElement('div');
-  probe.style.cssText = 'position:absolute;width:100px;height:100px;';
-  view.document.body?.appendChild(probe);
-  const measured = probe.getBoundingClientRect().width;
-  probe.remove();
-
-  return measured > 0 ? CHROMIUM_PROFILE : JSDOM_PROFILE;
-}

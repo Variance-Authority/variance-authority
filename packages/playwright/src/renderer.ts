@@ -1,24 +1,24 @@
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright';
 import {
+  RASTER_RECIPE,
+  conflicts,
   documentDigest,
+  recipeCss,
+  recipeDigest,
+  recipeScreenshot,
+  settleRecipe,
   type Raster,
+  type Recipe,
   type RenderDocument,
   type RenderIdentity,
   type Viewport,
 } from '@variance-authority/core';
 import {
-  RASTER_RECIPE,
   SUBJECT_PATH,
   assemble,
-  conflicts,
   familiesOf,
   identityAtScale,
-  recipeCss,
-  recipeDigest,
-  recipeScreenshot,
-  settleRecipe,
   type AssembleOptions,
-  type Recipe,
   type Renderer,
 } from '@variance-authority/raster';
 

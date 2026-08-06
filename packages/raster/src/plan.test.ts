@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { validatePlan, planForTier } from '@variance-authority/core';
+import { LAYOUT_RECIPE, validatePlan, planForTier } from '@variance-authority/core';
 import { DEFAULT_PLAN, defaultPlan, defaultPlanIdentity } from './plan.js';
-import { LAYOUT_RECIPE } from './stabilize.js';
 
 /**
  * The shipped composition, checked for the property that makes declaring it
