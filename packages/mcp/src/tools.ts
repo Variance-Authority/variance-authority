@@ -1,3 +1,4 @@
+import { changes } from './tools/changes.js';
 import { describe } from './tools/describe.js';
 import { explain } from './tools/explain-verdict.js';
 import { findings } from './tools/findings.js';
@@ -22,15 +23,18 @@ import { trace } from './tools/trace-component.js';
  * a paragraph somebody argued about, and the arguments do not compose — the
  * reason the summary refuses to say "nothing to review" has nothing to do with
  * the reason findings are grouped by rule — so they are read, and edited, one at
- * a time. What stays here is the only thing that is genuinely about all five: the
+ * a time. What stays here is the only thing that is genuinely about all six: the
  * order, which is the order `tools/list` announces them in and therefore the
  * order an agent meets them in. `variance_summary` is first because every other
- * tool takes an argument it printed.
+ * tool takes an argument it printed, and `variance_changes` is second because it
+ * is the one that decides how many of the rest get called: an agent that walks
+ * forty changed subjects one at a time spends forty calls learning what one call
+ * says, which is *three things happened and one of them explains thirty-one*.
  */
 
 export type { Tool };
 
-export const TOOLS: readonly Tool[] = [summarize, describe, findings, trace, explain];
+export const TOOLS: readonly Tool[] = [summarize, changes, describe, findings, trace, explain];
 
 export function toolByName(name: string): Tool | undefined {
   return TOOLS.find((tool) => tool.name === name);

@@ -43,7 +43,7 @@ npx variance-authority-mcp .variance/run.json    # directly
 
 ## What an agent can ask
 
-Five tools, all answering from the artifact and **never re-running anything**.
+Six tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
 are asked wherever the agent is.
 
@@ -51,6 +51,7 @@ are asked wherever the agent is.
 import { toolByName } from '@variance-authority/mcp/tools';
 
 toolByName('variance_summary')?.run(report, {});
+toolByName('variance_changes')?.run(report, {});
 toolByName('variance_describe')?.run(report, { subject: 'story:card--populated' });
 toolByName('variance_findings')?.run(report, {});
 toolByName('variance_trace_component')?.run(report, { component: 'Button' });
@@ -60,10 +61,19 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 | tool | answers | ask it when |
 |---|---|---|
 | `variance_summary` | how the run came out across every subject, including the ones nobody observed | starting from nothing: *did anything change, and was anything missed?* |
+| `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_describe` | what changed inside one subject — regions, components, files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
 | `variance_trace_component` | every subject one component appears in, with pixels and cause-or-displaced | sizing the blast radius of a design-system or token edit |
 | `variance_explain_verdict` | why a subject was **not compared** — `incomparable`, `new`, or never observed | before attempting a fix, because none of those is a code problem |
+
+`variance_changes` is the one that decides how many of the others get called. A
+design-token edit reaching forty stories is one decision presented as forty, and
+an agent that walks them one at a time spends forty calls learning what one call
+says. It is also the only tool that hands back a *command* — the shape digest
+cannot be derived from anything else in the report, and it names which subjects
+the command will refuse, so the agent proposes something that works rather than
+something that gets rejected.
 
 `variance_findings` is the one that is not about a change. A control that never
 had an accessible name compares equal to itself on every run, so a comparison can

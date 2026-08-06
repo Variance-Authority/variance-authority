@@ -187,7 +187,11 @@ comparison: a known $283/mo against an unknown engineering commitment.
   Ignored register that reports how many builds each ignore has absorbed so an
   ignore that outlived its flake does not stay a blind spot
   ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)).
-  This project has an accumulation design and no accumulated data.
+  This project groups a run's diffs into distinct changes since 2026-08-06 —
+  same idea, ranked by how much of the review one action finishes rather than by
+  recurrence — but the *longitudinal* half is the whole point of theirs and this
+  has an accumulation design and no accumulated data. One run's grouping is not
+  a flakiness score.
 - **Fingerprint-scoped ignores, in production.** An ignore is a (test,
   diff-shape) pair, not a muted screenshot and not a masked coordinate region, so
   silencing a known flake does not blind the suite to a different regression in
@@ -242,8 +246,13 @@ comparison: a known $283/mo against an unknown engineering commitment.
   ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)).
   Since 2026-08-05 `variance accept --shape <fingerprint>` does the same thing
   from a command line, and refuses by name any subject where something else also
-  moved. What Applitools has that this does not is the *clustering* — it groups
-  the batch for you, and here the operator copies one digest out of a report.
+  moved. The *clustering* landed 2026-08-06: a run's changes are grouped into
+  distinct changes ranked by how much of the review one action would finish, in
+  the PR comment and as `variance_changes` for an agent. Applitools clusters by
+  the shape of the diff regions; this clusters by a fingerprint that also carries
+  the component responsible, so the same-looking change in `Avatar` and in
+  `Badge` are two clusters rather than one. What Applitools still has is the
+  dashboard the batch is accepted from.
 - **Genuine on-premise deployment.** The Eyes server installed inside the
   customer network with images stored locally
   ([modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes)) —

@@ -12,6 +12,11 @@
  * home. That was not a hypothetical: the shapes used to live in the MCP package,
  * so the CLI depended on an agent protocol to describe its own output.
  *
+ * It also holds the one derivation that belongs to the format rather than to any
+ * reader: grouping a run's changes into the *distinct things that happened*, so
+ * a token edit across forty stories is one decision rather than forty. The CLI
+ * prints it, the MCP tools answer from it, and neither owns it.
+ *
  * The default entrypoint is the format and needs nothing.
  * `@variance-authority/report/file` reads and writes it on a disk.
  */
@@ -24,3 +29,6 @@ export type {
   NotObserved,
   NotObservedKind,
 } from './format.js';
+
+export { clusterChanges, describeClustering } from './cluster.js';
+export type { Change, Clustering } from './cluster.js';

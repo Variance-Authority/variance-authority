@@ -2,6 +2,7 @@ import { EXIT_CLEAN, exitFor } from '../exit.js';
 import type { CliRunReport } from './run.js';
 import { docketOf } from './docket.js';
 import {
+  bulkBlocks,
   causeBlocks,
   clamp,
   coverageBlocks,
@@ -158,6 +159,7 @@ export function renderComment(options: CommentOptions): string {
     COMMENT_MARKER,
     ...headingBlocks(report, docket),
     ...causeBlocks(docket, limits),
+    ...bulkBlocks(report, limits),
     ...withoutCauseBlocks(docket, limits),
     ...coverageBlocks(report, docket, limits),
     ...warningBlocks(report, docket),

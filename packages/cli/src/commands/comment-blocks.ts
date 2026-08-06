@@ -1,3 +1,4 @@
+import { clusterChanges, type Change } from '@variance-authority/report';
 import type { CliRunReport } from './run.js';
 import type { CommentLimits, CommentOptions } from './comment.js';
 import type { CauseEntry, Collateral, Docket } from './docket.js';
@@ -49,6 +50,71 @@ export function headingBlocks(report: CliRunReport, docket: Docket): readonly st
  * can size. Reverse the two and they have read three hundred lines about a
  * padding change and stopped before reaching the token that caused it.
  */
+/**
+ * What one command would settle, before the reviewer starts clicking.
+ *
+ * The docket answers *what changed*. This answers *how many decisions is that*,
+ * and the two are different numbers whenever one edit reaches more than one
+ * subject — which is the normal case for a design system and the case where
+ * review actually breaks down. Forty screenshots presented as forty questions
+ * get thirty-nine glances and one look.
+ *
+ * Placed after the causes rather than before them on purpose. A reviewer must
+ * read what happened before being offered a way to approve it in bulk; leading
+ * with the shortcut is how a gate becomes a recorder.
+ *
+ * Only changes that settle *every* subject they reach get a command. Where a
+ * shape appears beside something else, `accept --shape` refuses by name, and
+ * printing the command anyway would be advertising an action that fails.
+ */
+export function bulkBlocks(report: CliRunReport, limits: CommentLimits): readonly string[] {
+  const { changes, ungrouped } = clusterChanges(report.observations);
+  const changed = report.observations.filter((o) => o.verdict === 'changed').length;
+
+  // One change reaching one subject is not a batch, and offering a bulk command
+  // for it adds a line that saves nobody anything.
+  const bulk = changes.filter((change) => change.settles.length > 1);
+  if (bulk.length === 0) return [];
+
+  const shown = bulk.slice(0, limits.causes);
+  const settled = new Set(shown.flatMap((change) => change.settles));
+
+  return [
+    '### One decision, several subjects',
+    `${changed} changed subject(s) are ${changes.length} distinct change(s). ` +
+      `Accepting the ${count(shown.length, 'shape')} below settles ` +
+      `${count(settled.size, 'subject')}.`,
+    shown.map(bulkItem).join('\n\n'),
+    ...(bulk.length > shown.length
+      ? [
+          `${bulk.length - shown.length} further shape(s) are also acceptable in bulk and are ` +
+            'not listed here; the run report is not truncated.',
+        ]
+      : []),
+    ...(ungrouped.length > 0
+      ? [
+          `${count(ungrouped.length, 'changed subject')} carry no difference shape, so the run ` +
+            'compared without a document and they have to be reviewed one at a time.',
+        ]
+      : []),
+  ];
+}
+
+function bulkItem(change: Change): string {
+  const who = change.component ?? 'grouped by pixel shape; no component was resolved';
+  const partial =
+    change.subjects.length === change.settles.length
+      ? ''
+      : `\n  It also appears in ${count(change.subjects.length - change.settles.length, 'subject')} ` +
+        'where something else moved too. Those are refused by name and stay for review.';
+
+  return (
+    `- **${who}**${change.file === undefined ? '' : ` — ${code(change.file)}`}\n` +
+    `  Settles ${count(change.settles.length, 'subject')} (${change.pixels}px).\n` +
+    `  ${code(`variance accept --shape ${change.fingerprint}`)}${partial}`
+  );
+}
+
 export function causeBlocks(docket: Docket, limits: CommentLimits): readonly string[] {
   if (docket.causes.length === 0) return [];
 
