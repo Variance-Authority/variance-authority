@@ -1,14 +1,26 @@
 # Holding a page still
 
-**This is on by default. There is nothing to configure unless you want less of
-it.** The page below is a reference for what already happened to your subject,
-and an argument about which of it is honest.
+**This is on by default and there is nothing to set up.** Animations are pinned,
+GIFs are frozen, fonts and images are waited for, scrollbars are hidden — before
+your subject is read, on every run, whether or not you knew it was a problem.
+
+You are on this page for one of three reasons, and none of them is configuration:
+
+- **Something still moved.** Go to [what is still not
+  here](#what-is-still-not-here). It is a short list and it is honest.
+- **You want to know what was done to your page.** The run tells you — see [the
+  run says what it did](#the-run-says-what-it-did) — and the table below is the
+  reference.
+- **You are deciding whether to trust this.** Then the two sections worth your
+  time are [what the baseline remembers](#the-baseline-remembers), which is the
+  thing nobody else in the category does, and [what it
+  costs](#what-holding-a-page-still-costs), which is measured.
 
 A subject that is still changing cannot be compared, so every tool in this
-category reaches into the page before it looks: it holds animations, waits for
-fonts, hides a caret, suppresses scrollbars. The interesting questions are not
+category reaches into the page before it looks. The interesting questions are not
 *whether* to do that. They are **when**, **what it costs**, and **whether the
-baseline remembers it happened.**
+baseline remembers it happened** — and the third is where the category stops
+answering.
 
 [`flakiness.md`](flakiness.md) is the position — what kind of thing variance is,
 and the four ways a cause gets absorbed. This is the mechanism.
@@ -44,38 +56,39 @@ repair.
 
 ---
 
-## What runs, and when
+## Two stages, two recipes
 
-Two stages, two recipes. The difference between them is one trick, and it is not
-a preference.
+| | applied to | recipe |
+|---|---|---|
+| **Collection** | the live page, before the subject is read | `pin-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images` |
+| **Render** | the reconstructed page, before it is painted | `hold-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images`, `hide-caret` |
+| **The wire** | every response the page is served | `freeze-gifs`, `hash-assets` |
 
-| | applied to | recipe | contains |
-|---|---|---|---|
-| **Collection** | the live page, before the subject is read | `COLLECT_RECIPE` | `pin-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images` |
-| **Render** | the reconstructed page, before it is painted | `RASTER_RECIPE` | `hold-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images`, `hide-caret` |
+The collection and render recipes differ in exactly one trick and it is not a
+preference: `hold-animations` is a *screenshot* option, and at collection nobody
+takes a screenshot, so it would be a trick that silently does nothing.
 
-`hold-animations` is a *screenshot option* — it asks the browser to settle
-animations for the image it is about to take. At collection nobody takes an
-image, so it is a trick that would silently do nothing. `pin-animations` is the
-same intent expressed in CSS, which works where there is no camera, and the two
-stay separate values because they leave the page in **different states**: a
-browser settling animations fast-forwards a finite one to where a user comes to
-rest, and CSS pinning holds it at its first frame.
-
-Filtered by tier, so a jsdom collection applies **nothing**. No layout engine and
+Filtered by tier, so a jsdom collection applies **nothing** — no layout engine and
 no animation clock means there is nothing to hold still, and a `fonts.ready` wait
 per subject on the rung that exists to be cheap is the trade that rung refuses.
 
----
+## What runs, and what it absorbs
 
-## The tricks
+Nothing here is a setting you were supposed to find. The table is a reference for
+what already happened to your subject.
 
-Each is a value with an id, the tier that can observe what it fixes, what it
-costs in one sentence a report can print, and the property it governs. They are
-an **open registry**, not a struct of booleans: a project with a need nobody
-anticipated adds one rather than forking.
+| trick | absorbs | and the limit, stated here rather than found later |
+|---|---|---|
+| `pin-animations` | CSS animations and transitions, held at their first frame | the first frame is where a fade-in is *invisible* — deterministic, and not where a user sees the component. CSS reaches CSS: `requestAnimationFrame` writing inline styles keeps running |
+| `wait-for-fonts` | a font arriving after the subject was read | `document.fonts.ready` covers loads that have *started*; a font requested lazily by a later interaction is not in it |
+| `wait-for-images` | an image whose intrinsic size had not landed | `document.images` at one moment. Anything appended during the wait is missed — the wire covers that |
+| `hide-scrollbars` | a platform and preference difference, and the reflow at the overflow threshold | headless Chromium uses overlay scrollbars, so the classic scrollbar flake does not reproduce in CI at all |
+| `hide-caret` | a cursor blinking on its own schedule | a screenshot option, so it applies at render and not at collection — a tier that never rasterizes cannot see a caret and must not pay to hide it |
+| `freeze-gifs` | an animated GIF, served as its first frame | on the wire, so a cross-origin image is no harder than any other |
+| `hash-assets` | *nothing* — it reports rather than absorbs | see [the wire](#the-wire-which-knows-what-the-page-cannot) |
 
-### `pin-animations` — CSS animations and transitions
+<details>
+<summary>How <code>pin-animations</code> works, and why it is not <code>animation: none</code></summary>
 
 ```css
 *, *::before, *::after {
@@ -87,116 +100,55 @@ anticipated adds one rather than forking.
 }
 ```
 
-**How it works.** `animation-play-state: paused` alone freezes an animation
-*wherever it happens to be*, which is not deterministic — it is the flake, held
-still. The negative `animation-delay` is what makes it deterministic: it seeks
-every animation to (very nearly) its first keyframe before pausing it, so two
-runs a second apart read the same frame. `transition-duration: 0s` collapses a
-transition to its end state, which is where it was going anyway.
+`animation-play-state: paused` alone freezes an animation *wherever it happens to
+be*, which is the flake held still rather than removed. The negative
+`animation-delay` is what makes it deterministic: it seeks every animation to
+(very nearly) its first keyframe before pausing it. `transition-duration: 0s`
+collapses a transition to its end state, which is where it was going anyway.
 
-**Why not `animation: none`.** Removing an animation drops whatever layout its
-keyframes contribute, so a component whose final position comes from a keyframe
+`animation: none` is avoided because removing an animation drops whatever layout
+its keyframes contribute — a component whose final position comes from a keyframe
 jumps somewhere else. That changes the page rather than stopping it.
 
-**Limits.** The first frame is where a fade-in is *invisible*, which is
-deterministic and is not where a user sees the component. And CSS reaches CSS: an
-animation driven by `requestAnimationFrame` writing inline styles, or by the Web
-Animations API, keeps running and reaches the representation exactly as before.
-Percy's answer is to disable JavaScript entirely on re-render, which it can
-afford because it re-renders from a serialized DOM. Here the page is yours and
-the JavaScript is the subject.
+At render there is a better option and it is used: `hold-animations` is a
+*screenshot* option, so the browser fast-forwards a finite animation to where a
+user comes to rest and cancels an infinite one to its first frame. CSS cannot
+express that, which is why both tricks exist rather than one.
 
-### `wait-for-fonts` — web fonts
+Percy's answer to the JavaScript half is to disable JavaScript entirely on
+re-render, which it can afford because it re-renders from a serialized DOM. Here
+the page is yours and its JavaScript is the subject.
 
-Awaits `document.fonts.ready`. A font that arrives after the subject was read
-changes every advance, and therefore every rect, on the page.
-
-**Limits.** `document.fonts.ready` resolves against loads that have *started*. A
-font requested lazily — by a rule that only matches once some later interaction
-happens — is not in it. Fonts are also in the environment key by identity, so a
-substituted font is `incomparable` rather than a silent diff; see
-[`flakiness.md`](flakiness.md).
-
-### `wait-for-images` — images that have not decoded
-
-Awaits `load` or `error` on every `document.images` entry that is not
-`complete`. An image's intrinsic size participates in layout, so a subject read
-before decode has a different box tree.
-
-**A 404 counts as settled**, deliberately. A broken image is a stable state and
-blocking on it turns a missing asset into a timeout with no cause.
-
-**Limits.** `document.images` at the moment of the wait. Anything appended while
-the wait is running is missed, and CSS `background-image` has no load event at
-all, so it is not covered here. Both are answered a layer down, on the wire —
-see [the wire](#the-wire-which-knows-what-the-page-cannot).
-
-### `hide-scrollbars` — scrollbar width
-
-```css
-* { scrollbar-width: none !important }
-*::-webkit-scrollbar { display: none !important }
-```
-
-Removes a platform difference, a user-preference difference, and the reflow that
-happens when content crosses the overflow threshold.
-
-**Limits.** Headless Chromium uses overlay scrollbars, so the classic
-scrollbar-reflow flake does not reproduce in CI at all — a blind spot shared with
-every headless pipeline, [written up](context/journal/0012-instability.md)
-rather than deleted.
-
-### `hide-caret` — the text cursor
-
-A screenshot option (`caret: 'hide'`). A caret paints and does not lay out, so a
-tier that never rasterizes cannot see it and must not pay to hide it — which is
-why it is in `RASTER_RECIPE` and not in `COLLECT_RECIPE`.
-
-### `hold-animations` — animations, at render
-
-A screenshot option (`animations: 'disabled'`). The browser settles animations
-for the image: a finite animation is fast-forwarded to completion — the state a
-user comes to rest on — and an infinite one is cancelled to its first frame and
-replayed afterwards. **That is better than `pin-animations`** and CSS cannot
-express it, which is why both exist.
-
----
+</details>
 
 ## Where the damage lands
 
-Ordered by cost, earliest sufficient option first. Every trick shipped here is in
-the first band.
+Ordered by cost, earliest sufficient option first. **Every trick shipped here is
+in the first band.**
 
 | band | what it is | cost |
 |---|---|---|
-| **outside the subject** | injected CSS, browser screenshot options | delete the tool and the intervention is gone |
+| **outside the subject** | injected CSS, screenshot options, a rewritten response | delete the tool and the intervention is gone |
 | **runtime substitution** | wrapping `Promise`, replacing a suspense boundary | a difference caused by the patch is indistinguishable from one caused by the code |
 | **a contract the subject implements** | a readiness marker in your component | real design damage |
 
 The middle band is deliberately **not shipped** and deliberately **expressible**.
-If a project decides the trade is worth it, it writes an `Intervention` and
-composes it; that is what an open set is for.
+A project that decides the trade is worth it writes an `Intervention` and composes
+it; that is what an open set is for.
 
 ### The one sheet, and why you cannot see it
 
 Collection injects exactly one `<style data-va-stabilize>` and the collector's
 stylesheet index **skips it**.
 
-That is not tidiness. The recipe's rules are `*, *::before, *::after` by
-construction, so collecting them like any other sheet would attach a matched rule
-to every node in every subject, churn every hash, and put a declaration nobody
-wrote into the attribution of a component that did not write it.
+Not tidiness. The recipe's rules are `*, *::before, *::after` by construction, so
+collecting them like any other sheet would attach a matched rule to every node in
+every subject, churn every hash, and put a declaration nobody wrote into the
+attribution of a component that did not write it. Skipping it is what makes the
+first band of the table literally true.
 
 What survives into your capture is the recipe's *effect* — `transform` reads its
-first frame instead of a frame off the clock — and never the recipe. This is what
-lets the first band of the table above be literally true.
-
-The sheet is rewritten rather than appended, so a session running thirty subjects
-through one document does not accumulate thirty of them. It is also left in place
-between subjects on purpose: removing it would restart every animation just
-before the next subject is read.
-
----
+first frame instead of a frame off the clock — and never the recipe.
 
 ## The run says what it did
 
