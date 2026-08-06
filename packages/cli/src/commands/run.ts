@@ -120,7 +120,14 @@ export async function run(options: RunOptions): Promise<CliRunReport> {
 
     return await observeAll(
       plan,
-      { config, deps, renderer, budget, ...(decoder !== undefined ? { decoder } : {}) },
+      {
+        config,
+        deps,
+        renderer,
+        budget,
+        ...(options.flakes === true ? { sweep: true } : {}),
+        ...(decoder !== undefined ? { decoder } : {}),
+      },
       options,
       {
       observations,

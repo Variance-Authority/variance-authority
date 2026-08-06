@@ -13,7 +13,7 @@ whose requirements are decided by a file rather than by its own code.
 ## Commands
 
 ```bash
-variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--exit-zero-on-changes]
+variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--flakes] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]
 variance serve   [--config <path>]              # MCP over stdio
@@ -53,6 +53,38 @@ than wrong ones. And the page fetches nothing: no script, no stylesheet, no font
 because a page that loads anything renders differently for the reviewer than it
 did in CI. `--subject` is refused here rather than honoured: a page narrowed to
 one subject says nothing about coverage while looking like a whole run.
+
+### Finding a flake before it costs a build: `run --flakes`
+
+Every run reads a *changed* subject a second time before believing its verdict.
+`--flakes` reads **every** subject twice, whatever the verdict, which is a
+different question: not *is this change real* but *which of these subjects would
+flake tomorrow*.
+
+```bash
+variance run --flakes
+```
+
+A subject that agrees with its baseline and disagrees with itself is a flake one
+run before anybody has to look at a red build, and it is unreachable from a
+verdict — a green suite settles on its digests and never builds a comparison at
+all. The answer names the component, the file and the frequency band:
+
+```
+[unstable] story:case-surface--ticking: … Clock src/ds.jsx:118 read differently
+  (geometry, token, content)
+```
+
+It costs one collection per subject and never a render, so a sweep of 300
+subjects is 300 cheap collections — the shape that pays for itself nightly rather
+than on every pull request. The `alone.limit` budget does not apply: an operator
+who asked about the suite must not be handed the first twenty subjects under a
+whole-suite heading. `alone.limit: 0` still turns it off, because one number
+cannot mean *do not re-collect anything* on Tuesday and something else on
+Wednesday.
+
+Unstable subjects exit **1** even when every verdict is green — a sweep that
+found six and exited 0 would have told CI nothing it could act on.
 
 ### Reporting without gating
 

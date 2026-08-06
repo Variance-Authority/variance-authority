@@ -298,7 +298,7 @@ export async function runWith(
   config: Config,
   collector: Collector,
   store: RasterStore,
-  options: { subjects?: string; intent?: string; renderer?: Renderer } = {},
+  options: { subjects?: string; intent?: string; renderer?: Renderer; flakes?: boolean } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {
   const written: Written = { artifacts: new Map(), reports: [] };
 
@@ -306,6 +306,7 @@ export async function runWith(
     config,
     ...(options.subjects !== undefined ? { subjects: options.subjects } : {}),
     ...(options.intent !== undefined ? { intent: options.intent } : {}),
+    ...(options.flakes === true ? { flakes: true } : {}),
     deps: {
       collector,
       store,

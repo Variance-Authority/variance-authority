@@ -116,11 +116,16 @@ rejected folding `ignored` into `unchanged`: `changed` is true — the pixels
 really did move — and a word that replaced it would lose that. It is carried as a
 field and rendered as a label, exactly as order dependence is.
 
-**Read every subject twice.** It would find latent instability on subjects that
-happened to agree with their baseline this run, which is real value. It also
+**Read every subject twice, always.** It finds latent instability on subjects
+that happened to agree with their baseline this run, which is real value — and it
 doubles the collection cost of every green run, which is the cost this project
-exists to not pay. The current rule spends only on subjects somebody was going to
-have to review anyway.
+exists to not pay. So it is a *mode*, `variance run --flakes`, rather than the
+default: the per-run rule spends only on subjects somebody was going to review
+anyway, and the sweep is the nightly job that answers *which of these would flake
+tomorrow*. The sweep ignores `alone.limit` — an operator who asked about the
+suite must not be handed the first twenty subjects under a whole-suite heading —
+and an unstable subject exits `1` even when every verdict is green, because a
+sweep that found six and exited `0` told CI nothing it could act on.
 
 **Suppress a recurring difference automatically**, once its shape has appeared
 often enough. That is the shipped answer elsewhere and it works at a scale

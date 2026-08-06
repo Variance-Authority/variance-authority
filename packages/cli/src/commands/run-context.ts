@@ -45,6 +45,23 @@ export interface RunOptions {
   readonly intent?: string;
   /** `--subjects`. Non-matching subjects are listed as excluded, never dropped. */
   readonly subjects?: string;
+
+  /**
+   * `--flakes`: read **every** subject twice, not only the ones that changed.
+   *
+   * The sweep. A run's ordinary second reading fires only on a subject somebody
+   * was going to have to review anyway, which is what makes it free — and also
+   * means the first time a flake is seen, it has already cost a red build. This
+   * mode buys the other half: it finds a subject that agrees with its baseline
+   * today and disagrees with *itself*, which is the same defect one run earlier.
+   *
+   * It is a mode rather than a default because it doubles the collection cost of
+   * a green run, and a nightly sweep is the shape that pays for itself. The
+   * `alone.limit` budget does not apply to it: an operator who asked for the
+   * sweep asked for the whole suite, and a silently partial answer that looks
+   * complete is the failure this tool exists to refuse.
+   */
+  readonly flakes?: boolean;
 }
 
 export interface ObserveContext {
@@ -60,6 +77,8 @@ export interface ObserveContext {
    * callable from a test with a budget of its own.
    */
   readonly budget: { remaining: number };
+  /** `--flakes`: read every subject twice, outside the budget. See `RunOptions`. */
+  readonly sweep?: boolean;
   /** Absent means `pngjs`. See `decoderFor`. */
   readonly decoder?: PngDecoder;
 }

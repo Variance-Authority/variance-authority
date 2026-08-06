@@ -118,6 +118,16 @@ runs only on subjects the run already called `changed`, inside the same
 dependence. The image on disk is one of two readings, chosen by a race, and
 promoting it makes the coin flip the thing every later run is measured against.
 
+**The sweep, for the other half of the question.** The rule above fires only on a
+subject the run already called `changed`, which means the first time a flake is
+seen it has already cost a red build. `variance run --flakes` reads *every*
+subject twice instead, so a subject that agrees with its baseline and disagrees
+with itself is found one run earlier — and that is unreachable from a verdict,
+because a green suite settles on its digests and never builds a comparison at
+all. It costs one collection per subject and no render, which is the shape that
+pays for itself nightly rather than on every pull request, and it exits `1` even
+when every verdict is green.
+
 **Two readings is a floor, not a ceiling.** A subject that reads differently one
 time in fifty passes this forty-nine runs out of fifty, and an absent finding
 means *this run's two readings agreed* — never *this subject is stable*. The

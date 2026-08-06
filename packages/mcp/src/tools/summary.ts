@@ -64,8 +64,15 @@ export const summarize: Tool = {
     // "you already decided not to look at this" is the output nobody reads —
     // which is how the *other* lines get missed. The header count keeps it
     // visible, and `variance run` prints the per-rule ledger beneath it.
+    //
+    // `unstable` goes the other way and joins this list even when the verdict is
+    // green, and the reason is the last line of this answer: a run whose only
+    // finding was an unstable subject printed "nothing to review" directly under
+    // a heading naming six of them. Under `--flakes` that is the *normal* case —
+    // every subject agrees with its baseline, and the whole point of the mode is
+    // what agreeing with a baseline does not say — so it was not an edge.
     const notable = report.observations.filter(
-      (o) => o.verdict !== 'unchanged' && o.verdict !== 'ignored',
+      (o) => (o.verdict !== 'unchanged' && o.verdict !== 'ignored') || o.unstable !== undefined,
     );
 
     return [
@@ -175,8 +182,8 @@ function remedies(bands: ReadonlySet<string>): readonly string[] {
     '  What each band that moved usually means:',
     ...lines,
     '  If the movement is genuinely inherent to the subject — a real clock, a live feed —',
-    '  mask the *element* rather than accept the subject: `variance_describe` names it, and',
-    '  an element-scoped ignore follows it when layout moves. Reach for that second, not',
+    '  mask the *element* rather than accept the subject: the component named above is it,',
+    '  and an element-scoped ignore follows it when layout moves. Reach for that second, not',
     '  first: a mask hides the next regression that lands in the same place.',
   ];
 }

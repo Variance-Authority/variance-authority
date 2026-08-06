@@ -134,6 +134,7 @@ describe('parseArgs', () => {
       'command',
       'config',
       'exitZeroOnChanges',
+      'flakes',
     ]);
   });
 

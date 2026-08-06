@@ -130,6 +130,12 @@ export async function observeOne(
     // run-level ledger that every rule the operator wrote had resolved nowhere.
     const declared = declaredIgnores(collected.snapshot, identity.deviceScaleFactor);
 
+    // The sweep reaches here or it reaches almost nothing. A green suite settles
+    // on its digests and never builds an `Observation` at all, so a mode whose
+    // whole purpose is finding the subjects that would flake *tomorrow* has to be
+    // asked on the path that today's green subjects actually take.
+    const swept = await again(planned, collected, settlement.verdict, context, collecting);
+
     return {
       kind: 'observed',
       record: {
@@ -138,6 +144,7 @@ export async function observeOne(
         because: settlement.because + qualification(diagnostics),
         changedPixels: 0,
         regions: [],
+        ...swept,
         ...(findings !== undefined ? { findings } : {}),
         ...(declared !== undefined ? { ignored: declared } : {}),
         ...(missingFonts.length > 0 ? { missingFonts } : {}),
@@ -189,7 +196,7 @@ async function investigate(
   unstable?: CliObservationRecord['unstable'];
   alone?: CliObservationRecord['alone'];
 }> {
-  const unstable = await again(planned, collected, observation, context, collecting);
+  const unstable = await again(planned, collected, observation.verdict, context, collecting);
   if (unstable.unstable !== undefined) return unstable;
 
   return alone(planned, observation, key, context, collecting);

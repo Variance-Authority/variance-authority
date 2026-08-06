@@ -85,6 +85,7 @@ export async function dispatch(
           config: effective,
           ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
+          ...(parsed.flakes ? { flakes: true } : {}),
           deps: {
             collector,
             store: await storeFor(effective),

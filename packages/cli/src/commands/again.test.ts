@@ -7,6 +7,7 @@ import {
   type SourceIndex,
 } from '@variance-authority/core';
 import type { Found } from '@variance-authority/raster';
+import { EXIT_REVIEW, exitFor } from '../exit.js';
 import type { Collected, Collector, Plan } from './run.js';
 import {
   VIEWPORT,
@@ -306,6 +307,61 @@ describe('a subject that does not read the same way twice', () => {
     expect(report.observations[0]?.unstable).toBeDefined();
     expect(report.observations[1]?.unstable).toBeDefined();
     expect(report.observations[2]?.unstable).toBeUndefined();
+  });
+
+  it('finds a subject that agrees with its baseline and not with itself, under --flakes', async () => {
+    // The whole point of the sweep, and it is unreachable from a verdict. This
+    // subject settles on its digest — the run never builds an `Observation` for
+    // it at all — and it would have flaked on the next commit that touched
+    // anything near it. One run earlier, for one collection.
+    const collector = ticking(['fixture:a'], { snapshots: true });
+    const store = storeAnswering(whiteBaselineOf(reading('fixture:a', '12:00')));
+
+    const { report } = await runWith(configOf(), collector, store, {
+      renderer: painter(),
+      flakes: true,
+    });
+
+    expect(report.observations[0]?.verdict).toBe('unchanged');
+    expect(report.observations[0]?.unstable?.components).toEqual([{ name: 'Clock' }]);
+    // Not the changed-subject sentence: nothing here is unconfirmed, and telling
+    // an operator their difference is uncleared when there was no difference
+    // would send them looking for one.
+    expect(report.observations[0]?.unstable?.because).toContain('verdict of `unchanged`');
+    expect(exitFor(report)).toBe(EXIT_REVIEW);
+  });
+
+  it('sweeps the whole suite rather than the first `alone.limit` of it', async () => {
+    // A budget exists to cap how much of a red build's investigation is worth
+    // paying for. A sweep is not that, and an operator who asked about the suite
+    // and got the first two subjects under a whole-suite heading would have been
+    // handed a partial answer that looks complete.
+    const collector = ticking(['fixture:a', 'fixture:b', 'fixture:c'], { snapshots: true });
+
+    const { report } = await runWith(
+      configOf({ alone: { limit: 2 } }),
+      collector,
+      storeAnswering(baselineOf('fixture:a')),
+      { renderer: painter(), flakes: true },
+    );
+
+    expect(report.observations.map((o) => o.unstable !== undefined)).toEqual([true, true, true]);
+  });
+
+  it('is still off at zero, which is the one number that means do not re-collect', async () => {
+    // `limit: 0` and `--flakes` contradict each other, and the config wins. One
+    // number cannot mean "do not re-collect anything" on Tuesday and "except when
+    // asked nicely" on Wednesday.
+    const collector = ticking(['fixture:a'], { snapshots: true });
+
+    const { report } = await runWith(
+      configOf({ alone: { limit: 0 } }),
+      collector,
+      storeAnswering(baselineOf('fixture:a')),
+      { renderer: painter(), flakes: true },
+    );
+
+    expect(report.observations[0]?.unstable).toBeUndefined();
   });
 
   it('turns off at zero, in the same breath as the clean-world pass', async () => {

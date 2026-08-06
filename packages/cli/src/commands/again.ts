@@ -9,7 +9,6 @@ import {
   type SemanticSnapshot,
   type SourceIndex,
 } from '@variance-authority/core';
-import type { Observation } from '@variance-authority/observe';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import type { Collected, PlannedSubject } from './collector.js';
 import type { ObserveContext } from './run-context.js';
@@ -77,18 +76,32 @@ import type { CliObservationRecord } from './run-report.js';
 export async function again(
   planned: PlannedSubject,
   collected: Extract<Collected, { ok: true }>,
-  observation: Observation,
+  verdict: string,
   context: ObserveContext,
   collecting: <T>(job: () => Promise<T>) => Promise<T>,
 ): Promise<{ unstable?: NonNullable<CliObservationRecord['unstable']> }> {
   const { config, deps, budget } = context;
+  const sweep = context.sweep === true;
 
   // Nothing to establish about a subject nobody has to review, and this is why a
-  // green run pays for none of it.
-  if (observation.verdict !== 'changed') return {};
+  // green run pays for none of it — until `--flakes`, where the operator has
+  // asked the opposite question: not *is this change real* but *which of these
+  // subjects would flake tomorrow*. A subject that agrees with its baseline and
+  // disagrees with itself is that answer, one run before it costs anybody a
+  // build, and it is unreachable from a verdict.
+  if (!sweep && verdict !== 'changed') return {};
 
   const limit = config.alone?.limit ?? DEFAULT_ALONE_LIMIT;
-  if (limit === 0 || budget.remaining <= 0) return {};
+
+  // `limit: 0` turns the pass off, and it turns this one off too — one number
+  // means "do not re-collect anything" or it means nothing. The *budget* is a
+  // different matter: it caps how much of a red build's investigation is worth
+  // paying for, and a sweep is not an investigation of a build. An operator who
+  // asked for the sweep asked about the suite, and a run that answered for the
+  // first twenty subjects while printing a whole-suite heading would be the
+  // silently-partial answer this tool refuses everywhere else.
+  if (limit === 0) return {};
+  if (!sweep && budget.remaining <= 0) return {};
 
   // Through the collector's one lane, for the reason every other collection goes
   // through it: the world is a single standing page and two collections at once
@@ -100,7 +113,7 @@ export async function again(
     // observed, once. A collector that produced this subject and then could not
     // produce it again has already answered the question this pass asks, and the
     // answer is the loudest form of yes.
-    budget.remaining -= 1;
+    if (!sweep) budget.remaining -= 1;
     return {
       unstable: {
         components: [],
@@ -118,7 +131,9 @@ export async function again(
   // Charged here rather than in `alone`, because `alone` is about to be skipped
   // and this subject must still count against the run's cap. Every investigated
   // subject spends exactly one, whichever of the two passes reached a finding.
-  budget.remaining -= 1;
+  // A sweep charges nothing: it is not spending a red build's investigation
+  // budget, and letting it do so would leave the clean-world pass with none.
+  if (!sweep) budget.remaining -= 1;
 
   const moved = movedBetween(collected.snapshot, second.snapshot, collected.source);
 
@@ -129,8 +144,12 @@ export async function again(
       because:
         'read twice in the same world, seconds apart, with nothing changed in between, ' +
         `and the two readings disagree${describeMovement(moved)}. The subject does not ` +
-        'read the same way twice, so its difference against the baseline is neither ' +
-        'confirmed nor cleared — and no comparison of it means anything until that is fixed',
+        'read the same way twice, so ' +
+        (verdict === 'changed'
+          ? 'its difference against the baseline is neither confirmed nor cleared'
+          : `its verdict of \`${verdict}\` was reached from one of two readings that do ` +
+            'not agree, and the next run may reach the other one') +
+        ' — no comparison of it means anything until that is fixed',
     },
   };
 }
