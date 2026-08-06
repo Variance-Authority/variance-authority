@@ -194,13 +194,18 @@ export interface ObservationRecord {
    */
   readonly unstable?: {
     /**
-     * Components whose own content differed between the two readings.
+     * Components whose own content differed between the two readings, with the
+     * file that declares each one where the source index could name it.
      *
      * Empty when the collector supplied no snapshot, which is a different state
      * from *no component was responsible* — see the `because`, which says which
      * of the two it is rather than leaving an empty list to be read as an answer.
      */
-    readonly components: readonly string[];
+    readonly components: readonly {
+      readonly name: string;
+      /** `file:line`. Absent when no source index resolved the name. */
+      readonly file?: string;
+    }[];
     /** Frequency bands the disagreement fell in, e.g. `content`, `geometry`. */
     readonly bands: readonly string[];
     readonly because: string;

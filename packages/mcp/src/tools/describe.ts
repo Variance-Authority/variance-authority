@@ -56,7 +56,7 @@ export const describe: Tool = {
               (observation.unstable.components.length === 0
                 ? ', starting from the subject itself — no snapshot was collected, so nothing'
                   + ' could name the component that moved.'
-                : `, starting at ${observation.unstable.components.join(', ')}` +
+                : `, starting at ${unstableAt(observation.unstable.components)}` +
                   (observation.unstable.bands.length === 0
                     ? '.'
                     : ` (${observation.unstable.bands.join(', ')}).`)),
@@ -142,6 +142,17 @@ function label(observation: {
   if (observation.unstable !== undefined) return 'unstable';
   if (observation.alone?.reproduced === false) return 'order-dependent';
   return observation.verdict;
+}
+
+/** The unstable components as `Name file:line`, which is what an editor opens. */
+function unstableAt(
+  components: readonly { readonly name: string; readonly file?: string }[],
+): string {
+  return components
+    .map((component) =>
+      component.file === undefined ? component.name : `${component.name} ${component.file}`,
+    )
+    .join(', ');
 }
 
 function regionLine(region: RegionRecord): string {

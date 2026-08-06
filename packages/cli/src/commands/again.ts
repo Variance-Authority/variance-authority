@@ -2,9 +2,12 @@ import {
   bandsBetween,
   causesBetween,
   documentDigest,
+  formatSource,
   hashComponents,
+  resolveSource,
   type ComponentHash,
   type SemanticSnapshot,
+  type SourceIndex,
 } from '@variance-authority/core';
 import type { Observation } from '@variance-authority/observe';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
@@ -117,7 +120,7 @@ export async function again(
   // subject spends exactly one, whichever of the two passes reached a finding.
   budget.remaining -= 1;
 
-  const moved = movedBetween(collected.snapshot, second.snapshot);
+  const moved = movedBetween(collected.snapshot, second.snapshot, collected.source);
 
   return {
     unstable: {
@@ -132,8 +135,10 @@ export async function again(
   };
 }
 
+type Unstable = NonNullable<CliObservationRecord['unstable']>;
+
 interface Movement {
-  readonly components: readonly string[];
+  readonly components: Unstable['components'];
   readonly bands: readonly string[];
 }
 
@@ -154,13 +159,22 @@ interface Movement {
 function movedBetween(
   first: SemanticSnapshot | undefined,
   second: SemanticSnapshot | undefined,
+  source: SourceIndex | undefined,
 ): Movement | undefined {
   if (first === undefined || second === undefined) return undefined;
 
   const before: readonly ComponentHash[] = hashComponents(first);
   const after: readonly ComponentHash[] = hashComponents(second);
 
-  return { components: causesBetween(before, after), bands: bandsBetween(before, after) };
+  // The file, wherever the name resolves to one. A component name sends a reader
+  // to a search; `src/ds/Clock.tsx:22` sends them to the line, and the index that
+  // answers that is already in the collector's hands.
+  const components = causesBetween(before, after).map((name) => {
+    const resolved = source === undefined ? null : resolveSource(name, source);
+    return resolved === null ? { name } : { name, file: formatSource(resolved) };
+  });
+
+  return { components, bands: bandsBetween(before, after) };
 }
 
 /** The naming half of the sentence, absent when nothing could name it. */
@@ -173,5 +187,10 @@ function describeMovement(moved: Movement | undefined): string {
   }
 
   const bands = moved.bands.length === 0 ? '' : ` (${moved.bands.join(', ')})`;
-  return `: ${moved.components.join(', ')} read differently${bands}`;
+  const named = moved.components
+    .map((component) =>
+      component.file === undefined ? component.name : `${component.name} ${component.file}`,
+    )
+    .join(', ');
+  return `: ${named} read differently${bands}`;
 }

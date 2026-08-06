@@ -131,6 +131,8 @@ function instability(report: RunReport): readonly string[] {
   const unstable = report.observations.filter((o) => o.unstable !== undefined);
   if (unstable.length === 0) return [];
 
+  const bands = new Set(unstable.flatMap((o) => o.unstable?.bands ?? []));
+
   return [
     '',
     `UNSTABLE: ${unstable.length} subject(s) were read twice, seconds apart, with nothing`,
@@ -139,15 +141,53 @@ function instability(report: RunReport): readonly string[] {
     '  (`accept` refuses these). Fix what moves between two readings of the same page:',
     ...unstable.flatMap((observation) => {
       const moved = observation.unstable;
-      const where =
-        moved === undefined || moved.components.length === 0
-          ? ''
-          : ` — ${moved.components.join(', ')}`;
-      const bands = moved === undefined || moved.bands.length === 0 ? '' : ` (${moved.bands.join(', ')})`;
-      return [`    ${observation.subject}${where}${bands}`];
+      const named = (moved?.components ?? [])
+        .map((component) =>
+          component.file === undefined ? component.name : `${component.name} ${component.file}`,
+        )
+        .join(', ');
+      const where = named === '' ? '' : ` — ${named}`;
+      const inBands = moved === undefined || moved.bands.length === 0 ? '' : ` (${moved.bands.join(', ')})`;
+      return [`    ${observation.subject}${where}${inBands}`];
     }),
+    ...remedies(bands),
   ];
 }
+
+/**
+ * What the band means for the fix, which is the whole reason a band is reported.
+ *
+ * A frequency band is not a severity — it is a statement about *what kind of
+ * thing* moved, and each kind has a short list of causes. An agent handed "this
+ * subject is flaky" has a page to read; one handed `content` has four candidates
+ * and can check all of them in a minute.
+ *
+ * Masking is listed last and hedged, deliberately. A clock genuinely is a clock
+ * and an ignore is the right answer for it — but reaching for one first is how a
+ * suite ends up green over a surface nobody watches, and the same mask that hides
+ * this hides the regression that later lands in the same place.
+ */
+function remedies(bands: ReadonlySet<string>): readonly string[] {
+  const lines = [...BAND_REMEDY].filter(([band]) => bands.has(band)).map(([, hint]) => `    ${hint}`);
+  if (lines.length === 0) return [];
+
+  return [
+    '  What each band that moved usually means:',
+    ...lines,
+    '  If the movement is genuinely inherent to the subject — a real clock, a live feed —',
+    '  mask the *element* rather than accept the subject: `variance_describe` names it, and',
+    '  an element-scoped ignore follows it when layout moves. Reach for that second, not',
+    '  first: a mask hides the next regression that lands in the same place.',
+  ];
+}
+
+const BAND_REMEDY: readonly (readonly [string, string])[] = [
+  ['content', 'content — text or data moved: a clock, a random seed, an id counter, a request that had not landed'],
+  ['geometry', 'geometry — the tree or its boxes moved: layout that had not settled, a measurement taken during a transition, a late-arriving image with no intrinsic size'],
+  ['token', 'token — a declared style moved: a theme applied after first paint, a CSS-in-JS class name that carries a counter'],
+  ['a11y', 'a11y — a role, name or state moved: focus landing somewhere between readings, an aria-live region updating itself'],
+  ['texture', 'texture — the painted surface moved with nothing structural behind it'],
+];
 
 /**
  * Subjects whose change vanished when nothing else had run.

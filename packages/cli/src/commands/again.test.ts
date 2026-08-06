@@ -4,6 +4,7 @@ import {
   profileById,
   type RenderDocument,
   type SemanticSnapshot,
+  type SourceIndex,
 } from '@variance-authority/core';
 import type { Found } from '@variance-authority/raster';
 import type { Collected, Collector, Plan } from './run.js';
@@ -108,7 +109,11 @@ describe('a subject that does not read the same way twice', () => {
    */
   function ticking(
     ids: readonly string[],
-    options: { readonly frozen?: boolean; readonly snapshots?: boolean } = {},
+    options: {
+      readonly frozen?: boolean;
+      readonly snapshots?: boolean;
+      readonly source?: SourceIndex;
+    } = {},
   ): Collector & { collectCalls: string[]; aloneCalls: string[] } {
     const collectCalls: string[] = [];
     const aloneCalls: string[] = [];
@@ -127,6 +132,7 @@ describe('a subject that does not read the same way twice', () => {
         ok: true,
         document: reading(id, at),
         ...(options.snapshots === true ? { snapshot: snapshotOf(id, at) } : {}),
+        ...(options.source !== undefined ? { source: options.source } : {}),
       };
     };
 
@@ -180,9 +186,27 @@ describe('a subject that does not read the same way twice', () => {
     // "This subject is flaky" is a page to read. `Clock (content)` is a node whose
     // text moves between two readings seconds apart, and the causes of that are a
     // short list — a clock, a seed, a counter, a request that had not landed.
-    expect(report.observations[0]?.unstable?.components).toEqual(['Clock']);
+    expect(report.observations[0]?.unstable?.components).toEqual([{ name: 'Clock' }]);
     expect(report.observations[0]?.unstable?.bands).toEqual(['content']);
     expect(report.observations[0]?.unstable?.because).toContain('Clock read differently (content)');
+  });
+
+  it('resolves the component to the file an editor opens, when the collector knows one', async () => {
+    // The last step of the same handoff every other answer here makes. A name
+    // sends a reader to a search; `src/ds/Clock.tsx:22` sends them to the line,
+    // and the index that answers it is already in the collector's hands.
+    const collector = ticking(['fixture:a'], {
+      snapshots: true,
+      source: { Clock: [{ file: 'src/ds/Clock.tsx', line: 22 }] },
+    });
+    const { report } = await runWith(configOf(), collector, storeAnswering(baselineOf('fixture:a')), {
+      renderer: painter(),
+    });
+
+    expect(report.observations[0]?.unstable?.components).toEqual([
+      { name: 'Clock', file: 'src/ds/Clock.tsx:22' },
+    ]);
+    expect(report.observations[0]?.unstable?.because).toContain('Clock src/ds/Clock.tsx:22');
   });
 
   it('says nothing could name it, rather than naming nothing, with no snapshot', async () => {

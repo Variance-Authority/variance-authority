@@ -1,0 +1,127 @@
+import { describe, expect, it } from 'vitest';
+import type { RunReport } from '@variance-authority/report';
+import { toolByName } from '../tools.js';
+
+/**
+ * How a subject that did not agree with itself reaches an agent.
+ *
+ * The mechanism is `packages/cli`'s and is asserted there. What is asserted here
+ * is the handoff, which is a different thing and fails differently: three
+ * subjects can all be `changed`, all need different work, and an agent handed the
+ * verdict alone acts on the wrong one two times out of three.
+ *
+ * So every test below is about a word, a precedence, or a next step — and the
+ * one that matters most is that this answer tells an agent *not* to do the thing
+ * every other part of this surface is telling it to do.
+ */
+
+function reportWith(observation: Record<string, unknown>): RunReport {
+  return {
+    runVersion: 1,
+    at: '2026-08-06T10:00:00.000Z',
+    identity: {
+      renderer: 'playwright-chromium',
+      engine: 'chromium@131.0.0',
+      platform: 'darwin/arm64',
+      deviceScaleFactor: 1,
+      fonts: [],
+    },
+    retention: 'durable',
+    observations: [
+      {
+        subject: 'story:checkout--summary',
+        verdict: 'changed',
+        because: '804 pixel(s) differ across 2 region(s)',
+        changedPixels: 804,
+        regions: [{ x: 0, y: 0, width: 10, height: 10, pixels: 804, component: 'Clock', cause: true }],
+        ...observation,
+      },
+    ],
+    notObserved: [],
+  } as unknown as RunReport;
+}
+
+const UNSTABLE = {
+  unstable: {
+    components: [{ name: 'Clock', file: 'src/ds/Clock.tsx:22' }],
+    bands: ['content'],
+    because:
+      'read twice in the same world, seconds apart, with nothing changed in between, and ' +
+      'the two readings disagree: Clock src/ds/Clock.tsx:22 read differently (content)',
+  },
+};
+
+function summary(report: RunReport): string {
+  return String(toolByName('variance_summary')?.run(report, {}));
+}
+
+function describeSubject(report: RunReport): string {
+  return String(
+    toolByName('variance_describe')?.run(report, { subject: 'story:checkout--summary' }),
+  );
+}
+
+describe('a subject that did not agree with itself', () => {
+  it('is labelled by what it is, not by its verdict', () => {
+    // The verdict stays `changed`, because the pixels did move. An agent that
+    // acts on that word opens a component nobody edited.
+    expect(summary(reportWith(UNSTABLE))).toContain('[unstable] story:checkout--summary');
+    expect(describeSubject(reportWith(UNSTABLE))).toContain('[unstable] story:checkout--summary');
+  });
+
+  it('tells the agent not to review the regions it is about to be shown', () => {
+    // The regions are still printed, because they are real. What is added is that
+    // *which* of them appear was decided by a race, so reading them as the shape
+    // of an edit is reading a diff against a coin flip.
+    const answer = describeSubject(reportWith(UNSTABLE));
+
+    expect(answer).toContain('NOT A COMPONENT CHANGE');
+    expect(answer).toContain('decided by a race');
+    expect(answer).toContain('src/ds/Clock.tsx:22');
+  });
+
+  it('says what the band means, because that is what bounds the fix', () => {
+    // A band is not a severity — it is what kind of thing moved, and each kind
+    // has a short list of causes. This is the difference between a page to read
+    // and four things to check.
+    const answer = summary(reportWith(UNSTABLE));
+
+    expect(answer).toContain('content — text or data moved');
+    expect(answer).toContain('a clock, a random seed, an id counter');
+  });
+
+  it('offers a mask second and says why it is second', () => {
+    // A clock genuinely is a clock, and an ignore is the right answer for one.
+    // Leading with it is how a suite ends up green over a surface nobody watches.
+    const answer = summary(reportWith(UNSTABLE));
+
+    expect(answer).toContain('mask the *element*');
+    expect(answer).toContain('hides the next regression that lands in the same place');
+  });
+
+  it('outranks the clean-world answer, which was never taken', () => {
+    // Precedence, and it is not cosmetic. `alone` concludes "the clean reading
+    // differs from the shared one, therefore the world moved it", which is only
+    // evidence when two readings of one world would have agreed. On this subject
+    // it is not asked at all, and a report carrying both must not print the one
+    // that was disqualified.
+    const answer = summary(
+      reportWith({ ...UNSTABLE, alone: { reproduced: false, because: 'gone alone' } }),
+    );
+
+    expect(answer).toContain('[unstable]');
+    expect(answer).not.toContain('[order-dependent]');
+  });
+
+  it('says nothing at all when every subject agreed with itself', () => {
+    // Absence of the section is absence of a *finding*, never a certificate: two
+    // readings put a floor under flakiness and no ceiling on it. The section is
+    // omitted rather than printed empty, for the reason every other heading here
+    // is — a heading over nothing invites the reader to conclude something was
+    // checked and was fine.
+    const answer = summary(reportWith({}));
+
+    expect(answer).not.toContain('UNSTABLE');
+    expect(answer).toContain('[changed] story:checkout--summary');
+  });
+});
