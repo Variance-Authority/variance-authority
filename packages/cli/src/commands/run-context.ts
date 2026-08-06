@@ -65,5 +65,17 @@ export interface ObserveContext {
 }
 
 export type Outcome =
-  | { readonly kind: 'observed'; readonly record: CliObservationRecord }
+  | {
+      readonly kind: 'observed';
+      readonly record: CliObservationRecord;
+      /**
+       * Stabilization tricks the collector applied to the page for this subject.
+       *
+       * On the outcome rather than on the record, because it is almost always
+       * the same list for every subject in a run and a per-subject copy would be
+       * three hundred identical lines in an artifact people already find long.
+       * The run folds them into one set and states it once.
+       */
+      readonly stabilization?: readonly string[];
+    }
   | { readonly kind: 'not-observed'; readonly entry: NotObserved };

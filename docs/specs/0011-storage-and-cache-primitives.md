@@ -128,7 +128,7 @@ index says *why* — "`Card`'s style hash moved" — which is the sentence this
 product promises about a diff, applied to the cache instead.
 
 **Supplying `before` and `causes` on the durable path.** Today both come from the
-collector (the contract SubjectSource `packages/cli/src/commands/collector.ts:187`),
+collector (the contract SubjectSource `packages/cli/src/commands/collector.ts:199`),
 so a durable baseline — an image with no document behind it — has neither, and the
 docket falls back to ranking by area. ADR-0021 records that ordering as measured
 backwards: a container that only reflowed outranks the edit by 6×. Since the PR

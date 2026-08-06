@@ -198,6 +198,29 @@ before the next subject is read.
 
 ---
 
+## The run says what it did
+
+```
+stabilization: the subject was altered to be observable: animations pinned at
+their first frame, which is not where a user sees them; scrollbars hidden,
+removing a platform and preference difference — and their width; waited for web
+fonts, whose advances change every metric on the page; waited for images to
+decode, since their intrinsic size participates in layout
+```
+
+Printed near the top of `variance report`, before the docket, because it changes
+how every image below it should be read. A fade-in captured at its first frame is
+a correct observation of a page that was **altered to be observable**, and a
+reviewer who does not know that is looking at a component in a state no user ever
+sees and has not been told.
+
+Each clause comes from the trick's own `because`, so a project that writes its
+own gets a sentence here without editing anything, and a trick whose description
+is wrong is wrong in exactly one place.
+
+Absent means no collector reported stabilizing — which is a real state and not a
+missing feature: a jsdom collection has nothing to hold still.
+
 ## The baseline remembers
 
 ```ts

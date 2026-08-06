@@ -258,6 +258,14 @@ async function observeAll(
   // ledger takes the plan's vocabulary.
   const sensitivities = sensitivityLedgerOf(config.sensitivity ?? [], plan.subjects, observations);
 
+  // One set for the run, folded from the outcomes. Contract 2: this is the only
+  // alteration the tool makes to somebody else's page, and a report that shows a
+  // fade-in captured at its first frame without saying the frame was chosen is a
+  // report whose reader has been handed an image nobody described.
+  const applied = new Set(
+    slots.flatMap((slot) => (slot?.kind === 'observed' ? [...(slot.stabilization ?? [])] : [])),
+  );
+
   const report: CliRunReport = {
     runVersion: 1,
     at,
@@ -269,6 +277,7 @@ async function observeAll(
     ...(warnings.length > 0 ? { warnings } : {}),
     ...(ignores !== undefined ? { ignores } : {}),
     ...(sensitivities !== undefined ? { sensitivities } : {}),
+    ...(applied.size > 0 ? { stabilization: [...applied].sort() } : {}),
   };
 
   await deps.writeReport(config.report, report);

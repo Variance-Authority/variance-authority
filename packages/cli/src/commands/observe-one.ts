@@ -143,6 +143,7 @@ export async function observeOne(
 
   return {
     kind: 'observed',
+    ...(collected.stabilization !== undefined ? { stabilization: collected.stabilization } : {}),
     record: recordOf(observation, {
       ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
       ...(collected.source !== undefined ? { source: collected.source } : {}),

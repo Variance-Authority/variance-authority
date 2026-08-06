@@ -2,6 +2,7 @@ import { toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import type { CliRunReport } from './run.js';
 import { reportHtml } from './report-html.js';
+import { describeRecipe, recipeOf } from '@variance-authority/core';
 import { summarizeLedger } from './ignores.js';
 import { summarizeSensitivities } from './sensitivities.js';
 
@@ -130,7 +131,13 @@ function asText(options: ReportOptions): string {
     return tool('variance_describe', report, { subject });
   }
 
-  return [tool('variance_summary', report, {}), ignores(report), sensitivities(report), warnings(report)]
+  return [
+    tool('variance_summary', report, {}),
+    stabilization(report),
+    ignores(report),
+    sensitivities(report),
+    warnings(report),
+  ]
     .filter((section) => section !== '')
     .join('\n\n');
 }
@@ -175,6 +182,26 @@ function ignores(report: CliRunReport): string {
  */
 function sensitivities(report: CliRunReport): string {
   return summarizeSensitivities(report.sensitivities).join('\n');
+}
+
+/**
+ * What the run did to the page, in the sentence the tricks write themselves.
+ *
+ * Printed near the top rather than buried with the ledgers, because it changes
+ * how every image below it should be read. A fade-in captured at its first frame
+ * is a correct observation of a page that was *altered to be observable*, and a
+ * reader who does not know that is looking at a component in a state no user
+ * ever sees and has not been told.
+ *
+ * Each trick supplies its own clause, from the `because` it carries — so a
+ * project that adds one gets it printed here without editing this file, and a
+ * trick whose sentence is wrong is wrong in one place.
+ */
+function stabilization(report: CliRunReport): string {
+  if (report.stabilization === undefined || report.stabilization.length === 0) return '';
+
+  const recipe = recipeOf(report.stabilization);
+  return `stabilization: ${describeRecipe(recipe)}`;
 }
 
 function warnings(report: CliRunReport): string {

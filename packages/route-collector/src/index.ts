@@ -104,6 +104,16 @@ export type Collected =
       readonly document: RenderDocument;
       readonly snapshot?: SemanticSnapshot;
       readonly source?: SourceIndex;
+
+      /**
+       * Stabilization tricks applied to the page before this subject was read.
+       *
+       * Reported so a run can say what it did to somebody else's page. The
+       * digest of the same list is in the environment key, which is what makes a
+       * differently-stabilized baseline `incomparable`; this is the half a
+       * person reads.
+       */
+      readonly stabilization?: readonly string[];
     }
   | { readonly ok: false; readonly because: string };
 
@@ -392,6 +402,9 @@ export function routeCollector(
           // jsdom path uses, and running it in the browser would make the two
           // profiles two implementations of it.
           snapshot: normalizeCapture(acquired.capture),
+          ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
+            ? { stabilization: acquired.stabilization }
+            : {}),
           ...(source !== undefined ? { source } : {}),
         };
       },

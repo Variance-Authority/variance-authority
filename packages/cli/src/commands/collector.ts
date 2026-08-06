@@ -88,6 +88,18 @@ export type Collected =
       readonly before?: RenderDocument;
       /** The normalized snapshot of the same render; without it regions have no names. */
       readonly snapshot?: SemanticSnapshot;
+
+      /**
+       * Stabilization tricks the collector applied before reading this subject.
+       *
+       * Reported by a run so it can state what it did to the page — the one
+       * alteration this tool makes to somebody else's application, and therefore
+       * the one contract 2 most obviously covers. A collector that supplies
+       * nothing here is saying it did not stabilize, which is a real answer:
+       * the Playwright fixture stabilizes too, and a hand-written collector may
+       * not.
+       */
+      readonly stabilization?: readonly string[];
       /**
        * Components the semantic tier named as *roots* of the change.
        *

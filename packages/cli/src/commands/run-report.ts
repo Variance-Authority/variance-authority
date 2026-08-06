@@ -111,6 +111,22 @@ export interface CliRunReport extends RunReport {
    * audit either of them.
    */
   readonly sensitivities?: SensitivityLedger;
+
+  /**
+   * Stabilization tricks the collectors applied before reading anything.
+   *
+   * The run's own answer to contract 2 — *declare what you did* — for the one
+   * thing this tool does to an application that is not reading it. A subject
+   * whose fade-in was captured at its first frame is a correct observation of a
+   * page that was altered to be observable, and a report that shows the image
+   * without saying so is a report whose reader was handed a picture nobody
+   * described.
+   *
+   * Absent means no collector reported stabilizing, which is a real state: a
+   * jsdom collection has nothing to hold still, and a hand-written collector may
+   * simply not do it.
+   */
+  readonly stabilization?: readonly string[];
 }
 
 /**

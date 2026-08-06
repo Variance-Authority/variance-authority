@@ -60,6 +60,18 @@ export interface AcquireRequest {
 export interface Acquired {
   readonly document: RenderDocument;
   readonly capture: RawCapture;
+
+  /**
+   * Tricks actually applied before the subject was read, by id.
+   *
+   * Sent back rather than assumed, because what the driver asked for and what
+   * the page could do are different lists: the recipe is filtered by the tier
+   * the host can observe. A run that printed its *request* would be declaring
+   * something that may not have happened, which is the failure contract 2 exists
+   * to prevent — and this is the one alteration the tool makes to somebody
+   * else's page.
+   */
+  readonly stabilization: readonly string[];
 }
 
 /**
@@ -112,7 +124,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
   });
 
-  return JSON.stringify({ document, capture });
+  return JSON.stringify({ document, capture, stabilization: held.ids });
 }
 
 export const AGENT_VERSION = 'route-collector@0';
