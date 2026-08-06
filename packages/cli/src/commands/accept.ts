@@ -168,6 +168,21 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
     // session poisoned as the thing every later run is measured against, and
     // the subject would then compare `unchanged` for exactly as long as the leak
     // survives — the failure being baselined along with the pixels.
+    // Ahead of the leak refusal, in the order the run established them. A subject
+    // that does not read the same way twice has no candidate to promote — the
+    // image on disk is one of the two readings, chosen by which one the renderer
+    // happened to be handed, and approving it makes the coin flip the baseline
+    // that every later run is measured against.
+    if (observation.unstable !== undefined) {
+      refused.push({
+        subject: observation.subject,
+        because:
+          `${observation.unstable.because}. Accepting it would promote one of two readings ` +
+          'as the baseline; fix what moves between them, or re-run once it is fixed',
+      });
+      continue;
+    }
+
     if (observation.alone?.reproduced === false) {
       refused.push({
         subject: observation.subject,

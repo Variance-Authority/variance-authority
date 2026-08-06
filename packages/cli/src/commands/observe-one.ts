@@ -1,12 +1,19 @@
 import { documentDigest, type Level } from '@variance-authority/core';
-import { declaredIgnores, observeAgainstBaseline, observePair } from '@variance-authority/observe';
+import {
+  declaredIgnores,
+  observeAgainstBaseline,
+  observePair,
+  type Observation,
+} from '@variance-authority/observe';
 import { settle, type BaselineKey } from '@variance-authority/raster';
+import { again } from './again.js';
 import { alone } from './alone.js';
 import type { Collected, PlannedSubject } from './collector.js';
 import { liveIgnores, scopedTo } from './ignores.js';
 import { images } from './images.js';
 import { diagnosticsOf, findingsField, findingsOf, qualification, recordOf } from './record.js';
 import type { ObserveContext, Outcome } from './run-context.js';
+import type { CliObservationRecord } from './run-report.js';
 import type { Config } from '../config.js';
 
 /**
@@ -83,7 +90,7 @@ export async function observeOne(
         ...(await images(id, observation, collected.document, renderer, config, deps, null, collected.snapshot)),
         diagnostics,
         ...findingsField(collected),
-        ...(await alone(planned, observation, null, context, collecting)),
+        ...(await investigate(planned, collected, observation, null, context, collecting)),
       }),
     };
   }
@@ -150,9 +157,42 @@ export async function observeOne(
       ...(await images(id, observation, collected.document, renderer, config, deps, key, collected.snapshot)),
       diagnostics,
       ...findingsField(collected),
-      ...(await alone(planned, observation, key, context, collecting)),
+      ...(await investigate(planned, collected, observation, key, context, collecting)),
     }),
   };
+}
+
+/**
+ * The two second passes, in the one order that makes either of them mean
+ * anything.
+ *
+ * `again` holds the world and lets time pass; `alone` rebuilds the world and
+ * holds time. Both re-collect a subject the run called `changed`, and the whole
+ * value of the second depends on the first having come back quiet: `alone`
+ * concludes *the clean reading differs from the shared one, therefore the world
+ * moved it*, and that inference is only available when two readings of one world
+ * would have agreed. Asked in the other order, a subject with a clock in it
+ * produces a confident sentence about suite pollution and sends somebody to
+ * bisect a run order that has nothing to do with it.
+ *
+ * So when the subject fails to agree with itself, `alone` is not asked. Nothing
+ * it could return would be evidence, and the run keeps a collection and a render.
+ */
+async function investigate(
+  planned: PlannedSubject,
+  collected: Extract<Collected, { ok: true }>,
+  observation: Observation,
+  key: BaselineKey | null,
+  context: ObserveContext,
+  collecting: <T>(job: () => Promise<T>) => Promise<T>,
+): Promise<{
+  unstable?: CliObservationRecord['unstable'];
+  alone?: CliObservationRecord['alone'];
+}> {
+  const unstable = await again(planned, collected, observation, context, collecting);
+  if (unstable.unstable !== undefined) return unstable;
+
+  return alone(planned, observation, key, context, collecting);
 }
 
 /**

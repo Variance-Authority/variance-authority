@@ -41,16 +41,35 @@ export const describe: Tool = {
     const { observation } = located;
 
     const lines = [
-      `[${observation.alone?.reproduced === false ? 'order-dependent' : observation.verdict}] ${observation.subject}`,
+      `[${label(observation)}] ${observation.subject}`,
       observation.because,
+      // Ahead of the leak note, because it disqualifies that one too. A clean
+      // world re-collection was never taken on this subject — its answer would
+      // have been a comparison between two readings that do not agree anyway —
+      // so there is no order-dependence claim here to place second.
+      ...(observation.unstable !== undefined
+        ? [
+            `NOT A COMPONENT CHANGE: ${observation.unstable.because}. The regions below are`,
+            'the difference between one of those two readings and the baseline, so which',
+            'ones appear here is decided by a race. Do not review them and do not accept',
+            'this subject. Fix what moves between two readings of the same page' +
+              (observation.unstable.components.length === 0
+                ? ', starting from the subject itself — no snapshot was collected, so nothing'
+                  + ' could name the component that moved.'
+                : `, starting at ${observation.unstable.components.join(', ')}` +
+                  (observation.unstable.bands.length === 0
+                    ? '.'
+                    : ` (${observation.unstable.bands.join(', ')}).`)),
+          ]
+        : []),
       // Placed second, directly under the verdict, because it changes what every
       // line below it means. The regions are still correct — those pixels really
       // did move, in those components — but they are the shape of a leak rather
       // than the shape of an edit, and an agent that reads the region list first
       // starts editing a component whose source nobody changed.
-      ...(observation.alone?.reproduced === false
+      ...(observation.unstable === undefined && observation.alone?.reproduced === false
         ? [
-            `NOT A COMPONENT CHANGE: ${observation.alone.because}. The regions below are real`,
+            `NOT A COMPONENT CHANGE: ${observation.alone?.because}. The regions below are real`,
             'but they are what the leak did, not what an edit did. Do not change these',
             'components. Find the subject that writes the state this one reads by bisecting',
             'run order — the run cannot name it, because module-level state is invisible to',
@@ -106,6 +125,24 @@ export const describe: Tool = {
     return lines.join('\n');
   },
 };
+
+/**
+ * What the subject *is*, which is not always its verdict.
+ *
+ * Three words over one, and the order is the precedence: instability disqualifies
+ * the clean-world answer, which in turn re-reads the verdict. All three subjects
+ * are `changed` — the pixels did move — and all three need different work, so a
+ * reader given the verdict alone acts on the wrong one two times out of three.
+ */
+function label(observation: {
+  readonly verdict: string;
+  readonly unstable?: unknown;
+  readonly alone?: { readonly reproduced: boolean };
+}): string {
+  if (observation.unstable !== undefined) return 'unstable';
+  if (observation.alone?.reproduced === false) return 'order-dependent';
+  return observation.verdict;
+}
 
 function regionLine(region: RegionRecord): string {
   const head = region.unattributed === true

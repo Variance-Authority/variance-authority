@@ -75,6 +75,23 @@ cannot be derived from anything else in the report, and it names which subjects
 the command will refuse, so the agent proposes something that works rather than
 something that gets rejected.
 
+`variance_summary` labels a subject by what it *is*, which is not always its
+verdict. Three subjects can all be `changed` — the pixels did move — and need
+three different people:
+
+| label | what happened | what to do |
+|---|---|---|
+| `unstable` | read twice, seconds apart, nothing changed in between, and the two readings disagreed | fix what moves between readings; the named component and band say where. Do not review the regions — which ones appear was decided by a race |
+| `order-dependent` | the difference is gone when the subject is collected with nothing else in the world | do not change the component; bisect run order to find the subject that writes the state this one reads |
+| `changed` | it survived both | review it |
+
+`accept` refuses the first two, so an agent that proposes promoting one is
+proposing something that will be rejected. The precedence is the order above:
+instability disqualifies the clean-world answer, because that answer's whole
+inference is *the clean reading differs from the shared one, therefore the world
+moved it* — which is only evidence on a subject whose two readings would
+otherwise have agreed.
+
 `variance_findings` is the one that is not about a change. A control that never
 had an accessible name compares equal to itself on every run, so a comparison can
 never report it — and an agent asked to fix a component wants it anyway. Its

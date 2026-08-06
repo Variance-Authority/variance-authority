@@ -165,3 +165,61 @@ describe('acquiring a render document', () => {
     expect(acquired.diagnostics.map((d) => d.code)).toContain('unverified-fonts');
   });
 });
+
+/**
+ * The digest is a function of the tree, and of nothing about the run that read it.
+ *
+ * `outerHTML` writes attributes in the order the element happens to hold them,
+ * so anything that changes *when* an attribute was set changes the digest of an
+ * identical page. That is not a cosmetic property: `settle` skips a render when
+ * this run's document digest equals the digest the baseline was painted from, so
+ * a digest that drifts with collection history silently switches the cheap tier
+ * off and reports nothing at all.
+ *
+ * Measured on `cases/storybook-case` before this held: a story collected on a
+ * fresh mount serialized `<button type data-va-path style>` and the same story
+ * collected again serialized `<button type style data-va-path>` — same tree,
+ * same pixels, two digests.
+ */
+describe('a document acquired twice describes the same page twice', () => {
+  it('puts the stamp last however the element already held it', () => {
+    // The stamp survives from a previous acquisition only if something went
+    // wrong, but *position* survives routinely: `setAttribute` on an attribute
+    // that is already present updates it in place rather than appending. So the
+    // order is decided by whichever acquisition first created it.
+    const subject = mount('<div id="subject"><p>hello</p></div>');
+    const paragraph = subject.querySelector('p')!;
+    paragraph.setAttribute(PATH_ATTRIBUTE, 'stale');
+    paragraph.setAttribute('class', 'item');
+
+    const acquired = acquireDocument(subject, {
+      subject: { id: 's', kind: 'fixture' },
+      viewport: VIEWPORT,
+    });
+
+    expect(acquired.html).toContain(`<p class="item" ${PATH_ATTRIBUTE}="0/0">`);
+  });
+
+  it('produces one digest for two readings that differ only in when a stamp landed', () => {
+    const first = mount('<div id="subject"><p class="item">hello</p></div>');
+    const before = acquireDocument(first, {
+      subject: { id: 's', kind: 'fixture' },
+      viewport: VIEWPORT,
+    });
+
+    // The same tree, reached the other way round: the stamp is already there and
+    // the page's own attribute is written after it. Nothing about what is painted
+    // has changed, so nothing about the digest may.
+    const second = mount('<div id="subject"><p>hello</p></div>');
+    const paragraph = second.querySelector('p')!;
+    paragraph.setAttribute(PATH_ATTRIBUTE, '0/0');
+    paragraph.setAttribute('class', 'item');
+
+    const after = acquireDocument(second, {
+      subject: { id: 's', kind: 'fixture' },
+      viewport: VIEWPORT,
+    });
+
+    expect(documentDigest(after)).toBe(documentDigest(before));
+  });
+});

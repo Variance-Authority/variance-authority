@@ -81,10 +81,14 @@ export const summarize: Tool = {
               // stays `changed` — the pixels really did move — but a reader who
               // acts on that word reviews a component that nothing edited. The
               // two need opposite actions, so they get different words.
-              const label =
-                observation.alone?.reproduced === false ? 'order-dependent' : observation.verdict;
-              const because =
-                observation.alone?.reproduced === false
+              const label = observation.unstable
+                ? 'unstable'
+                : observation.alone?.reproduced === false
+                  ? 'order-dependent'
+                  : observation.verdict;
+              const because = observation.unstable
+                ? observation.unstable.because
+                : observation.alone?.reproduced === false
                   ? observation.alone.because
                   : observation.because;
               return `[${label}] ${observation.subject}${lead}: ${because}`;
@@ -92,12 +96,58 @@ export const summarize: Tool = {
           ]),
       '',
       ...coverage(report),
+      ...instability(report),
       ...orderDependence(report),
       ...findingsLine(report),
       ...(notable.length === 0 ? ['', settlement(report)] : []),
     ].join('\n');
   },
 };
+
+/**
+ * Subjects that did not agree with themselves, and the one section here written
+ * to be *acted on* rather than reviewed.
+ *
+ * Above every other finding, because it invalidates them. A subject that reads
+ * differently twice in a row has a verdict that was decided by which of the two
+ * readings the run happened to take first, and an agent that starts reviewing
+ * its regions is reading a diff against a coin flip. Nothing else in this
+ * summary is worth doing on these subjects until this is.
+ *
+ * The component and the band are printed because they are what makes the fix
+ * bounded. "This subject is flaky" is a page to read; `Clock (content)` is a node
+ * whose text moves between two readings taken seconds apart, and the causes of
+ * that are a short list — a clock, a random seed, an id counter, a request that
+ * had not landed. The band narrows it further: `content` is data, `geometry` is
+ * layout that has not settled, `token` is a style that is still being applied.
+ *
+ * This is where the base layer hands over. Animations are pinned, GIFs are frozen
+ * on the wire, fonts and images are waited for, and every asset's bytes are in
+ * the environment key — so a subject that still disagrees with itself is past
+ * everything a recipe can do, and is a defect in the page with a name attached
+ * rather than a tolerance to widen.
+ */
+function instability(report: RunReport): readonly string[] {
+  const unstable = report.observations.filter((o) => o.unstable !== undefined);
+  if (unstable.length === 0) return [];
+
+  return [
+    '',
+    `UNSTABLE: ${unstable.length} subject(s) were read twice, seconds apart, with nothing`,
+    '  changed in between, and the two readings disagreed. Their verdicts were decided by',
+    '  whichever reading came first, so do not review their regions and do not accept them',
+    '  (`accept` refuses these). Fix what moves between two readings of the same page:',
+    ...unstable.flatMap((observation) => {
+      const moved = observation.unstable;
+      const where =
+        moved === undefined || moved.components.length === 0
+          ? ''
+          : ` — ${moved.components.join(', ')}`;
+      const bands = moved === undefined || moved.bands.length === 0 ? '' : ` (${moved.bands.join(', ')})`;
+      return [`    ${observation.subject}${where}${bands}`];
+    }),
+  ];
+}
 
 /**
  * Subjects whose change vanished when nothing else had run.

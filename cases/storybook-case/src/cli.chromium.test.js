@@ -217,6 +217,18 @@ live('the durable workflow, end to end', () => {
     for (const held of ['ticking', 'loading', 'deferred']) {
       expect(out).not.toContain(`[changed] story:case-surface--${held}`);
     }
+
+    // Every changed subject is read a second time before its verdict is trusted,
+    // and none of these disagreed with itself. That is an assertion about *this
+    // tool*, not about the Storybook: the second reading found all five unstable
+    // when it was first run here, because Blink materializes a mutated inline
+    // style into the `style` attribute lazily and `outerHTML` therefore appended
+    // it after our own stamp on a fresh mount and before it on a re-read. Same
+    // tree, same pixels, two document digests — and a document digest is what
+    // `settle` compares to skip a render, so the whole cheap tier was quietly
+    // switching itself off depending on whether a subject had been read before.
+    // See `materializeAttributes` in `packages/dom/src/document.ts`.
+    expect(out).not.toContain('UNSTABLE');
   }, 240_000);
 
   it('names a component and a file, and cannot yet name the culprit', () => {

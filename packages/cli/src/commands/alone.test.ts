@@ -1,16 +1,15 @@
-import { deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { documentDigest, type RenderDocument } from '@variance-authority/core';
-import type { Found, Renderer } from '@variance-authority/raster';
+import type { RenderDocument } from '@variance-authority/core';
+import type { Found } from '@variance-authority/raster';
 import type { Collector, Plan } from './run.js';
 import {
-  IDENTITY,
-  VIEWPORT,
   collectorOf,
   configOf,
   documentFor,
+  painter,
   runWith,
   storeAnswering,
+  whiteBaselineOf,
 } from './run-fixture.js';
 
 /**
@@ -26,62 +25,6 @@ import {
  * as nothing at all. These subjects would pass that check and still be wrong.
  */
 describe('a change that does not survive a clean world', () => {
-  const WHITE = png(255);
-  const BLACK = png(0);
-
-  /**
-   * A real PNG, because the comparison decodes one and a stub does not survive
-   * `PNG.sync.read`. Hand-rolled on `node:zlib` rather than on `pngjs`, which
-   * would be a fourth package declaring the same requirement to write ten pixels.
-   */
-  function png(level: number): string {
-    const raw = Buffer.alloc(10 * (1 + 10 * 4));
-    for (let y = 0; y < 10; y += 1) {
-      const row = y * (1 + 10 * 4);
-      raw[row] = 0;
-      for (let x = 0; x < 10; x += 1) {
-        const at = row + 1 + x * 4;
-        raw[at] = level;
-        raw[at + 1] = level;
-        raw[at + 2] = level;
-        raw[at + 3] = 255;
-      }
-    }
-
-    const ihdr = Buffer.alloc(13);
-    ihdr.writeUInt32BE(10, 0);
-    ihdr.writeUInt32BE(10, 4);
-    ihdr[8] = 8;
-    ihdr[9] = 6;
-
-    return Buffer.concat([
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      chunk('IHDR', ihdr),
-      chunk('IDAT', deflateSync(raw)),
-      chunk('IEND', Buffer.alloc(0)),
-    ]).toString('base64');
-  }
-
-  function chunk(type: string, data: Buffer): Buffer {
-    const length = Buffer.alloc(4);
-    length.writeUInt32BE(data.length, 0);
-    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-    const crc = Buffer.alloc(4);
-    crc.writeUInt32BE(crc32(body), 0);
-    return Buffer.concat([length, body, crc]);
-  }
-
-  function crc32(bytes: Buffer): number {
-    let value = 0xffffffff;
-    for (const byte of bytes) {
-      value ^= byte;
-      for (let bit = 0; bit < 8; bit += 1) {
-        value = value & 1 ? (value >>> 1) ^ 0xedb88320 : value >>> 1;
-      }
-    }
-    return (value ^ 0xffffffff) >>> 0;
-  }
-
   /**
    * `dark` is what a leaked stylesheet did to this subject; `plain` is the truth.
    *
@@ -94,43 +37,9 @@ describe('a change that does not survive a clean world', () => {
     return documentFor(id, `<div data-va-path="0" data-paint="${paint}">x</div>`);
   }
 
-  function painter(): Renderer {
-    return {
-      identity: IDENTITY,
-      identityFor(document) {
-        return { ...IDENTITY, deviceScaleFactor: document.viewport.deviceScaleFactor };
-      },
-      async render(document) {
-        return {
-          documentDigest: documentDigest(document),
-          identity: { ...IDENTITY, deviceScaleFactor: document.viewport.deviceScaleFactor },
-          width: 10,
-          height: 10,
-          bytes: document.html.includes('data-paint="dark"') ? BLACK : WHITE,
-          missingFonts: [],
-        };
-      },
-      async close() {
-        /* nothing to release */
-      },
-    };
-  }
-
   /** The baseline: this subject, painted from a document nothing had polluted. */
   function baselineOf(id: string): Found {
-    const clean = documentPainted(id, 'plain');
-    return {
-      raster: {
-        documentDigest: documentDigest(clean),
-        identity: { ...IDENTITY, deviceScaleFactor: VIEWPORT.deviceScaleFactor },
-        width: 10,
-        height: 10,
-        bytes: WHITE,
-        missingFonts: [],
-      },
-      comparable: true,
-      storedUnder: IDENTITY,
-    };
+    return whiteBaselineOf(documentPainted(id, 'plain'));
   }
 
   /**

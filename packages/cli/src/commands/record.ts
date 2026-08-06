@@ -51,6 +51,8 @@ export function recordOf(
     readonly findings?: readonly FindingRecord[];
     /** What a clean-world re-collection said. See `alone`. */
     readonly alone?: ObservationRecord['alone'];
+    /** What a second reading of the same world said. See `again`. */
+    readonly unstable?: ObservationRecord['unstable'];
   } = {},
 ): CliObservationRecord {
   // Net of exclusions, on both policies. The comparison counts every differing
@@ -97,6 +99,7 @@ export function recordOf(
     ...(options.findings !== undefined ? { findings: options.findings } : {}),
     ...(options.images !== undefined ? { images: options.images } : {}),
     ...(options.alone !== undefined ? { alone: options.alone } : {}),
+    ...(options.unstable !== undefined ? { unstable: options.unstable } : {}),
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
   };
 }

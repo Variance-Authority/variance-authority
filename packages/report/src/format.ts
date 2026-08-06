@@ -172,6 +172,40 @@ export interface ObservationRecord {
     readonly because: string;
   };
 
+  /**
+   * The subject was read twice in one world and the two readings disagreed.
+   *
+   * The other second pass, and it answers the opposite question to
+   * {@link ObservationRecord.alone}: that one rebuilds the world and holds time,
+   * this one holds the world and lets time pass. A subject that fails this one is
+   * not a change and not a leak — it is a reading that cannot be taken twice, and
+   * everything the comparison said about it was said about one of the two.
+   *
+   * `accept` refuses it, for the reason it refuses order dependence: promoting a
+   * reading that will not reproduce makes the instability the baseline, and the
+   * next run compares against a coin flip somebody approved.
+   *
+   * **Absent means this run's two readings agreed — it does not mean stable.** A
+   * subject that reads differently one time in fifty passes twice-in-a-row forty
+   * nine runs out of fifty. Two readings put a floor under flakiness; nothing here
+   * puts a ceiling on it, and a reader who treats the absent field as a
+   * certificate has been told something this field never said. It is also absent
+   * on every subject the run did not call `changed`, which is almost all of them.
+   */
+  readonly unstable?: {
+    /**
+     * Components whose own content differed between the two readings.
+     *
+     * Empty when the collector supplied no snapshot, which is a different state
+     * from *no component was responsible* — see the `because`, which says which
+     * of the two it is rather than leaving an empty list to be read as an answer.
+     */
+    readonly components: readonly string[];
+    /** Frequency bands the disagreement fell in, e.g. `content`, `geometry`. */
+    readonly bands: readonly string[];
+    readonly because: string;
+  };
+
   /** Where the images went, when the run kept them. Relative to the report. */
   readonly images?: {
     readonly before?: string;

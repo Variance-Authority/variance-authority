@@ -409,6 +409,15 @@ The last four are all tricks Argos ships and this does not, and none of them is
 hard — they are `Intervention` values nobody has written yet. The registry is
 open precisely so that adding one is a value and not a fork.
 
+**What gets past all of it is caught rather than tolerated.** A subject the run
+calls `changed` is read a second time in the same world, and one that disagrees
+with itself is reported `unstable` — with the component and the frequency band
+that moved, not a page to go and read. That is where this page hands over to
+[`flakiness.md`](flakiness.md#what-still-gets-through-and-how-it-is-found) and to
+[ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md). The first
+thing the check found was a bug in *this* repository, which is the argument for
+having it.
+
 ---
 
 **See also.** [`flakiness.md`](flakiness.md) — what kind of thing variance is ·

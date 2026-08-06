@@ -49,7 +49,7 @@ reading. What differs here is the last column.
 | **Lazy loading, network latency** | **construction**, since 2026-08-06 | Content that arrives late is a structural difference, and correctly so — the question is whether you were still waiting when it landed. `wait-for-images` polls `document.images`, which misses anything appended during the wait and has no entry for a `background-image`; the driver watches the wire instead and knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
 | **An asset whose bytes moved behind its URL** | **environment-key**, since 2026-08-06 | Newly listed, because it was a silent false `unchanged` and nothing here said so: `EnvironmentInputs.assets` existed from the beginning and was filled by nobody, so a re-exported logo compared equal. Every image, font and media response is now hashed into the key by the only party that sees the bytes. |
 | **Animated GIFs** | **construction**, since 2026-08-06 | Newly listed for the same reason. No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. **Measured** on real screenshots. |
-| **Random seeds, unsorted data** | **nothing** | This is a real change. The fixture is the bug. |
+| **Random seeds, unsorted data** | **nothing**, and reported since 2026-08-06 | Still absorbed by nothing — this is a real change and the fixture is the bug. What is new is that it no longer arrives as a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. See [below](#what-still-gets-through-and-how-it-is-found). |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
 
@@ -67,6 +67,91 @@ A comparison that only ever finds in its own favour is an advertisement. A
 limitation left standing because writing it down felt like enough is the same
 failure with better manners — three of these rows sat here as confessions and
 were each a bug with a fix that took an afternoon.
+
+## What still gets through, and how it is found
+
+Prevention is the base layer and it is on by default
+([`stabilization.md`](stabilization.md)). What survives it is a residue, and a
+residue is worth naming rather than tolerating.
+
+A run that calls a subject `changed` is claiming something about a component, and
+there are exactly three ways for that claim to be wrong: an earlier subject left
+state behind, the page does not render the same thing twice, or somebody really
+did edit something. All three arrive identically — *the pixels moved* — and they
+need three different people to do three different things.
+
+So a changed subject is collected a second time, and there are two second passes,
+each varying exactly one thing:
+
+| | world | time | answers | reported as |
+|---|---|---|---|---|
+| **`again`** | held | advanced | does this subject move on its own? | `unstable` |
+| **`alone`** | rebuilt | same | did some *other* subject move this one? | `order-dependent` |
+
+Neither is a retry: both outcomes of both are reported, and neither clears
+anything. `again` runs first, and when it finds something `alone` is not asked —
+its whole inference is *the clean reading differs from the shared one, therefore
+the world moved it*, which is only evidence if two readings of one world would
+have agreed. Asked in the other order, a page with a clock in it produces a
+confident sentence about suite pollution and sends somebody to bisect a run order
+that has nothing to do with it. Details in
+[ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md).
+
+**What it names.** Not "this subject is flaky" — that is a page to read. The two
+readings are two documents, and a document carries its component hashes, so the
+answer is a component and a band:
+
+```
+[unstable] story:checkout--summary — Clock read differently (content)
+```
+
+`content` is data, `geometry` is layout that has not settled, `token` is a style
+still being applied. That is the difference between a day and ten minutes, and it
+is what a fix can be aimed at.
+
+**What it costs.** One collection, and never a paint: two documents with equal
+digests cannot paint differently, so the comparison is a digest comparison. It
+runs only on subjects the run already called `changed`, inside the same
+`alone.limit` budget, so a green run pays nothing.
+
+**`accept` refuses an unstable subject**, for the reason it refuses order
+dependence. The image on disk is one of two readings, chosen by a race, and
+promoting it makes the coin flip the thing every later run is measured against.
+
+**Two readings is a floor, not a ceiling.** A subject that reads differently one
+time in fifty passes this forty-nine runs out of fifty, and an absent finding
+means *this run's two readings agreed* — never *this subject is stable*. The
+report says so in those words. Recurrence over a window, which is the shape
+[Argos ships](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md),
+is a different instrument and is not built here: it belongs to
+[spec 0002](specs/0002-history-store.md), which is still blocked on its own
+contract decision. Raster-level nondeterminism is invisible to this for the same
+reason it is cheap — it does not move a document digest.
+
+### The first thing it found was ours
+
+Five of five changed stories in [`cases/storybook-case`](../cases/storybook-case),
+on the first run, and the cause was in this repository.
+
+Blink does not write a mutated inline style back into the `style` attribute
+eagerly: `element.style.padding = …` marks the declaration dirty and the attribute
+is regenerated the next time anything reads the element's attributes. `outerHTML`
+is such a read, and the regenerated attribute is *appended*. So a freshly mounted
+component held `[type]` with a pending style, our path stamp appended
+`[type, data-va-path]`, and serialization materialized the style at the end.
+Collect the same story again with no remount and the style attribute already
+exists, so the stamp goes last.
+
+Same tree, same pixels, two document digests — decided by whether the subject had
+been read before in that run.
+
+**The verdict was never wrong, which is why nothing had ever reported it.** What
+was wrong was the economy: `settle` skips a render when this run's document digest
+equals the digest the baseline was painted from, so the cheap tier was switching
+itself off depending on the collection history of the run that recorded the
+baseline. Silent, permanent, and invisible to every test in the suite. Seven of
+the eight stories now produce one digest for two consecutive readings; the eighth
+is the one with a clock in it, which is the right answer.
 
 ## Test order and shared state
 
@@ -132,6 +217,15 @@ suppress.** Auto-ignoring by diff shape silences the symptom without naming the
 writer, and the same suppression that hides a flake hides the real regression
 that later lands in the same region.
 
+The two instruments differ in what they need and in what they can say. Counting
+fingerprints needs a *window* — several runs, and a store to keep them in — and
+answers with a probability. Reading the subject twice needs one run and answers
+with a component and a band, because the evidence is two documents rather than
+two images. The cost of ours is that it only ever fires on a subject the run
+already called `changed`; the cost of theirs is that the first several
+occurrences are red builds. Neither subsumes the other, and the window half is
+[spec 0002](specs/0002-history-store.md)'s, unbuilt.
+
 The honest cost of our bet: suspicion over-reports. A coupling can exist and
 never bite, so the read-write pass alone produces findings that a confirmation
 run then clears — and a project that never calls `verify()` gets suspicion only.
@@ -151,4 +245,4 @@ than left for you to work out.
 
 **Sources.** [Argos: stabilize screenshots](https://argos-ci.com/blog/screenshot-stabilization) ·
 [Argos: flaky test detection](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md) ·
-our own measurements: [journal 0012](context/journal/0012-instability.md), [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md), [ADR-0011](context/adr/0011-durable-and-ephemeral-retention.md)
+our own measurements: [journal 0012](context/journal/0012-instability.md), [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md), [ADR-0011](context/adr/0011-durable-and-ephemeral-retention.md), [ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md)

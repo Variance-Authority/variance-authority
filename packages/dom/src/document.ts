@@ -106,6 +106,7 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
   try {
     const { css, bindings } = applicableCss(root, index);
     const frame = frameOf(root);
+    settleStamps(stamped);
     const html = root.outerHTML;
 
     diagnostics.push(...verify(ownerDocument, html, frame, bindings));
@@ -139,11 +140,82 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
   }
 }
 
+/**
+ * Force the host to write back any attribute it is still holding in memory,
+ * before this code adds one of its own.
+ *
+ * **The cause of the whole ordering problem, and the half that had to be fixed
+ * where it happens.** Blink does not serialize an inline style into the `style`
+ * attribute when JavaScript mutates it — `element.style.padding = …` marks the
+ * declaration dirty and the attribute is regenerated lazily, the next time
+ * anything reads the element's attributes. `outerHTML` is such a read, and the
+ * regenerated attribute is *appended*.
+ *
+ * So a freshly mounted React component holds `[type]` with a pending style, our
+ * stamp appends `[type, data-va-path]`, and serialization then materializes the
+ * style at the end: `<button type data-va-path style>`. Collect the same story
+ * again with no remount and the style attribute already exists, so the stamp goes
+ * last: `<button type style data-va-path>`. Same tree, same pixels, two digests —
+ * decided by whether the subject had been read before.
+ *
+ * Reading the names first materializes anything pending while our attribute is
+ * still absent, so the stamp is appended after the page's own attributes on every
+ * reading. Measured on `cases/storybook-case`: every one of the eight stories
+ * produced two digests for two consecutive readings before this, and one after.
+ */
+function materializeAttributes(element: Element): void {
+  // The call *is* the operation; its value is the host's, and it is never read.
+  void element.getAttributeNames();
+}
+
+/**
+ * Move every stamp to the end of its element's attribute list, immediately
+ * before serialization.
+ *
+ * **This is a determinism fix, not a tidiness one.** `outerHTML` writes
+ * attributes in the order the element holds them, so the digest of a document is
+ * a function of *when each attribute was set* — and the page sets its own
+ * attributes on a schedule this code does not control. See
+ * `materializeAttributes` for the mechanism that produced it in Blink.
+ *
+ * What that costs is the whole cheap tier. `settle` skips a render when this
+ * run's document digest equals the digest the baseline was painted from, so a
+ * subject whose digest depends on whether it was collected before loses its
+ * settlement — not to a change, but to the *history of the run that recorded the
+ * baseline*. The verdict stays right and the economy silently stops working,
+ * which is the failure that never gets reported by anything.
+ *
+ * This is the second half of the fix and it covers a different case:
+ * `materializeAttributes` keeps a *new* stamp in the right place, and this keeps
+ * an *existing* one there. `setAttribute` on an attribute already present updates
+ * it where it sits, so a stamp that survived an earlier acquisition would hold
+ * whatever position that one gave it.
+ *
+ * Only our own attribute is moved, and that is deliberate. Sorting the element's
+ * whole attribute list would be more thorough and would require removing the
+ * page's attributes to re-add them, which is not an inspection: removing `src`
+ * refetches an image and removing `value` resets a field. So the page's own
+ * ordering is left exactly as found, and if it is itself nondeterministic that
+ * is a finding about the page — which `again` in `packages/cli` now reports with
+ * a component attached, rather than a digest quietly drifting.
+ *
+ * Found by that check, on its first contact with a real Storybook.
+ */
+function settleStamps(stamped: readonly Element[]): void {
+  for (const element of stamped) {
+    const path = element.getAttribute(PATH_ATTRIBUTE);
+    if (path === null) continue;
+    element.removeAttribute(PATH_ATTRIBUTE);
+    element.setAttribute(PATH_ATTRIBUTE, path);
+  }
+}
+
 /** Stamp `data-va-path` on the subtree. Returns what was touched, to undo it. */
 function stamp(root: Element): readonly Element[] {
   const touched: Element[] = [];
 
   const walk = (element: Element, path: string): void => {
+    materializeAttributes(element);
     element.setAttribute(PATH_ATTRIBUTE, path);
     touched.push(element);
 
