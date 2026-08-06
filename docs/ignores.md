@@ -338,7 +338,7 @@ bands a subject is asserted on at all.
 
 | level | asserts on | absorbs |
 |---|---|---|
-| `strict` | everything | nothing — the default |
+| `strict` | everything | nothing — the default, and how an exception is written back inside a relaxed group |
 | `layout` | `a11y`, `geometry` | `token`, `content`, `texture` |
 | `content` | `a11y`, `content` | `geometry`, `token`, `texture` |
 
@@ -356,15 +356,86 @@ and a count of what it absorbed — including the count of zero, which is how a
 route declared `layout` that nothing has ever restyled gets found.
 
 ```
-SENSITIVITY — 412 difference(s) not asserted on, by 1 rule(s)
-  routes — asserts on layout; absorbed 412 token difference(s) in 38 subject(s):
+SENSITIVITY — 38 subject(s) not asserted on in full, by 2 rule(s)
+  routes — asserts on layout; absorbed token difference(s) in 38 of 41 subject(s):
     a route asserts the page assembles, not what it is painted
+  [dead] legacy-embed — asserts on content across 3 subject(s) and absorbed
+    nothing (a themed embed we do not control); nothing here needed relaxing
 ```
 
-**Reachable from the library, not yet from the binary.** `applySensitivity` takes
-a pair of snapshots, and `variance run` compares an image against a stored
-baseline — it holds one document, not two. The declaration surface waits for the
-path that has both rather than shipping a config key that parses and does nothing.
+Three states, and the third is the one that matters six months later. A rule that
+absorbed something is working; a rule that reached subjects and absorbed nothing
+is `[dead]` — either a route nothing styles or a declaration nobody needed; a
+rule that matched no subject at all is `[unscoped]`, which is a typo rather than
+a policy that has outlived its cause. One word for the last two would send half
+of them to the wrong edit.
+
+### Declaring one
+
+```jsonc
+{
+  "sensitivity": [
+    {
+      "id": "routes",
+      "reason": "a route asserts the page assembles, not what it is painted",
+      "level": "layout",
+      "subjects": ["route/*"]
+    },
+    {
+      "id": "checkout-is-strict",
+      "reason": "the one page where a colour is the product",
+      "level": "strict",
+      "subjects": ["route/checkout"]
+    }
+  ]
+}
+```
+
+**The last matching rule wins**, which is the opposite of how `ignore` composes
+and is deliberate. Ignores accumulate — two rules absorb more than one. A
+sensitivity answers *how much of this subject is under test*, and two
+contradictory answers cannot both hold, so the broad rule goes first and the
+exception after it, read top to bottom the way the file is.
+
+A rule that names neither `subjects` nor `tags` is **refused**. A sensitivity
+that applies to everything is a run-wide setting, and this project does not have
+one.
+
+### How it decides, and what it costs
+
+Until 2026-08-06 this section said the declaration was reachable from the library
+and not from the binary: `applySensitivity` folds over a pair of snapshots, and
+`variance run` compares an image against a stored baseline. That was true, and it
+stopped being true when [ADR-0027](context/adr/0027-a-baseline-carries-what-its-document-said.md)
+made a baseline carry per-component hashes — but it took a second change to
+notice, because those hashes fused `a11y`, `content` and tree shape into one
+`structure` digest. Split, they name a band each:
+
+| digest | band |
+|---|---|
+| `semantics` — role, accessible name, ARIA state | `a11y` |
+| `text` | `content` |
+| `structure` — tags, aliases, attributes, child boundaries | `geometry` |
+| `geometry` — rects and computed layout output | `geometry` |
+| `style` — declared values and custom properties | `token` |
+
+So a run asks the two sidecars which bands disagree, and absorbs the subject when
+every one of them is a band this subject is not asserted on. Same vocabulary as
+the two-snapshot path, same `bandsOf` — the two agree by sharing the mapping
+rather than by inspection.
+
+**A relaxed subject is also a cheap one.** The decision is taken *before*
+isolation, so a route that a rebrand only repainted never pays to cluster its
+mask, attribute its regions or fingerprint them — the expensive half of a
+comparison. Forty routes in a token PR pay one hash comparison each instead of
+forty isolations.
+
+**A baseline carrying no hashes absorbs nothing**, and the subject is reported in
+full. A declaration that cannot be evaluated has not been satisfied.
+
+`texture` never appears. It is raster residue by definition and a document cannot
+carry it, so the one band this comparison is blind to is absent from the answer
+rather than silently absorbed.
 
 ## Accepting a shape, instead of silencing it
 
@@ -400,10 +471,10 @@ from a different run, and that is worth being told.
   reshaped a first baseline would be how a defect gets approved into one.
 - **It cannot be scoped by band.** A rule must name a `select` or a
   `fingerprints`; anything narrower than that and broader than a place is a
-  tolerance wearing an ignore's clothes. The library's own `IgnoreRule` does have
-  a `bands` field, and it is deliberately **not** offered in the config: it
-  narrows an ignore applied over a *pair of snapshots*, which the binary never
-  builds, so a `bands` here would parse, validate and change nothing.
+  tolerance wearing an ignore's clothes. Narrowing by band is what `sensitivity`
+  is — declared positively, scoped to named subjects, and counted in a register
+  of its own. An `ignore` scoped by band would be the same act said in a way
+  nobody can audit.
 - **It cannot change what is rendered.** Ignores sit outside the environment key,
   so editing one never invalidates a baseline — and never changes an image.
 - **It cannot silence a size change.** A subject that resized is reported whatever

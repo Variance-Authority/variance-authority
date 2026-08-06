@@ -3,7 +3,9 @@ import {
   type AttributedRegion,
   type ComponentHash,
   type Diagnostic,
+  type Band,
   type Isolation,
+  type Level,
   type Raster,
   type RenderDocument,
   type SemanticSnapshot,
@@ -90,6 +92,24 @@ export interface Observation {
   readonly ignored?: IgnoredPixels;
 
   /**
+   * The sensitivity that absorbed this subject, and the bands it absorbed.
+   *
+   * Present only when a declaration decided the verdict — which is what makes it
+   * the input a register is built from. The `because` string carries the same
+   * facts in prose for a person, and a run that had to parse that prose back out
+   * to count anything would be one edit away from counting nothing.
+   *
+   * Absent on a subject a sensitivity applied to and did *not* absorb, because
+   * nothing was relaxed there; the rule's own presence in the config is what
+   * lets the register still name it as having absorbed zero.
+   */
+  readonly relaxed?: {
+    readonly rule: string;
+    readonly level: Level;
+    readonly bands: readonly Band[];
+  };
+
+  /**
    * Components whose own content differs from the baseline's (spec 0017).
    *
    * The list `rankRegions` needs, and the reason a baseline carries its component
@@ -150,6 +170,25 @@ export interface ObserveOptions {
   readonly source?: SourceIndex;
 
   readonly compare?: CompareOptions;
+
+  /**
+   * How much of this subject is being asserted on, if it has been relaxed.
+   *
+   * Resolved by the caller, because scoping is a question about subject ids and
+   * tags and this function has one subject and no plan. What arrives is the rule
+   * that applies *here*, already matched, or nothing.
+   *
+   * It decides against the bands the two revisions' component hashes disagree
+   * on, which is what a stored baseline can answer for — see `absorbsEntirely`.
+   * A baseline carrying no hashes therefore absorbs nothing and the subject is
+   * reported in full, which is the correct direction: a declaration that cannot
+   * be evaluated must not be assumed to have been satisfied.
+   */
+  readonly sensitivity?: {
+    readonly rule: string;
+    readonly reason: string;
+    readonly level: Level;
+  };
 
   /**
    * How PNG bytes become pixels. Defaults to `pngjs`, which requires nothing.

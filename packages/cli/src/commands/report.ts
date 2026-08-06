@@ -3,6 +3,7 @@ import { OperatorError } from '../exit.js';
 import type { CliRunReport } from './run.js';
 import { reportHtml } from './report-html.js';
 import { summarizeLedger } from './ignores.js';
+import { summarizeSensitivities } from './sensitivities.js';
 
 /**
  * `variance report` — ask questions of an artifact, never of a browser.
@@ -129,7 +130,7 @@ function asText(options: ReportOptions): string {
     return tool('variance_describe', report, { subject });
   }
 
-  return [tool('variance_summary', report, {}), ignores(report), warnings(report)]
+  return [tool('variance_summary', report, {}), ignores(report), sensitivities(report), warnings(report)]
     .filter((section) => section !== '')
     .join('\n\n');
 }
@@ -161,6 +162,19 @@ function asText(options: ReportOptions): string {
  */
 function ignores(report: CliRunReport): string {
   return summarizeLedger(report.ignores).join('\n');
+}
+
+/**
+ * The sensitivity ledger, on the same terms as the ignore one.
+ *
+ * A separate paragraph rather than a section of `ignores`, because a reader
+ * auditing a green run needs to know *which kind* of declaration produced it. A
+ * masked clock and a route asserted only on layout are both green and are not
+ * the same promise, and one paragraph covering both would let a reader who
+ * skimmed it believe they had checked the other.
+ */
+function sensitivities(report: CliRunReport): string {
+  return summarizeSensitivities(report.sensitivities).join('\n');
 }
 
 function warnings(report: CliRunReport): string {

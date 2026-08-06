@@ -1,3 +1,4 @@
+import { BANDS, type Band } from '../compare/band.js';
 import type { CanonicalValue } from '../format/canonical.js';
 import { digestValue } from '../format/hash.js';
 import type { ComponentHash, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
@@ -100,7 +101,13 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
 
   const accumulated = new Map<
     string,
-    { structure: CanonicalValue[]; style: CanonicalValue[]; geometry: CanonicalValue[] }
+    {
+      structure: CanonicalValue[];
+      semantics: CanonicalValue[];
+      text: CanonicalValue[];
+      style: CanonicalValue[];
+      geometry: CanonicalValue[];
+    }
   >();
 
   for (const boundary of boundaries(snapshot.root)) {
@@ -108,10 +115,14 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
 
     const entry = accumulated.get(boundary.component) ?? {
       structure: [],
+      semantics: [],
+      text: [],
       style: [],
       geometry: [],
     };
     entry.structure.push(shape.structure);
+    entry.semantics.push(shape.semantics);
+    entry.text.push(shape.text);
     entry.style.push(shape.style);
     entry.geometry.push(shape.geometry);
     accumulated.set(boundary.component, entry);
@@ -122,6 +133,8 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
       component,
       instances: entry.structure.length,
       structure: digestValue(entry.structure),
+      semantics: digestValue(entry.semantics),
+      text: digestValue(entry.text),
       style: digestValue(entry.style),
       ...(layout ? { geometry: digestValue(entry.geometry) } : {}),
     }))
@@ -170,6 +183,8 @@ function boundaries(root: SemanticNode): readonly { node: SemanticNode; componen
 
 interface Shape {
   readonly structure: CanonicalValue;
+  readonly semantics: CanonicalValue;
+  readonly text: CanonicalValue;
   readonly style: CanonicalValue;
   readonly geometry: CanonicalValue;
 }
@@ -190,6 +205,8 @@ interface Shape {
 function shapeOf(node: SemanticNode, component: string, layout: boolean): Shape {
   const style: CanonicalValue[] = [];
   const geometry: CanonicalValue[] = [];
+  const semantics: CanonicalValue[] = [];
+  const text: CanonicalValue[] = [];
 
   const walk = (current: SemanticNode): CanonicalValue => {
     const declared: Record<string, string> = {};
@@ -212,22 +229,30 @@ function shapeOf(node: SemanticNode, component: string, layout: boolean): Shape 
       ...(Object.keys(measured).length > 0 ? { measured } : {}),
     });
 
+    // One entry per node in each list, always — `null` rather than omitted, for
+    // the reason the geometry list gives: dropping an entry lets two different
+    // trees agree by coincidence, and here it would let a heading losing its
+    // name look like a heading that never had one.
+    semantics.push({
+      role: current.role ?? null,
+      name: current.name ?? null,
+      state: (current.state ?? null) as CanonicalValue,
+    });
+    text.push(current.text ?? null);
+
     return {
       tag: current.tag,
       alias: current.alias,
       portalled: current.portalled,
-      role: current.role,
-      name: current.name,
-      state: current.state as CanonicalValue | undefined,
       attributes: current.attributes,
-      text: current.text,
       children: current.children.map((child) =>
         ownerOf(child) === component ? walk(child) : { boundary: ownerOf(child) },
       ),
     };
   };
 
-  return { structure: walk(node), style, geometry };
+  const structure = walk(node);
+  return { structure, semantics, text, style, geometry };
 }
 
 /**
@@ -281,9 +306,7 @@ export function causesBetween(
       causes.push(entry.component);
       continue;
     }
-    if (was.structure !== entry.structure || was.style !== entry.style) {
-      causes.push(entry.component);
-    }
+    if (ownContentMoved(was, entry)) causes.push(entry.component);
   }
 
   // Removals too, and they are the case a candidate-only walk cannot see: a
@@ -296,4 +319,109 @@ export function causesBetween(
   }
 
   return causes.sort();
+}
+
+/**
+ * Whether a component's *own content* differs, ignoring where its box ended up.
+ *
+ * Deliberately not phrased in bands, because it is not a band question. Both
+ * `structure` and `geometry` map to the `geometry` band, and this has to keep
+ * them apart: a component whose tree changed edited itself, and a component
+ * whose rect moved was pushed. That distinction is the entire cause/collateral
+ * result, and asking it through the band mapping would need the digests back
+ * again to answer it.
+ *
+ * The list is every digest a component owns except `geometry`. It grew by two on
+ * 2026-08-06 without changing meaning: `semantics` and `text` used to be inside
+ * `structure`.
+ */
+function ownContentMoved(before: ComponentHash, after: ComponentHash): boolean {
+  return (
+    before.structure !== after.structure ||
+    before.semantics !== after.semantics ||
+    before.text !== after.text ||
+    before.style !== after.style
+  );
+}
+
+/**
+ * Which frequency bands moved between one component's two hashes.
+ *
+ * The reason the digests were split. A baseline carries hashes and not
+ * documents, so "what changed here" used to be answerable only as a boolean —
+ * and a boolean cannot serve a route-level test, whose entire request is *tell
+ * me when the page stops assembling and never when it is repainted*.
+ *
+ * The mapping is exact and it is the same one `bandOf` applies to a delta, which
+ * is the property that matters: a subject relaxed to `layout` must absorb the
+ * same things whether the run held two documents or two sidecars. Two mappings
+ * would be one drift away from a config key meaning different things on the two
+ * paths, discovered as a regression somebody let through.
+ *
+ * | digest | band | what it covers |
+ * |---|---|---|
+ * | `semantics` | `a11y` | role, accessible name, ARIA state |
+ * | `text` | `content` | text runs |
+ * | `structure` | `geometry` | tags, aliases, attributes, child boundaries |
+ * | `geometry` | `geometry` | rects and computed layout output |
+ * | `style` | `token` | declared values and custom properties |
+ *
+ * `texture` never appears. It is raster residue by definition, and a component
+ * hash is built from a document — so the band a comparison of hashes cannot
+ * decide is *absent* from the answer rather than reported as unmoved, which is
+ * ADR-0002's rule applied to a narrower question.
+ *
+ * A missing `geometry` on either side is the profile saying it has no layout
+ * engine, and is not a difference. Treating absent as a change would report
+ * every component as having moved the moment a jsdom baseline met a Chromium
+ * run — which the environment key already refuses as `incomparable`, so this
+ * would be a second, wronger answer to a question already settled.
+ */
+export function movedBands(before: ComponentHash, after: ComponentHash): readonly Band[] {
+  const moved = new Set<Band>();
+
+  if (before.semantics !== after.semantics) moved.add('a11y');
+  if (before.text !== after.text) moved.add('content');
+  if (before.structure !== after.structure) moved.add('geometry');
+  if (before.style !== after.style) moved.add('token');
+  if (
+    before.geometry !== undefined &&
+    after.geometry !== undefined &&
+    before.geometry !== after.geometry
+  ) {
+    moved.add('geometry');
+  }
+
+  return BANDS.filter((band) => moved.has(band));
+}
+
+/**
+ * Every band that moved anywhere in the subject, given both revisions' hashes.
+ *
+ * A component present on one side only contributes `geometry`: something was
+ * added or removed, which is the structural half of that band however the rest
+ * of it compares. It deliberately does not contribute `a11y` or `content` as
+ * well — a component that is simply not there did not *rename* anything, and
+ * inflating the answer would make a level that absorbs nothing look like the
+ * only safe choice.
+ */
+export function bandsBetween(
+  before: readonly ComponentHash[],
+  after: readonly ComponentHash[],
+): readonly Band[] {
+  const previous = new Map(before.map((entry) => [entry.component, entry]));
+  const present = new Set(after.map((entry) => entry.component));
+  const moved = new Set<Band>();
+
+  for (const entry of after) {
+    const was = previous.get(entry.component);
+    if (was === undefined) moved.add('geometry');
+    else for (const band of movedBands(was, entry)) moved.add(band);
+  }
+
+  for (const entry of before) {
+    if (!present.has(entry.component)) moved.add('geometry');
+  }
+
+  return BANDS.filter((band) => moved.has(band));
 }

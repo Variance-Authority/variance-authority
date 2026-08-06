@@ -2,6 +2,7 @@ import type { Diagnostic } from '@variance-authority/core';
 import type { ObservationRecord, RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 import type { IgnoreLedger } from './ignores.js';
+import type { SensitivityLedger } from './sensitivities.js';
 
 /**
  * The artifact a run leaves behind: its shape, and the reader that refuses a
@@ -100,6 +101,16 @@ export interface CliRunReport extends RunReport {
    * a ledger exists exactly when there was something to account for.
    */
   readonly ignores?: IgnoreLedger;
+
+  /**
+   * What each declared sensitivity did, including the ones that did nothing.
+   *
+   * A separate ledger from `ignores` because they answer opposite questions —
+   * *what is not the subject* against *what this subject is asserted on* — and a
+   * reader who cannot tell which kind of declaration produced a green run cannot
+   * audit either of them.
+   */
+  readonly sensitivities?: SensitivityLedger;
 }
 
 /**

@@ -105,6 +105,22 @@ export interface ObservationRecord {
     /** Pixels each rule absorbed here. A rule present with `0` caught nothing. */
     readonly byRule: Readonly<Record<string, number>>;
   };
+  /**
+   * The sensitivity that absorbed this subject, when one did.
+   *
+   * A subject reported `ignored` has two possible reasons and they are not
+   * interchangeable: every differing pixel fell inside an excluded subtree, or
+   * every band that moved was one this subject is not asserted on. The first is
+   * in {@link ObservationRecord.ignored}; this is the second, and keeping them
+   * apart is what lets a run be asked how much of its green came from a mask and
+   * how much from a declared level.
+   */
+  readonly relaxed?: {
+    readonly rule: string;
+    readonly level: string;
+    readonly bands: readonly string[];
+  };
+
   readonly regions: readonly RegionRecord[];
   /** Regions found but not recorded, with their pixels. Never silently dropped. */
   readonly truncated?: { readonly regions: number; readonly pixels: number };

@@ -1,6 +1,9 @@
 import {
+  absorbsEntirely,
   attributeRegions,
+  bandsBetween,
   causesBetween,
+  relaxes,
   excludedBoxes,
   fingerprintOfMask,
   isolateRegions,
@@ -90,6 +93,44 @@ export async function decide(
             byRule,
           },
         };
+
+  // The second cheap exit, and it is the one a route-level test is for.
+  //
+  // A subject declared `layout` asserts that the page still assembles. A rebrand
+  // repaints every surface on it, moves no box and changes no accessible name —
+  // so every band the two revisions' component hashes disagree on is one this
+  // subject is not asserted on, and there is nothing here to review. Reported
+  // `ignored` rather than `unchanged`, because a difference was absorbed by a
+  // declaration somebody wrote and the ledger has to be able to say so
+  // (ADR-0026).
+  //
+  // Before isolation on purpose. Clustering a mask, attributing its regions and
+  // fingerprinting each one is the expensive half of a comparison, and a relaxed
+  // route under a rebrand is exactly the case where all of it would be computed
+  // and then thrown away. This is the cheaper-and-faster half of the feature and
+  // it is not incidental: forty routes in a token PR pay for one hash comparison
+  // each instead of forty isolations.
+  //
+  // It cannot run before the exclusion subtraction above, because a subject may
+  // be both relaxed and masked, and the ignore register's numbers are computed
+  // there. It runs after, so both accounts are complete.
+  const relaxed = relaxedVerdict(options, before, after);
+
+  if (relaxed !== null && remaining > 0 && !comparison.dimensionsChanged) {
+    return {
+      subject,
+      verdict: 'ignored',
+      because: relaxed.because,
+      relaxed: relaxed.relaxed,
+      comparison,
+      regions: [],
+      rendered,
+      missingFonts,
+      ...ignoredField,
+      ...causesField,
+      ...diagnosticsField,
+    };
+  }
 
   // The cheap exit, and it must come before isolation: a run where nothing moved
   // outside an exclusion should not pay to cluster a mask that is already empty.
@@ -311,4 +352,44 @@ function describeChange(
       : '';
 
   return `${changed} pixel(s) differ across ${isolation.regions.length} region(s)${where}${size}${capped}`;
+}
+
+/**
+ * Whether a declared sensitivity absorbs this subject entirely, and why.
+ *
+ * `null` for every reason not to absorb, and they are not the same reason:
+ * nothing was declared, the level asserts on everything, one side carried no
+ * component hashes, or a band that *is* asserted on moved. Only the last is a
+ * decision; the rest are absences, and each of them fails towards reporting.
+ *
+ * The third is the one worth being careful about. A baseline written before
+ * component hashes existed — or by a store that dropped them — cannot be asked
+ * which bands moved, and a relaxed subject compared against one must be reported
+ * in full rather than silently absorbed. A declaration that cannot be evaluated
+ * has not been satisfied.
+ *
+ * A dimension change is never absorbed. The canvas itself moved, which is the
+ * one thing no level can call somebody else's business — the same rule an ignore
+ * already obeys.
+ */
+function relaxedVerdict(
+  options: ObserveOptions,
+  before: Raster,
+  after: Raster,
+): { readonly because: string; readonly relaxed: NonNullable<Observation['relaxed']> } | null {
+  const rule = options.sensitivity;
+  if (rule === undefined || rule.level === 'strict') return null;
+  if (before.components === undefined || after.components === undefined) return null;
+
+  const moved = bandsBetween(before.components, after.components);
+  if (!absorbsEntirely(rule.level, moved)) return null;
+
+  const absorbed = relaxes(rule.level, moved).absorbed;
+
+  return {
+    because:
+      `pixels differ, and every band that moved (${absorbed.join(', ')}) is one this subject ` +
+      `is not asserted on: \`${rule.rule}\` declares it asserts on ${rule.level} — ${rule.reason}`,
+    relaxed: { rule: rule.rule, level: rule.level, bands: absorbed },
+  };
 }

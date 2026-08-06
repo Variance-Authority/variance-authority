@@ -1,4 +1,4 @@
-import { documentDigest } from '@variance-authority/core';
+import { documentDigest, type Level } from '@variance-authority/core';
 import { declaredIgnores, observeAgainstBaseline, observePair } from '@variance-authority/observe';
 import { settle, type BaselineKey } from '@variance-authority/raster';
 import { alone } from './alone.js';
@@ -44,9 +44,12 @@ export async function observeOne(
   // the exact failure a scoped rule exists to prevent.
   const shapes = shapesFor(config, planned, deps.now());
 
+  const relaxation = sensitivityFor(config, planned);
+
   const observeOptions = {
     renderer,
     store: deps.store,
+    ...(relaxation !== undefined ? { sensitivity: relaxation } : {}),
     ...(Object.keys(shapes).length > 0 ? { ignoreShapes: shapes } : {}),
     ...(collected.snapshot !== undefined ? { snapshot: collected.snapshot } : {}),
     ...(collected.source !== undefined ? { source: collected.source } : {}),
@@ -175,4 +178,35 @@ function shapesFor(config: Config, planned: PlannedSubject, now: string): Record
   }
 
   return shapes;
+}
+
+/**
+ * The sensitivity that applies to one subject, or nothing.
+ *
+ * **The last matching rule wins**, which is the opposite of how the ignore list
+ * composes and is deliberate. Ignores accumulate — every rule that matches
+ * absorbs what it names, and two rules absorb more than one. A sensitivity is a
+ * statement about how much of *this subject* is under test, and two contradictory
+ * answers to that cannot both hold; taking the last lets an operator write the
+ * broad rule first and the exception after it, reading top to bottom the way the
+ * file does.
+ *
+ * `strict` is a real answer here rather than an absence. It is how the exception
+ * is spelled — a route inside a relaxed group that is asserted on in full — and
+ * `absorbsEntirely` turns it into no absorption without a special case.
+ */
+function sensitivityFor(
+  config: Config,
+  planned: PlannedSubject,
+): { readonly rule: string; readonly reason: string; readonly level: Level } | undefined {
+  let found: { rule: string; reason: string; level: Level } | undefined;
+
+  for (const rule of config.sensitivity ?? []) {
+    if (!scopedTo(rule, { id: planned.subject.id, ...(planned.tags ? { tags: planned.tags } : {}) })) {
+      continue;
+    }
+    found = { rule: rule.id, reason: rule.reason, level: rule.level };
+  }
+
+  return found;
 }

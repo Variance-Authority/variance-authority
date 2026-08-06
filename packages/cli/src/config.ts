@@ -32,6 +32,9 @@ import {
   type RemoteRendererConfig,
   type SubjectsConfig,
 } from './config-sections.js';
+import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
+
+export type { SensitivityConfig };
 
 /**
  * The configuration file, and the rule that nothing else configures a run.
@@ -183,6 +186,25 @@ export interface Config {
   readonly ignore?: readonly IgnoreConfig[];
 
   /**
+   * How much of a subject is asserted on at all (spec 0024, ADR-0026).
+   *
+   * The other half of `ignore`, and the opposite sentence. An ignore says *this
+   * is not the subject* — a clock, a shape that keeps moving. A sensitivity says
+   * *this subject is asserted on these bands and no others*, which is what a
+   * route-level test needs and what no threshold can express: a route declared
+   * `layout` still reports a nav that moved by one pixel, and never reports a
+   * rebrand that repainted every surface on the page.
+   *
+   * Decided from the component hashes a baseline carries, so a subject compared
+   * against a baseline that has none is reported in full — a declaration that
+   * cannot be evaluated has not been satisfied.
+   *
+   * Outside the environment key for the same reason `ignore` is: editing it
+   * changes what a run says, never what it renders.
+   */
+  readonly sensitivity?: readonly SensitivityConfig[];
+
+  /**
    * Which PNG decoder the raster tier uses.
    *
    * Decoding is 90% of a comparison (journal 0016), so this is the largest lever
@@ -248,6 +270,7 @@ const TOP_LEVEL = [
   'intent',
   'alone',
   'ignore',
+  'sensitivity',
   'decoder',
   'concurrency',
 ] as const;
@@ -305,6 +328,10 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const intent = optionalText(root, 'intent', options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
   const ignore = root['ignore'] === undefined ? undefined : parseIgnores(root['ignore'], options);
+  const sensitivity =
+    root['sensitivity'] === undefined
+      ? undefined
+      : parseSensitivities(root['sensitivity'], options);
 
   const concurrency = root['concurrency'];
   if (
@@ -357,6 +384,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(intent !== undefined ? { intent } : {}),
     ...(alone !== undefined ? { alone } : {}),
     ...(ignore !== undefined ? { ignore } : {}),
+    ...(sensitivity !== undefined ? { sensitivity } : {}),
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
     ...(concurrency === undefined ? {} : { concurrency: concurrency as number }),
   };

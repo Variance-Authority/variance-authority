@@ -5,6 +5,7 @@ import { OperatorError } from '../exit.js';
 import { matchesGlob, type Plan } from './collector.js';
 import { observeOne } from './observe-one.js';
 import { ledgerOf } from './ignores.js';
+import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
 import { concurrencyOf, pool, serial } from './schedule.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
@@ -58,6 +59,8 @@ export type {
 export { settle } from '@variance-authority/raster';
 export type { Settlement } from '@variance-authority/raster';
 export { ledgerOf, liveIgnores, summarizeLedger } from './ignores.js';
+export { sensitivityLedgerOf, summarizeSensitivities } from './sensitivities.js';
+export type { SensitivityLedger, SensitivityUsage } from './sensitivities.js';
 export type { IgnoreLedger, IgnoreUsage } from './ignores.js';
 export { recordOf } from './record.js';
 export { decoderFor, renderCacheRoot, storeFor, writeArtifactToDisk } from './resources.js';
@@ -250,6 +253,11 @@ async function observeAll(
   const worn = new Set(plan.subjects.flatMap((planned) => planned.tags ?? []));
   const ignores = ledgerOf(config.ignore ?? [], observations, at, worn);
 
+  // Built from the plan rather than from the observations, so a rule that
+  // matched nothing is a line rather than a silence — the same reason the ignore
+  // ledger takes the plan's vocabulary.
+  const sensitivities = sensitivityLedgerOf(config.sensitivity ?? [], plan.subjects, observations);
+
   const report: CliRunReport = {
     runVersion: 1,
     at,
@@ -260,6 +268,7 @@ async function observeAll(
     notObserved,
     ...(warnings.length > 0 ? { warnings } : {}),
     ...(ignores !== undefined ? { ignores } : {}),
+    ...(sensitivities !== undefined ? { sensitivities } : {}),
   };
 
   await deps.writeReport(config.report, report);

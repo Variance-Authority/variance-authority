@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { hashComponents } from '@variance-authority/core';
+import { hashComponents, movedBands } from '@variance-authority/core';
 import {
   CONTESTED_CORPUS,
   CORPUS,
@@ -304,6 +304,18 @@ if (!BROWSER_AVAILABLE) {
  * fixtures is a hash that has never met a real component boundary.
  */
 describe.skipIf(!BROWSER_AVAILABLE)('ADR-0018 — per-component hashes', () => {
+  /**
+   * Components whose hashes moved, asked through `movedBands` rather than by
+   * listing digests.
+   *
+   * It listed them by hand until 2026-08-06, and the corpus caught what that
+   * costs: the day `structure` was split into `structure`, `semantics` and
+   * `text`, this helper kept comparing the three fields it knew about and two
+   * text-only cases — `reorder/list` and `relabel/list` — reported that nothing
+   * had moved. The implementation was right and its own measurement had gone
+   * blind, which is the failure mode a hand-maintained field list always has and
+   * the reason the band question has one function.
+   */
   function moved(pair: Pair): readonly string[] {
     const before = new Map(hashComponents(pair.base).map((h) => [h.component, h] as const));
     const after = hashComponents(pair.perturbed);
@@ -311,12 +323,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('ADR-0018 — per-component hashes', () => {
     return after
       .filter((hash) => {
         const previous = before.get(hash.component);
-        return (
-          previous === undefined ||
-          previous.structure !== hash.structure ||
-          previous.style !== hash.style ||
-          previous.geometry !== hash.geometry
-        );
+        return previous === undefined || movedBands(previous, hash).length > 0;
       })
       .map((hash) => hash.component);
   }

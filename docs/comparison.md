@@ -241,6 +241,11 @@ comparison: a known $283/mo against an unknown engineering commitment.
   region, plus floating regions and ignore-displacements — and dashboard-created
   ignore regions bind to the underlying DOM element so they survive layout shifts
   ([advanced usage](https://applitools.com/docs/eyes/playwright/advanced-usage)).
+  The nearest thing here is `sensitivity`, which landed 2026-08-06 and is a
+  narrower idea deliberately: three levels, declared per subject with a required
+  reason and a register that names a rule absorbing nothing. Applitools has more
+  controls and applies them per region; this has fewer and can say, six months
+  later, which of them stopped being needed.
 - **Triage that scales by grouping.** Steps are clustered by the *shape* of their
   diff regions and one accept propagates across the batch
   ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)).

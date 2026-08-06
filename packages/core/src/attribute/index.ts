@@ -33,7 +33,7 @@ export type { AttributedRegion, AttributionOptions, RankedRegion } from './regio
 export { resolveSource, formatSource, indexSource, mergeSourceIndexes } from './source.js';
 export type { SourceIndex, SourceRef, Resolution } from './source.js';
 
-export { hashComponents, causesBetween, UNATTRIBUTED } from './component-hash.js';
+export { hashComponents, causesBetween, movedBands, bandsBetween, UNATTRIBUTED } from './component-hash.js';
 export type { ComponentHash } from './component-hash.js';
 
 export { coverageOf, alsoCovering, summarizeCoverage } from './coverage.js';

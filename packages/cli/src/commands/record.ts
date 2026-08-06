@@ -89,6 +89,7 @@ export function recordOf(
     // absorbed nothing: `pixels: 0, boxes: 2` is a rule that caught nothing this
     // run, which is exactly the state a register has to be able to report.
     ...(observation.ignored !== undefined ? { ignored: observation.ignored } : {}),
+    ...(observation.relaxed !== undefined ? { relaxed: observation.relaxed } : {}),
     // Present-and-empty, not omitted. `[]` means the render was inspected and
     // was clean; absent means nothing inspected it, because the collector
     // supplied no snapshot. Those are different claims, and the second must

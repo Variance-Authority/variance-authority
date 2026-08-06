@@ -345,8 +345,16 @@ function componentsFrom(value: unknown): readonly ComponentHash[] | undefined {
       typeof row['component'] !== 'string' ||
       typeof row['instances'] !== 'number' ||
       typeof row['structure'] !== 'string' ||
+      typeof row['semantics'] !== 'string' ||
+      typeof row['text'] !== 'string' ||
       typeof row['style'] !== 'string'
     ) {
+      // A sidecar written before the band split carries `structure` and no
+      // `semantics` — and the whole array is refused rather than back-filled,
+      // because the old `structure` digest covered the accessible name and the
+      // text too. Reading it as the new, narrower `structure` would report a
+      // renamed heading as a shape change and a reworded paragraph as one, both
+      // of which are the bands a sensitivity level exists to tell apart.
       return undefined;
     }
 
@@ -354,6 +362,8 @@ function componentsFrom(value: unknown): readonly ComponentHash[] | undefined {
       component: row['component'],
       instances: row['instances'],
       structure: row['structure'],
+      semantics: row['semantics'],
+      text: row['text'],
       style: row['style'],
       ...(typeof row['geometry'] === 'string' ? { geometry: row['geometry'] } : {}),
     });

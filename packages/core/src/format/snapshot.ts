@@ -197,7 +197,32 @@ export interface ComponentHash {
   /** Boundaries of this component in the subject, counted in document order. */
   readonly instances: number;
 
+  /**
+   * Tree shape: tags, structural aliases, portalling, allowlisted attributes,
+   * and which child boundaries sit where. The `geometry` band's structural half.
+   *
+   * **Split out of a single `structure` digest on 2026-08-06.** It used to carry
+   * the accessible semantics and the text too, and the fusion was invisible
+   * until something needed to ask *which band moved* — at which point a baseline
+   * could say "this component changed" and never say whether a heading was
+   * renamed, a paragraph reworded, or a node inserted. Those are three different
+   * bands, three different readers, and one of them is the band a route-level
+   * test exists to ignore.
+   */
   readonly structure: Digest;
+
+  /**
+   * Role, accessible name, and ARIA state. The `a11y` band.
+   *
+   * Its own digest because it is the band that must never be absorbed. Every
+   * sensitivity level asserts on it, including the ones that ignore everything
+   * else — and a level cannot assert on a band that is fused into another one.
+   */
+  readonly semantics: Digest;
+
+  /** Text runs, in document order. The `content` band. */
+  readonly text: Digest;
+
   readonly style: Digest;
 
   /**

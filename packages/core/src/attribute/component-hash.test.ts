@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashComponents, UNATTRIBUTED, type ComponentHash } from './component-hash.js';
+import { hashComponents, movedBands, UNATTRIBUTED, type ComponentHash } from './component-hash.js';
 import { CHROMIUM_PROFILE, JSDOM_PROFILE } from '../format/profile.js';
 import type { Rect } from '../format/capture.js';
 import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
@@ -58,6 +58,15 @@ function snapshotOf(spec: Spec, layout = false): SemanticSnapshot {
   };
 }
 
+/** Bands that moved for one component between two hashings. */
+function moved(
+  before: readonly ComponentHash[],
+  after: readonly ComponentHash[],
+  component: string,
+): readonly string[] {
+  return [...movedBands(of(before, component), of(after, component))];
+}
+
 function of(hashes: readonly ComponentHash[], component: string): ComponentHash {
   const found = hashes.find((hash) => hash.component === component);
   if (found === undefined) throw new Error(`no hash for ${component}; got ${hashes.map((h) => h.component).join(', ')}`);
@@ -87,16 +96,21 @@ describe('boundary scoping', () => {
     const before = hashComponents(snapshotOf(CARD()));
     const after = hashComponents(snapshotOf(CARD({ button: 'Stop' })));
 
-    expect(of(after, 'Button').structure).not.toBe(of(before, 'Button').structure);
-    expect(of(after, 'Card').structure).toBe(of(before, 'Card').structure);
+    // Asserted through `movedBands` rather than through one digest, because the
+    // property is *this component moved and that one did not* and naming a
+    // digest makes it also a claim about which one. These edits are text, so
+    // they moved out of `structure` and into `text` on 2026-08-06 and the test
+    // went red while the property it exists to protect had never been truer.
+    expect(moved(before, after, 'Button')).toEqual(['content']);
+    expect(moved(before, after, 'Card')).toEqual([]);
   });
 
   it('does not move a descendant when its ancestor changes', () => {
     const before = hashComponents(snapshotOf(CARD()));
     const after = hashComponents(snapshotOf(CARD({ label: 'Other' })));
 
-    expect(of(after, 'Card').structure).not.toBe(of(before, 'Card').structure);
-    expect(of(after, 'Button').structure).toBe(of(before, 'Button').structure);
+    expect(moved(before, after, 'Card')).toEqual(['content']);
+    expect(moved(before, after, 'Button')).toEqual([]);
   });
 
   it('treats composition as the parent’s own change', () => {
@@ -129,8 +143,8 @@ describe('boundary scoping', () => {
     // holds two identical placeholders, so its own structure is untouched —
     // which is correct: `List` renders two buttons either way, and what moved
     // is which content sits in which one.
-    expect(of(after, 'Button').structure).not.toBe(of(before, 'Button').structure);
-    expect(of(after, 'List').structure).toBe(of(before, 'List').structure);
+    expect(moved(before, after, 'Button')).toEqual(['content']);
+    expect(moved(before, after, 'List')).toEqual([]);
   });
 });
 

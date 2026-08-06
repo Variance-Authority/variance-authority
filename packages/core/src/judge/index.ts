@@ -47,7 +47,14 @@ export type {
   AbsorbedByRule,
 } from './ignore.js';
 
-export { applySensitivity, asIgnore, bandsOf, summarizeSensitivity } from './sensitivity.js';
+export {
+  applySensitivity,
+  absorbsEntirely,
+  asIgnore,
+  bandsOf,
+  relaxes,
+  summarizeSensitivity,
+} from './sensitivity.js';
 export type {
   Level,
   SensitivityRule,

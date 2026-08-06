@@ -268,3 +268,45 @@ export function applySensitivity(
     },
   };
 }
+
+/**
+ * What a level does with a set of bands that moved.
+ *
+ * The arm for the path that holds no second document. `applySensitivity` folds
+ * over deltas, which needs both revisions normalized; a `variance run` compares
+ * an image against a stored baseline and has only what that baseline carried —
+ * per-component hashes, one digest per band (ADR-0027, ADR-0029's split).
+ * `bandsBetween` turns those into the same vocabulary, and this decides against
+ * it, so the two paths agree by sharing {@link bandsOf} rather than by
+ * inspection.
+ *
+ * **Empty in means nothing absorbed**, not everything. A run whose pixels moved
+ * while every component hash held is raster residue — `texture`, which a
+ * document cannot carry and which this must therefore never claim to have
+ * decided. Absorbing on an empty set would turn the one band a hash comparison
+ * is blind to into the one it silences.
+ */
+export function relaxes(
+  level: Level,
+  moved: readonly Band[],
+): { readonly asserted: readonly Band[]; readonly absorbed: readonly Band[] } {
+  const asserting = new Set(bandsOf(level));
+
+  return {
+    asserted: moved.filter((band) => asserting.has(band)),
+    absorbed: moved.filter((band) => !asserting.has(band)),
+  };
+}
+
+/**
+ * Whether a subject's every moved band falls outside what it is asserted on.
+ *
+ * The whole subject, because that is the unit a stored baseline can answer for:
+ * one image, one verdict. A subject where *some* moved band is asserted on is
+ * reported in full — including the bands that would have been absorbed — since
+ * a reviewer looking at a nav that moved wants the restyle that came with it,
+ * and hiding half a diff is worse than hiding none of it.
+ */
+export function absorbsEntirely(level: Level, moved: readonly Band[]): boolean {
+  return moved.length > 0 && relaxes(level, moved).asserted.length === 0;
+}
