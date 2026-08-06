@@ -90,6 +90,9 @@ afterAll(async () => {
   if (server !== undefined) await new Promise<void>((resolve) => server!.close(() => resolve()));
 });
 
+/** Collections per timing arm. Enough to average out a stray GC pause. */
+const SAMPLES = 12;
+
 const PLAN: Plan = {
   subjects: [{ subject: { id: 'page/animated', kind: 'route' } }],
   notObserved: [],
@@ -179,6 +182,67 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animation in flight, observed twice', ()
       untouched.snapshot?.environment.semanticDigest,
     );
   }, 60_000);
+
+  it('costs what it is worth, per subject, and says so', async () => {
+    // The other half of a stabilization claim, and the one nobody publishes.
+    // Holding a page still is only free if you do not measure it: the recipe
+    // injects a sheet, awaits fonts and images, and waits two frames for the
+    // pinned state to be in force. Every one of those is per subject unless
+    // something makes it not be.
+    const arms: Record<string, number> = {};
+
+    for (const [label, stabilize] of [
+      ['untouched', [] as readonly string[]],
+      ['held still', undefined],
+    ] as const) {
+      const collector: Collector = await (
+        await routeCollector({
+          routes: { 'page/animated': `${base}/animated` },
+          roots: ['#app'],
+          network: false,
+          ...(stabilize !== undefined ? { stabilize } : {}),
+        })
+      )({
+        config: {
+          viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' },
+          fonts: [],
+        },
+        plan: PLAN,
+      });
+
+      try {
+        // One collection outside the timing, because the first pays for the
+        // navigation and the sheet insertion and every later one does not —
+        // which is exactly the shape a session has, and averaging the first in
+        // would report a per-subject cost no subject after it ever pays.
+        await collector.collect(PLAN.subjects[0]!);
+
+        const started = Date.now();
+        for (let pass = 0; pass < SAMPLES; pass += 1) {
+          await collector.collect(PLAN.subjects[0]!);
+        }
+        arms[label] = (Date.now() - started) / SAMPLES;
+      } finally {
+        await collector.close();
+      }
+    }
+
+    const untouched = arms['untouched']!;
+    const held = arms['held still']!;
+
+    console.log(
+      `\nSTABILIZATION COST — ${SAMPLES} collections of one subject, warm\n` +
+        `  untouched    ${untouched.toFixed(1)} ms/subject\n` +
+        `  held still   ${held.toFixed(1)} ms/subject\n` +
+        `  difference   ${(held - untouched).toFixed(1)} ms/subject\n`,
+    );
+
+    // A bound, not an equality. What it exists to catch is the regression that
+    // put two animation frames back into every subject: 32ms each, a third of a
+    // second on a ten-story Storybook and six on two hundred. The sheet is
+    // idempotent, so a warm subject re-applies nothing and waits for no frame.
+    expect(held - untouched).toBeLessThan(20);
+  }, 120_000);
 
   it('leaves no trace of itself in the subject', async () => {
     const [held] = await collectTwice();

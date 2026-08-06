@@ -362,7 +362,7 @@ On timeout it does not throw. A page holding a long-poll open is a normal page,
 so the outstanding URLs become a diagnostic and the subject is read anyway —
 recorded, which is what the reader of a surprising diff needs.
 
-### What it costs
+### What the wire costs
 
 Routing disables the browser's HTTP cache for what it routes, and every routed
 request makes a round trip into Node. Only asset requests are fetched and read;
@@ -376,6 +376,40 @@ subjects, so the wire cannot tell which story an image belonged to, and every
 story would carry the whole page's asset set. That over-invalidates rather than
 under-invalidates — the safe direction — but it is noise, and the fix is for the
 page to report which URLs its subject actually references.
+
+---
+
+## What holding a page still costs
+
+Measured, because a stabilization claim is only free if you do not check.
+
+```
+STABILIZATION COST — 12 collections of one subject, warm
+  untouched    2.5 ms/subject
+  held still   2.3 ms/subject
+  difference  -0.2 ms/subject
+```
+
+Nothing, within noise — and it was **25.8 ms/subject** until the run that
+measured it. The recipe injects a sheet, awaits fonts and images, and then waits
+two animation frames for the pinned state to be in force; the two frames are the
+whole cost, and on every subject after the first there is nothing for them to
+wait for. The sheet is already there, its CSS is unchanged, and an animation
+paused at its first frame stays paused.
+
+So the frame wait is skipped when the CSS is unchanged — a condition that reads
+off the page rather than a counter somebody has to keep correct. Eleven times the
+cost of the reading itself, removed, on every subject but one. On a two-hundred
+subject suite that is five seconds a run.
+
+The first subject still pays, and should: that is the one where the sheet arrives
+and something is genuinely moving.
+
+Produced by
+[`packages/route-collector/src/stabilization.chromium.test.ts`](../packages/route-collector/src/stabilization.chromium.test.ts),
+which also holds the regression to under 20 ms — so putting the two frames back
+into every subject fails the suite rather than showing up as a slow CI job
+nobody attributes to anything.
 
 ---
 
