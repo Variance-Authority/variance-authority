@@ -15,6 +15,8 @@ import {
   loadCollector,
   planList,
   planStorybook,
+  historyFor,
+  identityOf,
   readCliRunReport,
   run,
   storeFor,
@@ -80,12 +82,26 @@ export async function dispatch(
         ...(plan !== undefined ? { plan } : {}),
       });
 
+      // Resolved here, from the flags and the process environment, so that `run`
+      // itself stays free of both — it is handed an identity or it is not, and a
+      // test can hand it one without setting environment variables that outlive
+      // the test.
+      const history = historyFor(effective);
+      const identity = identityOf(
+        {
+          ...(parsed.run !== undefined ? { run: parsed.run } : {}),
+          ...(parsed.commit !== undefined ? { commit: parsed.commit } : {}),
+        },
+        process.env,
+      );
+
       try {
         const report = await run({
           config: effective,
           ...(parsed.subjects !== undefined ? { subjects: parsed.subjects } : {}),
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
           ...(parsed.flakes ? { flakes: true } : {}),
+          ...(identity !== undefined ? { identity } : {}),
           deps: {
             collector,
             store: await storeFor(effective),
@@ -93,6 +109,7 @@ export async function dispatch(
             now: () => new Date().toISOString(),
             writeArtifact: writeArtifactToDisk,
             writeReport: writeCliRunReport,
+            ...(history !== undefined ? { history } : {}),
           },
         });
 

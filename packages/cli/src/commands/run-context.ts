@@ -1,7 +1,9 @@
+import type { HistoryStore } from '@variance-authority/history';
 import type { PngDecoder } from '@variance-authority/png';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import type { Config } from '../config.js';
 import type { Collector } from './collector.js';
+import type { RunIdentity } from './history.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
 
 /**
@@ -36,6 +38,21 @@ export interface RunDeps {
   /** Writes candidate images. Injected so the run loop is testable with no disk. */
   writeArtifact(path: string, bytes: Buffer): Promise<void>;
   writeReport(path: string, report: CliRunReport): Promise<void>;
+
+  /**
+   * Where this run's observations and instabilities are written down.
+   *
+   * Injected rather than constructed, and absent when the operator configured no
+   * `history`. The alternative — a store built inside the loop — would put a
+   * socket in the one function that is supposed to be testable with no disk, no
+   * browser and no network, and every test would have to defeat it.
+   *
+   * Absent is not `createAbsentStore()`. The absent store answers questions, and
+   * what the run needs to know first is whether to *compute* anything at all: a
+   * run with no history configured must not hash three hundred snapshots to hand
+   * them to something that discards them.
+   */
+  readonly history?: HistoryStore;
 }
 
 export interface RunOptions {
@@ -62,6 +79,17 @@ export interface RunOptions {
    * complete is the failure this tool exists to refuse.
    */
   readonly flakes?: boolean;
+
+  /**
+   * Which run this is, and at which commit — `--run` and `--commit`, or the CI
+   * environment's own pair.
+   *
+   * Only a history record needs it, and only a configured one: absent means
+   * nothing is written and the report says so, rather than an id being invented.
+   * An invented id is worse than no record, because it cannot be joined back to
+   * anything that shipped and it silently becomes a denominator.
+   */
+  readonly identity?: RunIdentity;
 }
 
 export interface ObserveContext {

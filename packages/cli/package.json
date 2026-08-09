@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
+    "@variance-authority/history": "workspace:^",
     "@variance-authority/mcp": "workspace:^",
     "@variance-authority/observe": "workspace:^",
     "@variance-authority/playwright": "workspace:^",

@@ -4,6 +4,7 @@ import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
 import { matchesGlob, type Plan } from './collector.js';
 import { observeOne } from './observe-one.js';
+import { recordIfConfigured, type SubjectHistory } from './history.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
@@ -63,7 +64,7 @@ export { sensitivityLedgerOf, summarizeSensitivities } from './sensitivities.js'
 export type { SensitivityLedger, SensitivityUsage } from './sensitivities.js';
 export type { IgnoreLedger, IgnoreUsage } from './ignores.js';
 export { recordOf } from './record.js';
-export { decoderFor, renderCacheRoot, storeFor, writeArtifactToDisk } from './resources.js';
+export { decoderFor, historyFor, renderCacheRoot, storeFor, writeArtifactToDisk } from './resources.js';
 export { readCliRunReport, writeCliRunReport } from './run-report.js';
 export type {
   CliObservationRecord,
@@ -72,6 +73,8 @@ export type {
   NotObservedKind,
 } from './run-report.js';
 export type { RunDeps, RunOptions } from './run-context.js';
+export { identityOf } from './history.js';
+export type { RunIdentity } from './history.js';
 
 /**
  * Run, and write the report.
@@ -171,6 +174,15 @@ async function observeAll(
     () => null,
   );
 
+  // Filled only when this run has both a store and an identity to write under.
+  // The check is here rather than inside the recorder so that a run with no
+  // history configured never hashes a snapshot it is not going to send.
+  const recording = options.identity !== undefined && config.history !== undefined;
+  const readings: (SubjectHistory | null)[] = Array.from(
+    { length: plan.subjects.length },
+    () => null,
+  );
+
   // The collector is a single standing world (ADR-0009), so exactly one call may
   // be in flight — collecting two subjects at once would render them into one
   // document and let each decide the other's verdict. The raster tier has no
@@ -206,6 +218,18 @@ async function observeAll(
         entry: { subject: id, kind: 'failed', because: collected.because },
       };
       return;
+    }
+
+    // Kept per subject, in plan order, and only when there is a record to write
+    // to. A quiet subject is the one the denominator is made of, so this is taken
+    // here — before the verdict — rather than from the observation, which knows
+    // nothing about the reading that settled.
+    if (recording && collected.snapshot !== undefined) {
+      readings[index] = {
+        subject: id,
+        snapshot: collected.snapshot,
+        ...(collected.source !== undefined ? { source: collected.source } : {}),
+      };
     }
 
     try {
@@ -273,6 +297,21 @@ async function observeAll(
     slots.flatMap((slot) => (slot?.kind === 'observed' ? [...(slot.stabilization ?? [])] : [])),
   );
 
+  // After the verdicts and before the report is written, because the flakiness
+  // answer must include *this* run: a reader told "6 occurrences, and the last
+  // sweep still saw it" is reading a sentence that accounts for the finding in
+  // front of them. Asked before the write it would be off by one, in the
+  // reassuring direction.
+  const recorded = await recordIfConfigured({
+    config,
+    deps,
+    at,
+    ...(options.identity !== undefined ? { identity: options.identity } : {}),
+    swept: context.sweep === true,
+    readings,
+    observations,
+  });
+
   const report: CliRunReport = {
     runVersion: 1,
     at,
@@ -281,7 +320,10 @@ async function observeAll(
     ...(intent !== undefined ? { intent } : {}),
     observations,
     notObserved,
-    ...(warnings.length > 0 ? { warnings } : {}),
+    ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),
+    ...(warnings.length + recorded.warnings.length > 0
+      ? { warnings: [...warnings, ...recorded.warnings] }
+      : {}),
     ...(ignores !== undefined ? { ignores } : {}),
     ...(sensitivities !== undefined ? { sensitivities } : {}),
     ...(applied.size > 0 ? { stabilization: [...applied].sort() } : {}),

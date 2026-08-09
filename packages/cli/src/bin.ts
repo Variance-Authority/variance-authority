@@ -51,6 +51,15 @@ export type Parsed =
       readonly profile?: ProfileId;
       readonly subjects?: string;
       readonly intent?: string;
+      /**
+       * `--run` and `--commit`: which run this is, for a history record.
+       *
+       * Both or neither is not enforced here — `identityOf` requires the pair,
+       * and a half-given pair falls back to the CI environment rather than being
+       * completed from two sources, which would describe a run that never existed.
+       */
+      readonly run?: string;
+      readonly commit?: string;
       /** `--flakes`: read every subject twice, not only the ones that changed. */
       readonly flakes: boolean;
       readonly exitZeroOnChanges: boolean;
@@ -93,7 +102,15 @@ const DEFAULT_CONFIG = 'variance.config.json';
 const GLOBAL = ['--config'] as const;
 
 const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
-  run: ['--profile', '--subjects', '--intent', '--flakes', '--exit-zero-on-changes'],
+  run: [
+    '--profile',
+    '--subjects',
+    '--intent',
+    '--run',
+    '--commit',
+    '--flakes',
+    '--exit-zero-on-changes',
+  ],
   report: ['--format', '--subject', '--exit-zero-on-changes'],
   accept: ['--all', '--shape'],
   serve: [],
@@ -102,7 +119,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
 };
 
 export const USAGE = [
-  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--flakes] [--exit-zero-on-changes]',
+  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--flakes] [--exit-zero-on-changes]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]',
   'variance serve   [--config <path>]              # MCP over stdio',
@@ -139,6 +156,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
       }
       const subjects = flags.values.get('--subjects');
       const intent = flags.values.get('--intent');
+      const runId = flags.values.get('--run');
+      const commit = flags.values.get('--commit');
       noPositionals(flags.positionals, 'run');
 
       return {
@@ -147,6 +166,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(profile !== undefined ? { profile } : {}),
         ...(subjects !== undefined ? { subjects } : {}),
         ...(intent !== undefined ? { intent } : {}),
+        ...(runId !== undefined ? { run: runId } : {}),
+        ...(commit !== undefined ? { commit } : {}),
         flakes: flags.present.has('--flakes'),
         exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
       };

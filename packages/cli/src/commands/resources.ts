@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
+import type { HistoryStore } from '@variance-authority/history';
+import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
 import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
 import { createRemoteStore } from '@variance-authority/remote';
@@ -95,6 +97,25 @@ export function renderCacheRoot(): string {
       : join(homedir(), '.cache');
 
   return join(base, 'variance-authority', 'renders');
+}
+
+/**
+ * The history record the config asks for, or nothing.
+ *
+ * `undefined` rather than `createAbsentStore()` when no `history` is configured,
+ * and the difference is not cosmetic: the absent store answers *questions*, and
+ * what the run needs to decide first is whether to compute anything at all. A run
+ * with no record configured must not hash three hundred snapshots in order to
+ * hand them to something that discards them.
+ */
+export function historyFor(config: Config): HistoryStore | undefined {
+  if (config.history === undefined) return undefined;
+
+  return createHttpHistoryStore({
+    endpoint: config.history.endpoint,
+    token: config.history.token,
+    project: config.history.project ?? config.project,
+  });
 }
 
 /**

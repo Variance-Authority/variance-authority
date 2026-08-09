@@ -45,6 +45,83 @@ export interface RunReport {
    * to handle, which is cheaper than the state it prevents collapsing.
    */
   readonly notObserved?: readonly NotObserved[];
+
+  /**
+   * What a history record already knew about the subjects this run found
+   * unstable, keyed by subject.
+   *
+   * Two readings put a *floor* under flakiness and can never put a ceiling on it
+   * (`ObservationRecord.unstable`). This is the other instrument: how often the
+   * subject has read differently before, and — the part that decides what anybody
+   * does next — whether it has happened since the last few sweeps. "Unstable in 6
+   * of 20" and "6 times, none in the last 9 sweeps" are opposite instructions.
+   *
+   * It lives on this type rather than only on the CLI's superset for the reason
+   * `notObserved` does: the answers an agent gets are computed from *this* type,
+   * and a field the tools cannot see is a field they cannot be contradicted by.
+   *
+   * **Absent is not "this has never happened."** It means no store answered —
+   * because none is configured, or because one could not be reached — and the
+   * reason is in `warnings` where it can be printed. A surface that renders a
+   * missing entry as "first occurrence" has invented the one fact this record
+   * exists to supply.
+   */
+  readonly flakiness?: Readonly<Record<string, FlakinessRecord>>;
+}
+
+/**
+ * How often one subject has failed to read the same way twice.
+ *
+ * A structural copy of `@variance-authority/history`'s `Flakiness` rather than an
+ * import of it: this package requires nothing, and a report reader must not have
+ * to install a history client to open a file. The two are kept in step by the
+ * writer — `cli`, which imports both — and the fields that could drift are the
+ * ones with a rule attached, restated here so a reader of the artifact meets it.
+ */
+export interface FlakinessRecord {
+  /** Distinct runs recorded in the window, whatever they examined. */
+  readonly runs: number;
+
+  /**
+   * Distinct runs that read **every** subject twice, and the only honest
+   * denominator: an ordinary run asks a subject whether it agrees with itself
+   * only after calling it `changed`, so a green subject's silence in one is not
+   * evidence of anything.
+   */
+  readonly sweeps: number;
+
+  /** Distinct runs in which this subject read differently and was not absorbed. */
+  readonly occurrences: number;
+
+  /**
+   * Runs whose instability fell entirely in bands this subject does not assert
+   * on — working as declared, never a finding, counted so a rule that absorbs
+   * something forever can still be asked about.
+   */
+  readonly absorbedRuns: number;
+
+  /** Occurrences per sweep. **Absent when no sweep has run**, and never zero. */
+  readonly rate?: number;
+
+  /**
+   * Sweeps recorded since the most recent occurrence. Counted in sweeps rather
+   * than in days, so a suite that stopped running does not look increasingly
+   * fixed the longer nobody looks at it.
+   */
+  readonly sweepsSince: number;
+
+  /** What read differently, loudest first. Empty when nothing could be named. */
+  readonly causes: readonly {
+    readonly component?: string;
+    readonly band?: string;
+    readonly runs: number;
+  }[];
+
+  readonly firstAt?: string;
+  readonly lastAt?: string;
+
+  /** One sentence, ready to print, from the package that owns the arithmetic. */
+  readonly because: string;
 }
 
 /**
