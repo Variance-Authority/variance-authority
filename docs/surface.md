@@ -119,7 +119,7 @@ Read down the column you can satisfy:
 | `raster` | nothing | Contracts, policies, ephemeral retention |
 | `store` | a directory you can write | Baselines live on a disk or in git-LFS |
 | `remote` | a service already running | Baselines or rendering live behind HTTP |
-| `history`, `server` | a database | Drift across runs — see [flows.md rung 5](flows.md#rung-5--history-drift-across-runs) |
+| `history`, `server` | a database | How often a subject has flaked, and drift across runs — see [flows.md rung 5](flows.md#rung-5--history-recurrence-and-drift-across-runs) |
 | `report`, `mcp` | a disk / an agent | You read a run's output as a file or over MCP |
 | `session` | a DOM | One standing world instead of rinsing between subjects |
 | `storybook` | **nothing** | You read a story index. Not a browser: it names the three page methods it drives instead of importing a `Page` |

@@ -160,12 +160,52 @@ when every verdict is green.
 **Two readings is a floor, not a ceiling.** A subject that reads differently one
 time in fifty passes this forty-nine runs out of fifty, and an absent finding
 means *this run's two readings agreed* — never *this subject is stable*. The
-report says so in those words. Recurrence over a window, which is the shape
-[Argos ships](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md),
-is a different instrument and is not built here: it belongs to
-[spec 0002](specs/0002-history-store.md), which is still blocked on its own
-contract decision. Raster-level nondeterminism is invisible to this for the same
-reason it is cheap — it does not move a document digest.
+report says so in those words. The other instrument is
+[recurrence over a window](#has-this-happened-before), which needs a record and
+therefore a service. Raster-level nondeterminism is invisible to both for the
+same reason this one is cheap — it does not move a document digest.
+
+### Has this happened before?
+
+The question two readings cannot answer, and the one that decides who fixes it.
+*Unstable in 6 of 20* says the fixture is bad; *6 times, and the last 9 sweeps
+were clean* says somebody already fixed it, and rewriting that fix is a day spent
+re-solving a solved problem.
+
+Since 2026-08-10 a run records what it saw, when a history service is configured
+([spec 0002](specs/0002-history-store.md)), and asks the record about every
+subject it just called unstable. The answer travels in the report, so the
+summary, the pull-request comment and an agent all read one sentence:
+
+```
+UNSTABLE: 1 subject(s) were read twice, seconds apart …
+    story:checkout--summary — Clock (content)
+      read differently in 6 run(s), 50% of the 12 sweep(s) that asked, and the most recent
+      sweep still saw it
+      — recurring, and the most recent sweep still saw it: the fixture is the bug
+```
+
+**The denominator is sweeps, not runs**, and that is the whole arithmetic. An
+ordinary run reads a subject twice only after the comparison called it `changed`,
+so a subject that was green in eighteen runs was never *asked* whether it agrees
+with itself. Dividing by runs would report a flake that fires every single time
+anybody looks as firing one time in ten. `variance run --flakes` sweeps, a sweep
+is recorded as one, and a window containing no sweep has **no rate at all** —
+absent, never zero ([ADR-0032](context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md)).
+
+**Recency is counted in sweeps too.** "Nine sweeps have not seen it since" is a
+statement about examinations; "three weeks" is a statement about the calendar, and
+a suite that stopped running would look increasingly healthy the longer nobody
+looked at it.
+
+**No record answering is said out loud.** A subject with no history entry prints
+*that is silence, not a first occurrence* — because the reader most wants the
+opposite to be true, and nothing in a single run supports it.
+
+What it takes to have one: a `history` block in the config pointing at a service
+you run, and a run that can name itself — `--run` and `--commit`, or the pair the
+CI you are already inside exports. Without an identity nothing is recorded and the
+run says so, because a history that quietly stops growing is worse than none.
 
 ### The first thing it found was ours
 
@@ -262,8 +302,15 @@ answers with a probability. Reading the subject twice needs one run and answers
 with a component and a band, because the evidence is two documents rather than
 two images. The cost of ours is that it only ever fires on a subject the run
 already called `changed`; the cost of theirs is that the first several
-occurrences are red builds. Neither subsumes the other, and the window half is
-[spec 0002](specs/0002-history-store.md)'s, unbuilt.
+occurrences are red builds.
+
+Since 2026-08-10 we run **both halves**, and the difference from their design is
+now only in the last step. We count occurrences over a window, keyed on the
+component and band that moved rather than on a diff fingerprint, and we report
+the count — [we do not act on it](#has-this-happened-before). Nothing is
+auto-ignored at any threshold: the count tells a reader whether to expect a long
+afternoon or a fix that already landed, and the suppression decision stays a
+declaration somebody writes down ([`ignores.md`](ignores.md)).
 
 The honest cost of our bet: suspicion over-reports. A coupling can exist and
 never bite, so the read-write pass alone produces findings that a confirmation

@@ -23,7 +23,7 @@ less. What changes is what you can *ask*, and who can answer.
 | 2. Shared cache | a CI cache | cold runners stop re-rendering; documents, so the docket ranks by cause | **no** — [spec 0011](specs/0011-storage-and-cache-primitives.md) |
 | 3. Remote baselines | one service, one token | no bot commits, no LFS quota | yes |
 | 4. Tribunal | a database and a bucket, two tokens | a review UI, approval without a commit | the surface ships; **nothing posts a build to it** |
-| 5. History | a history endpoint | drift across runs | ships, **no caller** — [spec 0002](specs/0002-history-store.md) |
+| 5. History | a history endpoint | recurrence of a flake; drift across runs | a run records and asks about flakes; **drift has no caller** — [spec 0002](specs/0002-history-store.md) |
 
 ## Rung 0 — ephemeral: nothing is stored
 
@@ -234,11 +234,21 @@ says so in a comment, so "supplies none" describes what has been written rather
 than what the code permits. Rung 2 is what would make it the default rather than
 the adopter's problem, and it is the one that is not built.
 
-## Rung 5 — history: drift across runs
+## Rung 5 — history: recurrence, and drift across runs
 
-**Ships, with no caller.** The rows, the drift arithmetic, two backends and the
-wire all exist and are tested; nothing writes to them from a run, and the contract
-has no read that would let one. See [spec 0002](specs/0002-history-store.md).
+**Half wired, since 2026-08-10.** A run records itself, the component hashes that
+moved, and every subject that failed to read the same way twice; it then asks how
+often that subject has done so before and carries the answer into the report —
+which is what turns a one-run flake detector into one that can say *this has been
+happening for a month* or *nine sweeps have been clean since*
+([`flakiness.md`](flakiness.md),
+[ADR-0032](context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md)).
+
+**Drift is the half that is not.** No run resolves a design token to a value, so
+`valueJourney` receives an empty list on every write; `churn` and `reach` now have
+rows to read and nothing asks them; and every observation is recorded unapproved,
+because acceptance happens later and nothing joins it back. See
+[spec 0002](specs/0002-history-store.md).
 
 Worth stating anyway, because it is the only rung that answers a question the
 others structurally cannot. Every rung below compares two things. A sum across

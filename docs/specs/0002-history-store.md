@@ -1,13 +1,38 @@
 # Spec 0002 — History service and drift queries
 
-**Missing:** a caller.
+**Missing:** the token axis, and three of the five questions have no caller.
 **Built on:** per-component band hashing
-([ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md)) and
-the bulk read of the present
-([ADR-0031](../context/adr/0031-the-run-asks-what-is-recorded-now.md)), which was
-the blocker and is decided.
+([ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md)), the
+bulk read of the present
+([ADR-0031](../context/adr/0031-the-run-asks-what-is-recorded-now.md)), and the
+flake arithmetic
+([ADR-0032](../context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md)).
 **Packages:** `@variance-authority/history` (interface, drift math, client),
-`@variance-authority/server` (the service). Both ship; nothing imports either.
+`@variance-authority/server` (the service).
+
+**What now runs.** Since 2026-08-10 `variance run` records: the run itself,
+quiet ones included; the component hashes that moved, computed against
+`current()`; and one row per subject that failed to read the same way twice. It
+then asks `flakiness()` about every subject it called unstable and carries the
+answer into the report, which is how recurrence reaches the summary, a
+pull-request comment and an agent without any of them holding a connection.
+
+**What does not.**
+
+- **No token value is ever recorded.** `valueJourney` is implemented on both
+  sides of the wire and every write sends an empty token list, because nothing in
+  a run resolves a design token to a value yet. The headline example at the top of
+  this file — a button gaining 2px eleven times — is therefore still unreachable,
+  and it is the reason this spec is still here.
+- **`churn`, `valueJourney` and `reach` have no caller.** The rows they read are
+  being written now, so the answers exist; nothing asks for them. The natural
+  home is an MCP tool, which is a decision about `variance serve`'s tool list
+  rather than about storage ([spec 0013](0013-a-real-agent.md)).
+- **Acceptance is never recorded as acceptance.** Every observation is written
+  `accepted: false`, because acceptance happens later in `variance accept` or in a
+  review surface and nothing joins back. Drift sums approved changes only, so
+  today every drift total would be zero — which is why no caller asking for one
+  would be honest yet.
 
 ## Purpose
 
@@ -60,6 +85,36 @@ dominated by how much page sits below the edit.
 A row is roughly 100 bytes and is written only when a hash moves. A 300-subject
 run in which two components changed writes two rows.
 
+Plus one row per `(subject, component, band)` that failed to read the same way
+twice, which is a different kind of record and follows the opposite rule:
+
+```ts
+export interface Instability {
+  readonly project: string;
+  readonly subject: string;
+  /** Absent when the two readings could not be resolved to a component. */
+  readonly component?: string;
+  /** A *frequency* band — `content`, `geometry`, `token` — not a hash band. */
+  readonly band?: FrequencyBand;
+  readonly profile: ProfileId;
+  readonly commit: string;
+  readonly run: string;
+  readonly at: string;
+  /** The sensitivity rule that absorbed it, when the subject declared one. */
+  readonly absorbedBy?: string;
+}
+```
+
+**Every firing is written**, with no write-only-on-movement rule, because an
+occurrence is an event rather than a state: a subject that fired eleven times is a
+different object from one that fired once in March. They are rare by definition,
+so the cost is a row on the runs that had something to report.
+
+`RunRecord` carries `swept`, which says whether the run read *every* subject
+twice. It is the denominator, and it is nullable: absent means the run never said,
+which is not the same as saying it swept nothing
+([ADR-0032](../context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md)).
+
 ## Where it lives
 
 **A service, part of this project, run by the operator in their own
@@ -109,6 +164,8 @@ export interface HistoryStore {
 
   lastChanged(subject: string, component: string, band?: Band): Promise<Answer<Observation | null>>;
   churn(component: string, window: Window): Promise<Answer<Churn>>;
+
+  flakiness(subject: string, window: Window): Promise<Answer<Flakiness>>;
   valueJourney(token: string, window: Window): Promise<Answer<Journey>>;
   reach(component: string, window: Window): Promise<Answer<Reach>>;
 }
@@ -171,6 +228,11 @@ style agrees across profiles on 0 of 107 component boundaries).
 
 ## Acceptance
 
+0. **Done.** A subject that read differently from itself in several runs is
+   reported with a count, a rate over the sweeps that could have observed it, and
+   the number of sweeps since — and a window with no sweep in it reports no rate
+   rather than zero
+   ([ADR-0032](../context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md)).
 1. A series of small approved changes to one token produces an exact journey
    (`12px → 20px`) with a commit per step.
 2. A component that is collateral in every run of a series accumulates nothing.

@@ -258,7 +258,7 @@ bought for a reason.
 | A design system, designers must approve without repo access | **Chromatic.** No contest — see [§5 of comparison.md](comparison.md#5-when-not-to-choose-this) |
 | A real browser matrix including Safari on macOS | **Applitools** or **Percy.** Nothing here rents a fleet |
 | Your compute, your bucket, no vendor, and the workflow you already know | **reg-suit** or **Lost Pixel OSS** today; this project when the first release is published ([spec 0015](specs/0015-the-first-published-release.md)) |
-| Flaky suite, need to know *which* tests are unreliable over time | **Argos.** Nothing here has ever written a history row ([§4.1](comparison.md#41-nothing-has-ever-recorded-a-history-row)) |
+| Flaky suite, need to know *which* tests are unreliable over time | **Argos.** Nothing here has ever written a history row ([§4.1](comparison.md#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be)) |
 | Nothing may leave your network, ever | Here, or a self-hosted Applitools — with the compliance caveats in [comparison.md](comparison.md) fully read |
 | The diff must name a component and a file, not a rectangle | Here. Nothing else in the table does it |
 | Behind a login, on your VPN, against a staging build | Here, via the Playwright surface, or Argos via your own E2E suite |
