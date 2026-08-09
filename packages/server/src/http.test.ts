@@ -2,11 +2,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core';
 import {
   CHURN_PATH,
+  CURRENT_PATH,
   LAST_CHANGED_PATH,
+  MAX_CURRENT_SUBJECTS,
   OBSERVATIONS_PATH,
   REACH_PATH,
   VALUE_JOURNEY_PATH,
   isKept,
+  observationsFrom,
   type Observation,
   type RunRecord,
   type TokenValue,
@@ -324,6 +327,54 @@ describe('the wire, spoken by the real client', () => {
     const reach = await store.reach('Button', { since: '2026-02-01T00:00:00.000Z' });
     expect(isKept(reach) && reach.subjects).toEqual(['checkout', 'settings']);
     expect(isKept(reach) && reach.arrived).toEqual(['settings']);
+  });
+
+  it('answers the read a run makes before it writes, so only movement is written', async () => {
+    // The round trip the whole record depends on. Without it the write rule — a
+    // row only when a hash moves — is unimplementable, which is why this code sat
+    // built and unreachable with nothing crossing the wire.
+    const { url } = await serve();
+    const store = createHttpHistoryStore({ endpoint: url, token: TOKEN, project: 'shop' });
+
+    await store.record(run(), [observation()], []);
+
+    const current = await store.current(['checkout']);
+    expect(isKept(current)).toBe(true);
+    expect(isKept(current) ? current.map((row) => row.hash) : []).toEqual(['h-1']);
+
+    // And the point of asking: the same hashes, observed again, produce no rows.
+    const unchanged = observationsFrom(
+      [{ component: 'Button', instances: 1, structure: 'h-1' as Digest }],
+      {
+        project: 'shop',
+        subject: 'checkout',
+        run: 'run-2',
+        commit: 'bbbb',
+        profile: 'chromium',
+        at: '2026-03-02T10:00:00.000Z',
+        accepted: true,
+      },
+      isKept(current) ? current : [],
+    );
+    expect(unchanged).toEqual([]);
+  });
+
+  it('refuses a subject list longer than one request may carry rather than trimming the answer', async () => {
+    // The only refusal here that is about size rather than shape, and it is the
+    // opposite of every other cap in this service: the answer is not allowed to
+    // be short, because a missing previous row is indistinguishable from a hash
+    // that was never recorded — so the run appends a change that did not happen.
+    const { url } = await serve();
+    const response = await fetch(`${url}${CURRENT_PATH}`, {
+      method: 'POST',
+      headers: { ...authorized, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        subjects: Array.from({ length: MAX_CURRENT_SUBJECTS + 1 }, (_, index) => `s${index}`),
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(await response.json())).toContain('is not trimmed to fit');
   });
 
   it('refuses a body larger than the configured ceiling instead of parsing part of it', async () => {

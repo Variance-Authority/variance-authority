@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
   CHURN_PATH,
+  CURRENT_PATH,
   LAST_CHANGED_PATH,
   OBSERVATIONS_PATH,
   REACH_PATH,
@@ -10,13 +11,14 @@ import {
 import {
   HistoryWriteConflict,
   churnFrom,
+  currentFrom,
   journeyFrom,
   lastChangedFrom,
   reachFrom,
   type HistoryBackend,
 } from './backend.js';
 import { BadRequest, MethodNotAllowed, PayloadTooLarge } from './http-errors.js';
-import { asBand, parseRecordRequest } from './http-parse.js';
+import { asBand, parseCurrentRequest, parseRecordRequest } from './http-parse.js';
 import { optionalParam, readBody, requireMethod, requiredParam, windowOf } from './http-request.js';
 
 /**
@@ -202,6 +204,16 @@ async function route(
     return;
   }
 
+  if (url.pathname === CURRENT_PATH) {
+    // A read, and still a POST: its argument is a subject list, and three hundred
+    // subject ids in a query string is a 414 from a proxy nobody configured
+    // (`CurrentRequest`).
+    requireMethod(request, 'POST');
+    const subjects = parseCurrentRequest(await readBody(request, maxBodyBytes));
+    send(response, 200, { observations: await currentFrom(backend, project, subjects) });
+    return;
+  }
+
   if (url.pathname === LAST_CHANGED_PATH) {
     requireMethod(request, 'GET');
     const band = optionalParam(url, 'band');
@@ -250,9 +262,9 @@ async function route(
   send(response, 404, {
     error:
       `no route for ${request.method ?? '?'} ${url.pathname}. This service answers ` +
-      `${OBSERVATIONS_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ${VALUE_JOURNEY_PATH} and ` +
-      `${REACH_PATH}; a path from a different API version is a client and service that disagree ` +
-      'about the recorded shape',
+      `${OBSERVATIONS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
+      `${VALUE_JOURNEY_PATH} and ${REACH_PATH}; a path from a different API version is a client ` +
+      'and service that disagree about the recorded shape',
   });
 }
 

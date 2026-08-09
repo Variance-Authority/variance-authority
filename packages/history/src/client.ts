@@ -1,14 +1,17 @@
-import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
-import { BANDS, type Band, type Observation, type TokenValue } from './observation.js';
+import { asArray, asChurn, asJourney, asObservation, asReach, asRecord } from './answers.js';
+import type { Observation } from './observation.js';
 import {
   CHURN_PATH,
+  CURRENT_PATH,
   LAST_CHANGED_PATH,
+  MAX_CURRENT_SUBJECTS,
   OBSERVATIONS_PATH,
   REACH_PATH,
   VALUE_JOURNEY_PATH,
+  type CurrentRequest,
   type RecordRequest,
 } from './protocol.js';
-import type { BandChurn, Churn, HistoryStore, Journey, Reach, Window } from './store.js';
+import type { Churn, HistoryStore, Journey, Reach, Window } from './store.js';
 
 /**
  * The store, over a hop.
@@ -103,6 +106,32 @@ export function createHttpHistoryStore(options: HttpHistoryOptions): HistoryStor
       await request(send, `${base}${OBSERVATIONS_PATH}`, options.token, body, timeoutMs);
     },
 
+    async current(subjects): Promise<readonly Observation[]> {
+      const url = `${base}${CURRENT_PATH}${
+        options.project === undefined ? '' : `?project=${encodeURIComponent(options.project)}`
+      }`;
+      const rows: Observation[] = [];
+
+      // Sequential, not concurrent. The answers are disjoint by subject so the
+      // order does not matter, but a run that opens fifteen sockets at once
+      // against the operator's single-process store trades a few hundred
+      // milliseconds for the chance of timing out the write that follows.
+      for (const batch of batched(subjects, MAX_CURRENT_SUBJECTS)) {
+        const body: CurrentRequest = { subjects: batch };
+        const answer = asRecord(
+          await request(send, url, options.token, body, timeoutMs),
+          url,
+          'a current-rows response',
+        );
+
+        for (const row of asArray(answer['observations'], url, 'the current rows')) {
+          rows.push(asObservation(row, url));
+        }
+      }
+
+      return rows;
+    },
+
     async lastChanged(subject, component, band): Promise<Observation | null> {
       const url = `${base}${LAST_CHANGED_PATH}`;
       const body = await query(LAST_CHANGED_PATH, { subject, component, band });
@@ -135,6 +164,25 @@ export function createHttpHistoryStore(options: HttpHistoryOptions): HistoryStor
       );
     },
   };
+}
+
+/**
+ * The subject list in request-sized pieces, de-duplicated on the way.
+ *
+ * A repeated subject would be answered twice and folded twice, which is harmless
+ * arithmetically and is exactly the sort of harmlessness that stops being true
+ * later. An empty list yields nothing at all, so a run with no subjects makes no
+ * request rather than asking the store about nobody.
+ */
+function batched(subjects: readonly string[], size: number): readonly (readonly string[])[] {
+  const unique = [...new Set(subjects)];
+  const batches: string[][] = [];
+
+  for (let index = 0; index < unique.length; index += size) {
+    batches.push(unique.slice(index, index + size));
+  }
+
+  return batches;
 }
 
 function windowParams(window: Window): Readonly<Record<string, string | number | undefined>> {
@@ -216,241 +264,4 @@ async function textOf(response: Awaited<ReturnType<typeof globalThis.fetch>>): P
 
 function reason(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * Structural validation of every answer, before it becomes a number.
- *
- * Not paranoia about the operator's own service. A field missing from a JSON body
- * becomes `undefined`, `undefined` in an arithmetic sentence becomes `NaN`, and
- * `NaN` printed next to a component name is indistinguishable at a glance from a
- * finding. Failing at the boundary keeps a version mismatch between the client and
- * the service from turning into a plausible report.
- */
-function asRecord(value: unknown, url: string, what: string): Readonly<Record<string, unknown>> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(`history service ${url} returned ${describe(value)} where ${what} was expected`);
-  }
-  return value as Readonly<Record<string, unknown>>;
-}
-
-function asArray(value: unknown, url: string, what: string): readonly unknown[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`history service ${url} returned ${describe(value)} where ${what} was expected`);
-  }
-  return value as readonly unknown[];
-}
-
-function text(
-  source: Readonly<Record<string, unknown>>,
-  key: string,
-  url: string,
-  what: string,
-): string {
-  const value = source[key];
-  if (typeof value !== 'string') {
-    throw new Error(`history service ${url} returned ${what} whose \`${key}\` is ${describe(value)}`);
-  }
-  return value;
-}
-
-function count(
-  source: Readonly<Record<string, unknown>>,
-  key: string,
-  url: string,
-  what: string,
-): number {
-  const value = source[key];
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error(`history service ${url} returned ${what} whose \`${key}\` is ${describe(value)}`);
-  }
-  return value;
-}
-
-function flag(
-  source: Readonly<Record<string, unknown>>,
-  key: string,
-  url: string,
-  what: string,
-): boolean {
-  const value = source[key];
-  if (typeof value !== 'boolean') {
-    throw new Error(`history service ${url} returned ${what} whose \`${key}\` is ${describe(value)}`);
-  }
-  return value;
-}
-
-function optionalText(
-  source: Readonly<Record<string, unknown>>,
-  key: string,
-  url: string,
-  what: string,
-): string | undefined {
-  const value = source[key];
-  if (value === undefined || value === null) return undefined;
-  if (typeof value !== 'string') {
-    throw new Error(`history service ${url} returned ${what} whose \`${key}\` is ${describe(value)}`);
-  }
-  return value;
-}
-
-function asBand(value: unknown, url: string, what: string): Band {
-  if (typeof value !== 'string' || !BANDS.includes(value as Band)) {
-    throw new Error(`history service ${url} returned ${what} with an unknown band ${describe(value)}`);
-  }
-  return value as Band;
-}
-
-/**
- * Profile ids are checked against `core`'s own table rather than a list here.
- *
- * A literal list would go stale the day `core` gains a tier, and this client would
- * then reject rows the rest of the system considers valid. The assignment to
- * `unknown` is what makes the lookup's runtime miss visible: `profileById` is
- * typed total over `ProfileId`, and the value being checked is not one yet.
- */
-function asProfile(value: unknown, url: string, what: string): ProfileId {
-  const known: unknown =
-    typeof value === 'string' ? profileById(value as ProfileId) : undefined;
-
-  if (known === undefined) {
-    throw new Error(
-      `history service ${url} returned ${what} with an unknown profile ${describe(value)}`,
-    );
-  }
-  return value as ProfileId;
-}
-
-function asObservation(value: unknown, url: string): Observation {
-  const what = 'an observation';
-  const source = asRecord(value, url, what);
-  const file = optionalText(source, 'file', url, what);
-
-  return {
-    project: text(source, 'project', url, what),
-    subject: text(source, 'subject', url, what),
-    component: text(source, 'component', url, what),
-    band: asBand(source['band'], url, what),
-    hash: text(source, 'hash', url, what) as Digest,
-    profile: asProfile(source['profile'], url, what),
-    commit: text(source, 'commit', url, what),
-    run: text(source, 'run', url, what),
-    at: text(source, 'at', url, what),
-    accepted: flag(source, 'accepted', url, what),
-    ...(file !== undefined ? { file } : {}),
-  };
-}
-
-function asTokenValue(value: unknown, url: string): TokenValue {
-  const what = 'a token value';
-  const source = asRecord(value, url, what);
-
-  return {
-    project: text(source, 'project', url, what),
-    token: text(source, 'token', url, what),
-    value: text(source, 'value', url, what),
-    commit: text(source, 'commit', url, what),
-    at: text(source, 'at', url, what),
-  };
-}
-
-function asChurn(value: unknown, url: string): Churn {
-  const what = 'a churn record';
-  const source = asRecord(value, url, what);
-
-  const bands = asArray(source['bands'], url, `${what}'s bands`).map((entry): BandChurn => {
-    const band = asRecord(entry, url, 'a band churn');
-    const profile = band['profile'];
-
-    return {
-      band: asBand(band['band'], url, 'a band churn'),
-      ...(profile === undefined || profile === null
-        ? {}
-        : { profile: asProfile(profile, url, 'a band churn') }),
-      runs: count(band, 'runs', url, 'a band churn'),
-      changes: count(band, 'changes', url, 'a band churn'),
-      rate: count(band, 'rate', url, 'a band churn'),
-    };
-  });
-
-  const firstAt = optionalText(source, 'firstAt', url, what);
-  const lastAt = optionalText(source, 'lastAt', url, what);
-
-  return {
-    component: text(source, 'component', url, what),
-    window: asWindow(source['window'], url, what),
-    runs: count(source, 'runs', url, what),
-    changedRuns: count(source, 'changedRuns', url, what),
-    bands,
-    collateralRuns: count(source, 'collateralRuns', url, what),
-    rejectedRuns: count(source, 'rejectedRuns', url, what),
-    ...(firstAt !== undefined ? { firstAt } : {}),
-    ...(lastAt !== undefined ? { lastAt } : {}),
-    omittedRuns: count(source, 'omittedRuns', url, what),
-    omittedObservations: count(source, 'omittedObservations', url, what),
-  };
-}
-
-function asJourney(value: unknown, url: string): Journey {
-  const what = 'a value journey';
-  const source = asRecord(value, url, what);
-
-  return {
-    token: text(source, 'token', url, what),
-    window: asWindow(source['window'], url, what),
-    values: asArray(source['values'], url, `${what}'s values`).map((entry) =>
-      asTokenValue(entry, url),
-    ),
-    // Required rather than defaulted to zero: a service that forgets to report
-    // what it left out would make every truncated journey read as a whole one.
-    omitted: count(source, 'omitted', url, what),
-  };
-}
-
-function asReach(value: unknown, url: string): Reach {
-  const what = 'a reach record';
-  const source = asRecord(value, url, what);
-
-  const strings = (key: string): readonly string[] =>
-    asArray(source[key], url, `${what}'s ${key}`).map((entry) => {
-      if (typeof entry !== 'string') {
-        throw new Error(
-          `history service ${url} returned ${what} whose \`${key}\` contains ${describe(entry)}`,
-        );
-      }
-      return entry;
-    });
-
-  return {
-    component: text(source, 'component', url, what),
-    window: asWindow(source['window'], url, what),
-    subjects: strings('subjects'),
-    arrived: strings('arrived'),
-    omittedSubjects: count(source, 'omittedSubjects', url, what),
-  };
-}
-
-/** The window is echoed back so a caller can see the bounds the answer used. */
-function asWindow(value: unknown, url: string, what: string): Window {
-  if (value === undefined || value === null) return {};
-  const source = asRecord(value, url, `${what}'s window`);
-
-  const since = optionalText(source, 'since', url, what);
-  const until = optionalText(source, 'until', url, what);
-  const limit = source['limit'];
-
-  return {
-    ...(since !== undefined ? { since } : {}),
-    ...(until !== undefined ? { until } : {}),
-    ...(limit === undefined || limit === null
-      ? {}
-      : { limit: count(source, 'limit', url, what) }),
-  };
-}
-
-function describe(value: unknown): string {
-  if (value === undefined) return 'nothing';
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'an array';
-  return `${typeof value} (${JSON.stringify(value)?.slice(0, 80) ?? ''})`;
 }

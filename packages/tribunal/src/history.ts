@@ -7,6 +7,7 @@ import {
   type HistoryBackend,
   type ReachRows,
   type Slice,
+  type SubjectsQuery,
   type TokenWindowQuery,
   type WindowQuery,
 } from '@variance-authority/server';
@@ -156,6 +157,10 @@ export function createD1Backend(db: D1Like): HistoryBackend {
       }
     },
 
+    async currentOf(query): Promise<readonly Observation[]> {
+      return currentRows(db, query);
+    },
+
     async lastObservation(query): Promise<Observation | null> {
       const filter = areaFilter(query);
       const row = await db
@@ -290,6 +295,45 @@ function areaFilter(query: AreaQuery): Filter {
   }
 
   return { sql: clauses.map((clause) => ` AND ${clause}`).join(''), params };
+}
+
+/**
+ * One row per live scope in the named subjects: the newest, and only the newest.
+ *
+ * Transcribed from `sqlite-queries.ts`, window function included. D1 is SQLite,
+ * so `ROW_NUMBER()` is available and the tie-break on `rowid` means the same
+ * thing — the later write wins when two rows share an instant, which happens
+ * whenever one run recorded two profiles from a single clock read.
+ *
+ * **No `LIMIT`, in either backend.** A trimmed answer here is not a lower bound
+ * that a reader can be warned about; it is a `previous` set with a hole in it, and
+ * the run then appends a change that did not happen. The request is what is
+ * bounded — `MAX_CURRENT_SUBJECTS` — and the HTTP edge refuses a longer one.
+ */
+async function currentRows(db: D1Like, query: SubjectsQuery): Promise<readonly Observation[]> {
+  const subjects = [...new Set(query.subjects)];
+  if (subjects.length === 0) return [];
+
+  const clauses: string[] = [];
+  const params: D1Value[] = [];
+  scopeInto(query, clauses, params);
+
+  clauses.push(`subject IN (${subjects.map(() => '?').join(', ')})`);
+  params.push(...subjects);
+
+  const where = clauses.map((clause) => ` AND ${clause}`).join('');
+
+  const rows = await db
+    .prepare(
+      'SELECT * FROM (SELECT *, ROW_NUMBER() OVER (' +
+        'PARTITION BY project, subject, component, band, profile ' +
+        'ORDER BY at_ms DESC, rowid DESC) AS recency ' +
+        `FROM observations WHERE 1 = 1${where}) WHERE recency = 1`,
+    )
+    .bind(...params)
+    .all<Row>();
+
+  return rows.results.map(toObservation);
 }
 
 /**

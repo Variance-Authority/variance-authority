@@ -60,6 +60,19 @@ export interface AreaQuery extends BackendQuery {
 }
 
 /**
+ * The subjects a run is about to write, for the one read about the present.
+ *
+ * No window and no limit, deliberately, and a backend may not add either. The
+ * answer is the latest row per live scope inside these subjects, which is bounded
+ * by the code under test rather than by the age of the project — and a *partial*
+ * answer here is not a lower bound, it is a change that did not happen, appended
+ * permanently (`HistoryStore.current`).
+ */
+export interface SubjectsQuery extends BackendQuery {
+  readonly subjects: readonly string[];
+}
+
+/**
  * A window, as the store sees it.
  *
  * `since` and `until` are ISO-8601 instants, and a backend MUST compare them as
@@ -144,6 +157,18 @@ export interface HistoryBackend {
     tokens: readonly TokenValue[],
   ): Promise<void>;
 
+  /**
+   * The latest row per `(subject, component, band, profile)` for the named
+   * subjects, and nothing older.
+   *
+   * Returned raw rather than reduced, because the rule that folds them —
+   * `structure` compares across profiles and the other two do not — belongs to
+   * `observationsFrom` in the other package, next to the write it governs. A
+   * backend that reduced them here would be a second implementation of the scope
+   * rule, and the two would disagree on the day a band changes portability.
+   */
+  currentOf(query: SubjectsQuery): Promise<readonly Observation[]>;
+
   /** The most recent row for an area, or `null` when the record contains none. */
   lastObservation(query: AreaQuery): Promise<Observation | null>;
 
@@ -172,6 +197,21 @@ export interface HistoryBackend {
   reachOf(query: ComponentWindowQuery): Promise<ReachRows>;
 
   close(): Promise<void>;
+}
+
+/**
+ * What is recorded right now for a set of subjects.
+ *
+ * A pass-through like `lastChangedFrom`, and named for the same reason: every
+ * store operation is visibly built from the backend primitives, so the seam is
+ * real rather than a thing most calls route around.
+ */
+export async function currentFrom(
+  backend: HistoryBackend,
+  project: string | undefined,
+  subjects: readonly string[],
+): Promise<readonly Observation[]> {
+  return backend.currentOf({ ...(project !== undefined ? { project } : {}), subjects });
 }
 
 /**
@@ -281,6 +321,9 @@ export function createBackedStore(backend: HistoryBackend, project?: string): Hi
   return {
     async record(run, observations, tokens): Promise<void> {
       await backend.append(run, observations, tokens);
+    },
+    async current(subjects) {
+      return currentFrom(backend, project, subjects);
     },
     async lastChanged(subject, component, band) {
       return lastChangedFrom(backend, project, subject, component, band);

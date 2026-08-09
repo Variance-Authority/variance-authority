@@ -1,9 +1,11 @@
 # Spec 0002 — History service and drift queries
 
-**Missing:** a caller, and a read that would let one exist — see
-[the contract gap](#the-read-a-run-needs-and-which-this-contract-does-not-have).
+**Missing:** a caller.
 **Built on:** per-component band hashing
-([ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md)).
+([ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md)) and
+the bulk read of the present
+([ADR-0031](../context/adr/0031-the-run-asks-what-is-recorded-now.md)), which was
+the blocker and is decided.
 **Packages:** `@variance-authority/history` (interface, drift math, client),
 `@variance-authority/server` (the service). Both ship; nothing imports either.
 
@@ -103,6 +105,8 @@ export interface HistoryStore {
     tokens: readonly TokenValue[],
   ): Promise<void>;
 
+  current(subjects: readonly string[]): Promise<Answer<readonly Observation[]>>;
+
   lastChanged(subject: string, component: string, band?: Band): Promise<Answer<Observation | null>>;
   churn(component: string, window: Window): Promise<Answer<Churn>>;
   valueJourney(token: string, window: Window): Promise<Answer<Journey>>;
@@ -112,37 +116,19 @@ export interface HistoryStore {
 
 Every operation returns a small slice. Nothing loads a whole history.
 
-### The read a run needs, and which this contract does not have
+### The read a run needs, which this contract now has
 
-**Nothing here answers the question the write path has to ask**, and that — not
-absence of effort — is why this has sat built and unreachable for a cycle.
+`current` is the one read about the **present**, and it is what made a caller
+possible: `observationsFrom(hashes, run, previous)` needs the rows currently
+recorded for the subject it is about to write, and the other four reads are all
+questions about the past. It never truncates, the request is capped instead, and
+the reasoning is
+[ADR-0031](../context/adr/0031-the-run-asks-what-is-recorded-now.md) — including
+why the alternative, deduplicating on the server, was refused.
 
-`observationsFrom(hashes, run, previous)` needs `previous`: the rows currently
-recorded for the subject it is about to write. The rule that makes the whole
-design affordable depends on it — *"a row is written only when a hash moves; a
-300-subject run in which two components changed writes two rows"*. The four reads
-above are all **questions a human or an agent asks about the past**: when did this
-last change, how often does it churn, what did this token drift to, where does
-this component appear now. None of them is the one a run asks about the present,
-and the closest, `lastChanged`, returns a single row — so computing `previous`
-through it costs one request per component per band. A 300-subject project with
-ten components each is 9,000 round trips per run.
-
-Two shapes resolve it and they trade the same bytes in opposite directions.
-
-1. **A bulk read.** `current(subjects)` returns the latest row per
-   `(subject, component, band)` scope. The run compares and sends only movement,
-   which is what this document already describes everywhere else.
-2. **The server deduplicates on write.** The run sends everything it observed and
-   the service drops a row equal to the latest stored one. No new read, and the
-   comparison happens where the data already is — but the request body then
-   carries every component of every subject on every run, and `maxBodyBytes`
-   exists precisely to refuse bodies that size.
-
-Both are defensible; this spec picked neither, and a contract that specifies a
-write rule it gives nobody the means to implement is the reason there is code on
-both sides of a wire with nothing crossing it. **Deciding between them is the
-next step for B12** — not more implementation.
+For a cycle this contract specified a write rule and gave nobody the means to
+implement it, which is why there was code on both sides of a wire with nothing
+crossing it. That is fixed; what is still missing is the caller itself.
 
 **Two deviations from the first draft of this contract, both deliberate, both
 argued in `packages/history/src/store.ts` rather than here.** `record` takes the

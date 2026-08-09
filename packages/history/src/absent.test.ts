@@ -39,6 +39,9 @@ function emptyStore(): HistoryStore {
 
   return {
     async record(): Promise<void> {},
+    async current() {
+      return [];
+    },
     async lastChanged() {
       return null;
     },
@@ -59,6 +62,7 @@ describe('the absent store', () => {
     const store = createAbsentStore();
 
     const answers = [
+      await store.current(['story:card']),
       await store.lastChanged('story:card', 'Button'),
       await store.churn('Button', {}),
       await store.valueJourney('--brand', {}),
@@ -98,6 +102,19 @@ describe('the absent store', () => {
     // read as being about that component's stability.
     const withBand = await store.lastChanged('story:card', 'Button', 'geometry');
     expect(isKept(withBand) ? '' : withBand.because).toContain('in its geometry band');
+  });
+
+  it('refuses the read a run makes before it writes, rather than answering "nothing yet"', async () => {
+    // The one refusal with teeth. An empty array is a *valid* previous set —
+    // "nothing recorded yet" — so a caller that failed to narrow the answer would
+    // compute a full set of rows and hand them to a `record` that discards them.
+    // Nothing wrong, nothing kept, and nobody finds it for a cycle.
+    const empty = await emptyStore().current(['a', 'b']);
+    const absent = await createAbsentStore().current(['a', 'b']);
+
+    expect(isKept(empty)).toBe(true);
+    expect(isKept(absent)).toBe(false);
+    expect(isKept(absent) ? '' : absent.because).toContain('these 2 subjects');
   });
 
   it('accepts a write and discards it, so a run without a backend still finishes', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createHttpHistoryStore, type RecordRequest } from './client.js';
+import { MAX_CURRENT_SUBJECTS } from './protocol.js';
 import type { Churn } from './store.js';
 import { isKept } from './store.js';
 import type { Observation, RunRecord } from './observation.js';
@@ -199,6 +200,38 @@ describe('the history client', () => {
     // same as the absent store's refusal.
     await expect(empty.lastChanged('story:card', 'Button')).resolves.toBeNull();
     await expect(found.lastChanged('story:card', 'Button')).resolves.toEqual(OBSERVATION);
+  });
+
+  it('splits a long subject list across requests and concatenates the answers', async () => {
+    // The answer is never trimmed to fit a request, so the *question* is what
+    // gets split. The alternative — one enormous request — is refused by the
+    // service, and the alternative to that is a `previous` set with a hole in it,
+    // which becomes a change that did not happen.
+    const send = stubFetch((_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { subjects: string[] };
+      return { observations: body.subjects.map((subject) => ({ ...OBSERVATION, subject })) };
+    });
+    const store = createHttpHistoryStore({ endpoint: 'http://box:7788', token: 't', fetch: send });
+
+    const subjects = Array.from({ length: MAX_CURRENT_SUBJECTS + 30 }, (_, index) => `s${index}`);
+    const rows = await store.current(subjects);
+
+    expect(send.calls).toHaveLength(2);
+    expect(rows.map((row) => row.subject)).toEqual(subjects);
+    // A read, and still a POST: three hundred subject ids in a query string is a
+    // 414 from a proxy nobody configured.
+    expect(send.calls[0]?.init?.method).toBe('POST');
+  });
+
+  it('asks nobody about nobody, and asks about a repeated subject once', async () => {
+    const send = stubFetch(() => ({ observations: [] }));
+    const store = createHttpHistoryStore({ endpoint: 'http://box:7788', token: 't', fetch: send });
+
+    await expect(store.current([])).resolves.toEqual([]);
+    expect(send.calls).toHaveLength(0);
+
+    await store.current(['a', 'a', 'b']);
+    expect(JSON.parse(String(send.calls[0]?.init?.body ?? '{}'))).toEqual({ subjects: ['a', 'b'] });
   });
 
   it('rejects a row whose band or tier it does not recognise', async () => {

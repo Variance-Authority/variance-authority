@@ -415,6 +415,57 @@ describe('queries', () => {
     expect(inside.rows[0]?.at).toBe(at);
   });
 
+  it('answers `current` with the newest row per scope and nothing older', async () => {
+    // The read a run makes before it writes. Anything older than the latest in a
+    // scope is not a previous hash — it is a hash the project has already moved
+    // away from, and comparing against it re-records a change that already
+    // happened.
+    const backend = track(open());
+    await backend.append(run(), [observation({ hash: 'h-1' as Digest })], []);
+    await backend.append(
+      run({ run: 'run-2', commit: 'bbbb', at: '2026-03-02T10:00:00.000Z' }),
+      [
+        observation({
+          run: 'run-2',
+          commit: 'bbbb',
+          at: '2026-03-02T10:00:00.000Z',
+          hash: 'h-2' as Digest,
+        }),
+      ],
+      [],
+    );
+
+    const rows = await backend.currentOf({ project: 'shop', subjects: ['checkout'] });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.hash).toBe('h-2');
+  });
+
+  it('keeps a scope per band, per profile, and per subject asked about', async () => {
+    const backend = track(open());
+    await backend.append(
+      run(),
+      [
+        observation({ band: 'structure' }),
+        observation({ band: 'style', hash: 'h-style' as Digest }),
+        observation({ band: 'structure', profile: 'chromium', hash: 'h-chromium' as Digest }),
+        observation({ subject: 'settings', hash: 'h-settings' as Digest }),
+      ],
+      [],
+    );
+
+    const asked = await backend.currentOf({ project: 'shop', subjects: ['checkout'] });
+    // Three scopes in `checkout`, and the subject nobody asked about stays out:
+    // a row from another subject that happened to match would suppress a real
+    // change.
+    expect(asked).toHaveLength(3);
+    expect(asked.every((row) => row.subject === 'checkout')).toBe(true);
+
+    const both = await backend.currentOf({ project: 'shop', subjects: ['checkout', 'settings'] });
+    expect(both).toHaveLength(4);
+    expect(await backend.currentOf({ project: 'shop', subjects: [] })).toEqual([]);
+  });
+
   it('keeps two projects apart when a query is scoped and blends them when it is not', async () => {
     // The unscoped case is not a bug — a single-project deployment needs no scope
     // — but it is the one that silently averages two products together, so it is

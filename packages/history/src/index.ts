@@ -44,11 +44,18 @@ export {
   detectDrift,
 } from './drift.js';
 
-export type { LastChangedResponse, RecordRequest } from './protocol.js';
+export type {
+  CurrentRequest,
+  CurrentResponse,
+  LastChangedResponse,
+  RecordRequest,
+} from './protocol.js';
 export {
   CHURN_PATH,
+  CURRENT_PATH,
   HISTORY_API_VERSION,
   LAST_CHANGED_PATH,
+  MAX_CURRENT_SUBJECTS,
   OBSERVATIONS_PATH,
   REACH_PATH,
   VALUE_JOURNEY_PATH,

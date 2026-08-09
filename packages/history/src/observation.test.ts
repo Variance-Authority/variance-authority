@@ -141,6 +141,33 @@ describe('shaping a run into rows', () => {
     expect(rows.find((row) => row.component === 'Badge')).not.toHaveProperty('file');
   });
 
+  it('compares against the newest previous row when a bulk read hands back two', () => {
+    // `current` returns the latest row per (component, band, profile), so
+    // `structure` — the one band scoped without a profile — arrives twice on a
+    // project that runs both tiers. Order between scopes is not promised, so the
+    // instant decides. If the older row won, this run would record a change back
+    // to a hash the project has already moved away from.
+    const older: Observation = {
+      project: 'shop',
+      subject: 'story:card',
+      component: 'Button',
+      band: 'structure',
+      hash: 'v1:s',
+      profile: 'jsdom',
+      commit: 'c0',
+      run: 'run-0',
+      at: '2026-01-01T00:00:00Z',
+      accepted: true,
+    };
+    const newer: Observation = { ...older, hash: 'v1:s2', profile: 'chromium', at: '2026-02-01T00:00:00Z' };
+
+    // Newest first and newest last, because arrival order must not decide it.
+    for (const previous of [[newer, older], [older, newer]]) {
+      const rows = observationsFrom([hashOf('Button', { structure: 'v1:s2' })], CHROMIUM_RUN, previous);
+      expect(rows.some((row) => row.band === 'structure')).toBe(false);
+    }
+  });
+
   it('refuses previous rows belonging to another subject', () => {
     const foreign: Observation[] = [
       { ...(observationsFrom([hashOf('Button')], CHROMIUM_RUN)[0] as Observation), subject: 'story:other' },

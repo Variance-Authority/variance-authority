@@ -54,6 +54,20 @@ export function createAbsentStore(): HistoryStore {
       // rows this drops are the rows that were never going to be kept.
     },
 
+    async current(subjects) {
+      // Refused rather than answered with an empty array, and this is the one
+      // place where that choice has teeth. An empty answer here is a valid
+      // `previous` set — it means "nothing recorded yet" — so a caller that
+      // failed to narrow it would sail on and compute a full set of rows to
+      // write, then hand them to a `record` that discards them. Nothing would be
+      // wrong and nothing would be kept, which is the shape of a bug nobody finds
+      // for a cycle.
+      const count = new Set(subjects).size;
+      return unkept(
+        `what is currently recorded for ${count === 1 ? 'this subject' : `these ${count} subjects`}`,
+      );
+    },
+
     async lastChanged(subject, component, band) {
       const area = `when \`${component}\` in \`${subject}\` last changed`;
       return unkept(band === undefined ? area : `${area} in its ${band} band`);

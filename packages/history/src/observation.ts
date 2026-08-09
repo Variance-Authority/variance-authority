@@ -170,7 +170,7 @@ export function observationsFrom(
   run: RunContext,
   previous: readonly Observation[] = [],
 ): readonly Observation[] {
-  const known = new Map<string, Digest>();
+  const known = new Map<string, { readonly hash: Digest; readonly at: string }>();
 
   for (const row of previous) {
     if (row.project !== run.project || row.subject !== run.subject) {
@@ -183,7 +183,18 @@ export function observationsFrom(
           `received one for ${row.project}/${row.subject}`,
       );
     }
-    known.set(scopeKey(row.component, row.band, row.profile), row.hash);
+    // Newest wins, and it has to be decided here rather than left to the order
+    // the rows arrived in. `structure` is scoped without a profile, so a store
+    // holding a jsdom row and a chromium row for one component hands back two
+    // rows that land on one key — and if the older one wins, this run records a
+    // change back to a hash the project already moved away from. The comparison
+    // is on the instant rather than on arrival order because a bulk read is
+    // grouped per scope and no ordering between scopes is promised.
+    const key = scopeKey(row.component, row.band, row.profile);
+    const held = known.get(key);
+    if (held === undefined || Date.parse(row.at) >= Date.parse(held.at)) {
+      known.set(key, { hash: row.hash, at: row.at });
+    }
   }
 
   const rows: Observation[] = [];
@@ -196,7 +207,7 @@ export function observationsFrom(
       if (digest === undefined) continue;
 
       const key = scopeKey(hash.component, band, run.profile);
-      if (known.get(key) === digest) continue;
+      if (known.get(key)?.hash === digest) continue;
 
       rows.push({
         project: run.project,

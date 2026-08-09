@@ -31,6 +31,7 @@ export type {
   HistoryBackend,
   ReachRows,
   Slice,
+  SubjectsQuery,
   TokenWindowQuery,
   WindowQuery,
 } from './backend.js';
@@ -38,6 +39,7 @@ export {
   HistoryWriteConflict,
   churnFrom,
   createBackedStore,
+  currentFrom,
   journeyFrom,
   lastChangedFrom,
   reachFrom,

@@ -1,6 +1,7 @@
 import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
 import {
   BANDS,
+  MAX_CURRENT_SUBJECTS,
   type Band,
   type Observation,
   type RunRecord,
@@ -66,6 +67,57 @@ export function parseRecordRequest(body: string): ParsedRecordRequest {
       asTokenValue(row, `tokens[${index}]`),
     ),
   };
+}
+
+/**
+ * The subject list a run asks about before it writes.
+ *
+ * The only validation that refuses a request for being *large* rather than for
+ * being malformed, and the reason is that the answer cannot be trimmed: a
+ * `previous` set with a hole in it is a change that did not happen, appended to
+ * an append-only store (`HistoryStore.current`). So when a caller asks for more
+ * than one request may carry, the service says so and names the cap rather than
+ * answering the first {@link MAX_CURRENT_SUBJECTS} and looking successful.
+ */
+export function parseCurrentRequest(body: string): readonly string[] {
+  if (body.trim() === '') {
+    throw new BadRequest(
+      'the read carried no body; `current` takes the subjects a run is about to write, and a ' +
+        'request naming none of them would be answered with an empty set that reads as "nothing ' +
+        'is recorded yet"',
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch (error) {
+    throw new BadRequest(
+      `the request body is not JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const source = asRecord(parsed, 'the request body');
+  const subjects = asArray(source['subjects'], '`subjects`').map((value, index) => {
+    if (typeof value !== 'string' || value === '') {
+      throw new BadRequest(
+        `subjects[${index}] must be a non-empty string; received ${describe(value)}`,
+      );
+    }
+    return value;
+  });
+
+  const distinct = new Set(subjects).size;
+  if (distinct > MAX_CURRENT_SUBJECTS) {
+    throw new BadRequest(
+      `this request names ${distinct} subjects and one \`current\` request may name ` +
+        `${MAX_CURRENT_SUBJECTS}. The answer is not trimmed to fit — a missing previous row is ` +
+        'indistinguishable from a hash that was never recorded, so the run would append a change ' +
+        'that did not happen — so the request is refused and the caller splits its list',
+    );
+  }
+
+  return subjects;
 }
 
 function asRecord(value: unknown, what: string): Readonly<Record<string, unknown>> {

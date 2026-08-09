@@ -207,6 +207,38 @@ export interface HistoryStore {
   ): Promise<void>;
 
   /**
+   * The rows currently recorded for a set of subjects — the latest per
+   * `(subject, component, band, profile)`, and nothing older.
+   *
+   * **The one read a run asks about the present**, and the reason there is now a
+   * caller at all. The write rule this whole design rests on — *a row is written
+   * only when a hash moves* — needs the previous rows to compare against, and the
+   * four questions below are all questions about the **past**, asked by a person
+   * or an agent. The closest, {@link HistoryStore.lastChanged}, returns one row:
+   * computing `previous` through it costs a request per component per band, which
+   * for 300 subjects at ten components each is 9,000 round trips per run.
+   *
+   * So this is a bulk read, and the alternative — sending everything observed and
+   * letting the service drop rows equal to the stored ones — was rejected because
+   * it puts every component of every subject in the request body on every run,
+   * which is the size `maxBodyBytes` exists to refuse (spec 0002, ADR-0031).
+   *
+   * **It never truncates, and takes no `limit`.** Every other read here caps and
+   * reports what it left out, because a partial answer to a question about the
+   * past is a lower bound its reader can be told about. A partial answer *here* is
+   * different in kind: a missing previous row is indistinguishable from a hash
+   * that never existed, so the run writes a change that did not happen — and that
+   * row is then permanent, in an append-only store, inflating every rate computed
+   * over it forever. A request too large to answer whole is refused loudly
+   * instead; the client splits its subject list rather than accepting less.
+   *
+   * The answer is not bounded by the age of the project, which is what keeps it
+   * inside this file's "nothing loads a whole history" rule: it is one row per
+   * live scope in the subjects asked for, so it is bounded by the code under test.
+   */
+  current(subjects: readonly string[]): Promise<Answer<readonly Observation[]>>;
+
+  /**
    * The most recent row for an area, or `null` when nothing was ever recorded for
    * it. `null` is an answer — "this store has been keeping a record and has never
    * seen this change" — and is not the same as {@link Unkept}.

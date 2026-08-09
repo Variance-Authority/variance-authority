@@ -15,6 +15,7 @@ import type { Observation, RunRecord, TokenValue } from './observation.js';
 export const HISTORY_API_VERSION = 'v1';
 
 export const OBSERVATIONS_PATH = `/${HISTORY_API_VERSION}/observations`;
+export const CURRENT_PATH = `/${HISTORY_API_VERSION}/current`;
 export const LAST_CHANGED_PATH = `/${HISTORY_API_VERSION}/last-changed`;
 export const CHURN_PATH = `/${HISTORY_API_VERSION}/churn`;
 export const VALUE_JOURNEY_PATH = `/${HISTORY_API_VERSION}/value-journey`;
@@ -38,3 +39,40 @@ export interface RecordRequest {
 export interface LastChangedResponse {
   readonly observation: Observation | null;
 }
+
+/**
+ * The read a run makes before it writes, and the one read that is a `POST`.
+ *
+ * Not because it changes anything — it changes nothing — but because its
+ * parameter is a subject list. Three hundred subject ids do not fit in a query
+ * string that every proxy between a CI job and the service will forward, and the
+ * failure mode of trying is a 414 from a load balancer nobody configured, halfway
+ * through a rollout. A body has no such ceiling, so the argument travels as one.
+ *
+ * The cost of that choice is that a cache cannot see this as a read. There is
+ * nothing to cache: the answer is the store's current state and the caller is
+ * about to append to it.
+ */
+export interface CurrentRequest {
+  readonly subjects: readonly string[];
+}
+
+export interface CurrentResponse {
+  readonly observations: readonly Observation[];
+}
+
+/**
+ * How many subjects one `current` request may name.
+ *
+ * A cap on the *question*, not on the answer, and that is the whole distinction
+ * this constant carries. The answer is never trimmed — a trimmed answer becomes a
+ * change that did not happen (see {@link CurrentRequest} and `HistoryStore.current`)
+ * — so what has to be bounded instead is how much any one request asks for. The
+ * client splits a longer subject list into several requests and concatenates the
+ * results, which is arithmetic-free: the scopes are disjoint by subject.
+ *
+ * 200 rather than a round thousand because it is also the SQL binding count of
+ * the only backend that exists, whose default parameter ceiling is 999. Both ends
+ * agree on it here so that neither has to discover the other's limit at runtime.
+ */
+export const MAX_CURRENT_SUBJECTS = 200;

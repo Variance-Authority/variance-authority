@@ -10,6 +10,7 @@ import {
 import {
   areaFilter,
   componentFilter,
+  currentRows,
   reachRows,
   slice,
   tokenFilter,
@@ -158,6 +159,10 @@ export function createSqliteBackend(options: SqliteBackendOptions): HistoryBacke
         database.exec('ROLLBACK');
         throw error;
       }
+    },
+
+    async currentOf(query): Promise<readonly Observation[]> {
+      return currentRows(prepare, query).map(toObservation);
     },
 
     async lastObservation(query): Promise<Observation | null> {

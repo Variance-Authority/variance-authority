@@ -5,6 +5,7 @@ import type {
   ComponentWindowQuery,
   ReachRows,
   Slice,
+  SubjectsQuery,
   TokenWindowQuery,
   WindowQuery,
 } from './backend.js';
@@ -93,6 +94,47 @@ export function areaFilter(query: AreaQuery): Filter {
   }
 
   return { sql: clauses.map((clause) => ` AND ${clause}`).join(''), params };
+}
+
+/**
+ * One row per live scope in the named subjects: the newest, and only the newest.
+ *
+ * A window function rather than SQLite's `MAX()`-picks-the-row special case,
+ * because that case says nothing about ties and two rows can share an instant —
+ * a run that recorded two profiles stamps both from one clock read. `rowid` as
+ * the second key makes the choice the later *write*, which is the only ordering
+ * the store actually has when the instants agree.
+ *
+ * There is no `LIMIT` here and there must never be one. Every other read in this
+ * file caps and reports what it left out; a cap here would hand a run a `previous`
+ * set with a hole in it, and a hole is indistinguishable from a hash that was
+ * never recorded — so the run appends a change that did not happen, to an
+ * append-only store, and every rate over that window is wrong from then on. The
+ * question is bounded instead: `MAX_CURRENT_SUBJECTS` names how many subjects one
+ * request may ask about, and the client splits a longer list.
+ */
+export function currentRows(prepare: Prepare, query: SubjectsQuery): Record<string, SQLOutputValue>[] {
+  const subjects = [...new Set(query.subjects)];
+  if (subjects.length === 0) return [];
+
+  const clauses: string[] = [];
+  const params: Record<string, SQLInputValue> = {};
+  scopeInto(query, clauses, params);
+
+  const placeholders = subjects.map((subject, index) => {
+    params[`$subject${index}`] = subject;
+    return `$subject${index}`;
+  });
+  clauses.push(`subject IN (${placeholders.join(', ')})`);
+
+  const where = clauses.map((clause) => ` AND ${clause}`).join('');
+
+  return prepare(
+    'SELECT * FROM (SELECT *, ROW_NUMBER() OVER (' +
+      'PARTITION BY project, subject, component, band, profile ' +
+      'ORDER BY at_ms DESC, rowid DESC) AS recency ' +
+      `FROM observations WHERE 1 = 1${where}) WHERE recency = 1`,
+  ).all(params);
 }
 
 function scopeInto(
