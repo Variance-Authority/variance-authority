@@ -359,6 +359,80 @@ describe('the wire, spoken by the real client', () => {
     expect(unchanged).toEqual([]);
   });
 
+  it('carries an instability across the wire and answers how often it has happened', async () => {
+    // The whole longitudinal half in one round trip: a run reports that a subject
+    // did not read the same way twice, and a later question gets a rate whose
+    // denominator is the sweeps that actually asked.
+    const { url } = await serve();
+    const store = createHttpHistoryStore({ endpoint: url, token: TOKEN, project: 'shop' });
+
+    for (const index of [1, 2, 3]) {
+      const at = `2026-03-0${index}T10:00:00.000Z`;
+      await store.record(
+        run({ run: `r${index}`, commit: `c${index}`, at, swept: true }),
+        [],
+        [],
+        index === 3
+          ? []
+          : [
+              {
+                project: 'shop',
+                subject: 'checkout',
+                component: 'Clock',
+                band: 'content',
+                profile: 'chromium',
+                commit: `c${index}`,
+                run: `r${index}`,
+                at,
+              },
+            ],
+      );
+    }
+
+    const answer = await store.flakiness('checkout', {});
+    expect(isKept(answer)).toBe(true);
+    if (!isKept(answer)) return;
+
+    expect([answer.sweeps, answer.occurrences]).toEqual([3, 2]);
+    expect(answer.rate).toBeCloseTo(2 / 3);
+    // The actionable half: one sweep since, so somebody's fix may have landed.
+    expect(answer.sweepsSince).toBe(1);
+    expect(answer.causes).toEqual([{ component: 'Clock', band: 'content', runs: 2 }]);
+  });
+
+  it('refuses an instability naming a frequency band that is not one', async () => {
+    // The store is append-only, so the door is the last moment anything can be
+    // refused — and a band nothing recognises is a row every later query skips
+    // while the count it belonged to reads as complete.
+    const { url, backend } = await serve();
+    const response = await fetch(`${url}${OBSERVATIONS_PATH}`, {
+      method: 'POST',
+      headers: { ...authorized, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        run: run(),
+        observations: [],
+        tokens: [],
+        instabilities: [
+          {
+            project: 'shop',
+            subject: 'checkout',
+            band: 'structure',
+            profile: 'chromium',
+            commit: 'aaaa',
+            run: 'run-1',
+            at: '2026-03-01T10:00:00.000Z',
+          },
+        ],
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    // `structure` is a real band — of the *other* axis. Naming both lists is what
+    // keeps that mix-up from reading as a typo.
+    expect(JSON.stringify(await response.json())).toContain('a11y, geometry, token, content');
+    expect((await backend.runsIn({})).rows).toHaveLength(0);
+  });
+
   it('refuses a subject list longer than one request may carry rather than trimming the answer', async () => {
     // The only refusal here that is about size rather than shape, and it is the
     // opposite of every other cap in this service: the answer is not allowed to

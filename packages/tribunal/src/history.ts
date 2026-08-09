@@ -1,4 +1,4 @@
-import type { Observation, RunRecord, TokenValue } from '@variance-authority/history';
+import type { Instability, Observation, RunRecord, TokenValue } from '@variance-authority/history';
 import {
   HistoryWriteConflict,
   type AreaQuery,
@@ -8,6 +8,7 @@ import {
   type ReachRows,
   type Slice,
   type SubjectsQuery,
+  type SubjectWindowQuery,
   type TokenWindowQuery,
   type WindowQuery,
 } from '@variance-authority/server';
@@ -16,6 +17,7 @@ import {
   instant,
   number,
   text,
+  toInstability,
   toObservation,
   toRunRecord,
   toTokenValue,
@@ -61,7 +63,7 @@ import {
 
 export function createD1Backend(db: D1Like): HistoryBackend {
   return {
-    async append(run, observations, tokens): Promise<void> {
+    async append(run, observations, tokens, instabilities = []): Promise<void> {
       const registered = await registeredCommit(db, run);
       if (registered !== null && registered !== run.commit) throw conflict(run, registered);
 
@@ -80,8 +82,8 @@ export function createD1Backend(db: D1Like): HistoryBackend {
         // Workers, and it is why the check above is a message rather than a guard.
         db
           .prepare(
-            `INSERT INTO runs (project, run, "commit", profile, at, at_ms)
-             SELECT ?, ?, ?, ?, ?, ?
+            `INSERT INTO runs (project, run, "commit", profile, at, at_ms, swept)
+             SELECT ?, ?, ?, ?, ?, ?, ?
               WHERE NOT EXISTS (
                     SELECT 1 FROM runs
                      WHERE project = ? AND run = ? AND profile = ? AND "commit" = ?)`,
@@ -93,6 +95,10 @@ export function createD1Backend(db: D1Like): HistoryBackend {
             run.profile,
             run.at,
             instant(run.at, 'run'),
+            // NULL when the caller did not say. Transcribed with its reason: a
+            // run stored as having examined nothing puts a denominator under a
+            // flake rate that nobody measured.
+            run.swept === undefined ? null : run.swept ? 1 : 0,
             run.project,
             run.run,
             run.profile,
@@ -146,6 +152,32 @@ export function createD1Backend(db: D1Like): HistoryBackend {
         );
       }
 
+      for (const row of instabilities) {
+        statements.push(
+          db
+            .prepare(
+              `INSERT INTO instabilities
+                 (project, subject, component, band, profile, "commit", run, at, at_ms, absorbed_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .bind(
+              row.project,
+              row.subject,
+              // Null, not the empty string: readings that could not be resolved
+              // to a component named nobody, which is not the same as the
+              // disagreement belonging to no component.
+              row.component ?? null,
+              row.band ?? null,
+              row.profile,
+              row.commit,
+              row.run,
+              row.at,
+              instant(row.at, 'instability'),
+              row.absorbedBy ?? null,
+            ),
+        );
+      }
+
       try {
         await db.batch(statements);
       } catch (error) {
@@ -179,6 +211,10 @@ export function createD1Backend(db: D1Like): HistoryBackend {
 
     async observationsOf(query): Promise<Slice<Observation>> {
       return slice(db, 'observations', componentFilter(query), query.limit, toObservation);
+    },
+
+    async instabilitiesOf(query): Promise<Slice<Instability>> {
+      return slice(db, 'instabilities', subjectFilter(query), query.limit, toInstability);
     },
 
     async valuesOf(query): Promise<Slice<TokenValue>> {
@@ -269,6 +305,14 @@ function componentFilter(query: ComponentWindowQuery): Filter {
   return {
     sql: `${base.sql} AND component = ?`,
     params: [...base.params, query.component],
+  };
+}
+
+function subjectFilter(query: SubjectWindowQuery): Filter {
+  const base = windowFilter(query);
+  return {
+    sql: `${base.sql} AND subject = ?`,
+    params: [...base.params, query.subject],
   };
 }
 

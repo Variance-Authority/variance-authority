@@ -1,7 +1,14 @@
-import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
+import {
+  BANDS as FREQUENCY_BANDS,
+  profileById,
+  type Digest,
+  type ProfileId,
+} from '@variance-authority/core';
 import {
   BANDS,
   type Band,
+  type FrequencyBand,
+  type Instability,
   type Observation,
   type RunRecord,
   type TokenValue,
@@ -103,13 +110,53 @@ export function toObservation(row: Row): Observation {
 
 export function toRunRecord(row: Row): RunRecord {
   const what = 'a stored run';
+  const swept = row['swept'];
+
   return {
     project: text(row, 'project', what),
     run: text(row, 'run', what),
     commit: text(row, 'commit', what),
     profile: profile(row, what),
     at: text(row, 'at', what),
+    // Null stays absent. A run recorded before the column existed never said what
+    // it examined, and "did not sweep" is a claim — one that would make an old
+    // history look like a suite nobody ever swept.
+    ...(swept === null || swept === undefined ? {} : { swept: number(row, 'swept', what) !== 0 }),
   };
+}
+
+/**
+ * One occurrence of a subject failing to read the same way twice.
+ *
+ * Transcribed from `server/sqlite-rows.ts`, nullability included: a component
+ * that could not be named comes back absent rather than as an empty string,
+ * because empty would read as a component whose name is nothing.
+ */
+export function toInstability(row: Row): Instability {
+  const what = 'a stored instability';
+  const component = optionalText(row, 'component', what);
+  const stored = optionalText(row, 'band', what);
+  const absorbedBy = optionalText(row, 'absorbed_by', what);
+
+  return {
+    project: text(row, 'project', what),
+    subject: text(row, 'subject', what),
+    ...(component !== undefined ? { component } : {}),
+    ...(stored !== undefined ? { band: frequencyBand(stored, what) } : {}),
+    profile: profile(row, what),
+    commit: text(row, 'commit', what),
+    run: text(row, 'run', what),
+    at: text(row, 'at', what),
+    ...(absorbedBy !== undefined ? { absorbedBy } : {}),
+  };
+}
+
+/** A frequency band — how often that kind of thing changes — not a hash band. */
+function frequencyBand(value: string, what: string): FrequencyBand {
+  if (!FREQUENCY_BANDS.includes(value as FrequencyBand)) {
+    throw new Error(`${what} has an unknown frequency band "${value}"`);
+  }
+  return value as FrequencyBand;
 }
 
 export function toTokenValue(row: Row): TokenValue {

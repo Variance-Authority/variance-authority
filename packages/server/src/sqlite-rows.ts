@@ -1,8 +1,15 @@
 import type { SQLOutputValue } from 'node:sqlite';
-import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
+import {
+  BANDS as FREQUENCY_BANDS,
+  profileById,
+  type Digest,
+  type ProfileId,
+} from '@variance-authority/core';
 import {
   BANDS,
   type Band,
+  type FrequencyBand,
+  type Instability,
   type Observation,
   type RunRecord,
   type TokenValue,
@@ -113,13 +120,53 @@ export function toObservation(row: Record<string, SQLOutputValue>): Observation 
 
 export function toRunRecord(row: Record<string, SQLOutputValue>): RunRecord {
   const what = 'a stored run';
+  const swept = row['swept'];
+
   return {
     project: text(row, 'project', what),
     run: text(row, 'run', what),
     commit: text(row, 'commit', what),
     profile: profile(row, what),
     at: text(row, 'at', what),
+    // Null stays absent rather than becoming false. A run recorded before the
+    // column existed never said what it examined, and "did not sweep" is a claim
+    // that would make an old history look like a suite nobody ever swept.
+    ...(swept === null || swept === undefined ? {} : { swept: number(row, 'swept', what) !== 0 }),
   };
+}
+
+export function toInstability(row: Record<string, SQLOutputValue>): Instability {
+  const what = 'a stored instability';
+  const component = optionalText(row, 'component', what);
+  const stored = optionalText(row, 'band', what);
+  const absorbedBy = optionalText(row, 'absorbed_by', what);
+
+  return {
+    project: text(row, 'project', what),
+    subject: text(row, 'subject', what),
+    ...(component !== undefined ? { component } : {}),
+    ...(stored !== undefined ? { band: frequencyBand(stored, what) } : {}),
+    profile: profile(row, what),
+    commit: text(row, 'commit', what),
+    run: text(row, 'run', what),
+    at: text(row, 'at', what),
+    ...(absorbedBy !== undefined ? { absorbedBy } : {}),
+  };
+}
+
+/**
+ * A frequency band, checked against `core`'s list.
+ *
+ * Not the same axis as {@link band} above, which names which part of a component
+ * was hashed. This one names how often that kind of thing changes — `content` is
+ * data, `geometry` is layout that has not settled, `token` is a style still being
+ * applied — and it is the axis a fix is aimed at.
+ */
+function frequencyBand(value: string, what: string): FrequencyBand {
+  if (!FREQUENCY_BANDS.includes(value as FrequencyBand)) {
+    throw new Error(`${what} has an unknown frequency band "${value}"`);
+  }
+  return value as FrequencyBand;
 }
 
 export function toTokenValue(row: Record<string, SQLOutputValue>): TokenValue {

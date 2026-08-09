@@ -1,8 +1,11 @@
 import {
   accumulateChurn,
+  accumulateFlakiness,
   type Band,
   type Churn,
+  type Flakiness,
   type HistoryStore,
+  type Instability,
   type Journey,
   type Observation,
   type Reach,
@@ -92,6 +95,10 @@ export interface ComponentWindowQuery extends WindowQuery {
   readonly component: string;
 }
 
+export interface SubjectWindowQuery extends WindowQuery {
+  readonly subject: string;
+}
+
 export interface TokenWindowQuery extends WindowQuery {
   readonly token: string;
 }
@@ -155,6 +162,7 @@ export interface HistoryBackend {
     run: RunRecord,
     observations: readonly Observation[],
     tokens: readonly TokenValue[],
+    instabilities?: readonly Instability[],
   ): Promise<void>;
 
   /**
@@ -183,6 +191,17 @@ export interface HistoryBackend {
 
   /** Every recorded row for one component in the window, approved or not. */
   observationsOf(query: ComponentWindowQuery): Promise<Slice<Observation>>;
+
+  /**
+   * Every occurrence of one subject reading differently from itself, in the
+   * window, absorbed ones included.
+   *
+   * Absorbed rows come back rather than being filtered here, because whether an
+   * occurrence counts as a finding is a rule — `absorbedBy` present means working
+   * as declared — and rules live in the arithmetic, next to the counters they
+   * govern.
+   */
+  instabilitiesOf(query: SubjectWindowQuery): Promise<Slice<Instability>>;
 
   /**
    * The values one token resolved to in the window, oldest first.
@@ -276,6 +295,40 @@ export async function churnFrom(
   });
 }
 
+/**
+ * How often a subject has read differently from itself, and whether it still
+ * does.
+ *
+ * Two slices and one call into the shared arithmetic, exactly like `churnFrom`,
+ * and with the same consistency rule for the same reason: a limit can cut the two
+ * apart, so an occurrence whose run did not survive is dropped from the counts and
+ * added to the omitted total rather than counted against a denominator that is not
+ * there.
+ */
+export async function flakinessFrom(
+  backend: HistoryBackend,
+  project: string | undefined,
+  subject: string,
+  window: Window,
+): Promise<Flakiness> {
+  const query = windowQuery(project, window);
+  const runs = await backend.runsIn(query);
+  const occurrences = await backend.instabilitiesOf({ ...query, subject });
+
+  const registered = new Set(runs.rows.map((run) => run.run));
+  const kept = occurrences.rows.filter((row) => registered.has(row.run));
+  const stranded = occurrences.rows.length - kept.length;
+
+  return accumulateFlakiness({
+    subject,
+    runs: runs.rows,
+    occurrences: kept,
+    window,
+    omittedRuns: runs.omitted,
+    omittedOccurrences: occurrences.omitted + stranded,
+  });
+}
+
 export async function journeyFrom(
   backend: HistoryBackend,
   project: string | undefined,
@@ -319,8 +372,8 @@ export async function reachFrom(
  */
 export function createBackedStore(backend: HistoryBackend, project?: string): HistoryStore {
   return {
-    async record(run, observations, tokens): Promise<void> {
-      await backend.append(run, observations, tokens);
+    async record(run, observations, tokens, instabilities): Promise<void> {
+      await backend.append(run, observations, tokens, instabilities);
     },
     async current(subjects) {
       return currentFrom(backend, project, subjects);
@@ -330,6 +383,9 @@ export function createBackedStore(backend: HistoryBackend, project?: string): Hi
     },
     async churn(component, window) {
       return churnFrom(backend, project, component, window);
+    },
+    async flakiness(subject, window) {
+      return flakinessFrom(backend, project, subject, window);
     },
     async valueJourney(token, window) {
       return journeyFrom(backend, project, token, window);

@@ -32,6 +32,7 @@ export type {
   ReachRows,
   Slice,
   SubjectsQuery,
+  SubjectWindowQuery,
   TokenWindowQuery,
   WindowQuery,
 } from './backend.js';
@@ -40,6 +41,7 @@ export {
   churnFrom,
   createBackedStore,
   currentFrom,
+  flakinessFrom,
   journeyFrom,
   lastChangedFrom,
   reachFrom,

@@ -22,10 +22,14 @@
 export type { Band, Observation, RunContext, RunRecord, TokenValue } from './observation.js';
 export { BANDS, observationsFrom } from './observation.js';
 
+export type { FrequencyBand, Instability } from './instability.js';
+
 export type {
   Answer,
   BandChurn,
   Churn,
+  Flakiness,
+  FlakyCause,
   HistoryStore,
   Journey,
   Reach,
@@ -33,6 +37,9 @@ export type {
   Window,
 } from './store.js';
 export { isKept } from './store.js';
+
+export type { FlakinessInput } from './flakiness.js';
+export { accumulateFlakiness, describeFlakiness } from './flakiness.js';
 
 export type { ChurnInput, DriftOptions, DriftStep, Quantity, TokenDrift } from './drift.js';
 export {
@@ -53,6 +60,7 @@ export type {
 export {
   CHURN_PATH,
   CURRENT_PATH,
+  FLAKINESS_PATH,
   HISTORY_API_VERSION,
   LAST_CHANGED_PATH,
   MAX_CURRENT_SUBJECTS,

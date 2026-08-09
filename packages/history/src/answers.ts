@@ -1,6 +1,12 @@
-import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
+import {
+  BANDS as FREQUENCY_BANDS,
+  profileById,
+  type Digest,
+  type ProfileId,
+} from '@variance-authority/core';
+import type { FrequencyBand } from './instability.js';
 import { BANDS, type Band, type Observation, type TokenValue } from './observation.js';
-import type { BandChurn, Churn, Journey, Reach, Window } from './store.js';
+import type { BandChurn, Churn, Flakiness, FlakyCause, Journey, Reach, Window } from './store.js';
 
 /**
  * Every answer the service gives, checked before it becomes a number.
@@ -133,6 +139,60 @@ export function asObservation(value: unknown, url: string): Observation {
     accepted: flag(source, 'accepted', url, what),
     ...(file !== undefined ? { file } : {}),
   };
+}
+
+export function asFlakiness(value: unknown, url: string): Flakiness {
+  const what = 'a flakiness record';
+  const source = asRecord(value, url, what);
+
+  const causes = asArray(source['causes'], url, `${what}'s causes`).map((entry): FlakyCause => {
+    const cause = asRecord(entry, url, 'a flakiness cause');
+    const component = optionalText(cause, 'component', url, 'a flakiness cause');
+    const band = cause['band'];
+
+    return {
+      ...(component !== undefined ? { component } : {}),
+      ...(band === undefined || band === null
+        ? {}
+        : { band: asFrequencyBand(band, url, 'a flakiness cause') }),
+      runs: count(cause, 'runs', url, 'a flakiness cause'),
+    };
+  });
+
+  const rate = source['rate'];
+  const firstAt = optionalText(source, 'firstAt', url, what);
+  const lastAt = optionalText(source, 'lastAt', url, what);
+  const lastRun = optionalText(source, 'lastRun', url, what);
+
+  return {
+    subject: text(source, 'subject', url, what),
+    window: asWindow(source['window'], url, what),
+    runs: count(source, 'runs', url, what),
+    sweeps: count(source, 'sweeps', url, what),
+    occurrences: count(source, 'occurrences', url, what),
+    absorbedRuns: count(source, 'absorbedRuns', url, what),
+    // Absent is carried through as absent. A rate defaulted to zero here would
+    // turn "no sweep has ever asked" into "it never flakes", which is the one
+    // sentence this package refuses to let a missing field produce.
+    ...(rate === undefined || rate === null ? {} : { rate: count(source, 'rate', url, what) }),
+    sweepsSince: count(source, 'sweepsSince', url, what),
+    causes,
+    ...(firstAt !== undefined ? { firstAt } : {}),
+    ...(lastAt !== undefined ? { lastAt } : {}),
+    ...(lastRun !== undefined ? { lastRun } : {}),
+    omittedRuns: count(source, 'omittedRuns', url, what),
+    omittedOccurrences: count(source, 'omittedOccurrences', url, what),
+  };
+}
+
+/** Checked against `core`'s own list, for the reason `asProfile` is. */
+function asFrequencyBand(value: unknown, url: string, what: string): FrequencyBand {
+  if (typeof value !== 'string' || !FREQUENCY_BANDS.includes(value as FrequencyBand)) {
+    throw new Error(
+      `history service ${url} returned ${what} with an unknown frequency band ${describe(value)}`,
+    );
+  }
+  return value as FrequencyBand;
 }
 
 function asTokenValue(value: unknown, url: string): TokenValue {

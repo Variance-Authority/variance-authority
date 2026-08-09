@@ -6,6 +6,7 @@ import type {
   ReachRows,
   Slice,
   SubjectsQuery,
+  SubjectWindowQuery,
   TokenWindowQuery,
   WindowQuery,
 } from './backend.js';
@@ -76,6 +77,14 @@ export function tokenFilter(query: TokenWindowQuery): Filter {
     // `carriesAnApproval`.
     sql: `${base.sql} AND token = $token AND accepted = 1`,
     params: { ...base.params, $token: query.token },
+  };
+}
+
+export function subjectFilter(query: SubjectWindowQuery): Filter {
+  const base = windowFilter(query);
+  return {
+    sql: `${base.sql} AND subject = $subject`,
+    params: { ...base.params, $subject: query.subject },
   };
 }
 

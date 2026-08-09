@@ -1,3 +1,4 @@
+import type { Instability } from './instability.js';
 import type { Observation, RunRecord, TokenValue } from './observation.js';
 
 /**
@@ -18,6 +19,7 @@ export const OBSERVATIONS_PATH = `/${HISTORY_API_VERSION}/observations`;
 export const CURRENT_PATH = `/${HISTORY_API_VERSION}/current`;
 export const LAST_CHANGED_PATH = `/${HISTORY_API_VERSION}/last-changed`;
 export const CHURN_PATH = `/${HISTORY_API_VERSION}/churn`;
+export const FLAKINESS_PATH = `/${HISTORY_API_VERSION}/flakiness`;
 export const VALUE_JOURNEY_PATH = `/${HISTORY_API_VERSION}/value-journey`;
 export const REACH_PATH = `/${HISTORY_API_VERSION}/reach`;
 
@@ -33,6 +35,15 @@ export interface RecordRequest {
   readonly run: RunRecord;
   readonly observations: readonly Observation[];
   readonly tokens: readonly TokenValue[];
+
+  /**
+   * Optional on the wire so that an older client's write still parses. Absent
+   * means *this caller does not report instability*, which is not the same claim
+   * as "no subject read differently" and must never be stored as one — the
+   * distinction survives because `RunRecord.swept` says whether anything was
+   * asked.
+   */
+  readonly instabilities?: readonly Instability[];
 }
 
 /** `null` means the record contains no such change, which is an answer. */

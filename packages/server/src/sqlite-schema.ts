@@ -29,7 +29,7 @@ import { number } from './sqlite-rows.js';
  * — no table to query, no chance of reading rows before discovering the schema is
  * not the one expected.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE runs (
@@ -38,7 +38,11 @@ CREATE TABLE runs (
   "commit" TEXT NOT NULL,
   profile  TEXT NOT NULL,
   at       TEXT NOT NULL,
-  at_ms    INTEGER NOT NULL
+  at_ms    INTEGER NOT NULL,
+  -- Nullable, and the null is load-bearing: a run recorded before this column
+  -- existed never said what it examined, and reading that as "did not sweep"
+  -- would make an old history look like a suite nobody ever swept.
+  swept    INTEGER
 ) STRICT;
 
 -- A run is identified by (project, run, profile) and registering it again is a
@@ -83,6 +87,32 @@ CREATE TABLE token_values (
 
 CREATE INDEX token_values_journey ON token_values (project, token, at_ms);
 
+-- One row per (subject, component, band) that read differently in a run, plus a
+-- row with neither named when the readings could not be resolved. Unlike
+-- observations there is no write-only-on-movement rule: an occurrence is an
+-- event, it is rare, and every firing is what a rate counts.
+CREATE TABLE instabilities (
+  project     TEXT NOT NULL,
+  subject     TEXT NOT NULL,
+  -- Null rather than empty: a collector that supplied no snapshot proved the
+  -- instability and gave nobody the means to name it, which is not the same as
+  -- the disagreement belonging to no component.
+  component   TEXT,
+  band        TEXT,
+  profile     TEXT NOT NULL,
+  "commit"    TEXT NOT NULL,
+  run         TEXT NOT NULL,
+  at          TEXT NOT NULL,
+  at_ms       INTEGER NOT NULL,
+  -- The sensitivity rule that absorbed it, when the subject declared one. An
+  -- absorbed occurrence is working as declared and never gates; it is kept
+  -- because a rule that has absorbed something in every run for six months is
+  -- worth being able to ask about.
+  absorbed_by TEXT
+) STRICT;
+
+CREATE INDEX instabilities_subject ON instabilities (project, subject, at_ms);
+
 CREATE TRIGGER runs_are_append_only BEFORE UPDATE ON runs BEGIN
   SELECT RAISE(ABORT, 'runs are append-only: a recorded run is a fact about a moment, and rewriting one changes a denominator somebody already read');
 END;
@@ -101,7 +131,55 @@ END;
 CREATE TRIGGER token_values_are_permanent BEFORE DELETE ON token_values BEGIN
   SELECT RAISE(ABORT, 'token values are append-only: a removed step turns a drift total into a lower bound with nothing saying so');
 END;
+CREATE TRIGGER instabilities_are_append_only BEFORE UPDATE ON instabilities BEGIN
+  SELECT RAISE(ABORT, 'instabilities are append-only: an occurrence is a fact about one run, and rewriting one changes a rate somebody already acted on');
+END;
+CREATE TRIGGER instabilities_are_permanent BEFORE DELETE ON instabilities BEGIN
+  SELECT RAISE(ABORT, 'instabilities are append-only: deleting an occurrence is how a flake that was fixed becomes a flake that never happened');
+END;
 `;
+
+/**
+ * Everything a version-1 database is missing, applied in order.
+ *
+ * A migration exists here where the first version of this file said there was
+ * none, and the reason is the sentence that file already carries: an older
+ * database is refused rather than migrated *because no migration exists yet*. One
+ * does now. Refusing a version-1 file instead would tell an operator whose only
+ * copy of their history is that file to delete it, and a store that costs its
+ * contents to upgrade is a store nobody upgrades.
+ *
+ * Additive only, by construction. Both statements add something that was absent;
+ * neither rewrites a row, so a database part-way through this list is still a
+ * database whose existing answers mean exactly what they meant before. `ALTER
+ * TABLE ADD COLUMN` on a `STRICT` table needs the column to be nullable or
+ * defaulted, and `swept` is nullable for its own reasons anyway.
+ */
+const MIGRATIONS: readonly (readonly string[])[] = [
+  // 1 → 2: instability rows, and whether a run examined every subject.
+  [
+    'ALTER TABLE runs ADD COLUMN swept INTEGER',
+    `CREATE TABLE instabilities (
+       project     TEXT NOT NULL,
+       subject     TEXT NOT NULL,
+       component   TEXT,
+       band        TEXT,
+       profile     TEXT NOT NULL,
+       "commit"    TEXT NOT NULL,
+       run         TEXT NOT NULL,
+       at          TEXT NOT NULL,
+       at_ms       INTEGER NOT NULL,
+       absorbed_by TEXT
+     ) STRICT`,
+    'CREATE INDEX instabilities_subject ON instabilities (project, subject, at_ms)',
+    `CREATE TRIGGER instabilities_are_append_only BEFORE UPDATE ON instabilities BEGIN
+       SELECT RAISE(ABORT, 'instabilities are append-only: an occurrence is a fact about one run, and rewriting one changes a rate somebody already acted on');
+     END`,
+    `CREATE TRIGGER instabilities_are_permanent BEFORE DELETE ON instabilities BEGIN
+       SELECT RAISE(ABORT, 'instabilities are append-only: deleting an occurrence is how a flake that was fixed becomes a flake that never happened');
+     END`,
+  ],
+];
 
 /**
  * Create the schema, or refuse a database this build cannot read correctly.
@@ -117,9 +195,10 @@ END;
  *   too. `IF NOT EXISTS` would have adopted somebody else's database and started
  *   appending to it.
  *
- * An older version is refused rather than migrated because no migration exists
- * yet. Writing one is a change to this file; guessing is a change to everyone's
- * numbers.
+ * An older version is **migrated** when {@link MIGRATIONS} carries a step for
+ * every version between, and refused otherwise. The steps are additive by
+ * construction and run in one transaction with the version bump, so a database is
+ * never left at a version whose shape it does not have.
  */
 export function prepareSchema(database: DatabaseSync, path: string): void {
   database.exec('PRAGMA journal_mode = WAL');
@@ -144,11 +223,30 @@ export function prepareSchema(database: DatabaseSync, path: string): void {
   if (version === SCHEMA_VERSION) return;
 
   if (version !== 0) {
-    throw new Error(
-      `the history database at ${path} was written by schema version ${version}; this build ` +
-        `understands ${SCHEMA_VERSION} and carries no migration from ${version}. Refusing to ` +
-        'open it rather than guessing what its rows mean',
-    );
+    if (version < 1 || MIGRATIONS.length < SCHEMA_VERSION - 1) {
+      throw new Error(
+        `the history database at ${path} was written by schema version ${version}; this build ` +
+          `understands ${SCHEMA_VERSION} and carries no migration from ${version}. Refusing to ` +
+          'open it rather than guessing what its rows mean',
+      );
+    }
+
+    // One transaction over every remaining step and the version bump together. A
+    // database left at a version whose shape it does not have is worse than one
+    // that refused to open: every query afterwards is against a table that may or
+    // may not exist, decided by where the process died.
+    database.exec('BEGIN IMMEDIATE');
+    try {
+      for (let from = version; from < SCHEMA_VERSION; from += 1) {
+        for (const statement of MIGRATIONS[from - 1] ?? []) database.exec(statement);
+      }
+      database.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+      database.exec('COMMIT');
+    } catch (error) {
+      database.exec('ROLLBACK');
+      throw error;
+    }
+    return;
   }
 
   const populated = database.prepare('SELECT COUNT(*) AS tables FROM sqlite_master').get() ?? {};

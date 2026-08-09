@@ -104,6 +104,25 @@ export interface RunRecord {
   readonly commit: string;
   readonly profile: ProfileId;
   readonly at: string;
+
+  /**
+   * Whether this run read **every** subject twice, or only the ones it was going
+   * to review anyway.
+   *
+   * The denominator for flakiness, and the reason it is a property of the run
+   * rather than of a finding. A normal run asks *does this subject read the same
+   * way twice* only after the comparison already called it `changed`, so a
+   * subject that was green in eighteen runs was never asked — and "unstable in 2
+   * of 20" would divide by a denominator that never existed. `variance run
+   * --flakes` sweeps, and a sweep is the only run whose *silence* about a subject
+   * is evidence of anything.
+   *
+   * Optional so that absent stays distinguishable from false. A run recorded
+   * before this field existed never said what it examined, and reading that as
+   * "did not sweep" would make an old history look like a suite nobody ever
+   * swept — which is a claim, and a wrong one.
+   */
+  readonly swept?: boolean;
 }
 
 /**

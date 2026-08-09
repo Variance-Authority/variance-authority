@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import {
   CHURN_PATH,
   CURRENT_PATH,
+  FLAKINESS_PATH,
   LAST_CHANGED_PATH,
   OBSERVATIONS_PATH,
   REACH_PATH,
@@ -12,6 +13,7 @@ import {
   HistoryWriteConflict,
   churnFrom,
   currentFrom,
+  flakinessFrom,
   journeyFrom,
   lastChangedFrom,
   reachFrom,
@@ -197,7 +199,7 @@ async function route(
   if (url.pathname === OBSERVATIONS_PATH) {
     requireMethod(request, 'POST');
     const body = parseRecordRequest(await readBody(request, maxBodyBytes));
-    await backend.append(body.run, body.observations, body.tokens);
+    await backend.append(body.run, body.observations, body.tokens, body.instabilities);
     // 204: the write left nothing to say. The client treats any body on this
     // route as a shape error rather than guessing at it.
     response.writeHead(204).end();
@@ -239,6 +241,16 @@ async function route(
     return;
   }
 
+  if (url.pathname === FLAKINESS_PATH) {
+    requireMethod(request, 'GET');
+    send(
+      response,
+      200,
+      await flakinessFrom(backend, project, requiredParam(url, 'subject'), windowOf(url)),
+    );
+    return;
+  }
+
   if (url.pathname === VALUE_JOURNEY_PATH) {
     requireMethod(request, 'GET');
     send(
@@ -263,8 +275,8 @@ async function route(
     error:
       `no route for ${request.method ?? '?'} ${url.pathname}. This service answers ` +
       `${OBSERVATIONS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
-      `${VALUE_JOURNEY_PATH} and ${REACH_PATH}; a path from a different API version is a client ` +
-      'and service that disagree about the recorded shape',
+      `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH} and ${REACH_PATH}; a path from a different API ` +
+      'version is a client and service that disagree about the recorded shape',
   });
 }
 

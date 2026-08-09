@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Observation, RunRecord, TokenValue } from '@variance-authority/history';
+import type { Instability, Observation, RunRecord, TokenValue } from '@variance-authority/history';
 import {
   HistoryWriteConflict,
   type HistoryBackend,
@@ -13,11 +13,19 @@ import {
   currentRows,
   reachRows,
   slice,
+  subjectFilter,
   tokenFilter,
   windowFilter,
   type Prepare,
 } from './sqlite-queries.js';
-import { instant, text, toObservation, toRunRecord, toTokenValue } from './sqlite-rows.js';
+import {
+  instant,
+  text,
+  toInstability,
+  toObservation,
+  toRunRecord,
+  toTokenValue,
+} from './sqlite-rows.js';
 import { prepareSchema } from './sqlite-schema.js';
 
 /**
@@ -104,7 +112,7 @@ export function createSqliteBackend(options: SqliteBackendOptions): HistoryBacke
   };
 
   return {
-    async append(run, observations, tokens): Promise<void> {
+    async append(run, observations, tokens, instabilities = []): Promise<void> {
       // One transaction, because rows without their run leave a change with no
       // denominator and a run without its rows is a quiet run that was not quiet.
       // `IMMEDIATE` takes the write lock at the start rather than at the first
@@ -154,6 +162,29 @@ export function createSqliteBackend(options: SqliteBackendOptions): HistoryBacke
           });
         }
 
+        const insertInstability = prepare(
+          'INSERT INTO instabilities ' +
+            '(project, subject, component, band, profile, "commit", run, at, at_ms, absorbed_by) ' +
+            'VALUES ($project, $subject, $component, $band, $profile, $commit, $run, $at, $at_ms, $absorbed_by)',
+        );
+        for (const row of instabilities) {
+          insertInstability.run({
+            $project: row.project,
+            $subject: row.subject,
+            // Null, not the empty string. A collector that supplied no snapshot
+            // proved the instability and gave nobody the means to name it, which
+            // is not the same as the disagreement belonging to no component.
+            $component: row.component ?? null,
+            $band: row.band ?? null,
+            $profile: row.profile,
+            $commit: row.commit,
+            $run: row.run,
+            $at: row.at,
+            $at_ms: instant(row.at, 'instability'),
+            $absorbed_by: row.absorbedBy ?? null,
+          });
+        }
+
         database.exec('COMMIT');
       } catch (error) {
         database.exec('ROLLBACK');
@@ -182,6 +213,10 @@ export function createSqliteBackend(options: SqliteBackendOptions): HistoryBacke
     async observationsOf(query): Promise<Slice<Observation>> {
       const filter = componentFilter(query);
       return slice(prepare, 'observations', filter, query.limit, toObservation);
+    },
+
+    async instabilitiesOf(query): Promise<Slice<Instability>> {
+      return slice(prepare, 'instabilities', subjectFilter(query), query.limit, toInstability);
     },
 
     async valuesOf(query): Promise<Slice<TokenValue>> {
@@ -255,8 +290,8 @@ function registerRun(prepare: Prepare, run: RunRecord): void {
   }
 
   prepare(
-    'INSERT INTO runs (project, run, "commit", profile, at, at_ms) ' +
-      'VALUES ($project, $run, $commit, $profile, $at, $at_ms)',
+    'INSERT INTO runs (project, run, "commit", profile, at, at_ms, swept) ' +
+      'VALUES ($project, $run, $commit, $profile, $at, $at_ms, $swept)',
   ).run({
     $project: run.project,
     $run: run.run,
@@ -264,5 +299,10 @@ function registerRun(prepare: Prepare, run: RunRecord): void {
     $profile: run.profile,
     $at: run.at,
     $at_ms: instant(run.at, 'run'),
+    // NULL when the caller did not say, which is not `0`. A run that never
+    // reported what it examined must not become evidence that it examined
+    // nothing — that would put a denominator under a flake rate that nobody
+    // measured.
+    $swept: run.swept === undefined ? null : run.swept ? 1 : 0,
   });
 }

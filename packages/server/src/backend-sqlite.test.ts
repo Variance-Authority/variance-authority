@@ -115,7 +115,9 @@ describe('schema', () => {
     raw.exec(`PRAGMA user_version = ${SCHEMA_VERSION + 1}`);
     raw.close();
 
-    expect(() => open(path)).toThrow(/schema version 2.*understands 1/s);
+    expect(() => open(path)).toThrow(
+      new RegExp(`schema version ${SCHEMA_VERSION + 1}.*understands ${SCHEMA_VERSION}`, 's'),
+    );
   });
 
   it('refuses an existing database that carries no schema version of ours', async () => {

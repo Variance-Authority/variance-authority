@@ -48,6 +48,20 @@ function emptyStore(): HistoryStore {
     async churn() {
       return churn;
     },
+    async flakiness() {
+      return {
+        subject: 'story:card',
+        window: {},
+        runs: 0,
+        sweeps: 0,
+        occurrences: 0,
+        absorbedRuns: 0,
+        sweepsSince: 0,
+        causes: [],
+        omittedRuns: 0,
+        omittedOccurrences: 0,
+      };
+    },
     async valueJourney() {
       return journey;
     },
@@ -65,6 +79,7 @@ describe('the absent store', () => {
       await store.current(['story:card']),
       await store.lastChanged('story:card', 'Button'),
       await store.churn('Button', {}),
+      await store.flakiness('story:card', {}),
       await store.valueJourney('--brand', {}),
       await store.reach('Button', {}),
     ];

@@ -77,6 +77,16 @@ export function createAbsentStore(): HistoryStore {
       return unkept(`how often \`${component}\` changes`);
     },
 
+    async flakiness(subject) {
+      // The wording matters more here than anywhere else in this file. A run has
+      // *just* found this subject reading differently from itself; the reader is
+      // deciding whether that is a known bad fixture or something new, and the
+      // one thing that must not appear is a zero.
+      return unkept(
+        `how often \`${subject}\` has read differently from itself, and whether it still does`,
+      );
+    },
+
     async valueJourney(token) {
       return unkept(`what \`${token}\` has drifted to`);
     },

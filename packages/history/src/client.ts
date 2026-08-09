@@ -1,8 +1,17 @@
-import { asArray, asChurn, asJourney, asObservation, asReach, asRecord } from './answers.js';
+import {
+  asArray,
+  asChurn,
+  asFlakiness,
+  asJourney,
+  asObservation,
+  asReach,
+  asRecord,
+} from './answers.js';
 import type { Observation } from './observation.js';
 import {
   CHURN_PATH,
   CURRENT_PATH,
+  FLAKINESS_PATH,
   LAST_CHANGED_PATH,
   MAX_CURRENT_SUBJECTS,
   OBSERVATIONS_PATH,
@@ -11,7 +20,7 @@ import {
   type CurrentRequest,
   type RecordRequest,
 } from './protocol.js';
-import type { Churn, HistoryStore, Journey, Reach, Window } from './store.js';
+import type { Churn, Flakiness, HistoryStore, Journey, Reach, Window } from './store.js';
 
 /**
  * The store, over a hop.
@@ -86,7 +95,7 @@ export function createHttpHistoryStore(options: HttpHistoryOptions): HistoryStor
   };
 
   return {
-    async record(run, observations, tokens): Promise<void> {
+    async record(run, observations, tokens, instabilities): Promise<void> {
       if (options.project !== undefined) {
         const foreign = [
           ...(run.project === options.project ? [] : [run.project]),
@@ -102,7 +111,12 @@ export function createHttpHistoryStore(options: HttpHistoryOptions): HistoryStor
         }
       }
 
-      const body: RecordRequest = { run, observations, tokens };
+      const body: RecordRequest = {
+        run,
+        observations,
+        tokens,
+        ...(instabilities === undefined ? {} : { instabilities }),
+      };
       await request(send, `${base}${OBSERVATIONS_PATH}`, options.token, body, timeoutMs);
     },
 
@@ -147,6 +161,13 @@ export function createHttpHistoryStore(options: HttpHistoryOptions): HistoryStor
       return asChurn(
         await query(CHURN_PATH, { component, ...windowParams(window) }),
         `${base}${CHURN_PATH}`,
+      );
+    },
+
+    async flakiness(subject, window): Promise<Flakiness> {
+      return asFlakiness(
+        await query(FLAKINESS_PATH, { subject, ...windowParams(window) }),
+        `${base}${FLAKINESS_PATH}`,
       );
     },
 

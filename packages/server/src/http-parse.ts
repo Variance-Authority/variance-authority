@@ -1,8 +1,15 @@
-import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
+import {
+  BANDS as FREQUENCY_BANDS,
+  profileById,
+  type Digest,
+  type ProfileId,
+} from '@variance-authority/core';
 import {
   BANDS,
   MAX_CURRENT_SUBJECTS,
   type Band,
+  type FrequencyBand,
+  type Instability,
   type Observation,
   type RunRecord,
   type TokenValue,
@@ -28,6 +35,7 @@ export interface ParsedRecordRequest {
   readonly run: RunRecord;
   readonly observations: readonly Observation[];
   readonly tokens: readonly TokenValue[];
+  readonly instabilities: readonly Instability[];
 }
 
 /**
@@ -65,6 +73,13 @@ export function parseRecordRequest(body: string): ParsedRecordRequest {
     ),
     tokens: asArray(source['tokens'], '`tokens`').map((row, index) =>
       asTokenValue(row, `tokens[${index}]`),
+    ),
+    // Absent is an empty list here and nowhere else in this file, because the
+    // claim it makes is carried by a different field: `run.swept` says whether
+    // anything examined every subject, so "no instabilities" from a caller that
+    // never looked cannot be read as "nothing read differently".
+    instabilities: asArray(source['instabilities'] ?? [], '`instabilities`').map((row, index) =>
+      asInstability(row, `instabilities[${index}]`),
     ),
   };
 }
@@ -185,6 +200,11 @@ function asProfile(value: unknown, what: string): ProfileId {
 function asRunRecord(value: unknown): RunRecord {
   const what = '`run`';
   const source = asRecord(value, what);
+  const swept = source['swept'];
+
+  if (swept !== undefined && swept !== null && typeof swept !== 'boolean') {
+    throw new BadRequest(`${what}.swept must be a boolean when present; received ${describe(swept)}`);
+  }
 
   return {
     project: text(source, 'project', what),
@@ -192,7 +212,67 @@ function asRunRecord(value: unknown): RunRecord {
     commit: text(source, 'commit', what),
     profile: asProfile(source['profile'], what),
     at: instant(source, 'at', what),
+    // Absent stays absent through the whole path: a run that never said what it
+    // examined must not be stored as one that examined nothing, because that
+    // number becomes the denominator of a flake rate.
+    ...(typeof swept === 'boolean' ? { swept } : {}),
   };
+}
+
+/**
+ * One occurrence of a subject failing to read the same way twice.
+ *
+ * `component` and `band` are optional and their absence is meaningful: a
+ * collector that supplied documents without snapshots proved the instability and
+ * gave nobody the means to name it. An empty string is refused rather than stored,
+ * because it would come back as a component named "".
+ */
+function asInstability(value: unknown, what: string): Instability {
+  const source = asRecord(value, what);
+  const component = source['component'];
+  const band = source['band'];
+  const absorbedBy = source['absorbedBy'];
+
+  for (const [key, held] of [
+    ['component', component],
+    ['absorbedBy', absorbedBy],
+  ] as const) {
+    if (held !== undefined && held !== null && (typeof held !== 'string' || held === '')) {
+      throw new BadRequest(
+        `${what}.${key} must be a non-empty string when present; received ${describe(held)}`,
+      );
+    }
+  }
+
+  return {
+    project: text(source, 'project', what),
+    subject: text(source, 'subject', what),
+    ...(typeof component === 'string' ? { component } : {}),
+    ...(band === undefined || band === null
+      ? {}
+      : { band: asFrequencyBand(band, `${what}.band`) }),
+    profile: asProfile(source['profile'], what),
+    commit: text(source, 'commit', what),
+    run: text(source, 'run', what),
+    at: instant(source, 'at', what),
+    ...(typeof absorbedBy === 'string' ? { absorbedBy } : {}),
+  };
+}
+
+/**
+ * A frequency band, checked against `core`'s list rather than this package's.
+ *
+ * The two `Band` types classify different things — one names which part of a
+ * component was hashed, the other how often that kind of thing changes — and an
+ * instability is reported in the second, because that is what a fix is aimed at.
+ */
+function asFrequencyBand(value: unknown, what: string): FrequencyBand {
+  if (typeof value !== 'string' || !FREQUENCY_BANDS.includes(value as FrequencyBand)) {
+    throw new BadRequest(
+      `${what} must be one of ${FREQUENCY_BANDS.join(', ')}; received ${describe(value)}`,
+    );
+  }
+  return value as FrequencyBand;
 }
 
 function asObservation(value: unknown, what: string): Observation {

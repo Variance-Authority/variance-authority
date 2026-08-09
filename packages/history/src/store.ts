@@ -1,4 +1,5 @@
 import type { ProfileId } from '@variance-authority/core';
+import type { FrequencyBand, Instability } from './instability.js';
 import type { Band, Observation, RunRecord, TokenValue } from './observation.js';
 
 /**
@@ -189,6 +190,77 @@ export interface Reach {
   readonly omittedSubjects: number;
 }
 
+/** One way a subject was seen to disagree with itself, and how often. */
+export interface FlakyCause {
+  /** Absent when the readings could not be resolved to a component. */
+  readonly component?: string;
+  /** The frequency band that moved: `content` is data, `geometry` is layout, `token` is style. */
+  readonly band?: FrequencyBand;
+  /** Distinct runs in the window in which this pairing was seen. */
+  readonly runs: number;
+}
+
+/**
+ * How often a subject has failed to read the same way twice.
+ *
+ * The instrument two readings cannot be: `unstable` in one run is a lower bound
+ * by construction, and a subject that flakes one time in fifty passes it
+ * forty-nine runs out of fifty. What makes this actionable rather than merely
+ * interesting is the pair of numbers at the end — how often, and *whether it has
+ * happened since* — because "unstable in 6 of 20" and "6 times, none in the last
+ * 9 sweeps" are opposite instructions to the person reading them.
+ */
+export interface Flakiness {
+  readonly subject: string;
+  readonly window: Window;
+
+  /** Distinct runs recorded in the window, whatever they examined. */
+  readonly runs: number;
+
+  /**
+   * Distinct runs that read **every** subject twice.
+   *
+   * The only honest denominator. A normal run asks a subject whether it agrees
+   * with itself only after calling it `changed`, so a green subject's silence in
+   * such a run is not evidence of anything (`RunRecord.swept`).
+   */
+  readonly sweeps: number;
+
+  /** Distinct runs in which this subject read differently and it was not absorbed. */
+  readonly occurrences: number;
+
+  /**
+   * Runs whose instability fell entirely in bands this subject does not assert
+   * on. Working as declared: never a finding, never gating, counted so that a
+   * rule absorbing something forever can still be asked about.
+   */
+  readonly absorbedRuns: number;
+
+  /**
+   * Occurrences per sweep. **Absent when no sweep has run**, never zero — a rate
+   * over a denominator nobody asked is the confident answer to an unasked
+   * question this package exists to refuse.
+   */
+  readonly rate?: number;
+
+  /**
+   * Sweeps recorded since the most recent occurrence. The resolution signal, and
+   * the reason it is counted in sweeps rather than in days: a suite that stopped
+   * running would otherwise look increasingly fixed the longer nobody looked.
+   */
+  readonly sweepsSince: number;
+
+  /** What read differently, loudest first. Empty when nothing could be named. */
+  readonly causes: readonly FlakyCause[];
+
+  readonly firstAt?: string;
+  readonly lastAt?: string;
+  readonly lastRun?: string;
+
+  readonly omittedRuns: number;
+  readonly omittedOccurrences: number;
+}
+
 export interface HistoryStore {
   /**
    * Write one run: the run itself, the rows whose hashes moved, and the token
@@ -204,6 +276,17 @@ export interface HistoryStore {
     run: RunRecord,
     observations: readonly Observation[],
     tokens: readonly TokenValue[],
+    /**
+     * Occurrences of this run's subjects failing to read the same way twice.
+     *
+     * Travels with the run rather than in a call of its own, so that a service
+     * commits both or neither: an instability whose run never landed has no
+     * denominator, and it is exactly the row a later query divides by.
+     *
+     * Optional because most runs have none, and because a caller that does not
+     * look for instability at all must not have to say so in every write.
+     */
+    instabilities?: readonly Instability[],
   ): Promise<void>;
 
   /**
@@ -246,6 +329,12 @@ export interface HistoryStore {
   lastChanged(subject: string, component: string, band?: Band): Promise<Answer<Observation | null>>;
 
   churn(component: string, window: Window): Promise<Answer<Churn>>;
+
+  /**
+   * How often a subject has read differently from itself, and whether it still
+   * does. See {@link Flakiness}.
+   */
+  flakiness(subject: string, window: Window): Promise<Answer<Flakiness>>;
 
   valueJourney(token: string, window: Window): Promise<Answer<Journey>>;
 
