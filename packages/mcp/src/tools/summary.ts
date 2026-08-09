@@ -167,11 +167,43 @@ function instability(report: RunReport): readonly string[] {
         .join(', ');
       const where = named === '' ? '' : ` — ${named}`;
       const inBands = moved === undefined || moved.bands.length === 0 ? '' : ` (${moved.bands.join(', ')})`;
-      return [`    ${observation.subject}${where}${inBands}`];
+      return [`    ${observation.subject}${where}${inBands}`, ...recurrence(report, observation.subject)];
     }),
     ...remedies(bands),
     ...absorbedInstability(report),
   ];
+}
+
+/**
+ * What the record says about a subject that just read differently.
+ *
+ * Two readings are a **lower bound** and can never be more: a subject that flakes
+ * one time in fifty passes that check forty-nine runs out of fifty. This is the
+ * only line in the answer that can distinguish *a fixture that has been bad for a
+ * month* from *something that started today*, and those need different people.
+ *
+ * The absent case gets a line too, and it is the one worth being careful about.
+ * Silence here would read as "first time", which is a claim — and it is the claim
+ * a reader most wants to be true.
+ */
+function recurrence(report: RunReport, subject: string): readonly string[] {
+  const record = report.flakiness?.[subject];
+
+  if (record === undefined) {
+    return [
+      '      no history record answered for this subject, so nothing here says whether it has',
+      '      happened before. That is silence, not a first occurrence.',
+    ];
+  }
+
+  const shape =
+    record.sweepsSince > 0 && record.occurrences > 1
+      ? '      — it has been quiet since, so check whether a fix already landed before writing one'
+      : record.occurrences > 1
+        ? '      — recurring, and the most recent sweep still saw it: the fixture is the bug'
+        : '      — the record has not seen this before';
+
+  return [`      ${record.because}`, shape];
 }
 
 /**

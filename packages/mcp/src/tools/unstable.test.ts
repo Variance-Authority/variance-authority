@@ -137,6 +137,63 @@ describe('a subject that did not agree with itself', () => {
     expect(answer).toContain('absorbed by `routes` (asserts on layout)');
   });
 
+  it('says how often this has happened, which is what decides who fixes it', () => {
+    // Two readings are a floor and never a ceiling. This is the only line that
+    // separates a fixture that has been bad for a month from something that
+    // started today, and those are two different people's afternoons.
+    const report = {
+      ...reportWith(UNSTABLE),
+      flakiness: {
+        'story:checkout--summary': {
+          runs: 20,
+          sweeps: 12,
+          occurrences: 6,
+          absorbedRuns: 0,
+          rate: 0.5,
+          sweepsSince: 0,
+          causes: [{ component: 'Clock', band: 'content', runs: 6 }],
+          because: 'read differently in 6 run(s), 50% of the 12 sweep(s) that asked, and the most recent sweep still saw it',
+        },
+      },
+    } as unknown as RunReport;
+
+    expect(summary(report)).toContain('the fixture is the bug');
+    expect(describeSubject(report)).toContain('OVER THE RECORDED WINDOW');
+    expect(describeSubject(report)).toContain('Seen in: Clock content');
+  });
+
+  it('sends nobody to rewrite a fix that already landed', () => {
+    const report = {
+      ...reportWith(UNSTABLE),
+      flakiness: {
+        'story:checkout--summary': {
+          runs: 30,
+          sweeps: 21,
+          occurrences: 6,
+          absorbedRuns: 0,
+          rate: 0.28,
+          sweepsSince: 9,
+          causes: [],
+          because: 'read differently in 6 run(s), and 9 sweep(s) have not seen it since',
+        },
+      },
+    } as unknown as RunReport;
+
+    expect(summary(report)).toContain('check whether a fix already landed');
+    expect(describeSubject(report)).toContain('before writing another one');
+  });
+
+  it('says the record was silent rather than letting silence read as "first time"', () => {
+    // The claim a reader most wants to be true, and the one this report cannot
+    // support: no store answered, so nothing here says whether it has happened
+    // before.
+    const answer = describeSubject(reportWith(UNSTABLE));
+
+    expect(answer).toContain('No history record answered for this subject');
+    expect(answer).toContain('not a first occurrence');
+    expect(summary(reportWith(UNSTABLE))).toContain('That is silence, not a first occurrence.');
+  });
+
   it('says nothing at all when every subject agreed with itself', () => {
     // Absence of the section is absence of a *finding*, never a certificate: two
     // readings put a floor under flakiness and no ceiling on it. The section is

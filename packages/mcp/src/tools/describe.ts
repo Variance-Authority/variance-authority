@@ -1,4 +1,4 @@
-import type { RegionRecord } from '@variance-authority/report';
+import type { FlakinessRecord, RegionRecord, RunReport } from '@variance-authority/report';
 import { subjectOf, unobserved } from './subject.js';
 import type { Tool } from './tool.js';
 
@@ -62,6 +62,13 @@ export const describe: Tool = {
                     : ` (${observation.unstable.bands.join(', ')}).`)),
           ]
         : []),
+      // What the record says, directly under the instruction it qualifies. An
+      // agent handed "fix what moves between two readings" acts differently when
+      // the answer is "this has fired in eleven of the last twelve sweeps" than
+      // when it is "twice in March, and nine sweeps have been clean since" — the
+      // second is a fix that already landed, and rewriting it is a day spent
+      // re-solving somebody's solved problem.
+      ...(observation.unstable !== undefined ? recurrence(report, observation.subject) : []),
       // The same movement, inside the boundary the subject declared. Said rather
       // than suppressed: an agent that later sees this subject go green wants to
       // know a level was doing work, and the rule's name is what makes that
@@ -157,6 +164,43 @@ function label(observation: {
   }
   if (observation.alone?.reproduced === false) return 'order-dependent';
   return observation.verdict;
+}
+
+/**
+ * How often this has happened before, or the fact that nobody was asked.
+ *
+ * The absent arm is not politeness. Two readings put a floor under flakiness and
+ * never a ceiling, so "no record answered" and "this has never happened" are
+ * different sentences with different next actions — and only one of them is
+ * something this report can support.
+ */
+function recurrence(report: RunReport, subject: string): readonly string[] {
+  const record = report.flakiness?.[subject];
+
+  if (record === undefined) {
+    return [
+      'No history record answered for this subject, so nothing here says whether it has',
+      'happened before. Absence of a record is not a first occurrence.',
+    ];
+  }
+
+  const named = record.causes
+    .map((cause: FlakinessRecord['causes'][number]) =>
+      [cause.component, cause.band].filter((part) => part !== undefined).join(' '),
+    )
+    .filter((label: string) => label !== '')
+    .slice(0, 3);
+
+  return [
+    `OVER THE RECORDED WINDOW: ${record.because}.` +
+      (named.length === 0 ? '' : ` Seen in: ${named.join(', ')}.`),
+    ...(record.sweepsSince > 0 && record.occurrences > 1
+      ? [
+          'It has been quiet for the last few sweeps, so check whether a fix already landed',
+          'before writing another one.',
+        ]
+      : []),
+  ];
 }
 
 /** The unstable components as `Name file:line`, which is what an editor opens. */
