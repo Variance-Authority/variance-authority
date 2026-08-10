@@ -827,10 +827,11 @@ hashing tier and the storage tier exists and carries traffic.
 What has **not** changed is the claim this section was written to make, and it is
 worth stating precisely rather than deleting:
 
-- **No run resolves a design token to a value.** Every write sends an empty token
-  list, so `valueJourney` has nothing to answer from and the 22px story in
-  [§3.4](#34-accumulation-as-text-not-pixels) has still never been produced by the
-  pipeline.
+- **The 22px story in [§3.4](#34-accumulation-as-text-not-pixels) has still never
+  been produced by the pipeline.** Since 2026-08-10 every part of it exists — a run
+  records the tokens it resolved, `variance accept` records the approval, and the
+  journey arithmetic sums approved steps — but producing the sentence takes eleven
+  runs and eleven approvals, and nobody has run them.
 - **`churn` and `reach` have rows and no caller.** Acceptance is recorded now —
   `variance accept` writes an approval per `(subject, run)`, so the rows a run
   wrote can be counted as approved — but nothing in the product asks the

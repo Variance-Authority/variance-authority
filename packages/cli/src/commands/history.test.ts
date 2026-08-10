@@ -252,6 +252,69 @@ describe('recording a run', () => {
   });
 });
 
+describe('the tokens a run resolved', () => {
+  it('writes one row per token, not one per subject that inherited it', async () => {
+    // Three hundred subjects inherit the same `:root` declarations. A row each
+    // would be three hundred copies of one answer, and a `TokenValue` carries no
+    // subject because the question is what the *product's* spacing scale drifted
+    // to.
+    const written: Written[] = [];
+    const store_ = {
+      ...store([], []),
+      async record(run: RunRecord, _o: unknown, tokens: unknown) {
+        written.push({ run, observations: [], instabilities: [], tokens } as never);
+      },
+    } as unknown as HistoryStore;
+
+    await recordRun({
+      config: CONFIG,
+      store: store_,
+      identity: { run: 'r1', commit: 'c1' },
+      at: '2026-03-01T10:00:00.000Z',
+      swept: false,
+      subjects: [
+        { subject: 'story:card', tokens: { '--va-space-3': '12px', '--brand': '#0b6bcb' } },
+        { subject: 'story:panel', tokens: { '--va-space-3': '12px' } },
+      ],
+    });
+
+    expect((written[0] as unknown as { tokens: readonly { token: string; value: string }[] }).tokens)
+      .toEqual([
+        { project: 'shop', token: '--brand', value: '#0b6bcb', commit: 'c1', at: '2026-03-01T10:00:00.000Z' },
+        { project: 'shop', token: '--va-space-3', value: '12px', commit: 'c1', at: '2026-03-01T10:00:00.000Z' },
+      ]);
+  });
+
+  it('records nothing for a token with two values, and says how many it dropped', async () => {
+    // A themed subtree that overrides `--brand` is a legitimate second answer.
+    // Picking either would put a step in a journey that its reader would trace to
+    // a commit and be unable to reproduce.
+    const written: Written[] = [];
+    const store_ = {
+      ...store([], []),
+      async record(run: RunRecord, _o: unknown, tokens: unknown) {
+        written.push({ run, observations: [], instabilities: [], tokens } as never);
+      },
+    } as unknown as HistoryStore;
+
+    const recorded = await recordRun({
+      config: CONFIG,
+      store: store_,
+      identity: { run: 'r1', commit: 'c1' },
+      at: '2026-03-01T10:00:00.000Z',
+      swept: false,
+      subjects: [
+        { subject: 'story:light', tokens: { '--brand': '#0b6bcb' } },
+        { subject: 'story:dark', tokens: { '--brand': '#ffffff' } },
+      ],
+    });
+
+    expect((written[0] as unknown as { tokens: readonly unknown[] }).tokens).toEqual([]);
+    expect(recorded.warnings[0]).toContain('--brand');
+    expect(recorded.warnings[0]).toContain('no value was picked');
+  });
+});
+
 describe('what the run reports about the record', () => {
   it('says nothing when no store is configured, and says so when one is and cannot be named', async () => {
     const quiet = await recordIfConfigured({

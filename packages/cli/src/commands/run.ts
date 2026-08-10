@@ -229,6 +229,12 @@ async function observeAll(
         subject: id,
         snapshot: collected.snapshot,
         ...(collected.source !== undefined ? { source: collected.source } : {}),
+        // The design tokens this subject resolved, taken from the document's
+        // inherited floor — which is where they already are, because a subject's
+        // subtree does not contain the `:root` rule that declares them and the
+        // document has to carry the resolved values for the render to be
+        // faithful at all.
+        tokens: customProperties(collected.document.inherited),
       };
     }
 
@@ -337,6 +343,24 @@ async function observeAll(
 
   await deps.writeReport(config.report, report);
   return report;
+}
+
+/**
+ * The custom properties out of an inherited floor.
+ *
+ * The floor also carries `font-size`, `color` and everything else the cascade
+ * hands down, and none of those is a *token*: they are the computed consequence
+ * of one, and recording them would make a journey through `--va-space-3` compete
+ * with a journey through every element's inherited line height.
+ */
+function customProperties(
+  inherited: Readonly<Record<string, string>>,
+): Readonly<Record<string, string>> {
+  const tokens: Record<string, string> = {};
+  for (const [property, value] of Object.entries(inherited)) {
+    if (property.startsWith('--')) tokens[property] = value;
+  }
+  return tokens;
 }
 
 function messageOf(error: unknown): string {

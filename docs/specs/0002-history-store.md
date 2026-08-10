@@ -17,17 +17,24 @@ then asks `flakiness()` about every subject it called unstable and carries the
 answer into the report, which is how recurrence reaches the summary, a
 pull-request comment and an agent without any of them holding a connection.
 
+It records the **design tokens** it resolved, too: the custom properties in force
+at each subject's root, folded to one value per token per run. That is the axis
+the headline example at the top of this file needs — a button gaining 2px eleven
+times — and it had no source until now. A token that resolved to *two* values in
+one run is not recorded at all and the count is reported: a themed subtree
+overriding `--brand` is a legitimate second answer, and picking either would put a
+step in a journey whose reader could trace it to a commit and fail to reproduce
+it.
+
 **What does not.**
 
-- **No token value is ever recorded.** `valueJourney` is implemented on both
-  sides of the wire and every write sends an empty token list, because nothing in
-  a run resolves a design token to a value yet. The headline example at the top of
-  this file — a button gaining 2px eleven times — is therefore still unreachable,
-  and it is the reason this spec is still here.
-- **`churn`, `valueJourney` and `reach` have no caller.** The rows they read are
-  being written now, so the answers exist; nothing asks for them. The natural
-  home is an MCP tool, which is a decision about `variance serve`'s tool list
-  rather than about storage ([spec 0013](0013-a-real-agent.md)).
+- **Nothing asks the questions.** `churn`, `valueJourney` and `reach` have rows to
+  read — correct ones, now that acceptance is recorded — and no caller. The
+  natural home is an MCP tool, which is a decision about `variance serve`'s tool
+  list rather than about storage ([spec 0013](0013-a-real-agent.md)).
+- **No run has produced the eleven-step journey end to end.** Every part of it
+  exists and each part is tested; what has not happened is eleven runs, eleven
+  approvals, and the sentence at the end of them.
 
 **Acceptance is recorded, since 2026-08-10**, and it had to be a second row rather
 than a flag: the store is append-only, so nothing may flip `accepted` on an

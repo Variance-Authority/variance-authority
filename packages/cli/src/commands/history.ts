@@ -1,23 +1,16 @@
-import {
-  BANDS as FREQUENCY_BANDS,
-  hashComponents,
-  resolveSource,
-  type ComponentHash,
-  type SemanticSnapshot,
-  type SourceIndex,
-} from '@variance-authority/core';
+import { hashComponents, type SemanticSnapshot, type SourceIndex } from '@variance-authority/core';
 import {
   describeFlakiness,
   isKept,
   observationsFrom,
   type Flakiness,
-  type FrequencyBand,
   type HistoryStore,
   type Instability,
   type Observation,
   type RunRecord,
 } from '@variance-authority/history';
 import type { FlakinessRecord } from '@variance-authority/report';
+import { filesOf, instabilitiesOf, tokensOf } from './history-rows.js';
 import type { Config } from '../config.js';
 import type { CliObservationRecord } from './run-report.js';
 
@@ -126,36 +119,19 @@ export interface SubjectHistory {
   readonly snapshot?: SemanticSnapshot;
   /** The index that turns a component name into the file that declares it. */
   readonly source?: SourceIndex;
+
+  /**
+   * Custom properties in force at this subject's root — the design tokens it
+   * resolved, as values rather than as names.
+   *
+   * This is the axis the whole record was built for and the one that had no
+   * source: a button gains 2px eleven times, each approved correctly, and nobody
+   * ever sees the 22px change, because the quantity that would catch it is a
+   * **sum** and a one-run-at-a-time tool keeps none.
+   */
+  readonly tokens?: Readonly<Record<string, string>>;
   /** What a second reading said, when the run took one. */
   readonly unstable?: CliObservationRecord['unstable'];
-}
-
-/**
- * Component name → the file that declares it, for the names this subject holds.
- *
- * An **unambiguous** resolution only, and the line number is dropped. A name
- * declared in two files resolves to neither, because `Observation.file` is what
- * sends an agent to an editor and a guess sends it to the wrong one with full
- * confidence. The line is left out because a row outlives the line: components
- * move down a file every time somebody adds an import, and a stored `Button.tsx:22`
- * is wrong within a week while `Button.tsx` stays true.
- */
-function filesOf(
-  hashes: readonly ComponentHash[],
-  source: SourceIndex | undefined,
-): Readonly<Record<string, string>> {
-  if (source === undefined) return {};
-
-  const files: Record<string, string> = {};
-  for (const hash of hashes) {
-    const resolved = resolveSource(hash.component, source);
-    const [first] = resolved?.refs ?? [];
-    if (resolved !== null && !resolved.ambiguous && first !== undefined) {
-      files[hash.component] = first.file;
-    }
-  }
-
-  return files;
 }
 
 export interface RecordRunInput {
@@ -266,8 +242,10 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
     instabilities.push(...instabilitiesOf(subject, run));
   }
 
+  const resolved = tokensOf(input.subjects, run, warnings);
+
   try {
-    await store.record(run, observations, [], instabilities);
+    await store.record(run, observations, resolved, instabilities);
   } catch (error) {
     return {
       observations: 0,
@@ -305,50 +283,6 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
   }
 
   return { observations: observations.length, instabilities: instabilities.length, flakiness, warnings };
-}
-
-/**
- * One row per named `(component, band)` pair, and a single unnamed row when the
- * readings could not be resolved to either.
- *
- * The cross product is deliberate and cheap: an occurrence names one or two
- * components in one or two bands, and a flat row is what lets a query rank *which
- * component keeps flaking* without parsing a blob. A run that disagreed with
- * itself and could name nothing still writes one row, because the occurrence
- * happened and a store that dropped it would answer "never" about a subject that
- * has been failing all week.
- */
-function instabilitiesOf(subject: SubjectHistory, run: RunRecord): readonly Instability[] {
-  const unstable = subject.unstable;
-  if (unstable === undefined) return [];
-
-  const base = {
-    project: run.project,
-    subject: subject.subject,
-    profile: run.profile,
-    commit: run.commit,
-    run: run.run,
-    at: run.at,
-    ...(unstable.absorbed !== undefined ? { absorbedBy: unstable.absorbed.rule } : {}),
-  };
-
-  const components = unstable.components.map((component) => component.name);
-
-  // The report types its bands as strings — `@variance-authority/report` has no
-  // dependency on `core` and cannot name the union — so they are checked here
-  // rather than cast. A value nothing recognises is dropped from the *naming*
-  // and never from the occurrence: the subject did read differently, and a row
-  // withheld because its label was unfamiliar would answer "never" about a
-  // subject that has been failing all week.
-  const bands = unstable.bands.filter((band): band is FrequencyBand =>
-    FREQUENCY_BANDS.includes(band as FrequencyBand),
-  );
-
-  if (components.length === 0 && bands.length === 0) return [base];
-  if (components.length === 0) return bands.map((band) => ({ ...base, band }));
-  if (bands.length === 0) return components.map((component) => ({ ...base, component }));
-
-  return components.flatMap((component) => bands.map((band) => ({ ...base, component, band })));
 }
 
 /**
