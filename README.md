@@ -116,6 +116,7 @@ build when they do not.
 
 | If your task is | Start at |
 |---|---|
+| Asking whether this replaces what you pay for | [`docs/gates.md`](docs/gates.md) — three scorecards, and the rows that say no |
 | Weighing a move from a hosted product | [`docs/replacing.md`](docs/replacing.md) for what the move involves, then [`docs/cases.md`](docs/cases.md) for what a measurement alongside a real `toHaveScreenshot` run found |
 | Getting your suite in | [`docs/surface.md`](docs/surface.md) — what you write and install, by suite |
 | Choosing where baselines live | [`docs/flows.md`](docs/flows.md) — six setups and what each cannot do |
