@@ -88,6 +88,70 @@ painted at all.
 
 ---
 
+## 2b. Replacing Percy on a set of URLs
+
+**What you have.** `percy snapshot` over a URL list, a sitemap or a static build,
+`widths: [375, 1280]` in `.percy.yml`, and a per-snapshot bill that multiplies by
+every width you added.
+
+**What you write.** A config. There is no collector to write for this path:
+[`@variance-authority/route-collector`](../packages/route-collector) takes the
+addresses and reads what is served.
+
+```json
+{
+  "viewport": { "width": 1280, "height": 800 },
+  "subjects": { "kind": "list", "ids": ["home", "cart"], "collector": "./variance.routes.js" }
+}
+```
+
+```js
+import { routeCollector } from '@variance-authority/route-collector';
+
+export default routeCollector({
+  routes: { home: 'https://staging.example/', cart: 'https://staging.example/cart' },
+  widths: [375, 1280],
+  ready: { cart: '[data-testid="cart-loaded"]' },
+});
+```
+
+Two routes at two widths is four subjects — `home@375`, `home@1280`, `cart@375`,
+`cart@1280` — each with its own baseline and its own verdict, because a page has
+a layout per breakpoint and one green line over three of them is not a result.
+
+**What you get.** Each width is genuinely laid out: the page is re-navigated at
+the new size rather than reflowed, so a component that read `matchMedia` when it
+mounted decides again. That distinction is asserted rather than assumed — a
+collector that recorded the requested viewport while painting at the run's would
+produce three baselines of one picture, all green, with nothing anywhere to
+notice.
+
+You also get what the wire knows. Every image, font and media response is hashed
+into the environment key, so a logo re-exported behind the same URL is a
+different baseline rather than a false `unchanged`; animated GIFs are frozen on
+the wire before the browser decodes them; and the run waits on what was actually
+requested rather than polling `document.images`
+([`stabilization.md`](stabilization.md)).
+
+**What you lose.**
+
+- **Cross-browser from one capture.** Percy serializes the DOM once and renders
+  it in four engines off your critical path. One engine is selected per run here,
+  and a matrix is [explicitly out of scope](specs/0020-a-cross-browser-grid.md).
+  This is the largest single thing Percy sells that this does not have.
+- **Retroactive rules.** Percy lets you silence a noisy region from the dashboard
+  and have it apply to past builds. Here an ignore is a declaration in your
+  config and it applies to the next run ([`ignores.md`](ignores.md)) — auditable,
+  and slower.
+- **A scale factor or a colour scheme per subject.** Both are fixed when the
+  browser context opens, so a subject asking for one the run did not open with is
+  **refused by name** rather than painted at the wrong one and recorded at the
+  right one. Two runs, two configs.
+- **The no-code on-ramps.** A sitemap or a crawl still becomes a `routes` map you
+  write; nothing here discovers pages for you.
+
+---
+
 ## 3. Replacing Percy or Chromatic on a Storybook
 
 **What you have.** A build, an upload, a hosted review UI, and a per-snapshot
@@ -118,9 +182,10 @@ and there is no per-snapshot meter.
 - **A hosted review UI.** [`packages/tribunal`](../packages/tribunal) implements
   builds, a docket and an approval that promotes the candidate the run already
   produced — and has never been deployed to Cloudflare.
-- **History.** The drift arithmetic and the store are written and have never been
-  called from a run, so eleven separately-correct 2px approvals are still eleven
-  green builds.
+- **A hosted anything.** History now records and answers — eleven separately
+  correct 2px approvals produce a `DRIFT:` line naming the 22px
+  ([`history.md`](history.md)) — but the service is one you run, and nobody has
+  run the eleven builds that would demonstrate it end to end.
 
 ---
 

@@ -17,6 +17,7 @@ import {
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import { scanSource, type SourceScan } from './source.js';
+import { routeOf, unresizable, widthsOf } from './widths.js';
 
 /**
  * A collector for routes: the application serves the page, this reads a subtree.
@@ -139,6 +140,25 @@ export interface RouteCollectorOptions {
    * than silently dropped.
    */
   readonly routes: Readonly<Record<string, string>>;
+
+  /**
+   * Viewport widths to read every route at. Defaults to the run's one viewport.
+   *
+   * The shape every Percy suite is written in — `widths: [375, 1280]` — and the
+   * thing a single-viewport tool cannot express: a page has a layout per
+   * breakpoint, and a suite that only reads the desktop one is not watching the
+   * other two. It is a *plan* concern rather than a capture one, because each
+   * width is genuinely its own subject: its own baseline, its own verdict, its
+   * own place in the report. Reading one page at three widths and calling it one
+   * result would hide two of the three answers behind whichever failed first.
+   *
+   * Each becomes `<id>@<width>` — a suffix rather than a field, so a baseline
+   * cannot collide, an `ignore` or `sensitivity` rule matching `route/*` still
+   * matches all of them, and `--subjects 'route/home@375'` selects exactly one.
+   * The height is the run's; only the width moves, because a viewport height
+   * bounds nothing when the subject is the page.
+   */
+  readonly widths?: readonly number[];
 
   /**
    * The subject's root, tightest first. Defaults to `body`.
@@ -277,11 +297,18 @@ export function routeCollector(
 
     const page = harness.page;
     const engine = harness.engine;
-    let injectedInto = page.url();
+    // Tracks *navigations*, not URLs. A run that reads one route at two widths
+    // navigates to the same address twice, and a check on the address alone
+    // would decide the agent was still installed after a load that discarded it
+    // — which surfaces as an evaluate error naming a missing global rather than
+    // as anything a reader could act on.
+    let agentInstalled = false;
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) agentInstalled = false;
+    });
 
     async function ensureAgent(): Promise<void> {
-      const url = page.url();
-      if (url === injectedInto) return;
+      if (agentInstalled) return;
 
       // A navigation discards injected scripts, so the agent is reinstalled and
       // its presence checked rather than assumed. An absent agent surfaces as a
@@ -292,7 +319,7 @@ export function routeCollector(
         AGENT_GLOBAL,
       );
       if (!installed) throw new Error(`the page bundle did not install ${AGENT_GLOBAL}`);
-      injectedInto = url;
+      agentInstalled = true;
     }
 
     return {
@@ -302,12 +329,16 @@ export function routeCollector(
             'this collector expects `subjects.kind: "list"`, which is what supplies the plan',
           );
         }
-        return plan;
+        return widthsOf(plan, options.widths, config.viewport);
       },
 
       async collect(planned: PlannedSubject): Promise<Collected> {
         const id = planned.subject.id;
-        const url = options.routes[id];
+        // `route/home@375` is one width of `route/home`, and the URL belongs to
+        // the route. Resolved here rather than by rewriting the plan's ids,
+        // because the id is what a baseline, a report line and a `--subjects`
+        // glob all name — and those have to stay distinct per width.
+        const url = options.routes[routeOf(id, options.widths)];
 
         // Reported, never dropped. An id in the plan with no route here is a hole
         // in this run's coverage, and a run that observes 29 of 30 subjects and
@@ -316,13 +347,36 @@ export function routeCollector(
           return { ok: false, because: `no route is configured for \`${id}\`` };
         }
 
+        const wanted = planned.viewport ?? config.viewport;
+
+        // A context's scale factor and colour scheme are fixed when it is
+        // created, so a subject asking for different ones cannot be honoured by
+        // resizing — and painting it at the run's values while *recording* its
+        // own would put a lie in the environment key, which is the one field
+        // everything else trusts. Refused by name instead.
+        const fixed = unresizable(wanted, config.viewport);
+        if (fixed !== undefined) return { ok: false, because: fixed };
+
         try {
-          if (page.url() !== url) {
+          const current = page.viewportSize();
+          const resized = current?.width !== wanted.width || current?.height !== wanted.height;
+
+          if (resized) await page.setViewportSize({ width: wanted.width, height: wanted.height });
+
+          // Re-navigated when the size changed, not merely reflowed. CSS reflows
+          // on a resize; a component that read `matchMedia` when it mounted does
+          // not, and neither does an image chosen by `sizes` at first layout. A
+          // page reached by resizing a wider one is therefore not the page a
+          // visitor at that width gets, and the difference is invisible in the
+          // result — which is the direction this project never accepts.
+          if (page.url() !== url || resized) {
             // Cleared before the navigation, not after: a route run visits one
             // page per subject, so what this page fetches *is* this subject's
             // asset set. Reusing one page across subjects would make it the
             // union, which over-invalidates rather than under-invalidates.
             network?.reset();
+            // `goto` navigates even when the address is unchanged, which is what
+            // makes a width change a *load* rather than a reflow.
             await page.goto(url, { waitUntil: 'load' });
           }
 
