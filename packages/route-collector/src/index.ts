@@ -10,6 +10,7 @@ import type {
 } from '@variance-authority/core';
 import {
   createHarness,
+  unresizable,
   observeNetwork,
   type Harness,
   type NetworkObservation,
@@ -17,7 +18,7 @@ import {
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import { scanSource, type SourceScan } from './source.js';
-import { routeOf, unresizable, widthsOf } from './widths.js';
+import { routeOf, widthsOf } from './widths.js';
 
 /**
  * A collector for routes: the application serves the page, this reads a subtree.

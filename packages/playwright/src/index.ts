@@ -30,6 +30,7 @@ export type { Harness, HarnessOptions } from './harness.js';
 export { createPlaywrightRenderer } from './renderer.js';
 export type { BrowserEngine, PlaywrightRendererOptions } from './renderer.js';
 
+export { unresizable } from './viewport.js';
 export { observeNetwork } from './network.js';
 export type { NetworkObservation, NetworkOptions } from './network.js';
 

@@ -13,6 +13,7 @@ import type {
 import {
   createHarness,
   observeNetwork,
+  unresizable,
   type Harness,
   type NetworkObservation,
 } from '@variance-authority/playwright';
@@ -322,6 +323,20 @@ export function storybookCollector(
         const storyId = planned.subject.id.replace(/^story:/, '');
         const viewport = planned.viewport ?? config.viewport;
         const readySelector = options.ready?.[storyId];
+
+        // Applied, not merely recorded. A story that declares its own viewport
+        // was being painted at the run's width while its environment key said
+        // otherwise — a baseline whose key describes a render that never
+        // happened, and a verdict over it that is green for the wrong reason.
+        // The resize precedes the mount, so a component that reads `matchMedia`
+        // when it mounts reads the width it is about to be shown at.
+        const fixed = unresizable(viewport, config.viewport);
+        if (fixed !== undefined) return { ok: false, because: fixed };
+
+        const current = page.viewportSize();
+        if (current?.width !== viewport.width || current?.height !== viewport.height) {
+          await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        }
 
         const outcome = await collectStory(harnessPage({ page }), storyId, {
           baseUrl,

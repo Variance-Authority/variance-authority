@@ -172,6 +172,10 @@ changed (exit 1)* on a build with one component edited, finding exactly the five
 stories that render it. Rendering stays yours, storage is a directory or git-LFS,
 and there is no per-snapshot meter.
 
+A story that declares its own viewport is now read at it — applied to the page
+before the story mounts, rather than recorded and ignored, which is the same
+correctness rule the URL path states above.
+
 **What you lose.**
 
 - **Time to first verdict.** Theirs is an afternoon from `npx` and a token.
