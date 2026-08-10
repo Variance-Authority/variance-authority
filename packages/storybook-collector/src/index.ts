@@ -10,7 +10,12 @@ import type {
   SubjectRef,
   Viewport,
 } from '@variance-authority/core';
-import { createHarness, type Harness } from '@variance-authority/playwright';
+import {
+  createHarness,
+  observeNetwork,
+  type Harness,
+  type NetworkObservation,
+} from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { collectStory, harnessPage } from '@variance-authority/storybook';
 import type { AcquireRequest, Acquired } from './page-agent.js';
@@ -172,6 +177,28 @@ export interface StorybookCollectorOptions {
   /** Defaults to `true`. Set false to watch a run by hand. */
   readonly headless?: boolean;
 
+  /**
+   * Watch the wire: hash asset bodies into the environment key, and serve
+   * animated GIFs as their first frame. Defaults to `true`.
+   *
+   * On, this is what closes a false `unchanged` that a page cannot see about
+   * itself. A logo re-exported at the same URL is the same markup, the same CSS
+   * and the same document — so every tier settles, and the run reports that
+   * nothing moved while the image on the page is different bytes. Only the party
+   * that saw the response knows otherwise.
+   *
+   * The assets are narrowed **per story** before they reach a key, from the URLs
+   * that story's own subtree references (`assetsFor`). Without that, a run that
+   * reads three hundred stories out of one page would give story 200 a key that
+   * depends on which stories ran before it, and sharding the suite would change
+   * every baseline's identity.
+   *
+   * Off is a position for a build whose asset URLs already contain their own
+   * content hash: the URL is then the identity, and hashing the bytes again buys
+   * a read and nothing else.
+   */
+  readonly network?: boolean;
+
   /** Overrides the roots the story is read from. Tightest first. */
   readonly roots?: readonly string[];
 }
@@ -251,6 +278,10 @@ export function storybookCollector(
     const baseUrl = options.baseUrl ?? served!.baseUrl;
 
     let harness: Harness | undefined;
+    // Installed in `prepare`, which runs before the first navigation: an
+    // observation that starts afterwards has already missed the assets the
+    // preview loaded on its way up, and a URL nobody saw is a hole in the key.
+    let network: NetworkObservation | undefined;
     try {
       // Pointed at the preview, so `collectStory` finds itself already there and
       // does not navigate: one navigation for a whole run is the saving ADR-0009
@@ -261,6 +292,13 @@ export function storybookCollector(
         viewport: config.viewport,
         ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
         ...(options.headless !== undefined ? { headless: options.headless } : {}),
+        ...(options.network === false
+          ? {}
+          : {
+              prepare: async (page): Promise<void> => {
+                network = await observeNetwork(page);
+              },
+            }),
       });
     } catch (error) {
       await served?.close();
@@ -303,6 +341,12 @@ export function storybookCollector(
           };
         }
 
+        // After the story has mounted and before it is read. A story whose
+        // image is still in flight is a story whose bytes nobody hashed, and the
+        // wait is the driver's because the page cannot see its own requests.
+        // Never a failure: a page that keeps fetching is reported, not refused.
+        await network?.settle();
+
         const worn = new Set(planned.tags ?? []);
         const selectable = (config.ignore ?? []).flatMap((rule) =>
           rule.select === undefined ||
@@ -318,6 +362,15 @@ export function storybookCollector(
           viewport,
           engine,
           ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
+          // The page's whole observed set, narrowed inside the page to the URLs
+          // this story references. Sent whole because the driver cannot know
+          // which of them the story uses, and narrowed there because the page
+          // cannot know what the bytes were. Never reset between stories: one
+          // page serves the whole run, and a story whose asset was fetched
+          // during an earlier story still references it.
+          ...(network !== undefined && Object.keys(network.assets).length > 0
+            ? { assets: { ...network.assets } }
+            : {}),
           // Only the rules that name a selector cross into the page. A
           // fingerprint rule has nothing for a document to resolve, and sending
           // one would put a digest in a browser that cannot use it.
@@ -357,6 +410,7 @@ export function storybookCollector(
       },
 
       async close(): Promise<void> {
+        await network?.close();
         await harness?.close();
         await served?.close();
       },

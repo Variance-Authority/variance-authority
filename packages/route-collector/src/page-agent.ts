@@ -1,4 +1,9 @@
-import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
+import {
+  acquireDocument,
+  assetsFor,
+  collect,
+  stabilizeForObservation,
+} from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
 import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core';
@@ -103,10 +108,18 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) },
   );
 
+  // Narrowed to this route's own subtree, and handed to **both** keys. The
+  // document's key is the one `settle` reads: a document that omitted the assets
+  // would produce the digest the baseline was painted from even after a logo's
+  // bytes moved, and the run would skip the render and report `unchanged` — the
+  // exact false verdict hashing the bytes was added to close.
+  const assets = request.assets === undefined ? {} : assetsFor(root, request.assets);
+
   const shared = {
     subject: { id: request.subjectId, kind: 'route' as const },
     viewport: request.viewport,
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
+    ...(Object.keys(assets).length > 0 ? { assets } : {}),
   };
 
   // The style index is built once and handed to both, which is not only a
@@ -117,7 +130,6 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   const capture = collect(root, {
     ...shared,
     engine: request.engine,
-    ...(request.assets !== undefined ? { assets: request.assets } : {}),
     portalsOf: portalContentOf,
     provenanceOf,
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),

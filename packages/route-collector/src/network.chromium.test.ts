@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { documentDigest } from '@variance-authority/core';
 import { routeCollector, type Collected, type Collector, type Plan } from './index.js';
 
 /**
@@ -163,7 +164,9 @@ function crc32(data: Buffer): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-const PAGE = `<!doctype html><html><body><main id="app">
+const PAGE = `<!doctype html><html><body>
+  <header><img id="chrome" src="/outside.png" width="10" height="10" alt=""></header>
+  <main id="app">
   <section data-testid="panel">
     <img id="spinner" src="/spinner.gif" width="200" height="100" alt="">
     <img id="logo" src="/logo.png" width="40" height="40" alt="">
@@ -186,6 +189,11 @@ beforeAll(async () => {
     }
     if (path === '/logo.png') {
       response.writeHead(200, { 'content-type': 'image/png' }).end(png(logoRed));
+      return;
+    }
+    // Outside `#app`, so it is fetched by the page and referenced by no subject.
+    if (path === '/outside.png') {
+      response.writeHead(200, { 'content-type': 'image/png' }).end(png(0x11));
       return;
     }
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(PAGE);
@@ -262,6 +270,36 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
     expect(after.snapshot?.environment.semanticDigest).not.toBe(
       before.snapshot?.environment.semanticDigest,
     );
+  }, 60_000);
+
+  it('records only the assets the subject itself references', async () => {
+    // The page fetches a header image that is outside `#app`. Folding it in
+    // would make the key depend on what else the page happened to load — and on
+    // a shared page, on which subjects ran first, which is order dependence in
+    // the identity a baseline is stored under.
+    const assets = assetsOf(await collect());
+
+    expect(Object.keys(assets)).not.toContain(`${base}/outside.png`);
+  }, 60_000);
+
+  it('hands the same assets to the document, which is what decides to skip a render', async () => {
+    // The half that was missing and had no symptom. `settle` compares this run's
+    // document digest against the digest the baseline was painted from; a
+    // document with no assets in it produces the same digest after a logo's
+    // bytes moved, so the run skips the render and reports `unchanged` — the
+    // exact false verdict hashing the bytes was added to close.
+    logoRed = 0x00;
+    const before = await collect();
+    logoRed = 0xff;
+    const after = await collect();
+
+    if (!before.ok || !after.ok) throw new Error('collection failed');
+    if (before.document === undefined || after.document === undefined) {
+      throw new Error('no document');
+    }
+
+    expect(before.document.assets?.[`${base}/logo.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
+    expect(documentDigest(after.document)).not.toBe(documentDigest(before.document));
   }, 60_000);
 
   it('leaves the map empty, and visibly so, when the watch is off', async () => {

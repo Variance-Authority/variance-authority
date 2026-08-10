@@ -345,12 +345,49 @@ everything else is continued without its body. Set `network: false` on the
 collector to turn it off — the assets map is then empty, and an empty map is
 visibly a run that recorded nothing rather than a run that had nothing.
 
-Wired into the route collector today. **Not yet into the Storybook collector**,
-and the reason is worth stating: a Storybook run is one navigation and N
-subjects, so the wire cannot tell which story an image belonged to, and every
-story would carry the whole page's asset set. That over-invalidates rather than
-under-invalidates — the safe direction — but it is noise, and the fix is for the
-page to report which URLs its subject actually references.
+### Which assets belong to which subject
+
+Wired into both collectors since 2026-08-10, and the reason it took a second step
+is the reason it is worth reading. **The wire sees a page; a verdict is about a
+subject.** A request carries no idea which story will end up using it, so a
+Storybook run — one navigation, three hundred subjects — would give story 200 the
+page's whole asset set, which depends on which stories ran before it. That is not
+over-invalidation, which would merely be noise. It is **order dependence in the
+identity a baseline is stored under**: shard the suite differently and every key
+in it changes.
+
+So the two halves are joined where each one knows something the other cannot. The
+driver sends its whole observation into the page; the page narrows it to the URLs
+*this subtree* references and puts only those in the key. `referencedAssets` reads
+`src`, every `srcset` candidate, SVG `use`/`image` hrefs, `poster`, `object[data]`
+— and the computed `background-image`, `mask-image`, `content` and `cursor` of
+every element and its `::before`/`::after`, because a background image is named by
+no attribute at all.
+
+Every candidate rather than the one this device would pick, deliberately: which
+`srcset` entry loads depends on the device pixel ratio, and a key holding only the
+chosen one lets the 2× asset change without moving a 1× runner's key.
+
+A URL nothing requested is **absent, never a placeholder** — an asset served from
+the browser's cache before the observation started has bytes nobody here saw, and
+an invented entry would be a claim about content that no later run could
+contradict.
+
+### The document carries them too, which is what `settle` reads
+
+The first version of this put the assets in the *capture* and not in the
+`RenderDocument`, and the difference had no symptom. `settle` skips a render when
+this run's document digest equals the digest the baseline was painted from — so a
+document that omitted the assets produced the same digest after a logo's bytes
+moved, the render was skipped, and the run reported `unchanged`. That is exactly
+the false verdict hashing the bytes was added to close, surviving inside the fix
+for it. Both keys carry the same scoped set now, asserted in
+`packages/route-collector/src/network.chromium.test.ts`.
+
+**What is not yet proven by a browser**: the Storybook path runs the same page
+agent and the same narrowing as the route path, which is what the chromium tests
+exercise, but no test yet drives a *Storybook story* whose image changes behind
+its URL.
 
 ---
 

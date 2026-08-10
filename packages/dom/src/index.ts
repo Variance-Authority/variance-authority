@@ -17,6 +17,8 @@ export type { CollectOptions } from './collect.js';
 
 export { detectProfile } from './profile.js';
 
+export { assetsFor, referencedAssets } from './assets.js';
+
 export { stabilizeForObservation, STABILIZE_ATTRIBUTE } from './stabilize.js';
 export type { Stabilized, StabilizeOptions } from './stabilize.js';
 

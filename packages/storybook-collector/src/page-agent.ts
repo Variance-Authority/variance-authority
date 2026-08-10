@@ -1,4 +1,9 @@
-import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
+import {
+  acquireDocument,
+  assetsFor,
+  collect,
+  stabilizeForObservation,
+} from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
 import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core';
@@ -43,6 +48,19 @@ export interface AcquireRequest {
    * not survive the trip; the page holds the same registry and resolves them.
    */
   readonly stabilize?: readonly string[];
+
+  /**
+   * Every asset the *page* has been observed to fetch, by URL.
+   *
+   * Sent in whole and narrowed here, because neither side can do it alone: the
+   * driver is the only party that saw the bytes, and this is the only party that
+   * knows which of them the subject references. Narrowing matters most where the
+   * page is shared — a Storybook run reads three hundred stories out of one
+   * document, and a key built from the page's request history would depend on
+   * which stories ran first, so sharding the suite would change every baseline's
+   * identity.
+   */
+  readonly assets?: Readonly<Record<string, string>>;
 
   /** Story mount points, tightest first. */
   readonly roots: readonly string[];
@@ -94,10 +112,15 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) },
   );
 
+  // Narrowed to this story's own subtree before it reaches either key. See
+  // `AcquireRequest.assets`.
+  const assets = request.assets === undefined ? {} : assetsFor(root, request.assets);
+
   const shared = {
     subject: { id: request.subjectId, kind: 'story' as const },
     viewport: request.viewport,
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
+    ...(Object.keys(assets).length > 0 ? { assets } : {}),
   };
 
   // The style index is built once and handed to both, which is not only a
