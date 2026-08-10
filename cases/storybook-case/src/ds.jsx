@@ -134,6 +134,32 @@ export function Clock() {
  * for the marker sees the subject. Both are reproducible, and only one of them
  * is the component.
  */
+/**
+ * Closed until something clicks it.
+ *
+ * Here so a story can have a subject that only exists after its play function
+ * has run: the closed state renders a button and nothing else, and the open one
+ * renders content a comparison can see. A capture taken before the play function
+ * would be of a page that is not what the story is about, and would look
+ * entirely correct.
+ */
+export function Disclosure() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div style={{ minWidth: 260 }}>
+      <button type="button" data-testid="reveal" onClick={() => setOpen(true)}>
+        Show details
+      </button>
+      {open ? (
+        <div data-testid="revealed" style={{ color: 'var(--case-text)', paddingTop: 8 }}>
+          Shipping to Wollongong on Tuesday
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function AsyncPanel({ delayMs = 120 }) {
   const [rows, setRows] = useState(null);
 

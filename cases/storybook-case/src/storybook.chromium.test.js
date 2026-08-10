@@ -146,6 +146,31 @@ live('reading a Storybook nobody wrote for us', () => {
   }, 120_000);
 });
 
+live('a story whose subject only exists after its play function', () => {
+  it('captures what the interaction produced, not what rendered before it', async () => {
+    // The Chromatic-parity claim, measured rather than read off Storybook's
+    // source. `Revealed` renders a closed panel and its play function opens it,
+    // so a capture taken at render time would be of a page that is not what the
+    // story is about — and would look entirely correct.
+    //
+    // Nothing in this project runs the play function: Storybook's preview does,
+    // and the phase order is `playing` → `completed` → `storyRendered`, so
+    // waiting on `storyRendered` is already waiting on the interaction. What is
+    // asserted here is that this remains true through a real preview, a real
+    // channel and a real component.
+    let markup = '';
+    const [outcome] = await collectStories(page, ['case-surface--revealed'], {
+      baseUrl,
+      observe: async () => {
+        markup = await page.evaluate(() => document.querySelector('#storybook-root')?.innerHTML ?? '');
+      },
+    });
+
+    expect(outcome.status).toBe('rendered');
+    expect(markup).toContain('Shipping to Wollongong');
+  }, 60_000);
+});
+
 live('a subject that settles after the framework says it is done', () => {
   it('captures the skeleton when readiness comes from the framework', async () => {
     // Not a bug being demonstrated — a limit. `storyRendered` fires when the

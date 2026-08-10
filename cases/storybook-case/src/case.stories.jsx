@@ -1,4 +1,4 @@
-import { AsyncPanel, Button, Card, Clock, Spinner, Stack, Tokens } from './ds.jsx';
+import { AsyncPanel, Button, Card, Clock, Disclosure, Spinner, Stack, Tokens } from './ds.jsx';
 
 /**
  * Real stories in a real Storybook, written to be read by something else.
@@ -94,6 +94,33 @@ export const Deferred = {
       <AsyncPanel />
     </Tokens>
   ),
+};
+
+/**
+ * A story whose subject only exists *after* an interaction.
+ *
+ * The Chromatic-parity case, and the one that separates "captured the story"
+ * from "captured what the story is about": before the play function runs this
+ * subject is a closed panel, and a capture taken at render time would be of the
+ * wrong page while looking entirely correct.
+ *
+ * No import from a testing library. The play function is a plain async function
+ * over the canvas element, which is all Storybook requires — and it keeps this
+ * case free of a dependency whose absence would be indistinguishable from the
+ * feature not working.
+ */
+export const Revealed = {
+  name: 'Panel — revealed by its play function',
+  render: () => (
+    <Tokens>
+      <Disclosure />
+    </Tokens>
+  ),
+  play: async ({ canvasElement }) => {
+    canvasElement.querySelector('[data-testid="reveal"]')?.click();
+    // One frame, so React has committed before the story is declared rendered.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  },
 };
 
 export const Composed = {

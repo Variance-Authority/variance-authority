@@ -154,8 +154,11 @@ comparison: a known $283/mo against an unknown engineering commitment.
   functions run as interaction tests before capture
   ([docs](https://www.chromatic.com/docs/storybook/test/)). A built Storybook is
   five lines of config here and no collector
-  ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)), but play
-  functions are theirs alone: nothing here runs an interaction before capture.
+  ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)), and play
+  functions run before the capture on both — Storybook's own preview runs them,
+  and its phase order puts `storyRendered` *after* `playing`, which is the event
+  this waits on. Measured against a story whose subject only exists after a
+  click, rather than assumed in either direction.
 - **TurboSnap over a bundler graph.** A change is traced through webpack's own
   dependency graph, which catches a component that is imported and *not yet
   rendered* — a conditional branch nobody has taken. Selection here reads what the
