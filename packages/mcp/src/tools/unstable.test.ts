@@ -194,6 +194,19 @@ describe('a subject that did not agree with itself', () => {
     expect(summary(reportWith(UNSTABLE))).toContain('That is silence, not a first occurrence.');
   });
 
+  it('gives the one command that answers whether a fix worked', () => {
+    // Without it the next move is a full run — three hundred subjects and a
+    // browser — to answer a question about one of them. The flags are the
+    // binary's own, and the mode exits 1 while the two readings still disagree
+    // even with every verdict green, which is what makes it usable as a check.
+    const answer = describeSubject(reportWith(UNSTABLE));
+
+    expect(answer).toContain("variance run --subjects 'story:checkout--summary' --flakes");
+    expect(summary(reportWith(UNSTABLE))).toContain(
+      "variance run --subjects 'story:checkout--summary' --flakes",
+    );
+  });
+
   it('says nothing at all when every subject agreed with itself', () => {
     // Absence of the section is absence of a *finding*, never a certificate: two
     // readings put a floor under flakiness and no ceiling on it. The section is

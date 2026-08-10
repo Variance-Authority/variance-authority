@@ -69,6 +69,18 @@ export const describe: Tool = {
       // second is a fix that already landed, and rewriting it is a day spent
       // re-solving somebody's solved problem.
       ...(observation.unstable !== undefined ? recurrence(report, observation.subject) : []),
+      // The experiment, spelled out. An agent that has just been told to fix
+      // what moves between two readings needs a way to find out whether it did,
+      // and the alternative it reaches for otherwise is a full run — three
+      // hundred subjects and a browser, to answer a question about one of them.
+      ...(observation.unstable !== undefined && observation.unstable.absorbed === undefined
+        ? [
+            'VERIFY A FIX WITH:',
+            `  variance run --subjects '${observation.subject}' --flakes`,
+            'which reads this subject twice and nothing else, and exits 1 while the two',
+            'readings still disagree — even when every verdict is green.',
+          ]
+        : []),
       // The same movement, inside the boundary the subject declared. Said rather
       // than suppressed: an agent that later sees this subject go green wants to
       // know a level was doing work, and the rule's name is what makes that

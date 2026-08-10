@@ -170,6 +170,13 @@ function instability(report: RunReport): readonly string[] {
       return [`    ${observation.subject}${where}${inBands}`, ...recurrence(report, observation.subject)];
     }),
     ...remedies(bands),
+    // The loop closes here. Everything above tells a reader what moved and how
+    // often; this is the one line that says how to find out whether the edit
+    // they are about to make worked — without re-running three hundred subjects
+    // and without waiting for tomorrow's build to be the experiment.
+    '  Check a fix by reading the same subject twice again, and nothing else:',
+    ...unstable.map((observation) => `    variance run --subjects '${observation.subject}' --flakes`),
+    '  It exits 1 while the two readings still disagree, even with every verdict green.',
     ...absorbedInstability(report),
   ];
 }
