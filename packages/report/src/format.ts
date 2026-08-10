@@ -47,6 +47,25 @@ export interface RunReport {
   readonly notObserved?: readonly NotObserved[];
 
   /**
+   * Which run this was, and at which commit.
+   *
+   * Present when the run could name itself — `--run` and `--commit`, or the pair
+   * the surrounding CI exports. Absent on a laptop, and absent is not a default
+   * anybody may fill in: an invented id cannot be joined back to anything that
+   * shipped, and it would silently become a denominator.
+   *
+   * Carried in the artifact because acceptance happens *later*, in a different
+   * command reading this file. A reviewer approves a subject **in a build**, and
+   * without the build's id there is nothing for that approval to point at — which
+   * is why every observation a run records is unapproved and why drift summed
+   * nothing until this field existed.
+   */
+  readonly run?: {
+    readonly id: string;
+    readonly commit: string;
+  };
+
+  /**
    * What a history record already knew about the subjects this run found
    * unstable, keyed by subject.
    *

@@ -37,7 +37,7 @@
 import type { D1Like } from './bindings.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * What a run kept, and what a review decided, in order.
@@ -246,6 +246,17 @@ export const SCHEMA: readonly string[] = [
    ) STRICT`,
   `CREATE INDEX instabilities_subject ON instabilities (project, subject, at_ms)`,
 
+  `CREATE TABLE approvals (
+     project  TEXT NOT NULL,
+     subject  TEXT NOT NULL,
+     run      TEXT NOT NULL,
+     at       TEXT NOT NULL,
+     at_ms    INTEGER NOT NULL,
+     approver TEXT
+   ) STRICT`,
+  `CREATE UNIQUE INDEX approvals_identity ON approvals (project, subject, run)`,
+  `CREATE INDEX approvals_window ON approvals (project, at_ms)`,
+
   `CREATE TRIGGER runs_are_append_only BEFORE UPDATE ON runs BEGIN
      SELECT RAISE(ABORT, 'runs are append-only: a recorded run is a fact about a moment, and rewriting one changes a denominator somebody already read');
    END`,
@@ -269,6 +280,12 @@ export const SCHEMA: readonly string[] = [
    END`,
   `CREATE TRIGGER instabilities_are_permanent BEFORE DELETE ON instabilities BEGIN
      SELECT RAISE(ABORT, 'instabilities are append-only: deleting an occurrence is how a flake that was fixed becomes a flake that never happened');
+   END`,
+  `CREATE TRIGGER approvals_are_append_only BEFORE UPDATE ON approvals BEGIN
+     SELECT RAISE(ABORT, 'approvals are append-only: a rewritten acceptance changes what a reviewer agreed to after they agreed to it');
+   END`,
+  `CREATE TRIGGER approvals_are_permanent BEFORE DELETE ON approvals BEGIN
+     SELECT RAISE(ABORT, 'approvals are append-only: a deleted acceptance turns a reviewed change back into an unreviewed one, and every drift total over it drops');
    END`,
 ];
 

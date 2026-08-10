@@ -318,6 +318,12 @@ async function observeAll(
     identity: renderer.identity,
     retention: config.retention,
     ...(intent !== undefined ? { intent } : {}),
+    // Written down because acceptance happens later, in another command reading
+    // this file: a reviewer approves a subject *in a build*, and without the
+    // build's id there is nothing for that approval to point at.
+    ...(options.identity !== undefined
+      ? { run: { id: options.identity.run, commit: options.identity.commit } }
+      : {}),
     observations,
     notObserved,
     ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),

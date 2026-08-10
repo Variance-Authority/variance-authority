@@ -54,6 +54,13 @@ export function createAbsentStore(): HistoryStore {
       // rows this drops are the rows that were never going to be kept.
     },
 
+    async approve(): Promise<void> {
+      // Accepted and discarded, like `record`. An operator with no history
+      // service must still be able to accept a change: the acceptance that
+      // matters to the *run* is the baseline on disk, and this row is the part
+      // nobody is keeping.
+    },
+
     async current(subjects) {
       // Refused rather than answered with an empty array, and this is the one
       // place where that choice has teeth. An empty answer here is a valid

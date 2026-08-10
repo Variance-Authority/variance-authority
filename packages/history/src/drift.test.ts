@@ -114,6 +114,51 @@ describe('churn', () => {
     expect(churn.rejectedRuns).toBe(2);
   });
 
+  it('counts a change a reviewer approved afterwards, which is how every change arrives', () => {
+    // The defect this closes: a run writes every row `accepted: false`, correctly,
+    // because acceptance happens later and by somebody who looked. Without the
+    // approvals slice, a component that changed in every run of a quarter reports
+    // as never having changed — a zero that looks exactly like stability.
+    const observations = [
+      row({ run: 'r1', band: 'structure', accepted: false }),
+      row({ run: 'r2', band: 'structure', accepted: false }),
+    ];
+
+    const unreviewed = accumulateChurn({ component: 'Button', runs: runs(10), observations });
+    expect(bandOf(unreviewed, 'structure')).toMatchObject({ changes: 0 });
+
+    const reviewed = accumulateChurn({
+      component: 'Button',
+      runs: runs(10),
+      observations,
+      approvals: [
+        { project: 'shop', subject: 'story:card', run: 'r1', at: iso(1) },
+        { project: 'shop', subject: 'story:card', run: 'r2', at: iso(2) },
+      ],
+    });
+    expect(bandOf(reviewed, 'structure')).toMatchObject({ changes: 2 });
+    expect(reviewed.rejectedRuns).toBe(0);
+  });
+
+  it('approves the subject that was reviewed and not the one beside it', () => {
+    // An approval names a `(subject, run)` because that is the decision a reviewer
+    // makes. Keyed per run instead, one approved subject would approve the forty
+    // nobody looked at.
+    const churn = accumulateChurn({
+      component: 'Button',
+      runs: runs(4),
+      observations: [
+        row({ run: 'r1', band: 'structure', accepted: false, subject: 'story:card' }),
+        row({ run: 'r1', band: 'structure', accepted: false, subject: 'story:panel' }),
+      ],
+      approvals: [{ project: 'shop', subject: 'story:card', run: 'r1', at: iso(1) }],
+    });
+
+    expect(bandOf(churn, 'structure')).toMatchObject({ changes: 1 });
+    // And the unreviewed one is still counted as rejected rather than forgotten.
+    expect(churn.rejectedRuns).toBe(1);
+  });
+
   it('accumulates nothing for a component that is collateral in every run', () => {
     // Spec 0002 acceptance 2. A component whose geometry moved while its own
     // structure and style held was displaced by an edit elsewhere; summing that

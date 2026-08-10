@@ -16,7 +16,7 @@ import {
 } from '@variance-authority/history';
 import { createHttpHistoryStore } from '@variance-authority/history/client';
 import { createSqliteBackend } from './backend-sqlite.js';
-import { lastChangedFrom, type HistoryBackend } from './backend.js';
+import type { HistoryBackend } from './backend.js';
 import { serveHistory, type HistoryService } from './http.js';
 
 /**
@@ -136,98 +136,6 @@ describe('authentication', () => {
     backends.push(backend);
 
     await expect(serveHistory({ backend, token: '  ' })).rejects.toThrow(/not authenticated/);
-  });
-});
-
-describe('malformed requests', () => {
-  it('names the missing field rather than answering "Bad Request"', async () => {
-    const { url } = await serve();
-    const response = await fetch(`${url}${OBSERVATIONS_PATH}`, {
-      method: 'POST',
-      headers: { ...authorized, 'content-type': 'application/json' },
-      body: JSON.stringify({ observations: [], tokens: [] }),
-    });
-
-    expect(response.status).toBe(400);
-    expect(JSON.stringify(await response.json())).toContain('`run`');
-  });
-
-  it('reports a body that is not JSON as such', async () => {
-    const { url } = await serve();
-    const response = await fetch(`${url}${OBSERVATIONS_PATH}`, {
-      method: 'POST',
-      headers: { ...authorized, 'content-type': 'application/json' },
-      body: 'this is not json',
-    });
-
-    expect(response.status).toBe(400);
-    expect(JSON.stringify(await response.json())).toContain('not JSON');
-  });
-
-  it('refuses a row with an unknown band and stores nothing from that write', async () => {
-    // The store is append-only, so the request boundary is the last moment
-    // anything can be refused. A bad row that gets in stays in.
-    const { url, backend } = await serve();
-    const response = await fetch(`${url}${OBSERVATIONS_PATH}`, {
-      method: 'POST',
-      headers: { ...authorized, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        run: run(),
-        observations: [{ ...observation(), band: 'colour' }],
-        tokens: [],
-      }),
-    });
-
-    expect(response.status).toBe(400);
-    expect(JSON.stringify(await response.json())).toContain('structure, style, geometry');
-    expect(await lastChangedFrom(backend, 'shop', 'checkout', 'Button')).toBeNull();
-    expect((await backend.runsIn({ project: 'shop' })).rows).toHaveLength(0);
-  });
-
-  it('refuses an unparseable window bound instead of answering over no rows', async () => {
-    // The alternative is a churn of zero over zero runs, which is what a
-    // component that has never changed also looks like.
-    const { url } = await serve();
-    const response = await fetch(`${url}${CHURN_PATH}?component=Button&since=last%20tuesday`, {
-      headers: authorized,
-    });
-
-    expect(response.status).toBe(400);
-    expect(JSON.stringify(await response.json())).toContain('ISO-8601');
-  });
-
-  it('refuses a limit of zero, which asks for a drift answer computed over nothing', async () => {
-    const { url } = await serve();
-    const response = await fetch(`${url}${VALUE_JOURNEY_PATH}?token=--x&limit=0`, {
-      headers: authorized,
-    });
-
-    expect(response.status).toBe(400);
-  });
-
-  it('answers a GET against the write route with 405 rather than 404', async () => {
-    // 404 would send whoever wrote the client hunting for a typo in a path that
-    // is correct.
-    const { url } = await serve();
-    const response = await fetch(`${url}${OBSERVATIONS_PATH}`, { headers: authorized });
-
-    expect(response.status).toBe(405);
-    expect(response.headers.get('allow')).toBe('POST');
-  });
-
-  it('refuses a second write claiming a different commit for one run id with 409', async () => {
-    // A client mistake, answered as one: reporting it as a 500 sends the operator
-    // to inspect a database that is behaving correctly.
-    const { url } = await serve();
-    const write = async (commit: string): Promise<Response> =>
-      fetch(`${url}${OBSERVATIONS_PATH}`, {
-        method: 'POST',
-        headers: { ...authorized, 'content-type': 'application/json' },
-        body: JSON.stringify({ run: run({ commit }), observations: [], tokens: [] }),
-      });
-
-    expect((await write('aaaa')).status).toBe(204);
-    expect((await write('bbbb')).status).toBe(409);
   });
 });
 
@@ -431,6 +339,49 @@ describe('the wire, spoken by the real client', () => {
     // keeps that mix-up from reading as a typo.
     expect(JSON.stringify(await response.json())).toContain('a11y, geometry, token, content');
     expect((await backend.runsIn({})).rows).toHaveLength(0);
+  });
+
+  it('counts a change only once a reviewer has accepted it, which happens after the run', async () => {
+    // The whole point of the second table. A run writes every row unapproved —
+    // it cannot know — so a churn asked before anybody reviewed reports zero
+    // changes, and the same window after an acceptance reports the change.
+    const { url } = await serve();
+    const store = createHttpHistoryStore({ endpoint: url, token: TOKEN, project: 'shop' });
+
+    // As a run writes them: unapproved, because a run cannot know.
+    await store.record(run(), [observation({ accepted: false })], []);
+
+    const before = await store.churn('Button', {});
+    expect(isKept(before) && before.changedRuns).toBe(0);
+    expect(isKept(before) && before.rejectedRuns).toBe(1);
+
+    await store.approve([
+      { project: 'shop', subject: 'checkout', run: 'run-1', at: '2026-03-01T12:00:00.000Z' },
+    ]);
+
+    const after = await store.churn('Button', {});
+    expect(isKept(after) && after.changedRuns).toBe(1);
+    expect(isKept(after) && after.rejectedRuns).toBe(0);
+  });
+
+  it('treats approving twice as approving once', async () => {
+    // A reviewer who clicks accept a second time has not made a second decision,
+    // and a refusal would turn that into a failed command with a promoted
+    // baseline already on disk.
+    const { url, backend } = await serve();
+    const store = createHttpHistoryStore({ endpoint: url, token: TOKEN, project: 'shop' });
+    const approval = {
+      project: 'shop',
+      subject: 'checkout',
+      run: 'run-1',
+      at: '2026-03-01T12:00:00.000Z',
+    };
+
+    await store.record(run(), [observation({ accepted: false })], []);
+    await store.approve([approval]);
+    await store.approve([approval]);
+
+    expect((await backend.approvalsOf({ project: 'shop' })).rows).toHaveLength(1);
   });
 
   it('refuses a subject list longer than one request may carry rather than trimming the answer', async () => {

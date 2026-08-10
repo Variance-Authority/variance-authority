@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
+  APPROVALS_PATH,
   CHURN_PATH,
   CURRENT_PATH,
   FLAKINESS_PATH,
@@ -20,7 +21,12 @@ import {
   type HistoryBackend,
 } from './backend.js';
 import { BadRequest, MethodNotAllowed, PayloadTooLarge } from './http-errors.js';
-import { asBand, parseCurrentRequest, parseRecordRequest } from './http-parse.js';
+import {
+  asBand,
+  parseApproveRequest,
+  parseCurrentRequest,
+  parseRecordRequest,
+} from './http-parse.js';
 import { optionalParam, readBody, requireMethod, requiredParam, windowOf } from './http-request.js';
 
 /**
@@ -206,6 +212,13 @@ async function route(
     return;
   }
 
+  if (url.pathname === APPROVALS_PATH) {
+    requireMethod(request, 'POST');
+    await backend.appendApprovals(parseApproveRequest(await readBody(request, maxBodyBytes)));
+    response.writeHead(204).end();
+    return;
+  }
+
   if (url.pathname === CURRENT_PATH) {
     // A read, and still a POST: its argument is a subject list, and three hundred
     // subject ids in a query string is a 414 from a proxy nobody configured
@@ -274,7 +287,7 @@ async function route(
   send(response, 404, {
     error:
       `no route for ${request.method ?? '?'} ${url.pathname}. This service answers ` +
-      `${OBSERVATIONS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
+      `${OBSERVATIONS_PATH}, ${APPROVALS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
       `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH} and ${REACH_PATH}; a path from a different API ` +
       'version is a client and service that disagree about the recorded shape',
   });

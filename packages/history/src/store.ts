@@ -1,4 +1,5 @@
 import type { ProfileId } from '@variance-authority/core';
+import type { Approval } from './approval.js';
 import type { FrequencyBand, Instability } from './instability.js';
 import type { Band, Observation, RunRecord, TokenValue } from './observation.js';
 
@@ -288,6 +289,17 @@ export interface HistoryStore {
      */
     instabilities?: readonly Instability[],
   ): Promise<void>;
+
+  /**
+   * Record that somebody accepted what a run proposed, for these subjects.
+   *
+   * A separate call from {@link HistoryStore.record} because it happens at a
+   * separate time, by a separate party, with separate evidence: a run proposes
+   * and a reviewer decides. Every row a run writes is unapproved, so without this
+   * the rule "drift sums only approved changes" sums nothing — see
+   * {@link Approval}.
+   */
+  approve(approvals: readonly Approval[]): Promise<void>;
 
   /**
    * The rows currently recorded for a set of subjects — the latest per

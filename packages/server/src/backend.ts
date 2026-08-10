@@ -1,6 +1,7 @@
 import {
   accumulateChurn,
   accumulateFlakiness,
+  type Approval,
   type Band,
   type Churn,
   type Flakiness,
@@ -166,6 +167,23 @@ export interface HistoryBackend {
   ): Promise<void>;
 
   /**
+   * Append acceptances. Appending the same one twice is not an error: a reviewer
+   * who approves a subject twice has approved it once, and a store that refused
+   * the second would turn a double click into a failed command.
+   */
+  appendApprovals(approvals: readonly Approval[]): Promise<void>;
+
+  /**
+   * Acceptances in the window, for the subjects a component appears in.
+   *
+   * Scoped by window rather than by component, because an approval is about a
+   * subject and a run: the join to a component happens in the arithmetic, where
+   * the rows are. A backend that tried to narrow it here would need to know which
+   * subjects hold the component, which is the observations query it already ran.
+   */
+  approvalsOf(query: WindowQuery): Promise<Slice<Approval>>;
+
+  /**
    * The latest row per `(subject, component, band, profile)` for the named
    * subjects, and nothing older.
    *
@@ -280,6 +298,10 @@ export async function churnFrom(
   const query = windowQuery(project, window);
   const runs = await backend.runsIn(query);
   const observations = await backend.observationsOf({ ...query, component });
+  // Always fetched, never optional. A churn computed without them reports a
+  // component that changed forty times as never having changed, because a run
+  // writes every row unapproved and acceptance arrives afterwards.
+  const approvals = await backend.approvalsOf(query);
 
   const registered = new Set(runs.rows.map((run) => run.run));
   const kept = observations.rows.filter((row) => registered.has(row.run));
@@ -289,6 +311,7 @@ export async function churnFrom(
     component,
     runs: runs.rows,
     observations: kept,
+    approvals: approvals.rows,
     window,
     omittedRuns: runs.omitted,
     omittedObservations: observations.omitted + stranded,
@@ -374,6 +397,9 @@ export function createBackedStore(backend: HistoryBackend, project?: string): Hi
   return {
     async record(run, observations, tokens, instabilities): Promise<void> {
       await backend.append(run, observations, tokens, instabilities);
+    },
+    async approve(approvals): Promise<void> {
+      await backend.appendApprovals(approvals);
     },
     async current(subjects) {
       return currentFrom(backend, project, subjects);

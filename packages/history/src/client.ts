@@ -9,6 +9,7 @@ import {
 } from './answers.js';
 import type { Observation } from './observation.js';
 import {
+  APPROVALS_PATH,
   CHURN_PATH,
   CURRENT_PATH,
   FLAKINESS_PATH,
@@ -17,6 +18,7 @@ import {
   OBSERVATIONS_PATH,
   REACH_PATH,
   VALUE_JOURNEY_PATH,
+  type ApproveRequest,
   type CurrentRequest,
   type RecordRequest,
 } from './protocol.js';
@@ -118,6 +120,26 @@ export function createHttpHistoryStore(options: HttpHistoryOptions): HistoryStor
         ...(instabilities === undefined ? {} : { instabilities }),
       };
       await request(send, `${base}${OBSERVATIONS_PATH}`, options.token, body, timeoutMs);
+    },
+
+    async approve(approvals): Promise<void> {
+      if (options.project !== undefined) {
+        const foreign = approvals
+          .filter((approval) => approval.project !== options.project)
+          .map((approval) => approval.project);
+        if (foreign.length > 0) {
+          throw new Error(
+            `this client is scoped to project "${options.project}" but the acceptance carries ` +
+              `rows for ${[...new Set(foreign)].join(', ')}; an approval recorded under the wrong ` +
+              'project marks somebody else\'s change as reviewed',
+          );
+        }
+      }
+
+      if (approvals.length === 0) return;
+
+      const body: ApproveRequest = { approvals };
+      await request(send, `${base}${APPROVALS_PATH}`, options.token, body, timeoutMs);
     },
 
     async current(subjects): Promise<readonly Observation[]> {

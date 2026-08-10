@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Raster } from '@variance-authority/core';
+import type { HistoryStore } from '@variance-authority/history';
 import type { RasterStore } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
@@ -33,13 +34,24 @@ import type { CliRunReport } from './run.js';
  * reconstructed: an invented digest would settle every future run to `unchanged`
  * against an image nobody can reproduce.
  *
- * ## What this deliberately does not do
+ * ## What it records, and what it still cannot
  *
- * It does not write to the history store. A history row carries per-component
- * band hashes (spec 0002), and a run report carries pixels and regions — the
- * hashes are not in it and cannot be derived from it. Recording an `accepted: true`
- * row with fabricated hashes would corrupt every later drift question, so the
- * acceptance of a *semantic* change stays with the tier that has the hashes.
+ * It records the **acceptance**, and nothing else: one row per `(subject, run)`
+ * saying somebody approved what that run proposed for that subject. It does not
+ * write observations, because a report carries pixels and regions and the
+ * per-component hashes are not in it and cannot be derived from it — a row with
+ * fabricated hashes would corrupt every later drift question.
+ *
+ * That split is what makes both halves possible. The run writes the hashes and
+ * cannot know whether anybody agreed; this command knows somebody agreed and
+ * cannot know the hashes. Joining them is the store's job, on `(subject, run)`,
+ * which is exactly the decision a reviewer makes — and until this existed every
+ * observation was `accepted: false` forever, so drift, which sums only approved
+ * changes, summed nothing at all.
+ *
+ * A report with no `run` cannot be joined to anything, so nothing is recorded and
+ * the result says so. An invented id would attach somebody's approval to a build
+ * that never happened.
  */
 
 export interface AcceptOptions {
@@ -67,6 +79,21 @@ export interface AcceptOptions {
   readonly shapes?: readonly string[];
   /** Reads a candidate image and its sidecar. Injected so this is testable on no disk. */
   readonly read: CandidateReader;
+
+  /**
+   * Where the acceptance is recorded, when the operator keeps a history.
+   *
+   * Absent means no record is kept, which is not a failure and not a warning: the
+   * baseline on disk is the acceptance that governs the next run, and this row is
+   * the part nobody asked for.
+   */
+  readonly history?: HistoryStore;
+
+  /** The project rows are scoped by. Required whenever `history` is present. */
+  readonly project?: string;
+
+  /** ISO 8601. Injected, because nothing in a report may come from a hidden clock. */
+  readonly now?: () => string;
 }
 
 export type CandidateReader = (pngPath: string) => Promise<Raster>;
@@ -92,6 +119,20 @@ export interface AcceptResult {
    * over a 300-subject run reads as though 298 were ignored for some reason.
    */
   readonly alreadyBaseline: number;
+
+  /**
+   * What the history record was told, or why it was told nothing.
+   *
+   * Present only when a store is configured. `recorded` counts the subjects whose
+   * acceptance was written; `because` is there when none could be, and it is
+   * printed rather than swallowed — a record that silently stops receiving
+   * approvals reports every reviewed change as unreviewed, and every drift total
+   * over that window drops to zero with nothing to say why.
+   */
+  readonly approvals?: {
+    readonly recorded: number;
+    readonly because?: string;
+  };
 }
 
 export async function accept(options: AcceptOptions): Promise<AcceptResult> {
@@ -223,7 +264,67 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
     accepted.push({ subject: observation.subject, from: after });
   }
 
-  return { accepted, refused, alreadyBaseline };
+  return {
+    accepted,
+    refused,
+    alreadyBaseline,
+    ...(options.history === undefined
+      ? {}
+      : { approvals: await recordApprovals(options, accepted) }),
+  };
+}
+
+/**
+ * Tell the record that somebody agreed, for the subjects that were promoted.
+ *
+ * Only the subjects actually accepted here. A subject that was already the
+ * baseline was approved by whoever made it one, in the run that produced it, and
+ * re-approving it under *this* run's id would attach a decision to a build that
+ * never proposed the change.
+ *
+ * Never throws. A history service that is down must not leave a promoted baseline
+ * behind a failed command — the image is already written, and a caller that
+ * retried would find every subject already the baseline and record nothing at
+ * all. So the failure is a sentence in the result.
+ */
+async function recordApprovals(
+  options: AcceptOptions,
+  accepted: readonly Accepted[],
+): Promise<NonNullable<AcceptResult['approvals']>> {
+  const { report, project, history } = options;
+
+  if (history === undefined || project === undefined) {
+    return { recorded: 0, because: 'no history store is configured, so nothing was recorded' };
+  }
+  if (accepted.length === 0) return { recorded: 0 };
+  if (report.run === undefined) {
+    return {
+      recorded: 0,
+      because:
+        'this report does not say which run produced it, so the acceptance has nothing to point ' +
+        'at and was not recorded. Runs name themselves from `--run` and `--commit` or from the ' +
+        'CI environment; an id invented here would attach an approval to a build that never ' +
+        'happened',
+    };
+  }
+
+  const at = (options.now ?? ((): string => new Date().toISOString()))();
+  const runId = report.run.id;
+
+  try {
+    await history.approve(
+      accepted.map((entry) => ({ project, subject: entry.subject, run: runId, at })),
+    );
+    return { recorded: accepted.length };
+  } catch (error) {
+    return {
+      recorded: 0,
+      because:
+        `the acceptance was not recorded: ${error instanceof Error ? error.message : String(error)}. ` +
+        'The baselines were promoted and are on disk; what is missing is the row that would let a ' +
+        'later drift question count these changes as approved',
+    };
+  }
 }
 
 /**
@@ -277,6 +378,16 @@ export function formatAcceptance(result: AcceptResult): string {
       (result.refused.length > 0 ? `, refused ${result.refused.length}` : ''),
     ...result.accepted.map((entry) => `  [accepted] ${entry.subject} — ${entry.from}`),
     ...result.refused.map((entry) => `  [refused]  ${entry.subject}: ${entry.because}`),
+    // Printed whenever a store was configured, including the successful case: an
+    // operator who set one up should be able to see it working without opening
+    // the database, and the sentence for a failure has to land somewhere.
+    ...(result.approvals === undefined
+      ? []
+      : [
+          result.approvals.because === undefined
+            ? `  recorded ${result.approvals.recorded} acceptance(s) in the history record`
+            : `  history: ${result.approvals.because}`,
+        ]),
   ];
   return lines.join('\n');
 }

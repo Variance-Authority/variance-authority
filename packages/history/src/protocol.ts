@@ -1,3 +1,4 @@
+import type { Approval } from './approval.js';
 import type { Instability } from './instability.js';
 import type { Observation, RunRecord, TokenValue } from './observation.js';
 
@@ -17,6 +18,7 @@ export const HISTORY_API_VERSION = 'v1';
 
 export const OBSERVATIONS_PATH = `/${HISTORY_API_VERSION}/observations`;
 export const CURRENT_PATH = `/${HISTORY_API_VERSION}/current`;
+export const APPROVALS_PATH = `/${HISTORY_API_VERSION}/approvals`;
 export const LAST_CHANGED_PATH = `/${HISTORY_API_VERSION}/last-changed`;
 export const CHURN_PATH = `/${HISTORY_API_VERSION}/churn`;
 export const FLAKINESS_PATH = `/${HISTORY_API_VERSION}/flakiness`;
@@ -49,6 +51,17 @@ export interface RecordRequest {
 /** `null` means the record contains no such change, which is an answer. */
 export interface LastChangedResponse {
   readonly observation: Observation | null;
+}
+
+/**
+ * The body of an acceptance.
+ *
+ * Its own route rather than a field on a write, because a run and a review are
+ * different callers at different times — and because a service that took them
+ * together would invite a client to send both, which is a run approving itself.
+ */
+export interface ApproveRequest {
+  readonly approvals: readonly Approval[];
 }
 
 /**

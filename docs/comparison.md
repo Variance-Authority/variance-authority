@@ -831,10 +831,10 @@ worth stating precisely rather than deleting:
   list, so `valueJourney` has nothing to answer from and the 22px story in
   [§3.4](#34-accumulation-as-text-not-pixels) has still never been produced by the
   pipeline.
-- **Every observation is recorded unapproved**, because acceptance happens in
-  `variance accept` or in a review surface and nothing joins it back. Drift sums
-  approved changes, so a drift total computed today would be zero.
-- **`churn` and `reach` have rows and no caller.**
+- **`churn` and `reach` have rows and no caller.** Acceptance is recorded now —
+  `variance accept` writes an approval per `(subject, run)`, so the rows a run
+  wrote can be counted as approved — but nothing in the product asks the
+  questions those rows answer.
 
 So one of spec 0002's five acceptance criteria is now met against real rows and
 four remain met only against hand-constructed ones.

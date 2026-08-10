@@ -7,6 +7,7 @@ import {
 } from '@variance-authority/core';
 import {
   BANDS,
+  type Approval,
   type Band,
   type FrequencyBand,
   type Instability,
@@ -167,6 +168,19 @@ function frequencyBand(value: string, what: string): FrequencyBand {
     throw new Error(`${what} has an unknown frequency band "${value}"`);
   }
   return value as FrequencyBand;
+}
+
+export function toApproval(row: Record<string, SQLOutputValue>): Approval {
+  const what = 'a stored approval';
+  const by = optionalText(row, 'approver', what);
+
+  return {
+    project: text(row, 'project', what),
+    subject: text(row, 'subject', what),
+    run: text(row, 'run', what),
+    at: text(row, 'at', what),
+    ...(by !== undefined ? { by } : {}),
+  };
 }
 
 export function toTokenValue(row: Record<string, SQLOutputValue>): TokenValue {

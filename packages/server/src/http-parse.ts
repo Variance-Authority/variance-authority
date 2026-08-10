@@ -7,6 +7,7 @@ import {
 import {
   BANDS,
   MAX_CURRENT_SUBJECTS,
+  type Approval,
   type Band,
   type FrequencyBand,
   type Instability,
@@ -82,6 +83,50 @@ export function parseRecordRequest(body: string): ParsedRecordRequest {
       asInstability(row, `instabilities[${index}]`),
     ),
   };
+}
+
+/**
+ * An acceptance, validated like everything else that lands in an append-only
+ * store: completely, before any of it is written.
+ */
+export function parseApproveRequest(body: string): readonly Approval[] {
+  if (body.trim() === '') {
+    throw new BadRequest(
+      'the acceptance carried no body; an approval names the subjects and the run whose ' +
+        'observations of them were reviewed',
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch (error) {
+    throw new BadRequest(
+      `the request body is not JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const source = asRecord(parsed, 'the request body');
+
+  return asArray(source['approvals'], '`approvals`').map((row, index) => {
+    const what = `approvals[${index}]`;
+    const entry = asRecord(row, what);
+    const by = entry['by'];
+
+    if (by !== undefined && by !== null && (typeof by !== 'string' || by === '')) {
+      throw new BadRequest(
+        `${what}.by must be a non-empty string when present; received ${describe(by)}`,
+      );
+    }
+
+    return {
+      project: text(entry, 'project', what),
+      subject: text(entry, 'subject', what),
+      run: text(entry, 'run', what),
+      at: instant(entry, 'at', what),
+      ...(typeof by === 'string' ? { by } : {}),
+    };
+  });
 }
 
 /**

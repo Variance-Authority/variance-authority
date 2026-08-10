@@ -1,4 +1,5 @@
 import { profileById, type ProfileId } from '@variance-authority/core';
+import { approvalKey, type Approval } from './approval.js';
 import { instant } from './instant.js';
 import type { Band, Observation, RunRecord } from './observation.js';
 import type { BandChurn, Churn, Window } from './store.js';
@@ -51,6 +52,21 @@ export interface ChurnInput {
   /** Every recorded row for this component in the window, approved or not. */
   readonly observations: readonly Observation[];
 
+  /**
+   * Acceptances recorded in the window, by `(subject, run)`.
+   *
+   * The half a run cannot supply. A run writes every row `accepted: false` —
+   * correctly, because acceptance happens afterwards and by somebody who looked
+   * — so without these, "drift sums only approved changes" sums nothing at all.
+   *
+   * Absent is *not* "nothing was approved". It is a caller that did not fetch
+   * them, and the difference matters: a churn computed without the approvals
+   * slice reports a component that changed forty times as never having changed.
+   * `churnFrom` always fetches them; a hand-built input that omits them is
+   * relying on the rows' own flag, which is what the tests do.
+   */
+  readonly approvals?: readonly Approval[];
+
   readonly window?: Window;
 
   /** What the window's `limit` excluded, so the result can admit to being partial. */
@@ -89,9 +105,19 @@ export function accumulateChurn(input: ChurnInput): Churn {
     runIdsByProfile.set(run.profile, seen);
   }
 
-  const approved = input.observations.filter((row) => row.accepted);
+  // Approved at write time, or approved later by somebody who reviewed it. The
+  // two are one predicate on purpose: a caller that records acceptance inline and
+  // a caller that records it afterwards must produce the same number, or the
+  // meaning of a rate depends on which surface the operator happens to use.
+  const accepted = new Set(
+    (input.approvals ?? []).map((approval) => approvalKey(approval.subject, approval.run)),
+  );
+  const isApproved = (row: Observation): boolean =>
+    row.accepted || accepted.has(approvalKey(row.subject, row.run));
+
+  const approved = input.observations.filter(isApproved);
   const rejectedRuns = new Set(
-    input.observations.filter((row) => !row.accepted).map((row) => row.run),
+    input.observations.filter((row) => !isApproved(row)).map((row) => row.run),
   );
 
   // Cause is decided per `(run, subject)` and without regard to the tier: the

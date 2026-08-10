@@ -244,11 +244,13 @@ happening for a month* or *nine sweeps have been clean since*
 ([`flakiness.md`](flakiness.md),
 [ADR-0032](context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md)).
 
-**Drift is the half that is not.** No run resolves a design token to a value, so
-`valueJourney` receives an empty list on every write; `churn` and `reach` now have
-rows to read and nothing asks them; and every observation is recorded unapproved,
-because acceptance happens later and nothing joins it back. See
-[spec 0002](specs/0002-history-store.md).
+**Drift is the half that is not, and it is now one step away.** `variance accept`
+records the acceptance — a row per `(subject, run)`, because an append-only store
+cannot flip a flag — so a churn asked after a review counts what was reviewed.
+What is still missing is a caller for the questions themselves, and the token
+axis: no run resolves a design token to a value, so `valueJourney` receives an
+empty list on every write and the twenty-two-pixel story this rung exists for
+remains unreachable. See [spec 0002](specs/0002-history-store.md).
 
 Worth stating anyway, because it is the only rung that answers a question the
 others structurally cannot. Every rung below compares two things. A sum across

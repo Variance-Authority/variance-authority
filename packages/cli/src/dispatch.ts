@@ -139,6 +139,7 @@ export async function dispatch(
 
     case 'accept': {
       const report = await readCliRunReport(config.report);
+      const acceptHistory = historyFor(config);
       const result = await accept({
         report,
         reportDir: dirname(config.report),
@@ -147,6 +148,13 @@ export async function dispatch(
         all: parsed.all,
         shapes: parsed.shapes,
         read: readCandidate,
+        // The acceptance is recorded where the observations went, under the same
+        // project, or nowhere at all. Passed together so a store with no project
+        // is unrepresentable rather than a silent scope nobody chose.
+        ...(acceptHistory !== undefined
+          ? { history: acceptHistory, project: config.history?.project ?? config.project }
+          : {}),
+        now: () => new Date().toISOString(),
       });
 
       streams.out(`${formatAcceptance(result)}\n`);

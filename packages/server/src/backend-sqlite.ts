@@ -1,6 +1,12 @@
 import { createRequire } from 'node:module';
 import type { DatabaseSync } from 'node:sqlite';
-import type { Instability, Observation, RunRecord, TokenValue } from '@variance-authority/history';
+import type {
+  Approval,
+  Instability,
+  Observation,
+  RunRecord,
+  TokenValue,
+} from '@variance-authority/history';
 import {
   HistoryWriteConflict,
   type HistoryBackend,
@@ -21,6 +27,7 @@ import {
 import {
   instant,
   text,
+  toApproval,
   toInstability,
   toObservation,
   toRunRecord,
@@ -190,6 +197,38 @@ export function createSqliteBackend(options: SqliteBackendOptions): HistoryBacke
         database.exec('ROLLBACK');
         throw error;
       }
+    },
+
+    async appendApprovals(approvals): Promise<void> {
+      // `OR IGNORE` against `approvals_identity`, because approving twice is
+      // approving once: a reviewer who clicks accept a second time has not made a
+      // second decision, and a refusal would turn that into a failed command.
+      const insert = prepare(
+        'INSERT OR IGNORE INTO approvals (project, subject, run, at, at_ms, approver) ' +
+          'VALUES ($project, $subject, $run, $at, $at_ms, $approver)',
+      );
+
+      database.exec('BEGIN IMMEDIATE');
+      try {
+        for (const approval of approvals) {
+          insert.run({
+            $project: approval.project,
+            $subject: approval.subject,
+            $run: approval.run,
+            $at: approval.at,
+            $at_ms: instant(approval.at, 'approval'),
+            $approver: approval.by ?? null,
+          });
+        }
+        database.exec('COMMIT');
+      } catch (error) {
+        database.exec('ROLLBACK');
+        throw error;
+      }
+    },
+
+    async approvalsOf(query): Promise<Slice<Approval>> {
+      return slice(prepare, 'approvals', windowFilter(query), query.limit, toApproval);
     },
 
     async currentOf(query): Promise<readonly Observation[]> {

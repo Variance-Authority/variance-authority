@@ -24,6 +24,9 @@ export { BANDS, observationsFrom } from './observation.js';
 
 export type { FrequencyBand, Instability } from './instability.js';
 
+export type { Approval } from './approval.js';
+export { approvalKey } from './approval.js';
+
 export type {
   Answer,
   BandChurn,
@@ -52,12 +55,14 @@ export {
 } from './drift.js';
 
 export type {
+  ApproveRequest,
   CurrentRequest,
   CurrentResponse,
   LastChangedResponse,
   RecordRequest,
 } from './protocol.js';
 export {
+  APPROVALS_PATH,
   CHURN_PATH,
   CURRENT_PATH,
   FLAKINESS_PATH,

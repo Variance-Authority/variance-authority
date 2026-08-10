@@ -1,6 +1,6 @@
 # Spec 0002 — History service and drift queries
 
-**Missing:** the token axis, and three of the five questions have no caller.
+**Missing:** the token axis, and two of the five questions have no caller.
 **Built on:** per-component band hashing
 ([ADR-0018](../context/adr/0018-a-component-hash-covers-its-own-nodes.md)), the
 bulk read of the present
@@ -28,11 +28,14 @@ pull-request comment and an agent without any of them holding a connection.
   being written now, so the answers exist; nothing asks for them. The natural
   home is an MCP tool, which is a decision about `variance serve`'s tool list
   rather than about storage ([spec 0013](0013-a-real-agent.md)).
-- **Acceptance is never recorded as acceptance.** Every observation is written
-  `accepted: false`, because acceptance happens later in `variance accept` or in a
-  review surface and nothing joins back. Drift sums approved changes only, so
-  today every drift total would be zero — which is why no caller asking for one
-  would be honest yet.
+
+**Acceptance is recorded, since 2026-08-10**, and it had to be a second row rather
+than a flag: the store is append-only, so nothing may flip `accepted` on an
+observation after the fact. `variance accept` writes one `Approval` per
+`(subject, run)` it promoted — which is exactly the decision a reviewer makes —
+and `accumulateChurn` counts a row as approved when the row says so *or* an
+approval names its subject and run. A report that cannot name its run records
+nothing and says why.
 
 ## Purpose
 
@@ -162,7 +165,10 @@ export interface HistoryStore {
 
   current(subjects: readonly string[]): Promise<Answer<readonly Observation[]>>;
 
+  approve(approvals: readonly Approval[]): Promise<void>;
+
   lastChanged(subject: string, component: string, band?: Band): Promise<Answer<Observation | null>>;
+
   churn(component: string, window: Window): Promise<Answer<Churn>>;
 
   flakiness(subject: string, window: Window): Promise<Answer<Flakiness>>;
@@ -211,6 +217,12 @@ never asked.
 
 **Drift sums only accepted changes.** A rejected change was caught; counting it
 would describe the review process rather than the product.
+
+**Acceptance arrives after the run, so it is a row of its own.** A run cannot know
+whether anybody agreed, and writes every observation unapproved. An `Approval`
+names a `(subject, run)`; the arithmetic joins the two. Keyed per run instead, one
+approved subject would approve the forty nobody looked at; keyed per hash, it
+would invent a decision no reviewer made.
 
 **Collateral never accumulates.** Only a component named as a *cause* contributes
 to its own totals. Accumulating displacement reports the widest container in the
