@@ -162,8 +162,10 @@ this project's time-to-first-verdict as *unbounded*.
 
 ## 3. By suite
 
-`SubjectsConfig packages/cli/src/config-sections.ts:81` is a two-arm union, and the second
-arm is the general case.
+`SubjectsConfig packages/cli/src/config-sections.ts:81` is a four-arm union. Three of
+them name a collector, and the second of those is the general case; the fourth names no
+collector at all, because its subjects are images somebody else painted — and it is
+therefore the one arm `run` refuses rather than renders (§4).
 
 ### Storybook
 
@@ -206,11 +208,11 @@ versioned by nobody.
 }
 ```
 
-`ListSubjects packages/cli/src/config-sections.ts:92` is the arbitrary-suite path. The
+`ListSubjects packages/cli/src/config-sections.ts:96` is the arbitrary-suite path. The
 CLI branches to `planList`, at `packages/cli/src/commands/collector.ts:211`, and from
 there the run is identical — same normalizer, same bands, same docket, same store.
 
-**The two-arm union is a much weaker constraint than it looks, and this is the
+**The union is a much weaker constraint than it looks, and this is the
 most useful fact in the document.** `run()` never reads `config.subjects` — not
 once. The subject list is whatever `deps.collector.plan()` returns
 (`packages/cli/src/commands/run.ts:169`), and the loop iterates that. What the

@@ -50,7 +50,7 @@ import type { CliObservationRecord, CliRunReport, NotObserved } from './run-repo
  * re-exported below, so `commands/run.js` is still the one import path.
  */
 
-export { matchesGlob, loadCollector, planList, planStorybook } from './collector.js';
+export { matchesGlob, collectorPath, loadCollector, planList, planStorybook } from './collector.js';
 export type {
   Collected,
   Collector,

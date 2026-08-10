@@ -8,7 +8,7 @@ import type {
 } from '@variance-authority/core';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
-import type { Config } from '../config.js';
+import type { Config, SubjectsConfig } from '../config.js';
 import { OperatorError } from '../exit.js';
 import type { NotObserved } from './run-report.js';
 
@@ -253,6 +253,30 @@ export function planList(ids: readonly string[]): Plan {
     notObserved: [],
     warnings: [],
   };
+}
+
+/**
+ * The collector this config names, or a refusal saying which command to use.
+ *
+ * Three of the four subject sources name a module that mounts something; the
+ * fourth names a directory of images that were mounted somewhere else, months
+ * ago, by a tool this project has never seen. There is nothing for `run` to load
+ * and nothing for it to render, so it stops here with the verb that does apply.
+ *
+ * A `run` that quietly did the ingest instead would be the exact thing
+ * `docs/surface.md §4` refuses — a weaker tool wearing the stronger one's name —
+ * and the reader would have no way to tell which one produced their green.
+ */
+export function collectorPath(subjects: SubjectsConfig): string {
+  if (subjects.kind === 'images') {
+    throw new OperatorError(
+      '`subjects.kind: "images"` is a directory of PNG files this tool did not paint, so there ' +
+        'is nothing for `variance run` to render. Use `variance ingest`, which compares them on ' +
+        'pixels alone and says so — see docs/ingest.md for what that costs.',
+    );
+  }
+
+  return subjects.collector;
 }
 
 /**

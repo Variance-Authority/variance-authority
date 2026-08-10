@@ -154,10 +154,23 @@ export interface IgnoredPixels {
   readonly byRule: Readonly<Record<string, number>>;
 }
 
-export interface ObserveOptions {
-  readonly renderer: Renderer;
-  readonly store: RasterStore;
-
+/**
+ * Everything a comparison needs that is not a renderer and not a store.
+ *
+ * Split out because it is a fact about this system worth being able to point at:
+ * **the deciding half needs neither.** `decide` reads a snapshot, a policy, a
+ * decoder and a set of declarations, and never once asks who painted the images
+ * or where they were kept — it was written against `ObserveOptions` only because
+ * that is what its callers happened to have.
+ *
+ * Naming the smaller set is what makes a comparison possible for two images that
+ * arrived from somewhere else entirely (`variance ingest`, `docs/ingest.md`).
+ * That is not a weakening of the contract: every field below is still honoured,
+ * and the ones a foreign image cannot supply — the snapshot, and therefore the
+ * exclusions, the attribution and the bands — are already optional here and
+ * already degrade by saying less rather than by guessing.
+ */
+export interface CompareInputs {
   /**
    * The normalized snapshot of the same render.
    *
@@ -219,6 +232,40 @@ export interface ObserveOptions {
    * isolation actually returned, and a truncated tail is never silently absorbed.
    */
   readonly ignoreShapes?: Readonly<Record<string, string>>;
+}
+
+/** {@link CompareInputs}, plus the two things a render needs. */
+export interface ObserveOptions extends CompareInputs {
+  readonly renderer: Renderer;
+  readonly store: RasterStore;
+}
+
+/**
+ * Two images that are already in hand, decided against each other.
+ *
+ * The same function every other path in this package ends at, reachable without
+ * a renderer or a store. `observePair` renders two documents and calls it;
+ * `observeAgainstBaseline` renders one and looks the other up; this one is for
+ * the caller who has both and no document behind either — which is exactly what
+ * `variance ingest` is, and is why the position on foreign images could be
+ * priced instead of only argued.
+ *
+ * `rendered` is `false` and cannot be otherwise: nothing was painted here, and a
+ * run reporting otherwise would be claiming a render cost it did not pay.
+ *
+ * What it *cannot* do is not hidden by this entry point — it is decided by what
+ * the two rasters carry. No `components` on either side means no causes; no
+ * snapshot means no attribution, no exclusions and no bands. Each of those is
+ * already an `undefined` that `decide` handles by saying less, so the reduction
+ * arrives as absent fields in the observation rather than as a second code path.
+ */
+export async function observeRasters(
+  subject: string,
+  before: Raster,
+  after: Raster,
+  options: CompareInputs = {},
+): Promise<Observation> {
+  return await decide(subject, before, after, false, options);
 }
 
 /**

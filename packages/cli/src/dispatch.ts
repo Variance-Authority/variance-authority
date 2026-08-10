@@ -12,6 +12,7 @@ import {
   type ExitCode,
 } from './exit.js';
 import {
+  collectorPath,
   loadCollector,
   planList,
   planStorybook,
@@ -74,7 +75,7 @@ export async function dispatch(
       // browser — is the wrong place to make one. An expired rule is simply never
       // sent, so what it used to absorb is reported again with no other machinery.
       const today = new Date().toISOString();
-      const collector = await loadCollector(effective.subjects.collector, {
+      const collector = await loadCollector(collectorPath(effective.subjects), {
         config: {
           ...effective,
           ...(effective.ignore !== undefined
@@ -255,6 +256,10 @@ async function planFor(config: Config): Promise<Plan | undefined> {
   // and a *discovered empty* plan indistinguishable — the second is a suite that
   // watches nothing and has to be able to say so.
   if (config.subjects.kind === 'collector') return undefined;
+
+  // `images` never reaches here: `collectorPath` refuses it first, above, where
+  // the refusal can name the command that does apply.
+  if (config.subjects.kind === 'images') return undefined;
 
   return planList(config.subjects.ids);
 }

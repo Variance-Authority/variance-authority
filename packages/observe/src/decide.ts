@@ -16,7 +16,7 @@ import {
 import type { Diagnostic, SemanticSnapshot } from '@variance-authority/core';
 import { compareRasters } from '@variance-authority/png';
 import type { RasterComparison } from '@variance-authority/raster';
-import type { IgnoredPixels, Observation, ObserveOptions } from './observe.js';
+import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
 
 /**
  * Two rasters become a verdict.
@@ -40,7 +40,7 @@ export async function decide(
   before: Raster,
   after: Raster,
   rendered: boolean,
-  options: ObserveOptions,
+  options: CompareInputs,
 ): Promise<Observation> {
   const comparison = await compareRasters(before, after, {
     ...options.compare,
@@ -373,7 +373,7 @@ function describeChange(
  * already obeys.
  */
 function relaxedVerdict(
-  options: ObserveOptions,
+  options: CompareInputs,
   before: Raster,
   after: Raster,
 ): { readonly because: string; readonly relaxed: NonNullable<Observation['relaxed']> } | null {

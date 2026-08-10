@@ -188,6 +188,7 @@ them, which is to say they stop being asked.
 ```ts
 import {
   EXIT_REVIEW,
+  collectorPath,
   exitFor,
   loadCollector,
   loadConfig,
@@ -204,7 +205,7 @@ const report = await run({
   config,
   // Everything the run touches, handed to it. This is what the `bin` assembles.
   deps: {
-    collector: await loadCollector(config.subjects.collector, { config }),
+    collector: await loadCollector(collectorPath(config.subjects), { config }),
     store: await storeFor(config),
     // `rendererFor`, not `createPlaywrightRenderer`: it is the one expression that
     // reads `browser` and `renderer` out of the config, so a composition cannot

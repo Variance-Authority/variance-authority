@@ -15,6 +15,17 @@
  * which verdicts exist, and which of them are allowed to be `unchanged`.
  */
 
-export { observePair, observeAgainstBaseline, summarizeObservation } from './observe.js';
+export {
+  observePair,
+  observeAgainstBaseline,
+  observeRasters,
+  summarizeObservation,
+} from './observe.js';
 export { declaredIgnores } from './decide.js';
-export type { Observation, ObserveOptions, RasterVerdict, IgnoredPixels } from './observe.js';
+export type {
+  CompareInputs,
+  Observation,
+  ObserveOptions,
+  RasterVerdict,
+  IgnoredPixels,
+} from './observe.js';

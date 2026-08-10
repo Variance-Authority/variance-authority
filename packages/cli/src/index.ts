@@ -56,6 +56,7 @@ export { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor } from '
 export type { ExitCode, ReviewableReport } from './exit.js';
 
 export {
+  collectorPath,
   loadCollector,
   matchesGlob,
   planList,
