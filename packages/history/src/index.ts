@@ -31,6 +31,7 @@ export type {
   Answer,
   BandChurn,
   Churn,
+  Current,
   Flakiness,
   FlakyCause,
   HistoryStore,

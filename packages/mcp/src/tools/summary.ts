@@ -113,6 +113,7 @@ export const summarize: Tool = {
           ]),
       '',
       ...coverage(report),
+      ...drift(report),
       ...instability(report),
       ...orderDependence(report),
       ...findingsLine(report),
@@ -178,6 +179,31 @@ function instability(report: RunReport): readonly string[] {
     ...unstable.map((observation) => `    variance run --subjects '${observation.subject}' --flakes`),
     '  It exits 1 while the two readings still disagree, even with every verdict green.',
     ...absorbedInstability(report),
+  ];
+}
+
+/**
+ * Tokens whose value moved in this run, and how far they have travelled.
+ *
+ * The one finding on this page that no comparison could have produced. Every
+ * other line answers *what moved*; this answers *how much it has moved
+ * altogether*, which is a sum across approvals and is therefore invisible to
+ * every review that approved one of them. Eleven correct approvals of 2px each
+ * are eleven correct decisions and one 22px change nobody made.
+ *
+ * Placed above the instability section deliberately: it is rarer, it is never
+ * noise, and it is the finding a reader would most regret scrolling past.
+ */
+function drift(report: RunReport): readonly string[] {
+  const moved = Object.entries(report.drift ?? {});
+  if (moved.length === 0) return [];
+
+  return [
+    '',
+    `DRIFT: ${moved.length} token(s) moved in this run, and the record says what they have`,
+    '  drifted to across every approved change in the window. No single review saw these',
+    '  totals, because each of them approved one step:',
+    ...moved.map(([, record]) => `    ${record.because}`),
   ];
 }
 

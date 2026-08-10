@@ -18,7 +18,10 @@ answer into the report, which is how recurrence reaches the summary, a
 pull-request comment and an agent without any of them holding a connection.
 
 It records the **design tokens** it resolved, too: the custom properties in force
-at each subject's root, folded to one value per token per run. That is the axis
+at each subject's root, folded to one value per token per run — and when one of
+them resolves to something the record has not seen, the run asks for its journey
+and reports what it has drifted to. That is the finding at the top of this file,
+produced by the pipeline rather than described in it. That is the axis
 the headline example at the top of this file needs — a button gaining 2px eleven
 times — and it had no source until now. A token that resolved to *two* values in
 one run is not recorded at all and the count is reported: a themed subtree
@@ -28,14 +31,13 @@ it.
 
 **What does not.**
 
-- **Two of the three questions have no caller.** `churn` does: a run asks it about
-  every component it named as a cause, capped at twenty and reporting the cap, and
-  the answer travels in the report so `variance_describe` prints it under the
-  regions it qualifies. `valueJourney` and `reach` are still unasked — and the
-  reason is a decision rather than an omission: an MCP tool is a pure function
-  over a report, so a tool that queried a store would be a different kind of
-  thing. Either the run asks them too (as it does for churn and flakiness), or
-  `variance serve` grows a tool that holds a store. Decide before building.
+- **`reach` has no caller.** The other four questions are asked by the run, which
+  is the decision this spec was carrying: an MCP tool is a pure function over a
+  report, so the run asks and the report carries the answer, and every surface
+  reads one artifact. `reach` does not fit that shape — *where has this component
+  started appearing* is a question about the suite rather than about anything a
+  run just observed — so it waits for a surface that asks about the past on
+  purpose.
 - **No run has produced the eleven-step journey end to end.** Every part of it
   exists and each part is tested; what has not happened is eleven runs, eleven
   approvals, and the sentence at the end of them.

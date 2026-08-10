@@ -101,6 +101,46 @@ export interface RunReport {
    * reason is in `warnings`.
    */
   readonly churn?: Readonly<Record<string, ChurnRecord>>;
+
+  /**
+   * Design tokens whose value moved in this run, and what they have drifted to
+   * across every approved change in the window.
+   *
+   * The finding no comparison reaches. A button gains 2px, eleven times, each
+   * approved correctly by somebody looking at one diff — and the 22px is a number
+   * no review ever saw, because the quantity that would catch it is a sum and a
+   * single run holds none. Present only for tokens that moved *here*, so it is
+   * empty on almost every run and is the whole story on the one where it is not.
+   */
+  readonly drift?: Readonly<Record<string, DriftRecord>>;
+}
+
+/** What one token has drifted to, and how far it travelled getting there. */
+export interface DriftRecord {
+  readonly from: string;
+  readonly to: string;
+  /** Value changes behind it. One is not drift; this is never below two. */
+  readonly steps: number;
+  readonly firstAt: string;
+  readonly lastAt: string;
+
+  /**
+   * The arithmetic, when every value was the same kind of quantity.
+   *
+   * Absent for a colour, a font stack, or a mixed set of units — and absent means
+   * *not measurable*, never zero. `because` says which.
+   */
+  readonly quantity?: {
+    readonly unit: string;
+    readonly net: number;
+    /** The largest single step: the most any one review could have seen. */
+    readonly largestStep: number;
+    /** Sum of the absolute steps, which exceeds `|net|` whenever it changed direction. */
+    readonly travel: number;
+  };
+
+  /** One sentence, ready to print, from the package that owns the arithmetic. */
+  readonly because: string;
 }
 
 /**

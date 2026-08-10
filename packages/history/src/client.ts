@@ -6,8 +6,9 @@ import {
   asObservation,
   asReach,
   asRecord,
+  asTokenValue,
 } from './answers.js';
-import type { Observation } from './observation.js';
+import type { Observation, TokenValue } from './observation.js';
 import {
   APPROVALS_PATH,
   CHURN_PATH,
@@ -22,7 +23,15 @@ import {
   type CurrentRequest,
   type RecordRequest,
 } from './protocol.js';
-import type { Churn, Flakiness, HistoryStore, Journey, Reach, Window } from './store.js';
+import type {
+  Churn,
+  Current,
+  Flakiness,
+  HistoryStore,
+  Journey,
+  Reach,
+  Window,
+} from './store.js';
 
 /**
  * The store, over a hop.
@@ -142,11 +151,12 @@ export function createHttpHistoryStore(options: HttpHistoryOptions): HistoryStor
       await request(send, `${base}${APPROVALS_PATH}`, options.token, body, timeoutMs);
     },
 
-    async current(subjects): Promise<readonly Observation[]> {
+    async current(subjects): Promise<Current> {
       const url = `${base}${CURRENT_PATH}${
         options.project === undefined ? '' : `?project=${encodeURIComponent(options.project)}`
       }`;
       const rows: Observation[] = [];
+      const tokens: TokenValue[] = [];
 
       // Sequential, not concurrent. The answers are disjoint by subject so the
       // order does not matter, but a run that opens fifteen sockets at once
@@ -163,9 +173,18 @@ export function createHttpHistoryStore(options: HttpHistoryOptions): HistoryStor
         for (const row of asArray(answer['observations'], url, 'the current rows')) {
           rows.push(asObservation(row, url));
         }
+
+        // Project-wide, so the first batch carries them and the rest repeat them.
+        // Read once rather than concatenated: a token appearing twice would fold
+        // to itself, which is harmless until somebody counts readings.
+        if (tokens.length === 0) {
+          for (const row of asArray(answer['tokens'] ?? [], url, 'the current token values')) {
+            tokens.push(asTokenValue(row, url));
+          }
+        }
       }
 
-      return rows;
+      return { observations: rows, tokens };
     },
 
     async lastChanged(subject, component, band): Promise<Observation | null> {

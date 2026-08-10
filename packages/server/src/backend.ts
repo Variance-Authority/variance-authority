@@ -4,6 +4,7 @@ import {
   type Approval,
   type Band,
   type Churn,
+  type Current,
   type Flakiness,
   type HistoryStore,
   type Instability,
@@ -195,6 +196,16 @@ export interface HistoryBackend {
    */
   currentOf(query: SubjectsQuery): Promise<readonly Observation[]>;
 
+  /**
+   * The latest recorded value per token, for the whole project.
+   *
+   * Unscoped by subject because a token is not a subject's: it records what the
+   * *product's* `--va-space-3` resolved to. Bounded by the size of the design
+   * system rather than by the age of the project, which is what keeps it inside
+   * the rule that nothing here loads a whole history.
+   */
+  currentTokens(query: BackendQuery): Promise<readonly TokenValue[]>;
+
   /** The most recent row for an area, or `null` when the record contains none. */
   lastObservation(query: AreaQuery): Promise<Observation | null>;
 
@@ -247,8 +258,13 @@ export async function currentFrom(
   backend: HistoryBackend,
   project: string | undefined,
   subjects: readonly string[],
-): Promise<readonly Observation[]> {
-  return backend.currentOf({ ...(project !== undefined ? { project } : {}), subjects });
+): Promise<Current> {
+  const scope = project !== undefined ? { project } : {};
+
+  return {
+    observations: await backend.currentOf({ ...scope, subjects }),
+    tokens: await backend.currentTokens(scope),
+  };
 }
 
 /**

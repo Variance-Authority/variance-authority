@@ -195,7 +195,7 @@ function asFrequencyBand(value: unknown, url: string, what: string): FrequencyBa
   return value as FrequencyBand;
 }
 
-function asTokenValue(value: unknown, url: string): TokenValue {
+export function asTokenValue(value: unknown, url: string): TokenValue {
   const what = 'a token value';
   const source = asRecord(value, url, what);
 

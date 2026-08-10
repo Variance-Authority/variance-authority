@@ -248,7 +248,7 @@ describe('the wire, spoken by the real client', () => {
 
     const current = await store.current(['checkout']);
     expect(isKept(current)).toBe(true);
-    expect(isKept(current) ? current.map((row) => row.hash) : []).toEqual(['h-1']);
+    expect(isKept(current) ? current.observations.map((row) => row.hash) : []).toEqual(['h-1']);
 
     // And the point of asking: the same hashes, observed again, produce no rows.
     const unchanged = observationsFrom(
@@ -262,7 +262,7 @@ describe('the wire, spoken by the real client', () => {
         at: '2026-03-02T10:00:00.000Z',
         accepted: true,
       },
-      isKept(current) ? current : [],
+      isKept(current) ? current.observations : [],
     );
     expect(unchanged).toEqual([]);
   });

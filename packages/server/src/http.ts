@@ -225,7 +225,7 @@ async function route(
     // (`CurrentRequest`).
     requireMethod(request, 'POST');
     const subjects = parseCurrentRequest(await readBody(request, maxBodyBytes));
-    send(response, 200, { observations: await currentFrom(backend, project, subjects) });
+    send(response, 200, await currentFrom(backend, project, subjects));
     return;
   }
 

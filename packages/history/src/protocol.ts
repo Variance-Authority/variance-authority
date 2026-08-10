@@ -83,6 +83,13 @@ export interface CurrentRequest {
 
 export interface CurrentResponse {
   readonly observations: readonly Observation[];
+  /**
+   * Optional on the wire so an older service's answer still parses — and read as
+   * an empty list when absent, which is safe in one direction only: a run that
+   * believes no token is recorded writes every token it resolved, which is
+   * over-recording rather than a false journey.
+   */
+  readonly tokens?: readonly TokenValue[];
 }
 
 /**

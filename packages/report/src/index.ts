@@ -30,6 +30,7 @@ export type {
   NotObservedKind,
   FlakinessRecord,
   ChurnRecord,
+  DriftRecord,
 } from './format.js';
 
 export { clusterChanges, describeClustering } from './cluster.js';

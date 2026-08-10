@@ -191,6 +191,29 @@ export interface Reach {
   readonly omittedSubjects: number;
 }
 
+/**
+ * What the record holds right now, for the run about to write.
+ *
+ * Both halves in one answer because the run needs them at the same moment and for
+ * the same reason: it writes an observation only when a hash moved, and it can
+ * only say a *token* moved by comparing what it resolved against what is
+ * recorded. Two round trips for one question would be two chances for the second
+ * to fail after the first succeeded.
+ */
+export interface Current {
+  /** Latest row per `(subject, component, band, profile)` in the named subjects. */
+  readonly observations: readonly Observation[];
+
+  /**
+   * Latest recorded value per token, for the whole project.
+   *
+   * Not scoped by subject, because a token is not: `TokenValue` records what the
+   * product's `--va-space-3` resolved to, and the question it exists to answer —
+   * what has this drifted to — is about the product rather than about a story.
+   */
+  readonly tokens: readonly TokenValue[];
+}
+
 /** One way a subject was seen to disagree with itself, and how often. */
 export interface FlakyCause {
   /** Absent when the readings could not be resolved to a component. */
@@ -331,7 +354,7 @@ export interface HistoryStore {
    * inside this file's "nothing loads a whole history" rule: it is one row per
    * live scope in the subjects asked for, so it is bounded by the code under test.
    */
-  current(subjects: readonly string[]): Promise<Answer<readonly Observation[]>>;
+  current(subjects: readonly string[]): Promise<Answer<Current>>;
 
   /**
    * The most recent row for an area, or `null` when nothing was ever recorded for

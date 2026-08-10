@@ -1,7 +1,6 @@
 import { hashComponents, type SemanticSnapshot, type SourceIndex } from '@variance-authority/core';
 import {
-  describeChurn,
-  describeFlakiness,
+  detectDrift,
   isKept,
   observationsFrom,
   type Churn,
@@ -10,8 +9,8 @@ import {
   type Instability,
   type Observation,
   type RunRecord,
+  type TokenDrift,
 } from '@variance-authority/history';
-import type { ChurnRecord, FlakinessRecord } from '@variance-authority/report';
 import { filesOf, instabilitiesOf, tokensOf } from './history-rows.js';
 import type { Config } from '../config.js';
 import type { CliObservationRecord } from './run-report.js';
@@ -165,6 +164,15 @@ export interface RecordedRun {
 
   /** How often each component this run named as a cause has changed before. */
   readonly churn: Readonly<Record<string, Churn>>;
+
+  /**
+   * Tokens whose value moved in this run, and what they have drifted to.
+   *
+   * The finding this whole tier exists for: a button gains 2px, eleven times,
+   * each approved correctly, and nobody ever sees the 22px — because the quantity
+   * that would catch it is a sum, and no single review holds one.
+   */
+  readonly drift: Readonly<Record<string, TokenDrift>>;
   /**
    * What could not be recorded or could not be asked, ready to print.
    *
@@ -194,6 +202,15 @@ const WINDOW_DAYS = 30;
  * same rule every capped answer in this system follows.
  */
 const MAX_CHURN_QUESTIONS = 20;
+
+/**
+ * How many moved tokens one run asks a journey for.
+ *
+ * A run in which fifty tokens moved is a theme change, and fifty journeys would
+ * describe it fifty times over. The cap is generous because the usual number is
+ * zero, and whatever it excludes is reported.
+ */
+const MAX_DRIFT_QUESTIONS = 10;
 
 /**
  * Write this run down, and ask what the record already knew.
@@ -229,12 +246,13 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
       instabilities: 0,
       flakiness: {},
       churn: {},
+      drift: {},
       warnings: [previous.because],
     };
   }
 
   const bySubject = new Map<string, Observation[]>();
-  for (const row of previous) {
+  for (const row of previous.observations) {
     const held = bySubject.get(row.subject);
     if (held === undefined) bySubject.set(row.subject, [row]);
     else held.push(row);
@@ -275,6 +293,12 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
 
   const resolved = tokensOf(input.subjects, run, warnings);
 
+  // Which of them the record has never seen at this value. Computed before the
+  // write, because afterwards every one of them is the latest recorded value and
+  // the question answers itself with "none".
+  const held = new Map(previous.tokens.map((row) => [row.token, row.value]));
+  const moved = resolved.filter((row) => held.has(row.token) && held.get(row.token) !== row.value);
+
   try {
     await store.record(run, observations, resolved, instabilities);
   } catch (error) {
@@ -283,6 +307,7 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
       instabilities: 0,
       flakiness: {},
       churn: {},
+      drift: {},
       warnings: [
         `nothing was recorded to the history service: ${messageOf(error)}. This run's verdicts ` +
           'are unaffected, and its rows are lost — a later drift or flakiness answer will be ' +
@@ -310,6 +335,30 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
         `the history service could not say how often \`${subject.subject}\` has read differently ` +
           `from itself: ${messageOf(error)}. Absence of an answer is not evidence that this is ` +
           'the first time',
+      );
+    }
+  }
+
+  const drift: Record<string, TokenDrift> = {};
+
+  // Only the tokens that moved in *this* run, which is almost always none and
+  // occasionally one. Asking about every token a project declares would be fifty
+  // round trips for an answer that is the same as last run's.
+  for (const row of moved.slice(0, MAX_DRIFT_QUESTIONS)) {
+    try {
+      const journey = await store.valueJourney(row.token, { since });
+      if (!isKept(journey)) {
+        warnings.push(journey.because);
+        continue;
+      }
+      // `null` means the values in the window never changed, which is not a
+      // finding — this run's own change is the first, and one step is not drift.
+      const found = detectDrift(journey);
+      if (found !== null) drift[row.token] = found;
+    } catch (error) {
+      warnings.push(
+        `the history service could not say what \`${row.token}\` has drifted to: ` +
+          `${messageOf(error)}. Absence of an answer is not evidence that it has held still`,
       );
     }
   }
@@ -347,130 +396,8 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
     instabilities: instabilities.length,
     flakiness,
     churn,
+    drift,
     warnings,
-  };
-}
-
-/**
- * The whole of the run's dealings with a history record, in one call.
- *
- * Lives here rather than in the loop so that `run.ts` stays what it says it is —
- * the loop and the renderer's lifetime — and so that the three states this can be
- * in are decided in one place: no record is kept, a record is kept and this run
- * cannot be named, or a record is kept and it can.
- *
- * The middle state is the one worth a sentence. A configured store with no run id
- * writes nothing, and saying nothing about that produces a history that quietly
- * stops growing the day somebody changes a CI provider — with every later drift
- * answer computed over a window that is missing the runs nobody noticed were
- * absent.
- */
-export async function recordIfConfigured(input: {
-  readonly config: Config;
-  readonly deps: { readonly history?: HistoryStore };
-  readonly at: string;
-  readonly identity?: RunIdentity;
-  readonly swept: boolean;
-  /** One slot per planned subject, in plan order; `null` where nothing was read. */
-  readonly readings: readonly (SubjectHistory | null)[];
-  readonly observations: readonly CliObservationRecord[];
-}): Promise<{
-  readonly flakiness?: Readonly<Record<string, FlakinessRecord>>;
-  readonly churn?: Readonly<Record<string, ChurnRecord>>;
-  readonly warnings: readonly string[];
-}> {
-  const { config, deps, identity } = input;
-
-  // No store configured is not a warning. The operator did not ask for a record,
-  // `variance doctor` already says so on its own line, and a run that complained
-  // about it every time would teach its reader to skip the warnings.
-  if (config.history === undefined || deps.history === undefined) return { warnings: [] };
-
-  if (identity === undefined) {
-    return {
-      warnings: [
-        `a history service is configured at ${config.history.endpoint} and nothing was recorded: ` +
-          'this run has no id and commit. Pass `--run` and `--commit`, or run inside a CI system ' +
-          'that exports them (GitHub, GitLab, Bitbucket are recognised). A run recorded under an ' +
-          'invented id could never be joined to what was shipped, so none was invented',
-      ],
-    };
-  }
-
-  const unstable = new Map(
-    input.observations
-      .filter((record) => record.unstable !== undefined)
-      .map((record) => [record.subject, record.unstable]),
-  );
-
-  const subjects = input.readings.filter((reading) => reading !== null).map((reading) => {
-    const found = unstable.get(reading.subject);
-    return found === undefined ? reading : { ...reading, unstable: found };
-  });
-
-  // A subject that failed to collect twice has an `unstable` finding and no
-  // reading at all — the collector proved the instability by being unable to
-  // repeat it. Recorded from the observation alone, or the loudest form of the
-  // thing being measured would be the one occurrence never written down.
-  const read = new Set(subjects.map((subject) => subject.subject));
-  for (const [subject, found] of unstable) {
-    if (!read.has(subject)) subjects.push({ subject, ...(found !== undefined ? { unstable: found } : {}) });
-  }
-
-  const recorded = await recordRun({
-    config,
-    store: deps.history,
-    identity,
-    at: input.at,
-    swept: input.swept,
-    subjects,
-    // Only the components a region named as the cause of a change. A run that
-    // asked about every component it saw would ask about three hundred of them
-    // and answer with the container that everything moved inside.
-    causes: input.observations.flatMap((record) =>
-      record.regions
-        .filter((region) => region.cause && region.component !== undefined)
-        .map((region) => region.component as string),
-    ),
-  });
-
-  const flakiness: Record<string, FlakinessRecord> = {};
-  for (const [subject, answer] of Object.entries(recorded.flakiness)) {
-    flakiness[subject] = {
-      runs: answer.runs,
-      sweeps: answer.sweeps,
-      occurrences: answer.occurrences,
-      absorbedRuns: answer.absorbedRuns,
-      ...(answer.rate !== undefined ? { rate: answer.rate } : {}),
-      sweepsSince: answer.sweepsSince,
-      causes: answer.causes,
-      ...(answer.firstAt !== undefined ? { firstAt: answer.firstAt } : {}),
-      ...(answer.lastAt !== undefined ? { lastAt: answer.lastAt } : {}),
-      // The sentence comes from the package that owns the arithmetic, so the
-      // report, the comment and an agent all read one phrasing of a distinction
-      // — absent record, empty record, record that says this stopped — that three
-      // surfaces would otherwise each get subtly wrong.
-      because: describeFlakiness(answer),
-    };
-  }
-
-  const churn: Record<string, ChurnRecord> = {};
-  for (const [component, answer] of Object.entries(recorded.churn)) {
-    churn[component] = {
-      runs: answer.runs,
-      changedRuns: answer.changedRuns,
-      collateralRuns: answer.collateralRuns,
-      rejectedRuns: answer.rejectedRuns,
-      ...(answer.firstAt !== undefined ? { firstAt: answer.firstAt } : {}),
-      ...(answer.lastAt !== undefined ? { lastAt: answer.lastAt } : {}),
-      because: describeChurn(answer),
-    };
-  }
-
-  return {
-    ...(Object.keys(flakiness).length > 0 ? { flakiness } : {}),
-    ...(Object.keys(churn).length > 0 ? { churn } : {}),
-    warnings: recorded.warnings,
   };
 }
 

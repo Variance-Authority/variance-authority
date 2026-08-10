@@ -1,4 +1,4 @@
-import type { Observation } from '@variance-authority/history';
+import type { Observation, TokenValue } from '@variance-authority/history';
 import type {
   AreaQuery,
   BackendQuery,
@@ -11,7 +11,14 @@ import type {
   WindowQuery,
 } from '@variance-authority/server';
 import type { D1Like, D1Value } from './bindings.js';
-import { instant, number, text, toObservation, type Row } from './history-rows.js';
+import {
+  instant,
+  number,
+  text,
+  toObservation,
+  toTokenValue,
+  type Row,
+} from './history-rows.js';
 
 /**
  * The predicates, and the three reads whose shape is not a plain `SELECT *`.
@@ -138,6 +145,36 @@ export async function currentRows(db: D1Like, query: SubjectsQuery): Promise<rea
     .all<Row>();
 
   return rows.results.map(toObservation);
+}
+
+/**
+ * The newest recorded value per token, and only the newest.
+ *
+ * Transcribed from `sqlite-queries.ts`, window function and tie-break included.
+ * No `LIMIT`, for the reason `currentRows` has none: a token missing from the
+ * answer reads as one nobody has recorded, and the run then writes a value that
+ * did not move.
+ */
+export async function currentTokenRows(
+  db: D1Like,
+  query: BackendQuery,
+): Promise<readonly TokenValue[]> {
+  const clauses: string[] = [];
+  const params: D1Value[] = [];
+  scopeInto(query, clauses, params);
+
+  const where = clauses.map((clause) => ` AND ${clause}`).join('');
+
+  const rows = await db
+    .prepare(
+      'SELECT * FROM (SELECT *, ROW_NUMBER() OVER (' +
+        'PARTITION BY project, token ORDER BY at_ms DESC, rowid DESC) AS recency ' +
+        `FROM token_values WHERE 1 = 1${where}) WHERE recency = 1`,
+    )
+    .bind(...params)
+    .all<Row>();
+
+  return rows.results.map(toTokenValue);
 }
 
 /**

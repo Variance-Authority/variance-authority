@@ -17,6 +17,7 @@ import {
   areaFilter,
   componentFilter,
   currentRows,
+  currentTokenRows,
   reachRows,
   slice,
   subjectFilter,
@@ -233,6 +234,10 @@ export function createSqliteBackend(options: SqliteBackendOptions): HistoryBacke
 
     async currentOf(query): Promise<readonly Observation[]> {
       return currentRows(prepare, query).map(toObservation);
+    },
+
+    async currentTokens(query): Promise<readonly TokenValue[]> {
+      return currentTokenRows(prepare, query).map(toTokenValue);
     },
 
     async lastObservation(query): Promise<Observation | null> {

@@ -16,6 +16,7 @@ import {
   areaFilter,
   componentFilter,
   currentRows,
+  currentTokenRows,
   reachRows,
   slice,
   subjectFilter,
@@ -228,6 +229,10 @@ export function createD1Backend(db: D1Like): HistoryBackend {
 
     async currentOf(query): Promise<readonly Observation[]> {
       return currentRows(db, query);
+    },
+
+    async currentTokens(query): Promise<readonly TokenValue[]> {
+      return currentTokenRows(db, query);
     },
 
     async lastObservation(query): Promise<Observation | null> {

@@ -146,6 +146,31 @@ export function currentRows(prepare: Prepare, query: SubjectsQuery): Record<stri
   ).all(params);
 }
 
+/**
+ * The newest recorded value per token, and only the newest.
+ *
+ * Same window function and the same reason as {@link currentRows}: `MAX()` says
+ * nothing about ties, and two values written from one clock read would resolve
+ * arbitrarily. No `LIMIT`, because a token missing from the answer reads as a
+ * token nobody has recorded — which makes a run write a value that did not move.
+ */
+export function currentTokenRows(
+  prepare: Prepare,
+  query: BackendQuery,
+): Record<string, SQLOutputValue>[] {
+  const clauses: string[] = [];
+  const params: Record<string, SQLInputValue> = {};
+  scopeInto(query, clauses, params);
+
+  const where = clauses.map((clause) => ` AND ${clause}`).join('');
+
+  return prepare(
+    'SELECT * FROM (SELECT *, ROW_NUMBER() OVER (' +
+      'PARTITION BY project, token ORDER BY at_ms DESC, rowid DESC) AS recency ' +
+      `FROM token_values WHERE 1 = 1${where}) WHERE recency = 1`,
+  ).all(params);
+}
+
 function scopeInto(
   query: BackendQuery,
   clauses: string[],

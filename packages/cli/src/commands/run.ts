@@ -4,7 +4,8 @@ import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
 import { matchesGlob, type Plan } from './collector.js';
 import { observeOne } from './observe-one.js';
-import { recordIfConfigured, type SubjectHistory } from './history.js';
+import type { SubjectHistory } from './history.js';
+import { recordIfConfigured } from './history-report.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
@@ -334,6 +335,7 @@ async function observeAll(
     notObserved,
     ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
+    ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),
     ...(warnings.length + recorded.warnings.length > 0
       ? { warnings: [...warnings, ...recorded.warnings] }
       : {}),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createAbsentStore, type HistoryStore, type Instability, type Observation, type RunRecord } from '@variance-authority/history';
 import { environmentKey, profileById, type SemanticSnapshot } from '@variance-authority/core';
 import type { Config } from '../config.js';
-import { identityOf, recordIfConfigured, recordRun } from './history.js';
+import { identityOf, recordRun } from './history.js';
 import type { CliObservationRecord } from './run-report.js';
 
 /**
@@ -69,7 +69,7 @@ function store(
   return {
     ...createAbsentStore(),
     async current() {
-      return previous;
+      return { observations: previous, tokens: [] };
     },
     async record(run, observations, _tokens, instabilities) {
       written.push({ run, observations, instabilities: instabilities ?? [] });
@@ -312,115 +312,5 @@ describe('the tokens a run resolved', () => {
     expect((written[0] as unknown as { tokens: readonly unknown[] }).tokens).toEqual([]);
     expect(recorded.warnings[0]).toContain('--brand');
     expect(recorded.warnings[0]).toContain('no value was picked');
-  });
-});
-
-describe('what the run reports about the record', () => {
-  it('says nothing when no store is configured, and says so when one is and cannot be named', async () => {
-    const quiet = await recordIfConfigured({
-      config: { ...CONFIG, history: undefined } as Config,
-      deps: {},
-      at: '2026-03-01T10:00:00.000Z',
-      swept: false,
-      readings: [],
-      observations: [],
-    });
-    // Not a warning: the operator did not ask for a record, and a run that
-    // complained every time would teach its reader to skip the warnings.
-    expect(quiet.warnings).toEqual([]);
-
-    const unnamed = await recordIfConfigured({
-      config: CONFIG,
-      deps: { history: store([], []) },
-      at: '2026-03-01T10:00:00.000Z',
-      swept: false,
-      readings: [],
-      observations: [],
-    });
-    expect(unnamed.warnings[0]).toContain('this run has no id and commit');
-  });
-
-  it('records a subject that failed its second collection, which has no reading at all', async () => {
-    // The loudest form of the thing being measured: collected once, and then not
-    // collectable a second time. It reaches the report as an `unstable` finding
-    // with no snapshot behind it, and dropping it would leave the worst
-    // occurrence the only one never written down.
-    const written: Written[] = [];
-    await recordIfConfigured({
-      config: CONFIG,
-      deps: { history: store([], written) },
-      at: '2026-03-01T10:00:00.000Z',
-      identity: { run: 'r1', commit: 'c1' },
-      swept: false,
-      readings: [],
-      observations: [
-        { subject: 'story:card', verdict: 'changed', because: '', regions: [], unstable: UNSTABLE } as CliObservationRecord,
-      ],
-    });
-
-    expect(written[0]?.instabilities).toHaveLength(1);
-  });
-
-  it('carries a flakiness answer into the report with a sentence attached', async () => {
-    const answered = store([], [], {
-      async flakiness(subject) {
-        return {
-          subject,
-          window: {},
-          runs: 20,
-          sweeps: 12,
-          occurrences: 6,
-          absorbedRuns: 0,
-          rate: 0.5,
-          sweepsSince: 9,
-          causes: [{ component: 'Clock', band: 'content', runs: 6 }],
-          omittedRuns: 0,
-          omittedOccurrences: 0,
-        };
-      },
-    });
-
-    const recorded = await recordIfConfigured({
-      config: CONFIG,
-      deps: { history: answered },
-      at: '2026-03-01T10:00:00.000Z',
-      identity: { run: 'r1', commit: 'c1' },
-      swept: true,
-      readings: [{ subject: 'story:card' }],
-      observations: [
-        { subject: 'story:card', verdict: 'changed', because: '', regions: [], unstable: UNSTABLE } as CliObservationRecord,
-      ],
-    });
-
-    // The number and the instruction. "6 of 20" says the fixture is bad; "none in
-    // the last 9 sweeps" says somebody already fixed it.
-    expect(recorded.flakiness?.['story:card']?.occurrences).toBe(6);
-    expect(recorded.flakiness?.['story:card']?.because).toContain(
-      '9 sweep(s) have not seen it since',
-    );
-  });
-
-  it('asks nothing about a subject that read the same way twice', async () => {
-    const asked: string[] = [];
-    const answered = store([], [], {
-      async flakiness(subject) {
-        asked.push(subject);
-        return { kept: false, because: 'no record' };
-      },
-    });
-
-    await recordIfConfigured({
-      config: CONFIG,
-      deps: { history: answered },
-      at: '2026-03-01T10:00:00.000Z',
-      identity: { run: 'r1', commit: 'c1' },
-      swept: true,
-      readings: [{ subject: 'story:card' }, { subject: 'story:other' }],
-      observations: [
-        { subject: 'story:card', verdict: 'unchanged', because: '', regions: [] } as CliObservationRecord,
-      ],
-    });
-
-    expect(asked).toEqual([]);
   });
 });

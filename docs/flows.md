@@ -248,10 +248,12 @@ happening for a month* or *nine sweeps have been clean since*
 acceptance — a row per `(subject, run)`, because an append-only store cannot flip
 a flag — and a run records the design tokens it resolved, so the twenty-two-pixel
 story this rung exists for is reachable. A run also asks how often each component it
-blamed has changed before, and prints the answer under the regions it qualifies —
-which is the instrument a comparison structurally cannot be. What is missing is a
-caller for the other two questions: `valueJourney` and `reach` answer correctly
-and nothing asks them. See [spec 0002](specs/0002-history-store.md).
+blamed has changed before, and — when a design token resolves to something the
+record has not seen — what that token has drifted to across every approved change
+in the window. That last one is the sum no review holds: eleven correct approvals
+of 2px each are eleven correct decisions and one 22px change nobody made. What is
+missing is `reach`, which asks about the suite rather than about this run. See
+[spec 0002](specs/0002-history-store.md).
 
 Worth stating anyway, because it is the only rung that answers a question the
 others structurally cannot. Every rung below compares two things. A sum across

@@ -827,11 +827,11 @@ hashing tier and the storage tier exists and carries traffic.
 What has **not** changed is the claim this section was written to make, and it is
 worth stating precisely rather than deleting:
 
-- **The 22px story in [§3.4](#34-accumulation-as-text-not-pixels) has still never
-  been produced by the pipeline.** Since 2026-08-10 every part of it exists — a run
-  records the tokens it resolved, `variance accept` records the approval, and the
-  journey arithmetic sums approved steps — but producing the sentence takes eleven
-  runs and eleven approvals, and nobody has run them.
+- **The 22px story in [§3.4](#34-accumulation-as-text-not-pixels) is produced by
+  the pipeline and has never been *run*.** Since 2026-08-10 a run records the
+  tokens it resolved, `variance accept` records the approval, and a run whose token
+  moved asks for its journey and prints the total under a `DRIFT:` heading. What
+  has not happened is eleven runs and eleven approvals against a real project.
 - **`churn` and `reach` have rows and no caller.** Acceptance is recorded now —
   `variance accept` writes an approval per `(subject, run)`, so the rows a run
   wrote can be counted as approved — but nothing in the product asks the

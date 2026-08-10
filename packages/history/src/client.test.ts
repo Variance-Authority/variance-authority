@@ -214,10 +214,10 @@ describe('the history client', () => {
     const store = createHttpHistoryStore({ endpoint: 'http://box:7788', token: 't', fetch: send });
 
     const subjects = Array.from({ length: MAX_CURRENT_SUBJECTS + 30 }, (_, index) => `s${index}`);
-    const rows = await store.current(subjects);
+    const answer = await store.current(subjects);
 
     expect(send.calls).toHaveLength(2);
-    expect(rows.map((row) => row.subject)).toEqual(subjects);
+    expect(answer.observations.map((row) => row.subject)).toEqual(subjects);
     // A read, and still a POST: three hundred subject ids in a query string is a
     // 414 from a proxy nobody configured.
     expect(send.calls[0]?.init?.method).toBe('POST');
@@ -227,7 +227,7 @@ describe('the history client', () => {
     const send = stubFetch(() => ({ observations: [] }));
     const store = createHttpHistoryStore({ endpoint: 'http://box:7788', token: 't', fetch: send });
 
-    await expect(store.current([])).resolves.toEqual([]);
+    await expect(store.current([])).resolves.toEqual({ observations: [], tokens: [] });
     expect(send.calls).toHaveLength(0);
 
     await store.current(['a', 'a', 'b']);
