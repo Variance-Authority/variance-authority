@@ -73,17 +73,36 @@ One row on this table was wrong in the pessimistic direction until somebody
 checked, which is worth more than the row: a scorecard nobody measures drifts in
 whichever direction its author last guessed.
 
-## What is true of all three
+## What is left, and who it belongs to
 
-Two facts sit above every row and neither is about features.
+Every remaining **no** on this page is one of four things, and none of them is
+work that was merely not got to yet. They are listed together because the
+difference between *this can replace it* and *this has replaced it* is entirely
+here.
 
-**Nothing has been published.** No tag, no registry, no install path
-([spec 0015](specs/0015-the-first-published-release.md)). Every "yes" above is a
-yes for somebody who vendors this repository.
+**Two are decisions somebody has to make.**
 
-**Nothing has run on a real pull request.** The workflow, the composite action,
-the comment and the commit-back are written and exercised against fixtures; no
-comment has ever been posted ([spec 0016](specs/0016-ci-that-has-run.md)).
+- *Foreign PNGs.* Argos's CLI takes an image from anywhere; this has no verb that
+  does. [`surface.md §4`](surface.md#an-image-this-system-did-not-paint) argues
+  it as a position with the arithmetic attached — without a document there is no
+  component, no band, no cause, no settlement — and concludes that accepting them
+  "would offer a second, worse tool under the same command name". It is
+  *reversible*: an ingested image with an operator-**declared** identity would
+  compare on pixels alone, and the reduced power could be stated rather than
+  hidden. That is a product decision, not an implementation one.
+- *A cross-browser grid.* [Parked deliberately](specs/0020-a-cross-browser-grid.md),
+  and the largest single thing Percy sells that this does not have.
 
-Those two are the difference between *this can replace it* and *this has replaced
-it*, and no amount of capability closes them.
+**Two are actions on somebody's infrastructure.**
+
+- *Nothing has been published.* No tag, no registry, no install path
+  ([spec 0015](specs/0015-the-first-published-release.md)). Every "yes" above is a
+  yes for somebody who vendors this repository.
+- *Nothing has run on a real pull request*, and no review surface has been
+  deployed. The workflow, the composite action, the comment, the commit-back and
+  [`tribunal`](../packages/tribunal) are all written and exercised against
+  fixtures; none has met production
+  ([spec 0016](specs/0016-ci-that-has-run.md),
+  [spec 0021](specs/0021-tribunal-on-a-real-deployment.md)).
+
+No amount of further capability closes any of the four.
