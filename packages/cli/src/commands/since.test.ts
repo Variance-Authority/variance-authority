@@ -1,0 +1,101 @@
+import { describe, expect, it } from 'vitest';
+import type { SourceIndex } from '@variance-authority/core';
+import type { Collected, Plan } from './run.js';
+import {
+  collectorOf,
+  configOf,
+  documentFor,
+  runWith,
+  storeAnswering,
+  whiteBaselineOf,
+} from './run-fixture.js';
+
+/**
+ * `--since`: what a run is allowed *not* to look at.
+ *
+ * The saving this buys is the largest one available — a 300-subject suite where
+ * one component moved pays for two verdicts instead of three hundred collections.
+ * The risk it carries is the worst one available: a subject skipped in error is a
+ * green run over an unwatched surface, and it is silent, because the subject is
+ * not in the report to be missing from.
+ *
+ * So the assertions are about *accounting*. A skipped subject is still in the
+ * artifact, with the sentence that skipped it, and a run that could not narrow
+ * says which of the two things happened.
+ */
+
+const SOURCE: SourceIndex = {
+  Button: [{ file: 'src/Button.tsx', line: 1, via: 'function' }],
+  Clock: [{ file: 'src/Clock.tsx', line: 1, via: 'const' }],
+};
+
+const CONFIG = configOf({ source: { dirs: ['src'] } });
+
+const PLAN: Plan = {
+  subjects: [{ subject: { id: 'fixture:a', kind: 'fixture' } }],
+  notObserved: [],
+  warnings: [],
+};
+
+const COLLECTOR = collectorOf(
+  PLAN,
+  (subject): Collected => ({ ok: true, document: documentFor(subject.subject.id) }),
+);
+
+/** Two subjects whose baselines record one component each. */
+function stored(components: readonly string[]) {
+  const baseline = whiteBaselineOf(documentFor('fixture:a'));
+  return storeAnswering({
+    ...baseline,
+    raster: { ...baseline.raster, components: components.map((component) => ({ component, instances: 1, structure: 'v1:s' })) },
+  });
+}
+
+describe('narrowing a run to what a diff could have changed', () => {
+  it('excludes a subject whose baseline names no component the diff touched', async () => {
+    const { report } = await runWith(CONFIG, COLLECTOR, stored(['Clock']), {
+      since: { ref: 'origin/main', changed: ['src/Button.tsx'] },
+      scanSource: async () => SOURCE,
+    });
+
+    // In the artifact, not missing from it, and carrying the reason.
+    expect(report.observations).toEqual([]);
+    expect(report.notObserved?.[0]?.subject).toBe('fixture:a');
+    expect(report.notObserved?.[0]?.kind).toBe('excluded');
+    expect(report.notObserved?.[0]?.because).toContain('not affected by the diff against origin/main');
+  });
+
+  it('observes a subject whose baseline names a component the diff touched', async () => {
+    const { report } = await runWith(CONFIG, COLLECTOR, stored(['Button']), {
+      since: { ref: 'origin/main', changed: ['src/Button.tsx'] },
+      scanSource: async () => SOURCE,
+    });
+
+    expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+    expect(report.notObserved).toEqual([]);
+  });
+
+  it('says out loud when it declined to narrow', async () => {
+    // "We could not rule anything out" and "nothing needed ruling out" produce
+    // the same run and mean opposite things about the next one.
+    const { report } = await runWith(CONFIG, COLLECTOR, stored(['Clock']), {
+      since: { ref: 'origin/main', changed: ['src/tokens.css'] },
+      scanSource: async () => SOURCE,
+    });
+
+    expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+    expect(report.warnings?.join('\n')).toContain('did not narrow this run');
+    expect(report.warnings?.join('\n')).toContain('declare no component');
+  });
+
+  it('refuses `--since` with no configured source directories', async () => {
+    // Narrowing on an empty index would rule out the whole suite and report
+    // success. An operator error, raised as one.
+    await expect(
+      runWith(configOf({}), COLLECTOR, stored(['Clock']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx'] },
+        scanSource: async () => SOURCE,
+      }),
+    ).rejects.toThrow(/where your components are declared/);
+  });
+});

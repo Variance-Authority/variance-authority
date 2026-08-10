@@ -1,13 +1,18 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { readdirSync, type Dirent } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
 import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
 import { createRemoteStore } from '@variance-authority/remote';
 import { createDurableStore, createLfsStore } from '@variance-authority/store';
+import type { SourceIndex } from '@variance-authority/core';
 import type { Config } from '../config.js';
+import { indexOf } from './affected.js';
 import { OperatorError } from '../exit.js';
 
 /**
@@ -97,6 +102,86 @@ export function renderCacheRoot(): string {
       : join(homedir(), '.cache');
 
   return join(base, 'variance-authority', 'renders');
+}
+
+/**
+ * Files a diff against `ref` touched, repository-relative.
+ *
+ * `git diff --name-only ref...HEAD` — three dots, so the comparison is against
+ * the **merge base** rather than against the tip of the other branch. Two dots on
+ * a branch that is behind `main` reports every file anybody else merged as
+ * changed here, which would widen a selection to the whole suite for a reason
+ * nobody could see.
+ *
+ * A failure is an operator error rather than an empty list. An empty list means
+ * *this diff touched nothing*, and answering a broken `git` with it would narrow
+ * a run to nothing while reporting success.
+ */
+export async function changedSince(ref: string): Promise<readonly string[]> {
+  const run = promisify(execFile);
+
+  try {
+    const { stdout } = await run('git', ['diff', '--name-only', `${ref}...HEAD`], {
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    return stdout.split('\n').map((line) => line.trim()).filter((line) => line !== '');
+  } catch (error) {
+    throw new OperatorError(
+      `\`--since ${ref}\` could not list what changed: ${messageOf(error)}. ` +
+        'A run that answered this with an empty diff would narrow itself to nothing and report ' +
+        'success, so it refuses instead. Check the ref exists and that this is a git checkout ' +
+        '(a shallow CI clone often needs `fetch-depth: 0`).',
+    );
+  }
+}
+
+/**
+ * The component index, from the directories the config names.
+ *
+ * The same walk both shipped collectors do, for the same reason and with the same
+ * rule owner: `indexSource` in `core` decides how a file becomes an index, and
+ * this decides which files. Selection needs it *before* anything is collected, so
+ * it cannot borrow the collector's.
+ */
+export async function scanSourceDirs(
+  root: string,
+  dirs: readonly string[],
+): Promise<SourceIndex> {
+  const contents = new Map<string, string>();
+
+  for (const dir of dirs) {
+    for (const file of walkSource(isAbsolute(dir) ? dir : join(root, dir))) {
+      contents.set(relative(root, file), await readFile(file, 'utf8'));
+    }
+  }
+
+  return indexOf(contents);
+}
+
+const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];
+const SOURCE_EXCLUDE = ['node_modules', '.test.', '.spec.', '.stories.', 'dist/'];
+
+function walkSource(dir: string): readonly string[] {
+  const found: string[] = [];
+
+  let entries: readonly Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    // A configured directory that does not exist contributes nothing rather than
+    // failing the run: the refusal that matters is an empty *index*, and the
+    // selector states that itself.
+    return found;
+  }
+
+  for (const entry of entries) {
+    const path = join(dir, entry.name);
+    if (SOURCE_EXCLUDE.some((skip) => path.includes(skip))) continue;
+    if (entry.isDirectory()) found.push(...walkSource(path));
+    else if (SOURCE_EXTENSIONS.some((extension) => entry.name.endsWith(extension))) found.push(path);
+  }
+
+  return found;
 }
 
 /**

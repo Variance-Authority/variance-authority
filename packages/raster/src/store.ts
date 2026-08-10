@@ -118,6 +118,26 @@ export interface Described {
    * is how `stabilization` once made every subject `incomparable` forever.
    */
   readonly missingFonts: readonly string[];
+
+  /**
+   * Component names the document that painted this baseline rendered (ADR-0018).
+   *
+   * The field that lets a run decide *what not to observe*. A subject whose
+   * baseline names none of the components an edit touched cannot have been
+   * changed by that edit, so it need not be collected at all — which is the whole
+   * of `--since` (`docs/selecting.md`).
+   *
+   * Names rather than hashes, deliberately. A hash here would invite a caller to
+   * compare it against this run's and skip the comparison, which is `settle`'s
+   * job and is decided on the *document* digest; a name list can only answer
+   * membership, which is the only question selection is allowed to ask.
+   *
+   * **Absent means unknown, never none.** A baseline written before ADR-0027, or
+   * by a profile that produced no snapshot, has no list — and a selector that
+   * read that as "renders nothing" would skip a subject on the strength of a
+   * missing field.
+   */
+  readonly components?: readonly string[];
 }
 
 export interface RasterStore {

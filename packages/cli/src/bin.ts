@@ -60,6 +60,11 @@ export type Parsed =
        */
       readonly run?: string;
       readonly commit?: string;
+      /**
+       * `--since <ref>`: observe only what the diff against this ref could have
+       * changed. The ref is a git revision — a branch, a tag, a SHA.
+       */
+      readonly since?: string;
       /** `--flakes`: read every subject twice, not only the ones that changed. */
       readonly flakes: boolean;
       readonly exitZeroOnChanges: boolean;
@@ -108,6 +113,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
     '--intent',
     '--run',
     '--commit',
+    '--since',
     '--flakes',
     '--exit-zero-on-changes',
   ],
@@ -119,7 +125,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
 };
 
 export const USAGE = [
-  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--flakes] [--exit-zero-on-changes]',
+  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--flakes] [--exit-zero-on-changes]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]',
   'variance serve   [--config <path>]              # MCP over stdio',
@@ -158,6 +164,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
       const intent = flags.values.get('--intent');
       const runId = flags.values.get('--run');
       const commit = flags.values.get('--commit');
+      const since = flags.values.get('--since');
       noPositionals(flags.positionals, 'run');
 
       return {
@@ -168,6 +175,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(intent !== undefined ? { intent } : {}),
         ...(runId !== undefined ? { run: runId } : {}),
         ...(commit !== undefined ? { commit } : {}),
+        ...(since !== undefined ? { since } : {}),
         flakes: flags.present.has('--flakes'),
         exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
       };

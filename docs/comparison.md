@@ -150,9 +150,18 @@ comparison: a known $283/mo against an unknown engineering commitment.
 
 - **Zero-authoring test discovery.** If stories exist, tests exist. Play
   functions run as interaction tests before capture
-  ([docs](https://www.chromatic.com/docs/storybook/test/)). Here the operator
-  writes a collector — 234 lines in the only worked example, once
-  ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)).
+  ([docs](https://www.chromatic.com/docs/storybook/test/)). A built Storybook is
+  five lines of config here and no collector
+  ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)), but play
+  functions are theirs alone: nothing here runs an interaction before capture.
+- **TurboSnap over a bundler graph.** A change is traced through webpack's own
+  dependency graph, which catches a component that is imported and *not yet
+  rendered* — a conditional branch nobody has taken. Selection here reads what the
+  last run actually painted instead
+  ([`selecting.md`](selecting.md)), which needs no second build to configure and
+  cannot go stale, and which is blind to exactly that case. Both widen to the
+  whole suite when a change cannot be attributed; theirs says so in its docs and
+  this says so in its report.
 - **Accessibility as a product, not a rule list.** axe on every snapshot, in a
   dashboard, with a triage flow and a history
   ([a11y](https://www.chromatic.com/docs/accessibility-tests/)). This project

@@ -6,6 +6,7 @@ import { matchesGlob, type Plan } from './collector.js';
 import { observeOne } from './observe-one.js';
 import type { SubjectHistory } from './history.js';
 import { recordIfConfigured } from './history-report.js';
+import { affectedSubjects } from './affected.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
@@ -65,7 +66,15 @@ export { sensitivityLedgerOf, summarizeSensitivities } from './sensitivities.js'
 export type { SensitivityLedger, SensitivityUsage } from './sensitivities.js';
 export type { IgnoreLedger, IgnoreUsage } from './ignores.js';
 export { recordOf } from './record.js';
-export { decoderFor, historyFor, renderCacheRoot, storeFor, writeArtifactToDisk } from './resources.js';
+export {
+  changedSince,
+  decoderFor,
+  historyFor,
+  renderCacheRoot,
+  scanSourceDirs,
+  storeFor,
+  writeArtifactToDisk,
+} from './resources.js';
 export { readCliRunReport, writeCliRunReport } from './run-report.js';
 export type {
   CliObservationRecord,
@@ -193,8 +202,25 @@ async function observeAll(
 
   let storeFailure: unknown;
 
+  // Decided before anything is collected, because that is the entire saving: a
+  // subject ruled out is a subject nothing mounts, paints or compares.
+  const selected = await selectionFor(plan, context, options);
+  // A run that declined to narrow says so. "We could not rule anything out" and
+  // "nothing needed ruling out" produce the same run and mean opposite things
+  // about the next one.
+  const selection = selected?.whole === undefined ? [] : [selected.whole];
+
   await pool(concurrencyOf(config), plan.subjects, async (planned, index) => {
     const id = planned.subject.id;
+
+    const ruledOut = selected?.skipped.get(id);
+    if (ruledOut !== undefined) {
+      slots[index] = {
+        kind: 'not-observed',
+        entry: { subject: id, kind: 'excluded', because: ruledOut },
+      };
+      return;
+    }
 
     // Once a store has failed the run is over, so later subjects stop rather
     // than each paying a render to reach the same conclusion.
@@ -336,8 +362,8 @@ async function observeAll(
     ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),
-    ...(warnings.length + recorded.warnings.length > 0
-      ? { warnings: [...warnings, ...recorded.warnings] }
+    ...(warnings.length + selection.length + recorded.warnings.length > 0
+      ? { warnings: [...warnings, ...selection, ...recorded.warnings] }
       : {}),
     ...(ignores !== undefined ? { ignores } : {}),
     ...(sensitivities !== undefined ? { sensitivities } : {}),
@@ -364,6 +390,69 @@ function customProperties(
     if (property.startsWith('--')) tokens[property] = value;
   }
   return tokens;
+}
+
+/**
+ * What `--since` ruled out, or `undefined` when nothing asked it to.
+ *
+ * Every input it needs is fetched here and the decision itself is a pure
+ * function next door, which is what makes the rules in `affected.ts` assertable
+ * without a repository, a store or a browser.
+ *
+ * **It refuses rather than guesses.** A `--since` with no `source.dirs` in the
+ * config cannot know where components are declared, and narrowing on an empty
+ * index would rule out the entire suite. That is an operator error and is raised
+ * as one; the alternative is a green run over nothing.
+ */
+async function selectionFor(
+  plan: Plan,
+  context: ObserveContext,
+  options: RunOptions,
+): Promise<{ readonly skipped: ReadonlyMap<string, string>; readonly whole?: string } | undefined> {
+  const { config, deps, renderer } = context;
+  if (options.since === undefined) return undefined;
+
+  const scan = deps.scanSource;
+  if (config.source === undefined || scan === undefined) {
+    throw new OperatorError(
+      '`--since` narrows a run to the subjects a diff could have changed, and needs to know ' +
+        'where your components are declared. Add `source: { dirs: [...] }` to the config. ' +
+        'Narrowing without it would rule out every subject in the suite.',
+    );
+  }
+
+  // The component list a baseline recorded, read from the sidecar without the
+  // image: this is `describe`'s whole reason to exist, and selection is the
+  // second caller that would otherwise have paid a megabyte per subject to ask a
+  // question about names.
+  const baselines = new Map<string, readonly string[] | undefined>();
+  for (const planned of plan.subjects) {
+    const described = await deps.store.describe(
+      { subject: planned.subject.id },
+      renderer.identity,
+    );
+    baselines.set(planned.subject.id, described?.components);
+  }
+
+  const answer = affectedSubjects({
+    planned: plan.subjects.map((planned) => planned.subject.id),
+    changed: options.since.changed,
+    source: await scan(config.source.dirs),
+    roots: config.source.dirs,
+    baselines,
+  });
+
+  return {
+    skipped: new Map(
+      answer.skipped.map((entry) => [
+        entry.subject,
+        `not affected by the diff against ${options.since?.ref ?? 'the ref'}: ${entry.because}`,
+      ]),
+    ),
+    ...(answer.whole !== undefined
+      ? { whole: `\`--since ${options.since.ref}\` did not narrow this run: ${answer.whole}` }
+      : {}),
+  };
 }
 
 function messageOf(error: unknown): string {

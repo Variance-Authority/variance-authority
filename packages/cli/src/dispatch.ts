@@ -15,10 +15,12 @@ import {
   loadCollector,
   planList,
   planStorybook,
+  changedSince,
   historyFor,
   identityOf,
   readCliRunReport,
   run,
+  scanSourceDirs,
   storeFor,
   writeArtifactToDisk,
   writeCliRunReport,
@@ -102,6 +104,9 @@ export async function dispatch(
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
           ...(parsed.flakes ? { flakes: true } : {}),
           ...(identity !== undefined ? { identity } : {}),
+          ...(parsed.since !== undefined
+            ? { since: { ref: parsed.since, changed: await changedSince(parsed.since) } }
+            : {}),
           deps: {
             collector,
             store: await storeFor(effective),
@@ -109,6 +114,7 @@ export async function dispatch(
             now: () => new Date().toISOString(),
             writeArtifact: writeArtifactToDisk,
             writeReport: writeCliRunReport,
+            scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             ...(history !== undefined ? { history } : {}),
           },
         });

@@ -1,4 +1,5 @@
 import type { HistoryStore } from '@variance-authority/history';
+import type { SourceIndex } from '@variance-authority/core';
 import type { PngDecoder } from '@variance-authority/png';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import type { Config } from '../config.js';
@@ -53,6 +54,16 @@ export interface RunDeps {
    * them to something that discards them.
    */
   readonly history?: HistoryStore;
+
+  /**
+   * Build the component index from the configured directories.
+   *
+   * Injected because it walks a disk, and because `--since` is the one decision
+   * in this command whose inputs are all outside it: a diff, a scan and a set of
+   * baselines. With all three as values, every rule about what may be ruled out
+   * is assertable with no repository and no browser.
+   */
+  scanSource?(dirs: readonly string[]): Promise<SourceIndex>;
 }
 
 export interface RunOptions {
@@ -90,6 +101,21 @@ export interface RunOptions {
    * anything that shipped and it silently becomes a denominator.
    */
   readonly identity?: RunIdentity;
+
+  /**
+   * `--since <ref>`: observe only what this diff could have changed.
+   *
+   * The subjects it rules out are recorded as `excluded` with the sentence that
+   * ruled them out — never dropped, because a subject missing from a report is a
+   * subject nobody can ask about, and a selector that skipped one it should have
+   * observed would produce a green run over an unwatched surface.
+   */
+  readonly since?: {
+    /** Repository-relative paths the diff named. */
+    readonly changed: readonly string[];
+    /** The ref they were computed against, for the sentence. */
+    readonly ref: string;
+  };
 }
 
 export interface ObserveContext {

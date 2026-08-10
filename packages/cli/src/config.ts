@@ -118,6 +118,22 @@ export interface Config {
   readonly baselines?: BaselinesConfig;
 
   /**
+   * Directories your components are declared in, for `variance run --since`.
+   *
+   * Only selection reads this. Attribution's index is the collector's, built
+   * where the collector already walks — this is the CLI's own copy of the same
+   * question, asked before anything is collected because that is the point: a
+   * subject ruled out is a subject nothing has to mount.
+   *
+   * Naming them is also a declaration. A changed file *inside* these is one this
+   * scan understands, so a change it finds no component in forces a whole run; a
+   * changed file outside them is one nobody claimed could move a render, and
+   * narrowing past it is the operator's own statement of where their components
+   * are ([`docs/selecting.md`](../../../docs/selecting.md)).
+   */
+  readonly source?: { readonly dirs: readonly string[] };
+
+  /**
    * Fonts this machine is asserted to have, as `family/weight/style/hash`.
    *
    * Asserted rather than detected, because a page can ask whether a family
@@ -261,6 +277,7 @@ const TOP_LEVEL = [
   'retention',
   'subjects',
   'baselines',
+  'source',
   'fonts',
   'browser',
   'renderer',
@@ -274,6 +291,32 @@ const TOP_LEVEL = [
   'decoder',
   'concurrency',
 ] as const;
+
+/**
+ * Where components are declared, for selection only.
+ *
+ * Directories rather than globs, matching every other place this project asks
+ * the same question: a glob syntax is a small language with its own bugs, and
+ * *which directories hold components* is answerable without one.
+ */
+function parseSourceDirs(
+  value: unknown,
+  options: ParseOptions,
+): { readonly dirs: readonly string[] } {
+  const root = object(value, 'source', ['dirs'], options);
+  const dirs = root['dirs'];
+
+  if (!Array.isArray(dirs) || dirs.length === 0 || dirs.some((dir) => typeof dir !== 'string')) {
+    throw new ConfigError(
+      options.source,
+      'source.dirs',
+      'must be a non-empty array of directory paths; selection narrows a run by what these ' +
+        'declare, so an empty list would silently narrow it to nothing',
+    );
+  }
+
+  return { dirs: dirs as readonly string[] };
+}
 
 /**
  * Validate a parsed config value. Pure: no filesystem, no clock, no network.
@@ -376,6 +419,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(baselines !== undefined ? { baselines } : {}),
     fonts: parseFonts(root['fonts'], options),
     ...(root['history'] === undefined ? {} : { history: parseHistory(root['history'], options) }),
+    ...(root['source'] === undefined ? {} : { source: parseSourceDirs(root['source'], options) }),
     report,
     // Beside the *report* rather than beside the config: `ObservationRecord.images`
     // paths are relative to the report, so an image directory anchored anywhere

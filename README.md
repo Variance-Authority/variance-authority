@@ -121,6 +121,7 @@ build when they do not.
 | Choosing where baselines live | [`docs/flows.md`](docs/flows.md) — six setups and what each cannot do |
 | Silencing a clock, a carousel or a flake | [`docs/ignores.md`](docs/ignores.md) — the two forms, a case each, and the ledger that stops one becoming a blind spot |
 | Catching what no single comparison can | [`docs/history.md`](docs/history.md) — drift across approvals, how often a component changes, whether a flake is new |
+| Running less of the suite per pull request | [`docs/selecting.md`](docs/selecting.md) — `--since`, what it will not skip, and what it cannot reach |
 | Running the binary in CI | [`cli`](packages/cli) — six commands, exit codes, sharding, the HTML report, CI recipes |
 | Composing it as a library | [`observe`](packages/observe) for the assembled answer, [`core`](packages/core) for the pieces |
 | Serving a coding agent | [`mcp`](packages/mcp) — the observation over stdio |

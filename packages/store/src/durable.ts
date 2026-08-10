@@ -60,6 +60,12 @@ export function createDurableStore(root: string): RasterStore {
           comparable: true,
           storedUnder: own.identity,
           missingFonts: own.missingFonts,
+          // Names only. The sidecar carries hashes; a describe that handed them
+          // on would invite a caller to settle from them, which is the document
+          // digest's job — this list can only answer membership.
+          ...(own.components === undefined
+            ? {}
+            : { components: own.components.map((hash) => hash.component) }),
         };
       }
 
@@ -72,6 +78,9 @@ export function createDurableStore(root: string): RasterStore {
             comparable: false,
             storedUnder: sidecar.identity,
             missingFonts: sidecar.missingFonts,
+            ...(sidecar.components === undefined
+              ? {}
+              : { components: sidecar.components.map((hash) => hash.component) }),
           };
         }
       }

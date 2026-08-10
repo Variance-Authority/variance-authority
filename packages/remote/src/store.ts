@@ -284,7 +284,14 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     );
   }
 
+  // Dropped rather than refused when it will not parse, unlike every field
+  // above. Those decide a verdict; this decides only whether a subject is worth
+  // *collecting*, and the fallback of a missing list is to collect it — the safe
+  // direction, and the one every run took before selection existed.
+  const components = stringsFrom(described.components);
+
   return {
+    ...(components !== null ? { components } : {}),
     documentDigest: described.documentDigest,
     comparable: described.comparable,
     storedUnder,

@@ -120,6 +120,9 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
         comparable: row.identityDigest === mine,
         storedUnder: sidecar.identity,
         missingFonts: sidecar.missingFonts,
+        ...(sidecar.components === undefined
+          ? {}
+          : { components: sidecar.components.map((hash) => hash.component) }),
       };
     },
 

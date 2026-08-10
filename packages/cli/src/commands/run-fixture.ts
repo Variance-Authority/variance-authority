@@ -5,6 +5,7 @@ import {
   type Raster,
   type RenderDocument,
   type RenderIdentity,
+  type SourceIndex,
   type Viewport,
 } from '@variance-authority/core';
 import {
@@ -147,6 +148,12 @@ export function storeAnswering(found: Found | null | (() => never)): RasterStore
         comparable: baseline.comparable,
         storedUnder: baseline.storedUnder,
         missingFonts: baseline.raster.missingFonts,
+        // Names only, as a real backend reads them out of the sidecar. Absent
+        // when the baseline records none, which is what `--since` reads as
+        // *unknown* and therefore observes.
+        ...(baseline.raster.components === undefined
+          ? {}
+          : { components: baseline.raster.components.map((hash) => hash.component) }),
       };
     },
   };
@@ -298,7 +305,14 @@ export async function runWith(
   config: Config,
   collector: Collector,
   store: RasterStore,
-  options: { subjects?: string; intent?: string; renderer?: Renderer; flakes?: boolean } = {},
+  options: {
+    subjects?: string;
+    intent?: string;
+    renderer?: Renderer;
+    flakes?: boolean;
+    since?: { readonly ref: string; readonly changed: readonly string[] };
+    scanSource?: (dirs: readonly string[]) => Promise<SourceIndex>;
+  } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {
   const written: Written = { artifacts: new Map(), reports: [] };
 
@@ -307,7 +321,9 @@ export async function runWith(
     ...(options.subjects !== undefined ? { subjects: options.subjects } : {}),
     ...(options.intent !== undefined ? { intent: options.intent } : {}),
     ...(options.flakes === true ? { flakes: true } : {}),
+    ...(options.since !== undefined ? { since: options.since } : {}),
     deps: {
+      ...(options.scanSource !== undefined ? { scanSource: options.scanSource } : {}),
       collector,
       store,
       renderer: async () => options.renderer ?? fakeRenderer(),
