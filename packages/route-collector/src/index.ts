@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { matchesGlob, normalize as normalizeCapture } from '@variance-authority/core';
 
@@ -21,7 +22,8 @@ export type {
   PlannedSubject,
 } from './contract.js';
 import type { Collected, Collector, CollectorContext, Plan, PlannedSubject } from './contract.js';
-import { discover } from './sitemap.js';
+import { declaredOnce, discover, routesFromFiles } from './sitemap.js';
+import { pagesIn, serveStatic, type StaticServer } from './serve.js';
 import { routeOf, widthsOf } from './widths.js';
 
 /**
@@ -78,6 +80,21 @@ export interface RouteCollectorOptions {
    * mode.
    */
   readonly sitemap?: string;
+
+  /**
+   * A built directory to serve and take the pages from.
+   *
+   * The other no-code on-ramp: point at what a build produced and get a subject
+   * per `.html` file, with nothing written down. Requires
+   * `subjects.kind: "collector"`, and carries the same trade every discovered
+   * plan does — a page the build stops producing stops being watched.
+   *
+   * Prefer `routes` or `sitemap` against a **real server** when there is one. A
+   * static file server answers what is on disk; the thing that will be deployed
+   * answers with its redirects, its headers and its rewrites, and those are part
+   * of the page.
+   */
+  readonly directory?: string;
 
   /**
    * Viewport widths to read every route at. Defaults to the run's one viewport.
@@ -199,21 +216,8 @@ export function routeCollector(
   return async function createCollector(context: CollectorContext): Promise<Collector> {
     const { config, plan } = context;
     const roots = options.roots ?? DEFAULT_ROOTS;
-    if (options.routes !== undefined && options.sitemap !== undefined) {
-      throw new Error(
-        'routeCollector was given both `routes` and `sitemap`. Two lists cannot be one, and ' +
-          'merging them quietly is how a run watches a page nobody listed — declare one',
-      );
-    }
-
     const entries = Object.entries(options.routes ?? {});
-
-    if (entries.length === 0 && options.sitemap === undefined) {
-      throw new Error(
-        'routeCollector needs at least one route, or a `sitemap` to discover them; a run over ' +
-          'no subjects is not a run',
-      );
-    }
+    declaredOnce(options);
 
     const source = options.source === undefined ? undefined : scanSource(process.cwd(), options.source);
     const bundle = await pageAgentBundle();
@@ -250,6 +254,9 @@ export function routeCollector(
     const engine = harness.engine;
     // Filled by `plan()` when the routes are discovered rather than declared.
     let resolved: Readonly<Record<string, string>> | undefined;
+    // Held for the run's lifetime when a directory is being served, and closed
+    // with the collector: a file server outliving the run holds the port.
+    let served: StaticServer | undefined;
     // Tracks *navigations*, not URLs. A run that reads one route at two widths
     // navigates to the same address twice, and a check on the address alone
     // would decide the agent was still installed after a load that discarded it
@@ -281,20 +288,39 @@ export function routeCollector(
         // ask rather than at construction: a collector that fetched a sitemap
         // merely by being imported would make `variance doctor` reach the
         // network, which it states plainly that it never does.
-        if (options.sitemap !== undefined) {
-          const discovered = await discover(options.sitemap);
-          resolved = discovered;
+        const from =
+          options.sitemap !== undefined
+            ? options.sitemap
+            : options.directory !== undefined
+              ? options.directory
+              : undefined;
+
+        if (from !== undefined) {
+          if (options.directory !== undefined) {
+            served = await serveStatic(resolve(options.directory));
+            resolved = routesFromFiles(pagesIn(resolve(options.directory)), served.baseUrl);
+
+            if (Object.keys(resolved).length === 0) {
+              throw new Error(
+                `${options.directory} holds no .html file, so this run has no subjects. ` +
+                  'Planning zero subjects and exiting 0 is indistinguishable from a suite that ' +
+                  'passed',
+              );
+            }
+          } else {
+            resolved = await discover(from);
+          }
 
           return widthsOf(
             {
-              subjects: Object.keys(discovered).map((id) => ({
+              subjects: Object.keys(resolved).map((id) => ({
                 subject: { id, kind: 'route' as const },
               })),
               notObserved: [],
               warnings: [
-                `planned ${Object.keys(discovered).length} subject(s) from ${options.sitemap}. ` +
-                  'A page this sitemap stops listing stops being watched, and nothing here will ' +
-                  'say so — declare the routes explicitly if that matters',
+                `planned ${Object.keys(resolved).length} subject(s) from ${from}. ` +
+                  'A page this stops listing stops being watched, and nothing here will say so ' +
+                  '— declare the routes explicitly if that matters',
               ],
             },
             options.widths,
@@ -445,6 +471,10 @@ export function routeCollector(
       async close(): Promise<void> {
         await network?.close();
         await harness.close();
+        // Last, and always: a file server that outlives the run holds a port,
+        // and a run that produced a correct report and then hung on exit is the
+        // failure `serveStatic`'s own close comment was written for.
+        await served?.close();
       },
     };
   };

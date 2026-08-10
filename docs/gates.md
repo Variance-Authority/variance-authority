@@ -21,11 +21,13 @@ Read [`comparison.md`](comparison.md) for what each product does *better*, and
 | Gate a pull request | **yes** — exit codes and `variance comment`; **never run on a real one** ([spec 0016](specs/0016-ci-that-has-run.md)) |
 | Cross-browser rendering from one capture | **no**, and out of scope ([spec 0020](specs/0020-a-cross-browser-grid.md)). The largest single thing Percy sells that this does not have |
 | Retroactive rules from a dashboard | **no.** An ignore is a declaration in your config and applies to the next run — auditable, and slower |
-| A crawler, or a static directory this serves for you | **no.** A sitemap is read; nothing follows a link |
+| A static directory, served for you | **yes** — `directory: './build'` with `subjects.kind: "collector"` plans a subject per `.html`, addressed as the site will be (`about/index.html` → `about`) |
+| A crawler | **no.** A sitemap is read and a directory is walked; nothing follows a link, and a sitemap *index* is taken as pages rather than followed |
 | A hosted review UI | **no**, by decision. [`tribunal`](../packages/tribunal) is one you deploy, and has never been deployed |
 
 **Verdict: yes for a URL suite gated in CI, provided you do not need cross-browser
-and do not need a dashboard.** The honest blocker for anybody at all is that
+and do not need a dashboard.** All three of Percy's on-ramps that do not crawl —
+a URL list, a sitemap, a static directory — are shipped paths. The honest blocker for anybody at all is that
 nothing is published yet ([spec 0015](specs/0015-the-first-published-release.md)),
 so adopting means vendoring this repository.
 

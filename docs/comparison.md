@@ -138,12 +138,12 @@ comparison: a known $283/mo against an unknown engineering commitment.
   ([rules](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/snapshot-rules)).
   Fixing a noisy subject here means editing code and waiting for another run.
 - **No-code on-ramps.** URL list, sitemap.xml, static directory, or a crawl-based
-  Visual Scanner with no code changes. A URL list and a sitemap are
-  now shipped paths here — `route-collector` takes addresses or a `sitemap`, plus
-  `widths`, which is the shape a `.percy.yml` is written in
+  Visual Scanner with no code changes. A URL list, a sitemap and a
+  static directory are now shipped paths here — `route-collector` takes
+  addresses, a `sitemap` or a `directory`, plus `widths`, which is the shape a
+  `.percy.yml` is written in
   ([replacing §2b](replacing.md#2b-replacing-percy-on-a-set-of-urls)). What is
-  still missing is the crawler: nothing follows a link, and a static directory is
-  a server you point at rather than one this serves
+  still missing is the crawler: nothing follows a link
   ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)).
 - **Unlimited users on every tier including Free.** Visual review is a team
   activity; Percy does not tax the reviewers.

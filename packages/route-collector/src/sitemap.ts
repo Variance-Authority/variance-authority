@@ -123,6 +123,65 @@ export async function discover(sitemap: string): Promise<Readonly<Record<string,
   return routes;
 }
 
+/**
+ * Routes from the HTML files in a built directory.
+ *
+ * `index.html` in a directory becomes that directory's own address — `about/`
+ * rather than `about/index.html` — because that is the URL the site will be
+ * deployed at, and a baseline keyed on the file name would be a baseline for a
+ * page nobody visits. The root's `index.html` becomes `/`, for the reason
+ * `subjectIdFor` gives it a name at all.
+ */
+export function routesFromFiles(
+  files: readonly string[],
+  baseUrl: string,
+): Readonly<Record<string, string>> {
+  const routes: Record<string, string> = {};
+
+  for (const file of [...files].sort()) {
+    const path = file.replace(/\\/g, '/').replace(/(^|\/)index\.html$/, '$1');
+    const url = `${baseUrl.replace(/\/+$/, '')}/${path}`;
+    routes[subjectIdFor(url)] = url;
+  }
+
+  return routes;
+}
+
+/**
+ * Exactly one source of subjects, or a refusal naming what was given.
+ *
+ * Two lists cannot be one. Merging them quietly is how a run ends up watching a
+ * page nobody listed — and an empty `routes` is refused for the mirror reason a
+ * sitemap with no entries is: a run over no subjects that exits 0 is
+ * indistinguishable from a suite that passed.
+ */
+export function declaredOnce(options: {
+  readonly routes?: Readonly<Record<string, string>>;
+  readonly sitemap?: string;
+  readonly directory?: string;
+}): void {
+  const given = (['routes', 'sitemap', 'directory'] as const).filter(
+    (name) => options[name] !== undefined,
+  );
+
+  if (given.length > 1) {
+    throw new Error(
+      `routeCollector was given ${given.join(' and ')}. Two lists cannot be one, and merging ` +
+        'them quietly is how a run watches a page nobody listed — declare one',
+    );
+  }
+
+  if (
+    given.length === 0 ||
+    (options.routes !== undefined && Object.keys(options.routes).length === 0)
+  ) {
+    throw new Error(
+      'routeCollector needs at least one route, or a `sitemap` or `directory` to discover them; ' +
+        'a run over no subjects is not a run',
+    );
+  }
+}
+
 /** The five XML entities, which are the only ones a sitemap may contain. */
 function decodeEntities(value: string): string {
   return value
