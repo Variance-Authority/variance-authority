@@ -246,13 +246,17 @@ async function reportsFor(paths: readonly string[], config: Config): Promise<Cli
 
 /** The generic half of planning, when the config named a source that has one. */
 async function planFor(config: Config): Promise<Plan | undefined> {
-  return config.subjects.kind === 'storybook'
-    ? planStorybook(
-        config.subjects.index,
-        config.viewport,
-        config.subjects.excludeTags,
-      )
-    : planList(config.subjects.ids);
+  if (config.subjects.kind === 'storybook') {
+    return planStorybook(config.subjects.index, config.viewport, config.subjects.excludeTags);
+  }
+
+  // `collector` returns nothing on purpose: the collector's own `plan()` is the
+  // answer, and handing it an empty one to return would make an *absent* plan
+  // and a *discovered empty* plan indistinguishable — the second is a suite that
+  // watches nothing and has to be able to say so.
+  if (config.subjects.kind === 'collector') return undefined;
+
+  return planList(config.subjects.ids);
 }
 
 /**

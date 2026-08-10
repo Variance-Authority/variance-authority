@@ -1,13 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { matchesGlob, normalize as normalizeCapture } from '@variance-authority/core';
-import type {
-  RenderDocument,
-  SemanticSnapshot,
-  SourceIndex,
-  SubjectRef,
-  Viewport,
-} from '@variance-authority/core';
+
 import {
   createHarness,
   unresizable,
@@ -18,6 +12,16 @@ import {
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import { scanSource, type SourceScan } from './source.js';
+export type {
+  Collected,
+  Collector,
+  CollectorConfig,
+  CollectorContext,
+  Plan,
+  PlannedSubject,
+} from './contract.js';
+import type { Collected, Collector, CollectorContext, Plan, PlannedSubject } from './contract.js';
+import { discover } from './sitemap.js';
 import { routeOf, widthsOf } from './widths.js';
 
 /**
@@ -47,90 +51,6 @@ import { routeOf, widthsOf } from './widths.js';
  * it is genuinely less work; the difference is who decides what is under test.
  */
 
-export interface CollectorConfig {
-  readonly viewport: Viewport;
-  readonly fonts?: readonly string[];
-  /**
-   * Subtrees this project excludes, from `config.ignore` (spec 0024).
-   *
-   * Only the two fields a page needs: a rule id to record the mark under, and a
-   * selector to find it with. Everything else about a rule — its reason, its
-   * expiry, the bands it narrows to — is decided after collection, where a clock
-   * and the whole run's diffs are available and a browser is not.
-   */
-  readonly ignore?: readonly {
-    readonly id: string;
-    readonly select?: string;
-    /**
-     * Subjects the rule names. Read here to decide what to send, and never sent.
-     *
-     * A page can resolve a selector and cannot know which subject it is one of,
-     * so scoping has to happen on this side of the boundary. Without it a rule
-     * written for one route marks its element in every subject that renders the
-     * same shared layout, and a real regression inside that element is absorbed
-     * everywhere — an ignore silencing more than it says, which is the one thing
-     * the mechanism must not do.
-     */
-    readonly subjects?: readonly string[];
-
-    /** Tags the subject must carry. Read here to decide what to send, never sent. */
-    readonly tags?: readonly string[];
-  }[];
-
-}
-
-export interface PlannedSubject {
-  readonly subject: SubjectRef;
-  readonly viewport?: Viewport;
-
-  /**
-   * What the subject declares itself to be.
-   *
-   * Present for a Storybook plan, where the built index carries a story's tags.
-   * A route plan has no artifact to read one from, so it is absent — and absent
-   * means *undeclared*, never *no tags*: a rule scoped by tag simply does not
-   * apply here, rather than applying to everything.
-   */
-  readonly tags?: readonly string[];
-}
-
-export interface Plan {
-  readonly subjects: readonly PlannedSubject[];
-  readonly notObserved: readonly unknown[];
-  readonly warnings: readonly string[];
-}
-
-export type Collected =
-  | {
-      readonly ok: true;
-      readonly document: RenderDocument;
-      readonly snapshot?: SemanticSnapshot;
-      readonly source?: SourceIndex;
-
-      /**
-       * Stabilization tricks applied to the page before this subject was read.
-       *
-       * Reported so a run can say what it did to somebody else's page. The
-       * digest of the same list is in the environment key, which is what makes a
-       * differently-stabilized baseline `incomparable`; this is the half a
-       * person reads.
-       */
-      readonly stabilization?: readonly string[];
-    }
-  | { readonly ok: false; readonly because: string };
-
-export interface CollectorContext {
-  readonly config: CollectorConfig;
-  /** Computed by the run from `subjects.ids`. Returned unchanged. */
-  readonly plan?: Plan;
-}
-
-export interface Collector {
-  plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
-  close(): Promise<void>;
-}
-
 export interface RouteCollectorOptions {
   /**
    * Subject id to the URL that serves it.
@@ -140,7 +60,24 @@ export interface RouteCollectorOptions {
    * id with no route is reported as a subject that could not be collected rather
    * than silently dropped.
    */
-  readonly routes: Readonly<Record<string, string>>;
+  readonly routes?: Readonly<Record<string, string>>;
+
+  /**
+   * A sitemap to take the routes from, instead of writing them out.
+   *
+   * The no-code on-ramp: a page the application already publishes is watched
+   * without a second commit. Requires `subjects.kind: "collector"`, because the
+   * subject list is then discovered rather than declared — and that trade is the
+   * operator's to make, since a page dropped from the sitemap stops being watched
+   * silently. Mutually exclusive with `routes`; a config naming both is asking
+   * two lists to be one, and quietly merging them is how a run watches a page
+   * nobody listed ([`docs/selecting.md`](../../../docs/selecting.md)).
+   *
+   * A sitemap *index* is not followed. Fetching what a fetched document points at
+   * is a crawler, and a crawler is a different product with a different failure
+   * mode.
+   */
+  readonly sitemap?: string;
 
   /**
    * Viewport widths to read every route at. Defaults to the run's one viewport.
@@ -262,10 +199,20 @@ export function routeCollector(
   return async function createCollector(context: CollectorContext): Promise<Collector> {
     const { config, plan } = context;
     const roots = options.roots ?? DEFAULT_ROOTS;
-    const entries = Object.entries(options.routes);
+    if (options.routes !== undefined && options.sitemap !== undefined) {
+      throw new Error(
+        'routeCollector was given both `routes` and `sitemap`. Two lists cannot be one, and ' +
+          'merging them quietly is how a run watches a page nobody listed — declare one',
+      );
+    }
 
-    if (entries.length === 0) {
-      throw new Error('routeCollector needs at least one route; a run over no subjects is not a run');
+    const entries = Object.entries(options.routes ?? {});
+
+    if (entries.length === 0 && options.sitemap === undefined) {
+      throw new Error(
+        'routeCollector needs at least one route, or a `sitemap` to discover them; a run over ' +
+          'no subjects is not a run',
+      );
     }
 
     const source = options.source === undefined ? undefined : scanSource(process.cwd(), options.source);
@@ -282,7 +229,10 @@ export function routeCollector(
     let network: NetworkObservation | undefined;
 
     const harness: Harness = await createHarness({
-      url: entries[0]![1],
+      // Somewhere to be while the agent is installed. With a discovered plan
+      // there is no first route yet — the sitemap has not been fetched — so the
+      // harness opens `about:blank` and the first `collect` navigates.
+      url: entries[0]?.[1] ?? 'about:blank',
       bundle,
       viewport: config.viewport,
       ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
@@ -298,6 +248,8 @@ export function routeCollector(
 
     const page = harness.page;
     const engine = harness.engine;
+    // Filled by `plan()` when the routes are discovered rather than declared.
+    let resolved: Readonly<Record<string, string>> | undefined;
     // Tracks *navigations*, not URLs. A run that reads one route at two widths
     // navigates to the same address twice, and a check on the address alone
     // would decide the agent was still installed after a load that discarded it
@@ -325,9 +277,35 @@ export function routeCollector(
 
     return {
       async plan(): Promise<Plan> {
+        // A discovered plan, when the operator asked for one. Resolved on first
+        // ask rather than at construction: a collector that fetched a sitemap
+        // merely by being imported would make `variance doctor` reach the
+        // network, which it states plainly that it never does.
+        if (options.sitemap !== undefined) {
+          const discovered = await discover(options.sitemap);
+          resolved = discovered;
+
+          return widthsOf(
+            {
+              subjects: Object.keys(discovered).map((id) => ({
+                subject: { id, kind: 'route' as const },
+              })),
+              notObserved: [],
+              warnings: [
+                `planned ${Object.keys(discovered).length} subject(s) from ${options.sitemap}. ` +
+                  'A page this sitemap stops listing stops being watched, and nothing here will ' +
+                  'say so — declare the routes explicitly if that matters',
+              ],
+            },
+            options.widths,
+            config.viewport,
+          );
+        }
+
         if (plan === undefined) {
           throw new Error(
-            'this collector expects `subjects.kind: "list"`, which is what supplies the plan',
+            'this collector expects `subjects.kind: "list"`, which is what supplies the plan — ' +
+              'or `sitemap`, with `subjects.kind: "collector"`, to discover one',
           );
         }
         return widthsOf(plan, options.widths, config.viewport);
@@ -339,7 +317,7 @@ export function routeCollector(
         // the route. Resolved here rather than by rewriting the plan's ids,
         // because the id is what a baseline, a report line and a `--subjects`
         // glob all name — and those have to stay distinct per width.
-        const url = options.routes[routeOf(id, options.widths)];
+        const url = (resolved ?? options.routes ?? {})[routeOf(id, options.widths)];
 
         // Reported, never dropped. An id in the plan with no route here is a hole
         // in this run's coverage, and a run that observes 29 of 30 subjects and
@@ -474,3 +452,5 @@ export function routeCollector(
 
 export type { SourceScan } from './source.js';
 export type { AcquireRequest, Acquired } from './page-agent.js';
+
+export { locationsIn, routesFrom, subjectIdFor } from './sitemap.js';

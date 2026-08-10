@@ -147,8 +147,12 @@ requested rather than polling `document.images`
   browser context opens, so a subject asking for one the run did not open with is
   **refused by name** rather than painted at the wrong one and recorded at the
   right one. Two runs, two configs.
-- **The no-code on-ramps.** A sitemap or a crawl still becomes a `routes` map you
-  write; nothing here discovers pages for you.
+- **A crawler.** A sitemap is read — `sitemap: 'https://staging.example/sitemap.xml'`
+  with `subjects.kind: "collector"` plans a subject per `<loc>` — but nothing
+  here follows links, and a sitemap *index* is taken as pages rather than
+  followed, because fetching what a fetched document points at is a different
+  product. A page the sitemap stops listing stops being watched, silently; that
+  trade is why `kind: "list"` still exists.
 
 ---
 

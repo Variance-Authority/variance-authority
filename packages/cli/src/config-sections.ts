@@ -78,7 +78,7 @@ export const DEFAULT_ALONE_LIMIT = 20;
  * are undebuggable, so instead `collector` names a module the operator writes,
  * and the contract it must satisfy is `SubjectSource` in `commands/collector.ts`.
  */
-export type SubjectsConfig = StorybookSubjects | ListSubjects;
+export type SubjectsConfig = StorybookSubjects | ListSubjects | DiscoveredSubjects;
 
 export interface StorybookSubjects {
   readonly kind: 'storybook';
@@ -92,6 +92,25 @@ export interface StorybookSubjects {
 export interface ListSubjects {
   readonly kind: 'list';
   readonly ids: readonly string[];
+  readonly collector: string;
+}
+
+/**
+ * The collector says what the subjects are.
+ *
+ * For a subject list nobody should have to write down: a sitemap, a crawl, an
+ * inventory the application already publishes. `list` exists so a config can be
+ * read as the statement of what is watched; this is for the cases where that
+ * statement is *somewhere else and already true*, and copying it into a config
+ * is how the two drift apart.
+ *
+ * The trade is real and belongs to the operator. A discovered plan means the
+ * suite's contents can change without a commit, so a page that stops being
+ * published stops being watched, silently — which is exactly what `list` is for
+ * when that matters.
+ */
+export interface DiscoveredSubjects {
+  readonly kind: 'collector';
   readonly collector: string;
 }
 
@@ -181,7 +200,18 @@ export function parseViewport(value: unknown, options: ParseOptions): Viewport {
 }
 
 export function parseSubjects(value: unknown, options: ParseOptions): SubjectsConfig {
-  const kind = kindOf(value, 'subjects', ['storybook', 'list'], options);
+  const kind = kindOf(value, 'subjects', ['storybook', 'list', 'collector'], options);
+
+  if (kind === 'collector') {
+    const source = object(value, 'subjects', ['kind', 'collector'], options);
+    return {
+      kind: 'collector',
+      collector: resolveFrom(
+        options.baseDir,
+        nonEmpty(source, 'collector', options, 'subjects.collector'),
+      ),
+    };
+  }
 
   if (kind === 'storybook') {
     const source = object(
