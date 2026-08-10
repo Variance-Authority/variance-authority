@@ -247,9 +247,11 @@ happening for a month* or *nine sweeps have been clean since*
 **Drift has its rows and not its readers.** `variance accept` records the
 acceptance — a row per `(subject, run)`, because an append-only store cannot flip
 a flag — and a run records the design tokens it resolved, so the twenty-two-pixel
-story this rung exists for is reachable. What is missing is a caller for the
-questions themselves: `churn`, `valueJourney` and `reach` answer correctly and
-nothing asks them. See [spec 0002](specs/0002-history-store.md).
+story this rung exists for is reachable. A run also asks how often each component it
+blamed has changed before, and prints the answer under the regions it qualifies —
+which is the instrument a comparison structurally cannot be. What is missing is a
+caller for the other two questions: `valueJourney` and `reach` answer correctly
+and nothing asks them. See [spec 0002](specs/0002-history-store.md).
 
 Worth stating anyway, because it is the only rung that answers a question the
 others structurally cannot. Every rung below compares two things. A sum across

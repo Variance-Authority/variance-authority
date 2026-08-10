@@ -28,10 +28,14 @@ it.
 
 **What does not.**
 
-- **Nothing asks the questions.** `churn`, `valueJourney` and `reach` have rows to
-  read — correct ones, now that acceptance is recorded — and no caller. The
-  natural home is an MCP tool, which is a decision about `variance serve`'s tool
-  list rather than about storage ([spec 0013](0013-a-real-agent.md)).
+- **Two of the three questions have no caller.** `churn` does: a run asks it about
+  every component it named as a cause, capped at twenty and reporting the cap, and
+  the answer travels in the report so `variance_describe` prints it under the
+  regions it qualifies. `valueJourney` and `reach` are still unasked — and the
+  reason is a decision rather than an omission: an MCP tool is a pure function
+  over a report, so a tool that queried a store would be a different kind of
+  thing. Either the run asks them too (as it does for churn and flakiness), or
+  `variance serve` grows a tool that holds a store. Decide before building.
 - **No run has produced the eleven-step journey end to end.** Every part of it
   exists and each part is tested; what has not happened is eleven runs, eleven
   approvals, and the sentence at the end of them.

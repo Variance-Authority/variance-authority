@@ -207,6 +207,35 @@ describe('a subject that did not agree with itself', () => {
     );
   });
 
+  it('says how often the component it names has changed before', () => {
+    // The instrument a comparison structurally cannot be. "Review this" and
+    // "this component has caused an approved change in eleven of the last forty
+    // runs" are different instructions about the same diff.
+    const report = {
+      ...reportWith({}),
+      churn: {
+        Clock: {
+          runs: 40,
+          changedRuns: 11,
+          collateralRuns: 2,
+          rejectedRuns: 0,
+          because: '`Clock` caused an approved change in 11 of 40 run(s) (28%)',
+        },
+      },
+    } as unknown as RunReport;
+
+    const answer = describeSubject(report);
+    expect(answer).toContain('HOW OFTEN THESE COMPONENTS CHANGE');
+    expect(answer).toContain('11 of 40 run(s)');
+  });
+
+  it('prints nothing about churn for a component nobody asked about', () => {
+    // A missing entry is a component the run did not ask about — no store, or the
+    // cap — and printing "0 of 0" for it would be a claim of stability nobody
+    // measured.
+    expect(describeSubject(reportWith({}))).not.toContain('HOW OFTEN THESE COMPONENTS CHANGE');
+  });
+
   it('says nothing at all when every subject agreed with itself', () => {
     // Absence of the section is absence of a *finding*, never a certificate: two
     // readings put a floor under flakiness and no ceiling on it. The section is

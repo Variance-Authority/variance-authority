@@ -116,6 +116,13 @@ export const describe: Tool = {
         : []),
     ];
 
+    // What the record says about the components this subject's change was
+    // attributed to. Placed after the verdict and before the regions, because it
+    // changes how the region list should be read: a component that has caused an
+    // approved change in eleven of the last forty runs is a component whose next
+    // change is unremarkable, and one that has never moved before is the opposite.
+    lines.push(...componentChurn(report, observation));
+
     // Findings before regions. A subject can be `unchanged` and still carry
     // them, in which case they are the only thing this tool has to say, and a
     // reader who stopped at "nothing changed" would never reach them.
@@ -176,6 +183,37 @@ function label(observation: {
   }
   if (observation.alone?.reproduced === false) return 'order-dependent';
   return observation.verdict;
+}
+
+/**
+ * How often the components named here have changed before.
+ *
+ * Only the causes, and only the ones the record answered for. A component this
+ * report has no entry for is not a component that has never changed — it is one
+ * nobody asked about, either because no store answered or because the run capped
+ * how many it asked. Silence is therefore silent rather than reassuring: nothing
+ * is printed for it, and the run's own warnings carry the reason.
+ */
+function componentChurn(
+  report: RunReport,
+  observation: { readonly regions: readonly RegionRecord[] },
+): readonly string[] {
+  if (report.churn === undefined) return [];
+
+  const named = [
+    ...new Set(
+      observation.regions
+        .filter((region) => region.cause && region.component !== undefined)
+        .map((region) => region.component as string),
+    ),
+  ];
+
+  const lines = named.flatMap((component) => {
+    const record = report.churn?.[component];
+    return record === undefined ? [] : [`  ${record.because}`];
+  });
+
+  return lines.length === 0 ? [] : ['', 'HOW OFTEN THESE COMPONENTS CHANGE:', ...lines];
 }
 
 /**

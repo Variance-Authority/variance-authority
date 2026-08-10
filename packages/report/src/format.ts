@@ -86,6 +86,53 @@ export interface RunReport {
    * exists to supply.
    */
   readonly flakiness?: Readonly<Record<string, FlakinessRecord>>;
+
+  /**
+   * How often each component this run named as a cause has changed before,
+   * keyed by component.
+   *
+   * The instrument a comparison structurally cannot be. A diff answers *what
+   * moved*; this answers *how often this moves*, which is the difference between
+   * "review this" and "this component has been rewritten eleven times this
+   * quarter and nobody has asked why". No threshold reaches it, because the
+   * quantity is a count across runs and a one-run-at-a-time tool keeps none.
+   *
+   * **Absent is not "it has never changed."** It means no store answered, and the
+   * reason is in `warnings`.
+   */
+  readonly churn?: Readonly<Record<string, ChurnRecord>>;
+}
+
+/**
+ * How often one component's own code has changed, over a window.
+ *
+ * A structural copy of `@variance-authority/history`'s `Churn`, for the reason
+ * {@link FlakinessRecord} is one: this package requires nothing, and a report
+ * reader must not have to install a history client to open a file.
+ */
+export interface ChurnRecord {
+  /** Runs in the window, quiet ones included. The denominator. */
+  readonly runs: number;
+
+  /** Runs in which this component caused an **approved** change in any band. */
+  readonly changedRuns: number;
+
+  /**
+   * Runs in which only this component's geometry moved — it was *displaced* by an
+   * edit somewhere else. Reported, never summed: accumulating displacement makes
+   * the widest container in the application the thing that keeps changing, in
+   * every run, forever.
+   */
+  readonly collateralRuns: number;
+
+  /** Runs carrying a change to this component that nobody approved. */
+  readonly rejectedRuns: number;
+
+  readonly firstAt?: string;
+  readonly lastAt?: string;
+
+  /** One sentence, ready to print, from the package that owns the arithmetic. */
+  readonly because: string;
 }
 
 /**

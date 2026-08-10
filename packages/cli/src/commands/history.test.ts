@@ -354,7 +354,7 @@ describe('what the run reports about the record', () => {
       swept: false,
       readings: [],
       observations: [
-        { subject: 'story:card', verdict: 'changed', because: '', unstable: UNSTABLE } as CliObservationRecord,
+        { subject: 'story:card', verdict: 'changed', because: '', regions: [], unstable: UNSTABLE } as CliObservationRecord,
       ],
     });
 
@@ -388,7 +388,7 @@ describe('what the run reports about the record', () => {
       swept: true,
       readings: [{ subject: 'story:card' }],
       observations: [
-        { subject: 'story:card', verdict: 'changed', because: '', unstable: UNSTABLE } as CliObservationRecord,
+        { subject: 'story:card', verdict: 'changed', because: '', regions: [], unstable: UNSTABLE } as CliObservationRecord,
       ],
     });
 
@@ -417,7 +417,7 @@ describe('what the run reports about the record', () => {
       swept: true,
       readings: [{ subject: 'story:card' }, { subject: 'story:other' }],
       observations: [
-        { subject: 'story:card', verdict: 'unchanged', because: '' } as CliObservationRecord,
+        { subject: 'story:card', verdict: 'unchanged', because: '', regions: [] } as CliObservationRecord,
       ],
     });
 

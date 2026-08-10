@@ -333,6 +333,7 @@ async function observeAll(
     observations,
     notObserved,
     ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),
+    ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(warnings.length + recorded.warnings.length > 0
       ? { warnings: [...warnings, ...recorded.warnings] }
       : {}),

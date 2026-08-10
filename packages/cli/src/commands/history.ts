@@ -1,15 +1,17 @@
 import { hashComponents, type SemanticSnapshot, type SourceIndex } from '@variance-authority/core';
 import {
+  describeChurn,
   describeFlakiness,
   isKept,
   observationsFrom,
+  type Churn,
   type Flakiness,
   type HistoryStore,
   type Instability,
   type Observation,
   type RunRecord,
 } from '@variance-authority/history';
-import type { FlakinessRecord } from '@variance-authority/report';
+import type { ChurnRecord, FlakinessRecord } from '@variance-authority/report';
 import { filesOf, instabilitiesOf, tokensOf } from './history-rows.js';
 import type { Config } from '../config.js';
 import type { CliObservationRecord } from './run-report.js';
@@ -142,6 +144,16 @@ export interface RecordRunInput {
   /** Whether this run read **every** subject twice. The flake denominator. */
   readonly swept: boolean;
   readonly subjects: readonly SubjectHistory[];
+
+  /**
+   * Components this run named as *causes*, for the churn question.
+   *
+   * Causes rather than every component that appeared: churn is about a
+   * component's own code moving, and asking about the containers an edit pushed
+   * around would produce the "widest box in the application keeps changing"
+   * answer that the arithmetic itself refuses to accumulate.
+   */
+  readonly causes?: readonly string[];
 }
 
 export interface RecordedRun {
@@ -150,6 +162,9 @@ export interface RecordedRun {
   readonly instabilities: number;
   /** How often each subject the run found unstable has been unstable before. */
   readonly flakiness: Readonly<Record<string, Flakiness>>;
+
+  /** How often each component this run named as a cause has changed before. */
+  readonly churn: Readonly<Record<string, Churn>>;
   /**
    * What could not be recorded or could not be asked, ready to print.
    *
@@ -169,6 +184,16 @@ export interface RecordedRun {
  * fix's own evidence — sweeps since — is diluted by every quiet month before it.
  */
 const WINDOW_DAYS = 30;
+
+/**
+ * How many components one run asks the record about.
+ *
+ * A run with forty changed subjects can name a hundred causes, and a hundred
+ * round trips is a run that finishes noticeably later for an answer nobody reads
+ * past the first screen of. Whatever this excludes is reported as excluded — the
+ * same rule every capped answer in this system follows.
+ */
+const MAX_CHURN_QUESTIONS = 20;
 
 /**
  * Write this run down, and ask what the record already knew.
@@ -199,7 +224,13 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
     // The absent store's refusal, and the only correct response to it is to stop.
     // Recording against an empty `previous` would write every component of every
     // subject as a change — into a store that is going to discard it anyway.
-    return { observations: 0, instabilities: 0, flakiness: {}, warnings: [previous.because] };
+    return {
+      observations: 0,
+      instabilities: 0,
+      flakiness: {},
+      churn: {},
+      warnings: [previous.because],
+    };
   }
 
   const bySubject = new Map<string, Observation[]>();
@@ -251,6 +282,7 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
       observations: 0,
       instabilities: 0,
       flakiness: {},
+      churn: {},
       warnings: [
         `nothing was recorded to the history service: ${messageOf(error)}. This run's verdicts ` +
           'are unaffected, and its rows are lost — a later drift or flakiness answer will be ' +
@@ -282,7 +314,41 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
     }
   }
 
-  return { observations: observations.length, instabilities: instabilities.length, flakiness, warnings };
+  const churn: Record<string, Churn> = {};
+
+  // Deduplicated by component and capped, because the question is per component
+  // and a run with forty changed subjects names the same handful of them. The cap
+  // is *reported* rather than silent: a list that stops at twenty without saying
+  // so reads as the whole answer.
+  const components = [...new Set(input.causes ?? [])];
+  for (const component of components.slice(0, MAX_CHURN_QUESTIONS)) {
+    try {
+      const answer = await store.churn(component, { since });
+      if (isKept(answer)) churn[component] = answer;
+      else warnings.push(answer.because);
+    } catch (error) {
+      warnings.push(
+        `the history service could not say how often \`${component}\` changes: ` +
+          `${messageOf(error)}. Absence of an answer is not evidence that it is stable`,
+      );
+    }
+  }
+
+  if (components.length > MAX_CHURN_QUESTIONS) {
+    warnings.push(
+      `${components.length - MAX_CHURN_QUESTIONS} component(s) were not asked about: this run ` +
+        `named ${components.length} causes and asks the record about ${MAX_CHURN_QUESTIONS}. ` +
+        'Their absence from the report is a cap, not a finding',
+    );
+  }
+
+  return {
+    observations: observations.length,
+    instabilities: instabilities.length,
+    flakiness,
+    churn,
+    warnings,
+  };
 }
 
 /**
@@ -310,6 +376,7 @@ export async function recordIfConfigured(input: {
   readonly observations: readonly CliObservationRecord[];
 }): Promise<{
   readonly flakiness?: Readonly<Record<string, FlakinessRecord>>;
+  readonly churn?: Readonly<Record<string, ChurnRecord>>;
   readonly warnings: readonly string[];
 }> {
   const { config, deps, identity } = input;
@@ -357,6 +424,14 @@ export async function recordIfConfigured(input: {
     at: input.at,
     swept: input.swept,
     subjects,
+    // Only the components a region named as the cause of a change. A run that
+    // asked about every component it saw would ask about three hundred of them
+    // and answer with the container that everything moved inside.
+    causes: input.observations.flatMap((record) =>
+      record.regions
+        .filter((region) => region.cause && region.component !== undefined)
+        .map((region) => region.component as string),
+    ),
   });
 
   const flakiness: Record<string, FlakinessRecord> = {};
@@ -379,8 +454,22 @@ export async function recordIfConfigured(input: {
     };
   }
 
+  const churn: Record<string, ChurnRecord> = {};
+  for (const [component, answer] of Object.entries(recorded.churn)) {
+    churn[component] = {
+      runs: answer.runs,
+      changedRuns: answer.changedRuns,
+      collateralRuns: answer.collateralRuns,
+      rejectedRuns: answer.rejectedRuns,
+      ...(answer.firstAt !== undefined ? { firstAt: answer.firstAt } : {}),
+      ...(answer.lastAt !== undefined ? { lastAt: answer.lastAt } : {}),
+      because: describeChurn(answer),
+    };
+  }
+
   return {
     ...(Object.keys(flakiness).length > 0 ? { flakiness } : {}),
+    ...(Object.keys(churn).length > 0 ? { churn } : {}),
     warnings: recorded.warnings,
   };
 }
