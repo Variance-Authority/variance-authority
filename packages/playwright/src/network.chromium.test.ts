@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
+import { crc32, deflateSync } from 'node:zlib';
 import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { observeNetwork } from './network.js';
@@ -113,8 +114,60 @@ function animatedGif(): Buffer {
 
 const GIF = animatedGif();
 
+/**
+ * An opaque PNG, written here rather than imported from the thing under test.
+ *
+ * `blankPng` could produce these in one line and the blanking suite would then
+ * be comparing its own output against itself — a substitution that changed
+ * nothing would pass. So this writes its own: same one-bit palette, no `tRNS`,
+ * palette entry 0 set to solid black, so every pixel paints.
+ */
+function solidPng(width: number, height: number): Buffer {
+  const stride = Math.ceil(width / 8);
+  const raw = Buffer.alloc(height * (stride + 1));
+
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(data.length, 0);
+    head.write(type, 4, 'ascii');
+    const tail = Buffer.alloc(4);
+    tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
+    return Buffer.concat([head, data, tail]);
+  };
+
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.writeUInt8(1, 8);
+  header.writeUInt8(3, 9);
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('PLTE', Buffer.from([0, 0, 0])),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+const HERO = solidPng(120, 90);
+const ICON = solidPng(16, 16);
+
 const PAGE = `<!doctype html><html><body style="margin:0">
   <img id="spinner" src="/spinner.gif" width="64" height="64" style="image-rendering:pixelated">
+</body></html>`;
+
+/**
+ * Neither image is given a width, which is the whole point.
+ *
+ * An `<img>` with no CSS size lays out at its *intrinsic* size, so this page's
+ * height is a fact about the bytes. A substitution that returned a 1×1
+ * transparent pixel would collapse it and the run would report a layout
+ * regression this tool had caused.
+ */
+const IMAGES_PAGE = `<!doctype html><html><body style="margin:0;background:#fff">
+  <img id="hero" src="/art/hero.png">
+  <img id="chevron" src="/icons/chevron.png">
 </body></html>`;
 
 let server: Server | undefined;
@@ -125,11 +178,24 @@ beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
 
   server = createServer((request, response) => {
-    if ((request.url ?? '/').startsWith('/spinner.gif')) {
+    const path = request.url ?? '/';
+
+    if (path.startsWith('/spinner.gif')) {
       response.writeHead(200, { 'content-type': 'image/gif' }).end(GIF);
       return;
     }
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(PAGE);
+    if (path.startsWith('/art/hero.png')) {
+      response.writeHead(200, { 'content-type': 'image/png' }).end(HERO);
+      return;
+    }
+    if (path.startsWith('/icons/chevron.png')) {
+      response.writeHead(200, { 'content-type': 'image/png' }).end(ICON);
+      return;
+    }
+
+    response
+      .writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      .end(path.startsWith('/images') ? IMAGES_PAGE : PAGE);
   });
 
   const port = await new Promise<number>((resolve) => {
@@ -248,6 +314,89 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animated GIF, which no CSS reaches', () 
 
       expect(network.frozen).toEqual([]);
       expect(network.assets[`${base}/spinner.gif`]).toMatch(/^v1:[0-9a-f]{32}$/);
+      await network.close();
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+});
+
+/**
+ * The claim a byte assertion cannot make: a browser accepts this file.
+ *
+ * `blank.test.ts` proves the writer emits chunks with CRCs an independent
+ * implementation agrees with. That is not the same as a decoder taking it, and a
+ * PNG Chromium rejects paints nothing *and collapses the box*, which is exactly
+ * the failure mode blanking exists to avoid. So the assertions here are the two
+ * a compositor can answer: the image still reports its original intrinsic size,
+ * and the page is still the same height.
+ */
+const BLANK_RULES = [{ id: 'illustrations', url: '**/art/**', minPixels: 10_000 }];
+
+async function layout(page: Page): Promise<Record<string, unknown>> {
+  return await page.evaluate(() => {
+    const hero = document.querySelector('#hero') as HTMLImageElement;
+    const chevron = document.querySelector('#chevron') as HTMLImageElement;
+    return {
+      hero: `${hero.naturalWidth}x${hero.naturalHeight}`,
+      heroBox: `${hero.getBoundingClientRect().width}x${hero.getBoundingClientRect().height}`,
+      chevron: `${chevron.naturalWidth}x${chevron.naturalHeight}`,
+      body: document.body.getBoundingClientRect().height,
+    };
+  });
+}
+
+describe.skipIf(!BROWSER_AVAILABLE)('an image served as nothing', () => {
+  it('keeps the layout it would have had, and reports what it removed', async () => {
+    const page = await browser!.newPage({ viewport: { width: 400, height: 300 } });
+
+    try {
+      const before = await observeNetwork(page);
+      await page.goto(`${base}/images`, { waitUntil: 'load' });
+      await before.settle();
+      const original = await layout(page);
+      const painted = await page.locator('#hero').screenshot();
+      await before.close();
+
+      const network = await observeNetwork(page, { blank: BLANK_RULES });
+      await page.goto(`${base}/images`, { waitUntil: 'load' });
+      await network.settle();
+
+      // The dimensions survive the substitution — intrinsic *and* laid out, and
+      // the page's own height with them.
+      expect(await layout(page)).toEqual(original);
+      expect(original.hero).toBe('120x90');
+
+      // …and the pixels do not. Compared against the unblanked run rather than
+      // against a colour, so a hero that was accidentally white would not pass.
+      expect((await page.locator('#hero').screenshot()).toString('base64')).not.toBe(
+        painted.toString('base64'),
+      );
+
+      expect(network.blanked).toEqual([
+        { url: `${base}/art/hero.png`, rule: 'illustrations', width: 120, height: 90 },
+      ]);
+      expect(network.diagnostics).toEqual([]);
+      await network.close();
+    } finally {
+      await page.close();
+    }
+  }, 60_000);
+
+  it('records the blank in the environment key instead of the bytes it threw away', async () => {
+    const page = await browser!.newPage({ viewport: { width: 400, height: 300 } });
+
+    try {
+      const network = await observeNetwork(page, { blank: BLANK_RULES });
+      await page.goto(`${base}/images`, { waitUntil: 'load' });
+      await network.settle();
+
+      // The saving: this value does not move when the illustration is re-exported.
+      expect(network.assets[`${base}/art/hero.png`]).toBe('blank:illustrations:120x90');
+      // The keeping: the chevron is small, so no rule reaches it, and it is
+      // hashed like anything else. `^` stays.
+      expect(network.assets[`${base}/icons/chevron.png`]).toMatch(/^v1:[0-9a-f]{32}$/);
+
       await network.close();
     } finally {
       await page.close();

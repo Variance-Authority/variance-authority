@@ -245,7 +245,10 @@ export function routeCollector(
         ? {}
         : {
             prepare: async (page): Promise<void> => {
-              network = await observeNetwork(page);
+              network = await observeNetwork(
+                page,
+                config.blank !== undefined ? { blank: config.blank } : {},
+              );
             },
           }),
     });

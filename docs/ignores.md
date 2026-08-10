@@ -170,6 +170,17 @@ Shape, not place. The element is fine; the *bytes* are not, and only sometimes.
 Excluding the avatar by place would also stop reporting an avatar that vanished.
 Excluding it by shape does not.
 
+**When the image is never under test at all, blank it instead.** A fingerprint
+absorbs the difference after the page has fetched the image, laid itself out
+around it, and put its bytes into the environment key — so a re-exported hero
+still re-renders every subject it appears on to reach a verdict that was going to
+be absorbed. A `blank` rule replaces it on the wire with a transparent image of
+the same intrinsic size: same layout, no second render, and the key records the
+blank rather than the bytes. See
+[Some images can be served as nothing](stabilization.md#some-images-can-be-served-as-nothing).
+The trade is the one every ignore makes, made earlier and more completely — a
+real change inside a blanked image is not reported, and cannot be.
+
 ### A flake you cannot place
 
 Shape. This is the case a place-based ignore genuinely cannot serve: the thing

@@ -327,6 +327,113 @@ It also **says what it froze** — `network.frozen` is the list of URLs — beca
 stabilizer that rewrites an asset silently can change the picture a reviewer is
 looking at with no record that it did.
 
+### Some images can be served as nothing
+
+Not every image on a page is part of what the suite is asserting. A hero
+photograph the CMS rotates, an avatar from a third party, a marketing
+illustration re-exported at a new compression — each repaints a large area, none
+is a regression, and after the fact none is distinguishable from one.
+
+The usual answer is a mask drawn over the region, and it is the wrong shape in
+three ways at once. The bytes are still fetched. The *layout* still moves when the
+replacement has different dimensions. And the environment key still changes with
+the bytes, so the run re-renders every subject the image appears on in order to
+discover that the difference was going to be masked anyway.
+
+Blanking answers all three before the browser has decoded anything:
+
+```json
+{
+  "blank": [
+    {
+      "id": "illustrations",
+      "reason": "marketing re-exports these weekly and none of it is under test",
+      "url": "https://cdn.example/art/**",
+      "minPixels": 40000
+    }
+  ]
+}
+```
+
+The response is replaced with a **fully transparent PNG of the original's own
+intrinsic dimensions**, so every box on the page resolves exactly as it would
+have. That is the difficult part and the reason the size is read from the
+original's header rather than assumed: an `<img>` with no CSS width lays out at
+its intrinsic size, so a 1×1 substitute would collapse the column it was holding
+open and the run would report a layout regression this tool caused. A format
+whose header cannot be read — SVG, AVIF — is **served unmodified with a
+diagnostic**, never blanked at a guessed size.
+
+Transparent rather than a flat fill, because what is left is then the page's own
+background, which is the honest rendering of "there is nothing here". One
+consequence worth knowing: a contrast finding over a blanked image is measured
+against whatever is behind it.
+
+A rule matches on `url` (a glob), `minPixels`, `maxPixels`, or any combination —
+every matcher present must hold. A rule that names none of them is refused rather
+than applied to everything, because blanking every image on a site is a real
+policy and an illegitimate thing to arrive at by leaving a field out.
+
+**What it does to the environment key is the saving.** A blanked asset is
+recorded as `blank:<rule>:<width>x<height>` instead of a digest of its bytes, so
+re-exporting the illustration no longer invalidates anything. The dimensions stay
+in the value on purpose: a *resized* illustration moves the layout, and a key
+that recorded only the rule id would settle every subject it appears on against a
+page whose columns have shifted — a false `unchanged`, which is the one failure
+this whole layer exists to prevent.
+
+It says what it removed. `network.blanked` lists the URL, the rule, and the size
+for every substitution, so an operator who blanked more than they meant to can
+read it back per subject without re-running with the feature off.
+
+### …and the half the wire cannot decide
+
+A request carries no idea which element wanted it. `role="presentation"`,
+`alt=""`, a selector, a rendered box — none of those exists on the wire, and no
+amount of care there will produce them. That is a fact about a document, so the
+trick that uses it is a stylesheet:
+
+```ts
+routeCollector({
+  routes: { … },
+  // The default recipe, plus one. Naming a recipe replaces it, so the tricks you
+  // still want are listed — a `stabilize` that only added would make "observed
+  // untouched" unsayable.
+  stabilize: [
+    'pin-animations',
+    'hide-scrollbars',
+    'wait-for-fonts',
+    'wait-for-images',
+    'hide-presentational-images',
+  ],
+});
+```
+
+`visibility: hidden`, never `display: none`, for exactly the reason above: a
+hidden element still occupies the box it would have. It covers
+`img[role="presentation"]`, `img[alt=""]`, and images inside a `presentation` or
+`none` role.
+
+It is **opt-in and in no default recipe**, and it is the only trick here that is.
+Everything else on this page removes something that was never part of the
+assertion — a caret, a scrollbar, an animation mid-flight. This one removes page
+content, which is a judgement about what a suite is for, and a default that
+quietly stopped watching every `alt=""` image would hide real regressions under a
+green run.
+
+**It buys the picture, not the key.** The page still fetched the image, so
+`assets` still records its digest, so re-exporting a decorative illustration
+still invalidates the environment and costs a re-render before the run can
+discover the pixels were identical. That is the limit of what a stylesheet can
+do from inside a document that already made the request. An operator who wants
+the churn gone from the key as well has to name the URL or the size band, and
+blank it.
+
+So the two mechanisms split by what each layer can know, and neither is a
+degraded version of the other. The wire decides by URL and intrinsic size, and
+gets there before the fetch. The page decides by role, and pays for the fetch it
+cannot prevent.
+
 ### Waiting on what was actually requested
 
 `network.settle()` resolves when nothing is in flight. Not a poll over the nodes

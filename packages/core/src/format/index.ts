@@ -43,6 +43,7 @@ export {
   pinAnimations,
   hideCaret,
   hideScrollbars,
+  hidePresentationalImages,
   waitForFonts,
   waitForImages,
   forTier,

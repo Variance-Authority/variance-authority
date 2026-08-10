@@ -1,5 +1,14 @@
 import { digestBytes, type Diagnostic, type Digest } from '@variance-authority/core';
 import type { Page, Route } from 'playwright';
+import {
+  type BlankRule,
+  blankKey,
+  blankPng,
+  blankRuleError,
+  blankRuleFor,
+  blankUrlAimedAt,
+  imageSize,
+} from './blank.js';
 import { freezeGif } from './gif.js';
 
 /**
@@ -80,6 +89,17 @@ export interface NetworkOptions {
    * in this key is a false `unchanged`.
    */
   readonly hashCeilingBytes?: number;
+
+  /**
+   * Images to serve as nothing, at their own size. Empty by default.
+   *
+   * The stronger relative of an ignore mask, and the reason it is stronger is
+   * that it happens *first*: a mask hides pixels after a page has fetched an
+   * image, laid out around it, and moved the environment key with its bytes. See
+   * [`blank.ts`](blank.ts) for what it can and cannot decide — in one line, it
+   * knows the URL and the intrinsic size, and it does not know the DOM.
+   */
+  readonly blank?: readonly BlankRule[];
 }
 
 export interface NetworkObservation {
@@ -88,6 +108,16 @@ export interface NetworkObservation {
 
   /** URLs served as a single frame. Empty is the expected case. */
   readonly frozen: readonly string[];
+
+  /**
+   * Images served as nothing, and which rule did it.
+   *
+   * A ledger rather than a count, because blanking is the one intervention here
+   * that can hide a real regression: an operator who blanked more than they meant
+   * to needs to be able to read back exactly what disappeared, per subject,
+   * without re-running with the feature off.
+   */
+  readonly blanked: readonly BlankedAsset[];
 
   /** Anything it could not do. Never a thrown error — see {@link observeNetwork}. */
   readonly diagnostics: readonly Diagnostic[];
@@ -119,6 +149,15 @@ export interface NetworkObservation {
   close(): Promise<void>;
 }
 
+/** One image that was replaced, with enough to find it again. */
+export interface BlankedAsset {
+  readonly url: string;
+  /** {@link BlankRule.id} of the rule that matched. */
+  readonly rule: string;
+  readonly width: number;
+  readonly height: number;
+}
+
 const DEFAULT_CEILING_BYTES = 8 * 1024 * 1024;
 const DEFAULT_SETTLE_MS = 5_000;
 
@@ -138,9 +177,17 @@ export async function observeNetwork(
   const freeze = options.freezeAnimatedImages ?? true;
   const hash = options.hashAssets ?? true;
   const ceiling = options.hashCeilingBytes ?? DEFAULT_CEILING_BYTES;
+  const blankRules = options.blank ?? [];
+
+  // Before anything is routed, and therefore not a page failure: a rule list
+  // that cannot mean what it says is refused while the operator is still reading
+  // their own config, not turned into a diagnostic under a green run.
+  const ruleError = blankRuleError(blankRules);
+  if (ruleError !== null) throw new Error(ruleError);
 
   const assets: Record<string, string> = {};
   const frozen: string[] = [];
+  const blanked: BlankedAsset[] = [];
   const diagnostics: Diagnostic[] = [];
   const inFlight = new Set<string>();
   let idle: (() => void) | undefined;
@@ -150,11 +197,13 @@ export async function observeNetwork(
   return {
     assets,
     frozen,
+    blanked,
     diagnostics,
     settle,
     reset(): void {
       for (const url of Object.keys(assets)) delete assets[url];
       frozen.length = 0;
+      blanked.length = 0;
     },
     async close(): Promise<void> {
       await page.unroute('**/*', handle);
@@ -168,7 +217,10 @@ export async function observeNetwork(
     // Continued without a body read. A script or a document affects the render
     // through the capture, which already has it; paying to hash one here would
     // buy a second copy of a covered input.
-    if (!HASHED_TYPES.has(request.resourceType()) || (!hash && !freeze)) {
+    if (
+      !HASHED_TYPES.has(request.resourceType()) ||
+      (!hash && !freeze && blankRules.length === 0)
+    ) {
       await route.continue().catch(noteRouteFailure(url));
       return;
     }
@@ -178,6 +230,8 @@ export async function observeNetwork(
     try {
       const response = await route.fetch();
       const body = await response.body();
+
+      if (request.resourceType() === 'image' && (await serveBlank(route, url, body))) return;
 
       if (hash) assets[url] = digestOf(body, ceiling);
 
@@ -204,6 +258,49 @@ export async function observeNetwork(
       inFlight.delete(url);
       if (inFlight.size === 0) idle?.();
     }
+  }
+
+  /**
+   * Replace this image with nothing, and say so — or leave it alone.
+   *
+   * Returns whether the route was fulfilled, so the caller can skip hashing: a
+   * blanked asset is recorded as *the blank it became*, never as the bytes it
+   * arrived as. That is the saving. Hashing the original as well would put the
+   * discarded bytes back into the environment key and re-render every subject
+   * the image appears on to rediscover that it had been thrown away.
+   */
+  async function serveBlank(route: Route, url: string, body: Buffer): Promise<boolean> {
+    if (blankRules.length === 0) return false;
+
+    const size = imageSize(body);
+    if (size === null) {
+      // Only worth a diagnostic when a rule was actually aimed at this URL.
+      // Every page has an SVG this cannot measure, and a warning for each one
+      // would bury the case that matters: a rule that looks applied and is not.
+      if (blankUrlAimedAt(blankRules, url)) {
+        diagnostics.push({
+          severity: 'warn',
+          code: 'blank-size-unknown',
+          message:
+            `${url} matched a blank rule by URL, but its intrinsic size is not readable from ` +
+            'its header, so it was served unmodified rather than at a guessed size',
+        });
+      }
+      return false;
+    }
+
+    const rule = blankRuleFor(blankRules, url, size);
+    if (rule === null) return false;
+
+    assets[url] = blankKey(rule, size);
+    blanked.push({ url, rule: rule.id, width: size.width, height: size.height });
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: blankPng(size.width, size.height),
+    });
+    return true;
   }
 
   async function settle(timeoutMs = DEFAULT_SETTLE_MS): Promise<void> {

@@ -187,6 +187,48 @@ export const hideScrollbars: Intervention = {
   css: '*{scrollbar-width:none !important}\n*::-webkit-scrollbar{display:none !important}',
 };
 
+/**
+ * Drop the pixels of images the page itself called decorative, keeping their boxes.
+ *
+ * The other half of blanking, and it lives here because of what it needs to
+ * know. A driver rewriting responses (`@variance-authority/playwright`'s
+ * `blank` rules) can decide by URL and by intrinsic size, which answers "every
+ * illustration over 40,000 pixels" and answers it before the bytes are even
+ * fetched. It cannot answer `role="presentation"`, because a request carries no
+ * idea which element wanted it — that fact exists only in the document, so the
+ * trick that uses it is a stylesheet.
+ *
+ * `visibility:hidden` rather than `display:none`, and the distinction is the
+ * entire design: a hidden element still occupies exactly the box it would have,
+ * so a page whose column height comes from an image's intrinsic size is
+ * unchanged. `display:none` would collapse it and report a layout regression
+ * this tool caused.
+ *
+ * **Opt-in, and it belongs in no default recipe.** Every other trick here
+ * removes something that is not part of the assertion — a caret, a scrollbar, an
+ * animation mid-flight. This one removes page content, which is a judgement
+ * about what a suite is for, and a default that quietly stopped watching every
+ * `alt=""` image would hide real regressions under a green run.
+ */
+export const hidePresentationalImages: Intervention = {
+  id: 'hide-presentational-images',
+  trick: 'support',
+  // `layout` rather than `raster`, and the difference is whether it runs at all.
+  // A raster-tier trick is filtered out of every *collection* — `tierOfProfile`
+  // never returns `raster` — so it would only reach a page through a renderer
+  // option, which is not where an operator configures their suite. A collection
+  // sheet is in force when the document is serialized, so hiding it here is what
+  // makes the pixels absent from the render.
+  needs: 'layout',
+  governs: 'presentational-images',
+  because:
+    'images the page marked decorative hidden, keeping their boxes — real changes inside them ' +
+    'are not reported',
+  css:
+    'img[role="presentation"],img[alt=""],[role="presentation"] img,[role="none"] img' +
+    '{visibility:hidden !important}',
+};
+
 export const waitForFonts: Intervention = {
   id: 'wait-for-fonts',
   trick: 'wait',
@@ -233,6 +275,7 @@ export const INTERVENTIONS: readonly Intervention[] = [
   pinAnimations,
   hideCaret,
   hideScrollbars,
+  hidePresentationalImages,
   waitForFonts,
   waitForImages,
 ];

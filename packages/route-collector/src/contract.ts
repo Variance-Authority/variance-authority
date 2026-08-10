@@ -41,6 +41,21 @@ export interface CollectorConfig {
     readonly tags?: readonly string[];
   }[];
 
+  /**
+   * Images to serve as nothing, from `config.blank`.
+   *
+   * Handed to the driver rather than to the page, because it is enforced on the
+   * wire — before a byte is decoded, and therefore before the layout it would
+   * have participated in exists. Not scoped by subject, and it cannot be: a
+   * request carries no idea which subject will end up using it, which is the
+   * same reason the asset map is per page rather than per subject.
+   */
+  readonly blank?: readonly {
+    readonly id: string;
+    readonly url?: string;
+    readonly minPixels?: number;
+    readonly maxPixels?: number;
+  }[];
 }
 
 export interface PlannedSubject {

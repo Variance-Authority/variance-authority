@@ -21,20 +21,20 @@ import {
   parseBaselines,
   parseFonts,
   parseHistory,
-  parseIgnores,
   parseRenderer,
   parseSubjects,
   parseViewport,
   type AloneConfig,
   type BaselinesConfig,
   type HistoryConfig,
-  type IgnoreConfig,
   type RemoteRendererConfig,
   type SubjectsConfig,
 } from './config-sections.js';
+import { parseBlanks, type BlankConfig } from './config-blank.js';
+import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
 
-export type { SensitivityConfig };
+export type { BlankConfig, IgnoreConfig, SensitivityConfig };
 
 /**
  * The configuration file, and the rule that nothing else configures a run.
@@ -89,7 +89,6 @@ export type {
   BaselinesConfig,
   DirectoryBaselines,
   HistoryConfig,
-  IgnoreConfig,
   LfsBaselines,
   ListSubjects,
   RemoteBaselines,
@@ -202,6 +201,32 @@ export interface Config {
   readonly ignore?: readonly IgnoreConfig[];
 
   /**
+   * Images served as nothing, at their own size, before the browser decodes them.
+   *
+   * What `ignore` is for a region of the page, this is for an asset — and it acts
+   * one layer earlier, which is where its advantages come from. A masked hero is
+   * still fetched, still lays the page out around its dimensions, and still puts
+   * its bytes into the environment key, so re-exporting it re-renders every
+   * subject it appears on to arrive at a difference that was going to be masked
+   * anyway. A blanked one is replaced on the wire with a transparent image of the
+   * *same intrinsic dimensions*, so the layout is identical and the key records
+   * `blank:<rule>:<w>x<h>` instead of a digest of the discarded bytes.
+   *
+   * A rule matches on what a request can actually know: the URL, and the size in
+   * the image's own header. `role="presentation"` is not one of those — it is a
+   * fact about a document, and a request carries no idea which element wanted it
+   * — so that case is the `hide-presentational-images` stabilization trick
+   * instead. See `docs/stabilization.md`.
+   *
+   * **Inside the environment key, unlike `ignore`.** Blanking changes what is
+   * rendered, not just what is reported, so a baseline taken with a rule and one
+   * taken without it are two different pictures and must not be compared. The
+   * key moves the day a rule is added, and the run says the identity changed
+   * rather than showing a wall of red.
+   */
+  readonly blank?: readonly BlankConfig[];
+
+  /**
    * How much of a subject is asserted on at all (spec 0024, ADR-0026).
    *
    * The other half of `ignore`, and the opposite sentence. An ignore says *this
@@ -287,6 +312,7 @@ const TOP_LEVEL = [
   'intent',
   'alone',
   'ignore',
+  'blank',
   'sensitivity',
   'decoder',
   'concurrency',
@@ -371,6 +397,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const intent = optionalText(root, 'intent', options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
   const ignore = root['ignore'] === undefined ? undefined : parseIgnores(root['ignore'], options);
+  const blank = root['blank'] === undefined ? undefined : parseBlanks(root['blank'], options);
   const sensitivity =
     root['sensitivity'] === undefined
       ? undefined
@@ -428,6 +455,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(intent !== undefined ? { intent } : {}),
     ...(alone !== undefined ? { alone } : {}),
     ...(ignore !== undefined ? { ignore } : {}),
+    ...(blank !== undefined ? { blank } : {}),
     ...(sensitivity !== undefined ? { sensitivity } : {}),
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
     ...(concurrency === undefined ? {} : { concurrency: concurrency as number }),

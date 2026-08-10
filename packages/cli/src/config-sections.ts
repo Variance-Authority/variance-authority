@@ -1,4 +1,4 @@
-import { validateIgnoreRule, type Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core';
 import {
   fail,
   integer,
@@ -78,7 +78,11 @@ export const DEFAULT_ALONE_LIMIT = 20;
  * are undebuggable, so instead `collector` names a module the operator writes,
  * and the contract it must satisfy is `SubjectSource` in `commands/collector.ts`.
  */
-export type SubjectsConfig = StorybookSubjects | ListSubjects | DiscoveredSubjects;
+export type SubjectsConfig =
+  | StorybookSubjects
+  | ListSubjects
+  | DiscoveredSubjects
+  | ImageSubjects;
 
 export interface StorybookSubjects {
   readonly kind: 'storybook';
@@ -112,6 +116,40 @@ export interface ListSubjects {
 export interface DiscoveredSubjects {
   readonly kind: 'collector';
   readonly collector: string;
+}
+
+/**
+ * The subjects are PNG files somebody else painted.
+ *
+ * The one arm of this union with **no collector**, because there is nothing to
+ * collect: the artifact has already been produced and this project's job starts
+ * and ends at comparing it. It is therefore also the one arm `variance run`
+ * refuses — running would mean rendering, and rendering is what did not happen
+ * here. `variance ingest` is the verb, and the separation is deliberate rather
+ * than cosmetic: everything above the pixel tier needs a document, so a mode with
+ * no document has to be reachable under a name that does not promise one
+ * (`docs/ingest.md`, and `docs/surface.md §4` for the arithmetic).
+ *
+ * Declaring it in the config rather than passing it as a flag is the same
+ * decision `list` embodies: what a project watches, and how much of it this tool
+ * can say anything about, is a fact reviewers should meet in a diff.
+ */
+export interface ImageSubjects {
+  readonly kind: 'images';
+  /** Directory walked for `.png` files. Every one of them is a subject. */
+  readonly directory: string;
+
+  /**
+   * What painted these images, in the operator's own words.
+   *
+   * Required, and the requirement is the whole safety property. This process
+   * cannot inspect the machine behind a foreign PNG, so the identity a baseline
+   * is partitioned by is whatever this says — which means a *changed* string
+   * makes the next comparison `incomparable` instead of red, and an unchanged
+   * string is an assertion the operator is making. Defaulting it would make that
+   * assertion on their behalf, for a machine neither of us has seen.
+   */
+  readonly painter: string;
 }
 
 export type BaselinesConfig = DirectoryBaselines | LfsBaselines | RemoteBaselines;
@@ -200,7 +238,22 @@ export function parseViewport(value: unknown, options: ParseOptions): Viewport {
 }
 
 export function parseSubjects(value: unknown, options: ParseOptions): SubjectsConfig {
-  const kind = kindOf(value, 'subjects', ['storybook', 'list', 'collector'], options);
+  const kind = kindOf(value, 'subjects', ['storybook', 'list', 'collector', 'images'], options);
+
+  if (kind === 'images') {
+    const source = object(value, 'subjects', ['kind', 'directory', 'painter'], options);
+    return {
+      kind: 'images',
+      directory: resolveFrom(
+        options.baseDir,
+        nonEmpty(source, 'directory', options, 'subjects.directory'),
+      ),
+      // Not resolved, not normalized, not validated beyond being non-empty:
+      // there is nothing on this machine to check it against. Its only contract
+      // is with its own past values.
+      painter: nonEmpty(source, 'painter', options, 'subjects.painter'),
+    };
+  }
 
   if (kind === 'collector') {
     const source = object(value, 'subjects', ['kind', 'collector'], options);
@@ -343,140 +396,4 @@ export function parseFonts(value: unknown, options: ParseOptions): readonly stri
     }
   }
   return fonts;
-}
-
-/**
- * One ignore, as the operator writes it (spec 0024).
- *
- * The shape is the argument. Every field except `select` and `fingerprints`
- * narrows; those two are the only ones that make a rule *concrete*, and a rule
- * that carries neither is refused rather than applied to everything it lists —
- * because a rule scoped only by band is a tolerance, and this project does not
- * have those.
- */
-export interface IgnoreConfig {
-  /** Stable name. Appears in the report, and in every count this rule produces. */
-  readonly id: string;
-
-  /**
-   * Why this is not the subject. Required, and refused when empty.
-   *
-   * The field that decides whether an ignore can ever be removed. Six months on
-   * the only question anyone asks is whether it is still true, and a rule that
-   * cannot answer gets kept out of superstition.
-   */
-  readonly reason: string;
-
-  /** CSS selector, evaluated inside each subject. The subtree it picks is excluded. */
-  readonly select?: string;
-
-  /** Difference shapes, from a previous run's report. Survives layout changes. */
-  readonly fingerprints?: readonly string[];
-
-  /** Subjects this applies to. `*` matches any run of characters. Absent means all. */
-  readonly subjects?: readonly string[];
-
-  /**
-   * Tags the subject must carry, as the artifact that produced it declared them.
-   *
-   * The declarative half. Storybook's built index carries a story's `tags`, so
-   * `tags: ["volatile"]` scopes a rule to every story that says it is volatile —
-   * next to the story, in the story's own words — instead of a list of ids in a
-   * central file that goes stale the moment somebody renames one.
-   *
-   * Narrowing, and it **intersects** with `subjects` rather than adding to it: a
-   * rule naming both applies where both hold. An ignore is the one setting that
-   * makes a run less observant, so when two readings are available the narrower
-   * one is correct, and two rules express a union perfectly well.
-   *
-   * A tag no subject carries is reported by name at the end of the run. A
-   * misspelled tag is otherwise unrefusable — it is a word, and every word is a
-   * legal one — so the only defence is saying which words nothing answered to.
-   */
-  readonly tags?: readonly string[];
-
-  /** ISO date after which this stops absorbing and starts reporting. */
-  readonly until?: string;
-}
-
-/**
- * Closed, and one field shorter than `core`'s own rule.
- *
- * `IgnoreRule.bands` exists and narrows what a rule absorbs — in `applyIgnores`,
- * over a pair of snapshots. The binary compares images against a stored baseline
- * and never builds that pair, so a `bands` written here would parse, validate,
- * appear to work and change nothing. It is not offered until something in a run
- * reads it; a config key with no consumer is worse than a missing feature,
- * because the operator believes they have it.
- */
-const IGNORE_KEYS = ['id', 'reason', 'select', 'fingerprints', 'subjects', 'tags', 'until'];
-
-/**
- * Parse and check the ignore list.
- *
- * Every rule is checked, and every problem is reported, rather than failing on
- * the first: a config with three bad ignores should take one edit to fix, not
- * three runs. The checks that are about *what an ignore is* live in `core`
- * (`validateIgnoreRule`) so that a library consumer composing the pipeline by
- * hand cannot route around them; what is added here is the file, the index, and
- * the one field `core` cannot see — a selector, which needs a DOM to mean
- * anything.
- */
-export function parseIgnores(value: unknown, options: ParseOptions): readonly IgnoreConfig[] {
-  if (!Array.isArray(value)) {
-    fail('ignore', `must be an array of ignore rules, not ${quote(value)}`, options);
-  }
-
-  const rules = (value as readonly unknown[]).map((entry, index) => {
-    const field = `ignore[${index}]`;
-    const source = object(entry, field, IGNORE_KEYS, options);
-
-    const id = nonEmpty(source, 'id', options, `${field}.id`);
-    const reason = nonEmpty(source, 'reason', options, `${field}.reason`);
-    const select = optionalText(source, 'select', options);
-    const fingerprints = source['fingerprints'];
-    const subjects = source['subjects'];
-    const tags = source['tags'];
-    const until = optionalText(source, 'until', options);
-
-    if (fingerprints !== undefined) strings(fingerprints, `${field}.fingerprints`, options);
-    if (subjects !== undefined) strings(subjects, `${field}.subjects`, options);
-    if (tags !== undefined) strings(tags, `${field}.tags`, options);
-
-    const rule: IgnoreConfig = {
-      id,
-      reason,
-      ...(select !== undefined ? { select } : {}),
-      ...(fingerprints !== undefined ? { fingerprints: fingerprints as readonly string[] } : {}),
-      ...(subjects !== undefined ? { subjects: subjects as readonly string[] } : {}),
-      ...(tags !== undefined ? { tags: tags as readonly string[] } : {}),
-      ...(until !== undefined ? { until } : {}),
-    };
-
-    // `core` owns what an ignore may be; this file owns where the operator wrote
-    // it. Re-deriving either half here is how the two would come to disagree.
-    const problems = validateIgnoreRule(
-      {
-        id,
-        reason,
-        ...(rule.fingerprints !== undefined ? { fingerprints: rule.fingerprints } : {}),
-        ...(until !== undefined ? { until } : {}),
-      },
-      { hasPlace: select !== undefined },
-    );
-    for (const problem of problems) fail(field, problem, options);
-
-    return rule;
-  });
-
-  const seen = new Set<string>();
-  for (const rule of rules) {
-    // Refused rather than merged. Two rules under one id produce one line in the
-    // register covering two decisions, and an operator deleting the flake it
-    // names would silently leave the other one absorbing.
-    if (seen.has(rule.id)) fail('ignore', `has two rules with the id ${quote(rule.id)}`, options);
-    seen.add(rule.id);
-  }
-
-  return rules;
 }

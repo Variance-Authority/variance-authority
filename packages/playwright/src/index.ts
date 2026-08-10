@@ -32,9 +32,11 @@ export type { BrowserEngine, PlaywrightRendererOptions } from './renderer.js';
 
 export { unresizable } from './viewport.js';
 export { observeNetwork } from './network.js';
-export type { NetworkObservation, NetworkOptions } from './network.js';
+export type { BlankedAsset, NetworkObservation, NetworkOptions } from './network.js';
 
 export { freezeGif } from './gif.js';
+export { blankKey, blankPng, blankRuleError, blankRuleFor, imageSize } from './blank.js';
+export type { BlankRule, ImageSize } from './blank.js';
 
 export { AGENT_GLOBAL } from './agent.js';
 export type { CaptureRequest, PageAgent } from './agent.js';

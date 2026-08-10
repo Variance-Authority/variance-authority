@@ -215,6 +215,55 @@ describe('ignore rules', () => {
   });
 });
 
+describe('blank rules', () => {
+  const rule = (over: Record<string, unknown> = {}) => ({
+    id: 'illustrations',
+    reason: 'marketing re-exports these weekly and none of it is a regression',
+    minPixels: 40_000,
+    ...over,
+  });
+
+  it('accepts a rule that names a size and a reason', () => {
+    expect(parseConfig(withField('blank', [rule()]), OPTIONS).blank).toEqual([rule()]);
+  });
+
+  it('accepts a rule that names only a path', () => {
+    const byPath = { id: 'cdn', reason: 'third party', url: 'https://cdn.example/**' };
+    expect(parseConfig(withField('blank', [byPath]), OPTIONS).blank).toEqual([byPath]);
+  });
+
+  it('refuses a rule with no reason', () => {
+    expect(attempt(withField('blank', [rule({ reason: '' })])).field).toBe('blank[0].reason');
+  });
+
+  it('refuses a rule that names nothing, rather than blanking the whole page', () => {
+    // Blanking every image on the site is a legitimate thing to want and an
+    // illegitimate thing to arrive at by leaving a field out.
+    expect(attempt(withField('blank', [{ id: 'all', reason: 'why not' }])).field).toBe('blank[0]');
+  });
+
+  it('refuses a band no image can satisfy', () => {
+    expect(attempt(withField('blank', [rule({ minPixels: 100, maxPixels: 10 })])).field).toBe(
+      'blank[0]',
+    );
+  });
+
+  it('refuses a size that is not a count of pixels', () => {
+    expect(attempt(withField('blank', [rule({ minPixels: '40000' })])).field).toBe(
+      'blank[0].minPixels',
+    );
+    expect(attempt(withField('blank', [rule({ minPixels: -1 })])).field).toBe('blank[0].minPixels');
+  });
+
+  it('refuses two rules with the same id', () => {
+    expect(attempt(withField('blank', [rule(), rule({ url: '**/other/**' })])).field).toBe('blank');
+  });
+
+  it('refuses an unknown key rather than ignoring it', () => {
+    expect(attempt(withField('blank', [rule({ select: '.hero' })])).field).toBe('blank[0].select');
+  });
+});
+
 function attempt(value: unknown): ConfigError {
   try {
     parseConfig(value, OPTIONS);
