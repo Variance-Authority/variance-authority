@@ -1,88 +1,147 @@
 # @variance-authority/observe
 
-**Requires:** a `Renderer` and a `RasterStore`, both passed in — so it needs
-neither a browser nor a directory of its own, and swapping either is a wiring
-decision it does not notice. Pass a `snapshot` and a `source` index too, unless a
-pixel count with coordinates is all you want back.
+**Requires:** a renderer and raster store supplied by the caller for
+document-based paths; `observeRasters` needs neither.
 
-Two images and a verdict — `unchanged`, `changed`, `new` or `incomparable` —
-attributed to a component and a file rather than to the machine that painted the
-pixels. Either both images are produced now and discarded, or one is compared
-against a baseline you stored earlier. The two are one function each, and picking
-between them is the only decision this package leaves open — everything else
-about the order is fixed, which the next section is about.
+Compare render documents or rasters with a renderer and store you provide, and
+receive one `Observation` regardless of where the images came from.
 
-## Whether to import it or copy it
+Use this package when you are building a custom integration below the CLI,
+Storybook, route, or Playwright surfaces. It fixes the order of render, lookup,
+comparison, region isolation, attribution, and verdict selection while leaving
+acquisition, renderer lifecycle, storage lifecycle, acceptance, and reporting
+to your application.
 
-**Import it if the order it hard-wires is the order you want; copy it if not.**
-It is the only place in the repository where a phase order is fixed, and it is
-assembled from the same public tools you would use yourself — nothing below it
-imports it, so replacing it costs you nothing that is not in this file.
-[`docs/architecture.md`](../../docs/architecture.md) is the argument for why the
-order lives here rather than in every package.
+If you want a ready-made integration rather than those responsibilities, start
+with [`@variance-authority/cli`](../cli),
+[`@variance-authority/storybook-collector`](../storybook-collector),
+[`@variance-authority/route-collector`](../route-collector), or
+[`@variance-authority/playwright-test`](../playwright-test).
 
-A composition inherits the requirements of everything it composes, which is why
-the `Renderer` and `RasterStore` above are parameters rather than dependencies:
-they are how this package avoids acquiring a browser and a directory of its own.
+## Choose the entrypoint
 
-## Two modes, one function each
+| Entrypoint | Use it when | What you must provide |
+| --- | --- | --- |
+| `observePair` | Both render documents were produced now and should be compared ephemerally. | Two documents, one renderer, and one raster store for the render cache. |
+| `observeAgainstBaseline` | The current document should be compared with a durable baseline. | A document, baseline key, renderer, and store containing the approved baseline. |
+| `observeRasters` | Both PNG rasters already exist, including foreign-image ingestion. | A subject id and two rasters; snapshot and source are optional enrichment. |
+| `summarizeObservation` | A caller needs a compact serializable summary of an observation. | An `Observation`. |
+| `declaredIgnores` | A report must account for ignore declarations even on paths that never compare. | The semantic snapshot and device scale. Most integrators should let the higher-level pipeline call it. |
+
+`observePair` and `observeAgainstBaseline` return the same `Observation`, so the
+code that handles verdicts does not need a branch for retention mode.
+
+## Compare two revisions from one run
+
+Use the ephemeral path when both documents are already in hand. Because one
+renderer paints both sides during one run, machine identity cancels out and no
+approved baseline is required.
 
 ```ts
-import { observePair, observeAgainstBaseline } from '@variance-authority/observe';
+import { observePair } from '@variance-authority/observe';
 
-// `renderer` and `store` are required. `snapshot` is the normalized semantic
-// snapshot of the same render and `source` the component→file index: both are
-// optional, and both are the whole reason to bother — without them an
-// observation is a pixel count with coordinates, which is unassignable.
-const wiring = { renderer, store, snapshot, source };
+const observation = await observePair(before, after, {
+  renderer,
+  store,
+  snapshot,
+  source,
+});
 
-// Ephemeral: both images produced now, by one renderer, and thrown away.
-// The machine cancels out by construction — there is no second machine.
-const ephemeral = await observePair(before, after, wiring);
-
-// Durable: render this side, compare against a stored baseline.
-const durable = await observeAgainstBaseline(document, { subject: 'story:card' }, wiring);
+if (observation.verdict === 'changed') {
+  for (const region of observation.regions) {
+    console.log(region.component, region.region.pixels);
+  }
+}
 ```
 
-Both return the same `Observation`, so a pipeline is written once and run either
-way. What differs is where the other image came from and whether anyone is
-allowed to trust it later.
+`snapshot` is the normalized semantic snapshot of the same render and `source`
+is its component-to-file index. Both are optional, but omitting them deliberately
+reduces the result: without a snapshot the observation can report pixel regions,
+not the nodes and components behind them; without a source index it cannot
+resolve a component to `file:line`.
 
-## What it adds beyond wiring
+## Compare with an approved baseline
 
-The part that is genuinely about composition: **which verdicts exist, and which
-of them are allowed to be `unchanged`.**
+Use the durable path when another part of your integration owns baseline
+approval and storage:
 
-| verdict | meaning |
-|---|---|
-| `unchanged` | one machine painted both, and no pixel differs |
-| `changed` | with regions, components and files attached |
-| `new` | no baseline. Not a pass, and not a failure |
-| `incomparable` | a baseline exists, produced by a different machine |
+```ts
+import { observeAgainstBaseline } from '@variance-authority/observe';
 
-`incomparable` is the verdict that keeps the durable mode honest. Comparing
-across identities yields a large, confident diff caused by a font stack or a
-driver, which the report would then attribute to whichever component happens to
-sit under the pixels. So the comparison is refused instead — and **`unchanged` is
-never available on that path**, because an unobservable difference must never be
-reported as no difference.
-
-The refusal names both machines:
-
-```
-incomparable — the baseline was painted by playwright-chromium (chromium@131.0.0,
-linux/x64, 1x) and this run is darwin/arm64, 2x
+const observation = await observeAgainstBaseline(
+  document,
+  { subject: 'story:checkout--empty' },
+  { renderer, store, snapshot, source },
+);
 ```
 
-## Where a baseline lives decides nothing about what it means
+This function reads and compares; it does not approve a `new` candidate. Your
+integration must define the review boundary and write the approved raster to the
+store. If you need the repository's existing acceptance workflow, use the CLI
+or Playwright package instead of rebuilding it here.
 
-**The store is not part of the verdict.** All four outcomes — `unchanged`,
-`changed`, `new`, `incomparable` — come out the same through the durable store,
-the git-LFS store and a store across a real socket, and each expected answer is
-pinned rather than merely compared across the three
-([`parity.test.ts`](src/parity.test.ts)). So you may choose a backend on
-operational grounds alone.
+The lookup asks under `renderer.identityFor(document)`. A baseline found under
+another identity returns `incomparable`; it is never diffed and blamed on the
+subject.
 
-If moving the store changed a verdict, the verdict was never about the subject
-and every argument this project makes about attributing a change to a component
-would be describing the deployment instead.
+## Handle every verdict
+
+| Verdict | Meaning | Integration response |
+| --- | --- | --- |
+| `unchanged` | Comparable images contain no changed pixels. | Continue without review. |
+| `changed` | A comparable image differs; regions contain as much attribution as the supplied snapshot and source allow. | Present the evidence and require review. |
+| `new` | No baseline exists for the durable key and renderer. | Review and explicitly approve or reject the candidate. Do not treat it as green. |
+| `incomparable` | A baseline exists under an incompatible renderer identity. | Align renderer inputs or establish a separate baseline; do not accept the noise as a component change. |
+| `ignored` | Pixels moved, but every difference was absorbed by a declared exclusion or sensitivity. | Continue while recording that the green result depended on a rule. |
+
+An observation also records whether rendering occurred, missing fonts,
+comparison and isolation details, ignored-pixel accounting, component causes
+when both sides carry hashes, and diagnostics such as a mismatch between the
+acquired subject size and the painted image.
+
+## Wire the dependencies
+
+`ObserveOptions` requires a `Renderer` and a `RasterStore`:
+
+- The renderer owns image production and render identity. Keep its lifecycle
+  outside a per-subject loop; launching a browser for every observation defeats
+  the cache and session economy.
+- The store supplies both durable-baseline lookup and a content-addressed render
+  cache. Its backend does not change verdict semantics.
+- `snapshot`, `source`, comparison settings, decoder, region limit, sensitivity,
+  and difference-shape ignores enrich or narrow the decision. Their exact types
+  live in `ObserveOptions` and `CompareInputs`.
+
+Moving from a directory store to git-LFS, a remote store, or another conforming
+backend must not change the answer. The package's parity test pins the same
+verdicts through the available backends.
+
+## When integration fails
+
+- **Everything is `new`:** confirm the baseline key and
+  `renderer.identityFor(document)` match the values used when the approved
+  baseline was written.
+- **Everything is `incomparable`:** compare the reported identities. Browser,
+  platform, scale, font declarations, and stabilization inputs partition
+  baselines intentionally.
+- **Regions have coordinates but no components:** supply the semantic snapshot
+  from the same render.
+- **Components have no source lines:** supply a matching `SourceIndex`.
+- **A warm run reports stale component causes:** do not store snapshot-derived
+  component hashes as render-cache truth. This package replaces cached hashes
+  with the hashes from the current snapshot before deciding.
+- **The first durable result needs accepting:** that lifecycle is deliberately
+  outside this package; use or reproduce an explicit candidate-review-promote
+  boundary rather than writing the first image automatically.
+
+## Boundaries
+
+This package performs no DOM acquisition, opens no browser, chooses no baseline
+directory, writes no report, emits no exit code, and exposes no approval command.
+Those are integration decisions, not omitted defaults.
+
+Import this composition when its fixed order is the order you want. If your
+pipeline needs another order, compose the public tools in
+[`@variance-authority/core`](../core),
+[`@variance-authority/raster`](../raster), and
+[`@variance-authority/png`](../png) directly.
