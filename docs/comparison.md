@@ -30,7 +30,7 @@ The specific consequences, so they are not left to be inferred:
 | Years of contact with third-party component libraries | One corpus, written by the same people who wrote the implementation |
 | Support, SLAs, and someone to call | A git repository |
 | MIT (Argos), or a commercial contract legal can sign | MIT, with nothing published under it. A root `LICENSE` and 21 non-private manifests at `0.0.0-beta.1` make the packages licensed and publishable; no `v*` tag has ever been pushed, so no registry has seen one and obtaining this still means cloning the repository ([spec 0015](specs/0015-the-first-published-release.md)). A reader evaluating it for adoption should read the rest as a description of an approach rather than of something installable |
-| A working install path: `npx`, a token, a green check on a PR | A CLI executed end to end against one Storybook this project did not write, and against nothing else ([§4.2](#42-nothing-above-the-cli-boundary-has-been-run)) |
+| A working install path: `npx`, a token, a green check on a PR | A CLI executed end to end against one Storybook this project did not write, and against nothing else ([§4](#4-what-is-written-and-unrun)) |
 | Linux CI, verified by every customer who runs it | Every measurement in this repository from one M-series Mac |
 
 Anything below that reads as an advantage should be read against this table. The
@@ -45,14 +45,14 @@ surface area is not one of them.
 |---|---|---|---|---|---|
 | **Integration surface** | 20+ SDKs: Selenium, Playwright, Cypress, Puppeteer, Storybook, Appium; plus no-code URL list, sitemap, static dir, crawler ([SDKs](https://www.browserstack.com/docs/percy/overview/supported-sdks)) | Storybook first-class (stories become tests with no authoring), plus Playwright, Cypress, Vitest ([docs](https://www.chromatic.com/docs/storybook/)) | Playwright, Vitest, Storybook, Cypress, WebdriverIO, Puppeteer, plus a CLI that takes any PNG ([docs](https://argos-ci.com/docs/overview.md)) | 30+ SDKs across five languages, native mobile, Tosca, Katalon ([docs](https://applitools.com/docs/eyes)) | **Three shipped surfaces, and the gap to the left is still wide.** Theirs consume an existing suite's output across 20–30 SDKs. Here there are three: a **built or served Storybook** through `@variance-authority/storybook-collector` (five lines of config); a **Playwright suite** through `@variance-authority/playwright-test`, where the test body you already wrote plays the collector's part — `expect(await variance(locator)).toBeUnchanged()`; and a **map of served URLs** through `@variance-authority/route-collector`, which is also the first thing to enter through `subjects.kind: "list"`. Anything outside those three is re-mounted by a collector the operator writes, and the honest measurement of writing one is 341 lines. For Cypress, WebdriverIO, Appium or a sitemap that is the cost — and the route collector is **not a crawler**: the URLs are a map the operator writes, because a discovered page is a subject nobody chose. Also built: a library callable inside Vitest/Jest via jsdom. Provenance from React fibers, or from **two `data-*` attributes any build step can emit** ([§3.1](#31-a-diff-that-names-a-component-and-a-file), [surface.md](surface.md)) |
 | **Where rendering happens** | Vendor. DOM serialized in your browser, re-rendered server-side across browsers/widths, **JS disabled by default** ([workflow](https://www.browserstack.com/docs/percy/integrate/percy-sdk-workflow)) | Vendor "Capture Cloud". Storybook bundle or E2E archive uploaded and re-rendered ([docs](https://www.chromatic.com/docs/snapshots/)) | **Customer CI.** Argos never launches a browser; it receives PNGs and diffs them ([docs](https://argos-ci.com/docs/overview.md)) | Vendor. Ultrafast Grid re-renders a DOM snapshot in containers; mobile is emulated/simulated ([UFG](https://applitools.com/docs/eyes/concepts/test-execution/ultrafast-grid)) | **Customer, everywhere.** jsdom in the unit-test process, or a browser the run owns — Chromium, Firefox or WebKit, chosen per renderer. Optional remote renderer the operator runs |
-| **Cost model** | **Per screenshot** = page × browser × width. Free 5,000/mo; Desktop $199/mo annual → 10,000, overage **$0.036** ([pricing](https://www.browserstack.com/pricing?product=percy)) | **Per billed snapshot** = tests × builds × browsers × modes; TurboSnap = 0.2. Free 5,000/mo; Starter $179/mo → 35,000, overage **$0.008** ([billing](https://www.chromatic.com/docs/billing/)) | **Per screenshot.** Free 5,000/mo; Pro from $100/mo → 35,000, overage **$0.004** ($0.0015 Storybook). SSO priced separately ([pricing](https://argos-ci.com/pricing)) | **Per Page** = a unique checkpoint *regardless of browser, device or version*. No public price at any tier ([pricing](https://applitools.com/pricing/), [ToS](https://applitools.com/terms-of-use/)) | No unit. Compute is the operator's; storage is a directory, git-LFS (**never exercised as git-LFS**, [§4.2](#42-nothing-above-the-cli-boundary-has-been-run)) or a remote endpoint the operator runs. Sized below — estimated, never operated |
+| **Cost model** | **Per screenshot** = page × browser × width. Free 5,000/mo; Desktop $199/mo annual → 10,000, overage **$0.036** ([pricing](https://www.browserstack.com/pricing?product=percy)) | **Per billed snapshot** = tests × builds × browsers × modes; TurboSnap = 0.2. Free 5,000/mo; Starter $179/mo → 35,000, overage **$0.008** ([billing](https://www.chromatic.com/docs/billing/)) | **Per screenshot.** Free 5,000/mo; Pro from $100/mo → 35,000, overage **$0.004** ($0.0015 Storybook). SSO priced separately ([pricing](https://argos-ci.com/pricing)) | **Per Page** = a unique checkpoint *regardless of browser, device or version*. No public price at any tier ([pricing](https://applitools.com/pricing/), [ToS](https://applitools.com/terms-of-use/)) | No unit. Compute is the operator's; storage is a directory, git-LFS or a remote endpoint the operator runs. Sized below — estimated from measured per-image bytes, not read off a bill |
 | **Flakiness handling** | Determinism up front — JS off, GIFs frozen, CSS animations frozen ([animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations)) — plus manual suppression. No per-snapshot flake rate, quarantine or retry documented as of 2026-08-02; retries may exist at the test-runner layer instead | SteadySnap: render stabilization, Burst Capture (multiple renders, pick most stable), freeze frame, **auto-migrated baselines across their own browser upgrades** ([SteadySnap](https://www.chromatic.com/features/steadysnap)) | **Diff fingerprints.** An ignore is a (test, diff-shape) pair; auto-ignore after N occurrences in 7 days; flakiness score 0–100 per test; an Ignored register with occurrence counts ([docs](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md)) | Perceptual matching, six match levels, floating/ignore/layout regions, DOM-anchored ignore regions, `MatchTimeout` 2s retry. No cross-run flake score documented as of 2026-08-02 ([match levels](https://applitools.com/docs/eyes/concepts/best-practices/match-levels)) | **No quarantine and no retry, and a flake rate that divides by the runs that asked** ([flakiness.md](flakiness.md#has-this-happened-before)): a changed subject is read twice in one run, an occurrence is recorded with the component and band that moved, and a window reports occurrences, a rate over the sweeps that could have observed one, and how many sweeps have been clean since. Nothing is auto-ignored at any threshold, which is the remaining difference from the cell to the left — less *mitigation*, not less *data*. Underneath both is a classification of causes by what absorbs them — construction, environment key, policy, or **nothing** — and [flakiness.md](flakiness.md) names the three currently absorbed by nothing. Cross-pollution is attributed to a named writer rather than suppressed. That is a position, not a mitigation |
 | **Attribution: does a diff name a component and a file?** | **No.** Root Cause Analysis names the changed element's CSS class, or its tag if it has none. No component, no file, no commit ([RCA](https://www.browserstack.com/docs/percy/root-cause-analysis/overview)) | **Component yes, by construction; file no.** A snapshot *is* a story, so the story title names the component. For a page-level story the answer is "this page moved". `npx chromatic trace` walks the module graph file→story offline — the same category of offline repo lookup this project's own last hop uses, pointed the other way ([trace](https://www.chromatic.com/docs/turbosnap/trace-utility/)) | **No.** Metadata carries the *test spec's* file and line (`tests/home.spec.ts:42:3`) and the Storybook story id. No component field and no map from a diff to product code in the documented metadata ([metadata](https://argos-ci.com/docs/reference/screenshot-metadata.md)) | **No.** RCA names DOM elements and changed CSS properties with a DOM path. GitHub status Details links go to the Test Manager, not to source ([RCA](https://applitools.com/docs/eyes/concepts/reviewing-tests/root-cause-analysis)) | **Yes, measured on one corpus**: pixels → regions → components → `file:line`, ranked from the semantic tier. Two provenance adapters — React fibers, and 25 lines reading `data-component`/`data-props`, which is what a Vue or Svelte build step already emits. The `cause`/`collateral` ranking rests on one mutation, one story, one self-authored example app, one machine ([§3.1](#31-a-diff-that-names-a-component-and-a-file)) |
-| **Review and approval** | Dashboard approval persisting across a branch's lifespan, snapshot rules that persist to future branches, **unlimited users on every tier including Free** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | UI Test and UI Review as separate checks, assigned and persistent default reviewers, threaded discussion anchored to an individual snapshot, no repo access required for designers ([review](https://www.chromatic.com/docs/review/)) | Multiple independent reviewers, comments pinned to an exact pixel or line range, a full keyboard path, per-test discussion threads ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Triage grouped by the *shape* of the diff, one accept propagating across the batch ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)) | **The axis this loses hardest, and the one these products are bought for.** `variance accept` writes a sidecar beside an image and explicitly refuses to record history ([§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be)). No UI, no reviewer model, no discussion, no merge semantics for two branches accepting differently — and it has never been run |
-| **Accumulated history** | Approval persists across a branch's lifespan; snapshot rules persist; 30-day (Free) / 12-month (paid) build history. **No longitudinal per-snapshot metric** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | Per-branch baselines with branch-point inheritance, squash/rebase detection via git provider APIs, browsable baseline revision history. Retention unpublished below Enterprise ([branching](https://www.chromatic.com/docs/branching-and-baselines/)) | **The strongest in the category.** Per-test flakiness over 24h–90d windows, changes grouped by fingerprint and ranked by recurrence, first/last seen, per-test discussion threads, account analytics with CSV ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Baselines keyed by app × test × OS × browser × viewport, with revision history, branch baselines and a merge UI; Insights charts. 1-year retention stated on Public Cloud only ([baselines](https://applitools.com/docs/eyes/getting-started/applitools-workflow/baselines)) | Per-component band hashes and instability occurrences, append-only, no pixels. **A run writes rows now**, and the flake half is answered: occurrences, a rate over sweeps, first and last seen, and sweeps-since. The drift half is not: no run resolves a token, and nothing records acceptance — see [§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be) |
-| **Self-hosting** | **None, and the architecture forecloses it** — the SDK's function is to ship your DOM to Percy's API. "Automate Self-Hosted" is a different product | **None.** "On-premises" in their docs means self-hosted *git providers* ([FAQ](https://www.chromatic.com/docs/faq/chromatic-sso-on-premises-other-git/)) | MIT-licensed in full, **and the vendor states self-hosting "is not officially supported or documented"** — needs Postgres, RabbitMQ, Redis, S3, DynamoDB, a GitHub App and Stripe ([docs](https://argos-ci.com/docs/overview.md)) | **Yes** — on-premise Eyes server, images stored locally; also private dedicated cloud ([modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes), ~7 years old). Scoped to Eyes, not Autonomous | Nothing hosted exists, so nothing has to be opted out of: no telemetry, no phone-home, one outbound call to a renderer endpoint the operator supplies. That is not the same as a self-hosting *story* — nothing published to install from (see the table above), no upgrade path, no backup story, and the history service is one SQLite file behind a bearer token with no concurrency test ([§4.5](#45-targets-never-measured-and-limits-never-tested)) |
+| **Review and approval** | Dashboard approval persisting across a branch's lifespan, snapshot rules that persist to future branches, **unlimited users on every tier including Free** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | UI Test and UI Review as separate checks, assigned and persistent default reviewers, threaded discussion anchored to an individual snapshot, no repo access required for designers ([review](https://www.chromatic.com/docs/review/)) | Multiple independent reviewers, comments pinned to an exact pixel or line range, a full keyboard path, per-test discussion threads ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Triage grouped by the *shape* of the diff, one accept propagating across the batch ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)) | **The axis this loses hardest, and the one these products are bought for.** `variance accept` writes a sidecar beside an image and explicitly refuses to record history ([§4](#4-what-is-written-and-unrun)). No UI, no reviewer model, no discussion, no merge semantics for two branches accepting differently |
+| **Accumulated history** | Approval persists across a branch's lifespan; snapshot rules persist; 30-day (Free) / 12-month (paid) build history. **No longitudinal per-snapshot metric** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | Per-branch baselines with branch-point inheritance, squash/rebase detection via git provider APIs, browsable baseline revision history. Retention unpublished below Enterprise ([branching](https://www.chromatic.com/docs/branching-and-baselines/)) | **The strongest in the category.** Per-test flakiness over 24h–90d windows, changes grouped by fingerprint and ranked by recurrence, first/last seen, per-test discussion threads, account analytics with CSV ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Baselines keyed by app × test × OS × browser × viewport, with revision history, branch baselines and a merge UI; Insights charts. 1-year retention stated on Public Cloud only ([baselines](https://applitools.com/docs/eyes/getting-started/applitools-workflow/baselines)) | Per-component band hashes and instability occurrences, append-only, no pixels. **A run writes rows now**, and the flake half is answered: occurrences, a rate over sweeps, first and last seen, and sweeps-since. The drift half is not: no run resolves a token, and nothing records acceptance — see [§4](#4-what-is-written-and-unrun) |
+| **Self-hosting** | **None, and the architecture forecloses it** — the SDK's function is to ship your DOM to Percy's API. "Automate Self-Hosted" is a different product | **None.** "On-premises" in their docs means self-hosted *git providers* ([FAQ](https://www.chromatic.com/docs/faq/chromatic-sso-on-premises-other-git/)) | MIT-licensed in full, **and the vendor states self-hosting "is not officially supported or documented"** — needs Postgres, RabbitMQ, Redis, S3, DynamoDB, a GitHub App and Stripe ([docs](https://argos-ci.com/docs/overview.md)) | **Yes** — on-premise Eyes server, images stored locally; also private dedicated cloud ([modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes), ~7 years old). Scoped to Eyes, not Autonomous | Nothing hosted exists, so nothing has to be opted out of: no telemetry, no phone-home, one outbound call to a renderer endpoint the operator supplies. That is not the same as a self-hosting *story* — nothing published to install from (see the table above), no upgrade path, no backup story, and the history service is one SQLite file behind a bearer token, which is one process to run and one file to back up ([§4](#4-what-is-written-and-unrun)) |
 | **Data residency** | Geo Region Restriction, **Enterprise plan only, via an Account Executive**; metadata such as test names stays in the default region regardless ([GRR](https://www.browserstack.com/docs/enterprise/security/geo-region-restriction)) | **Undocumented publicly.** No stated provider, region, or EU option; SOC 2 Type 2 and 99.9% SLA are stated ([security](https://www.chromatic.com/security)) | **US only.** S3 in the US under Standard Contractual Clauses; no documented EU option. SOC 2 Type II ([security](https://argos-ci.com/security)) | Customer-selectable data-centre location including EU on Azure or customer premises; ISO 27001. GDPR page last updated May 2021 ([GDPR](https://applitools.com/legal/gdpr/)) | The operator's network, and the operator's compliance work. Nothing leaves that network, but that is the operator's claim about their own infrastructure, not an attestation: no SOC 2, no ISO 27001, no DPA, no retention policy, no deletion path, no pen test, no auditor has ever read this code. Residency becomes a question about the operator rather than an answer ([§5](#5-when-not-to-choose-this)) |
-| **Maturity** | Mature, broad, backed by BrowserStack | Mature; built by the Storybook maintainers | Mature enough to run production suites; small team, key-person concentration | Mature, enterprise sales motion, some docs 7–8 years old | **M0 spike.** Zero external users, no operational contact with a codebase this project did not write, and nobody to call. The maturity question here is not how much exists but how much has *executed* against something real — [§4](#4-what-is-written-and-unrun) separates written from run, subsystem by subsystem, and is the honest answer to this row |
+| **Maturity** | Mature, broad, backed by BrowserStack | Mature; built by the Storybook maintainers | Mature enough to run production suites; small team, key-person concentration | Mature, enterprise sales motion, some docs 7–8 years old | **`0.0.0-beta.1`, MIT, no support contract.** Maturity is read off the repository rather than asserted in this row: every limb that is not written and every defect in code that ships is a marker at the line that owns it, and `yarn unrun` prints them with `file:line` ([§4](#4-what-is-written-and-unrun)) |
 
 ### The one commercial fact worth isolating
 
@@ -102,12 +102,12 @@ reaches the raster tier at the measured 65.4 ms per screenshot — neither figur
 asserted by any test
 ([§3.3](#33-deciding-at-the-cheapest-representation-that-can-decide)). With
 browser install, checkout and build, a run is single-digit CI-minutes: cents at
-any runner price. **The compute is not the bill.** Durable baseline storage has
-never been measured in bytes by anything in this repository. The bill is the
-engineering time to finish the unrun work in [§4](#4-what-is-written-and-unrun)
-and then operate it, and this document will not put a range on that, because
-nobody has done any of it and every number would be invented. That is the
-comparison: a known $283/mo against an unknown engineering commitment.
+any runner price. **The compute is not the bill.** Durable baseline storage
+is sized here from per-image bytes rather than from a measured store. The bill is
+the engineering time to finish the unrun work in
+[§4](#4-what-is-written-and-unrun) and then operate it, and this document puts no
+range on that, because a range would be invented. That is the comparison: a known
+$283/mo against an unknown engineering commitment.
 
 ---
 
@@ -142,9 +142,11 @@ comparison: a known $283/mo against an unknown engineering commitment.
   static directory are now shipped paths here — `route-collector` takes
   addresses, a `sitemap` or a `directory`, plus `widths`, which is the shape a
   `.percy.yml` is written in
-  ([replacing §2b](replacing.md#2b-replacing-percy-on-a-set-of-urls)). What is
-  still missing is the crawler: nothing follows a link
-  ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)).
+  ([replacing §2b](replacing.md#2b-replacing-percy-on-a-set-of-urls)). The
+  crawler is Percy's alone, and by choice rather than by omission: a sitemap
+  *index* is not followed here either, because fetching what a fetched document
+  points at is a different product with a different failure mode
+  (`packages/route-collector/src/index.ts`).
 - **Unlimited users on every tier including Free.** Visual review is a team
   activity; Percy does not tax the reviewers.
 
@@ -154,7 +156,7 @@ comparison: a known $283/mo against an unknown engineering commitment.
   functions run as interaction tests before capture
   ([docs](https://www.chromatic.com/docs/storybook/test/)). A built Storybook is
   five lines of config here and no collector
-  ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)), and play
+  ([§4](#4-what-is-written-and-unrun)), and play
   functions run before the capture on both — Storybook's own preview runs them,
   and its phase order puts `storyRendered` *after* `playing`, which is the event
   this waits on. Measured against a story whose subject only exists after a
@@ -587,9 +589,9 @@ And the corpus scores are narrower than 39/39 suggests:
   false-changed is demonstrated in this repository: reindenting JSX inside a block
   element renders at 0 px and moves the hash
   ([§3.2](#32-flakiness-treated-as-a-taxonomy-of-absorption-not-a-tolerance)).
-  The corpus contains no reindentation case. This document states a false-*miss*
-  rate twice — here and at [§4.5](#45-targets-never-measured-and-limits-never-tested)'s
-  0/20 — and has never measured a false-alarm rate.
+  The corpus contains no reindentation case, so the 0 is a false-*miss* rate with
+  no false-*alarm* rate beside it. `examples/kitchen-sink/src/measure.test.tsx`
+  names the cases that would give it a denominator.
 - `dialog-open/dialog` is **contested** and excluded from both denominators — the
   portalled-subject boundary is exactly what ADR-0007 decided, and the one case
   testing it is not scored.
@@ -639,9 +641,11 @@ keys everything to a stable story id and Argos to a test fingerprint, either of
 which could hold a token value. The missing piece is the capture, not the key.)
 
 Whether the *sum* of individually-correct approvals is a defect a team actually
-suffers is an argument, not a finding. Nobody has reported it to this project,
-and [§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be) records that the pipeline
-has never produced the example once.
+suffers is an argument, not a finding. The run that would settle it — eleven
+`run` / `accept --all` cycles raising one token by 2px, ending in a `DRIFT:` line
+reporting 22px of travel — is written as a todo in
+`cases/storybook-case/src/cli.chromium.test.js`, against the case that would host
+it.
 
 **Built and unit-tested.** `packages/history/` (1,719 lines of implementation plus
 905 of test): a `HistoryStore`
@@ -660,7 +664,7 @@ version refusal, and two branches recording different hashes for one key both
 persisting with no merge.
 
 **Not measured, and this is the largest gap in the project.** See
-[§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be).
+[§4](#4-what-is-written-and-unrun).
 
 ### 3.6 A second engine costs a second paint, not a second run
 
@@ -806,180 +810,58 @@ is an argument from the shape of the thing, not a measurement.
 
 ## 4. What is written and unrun
 
-Everything below the CLI boundary is implemented and unit-tested. One part of it
-— **normalize, collect, provenance, diff and band** — is additionally scored
-against ground truth declared before the pipeline existed. The rest — docket,
-region, impact, raster phases, stores, sessions, history, the history service,
-MCP — is tested against constructed inputs, fakes and fixtures. That is a weaker
-claim and it is treated as one throughout this section:
-[§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be) says spec 0002's acceptances
-are met "against hand-constructed rows", `store-lfs.test.ts` injects a fake
-`CommandRunner` in every test but one, and `buildDocket` is exercised at 3
-subjects.
+Everything here is unit-tested, and that is the weakest of the three claims this
+section separates. One tier — **normalize, collect, provenance, diff and band** —
+is additionally scored against ground truth declared before the pipeline existed
+([§3.1](#31-a-diff-that-names-a-component-and-a-file),
+[§3.3](#33-deciding-at-the-cheapest-representation-that-can-decide)). And one
+path has executed against a surface this project did not build: `variance run`,
+over a production Storybook.
 
-Everything **at and above** the CLI boundary is written and has never been run
-against anything real.
+That last one is the line a buyer is asking about, so it is worth being exact
+about where it falls. `cases/storybook-case/src/cli.chromium.test.js` spawns the
+built binary against a `storybook-static/` and asserts the whole cycle — **9 new
+(exit 1) → 9 accepted (0) → 9 unchanged (0) → 5 changed (exit 1)** — where the
+changed build carries one edited component, and the run finds exactly the five
+stories that render it, at `cases/storybook-case/src/ds.jsx:51`. What is foreign
+there is Storybook: its index format, its preview and channel, its minifier. The
+components inside it are this repository's, which is what
+[spec 0022](specs/0022-evidence-from-code-this-project-did-not-write.md) still
+asks for and [the table above](#the-asymmetry-stated-first) states as the
+asymmetry.
 
-*Written* and *run* are two statuses, and a document that carries one column for
-both will report a shipped subsystem as unbuilt. Nine specs carry four distinct
-statuses and the `Status` column in [`docs/specs/README.md`](specs/README.md)
-says which is which. §4.1 onward is where the distinction is evidenced.
+Everything on that path has met a real subject: the config, the collector seam,
+the Storybook adapter, the renderer, normalization, provenance, the docket, the
+durable store and the exit codes. Everything off it — the history service, MCP
+over stdio, git-LFS as a filter rather than as a `.gitattributes` line, the
+GitHub Action, a second platform — is written, unit-tested against fakes and
+fixtures, and has not.
 
-### 4.1 A history row is written, and the 22px story still cannot be
+**Each gap is written at the line that owns it**, not listed here. A ledger in
+prose rots in one direction: its optimistic half is corrected the moment somebody
+trips over it, and its pessimistic half survives the work landing, because
+nothing fails when a negative stops being true. So a claim that would hold if
+something ran is an `it.todo` whose title is the sentence that becomes true and
+what it would take; a limb that is not written is a `// TODO:`; a defect in code
+that ships is a `// FIXME:`.
 
-`variance run` records its run, the component hashes that moved and every subject
-that read differently from itself, then asks how often that has happened before
-([`flakiness.md`](flakiness.md#has-this-happened-before)). The wire between the
-hashing tier and the storage tier exists and carries traffic. What that does not
-buy is the claim this section is here to make:
+```bash
+yarn unrun
+```
 
-- **The 22px story in [§3.4](#34-accumulation-as-text-not-pixels) is produced by
-  the pipeline and has never been *run*.** A run records the tokens it resolved,
-  `variance accept` records the approval, and a run whose token moved asks for its
-  journey and prints the total under a `DRIFT:` heading. What has not happened is
-  eleven runs and eleven approvals against a real project.
-- **`churn` and `reach` have rows and no caller.** `variance accept` writes an
-  approval per `(subject, run)`, so the rows a run wrote can be counted as
-  approved — but nothing in the product asks the questions those rows answer.
+prints all of them with `file:line`, grouped by package, generated from the
+source — so it cannot disagree with the code, and closing a gap deletes the claim
+rather than leaving it to be noticed. `yarn test` counts the todos in its own
+summary line.
 
-One of spec 0002's five acceptance criteria is met against real rows; four are
-met only against hand-constructed ones.
-
-### 4.2 Nothing above the CLI boundary has been run
-
-- **`variance run` completes against a real project.** `cases/storybook-case`
-  carries a `variance.config.json`, a collector the operator writes
-  (`cases/storybook-case/collector/`), and
-  `cases/storybook-case/src/cli.chromium.test.js`, which spawns the binary over a
-  Storybook built by Storybook and asserts the whole cycle —
-  **new (exit 1) → accept (0) → unchanged (0) → 5 of 8 changed (exit 1)** on a
-  build with one component edited, finding exactly the five stories that render
-  it. The CLI reaching the verdicts the library reaches is demonstrated against
-  `storybook-case` rather than against todomvc, which is the stronger of the two
-  because the subjects are not ours.
-
-  **The first execution found five defects, and three made durable mode
-  unusable** (journal 0014): the run never exited, because nothing closed the
-  renderer `deps.renderer()` opened; `stabilization` was dropped by the identity
-  wire codec, so `accept` stored a baseline under a different digest than the next
-  `run` looked it up with and every subject came back `incomparable` forever; and
-  the refusal that produced named the same machine on both sides, because
-  `describeIdentity` omitted the two fields the digest covers. Plus a coverage
-  section printed twice, and component names lost to a minifying build.
-
-  That is the value of the entry rather than an argument against it: 28 cases in
-  `packages/cli/src/commands/run.test.ts` with a fake `Collector` and a fake `Renderer` could not have found
-  any of them. What is still unrun: `variance serve` (MCP over stdio) has no test
-  file of its own, and `variance run` has never been executed against a
-  repository this project did not write.
-- **git-LFS has never been exercised as git-LFS.** `store-lfs.test.ts` injects a
-  fake `CommandRunner` in every test but one; the single real-git test does
-  `git init` and checks `git check-attr` resolves the filter. git-lfs is never
-  installed, no clean/smudge filter runs, no image is committed. Spec 0004
-  acceptance 1 — "the working tree contains a pointer rather than the image" — is
-  untested.
-- **Linux verification has not been run.** `docker/linux-verify.Dockerfile` and
-  `docker/linux-verify.sh` exist; `docker/results/` does not, and there are no
-  `.log` files in the tree. Nothing it was built to establish is established,
-  including the one that matters most: "a semantic verdict that differs across
-  platforms refutes ADR-0010."
-- **CI integration is committed and has never run.**
-  `.github/actions/variance/{action.yml,locate-artifacts,post-comment}`
-  and `.github/workflows/variance.yml` all exist and are tracked (commit
-  `2e683d3`, corrected by `66f4662`); `packages/cli/src/commands/comment.ts`
-  renders the body as a pure function and is covered by `comment.test.ts` (16
-  tests). The workflow is not a stub — it pins a container so baselines stay
-  comparable with `docker/linux-verify.Dockerfile`, and it refuses
-  `pull_request_target` with a written rationale. What has never happened is a
-  run: the workflow's first step checks for a `variance.config.json` this
-  repository does not contain and no-ops, so no job has launched a browser, no
-  artifact has been uploaded, and no pull request has ever been commented on.
-  What [ADR-0019](context/adr/0019-one-comment-that-leads-with-causes.md)
-  decided is therefore unproven by execution rather than by absence of code.
-- **The MCP layer has never served an agent.** Seven tools shaped by argument
-  about what an agent needs, tested against text (`packages/mcp/src/mcp.test.ts`,
-  27 tests, including chunk-boundary reframing).
-
-### 4.3 There is one shipped collector, and it is Storybook's
-
-`loadCollector` in `packages/cli/src/commands/collector.ts` imports a module *the
-operator writes*, named in the config rather than discovered. That seam is
-unchanged and is still the whole extension mechanism: no registry, no download,
-no plugin protocol.
-
-**Two numbers measure that seam, and the gap between them is the finding.**
-Writing a collector by hand costs **341 lines** across three files, 234 of them
-in the module the config names — the worked example is
-`cases/storybook-case/collector/`, and it says an estimate of "about thirty
-lines" is optimistic by 8×. Against the same end-to-end run in
-[§4.2](#42-nothing-above-the-cli-boundary-has-been-run), the same case is **five
-lines** through
-[`@variance-authority/storybook-collector`](../packages/storybook-collector),
-which ships the Storybook half. So 341 is the cost **where none is shipped**.
-
-What the 341 measures is a boundary drawn one step too far out.
-A story index is a documented artifact and a preview owns its own mount, so
-serving the build, injecting the page bundle, driving the channel, acquiring a
-document and a capture from one mount and normalizing were **Storybook's own
-contract being re-typed**, not knowledge the project held. Of those 341 lines the
-project-specific residue was a map of three ready selectors and one source
-directory, and that is exactly what the five lines still carry.
-
-What a buyer comparing integration surfaces should conclude for anything else is
-unaffected. Percy ships 20+ SDKs across Selenium, Cypress,
-Puppeteer, Appium and a no-code crawler; Argos takes any PNG from a CLI. Here
-there are two entry surfaces that need no collector — a built Storybook, and a
-Playwright suite through
-[`@variance-authority/playwright-test`](../packages/playwright-test), where the
-adopter's own test body plays that part — and for everything else the mounting
-half is still theirs to write, once, per project. Two is not twenty.
-
-### 4.4 The Storybook adapter and the CLI have both met a Storybook
-
-Storybook is installed in the repository, `storybook build` produces
-`storybook-static/`, and
-`cases/storybook-case/src/storybook.chromium.test.js` drives the real preview
-against the `index.json` Storybook itself wrote. It also produced a finding the
-fixtures could not — the readiness gap, reproducibly: captured on Storybook's own
-`storyRendered` the deferred story is `loading…`, and captured on a declared
-marker it is the component. Two of the three things
-[ADR-0020](context/adr/0020-read-the-artifact-not-the-configuration.md) claims are
-demonstrated here: no fixture in the loop, and one browser with one navigation
-over N stories.
-
-What is **not** demonstrated is the third — that Storybook's own chrome
-contributes no rules to a subject, which is the exact case ADR-0003 was written
-for and is not asserted anywhere — nor the CLI hop above it. The CLI still imports only
-`readStoryIndex`, `storySubjectId` and `toSubjects`; `collectStory` /
-`collectStories` are exercised by the case and not by a run
-([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)). Under the fixtures, what was already
-proven stands: v3/v4/v5 index parsing (`index-file.test.ts`, 22), subject mapping
-with per-story exclusion and viewport (`subjects.test.ts`, 17), and a preview
-driver that reports a throwing story as a subject rather than crashing the run
-(`packages/storybook/src/preview*.test.ts`, 33).
-
-### 4.5 Targets never measured, and limits never tested
-
-- Spec §10's M0 targets: `<2% false semantic misses on no-op refactors` is
-  **met** (0/20) — a false-*miss* rate. The corresponding false-*alarm* rate was
-  never a target and has never been measured, and one false alarm is demonstrated
-  ([§3.3](#33-deciding-at-the-cheapest-representation-that-can-decide)).
-  `>70% screenshot-skip on typical PRs` and `0 baseline breakage
-  across rebase` were never measured — there is no repository with PRs and no
-  rebase experiment.
-- Spec §10 asked for two real component libraries. Zero have been used.
-- Spec 0002 records that one service process owns one SQLite file and that
-  concurrent CI jobs serialize through it. There is **no concurrent-writer test**
-  in `packages/server/src/`. `node:sqlite` is experimental on Node 22 and the
-  suite emits `ExperimentalWarning` on every run.
-- Module-level state — a singleton store, a cached client — is outside the DOM
-  and therefore outside the session probe. Confirmation catches the symptom;
-  attribution correctly reports no culprit. Stated in ADR-0009 with no path to
-  closing it.
-- Every pixel number carries the same unmeasured axes: `deviceScaleFactor: 1`,
-  screenshots clipped to `#subject` rather than the viewport (journal 0010 notes
-  this flatters the pixel arm's byte count and that a full-page tool would be
-  ~6× the bytes), one engine, one font stack, `color-scheme: light` pinned.
+The four specs behind the largest of those gaps —
+[0002](specs/0002-history-store.md) for accumulated history,
+[0016](specs/0016-ci-that-has-run.md) for CI,
+[0018](specs/0018-git-lfs-proven-as-git-lfs.md) for git-LFS and
+[0022](specs/0022-evidence-from-code-this-project-did-not-write.md) for a
+third-party library — say what each is for.
+[§5](#5-when-not-to-choose-this) says which of them a given buyer should care
+about, and which product to buy instead.
 
 ---
 
@@ -993,13 +875,13 @@ products above is the better answer, and in most cases it is not close.
 
 | Condition | Why it disqualifies | Go to |
 |---|---|---|
-| **Something is needed this quarter** | Nothing above the CLI boundary has been run once. Adopting this means finishing it | Any of the four |
+| **Something is needed this quarter** | One path has executed against a subject nobody here authored — `variance run` over a built Storybook. CI, the history service and MCP are written, unit-tested and unrun ([§4](#4-what-is-written-and-unrun)). Adopting this means finishing them | Any of the four |
 | **The frontend is not React, and nobody will add a build plugin** | Provenance needs a name per element. React gets it from fiber traversal; anything else gets it from two `data-*` attributes, which is a build-step change somebody has to make and own. Without either, diffs resolve to a DOM path — what every competitor already gives, with support. On React the traversal reads unversioned internals verified only against **19.2.8**; ADR-0005 names three internal contracts, and the third fails *silently*, returning props digests one render stale. A React upgrade is a re-verification event, not a version bump | Argos, Chromatic |
 | **Cross-browser or cross-device coverage is the requirement** | Chromium, Firefox and WebKit all run, from a `browser` config field, measured pairwise in `packages/playwright/src/engines.chromium.test.ts`. But: no Edge, no mobile, no real devices, no cross-engine run over the corpus, and no stabilization trick verified outside Chromium. One document is not a matrix | Applitools (one Page covers the matrix), Percy, Chromatic |
 | **Non-engineers must review** | There is a JSON report and seven MCP tools. No dashboard, no approval UI, no threaded discussion, no invite flow | Chromatic (UI Review), Percy, Applitools |
 | **Cost predictability matters more than cost structure** | There is no unit and no bill, but also no ceiling on the engineering time to operate a spike. A published $0.004/screenshot with a spend cap is a more predictable number than "your own infrastructure" | Argos |
-| **Longitudinal flake data is needed now, with a UI on it** | Recurrence over a window ships here, keyed on the component and band that moved rather than on a diff shape, and it needs a service you deploy. What Argos has and this does not is the surface: a per-test page, a browsable ignore register, and auto-ignore at a threshold — plus the operational history of running it at scale ([§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be)) | Argos |
-| **Storybook is the test surface and coverage should be automatic** | Coverage *is* automatic: the collector is shipped and the operator writes five lines ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)). What Chromatic still has and this does not is everything after the verdict — a review UI, assigned reviewers, threaded discussion on a snapshot, and the fact that they maintain Storybook itself | Chromatic |
+| **Longitudinal flake data is needed now, with a UI on it** | Recurrence over a window ships here, keyed on the component and band that moved rather than on a diff shape, and it needs a service you deploy. What Argos has and this does not is the surface: a per-test page, a browsable ignore register, and auto-ignore at a threshold — plus the operational history of running it at scale ([§4](#4-what-is-written-and-unrun)) | Argos |
+| **Storybook is the test surface and coverage should be automatic** | Coverage *is* automatic: the collector is shipped and the operator writes five lines ([§4](#4-what-is-written-and-unrun)). What Chromatic still has and this does not is everything after the verdict — a review UI, assigned reviewers, threaded discussion on a snapshot, and the fact that they maintain Storybook itself | Chromatic |
 | **The content under test is canvas, WebGL, video, or heavy third-party iframes** | The bitmap lives in a rendering context, not the document. This is structural, not a missing feature | A pixel differ — any of them |
 | **Regulated data with a contractual residency requirement, plus a vendor to sign it** | Self-hosting solves the residency problem and creates a supplier-risk problem: the supplier is a spike with no support commitment | Applitools (real on-premise), or Percy Enterprise GRR |
 | **A team that will not maintain its own tooling** | Every property in [§3](#3-where-this-project-is-genuinely-different) is bought with operator effort that the SaaS products absorb | Any of the four |
@@ -1026,7 +908,7 @@ this to install ([spec 0015](specs/0015-the-first-published-release.md)).
 Outside the three shipped surfaces — a built or served Storybook, a map of
 served URLs, a Playwright suite — the collector that mounts
 an adopter's own components is theirs to write
-([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)). Nobody can
+([§4](#4-what-is-written-and-unrun)). Nobody can
 trial this against their own codebase today.
 
 The realistic first move is to read `packages/core/src/compare/diff/` and

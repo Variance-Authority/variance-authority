@@ -52,7 +52,7 @@ comment carries the measurement rather than a guess.
 **That figure is the cost where no collector is shipped.** Storybook has one —
 [`@variance-authority/storybook-collector`](../packages/storybook-collector) — and
 the same case is five lines of code against the same end-to-end test
-([comparison §4.3](comparison.md#43-there-is-one-shipped-collector-and-it-is-storybooks)).
+([comparison §4](comparison.md#4-what-is-written-and-unrun)).
 For every other subject source the 341 is the honest number against Percy's
 twenty-plus SDKs.
 

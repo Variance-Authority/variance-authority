@@ -106,6 +106,10 @@ describe('collapsing a design-system change', () => {
     expect(docket.entries[0]!.sample).toHaveLength(2);
     expect(docket.entries[0]!.subjects).toHaveLength(3);
   });
+
+  it.todo(
+    'one `--brand` edit across the three hundred subjects this file’s docstring names builds a single entry with `subjectCount` 300, a three-subject sample, and the 300-subject root sorted above a one-subject one — needs a generator here that emits `themedSubject` at that width',
+  );
 });
 
 describe('a spacing token, which is the same band but not the same risk', () => {

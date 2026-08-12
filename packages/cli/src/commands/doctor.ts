@@ -428,6 +428,10 @@ async function baselines(
 
   const mine = identityDigest(identity);
   const partitions = scanned.map((entry) => ({ ...entry, mine: entry.identity === mine }));
+  // TODO: a partition of pointers counts as a partition of baselines. `partitions`
+  // comes from a `readdir` that opens no file, so an unsmudged store reports
+  // `comparable: true` here and the run meets it one subject at a time — spec 0018
+  // asks this to see it first. The first bytes of one file per partition name it.
   const ours = partitions.find((entry) => entry.mine);
 
   if (ours !== undefined) {

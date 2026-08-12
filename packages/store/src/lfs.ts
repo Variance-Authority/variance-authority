@@ -258,6 +258,13 @@ function refuseAPointer(raster: Raster, what: string): void {
   const head = Buffer.from(raster.bytes.slice(0, 60), 'base64').toString('utf8');
   if (!head.startsWith(POINTER_PREFIX)) return;
 
+  // FIXME: this is a plain `Error`, so `run`'s per-subject catch takes it as being
+  // about the subject and records `failed` — on an unsmudged clone that is every
+  // subject, and the run exits 1, a verdict, for a checkout the operator has to
+  // fix. Spec 0018 asks for exit 2. `RasterStoreError` from
+  // `@variance-authority/raster` is the class `run.ts` routes there, and this file
+  // already imports from that package.
+
   throw new Error(
     `${what} is a git-LFS pointer, not an image. The file was checked out without ` +
       'git-lfs installed, so the working tree holds the pointer text where the PNG ' +

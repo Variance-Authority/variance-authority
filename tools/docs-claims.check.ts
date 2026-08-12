@@ -148,6 +148,10 @@ describe('the documented command line is the real one', () => {
       expect(shown.filter((line) => !USAGE_LINES.includes(line))).toEqual([]);
     },
   );
+
+  it.todo(
+    'every flag `.github/actions/variance/action.yml` hands the CLI is one the parser accepts — needs the action read as text and its `run:` lines pulled apart here, since the rules above see a command line only where a markdown fence holds it and the action is the one caller that is neither prose nor a test',
+  );
 });
 
 /**

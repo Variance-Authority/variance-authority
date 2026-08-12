@@ -57,7 +57,7 @@ above the pixel tier depends on a baseline knowing which document produced it.
 
 | | |
 |---|---|
-| A built Storybook with no collector to write | **yes** — five lines of config, demonstrated end to end against a Storybook this project did not write ([comparison §4.4](comparison.md#44-the-storybook-adapter-and-the-cli-have-both-met-a-storybook)) |
+| A built Storybook with no collector to write | **yes** — five lines of config, demonstrated end to end against a Storybook this project did not write ([comparison §4](comparison.md#4-what-is-written-and-unrun)) |
 | Only test what a change could have touched | **yes** — `--since`, from what the last run actually painted rather than from a bundler graph ([`selecting.md`](selecting.md)) |
 | A story read at its own viewport | **yes**, applied to the page before the story mounts |
 | Interaction (play) functions before capture | **yes**, and this row said *no* until it was measured. Storybook's preview runs the play function and its phase order is `playing` → `completed` → `storyRendered`, so waiting on `storyRendered` — which this already did — is waiting on the interaction. Asserted against a real story whose subject only exists after a click ([`cases/storybook-case`](../cases/storybook-case)) |

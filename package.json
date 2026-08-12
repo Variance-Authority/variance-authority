@@ -19,6 +19,7 @@
     "release:version": "node tools/release-version.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "unrun": "node tools/unrun.mjs",
     "typecheck": "node tools/doc-examples.mjs && tsc --build --force",
     "verify": "yarn lint && yarn check && yarn test"
   },

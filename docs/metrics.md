@@ -154,12 +154,14 @@ stories, and collapses on the page-level stratum.
 
 **Cost to measure.** The corpus is 5–8 engineer-days. Wiring each hosted
 competitor is ~1 day each and $0 on free tiers. Applitools is documentation only.
-**The gating cost is not the benchmark — it is this project.** `loadCollector` in
-`packages/cli/src/commands/run.ts` imports a module the operator writes, the
-Storybook adapter has never met a Storybook, and no `variance run` has ever
-completed ([comparison §4.2–4.4](comparison.md#42-nothing-above-the-cli-boundary-has-been-run)).
-M1 cannot be run against this project until that is closed, and closing it is
-product work, not measurement work.
+**The gating cost is not the benchmark — it is Corpus H.** The cycle runs: a
+built Storybook is five lines of config and `variance run` completes over one
+end to end ([comparison §4](comparison.md#4-what-is-written-and-unrun)). What M1
+needs on top of that is forty commits from libraries this project did not write,
+each with its changed-file set as ground truth — vendoring, building and
+declaring them is the cost, and it is
+[spec 0022](specs/0022-evidence-from-code-this-project-did-not-write.md)'s work
+rather than measurement work.
 
 **What would mean we lose.** Because three competitors are at a structural zero
 on the file half, a relative comparison is meaningless — any nonzero rate "wins"
@@ -289,7 +291,7 @@ Applitools requires an annual contract and cannot be included.
 
 The metric designed to hurt. This repository states a false-*miss* rate twice and
 has never measured a false-*alarm* rate
-([comparison §4.5](comparison.md#45-targets-never-measured-and-limits-never-tested)).
+([comparison §4](comparison.md#4-what-is-written-and-unrun)).
 
 **Procedure.** Two corpora with opposite ground truths, and a published arbiter
 for "user-visible".
@@ -432,8 +434,8 @@ tool to add.
 product:** an operator who cannot install a package never writes the five lines.
 Everything else the metric rests on is in place.
 `cases/storybook-case/variance.config.json` is tracked, and the full cycle runs
-over a Storybook this project did not write — *new → accept → unchanged → 5 of 8
-changed* ([comparison §4.2](comparison.md#42-nothing-above-the-cli-boundary-has-been-run)).
+over a Storybook this project did not write — *9 new → 9 accepted → 9 unchanged →
+5 changed* ([comparison §4](comparison.md#4-what-is-written-and-unrun)).
 The manifests carry MIT and `0.0.0-beta.1` across 21 packages with no `private`
 field. `@variance-authority/storybook-collector` ships what
 `cases/storybook-case/collector/index.mjs` would otherwise hand-write, which is

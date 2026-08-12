@@ -250,30 +250,34 @@ you run, and a run that can name itself — `--run` and `--commit`, or the pair 
 CI you are already inside exports. Without an identity nothing is recorded and the
 run says so, because a history that quietly stops growing is worse than none.
 
-### The first thing it found was ours
+### The class of defect a second reading reaches
 
-Five of five changed stories in [`cases/storybook-case`](../cases/storybook-case),
-on the first run, and the cause was in this repository.
+The instability it catches need not be in the page. It can be in the observer,
+and that is the case no assertion about a verdict can reach — because the verdict
+stays right.
 
 Blink does not write a mutated inline style back into the `style` attribute
 eagerly: `element.style.padding = …` marks the declaration dirty and the attribute
 is regenerated the next time anything reads the element's attributes. `outerHTML`
-is such a read, and the regenerated attribute is *appended*. So a freshly mounted
-component held `[type]` with a pending style, our path stamp appended
-`[type, data-va-path]`, and serialization materialized the style at the end.
-Collect the same story again with no remount and the style attribute already
-exists, so the stamp goes last.
+is such a read, and the regenerated attribute is *appended*. A freshly mounted
+component holding `[type]` with a pending style therefore serializes as
+`<button type data-va-path style>` if the stamp goes on before the read, and
+`<button type style data-va-path>` if the same story is collected again without a
+remount. Same tree, same pixels, two document digests — decided by whether the
+subject has been read before in that run.
 
-Same tree, same pixels, two document digests — decided by whether the subject had
-been read before in that run.
+Nothing about the verdict is wrong, so nothing about the verdict reports it. What
+it costs is the economy: `settle` skips a render when this run's document digest
+equals the digest the baseline was painted from, so the cheap tier switches itself
+off depending on the collection history of the run that recorded the baseline —
+silent, permanent, and invisible to any test that only reads a verdict.
 
-**The verdict was never wrong, which is why nothing had ever reported it.** What
-was wrong was the economy: `settle` skips a render when this run's document digest
-equals the digest the baseline was painted from, so the cheap tier was switching
-itself off depending on the collection history of the run that recorded the
-baseline. Silent, permanent, and invisible to every test in the suite. Seven of
-the eight stories now produce one digest for two consecutive readings; the eighth
-is the one with a clock in it, which is the right answer.
+`materializeAttributes` in `packages/dom/src/document.ts` reads the attribute
+names first, so anything pending materializes while the stamp is still absent and
+the stamp is appended last on every reading. In
+[`cases/storybook-case`](../cases/storybook-case) every story but one then
+produces one digest for two consecutive readings; the exception is the one with a
+clock in it, which is the right answer.
 
 ## Test order and shared state
 

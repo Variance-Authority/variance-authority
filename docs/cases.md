@@ -99,7 +99,7 @@ That is exactly the property a *record of hashes* lacks, which is why the record
 is a service and the images are files.
 
 **Caveat, and it is a real one:** git-LFS has never been exercised as git-LFS
-([comparison.md §4.2](comparison.md#42-nothing-above-the-cli-boundary-has-been-run)).
+([comparison.md §4](comparison.md#4-what-is-written-and-unrun)).
 The code reads and writes ordinary files at LFS paths and refuses a pointer file
 by name; nobody has run it through a real filter on a real clone.
 
@@ -255,7 +255,7 @@ bought for a reason.
 | A design system, designers must approve without repo access | **Chromatic.** No contest — see [§5 of comparison.md](comparison.md#5-when-not-to-choose-this) |
 | A real browser matrix including Safari on macOS | **Applitools** or **Percy.** Nothing here rents a fleet |
 | Your compute, your bucket, no vendor, and the workflow you already know | **reg-suit** or **Lost Pixel OSS** today; this project when the first release is published ([spec 0015](specs/0015-the-first-published-release.md)) |
-| Flaky suite, need to know *which* tests are unreliable over time | **Argos.** Nothing here has ever written a history row ([§4.1](comparison.md#41-a-history-row-is-written-and-the-22px-story-still-cannot-be)) |
+| Flaky suite, need to know *which* tests are unreliable over time | **Argos.** Recurrence ships here — occurrences keyed on the component and band that moved, a rate over the sweeps that could have observed one, and sweeps-since-clean ([flakiness.md](flakiness.md#has-this-happened-before)) — but it needs a service you deploy, and the per-test page, the browsable ignore register and auto-ignore at a threshold are Argos's |
 | Nothing may leave your network, ever | Here, or a self-hosted Applitools — with the compliance caveats in [comparison.md](comparison.md) fully read |
 | The diff must name a component and a file, not a rectangle | Here. Nothing else in the table does it |
 | Behind a login, on your VPN, against a staging build | Here, via the Playwright surface, or Argos via your own E2E suite |

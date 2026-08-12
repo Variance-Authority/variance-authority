@@ -214,6 +214,10 @@ describe('append-only', () => {
     );
     expect((await backend.observationsOf({ component: 'Button' })).rows).toHaveLength(0);
   });
+
+  it.todo(
+    'two writers against one database file serialize rather than losing an append — needs a second process opening the same path, since `BEGIN IMMEDIATE` and `PRAGMA busy_timeout = 5000` are what one service process rests on and one process cannot exercise',
+  );
 });
 
 describe('queries', () => {

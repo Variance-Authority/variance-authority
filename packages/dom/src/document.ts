@@ -160,8 +160,8 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
  *
  * Reading the names first materializes anything pending while our attribute is
  * still absent, so the stamp is appended after the page's own attributes on every
- * reading. Measured on `cases/storybook-case`: every one of the eight stories
- * produced two digests for two consecutive readings before this, and one after.
+ * reading. Measured on `cases/storybook-case`: every story in it produced two
+ * digests for two consecutive readings before this, and one after.
  */
 function materializeAttributes(element: Element): void {
   // The call *is* the operation; its value is the host's, and it is never read.

@@ -130,6 +130,10 @@ describe('renderComment', () => {
     expect(COMMENT_MARKER).toMatch(/^<!--.*-->$/);
   });
 
+  it.todo(
+    '`.github/actions/variance/post-comment.mjs` finds the comment carrying `COMMENT_MARKER` and rewrites that one instead of adding a second — needs the search and the two writes exported, because today the whole script runs at module scope against `GITHUB_API_URL`, so importing it is running it (spec 0016)',
+  );
+
   it('produces no body at all for a run where nothing needs review', () => {
     // A bot that comments on every green pull request trains the team to filter
     // it out, and the filter does not spare the red ones.

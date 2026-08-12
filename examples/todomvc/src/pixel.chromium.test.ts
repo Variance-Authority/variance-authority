@@ -45,6 +45,12 @@ const PACKAGE_ROOT = join(process.cwd(), 'examples', 'todomvc');
 const HARNESS_PAGE_URL = pathToFileURL(join(PACKAGE_ROOT, 'page', 'harness.html')).href;
 const AGENT_BUILDER = join(PACKAGE_ROOT, 'scripts', 'agent-bundle.mjs');
 
+// TODO: every pixel count this file produces holds five axes fixed — scale 1,
+// the clip at `#subject` rather than the 1280x720 viewport, one engine, one font
+// stack, `color-scheme: light`. A second value on any of them is a second sweep
+// and a second column; the clip is the one that favours this arm, since a
+// full-viewport shot carries the whole page and moves whenever anything above
+// the subject does.
 const VIEWPORT = { width: 1280, height: 720, deviceScaleFactor: 1, colorScheme: 'light' } as const;
 const CLIP = '#subject';
 const FLAKE_ROUNDS = 5;

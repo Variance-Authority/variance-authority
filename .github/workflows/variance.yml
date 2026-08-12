@@ -69,6 +69,12 @@ jobs:
           # that fails on every pull request because a file it needs was never
           # written teaches people to ignore the check before it has ever run.
           # Delete this step once the config exists.
+          #
+          # TODO: point this and the `config:` input below at
+          # cases/storybook-case/variance.config.json, which is tracked, and add the
+          # Storybook build it reads; then delete this gate. While it looks at the
+          # repository root, every step below is skipped — no job here has ever
+          # launched a browser, uploaded an artifact, or commented on a pull request.
           if [ -f variance.config.json ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else

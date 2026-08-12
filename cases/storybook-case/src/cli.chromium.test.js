@@ -305,3 +305,27 @@ live('the durable workflow, end to end', () => {
     }
   }, 240_000);
 });
+
+// Top level on purpose. `live` is `describe.skip` on a machine without a browser
+// or a build, and a todo inside a skipped block is reported as *skipped* — the
+// count these belong in disappears exactly where the suite is least covered.
+
+it.todo(
+  'eleven `run` / `accept --all` cycles over twelve builds of this case, each raising `--case-space` in `src/ds.jsx` by 2px, end with a `DRIFT:` line reporting 22px of travel on that token and one commit per step — needs a distinct `--run` and `--commit` per cycle and this case pointed at a running `@variance-authority/server`, and `Card — rebranded token` stays put throughout, because it overrides the token inline',
+);
+
+it.todo(
+  '`Stack`, displaced in every one of those twelve builds and edited in none of them, reports zero churn and eleven collateral runs against the rows the runs themselves wrote — spec 0002 acceptance 2, needs this case pointed at a running `@variance-authority/server`',
+);
+
+it.todo(
+  'a `run` over an unmodified build records a quiet run, so `Button`’s churn over the window divides by every run recorded rather than only by the runs it moved in — spec 0002 acceptance 3, needs this case pointed at a running `@variance-authority/server`',
+);
+
+it.todo(
+  'the trunk build and the `wide-button` build each record their own hash for `Button` under one `(subject, component, band)` key, both rows survive every later query, and neither the write nor the read resolves a merge — spec 0002 acceptance 5, needs both configs pointed at one running `@variance-authority/server`',
+);
+
+it.todo(
+  'the same new → accept → unchanged → changed cycle reaches the same verdicts over a component library this project did not write — needs a third-party library vendored as a case, with the edit and the subjects it should move declared before the run (spec 0022)',
+);

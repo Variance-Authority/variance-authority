@@ -29,20 +29,21 @@ yarn workspace @variance-authority/case-storybook storybook
 ## What is in the stories
 
 A small design system — `Button`, `Stack`, `Card`, `Spinner`, `Clock`,
-`AsyncPanel` — chosen so the eight stories cover the cases that actually decide
-whether an adapter is any good:
+`AsyncPanel`, `Panel` — chosen so the nine stories cover the cases that actually
+decide whether an adapter is any good.
 
-Eight stories, covered by **one navigation**:
+Nine stories, covered by **one navigation**:
 
 | story | what it is for |
 |---|---|
 | `Button — primary`, `Button — secondary` | the ordinary path |
-| `Card — with actions`, `Card — rebranded`, `Composed` | `Button` again, so no subject covers it alone — these five are what a `Button` edit moves |
-| `Loading` (`Spinner`) | something that will not hold still |
-| `Ticking` (`Clock`) | content that changes because time passed, not because code did |
-| `Deferred` (`AsyncPanel`) | settles *after* Storybook says it is done |
+| `Card — with actions`, `Card — rebranded token`, `Stack — composed page` | `Button` again, so no subject covers it alone — these five are what a `Button` edit moves |
+| `Spinner — mid animation` | something that will not hold still |
+| `Clock — ticking` | content that changes because time passed, not because code did |
+| `AsyncPanel — settles late` | settles *after* Storybook says it is done |
+| `Panel — revealed by its play function` | a subject that does not exist until an interaction runs |
 
-Those last three are the three that hold when `Button` changes.
+Those last four are the four that hold when `Button` changes.
 
 The adapter's remaining path — a story that throws, reported as an error overlay
 with the story's own stack rather than as a timeout — has no standing story here;
@@ -79,25 +80,29 @@ Four steps, which is the workflow a team actually runs:
 
 | step | verdicts | exit |
 |---|---|---|
-| `variance run` on a fresh checkout | 8 new | **1** |
-| `variance accept --all` | 8 accepted | 0 |
-| `variance run` again | 8 unchanged, *nothing to review* | 0 |
-| `variance run` on the changed build | 3 unchanged, **5 changed** | **1** |
+| `variance run` on a fresh checkout | 9 new | **1** |
+| `variance accept --all` | 9 accepted | 0 |
+| `variance run` again | 9 unchanged, *nothing to review* | 0 |
+| `variance run` on the changed build | 4 unchanged, **5 changed** | **1** |
 
-The last row is the one worth reading. `Button` appears in five of the eight
-stories, and the run finds exactly those five — the three that hold are `Spinner`,
-`Clock` and `AsyncPanel`, none of which render one. The report resolves to source:
+The last row is the one worth reading. `Button` appears in five of the nine
+stories, and the run finds exactly those five — the four that hold are `Spinner`,
+`Clock`, `AsyncPanel` and the disclosure a play function opens, none of which
+render one. The report resolves to source:
 
 ```
 [changed] story:case-surface--button-primary
-1356 pixel(s) differ across 1 region(s) in Button, and the subject resized from
-1024×76 to 1024×82; the collection of this subject reported subject-size-diverged
-(warn), so what was compared may be less than the whole subject
+1320 pixel(s) differ across 2 region(s) in Button, and the subject resized from
+136×76 to 148×82
 
-  cause      1356px at 17,17 113×48 — Button
+  cause      1025px at 17,17 114×48 — Button
       in button "Continue"
-      src/ds.jsx:51
-      shape v1:c7cbe0de55f9e1492488cbc07b69bb1d
+      cases/storybook-case/src/ds.jsx:51
+      shape v1:91eb0e5b6b0e067766e31876a572b70b
+  cause      295px at 37,32 69×15 — Button
+      in button "Continue"
+      cases/storybook-case/src/ds.jsx:51
+      shape v1:b4e5b4bc82d098302edb209a111cf07e
 ```
 
 The edit is to `Button`. The report says `Button`, at `Button`'s file — `ds.jsx:51`
@@ -153,7 +158,7 @@ workflow.
 | 2 | **`stabilization` was dropped by the identity wire codec**, so `accept` stored a baseline under a shorter digest than the next `run` looked it up with — every subject `incomparable`, forever, on one machine | the store suites build identities by hand; the run suite's fake renderer stamps none |
 | 3 | **The refusal named the same machine on both sides**, because `describeIdentity` printed neither the fonts nor the recipe — the two fields the digest covers and the sentence omitted | which is exactly how (2) stayed invisible |
 | 4 | **The coverage section printed twice**, by the CLI and by the MCP tool it delegates to | every assertion used `toContain`, which the first copy satisfies |
-| 5 | **A production Storybook build minifies**, so attribution reported `1356 pixel(s) differ … in a` | every other subject in this repository is built by esbuild in development mode, where names survive |
+| 5 | **A production Storybook build minifies**, so attribution reported the pixel count `… in a` | every other subject in this repository is built by esbuild in development mode, where names survive |
 
 (5) is not a defect in this project and is the one worth passing on: **component
 attribution needs a build that preserves function names.** React reads a display
@@ -163,11 +168,11 @@ is worse than naming nothing. [`.storybook/main.js`](.storybook/main.js) sets
 `esbuild.keepNames: true` and says so at length. Any project wanting component
 names in its reports pays the same, and nobody would guess it.
 
-## What the line above costs, and what it still hides
+## What the line above costs
 
-**Two independent things have to hold for the report to say `Button` rather than
+**Three independent things have to hold for the report to say `Button` rather than
 `Tokens`** — the wrapper the edit displaces rather than the component that was
-edited. Either one failing produces a confident wrong name, which is why a
+edited. Any one failing produces a confident wrong name, which is why a
 measurement can look straight at this line and see nothing:
 
 1. **A durable run has to know what caused anything.** Separating cause from
@@ -180,24 +185,17 @@ measurement can look straight at this line and see nothing:
    wrapper is exactly as big as its only child. Neither box is tighter, so the
    tie falls to the walk, and a document-order walk puts the wrapper first. One
    character in `packages/core/src/attribute/region.ts` decides it.
-
-**What the line still hides is larger.** The report carries
-`subject-size-diverged`: the acquired subject is **147.33** CSS pixels wide and
-the image is **1024**. Storybook's
-preview centres the story, and `applicableCss` collects only rules matching the
-subject and its descendants — so a rule on `body` or on the preview wrapper never
-reaches the render, while the frame it reconstructs still declares a container
-width. **Every baseline in this case is a photograph of a layout that exists in no
-browser.**
-
-Attribution is correct here regardless, because this story sits at its
-container's origin and the two spaces disagree by zero at that corner. Any
-subject that does not — anything centred, right-aligned, or shrink-to-fit inside a
-wider frame — gets a complete, confident report about a neighbouring component.
-The warning is the detector; its going silent is the acceptance test for the fix.
+3. **The image has to be of the page the subject was acquired from.** Storybook's
+   preview centres the story with a rule on `body`, so a render that carries only
+   the subject's own subtree paints it full-width and every coordinate is then
+   converted between two layouts. The document carries the frame the page had
+   ([ADR-0028](../../docs/context/adr/0028-the-frame-is-part-of-the-page.md)), and
+   `subject-size-diverged` is the detector: the report above says `136×76 to
+   148×82` against a subject the page lays out at 147.33 CSS pixels, and the
+   warning is silent.
 
 The related gap [`cases/incumbent-case`](../incumbent-case) measures from the other
-end still stands: *a PNG is not a semantic baseline*, and an imported foreign image
+end: *a PNG is not a semantic baseline*, and an imported foreign image
 carries no hashes, so it ranks by area — which
 [journal 0013](../../docs/context/journal/0013-observability.md) measured as
 backwards.

@@ -71,6 +71,10 @@ describe('CORPUS manifest', () => {
     expect(casesFor('hash-stable').length).toBeGreaterThan(10);
     expect(casesFor('hash-changed').length).toBeGreaterThan(10);
   });
+
+  it.todo(
+    'the ruleset is scored on two component libraries nobody here wrote — needs each library vendored as subjects with a ground truth and a rationale declared per case before the first run, the way every entry in `CORPUS` declares one',
+  );
 });
 
 describe('every case renders both variants', () => {

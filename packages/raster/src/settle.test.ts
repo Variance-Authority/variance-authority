@@ -117,4 +117,8 @@ describe('settle', () => {
       because: expect.stringContaining('no baseline'),
     });
   });
+
+  it.todo(
+    'the share of subjects `settle` answers without a render is a measured number — needs a checkout with pull-request history and one run per pull request, which is what spec §10 asks for with `>70% screenshot-skip on typical PRs`',
+  );
 });

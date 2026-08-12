@@ -66,18 +66,20 @@ And from [`storybook-case`](storybook-case), the workflow rather than the
 comparison — over a Storybook this project did not author:
 
 ```
-variance run     on a fresh checkout          8 new                exit 1
-variance accept --all                         8 accepted           exit 0
-variance run     again                        8 unchanged          exit 0
-variance run     one component edited         3 unchanged, 5 changed   exit 1
+variance run     on a fresh checkout          9 new                exit 1
+variance accept --all                         9 accepted           exit 0
+variance run     again                        9 unchanged          exit 0
+variance run     one component edited         4 unchanged, 5 changed   exit 1
 ```
 
-The last row finds exactly the five stories that render the edited component.
-**What it cannot do yet is say which of the named components is the cause** —
-that needs the previous revision's snapshot, and a durable run has a baseline
-image without one, so every region reads `collateral` and the ordering falls back
-to area. The same sentence `incumbent-case` reaches from the other end: *a PNG is
-not a semantic baseline.*
+The last row finds exactly the five stories that render the edited component, and
+names it as the **cause** rather than as collateral: a baseline carries the
+component hashes of the document that painted it
+([ADR-0027](../docs/context/adr/0027-a-baseline-carries-what-its-document-said.md)),
+so a durable run has the previous revision and not only the previous image. That
+is the sentence `incumbent-case` reaches from the other end: *a PNG is not a
+semantic baseline* — an imported foreign image carries no hashes, so it ranks by
+area.
 
 ## Two questions that are not comparisons
 

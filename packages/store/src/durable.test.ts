@@ -140,6 +140,10 @@ describe('the durable mode', () => {
       painted,
     );
   });
+
+  it.todo(
+    'every baseline in a durable store is still found after the repository that produced it is rebased — needs a checkout, a rebase that rewrites the commits, and a second run counting how many subjects come back `new`, which is spec §10 with `0 baseline breakage across rebase`',
+  );
 });
 
 /**

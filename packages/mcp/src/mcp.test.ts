@@ -377,6 +377,10 @@ describe('the server', () => {
     serve({ input, output, report: () => REPORT });
     expect(() => input.write('not json\n')).not.toThrow();
   });
+
+  it.todo(
+    '`serveReportFile` answers the second request from a report rewritten since the first, so an agent that re-runs is not answered from the copy it loaded at boot — needs that function to take its streams the way `serve` does, since it names `process.stdin` and `process.stdout` in place',
+  );
 });
 
 describe('the report file', () => {
@@ -404,3 +408,7 @@ describe('the report file', () => {
     }
   });
 });
+
+it.todo(
+  'a client process completes initialize, tools/list and tools/call against `variance-authority-mcp` over real stdio — needs `packages/mcp/dist/bin.js` built and a report file to serve',
+);

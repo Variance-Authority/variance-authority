@@ -148,6 +148,10 @@ describe('M0 — corpus agreement (jsdom)', () => {
     // so a single pass rate can never average the fatal into the merely noisy.
     expect(falseStable, 'false unchanged — a missed regression').toEqual([]);
   });
+
+  it.todo(
+    'the false-alarm rate is scored against a target the way `false unchanged` is — needs no-op cases this corpus does not carry (a reindent inside a block, reordered imports, an extracted subcomponent), each admitted at 0 px by a published arbiter, so `false changed` has a denominator instead of a log line',
+  );
 });
 
 describe('M0 — one root per cause (claim P2)', () => {

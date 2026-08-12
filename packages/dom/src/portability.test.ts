@@ -57,6 +57,10 @@ describe('a semantic baseline crosses machines', () => {
     expect(snapshotAt(1, PLAIN).renderHash).toBe(snapshotAt(2, PLAIN).renderHash);
   });
 
+  it.todo(
+    'a capture recorded on macOS and one recorded on Linux normalize to the same renderHash — needs a fixture committed from each platform, which is the artifact `docker/linux-verify.sh` does not write: it agrees verdict by verdict inside one container and leaves no hash behind to compare against',
+  );
+
   it('keeps the raster key machine-specific, because raster is', () => {
     // Not an oversight that the two keys differ. A raster baseline genuinely is
     // machine-bound; the point is that only raster pays for it.

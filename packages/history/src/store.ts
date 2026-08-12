@@ -373,5 +373,15 @@ export interface HistoryStore {
 
   valueJourney(token: string, window: Window): Promise<Answer<Journey>>;
 
+  /**
+   * TODO: give `lastChanged` and `reach` a caller. Both are implemented in every
+   * backend and served by `packages/server/src/http.ts` and
+   * `packages/tribunal/src/worker.ts`; the other four reads on this interface are
+   * asked by `recordRun` in `packages/cli/src/commands/history.ts`, so the run
+   * asks and the report carries. These two are questions about the suite rather
+   * than about one run — when a component last moved, and where it has started
+   * appearing — so they close when a surface that asks about the past on purpose
+   * calls them: the review UI in `packages/tribunal/src/ui`.
+   */
   reach(component: string, window: Window): Promise<Answer<Reach>>;
 }

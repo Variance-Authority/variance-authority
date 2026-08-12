@@ -41,6 +41,12 @@ docker build -f "${ROOT}/docker/linux-verify.Dockerfile" -t "${IMAGE}" "${ROOT}"
 # Three runs, not one. A single run cannot distinguish a platform difference
 # from a loaded machine, and the cost ratios this is re-measuring are exactly
 # the numbers a noisy container would misreport.
+#
+# FIXME: `yarn test` is the suite alone. It collects no `tools/*.check.ts` — those
+# run under `yarn check`, from vitest.checks.config.ts — and it runs neither corpus
+# measurement the header above promises: examples/kitchen-sink/scripts/bench.mjs
+# and cases/incumbent-case/scripts/incumbent.mjs. Run `yarn verify` and both
+# scripts, or stop promising them at the top of this file.
 for run in 1 2 3; do
   echo "--- linux run ${run}"
   docker run --rm --ipc=host "${IMAGE}" \
@@ -76,6 +82,11 @@ esac
 # does not collect a file reports one fewer file and no reader counts. These are
 # the families whose absence is invisible in a summary, named individually so the
 # message says which one went missing.
+#
+# FIXME: neither tools filename is in the tree. The rules are `tools/boundaries.check.ts`
+# and `tools/docs-*.check.ts`, and they run under `yarn check`, which the command above
+# does not invoke — so this guard reports every container run as a partial suite and
+# exits 1 before a single number is read. Name what that command actually collects.
 missing=()
 for family in 'tools/documentation.test.ts' 'tools/boundaries.test.ts' 'cases/' 'examples/kitchen-sink'; do
   grep -q -- "${family}" "${OUT}/linux-run-1.log" || missing+=("${family}")

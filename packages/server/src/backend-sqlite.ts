@@ -73,6 +73,9 @@ export { SCHEMA_VERSION } from './sqlite-schema.js';
  * This is a workaround with an expiry date. When the module leaves experimental
  * status and joins `builtinModules`, these six lines become a plain import.
  */
+// TODO: a plain `import { DatabaseSync } from 'node:sqlite'` replaces these six
+// lines, and the `ExperimentalWarning` every run of the suite prints goes with
+// them, once the module joins `module.builtinModules`.
 const { DatabaseSync: Database } = createRequire(import.meta.url)('node:sqlite') as {
   DatabaseSync: new (path: string) => DatabaseSync;
 };
