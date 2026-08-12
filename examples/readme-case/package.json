@@ -1,0 +1,20 @@
+{
+  "name": "@variance-authority/example-readme-case",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate.mjs"
+  },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/dom": "workspace:^",
+    "@variance-authority/playwright": "workspace:^",
+    "@variance-authority/png": "workspace:^"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright": "^1.49.0",
+    "vitest": "^2.1.8"
+  }
+}

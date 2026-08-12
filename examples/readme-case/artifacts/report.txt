@@ -1,0 +1,4 @@
+1 root(s): 0 authorized, 1 to review, 0 violation(s).
+  [needs-review] Button — Button
+      undeclared component change: `Button` (token/paint) reached 1 subject(s)
+      examples/readme-case/src/Button.js:9

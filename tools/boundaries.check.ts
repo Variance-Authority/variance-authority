@@ -332,43 +332,37 @@ describe('every package says what it is', () => {
 });
 
 /**
- * The one table a reader picks a package out of has to use the package's name.
- *
- * ADR-0023 renamed the review service from `cloudflare` to `tribunal` and argued
- * the case in the ADR's own title: a service is named for what it is, not for the
- * host it happens to run on. The rename reached the manifest, the entrypoints and
- * every exported symbol — and did not reach the root README, whose package table
- * went on labelling the row `cloudflare` while linking to `packages/tribunal`.
- *
- * Nothing caught it. The rules above check that a README *states* a requirement
- * and documents its entrypoints; the documentation gate checks that the link
- * *resolves*, and `packages/tribunal` resolves fine. A label is the one part of
- * the row nothing read, so it drifted in the one direction that matters — the
- * name a reader would type.
+ * The root README is a consumer decision page, not a workspace inventory.
+ * Every adoption path it recommends must point to a concrete integration
+ * recipe and call that package by the name a reader can install.
  */
-describe('the root README calls every package by its name', () => {
+describe('the root README names every supported adoption path', () => {
   const README = readFileSync(join(ROOT, 'README.md'), 'utf8');
+  const links = [
+    ...README.matchAll(/\[`([^`]+)`[^\]]*\]\(packages\/([\w-]+)\/README\.md#[^)]+\)/g),
+  ];
 
-  it('finds package rows to check, so a reformatted table cannot empty this rule', () => {
-    expect([...README.matchAll(/\[`([^`]+)`\]\(packages\/([\w-]+)\)/g)].length).toBeGreaterThan(10);
+  it('links each supported path to its integration recipe', () => {
+    expect(links.map(([, label]) => label)).toEqual([
+      '@variance-authority/playwright-test',
+      '@variance-authority/storybook-collector',
+      '@variance-authority/route-collector',
+      '@variance-authority/observe',
+    ]);
   });
 
-  it('labels each row with the manifest name', () => {
+  it('labels each recipe with the manifest name', () => {
     const wrong: string[] = [];
 
-    for (const [, label, dir] of README.matchAll(/\[`([^`]+)`\]\(packages\/([\w-]+)\)/g)) {
+    for (const [, label, dir] of links) {
       const manifest = join(ROOT, 'packages', dir!, 'package.json');
       if (!existsSync(manifest)) {
         wrong.push(`packages/${dir} does not exist`);
         continue;
       }
 
-      // Either spelling is a name. The table writes the bare segment for
-      // density and the prose writes the specifier a consumer would install;
-      // both are the package calling itself what it is, and only a third
-      // spelling is the drift this exists to catch.
       const name = (JSON.parse(readFileSync(manifest, 'utf8')) as Manifest).name;
-      if (label !== name && label !== name.split('/').pop()) {
+      if (label !== name) {
         wrong.push(`packages/${dir} is labelled \`${label}\`, not \`${name}\``);
       }
     }
