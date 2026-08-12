@@ -10,26 +10,26 @@ npx playwright install chromium
 
 The collector `variance run` needs, shipped instead of written.
 
-## What this retracts
+## Why this ships rather than being written per project
 
-This repository's position was that mounting is the adopter's, once, per project,
-and it priced that honestly: `cases/storybook-case/collector/` was **341 lines
-across three files**, against a source comment that had guessed "about thirty".
+Mounting is the adopter's, once, per project. That holds for applications, where
+only the project knows how its own app comes up. Storybook is the exception, and
+a hand-written collector is what prices it: `cases/storybook-case/collector/` is
+**341 lines across three files**, against a source comment guessing "about
+thirty".
 
-That position is right about applications and was wrong about Storybook, and the
-measurement is what shows it. Of those 341 lines, the parts that were genuinely
-*that project's* were a map of three ready selectors and a directory to scan for
-components. Everything else was Storybook's own contract being re-typed: serving
-the build, injecting the page bundle, driving the preview channel, acquiring a
-document and a capture from one mount, normalizing, and shutting down without
-hanging on a socket.
+Of those 341 lines, the parts that are genuinely *that project's* are a map of
+three ready selectors and a directory to scan for components. Everything else is
+Storybook's own contract being re-typed: serving the build, injecting the page
+bundle, driving the preview channel, acquiring a document and a capture from one
+mount, normalizing, and shutting down without hanging on a socket.
 
 A story index is a documented artifact and a preview owns its own mount. For this
-one subject source the mounting problem is already solved by somebody else, and
-charging every adopter to re-solve it was charging them for our boundary rather
-than for their project.
+one subject source the mounting problem is already solved by somebody else, so
+charging every adopter to re-solve it charges them for our boundary rather than
+for their project.
 
-**The same case now reads:**
+**The same case reads:**
 
 ```js
 import { storybookCollector } from '@variance-authority/storybook-collector';
@@ -46,7 +46,7 @@ Storybook — passes against it. That test is the evidence this package is entit
 to, and it is written against the seam rather than against either collector, so
 which side of it does the work is invisible to the test.
 
-## What is still the adopter's, and why
+## What is the adopter's, and why
 
 **Readiness, per story.** Storybook's `storyRendered` fires when the story
 function returns, which for a component that defers work is *before the component
