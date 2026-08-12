@@ -25,9 +25,9 @@ import { STORIES } from './stories.js';
  * The numbers below are asserted rather than described because they are the
  * claim. [`composition.md`](../../../docs/composition.md) says a design-system
  * story and the page that mounts the same component can reach the same digest,
- * that a component which renders only other components is a boundary nowhere,
- * and that this suite produces no divergences. If any of that stops being true
- * the document is wrong and this is where it is found out.
+ * that every component standing over an element holds a boundary there, and
+ * that this suite produces no divergences. If any of that stops being true the
+ * document is wrong and this is where it is found out.
  */
 
 const VIEWPORT: Viewport = { width: 1024, height: 768, deviceScaleFactor: 1, colorScheme: 'light' };
@@ -74,7 +74,12 @@ const entry = (name: string) =>
   COMPOSITION.components.find((each) => each.component === name);
 
 describe('the suite as one graph', () => {
-  it('finds every component that authored a node, and nothing else', () => {
+  it('finds every component in the ownership stack, not only the innermost', () => {
+    // Twelve, which is every component this application has. `TodoApp`,
+    // `TodoHeader`, `TodoList` and `TodoFooter` author no DOM node of their own —
+    // each returns other components — and they are still boundaries, because a
+    // node stands inside every component above it and not only the nearest one.
+    // They are also the four files somebody actually edits.
     expect(COMPOSITION.components.map((each) => each.component)).toEqual([
       'Button',
       'Card',
@@ -82,7 +87,11 @@ describe('the suite as one graph', () => {
       'Stack',
       'Text',
       'TextField',
+      'TodoApp',
+      'TodoFooter',
+      'TodoHeader',
       'TodoItem',
+      'TodoList',
       'Toggle',
     ]);
   });
@@ -113,14 +122,28 @@ describe('the suite as one graph', () => {
     ]);
 
     // Twenty-one chips across seven subjects and not one subject whose shallowest
-    // boundary is a `Chip`: `ds/chip--group` opens with the `Stack` that lays them
-    // out. Empty is a real answer, and it is the gap a reviewer looks for — this
-    // component is only ever seen through something else.
+    // boundary is a `Chip`. Empty is a real answer, and it is the gap a reviewer
+    // looks for — this component is only ever seen through something else.
     expect(entry('Chip')?.instances).toBe(21);
     expect(entry('Chip')?.examples).toEqual([]);
   });
 
-  it('records the graph downwards as edges between things that authored nodes', () => {
+  it('gives a wrapped story to the wrapper, which is what the story is an example of', () => {
+    // Three design-system stories open with a `Stack` laying out the thing they
+    // exist to show. The shallowest boundary is the wrapper, so that is whose
+    // example they are — and `Chip`, `Text` and `Toggle` each have none.
+    expect(entry('Stack')?.examples).toEqual([
+      'ds/text--scale',
+      'ds/toggle--states',
+      'ds/chip--group',
+    ]);
+    for (const name of ['Chip', 'Text', 'Toggle']) {
+      expect(entry(name)?.examples).toEqual([]);
+    }
+  });
+
+  it('records the graph downwards as edges between boundaries', () => {
+    expect(entry('TodoApp')?.renders).toEqual(['Card']);
     expect(entry('Card')?.renders).toEqual(['Stack', 'Text']);
     expect(entry('TodoItem')?.renders).toEqual(['Stack']);
     expect(entry('Stack')?.renders).toEqual([
@@ -128,7 +151,10 @@ describe('the suite as one graph', () => {
       'Chip',
       'Text',
       'TextField',
+      'TodoFooter',
+      'TodoHeader',
       'TodoItem',
+      'TodoList',
       'Toggle',
     ]);
   });
@@ -140,15 +166,14 @@ describe('the two edges upwards, which are not the same edge', () => {
    * tie-break inside the attribution ladder.
    */
 
-  it('is a boundary nowhere, for every component that renders only components', () => {
-    // `TodoApp`, `TodoHeader`, `TodoList` and `TodoFooter` author no DOM node of
-    // their own — each returns other components. They therefore hold no boundary,
-    // appear in no census entry, and would be absent from this graph entirely if
-    // `within` were the only edge recorded. They are also, on this example, the
-    // four files somebody actually edits.
-    for (const name of ['TodoApp', 'TodoHeader', 'TodoList', 'TodoFooter']) {
-      expect(entry(name)).toBeUndefined();
-    }
+  it('opens several boundaries at one element when several components stand over it', () => {
+    // `TodoApp` returns a `Card` which returns a `Stack`: three components, one
+    // `div`. All three hold a boundary there, nested in that order, so the two
+    // outer ones have a hash and an example of their own.
+    expect(entry('TodoApp')?.instances).toBe(5);
+    expect(entry('TodoApp')?.within).toEqual(['(unattributed)']);
+    expect(entry('Card')?.within).toEqual(['(unattributed)', 'TodoApp']);
+    expect(entry('Card')?.createdBy).toEqual(['TodoApp']);
   });
 
   it('says where a boundary sits and, separately, who mounted it', () => {
@@ -166,7 +191,11 @@ describe('the two edges upwards, which are not the same edge', () => {
     expect(entry('TextField')?.createdBy).toEqual(['TodoHeader']);
   });
 
-  it('reaches the four app components only through the edge that mounts', () => {
+  it('reaches a caller on the edge that mounts, where the edge that encloses reaches a wrapper', () => {
+    // Every name on the mounting edge is a component that writes elements. The
+    // enclosing edge adds `Stack` and `Card`, which are the two components a
+    // reviewer never edits — so a ladder consulting only enclosure lands on a
+    // layout primitive for `Chip`, `Toggle`, `Text` and `TextField` alike.
     const mounted = new Set(COMPOSITION.components.flatMap((each) => each.createdBy));
     const enclosing = new Set(COMPOSITION.components.flatMap((each) => each.within));
 
@@ -177,14 +206,23 @@ describe('the two edges upwards, which are not the same edge', () => {
       'TodoItem',
       'TodoList',
     ]);
-    expect([...enclosing].sort()).toEqual(['(unattributed)', 'Card', 'Stack', 'TodoItem']);
+    expect([...enclosing].sort()).toEqual([
+      '(unattributed)',
+      'Card',
+      'Stack',
+      'TodoApp',
+      'TodoFooter',
+      'TodoHeader',
+      'TodoItem',
+      'TodoList',
+    ]);
   });
 });
 
 describe('the echoes — the same rendering in two subjects', () => {
   it('crosses a subject boundary in every echo it reports', () => {
     // An echo inside one subject is a repeated element, not a joined dot.
-    expect(COMPOSITION.echoes.length).toBe(21);
+    expect(COMPOSITION.echoes.length).toBe(26);
     expect(
       COMPOSITION.echoes.every(
         (echo) => new Set(echo.sites.map((site) => site.subject)).size >= 2,
@@ -239,14 +277,11 @@ describe('the echoes — the same rendering in two subjects', () => {
 });
 
 describe('the divergences — one input, two renderings, one commit', () => {
-  it('finds none, because every pair it could have reported was explainable', () => {
-    // Eleven were reported before `divergencesOf` learned its three refusals, and
-    // all eleven were false: one `TextField` walked as two boundaries sharing a
-    // props digest, and `Card` and `Text` "diverged" because a props digest
-    // excludes `children` and their callers passed different children.
-    //
+  it('finds none, because every pair it could have reported is explainable', () => {
     // Zero is the correct answer for a suite where nothing renders two ways from
-    // one input, and an empty list here is worth more than a populated one.
+    // one input, and an empty list here is worth more than a populated one. The
+    // three shapes that reach `divergencesOf` and are refused by it are listed in
+    // ADR-0034; each is an artifact of a props digest excluding `children`.
     expect(COMPOSITION.divergences).toEqual([]);
   });
 

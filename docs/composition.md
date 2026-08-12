@@ -1,29 +1,30 @@
 # The suite compared to itself
 
-Every comparison in this system is one subject against its baseline: two
-revisions, one thing. A suite of examples has a second axis, and until 2026-08-12
-nothing read it.
+Every other comparison in this system is one subject against its baseline: two
+revisions, one thing. Composition is the other axis — **many subjects, one
+revision, joined on the components they share**. There is no baseline anywhere
+in it.
 
 > A visual-regression example is a component built from components. The example
 > *is* a component, at a boundary; the same component appears again, with the
 > same or different props, inside larger examples.
 
-That sentence is a join key. A run already holds, for every subject it observed,
-the component boundaries the document actually contained and a digest of what
-each one rendered ([ADR-0018](context/adr/0018-a-component-hash-covers-its-own-nodes.md)).
+That sentence is a join key. A run holds, for every subject it observed, the
+component boundaries the document contained and a digest of what each one
+rendered ([ADR-0018](context/adr/0018-a-component-hash-covers-its-own-nodes.md)).
 Once those boundaries are addressable across subjects, one commit's worth of
 snapshots answers three questions no per-subject comparison can reach:
 
-- **Which of these examples are watching the same bytes.** Two diffs over one
-  shared rendering are one thing to review, and the narrow story among them is
-  where to review it.
+- **Which examples are watching the same bytes.** Two diffs over one shared
+  rendering are one thing to review, and the narrow example among them is where
+  to review it.
 - **Which of them disagree at this commit.** Not a regression — there is no
-  baseline anywhere in it — but proof that something outside a component's own
-  inputs decides part of its output.
+  baseline in it — but proof that something outside a component's own inputs
+  decides part of its output.
 - **What, in this run, explains each thing that moved.** An edited file, a moved
-  token, an edited *caller* — or nothing, which is the finding.
+  token, an edited *caller* — or nothing, which is a finding of its own.
 
-No second render, no second image, and no store. It is a fold over digests the
+No second render, no second image, no store. It is a fold over digests the
 collection already produced.
 
 ## Turning it on
@@ -44,50 +45,78 @@ toolByName('variance_composition')?.run(report, { component: 'Chip' });
 ```
 
 **Absent on a raster-only or ephemeral tier**, which has no boundaries to join.
-Absent is not empty: the tool answers that question with a sentence saying the
-run cannot tell, because an empty graph printed there would read as *this suite
-shares nothing*, which is a different claim and a false one.
+Absent is not empty: the tool answers with a sentence saying the run cannot tell,
+because an empty graph printed there would read as *this suite shares nothing*,
+which is a different claim and a false one.
 
 **Absent from a merged report** — `variance report shard-1.json shard-2.json …`
-— and the merge says so in a warning rather than leaving a hole. Two
-subjects sharing a rendering are the finding; a pair that landed in different
-shards is in neither shard's report, so a union of the shard graphs would be a
-graph with every cross-shard edge missing and nothing marking where.
+— and the merge says so in a warning rather than leaving a hole. Two subjects
+sharing a rendering *are* the finding, so a pair that landed in different shards
+is in neither shard's report and a union of the shard graphs would be a graph
+with every cross-shard edge missing and nothing marking where.
 
-## What a boundary is
+## Two relations run upward, and they are not the same relation
 
-A node whose owning component differs from its parent's, plus the subject root
-([ADR-0007](context/adr/0007-subject-boundary-is-the-component-tree.md)). The
-consequence is the thing everybody trips on once:
+**Parent** is what a node is *inside*: React's `return` chain, the boxes it
+ended up in. **Owner** is what *rendered* it: the code that wrote the element. A
+layout wrapper is the parent of everything handed to it and the owner of none of
+it.
 
-> A component that renders nothing but other components authors no DOM node, and
-> is therefore **a boundary nowhere**.
+Boundaries are placed by owner. Every component standing over an element holds a
+boundary at that element, nested outermost-first — so three components that
+return one another share one `div` and hold three boundaries on it, and **a
+component that renders nothing but other components is still a component**.
 
-Measured on [`examples/todomvc`](../examples/todomvc) — 15 stories, React, a
-development build — the census has eight components: `Button`, `Card`, `Chip`,
-`Stack`, `Text`, `TextField`, `TodoItem`, `Toggle`. `TodoApp`, `TodoHeader`,
-`TodoList` and `TodoFooter` are in **no** census entry, because each of them
-composes design-system components and emits no element of its own. They are also
-the four files a reviewer would open.
-
-So every component carries two upward edges, and they answer different
+Each boundary then carries both relations, because they answer different
 questions:
 
 | edge | means | on todomvc's `Chip` |
 |---|---|---|
-| `within` | the component whose boundary encloses this one | `Stack` |
-| `created by` | the component that *mounted* the element | `TodoFooter` |
+| `within` | the boundary that encloses this one | `Stack` |
+| `created by` | the component that wrote this element | `TodoFooter` |
 
-`within` is where a boundary sits, which is frequently a layout wrapper that
-knows nothing about its contents. `created by` is who wrote the element, which
-is where the props are written and therefore what an edit to it changes. Every
-`Chip` in that application is `within: Stack` and `created by: TodoFooter`;
-`Toggle` is `within: Stack` and `created by: TodoItem`; `TextField` is created
-by `TodoHeader`. A run consulting only `within` reaches a layout primitive every
-time.
+`within` is where a boundary sits, which is frequently a layout primitive that
+knows nothing about its contents. `created by` is who wrote the element, which is
+where the props are written and therefore what an edit to it changes. Measured on
+[`examples/todomvc`](../examples/todomvc): every `Chip` is `within: Stack` and
+`created by: TodoFooter`; `Toggle` is `within: Stack`, `created by: TodoItem`;
+`TextField` is created by `TodoHeader`. Across the whole suite the mounting edge
+names five components and every one of them is a file a reviewer edits, while the
+enclosing edge adds `Stack` and `Card` — the two nobody does.
 
 **`created by` is empty on a production build**, where React's owner links are
-gone. Empty is *not* "nothing mounted it", and nothing here reads it that way.
+gone. Empty is *not* "nothing mounted it", and nothing here reads it that way. A
+run without owner links still places boundaries and still names enclosures; it
+loses the caller, not the graph.
+
+## A component's hash covers its own nodes, and that is what makes it a unit
+
+Inside a boundary, a child boundary is a placeholder rather than its content.
+Where the enclosing component placed the child, the placeholder names it; where
+the child arrived as `children` from somewhere else, the placeholder is an
+anonymous hole — a container is not told what it was handed, so its hash must not
+depend on it.
+
+That containment is the property the whole page rests on, so it is measured
+against the whole suite rather than argued
+([`closure.test.tsx`](../examples/todomvc/src/closure.test.tsx)):
+
+| edit | components whose own content moves |
+|---|---|
+| padding on `.va-button` | `Button` |
+| the corner-radius token | `Button`, `Card`, `Chip`, `TextField`, `Toggle` |
+
+The first row is the claim a design system needs to be able to make about its own
+change: one component moved, and **the eleven others did not** — including every
+component that encloses a `Button` on every page in the suite. The second is the
+same rule in the other direction: a foundation edit is *supposed* to cross
+components, and the answer is the five that resolve through that token rather
+than everything on a page containing one.
+
+What the placeholder still carries is the *number* of children handed in, so a
+caller passing three where it passed two moves the container. That residual limit
+is stated in
+[ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md).
 
 ## What it answers
 
@@ -97,49 +126,70 @@ An **echo** is one rendering digest with sites in more than one subject. Three
 identical chips in one list say nothing; the same chip in a chip story and in a
 page footer says that a reviewer looking at two diffs is looking at one.
 
-Measured on todomvc: **21 shared renderings**, every one of them spanning more
-than one subject. The widest is a `Chip` rendering shared by `ds/chip--group`
-and four page stories — so the design-system story and the pages are, for that
-chip, watching the same bytes, and the story is the narrow place to review a
-change to it.
+Measured on todomvc — 15 stories, 12 components — **26 shared renderings**, every
+one of them spanning more than one subject. The widest is a `Chip` rendering
+shared by `ds/chip--group` and four page stories, so the design-system story and
+the pages are, for that chip, watching the same bytes, and the story is the narrow
+place to review a change to it.
 
-The same measurement produced a finding nobody asked for:
+The same measurement produces a finding nobody asks for:
 
 > The three `ds/button--*` stories produce **no** echo into the application at
 > all. Every `Button` rendering shared between subjects is shared between pages.
 
 The design-system examples guard a component whose real usage they never touch.
-That is not a defect in the tool; it is the suite's own coverage, said out loud
-for the first time, and it is asserted as a test in
-[`composition.test.tsx`](../examples/todomvc/src/composition.test.tsx) rather
-than papered over.
+That is not a defect in the tool; it is the suite's own coverage, and it is a test
+in [`composition.test.tsx`](../examples/todomvc/src/composition.test.tsx) rather
+than a paragraph.
 
-The report also names components with **no example of their own** — ones that
-appear only inside larger subjects, so a change to them is reviewed through
-whatever page happens to contain it.
+### Which layer a subject is an example of
+
+A subject's **example** is its shallowest boundary — the component the subject
+exists to show. On a suite built in layers this is where a design system finds out
+what it has actually covered:
+
+| subject | example of | what that means |
+|---|---|---|
+| `ds/button--default` | `Button` | an atom, shown directly |
+| `ds/chip--group` | `Stack` | a `Stack` laying out chips. `Chip` has 21 instances and no example of its own |
+| `page/footer--counts` | `TodoFooter` | a molecule, shown directly |
+| `page/todos--populated` | `TodoApp` | the organism |
+
+`ds/text--scale`, `ds/toggle--states` and `ds/chip--group` all wrap their subject
+in a layout component, so all three are examples of `Stack`, and `Text`, `Toggle`
+and `Chip` have none. A change to any of the three is reviewed through whatever
+page contains it. That is one wrapper away from being fixed and it is invisible
+until the suite is joined to itself.
+
+The organism end holds the opposite result. `TodoApp` is too large to describe in
+full and nobody would write a story for its internals — but it is a boundary with
+a hash, five instances and five examples, so it can be *watched* without being
+described, and an edit inside it resolves to the molecule that moved rather than
+to the whole page.
 
 ### One input, two renderings
 
 A **divergence** is one props digest producing more than one rendering *at one
 commit*. It is not a regression. It says the component's own inputs do not
-determine its output, which is either a fact about the design — a token, a
-theme, an ancestor's cascade — or a reading that is not repeatable. The bands
-say which kind, in the same vocabulary a sensitivity absorbs, so a divergence
-entirely inside a relaxed band can be dismissed without opening it.
+determine its output, which is either a fact about the design — a token, a theme,
+an ancestor's cascade — or a reading that is not repeatable. The bands say which
+kind, in the same vocabulary a sensitivity absorbs, so a divergence entirely
+inside a relaxed band can be dismissed without opening it.
 
-**Measured on todomvc: exactly zero.** That number is the interesting one,
-because the first implementation reported **eleven**, and all eleven were false.
-A props digest excludes `children` by construction, so three shapes had to be
-refused before the answer meant anything:
+**Measured on todomvc: zero.** A props digest excludes `children` by
+construction, so three shapes reach the check and are refused by it
+([ADR-0034](context/adr/0034-a-divergence-must-survive-the-children-it-excludes.md)):
 
 | shape | why it is not a divergence |
 |---|---|
-| Two boundaries of one component in one subject | One `TextField` walked as two boundaries sharing a props digest. Different nodes, not different renderings of one node. |
-| Different `children`, same props digest | `Card` and `Text` "diverged" purely because the excluded field is the one that differed. |
-| Different rendered subtrees | Two sites that mount different components below them are not one input. |
+| Two boundaries of one component in one subject | Different nodes, not two renderings of one node |
+| Different `children`, same props digest | The excluded field is the one that differs |
+| Different rendered subtrees | Two sites that mount different components below them did not receive one input |
 
-Zero is a real and common answer, and it means nothing in the suite rendered two
-ways from one input.
+Zero is a real and common answer, and it means nothing in the suite renders two
+ways from one input. `Card` keeps one props class and two renderings, which is the
+honest residue: the count says the pair exists and the refusals say it is not
+evidence.
 
 ### Why a component moved
 
@@ -156,70 +206,36 @@ a ladder and stops at the first rung that holds:
 | `unexplained` | none of the above | the finding |
 
 `edited` and `token` need [`--since`](selecting.md), and a run that did not ask
-cannot reach either. That degrades honestly rather than silently: an unexplained
-movement in a run with no change set carries a sentence saying so instead of an
-accusation.
+cannot reach either. That degrades honestly: an unexplained movement in a run with
+no change set carries a sentence saying so instead of an accusation.
 
 **The `upstream` rung reads `created by` before `within`, and that is not a
 tie-break.** The component that wrote the element is the one whose edit changed
 this component's inputs. On todomvc, an edit to `src/app/todo.tsx` explains five
-chip movements through `TodoFooter`; a run consulting only `within` would find
-`Stack`, which nobody edited, and report five unexplained movements instead of
-one caller.
+chip movements through `TodoFooter`; a run consulting only `within` finds `Stack`,
+which nobody edited, and reports five unexplained movements instead of one caller.
 
 `token` is read off the component's own instances rather than off the subject,
 which is what makes it worth anything: every subject on a themed page resolves
 through every token in the theme, so a subject-level intersection names them all
 and explains nothing.
 
-## The flake half
-
-The chain this page exists to close:
-
-> Detect a pixel change. Find the HTML area behind it. Find no related change.
-> Call it a flake.
-
-The first three steps were already built — the region, the component, the ladder
-above. The fourth is where this stops, deliberately, and the stopping point has
-two names:
-
-| standing | what the run has | what it means |
-|---|---|---|
-| `flake` | an unexplained movement **and** a subject that failed to read the same way twice | both halves of the sentence, together, in one run |
-| `suspect` | an unexplained movement in a subject nobody has read twice | a shortlist entry, not a verdict |
-
-The position in [`flakiness.md`](flakiness.md) has not moved: a subject is
-unstable when it fails to read the same way twice, and one reading can never
-establish that. What an unexplained movement *is*, exactly, is **the shortlist
-of subjects worth reading twice** — ordered by how much control the suite has
-over each, so a component that rendered identically in six other places and
-moved here sorts above one that appears nowhere else.
-
-**The sweep does not read that shortlist yet.** `variance run --flakes` still
-reads every subject, in plan order, and the shortlist is something a person or
-an agent spends. Ordering the sweep by it is a change to
-[`again.ts`](../packages/cli/src/commands/again.ts) that this work did not make.
-
-**The control group is what makes any of this evidence.** Beside each movement
-the run prints `held`: the subjects where that same component, with the same
-props, did *not* move. Those are the stable states to refer to, and the suite
-already had them — they are the other sites of the same rendering. An empty
-`held` list weakens a finding rather than strengthening it, which is why it is a
-list and not a flag, and why the shortlist is ordered by how much control the
-suite has over each entry.
+An unexplained movement is where this page stops. What the run does with one — the
+control group beside it, and the second instrument that turns it into a verdict —
+belongs to [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it).
 
 ## What it costs
 
-One pass over the instances every subject already reported, after the worker
-pool and in plan order, so a slower machine that finished subject 41 before
-subject 3 produces the same bytes. No browser, no image, no disk, no service.
+One pass over the instances every subject already reported, after the worker pool
+and in plan order, so a slower machine that finishes subject 41 before subject 3
+produces the same bytes. No browser, no image, no disk, no service.
 
-What reaches the artifact is smaller than what produced it. The full graph
-carries one entry per boundary per subject — tens of thousands of objects on a
-real suite — and a report is a file people open, so the record keeps the names,
-the counts and the subject lists, and a consumer that wants the graph recomputes
-it from the snapshots. The echo list is capped at 100 and what the cap left out
-is counted in the artifact, because a cap that says nothing reads as coverage.
+What reaches the artifact is smaller than what produced it. The full graph carries
+one entry per boundary per subject — tens of thousands of objects on a real suite
+— and a report is a file people open, so the record keeps the names, the counts
+and the subject lists, and a consumer that wants the graph recomputes it from the
+snapshots. The echo list is capped at 100 and what the cap left out is counted in
+the artifact, because a cap that says nothing reads as coverage.
 
 ## What this refuses to conclude
 
@@ -227,34 +243,35 @@ is counted in the artifact, because a cap that says nothing reads as coverage.
 explain, which is a statement about the evidence the run assembled and not about
 the subject. `variance run --flakes` is what settles one.
 
-**Zero divergences is not "the components are deterministic".** It is "nothing
-in this suite rendered two ways from one *props digest*, in the shapes the
-exclusion of `children` could not explain". A component whose output depends on
-something no subject varied is invisible here.
+**Zero divergences is not "the components are deterministic".** It is "nothing in
+this suite rendered two ways from one *props digest*, in the shapes the exclusion
+of `children` could not explain". A component whose output depends on something no
+subject varied is invisible here.
 
 **An empty `created by` is not "nothing mounted it".** It is a production build,
-where the owner links are gone. Every consumer of that field has to keep the two
-apart, and the report's own types say so.
+where the owner links are gone. Every consumer of that field keeps the two apart,
+and the report's own types say so.
 
 **Provenance is React's.** The boundaries come from the fiber tree, so a suite
 built on anything else composes nothing at all — the raster tier's answer, with
-the same honest absence. [Spec 0019](specs/0019-provenance-without-react.md) is
-the vacancy.
+the same honest absence.
+[Spec 0019](specs/0019-provenance-without-react.md) is the vacancy.
 
-**It has been measured on one application.** Fifteen stories, eight components,
-one framework, one development build. `docs/comparison.md` already states the
-neighbouring limit and it still stands: the cross-subject work has never seen a
-real change set. Every number on this page comes from
-[`examples/todomvc/src/composition.test.tsx`](../examples/todomvc/src/composition.test.tsx),
-which is small enough that its measurements are assertions.
+**It is measured on one application.** Fifteen stories, twelve components, one
+framework, one development build, one machine, and a change set declared by the
+example rather than read from a repository's history. Every number on this page is
+an assertion in
+[`composition.test.tsx`](../examples/todomvc/src/composition.test.tsx) and
+[`closure.test.tsx`](../examples/todomvc/src/closure.test.tsx), which are small
+enough that their measurements are the claim.
 
 ---
 
-**Further:** [`flakiness.md`](flakiness.md#what-still-gets-through-and-how-it-is-found)
-for what a second reading establishes and what it does not ·
+**Further:** [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it) for
+what an unexplained movement becomes ·
 [`history.md`](history.md) for the same questions across runs ·
 [`packages/mcp`](../packages/mcp) for `variance_composition` ·
 [ADR-0033](context/adr/0033-the-component-that-mounted-it-is-not-the-one-it-sits-in.md)
 for why `created by` is recorded beside `within` ·
-[ADR-0034](context/adr/0034-a-divergence-must-survive-the-children-it-excludes.md)
-for the three refusals behind the zero.
+[ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md)
+for what a child boundary contributes to its container's hash.

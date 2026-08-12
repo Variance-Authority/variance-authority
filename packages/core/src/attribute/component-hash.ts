@@ -64,7 +64,7 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
   >();
 
   for (const boundary of boundaries(snapshot.root)) {
-    const shape = shapeOf(boundary.node, boundary.component, layout);
+    const shape = shapeOf(boundary, layout);
 
     const entry = accumulated.get(boundary.component) ?? {
       structure: [],

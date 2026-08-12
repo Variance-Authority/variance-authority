@@ -2,7 +2,14 @@ import { digestValue } from '../format/hash.js';
 import type { Digest } from '../format/hash.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import { ID_REFERENCE_ATTRIBUTES, ID_REFERENCE_LIST_ATTRIBUTES } from '../rules/ruleset.js';
-import { boundaries, ownerOf, shapeOf, UNATTRIBUTED, type Rename } from './boundary.js';
+import {
+  boundaries,
+  holds,
+  shapeOf,
+  UNATTRIBUTED,
+  type Boundary,
+  type Rename,
+} from './boundary.js';
 
 /**
  * One digest per component *boundary*, comparable across subjects.
@@ -71,12 +78,12 @@ export interface ComponentInstance {
   readonly within?: string;
 
   /**
-   * Who decided this element belongs here, when it differs from `within`.
+   * Who placed this boundary's element, when it differs from `within`.
    *
-   * `owners[0]` says where a node *sits* and `createdBy` says who authored it,
-   * and the two diverge exactly where a component is passed as a prop and
-   * rendered elsewhere (ADR-0007). That divergence is a fact about composition,
-   * so it is kept rather than resolved.
+   * `within` says which component this one *sits inside* and `createdBy` says
+   * which component *wrote the element*, and the two diverge wherever a
+   * component is passed as a prop and rendered somewhere else (ADR-0007). That
+   * divergence is a fact about composition, so it is kept rather than resolved.
    */
   readonly createdBy?: string;
 
@@ -135,21 +142,20 @@ export function componentInstances(snapshot: SemanticSnapshot): readonly Compone
   const layout = snapshot.profile.layout;
 
   return boundaries(snapshot.root).map((boundary) => {
-    const shape = shapeOf(boundary.node, boundary.component, layout, localAliases(boundary.node, boundary.component));
+    const shape = shapeOf(boundary, layout, localAliases(boundary));
 
     const structure = digestValue(shape.structure);
     const semantics = digestValue(shape.semantics);
     const text = digestValue(shape.text);
     const style = digestValue(shape.style);
-    const frame = boundary.node.provenance?.owners[0];
 
     return {
       component: boundary.component,
       path: boundary.node.path,
       depth: boundary.depth,
       ...(boundary.within === undefined ? {} : { within: boundary.within }),
-      ...(frame?.createdBy === undefined ? {} : { createdBy: frame.createdBy }),
-      ...(frame?.propsDigest === undefined ? {} : { props: frame.propsDigest }),
+      ...(boundary.placedBy === undefined ? {} : { createdBy: boundary.placedBy }),
+      ...(boundary.props === undefined ? {} : { props: boundary.props }),
       rendering: digestValue([structure, semantics, text, style]),
       structure,
       semantics,
@@ -195,7 +201,7 @@ const ALIAS = /^#(?:a\d+|extern:.*)$/;
  * which is the ancestor-moves-on-every-leaf-edit failure the boundary rule
  * exists to prevent.
  */
-function localAliases(root: SemanticNode, component: string): Rename {
+function localAliases(boundary: Boundary): Rename {
   const local = new Map<string, string>();
 
   const take = (value: string): void => {
@@ -211,10 +217,10 @@ function localAliases(root: SemanticNode, component: string): Rename {
     }
     for (const value of Object.values(node.style)) for (const found of urlAliases(value)) take(found);
     for (const value of Object.values(node.tokens ?? {})) for (const found of urlAliases(value)) take(found);
-    for (const child of node.children) if (ownerOf(child) === component) walk(child);
+    for (const child of node.children) if (holds(boundary, child)) walk(child);
   };
 
-  walk(root);
+  walk(boundary.node);
 
   // Unmapped values pass through unchanged. A reference this walk never reached
   // — one inside a nested boundary, reaching back out — is left as the subject

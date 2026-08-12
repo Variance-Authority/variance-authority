@@ -122,11 +122,11 @@ promoting it makes the coin flip the thing every later run is measured against.
 
 Reading a subject twice answers *did it move on its own*. It does not answer
 *should it have moved at all*, and that second question is answerable from
-evidence the run already holds. Since 2026-08-12 every component the run found
-to have moved is walked down a ladder — an edited file, a moved token, an edited
-caller, a contradiction elsewhere in the suite — and stops at the first rung
-that holds ([`composition.md`](composition.md#why-a-component-moved)). The last
-rung is **unexplained**, and it is the one worth having:
+evidence the run already holds. Every component the run found to have moved is
+walked down a ladder — an edited file, a moved token, an edited caller, a
+contradiction elsewhere in the suite — and stops at the first rung that holds
+([`composition.md`](composition.md#why-a-component-moved)). The last rung is
+**unexplained**, and it is the one worth having:
 
 ```
 unexplained (1) — no edited file, moved token, edited caller or contradiction in this
@@ -148,9 +148,9 @@ twice; it is a shortlist entry and the report says so in those words.
 
 **The `held` list is what makes any of it evidence.** Those are the subjects
 where the same component, with the same props, did not move — the stable states
-to refer to, which the suite already had and nothing had ever collected. An
-empty `held` list *weakens* a finding rather than strengthening it, which is why
-it is a list rather than a flag.
+to refer to, and the suite supplies them for free, because they are the other
+sites of the same rendering. An empty `held` list *weakens* a finding rather
+than strengthening it, which is why it is a list rather than a flag.
 
 It costs no collection, no browser and no image: it is a fold over digests the
 run already produced. What it needs is [`--since`](selecting.md), because the
@@ -200,8 +200,8 @@ when every verdict is green.
 produces is sorted by how much control the suite has over each entry, and
 nothing yet points the sweep at it — a subject with four held siblings and a
 subject with none get the same second reading in whatever order the plan
-emitted them. That is a vacancy rather than a decision, and it is named as one
-in [`composition.md`](composition.md#the-flake-half).
+emitted them. That is a vacancy rather than a decision: the ordering exists and
+`variance run --flakes` does not read it.
 
 **Two readings is a floor, not a ceiling.** A subject that reads differently one
 time in fifty passes this forty-nine runs out of fifty, and an absent finding
