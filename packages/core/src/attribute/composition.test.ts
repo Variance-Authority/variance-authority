@@ -1,0 +1,366 @@
+import { describe, expect, it } from 'vitest';
+import { composeSubjects, type SubjectComposition } from './composition.js';
+import { attributeMovement } from './movement.js';
+import type { ComponentInstance } from './instances.js';
+
+/**
+ * The suite as one graph, tested on instance lists rather than on trees.
+ *
+ * `instances.test.ts` proves the digests join. This proves what is made of them,
+ * and the tests that matter are the two that must *not* fire: an echo inside one
+ * subject is not a finding, and a divergence between instances whose props are
+ * unknown is not a finding either — it is missing data wearing a finding's
+ * clothes.
+ */
+
+function instance(over: Partial<ComponentInstance> & { component: string }): ComponentInstance {
+  return {
+    path: '0',
+    depth: 1,
+    rendering: 'v1:r',
+    structure: 'v1:s',
+    semantics: 'v1:a',
+    text: 'v1:t',
+    style: 'v1:y',
+    renders: [],
+    nodes: 1,
+    tokens: [],
+    ...over,
+  };
+}
+
+/** A chip, rendered the same way, with the same inputs. */
+const chip = (path: string, within: string, over: Partial<ComponentInstance> = {}) =>
+  instance({
+    component: 'Chip',
+    path,
+    within,
+    depth: 2,
+    props: 'v1:chip',
+    rendering: 'v1:chip-done',
+    ...over,
+  });
+
+const SUITE: readonly SubjectComposition[] = [
+  {
+    subject: 'story:ds-chip--done',
+    instances: [
+      instance({ component: 'Story', path: '0', depth: 0, renders: ['Chip'] }),
+      chip('0/0', 'Story'),
+    ],
+  },
+  {
+    subject: 'story:page--default',
+    instances: [
+      instance({ component: 'App', path: '0', depth: 0, renders: ['Footer'] }),
+      instance({ component: 'Footer', path: '0/1', depth: 1, renders: ['Chip', 'Chip'] }),
+      chip('0/1/0', 'Footer', { props: 'v1:chip-all', rendering: 'v1:chip-all' }),
+      chip('0/1/1', 'Footer'),
+    ],
+  },
+];
+
+describe('the census', () => {
+  const composition = composeSubjects(SUITE);
+  const chipEntry = composition.components.find((entry) => entry.component === 'Chip');
+
+  it('counts subjects and instances separately', () => {
+    expect(chipEntry).toMatchObject({ instances: 3, subjects: [
+      'story:ds-chip--done',
+      'story:page--default',
+    ] });
+  });
+
+  it('names the subject that exists to show a component', () => {
+    expect(chipEntry?.examples).toEqual([]);
+    expect(
+      composition.components.find((entry) => entry.component === 'Story')?.examples,
+    ).toEqual(['story:ds-chip--done']);
+  });
+
+  it('records the graph in both directions', () => {
+    expect(chipEntry?.within).toEqual(['Footer', 'Story']);
+    expect(
+      composition.components.find((entry) => entry.component === 'Footer')?.renders,
+    ).toEqual(['Chip']);
+  });
+
+  it('splits a component by the props it received', () => {
+    expect(chipEntry?.classes.map((group) => group.props)).toEqual(['v1:chip', 'v1:chip-all']);
+  });
+
+  it('sorts components in code-unit order, never by locale', () => {
+    const names = composition.components.map((entry) => entry.component);
+    expect(names).toEqual([...names].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+  });
+
+  it('drops the unattributed bucket, which is not a component', () => {
+    const withBroken = composeSubjects([
+      { subject: 's', instances: [instance({ component: '(unattributed)' })] },
+    ]);
+
+    expect(withBroken.components).toEqual([]);
+  });
+});
+
+describe('echoes — the dots, connected', () => {
+  it('reports one rendering shared by two subjects', () => {
+    const [echo] = composeSubjects(SUITE).echoes;
+
+    expect(echo).toMatchObject({ component: 'Chip', rendering: 'v1:chip-done' });
+    expect(echo?.sites.map((site) => site.subject)).toEqual([
+      'story:ds-chip--done',
+      'story:page--default',
+    ]);
+  });
+
+  it('says nothing about two identical instances inside one subject', () => {
+    // Three identical chips in a list are three identical chips. The finding is
+    // a rendering that survives being mounted somewhere else, because that is
+    // the one a second subject is watching.
+    const oneSubject = composeSubjects([
+      {
+        subject: 'story:page--default',
+        instances: [chip('0/0', 'Footer'), chip('0/1', 'Footer')],
+      },
+    ]);
+
+    expect(oneSubject.echoes).toEqual([]);
+  });
+});
+
+describe('divergences — one commit, two answers', () => {
+  const diverging = composeSubjects([
+    SUITE[0]!,
+    {
+      subject: 'story:page--dark',
+      instances: [chip('0/0', 'Footer', { rendering: 'v1:chip-dark', style: 'v1:dark' })],
+    },
+  ]);
+
+  it('reports the same props rendering two ways, and which band differs', () => {
+    expect(diverging.divergences).toHaveLength(1);
+    expect(diverging.divergences[0]).toMatchObject({ component: 'Chip', bands: ['token'] });
+  });
+
+  it('refuses to compare instances whose props are unknown', () => {
+    // Absent provenance is not evidence of shared inputs, and reporting a
+    // divergence between two instances that are merely both mysterious would
+    // manufacture a finding out of missing data.
+    const unknown = composeSubjects([
+      { subject: 'a', instances: [instance({ component: 'Chip', rendering: 'v1:one' })] },
+      { subject: 'b', instances: [instance({ component: 'Chip', rendering: 'v1:two' })] },
+    ]);
+
+    expect(unknown.divergences).toEqual([]);
+  });
+
+  it('refuses two renderings that occur together in one subject', () => {
+    // A component whose nodes are interrupted by a nested boundary is walked as
+    // two boundaries under one owner frame — one `TextField` becomes a label
+    // shape and an input shape sharing a props digest. Measured on
+    // `examples/todomvc`: one instance, two pieces, and it looks exactly like a
+    // component that renders two ways.
+    const fragmented = composeSubjects([
+      {
+        subject: 'story:ds-field--empty',
+        instances: [
+          instance({ component: 'Field', path: '0/0', props: 'v1:f', rendering: 'v1:label' }),
+          instance({ component: 'Field', path: '0/1', props: 'v1:f', rendering: 'v1:input' }),
+        ],
+      },
+    ]);
+
+    expect(fragmented.divergences).toEqual([]);
+  });
+
+  it('refuses two renderings that mounted different children', () => {
+    // `propsDigest` excludes `children` by design, so `<Card><Stack/></Card>` and
+    // `<Card><Text/></Card>` share a digest. Their different output is their
+    // caller's doing, and blaming the component for it is a finding pointed at
+    // the wrong file.
+    const withChildren = composeSubjects([
+      {
+        subject: 'a',
+        instances: [
+          instance({ component: 'Card', props: 'v1:card', rendering: 'v1:one', renders: ['Stack'] }),
+        ],
+      },
+      {
+        subject: 'b',
+        instances: [
+          instance({ component: 'Card', props: 'v1:card', rendering: 'v1:two', renders: ['Text'] }),
+        ],
+      },
+    ]);
+
+    expect(withChildren.divergences).toEqual([]);
+  });
+
+  it('refuses two renderings whose own text differs, which is where a string child lands', () => {
+    const withText = composeSubjects([
+      {
+        subject: 'a',
+        instances: [
+          instance({ component: 'Text', props: 'v1:t', rendering: 'v1:one', text: 'v1:contents' }),
+        ],
+      },
+      {
+        subject: 'b',
+        instances: [
+          instance({ component: 'Text', props: 'v1:t', rendering: 'v1:two', text: 'v1:body' }),
+        ],
+      },
+    ]);
+
+    expect(withText.divergences).toEqual([]);
+  });
+});
+
+describe('the graph upwards has two edges, and they are not the same edge', () => {
+  const composition = composeSubjects([
+    {
+      subject: 'story:page--default',
+      instances: [
+        instance({ component: 'Stack', path: '0', depth: 0, createdBy: 'TodoFooter' }),
+        instance({
+          component: 'Chip',
+          path: '0/0',
+          depth: 1,
+          within: 'Stack',
+          createdBy: 'TodoFooter',
+        }),
+      ],
+    },
+  ]);
+
+  const chipEntry = composition.components.find((entry) => entry.component === 'Chip');
+
+  it('separates where a boundary sits from who mounted it', () => {
+    expect(chipEntry?.within).toEqual(['Stack']);
+    expect(chipEntry?.createdBy).toEqual(['TodoFooter']);
+  });
+
+  it('names a caller that owns no node of its own and is therefore a boundary nowhere', () => {
+    // `TodoFooter` renders nothing but other components. It appears in this graph
+    // only as a caller, and it is the file a reviewer has to open.
+    expect(composition.components.map((entry) => entry.component)).toEqual(['Chip', 'Stack']);
+  });
+
+  it('attributes an edit to the caller, not only to the enclosing wrapper', () => {
+    const attribution = attributeMovement(
+      [{ subject: 'story:page--default', component: 'Chip', bands: ['content'] }],
+      composition,
+      {
+        changed: ['src/app/todo.tsx'],
+        declaredIn: new Map([
+          ['Chip', ['src/ds/components.tsx']],
+          ['TodoFooter', ['src/app/todo.tsx']],
+        ]),
+      },
+    );
+
+    expect(attribution.movements[0]).toMatchObject({ cause: 'upstream', upstream: 'TodoFooter' });
+  });
+});
+
+describe('attributing a movement', () => {
+  const composition = composeSubjects(SUITE);
+  const moved = [{ subject: 'story:page--default', component: 'Chip', bands: ['content'] as const }];
+
+  it('names the file when the change set holds one', () => {
+    const attribution = attributeMovement(moved, composition, {
+      changed: ['src/ds/chip.tsx'],
+      declaredIn: new Map([['Chip', ['src/ds/chip.tsx']]]),
+    });
+
+    expect(attribution.movements[0]).toMatchObject({ cause: 'edited', file: 'src/ds/chip.tsx' });
+    expect(attribution.suspects).toEqual([]);
+  });
+
+  it('names the token when one this component reads moved', () => {
+    const themed = composeSubjects([
+      { subject: 'a', instances: [chip('0', 'Footer', { tokens: ['--brand'] })] },
+    ]);
+
+    const attribution = attributeMovement([{ subject: 'a', component: 'Chip', bands: [] }], themed, {
+      changed: [],
+      tokens: ['--brand', '--unused'],
+    });
+
+    expect(attribution.movements[0]).toMatchObject({ cause: 'token', tokens: ['--brand'] });
+  });
+
+  it('names an edited ancestor when the component’s own file held', () => {
+    const attribution = attributeMovement(moved, composition, {
+      changed: ['src/footer.tsx'],
+      declaredIn: new Map([
+        ['Chip', ['src/ds/chip.tsx']],
+        ['Footer', ['src/footer.tsx']],
+      ]),
+    });
+
+    expect(attribution.movements[0]).toMatchObject({ cause: 'upstream', upstream: 'Footer' });
+  });
+
+  it('calls it contradicted when one commit produced two renderings from one input', () => {
+    const diverging = composeSubjects([
+      SUITE[0]!,
+      { subject: 'b', instances: [chip('0', 'Footer', { rendering: 'v1:other' })] },
+    ]);
+
+    const attribution = attributeMovement([{ subject: 'b', component: 'Chip', bands: [] }], diverging, {
+      changed: [],
+    });
+
+    expect(attribution.movements[0]?.cause).toBe('contradicted');
+  });
+
+  it('calls it unexplained, and names the control group it held against', () => {
+    const attribution = attributeMovement(moved, composition, {
+      changed: ['docs/readme.md'],
+      declaredIn: new Map([['Chip', ['src/ds/chip.tsx']]]),
+    });
+
+    expect(attribution.movements[0]?.cause).toBe('unexplained');
+    expect(attribution.movements[0]?.held.map((site) => site.subject)).toEqual([
+      'story:ds-chip--done',
+    ]);
+    expect(attribution.suspects).toHaveLength(1);
+    expect(attribution.flakes).toEqual([]);
+  });
+
+  it('will not produce a confident unexplained from a run that never asked', () => {
+    // No `--since`, so the first rung is unreachable and nothing has established
+    // that nobody edited anything. The movement still lands in `suspects` — it
+    // is still worth a second reading — but the sentence says why it is there.
+    const attribution = attributeMovement(moved, composition, {});
+
+    expect(attribution.movements[0]?.because).toContain('--since');
+  });
+
+  it('separates a subject already proven unstable from one nobody read twice', () => {
+    const attribution = attributeMovement(moved, composition, {
+      changed: [],
+      unstable: new Set(['story:page--default']),
+    });
+
+    expect(attribution.flakes).toHaveLength(1);
+    expect(attribution.suspects).toEqual([]);
+  });
+
+  it('folds one cause across the subjects it moved in', () => {
+    const attribution = attributeMovement(
+      [
+        { subject: 'story:page--default', component: 'Chip', bands: [] },
+        { subject: 'story:ds-chip--done', component: 'Chip', bands: [] },
+      ],
+      composition,
+      { changed: [] },
+    );
+
+    expect(attribution.movements[0]?.alsoIn).toEqual(['story:ds-chip--done']);
+    // Nothing held: every site of it moved, so the suite offers no control.
+    expect(attribution.movements[0]?.held).toEqual([]);
+  });
+});

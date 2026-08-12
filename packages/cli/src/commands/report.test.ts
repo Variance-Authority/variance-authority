@@ -109,6 +109,55 @@ describe('formatReport, text', () => {
     expect(occurrences).toBe(1);
   });
 
+  it('prints the composition section, and stays silent when there is none', () => {
+    // The section is the MCP tool's answer, through `tool()` like every other
+    // shared one. What is decided here is only whether to ask: an absent
+    // composition has a real answer — a raster-only run has no boundaries to
+    // join — and it is the right answer to a question, not something to print
+    // unprompted at the bottom of every image-tier run.
+    expect(formatReport({ report: REPORT, format: 'text' })).not.toContain('composed');
+
+    const composed: CliRunReport = {
+      ...REPORT,
+      composition: {
+        subjects: ['story:toggle', 'story:card'],
+        components: [
+          {
+            component: 'Toggle',
+            subjects: ['story:toggle', 'story:card'],
+            instances: 2,
+            examples: ['story:toggle'],
+            within: ['Card'],
+            createdBy: ['Card'],
+            renders: [],
+            tokens: [],
+            variants: 1,
+            renderings: 1,
+          },
+        ],
+        echoes: [],
+        divergences: [],
+        movements: [
+          {
+            subject: 'story:toggle',
+            component: 'Toggle',
+            bands: ['style'],
+            cause: 'unexplained',
+            because: 'no file, token or ancestor explains it',
+            alsoIn: [],
+            held: ['story:card'],
+            standing: 'suspect',
+          },
+        ],
+      },
+    };
+
+    const text = formatReport({ report: composed, format: 'text' });
+    expect(text).toContain('1 component(s) across 2 subject(s)');
+    expect(text).toContain('[suspect]');
+    expect(text).toContain('held in 1 other place(s): story:card');
+  });
+
   it('answers about a not-observed subject from the coverage list', () => {
     // "Unknown subject" here would send the reader hunting for a typo instead of
     // reading the reason, which is right there.

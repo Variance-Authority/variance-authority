@@ -105,6 +105,56 @@ describe('a sharded suite becomes one report', () => {
   });
 });
 
+describe('the one section a split destroys', () => {
+  const composed = (): readonly Shard[] => [
+    shard('one.json', {
+      observations: [observation('story:a')],
+      composition: {
+        subjects: ['story:a'],
+        components: [
+          {
+            component: 'Button',
+            subjects: ['story:a'],
+            instances: 1,
+            examples: ['story:a'],
+            within: [],
+            createdBy: [],
+            renders: [],
+            tokens: [],
+            variants: 1,
+            renderings: 1,
+          },
+        ],
+        echoes: [],
+        divergences: [],
+        movements: [],
+      },
+    }),
+    shard('two.json', { observations: [observation('story:b')] }),
+  ];
+
+  it('drops the composition rather than unioning two partial graphs', () => {
+    // A union would be a graph with every cross-shard edge missing and nothing
+    // marking where. Two subjects sharing a rendering are the finding, and a
+    // pair split across shards is in neither report — so the echo count would be
+    // silently a lower bound and the `held` list silently short, which is the
+    // evidence behind calling something a flake.
+    expect(mergeReports(composed()).composition).toBeUndefined();
+  });
+
+  it('says it dropped it, because a missing section reads as an answer', () => {
+    // A reader who saw the component graph yesterday and not today would
+    // otherwise conclude the suite stopped sharing components.
+    expect(mergeReports(composed()).warnings?.join('\n')).toContain(
+      'composition dropped: 1 of 2 shard(s)',
+    );
+  });
+
+  it('stays silent when no shard composed anything', () => {
+    expect(mergeReports(split()).warnings).toBeUndefined();
+  });
+});
+
 describe('a subject no shard claimed', () => {
   const holed = (): readonly Shard[] => [
     shard('shard-1.json', {

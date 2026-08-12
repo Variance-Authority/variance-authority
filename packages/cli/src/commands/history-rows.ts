@@ -49,6 +49,29 @@ export function filesOf(
 }
 
 /**
+ * The custom properties out of an inherited floor.
+ *
+ * The floor also carries `font-size`, `color` and everything else the cascade
+ * hands down, and none of those is a *token*: they are the computed consequence
+ * of one, and recording them would make a journey through `--va-space-3` compete
+ * with a journey through every element's inherited line height.
+ *
+ * Here rather than in the loop that calls it because this is the first half of
+ * `tokensOf` below — one subject's answer, before the union across the suite —
+ * and the two halves disagreeing about what counts as a token is the kind of
+ * split that only shows up as a journey missing a step.
+ */
+export function customProperties(
+  inherited: Readonly<Record<string, string>>,
+): Readonly<Record<string, string>> {
+  const tokens: Record<string, string> = {};
+  for (const [property, value] of Object.entries(inherited)) {
+    if (property.startsWith('--')) tokens[property] = value;
+  }
+  return tokens;
+}
+
+/**
  * The tokens this run resolved, folded to one value each.
  *
  * Three hundred subjects inherit the same `:root` declarations, so the raw

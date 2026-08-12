@@ -1,9 +1,31 @@
 import { BANDS, type Band } from '../compare/band.js';
 import type { CanonicalValue } from '../format/canonical.js';
+import type { Digest } from '../format/hash.js';
 import { digestValue } from '../format/hash.js';
-import type { ComponentHash, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
+import type { ComponentHash, SemanticSnapshot } from '../format/snapshot.js';
+import { boundaries, shapeOf, UNATTRIBUTED } from './boundary.js';
 
 export type { ComponentHash } from '../format/snapshot.js';
+export { UNATTRIBUTED } from './boundary.js';
+
+/**
+ * The digests a comparison of two component states actually reads.
+ *
+ * `movedBands` used to take two `ComponentHash`es, which carry a name and an
+ * instance count neither side of the comparison consults. Narrowing it to the
+ * digests is what lets a per-instance record (`ComponentInstance`, which has no
+ * `instances` count because it *is* one) be compared by the same function —
+ * rather than by a second copy of the band mapping, which is the one thing in
+ * this file that must not exist twice: a subject relaxed to `layout` has to
+ * absorb the same bands whichever shape the caller happened to be holding.
+ */
+export interface BandDigests {
+  readonly structure: Digest;
+  readonly semantics: Digest;
+  readonly text: Digest;
+  readonly style: Digest;
+  readonly geometry?: Digest;
+}
 
 /**
  * Per-component content hashes, one per band.
@@ -17,85 +39,16 @@ export type { ComponentHash } from '../format/snapshot.js';
  * thing worth recording is the difference.
  */
 
-/** A node whose provenance chain broke. Not a filler category; see `RootKind`. */
-export const UNATTRIBUTED = '(unattributed)';
-
 /**
  * Hash every component boundary in a subject.
  *
  * Ordered by component name so an unchanged subject produces byte-identical
  * output across runs.
+ *
+ * The walk and the per-boundary shape live in {@link ./boundary.js}, which
+ * {@link ./instances.js} shares — one definition of what a component's own
+ * content is, read by the aggregate and by the per-instance form.
  */
-/**
- * Properties whose *computed* value is layout output rather than authored input.
- *
- * The distinction this list exists for is not stylistic. Under a profile with a
- * layout engine the snapshot carries the engine's resolved values, so a block
- * element's computed `height` is whatever its contents made it — and a button
- * two levels down growing by six pixels moves the computed height of every
- * ancestor. Hashed as *style*, that reports every enclosing component as having
- * changed, which is precisely the "area ranks the displaced above the displacer"
- * failure the cause hashes exist to fix, arriving through a different door.
- *
- * Measured on `cases/storybook-case`: one padding edit inside `Button` made
- * `Tokens`, `Stack`, `Card` and the unattributed root all report a moved style
- * hash, so *every* component in every affected story was named a cause.
- *
- * They are folded into `geometry` instead, where "this component's box is a
- * different size" already belongs and where it correctly does not make a cause.
- * Under a profile *without* layout there are no computed values, so these are
- * authored declarations like any other and stay in `style` — that tier has no
- * `geometry` digest to move them to, and a declared `width: 100px` really is the
- * component's own content.
- */
-const LAYOUT_OUTPUT: ReadonlySet<string> = new Set([
-  'width',
-  'height',
-  'min-width',
-  'min-height',
-  'max-width',
-  'max-height',
-  // The one nobody guesses, and the one that was actually doing the damage.
-  // `transform-origin` computes to half the border box — `512px 41px` — so it
-  // moves whenever the box does, on every element, including ones that declare
-  // no transform at all. Removing `width` and `height` changed nothing on the
-  // case measurement; removing this is what made a padding edit inside `Button`
-  // stop naming `Tokens`, `Stack`, `Card` and the root as causes.
-  'transform-origin',
-  // Chromium returns *used* track sizes here — `"70.39px 953.61px"` — never the
-  // author's `auto 1fr`, so nothing declared survives to be lost. That is what
-  // makes these two safe on a list, and it is exactly what is not true of the
-  // properties named below.
-  'grid-template-columns',
-  'grid-template-rows',
-]);
-
-/**
- * Five more shapes leak, and a longer list is the wrong fix. Measured.
- *
- * Editing only a descendant's padding in a real Chromium moves the computed
- * value of an ancestor's `padding-*` (percentage padding in a shrink-to-fit
- * box), `margin-*` (an `auto` margin centring a `fit-content` block),
- * `top`/`right`/`bottom`/`left` (an absolutely positioned element anchored to an
- * edge that moved) and `transform` (a `translate(-50%,-50%)` matrix, the exact
- * sibling of the `transform-origin` case above). Each one makes an enclosing
- * component a false cause.
- *
- * Adding them here was tried and is worse than the disease: with `padding-*` on
- * the list, `causes.test.ts`'s headline case — a padding edit *inside* `Button`
- * — stops naming `Button` at all. For these properties the computed value **is**
- * the authored value in the ordinary case, and a property name cannot tell the
- * two apart. Only a *value* can, and the only place that knows is `resolveStyle`
- * in `rules/normalize/cascade.ts`, which sees both the cascade's winner and the
- * engine's override and currently keeps no record of which superseded which.
- *
- * So the limit is stated rather than half-fixed: a component whose own
- * declarations use percentage padding, auto margins, edge-anchored absolute
- * positioning or a percentage translate can be named a cause by a change that
- * was not its own. The failure is a *false* cause, never a missed one, which is
- * the direction that costs a reader attention rather than a regression.
- */
-
 export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHash[] {
   const layout = snapshot.profile.layout;
 
@@ -144,115 +97,6 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
     // internal and is not now that they are written into a sidecar, committed
     // beside a baseline, and read back on someone else's runner.
     .sort((a, b) => (a.component < b.component ? -1 : a.component > b.component ? 1 : 0));
-}
-
-/**
- * The component that owns a node: the nearest *enclosing* composite.
- *
- * `owners[0]` rather than `createdBy`. The two diverge where a component is
- * passed as a prop and rendered elsewhere, and the question here is where a node
- * *sits*, not who authored it — an area of the screen is bounded by what
- * encloses it. Attribution of a structural change to its author is the differ's
- * job and uses `createdBy` (ADR-0007).
- */
-function ownerOf(node: SemanticNode): string {
-  return node.provenance?.owners[0]?.name ?? UNATTRIBUTED;
-}
-
-/**
- * Every boundary root in the subject, in document order.
- *
- * A boundary root is a node whose owner differs from its parent's, plus the
- * subject root itself. Collected in a separate pre-order pass rather than
- * discovered during hashing, so that instance order is document order exactly —
- * discovering them while walking would order them by boundary depth instead, and
- * "the second instance" would mean something different in a nested tree.
- */
-function boundaries(root: SemanticNode): readonly { node: SemanticNode; component: string }[] {
-  const found: { node: SemanticNode; component: string }[] = [];
-
-  const visit = (node: SemanticNode, parentOwner: string | null): void => {
-    const owner = ownerOf(node);
-    if (owner !== parentOwner) found.push({ node, component: owner });
-    for (const child of node.children) visit(child, owner);
-  };
-
-  visit(root, null);
-  return found;
-}
-
-interface Shape {
-  readonly structure: CanonicalValue;
-  readonly semantics: CanonicalValue;
-  readonly text: CanonicalValue;
-  readonly style: CanonicalValue;
-  readonly geometry: CanonicalValue;
-}
-
-/**
- * One boundary's content, stopping at nested boundaries.
- *
- * Where a child belongs to another component, the parent records a placeholder
- * naming it rather than descending. That is the whole design: a component's hash
- * moves when *its own* code changes, and adding, removing or reordering a child
- * component is the parent's own change while what that child renders internally
- * is not. Hashing whole subtrees instead would move every ancestor on any leaf
- * edit, and the page root would change on every commit.
- *
- * Paths are not hashed. A path is an address that shifts when an unrelated
- * sibling is inserted, so hashing one reports a change nobody made.
- */
-function shapeOf(node: SemanticNode, component: string, layout: boolean): Shape {
-  const style: CanonicalValue[] = [];
-  const geometry: CanonicalValue[] = [];
-  const semantics: CanonicalValue[] = [];
-  const text: CanonicalValue[] = [];
-
-  const walk = (current: SemanticNode): CanonicalValue => {
-    const declared: Record<string, string> = {};
-    const measured: Record<string, string> = {};
-
-    for (const [property, value] of Object.entries(current.style)) {
-      if (layout && LAYOUT_OUTPUT.has(property)) measured[property] = value;
-      else declared[property] = value;
-    }
-
-    style.push({ style: declared, tokens: current.tokens });
-    // An entry per node, always. `null` for a node with no rect keeps position in
-    // the list meaningful: dropping the entry would let two different trees agree
-    // by coincidence.
-    geometry.push({
-      rect: current.rect ? { ...current.rect } : null,
-      // Beside the rect, not instead of it. A computed `max-height` that changed
-      // while the box did not is still a fact about this element's geometry, and
-      // dropping it would make the two digests disagree about what a box is.
-      ...(Object.keys(measured).length > 0 ? { measured } : {}),
-    });
-
-    // One entry per node in each list, always — `null` rather than omitted, for
-    // the reason the geometry list gives: dropping an entry lets two different
-    // trees agree by coincidence, and here it would let a heading losing its
-    // name look like a heading that never had one.
-    semantics.push({
-      role: current.role ?? null,
-      name: current.name ?? null,
-      state: (current.state ?? null) as CanonicalValue,
-    });
-    text.push(current.text ?? null);
-
-    return {
-      tag: current.tag,
-      alias: current.alias,
-      portalled: current.portalled,
-      attributes: current.attributes,
-      children: current.children.map((child) =>
-        ownerOf(child) === component ? walk(child) : { boundary: ownerOf(child) },
-      ),
-    };
-  };
-
-  const structure = walk(node);
-  return { structure, semantics, text, style, geometry };
 }
 
 /**
@@ -335,7 +179,7 @@ export function causesBetween(
  * 2026-08-06 without changing meaning: `semantics` and `text` used to be inside
  * `structure`.
  */
-function ownContentMoved(before: ComponentHash, after: ComponentHash): boolean {
+function ownContentMoved(before: BandDigests, after: BandDigests): boolean {
   return (
     before.structure !== after.structure ||
     before.semantics !== after.semantics ||
@@ -377,7 +221,7 @@ function ownContentMoved(before: ComponentHash, after: ComponentHash): boolean {
  * run — which the environment key already refuses as `incomparable`, so this
  * would be a second, wronger answer to a question already settled.
  */
-export function movedBands(before: ComponentHash, after: ComponentHash): readonly Band[] {
+export function movedBands(before: BandDigests, after: BandDigests): readonly Band[] {
   const moved = new Set<Band>();
 
   if (before.semantics !== after.semantics) moved.add('a11y');

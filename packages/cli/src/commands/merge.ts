@@ -37,6 +37,13 @@ import { ledgerOf, type IgnoreLedger } from './ignores.js';
  * so it is promoted to `failed` and `exitFor` refuses the run. This is the
  * property that makes sharding safe here, and it costs the operator nothing: a
  * correct split never produces one.
+ *
+ * ## The one section a merge cannot carry
+ *
+ * Everything above is a fold over per-subject answers, and folds shard. The
+ * composition section is not one: it is the run's subjects compared to *each
+ * other*, and the split is exactly what destroys it. It is dropped, out loud —
+ * see `unmergeable`.
  */
 
 export interface Shard {
@@ -64,6 +71,10 @@ export function mergeReports(shards: readonly Shard[]): CliRunReport {
   // quietly overwrite. And a field added to `RunReport` later stops compiling
   // here if it is required — which is the only moment anyone will think about
   // whether N shards can have one of it.
+  //
+  // `composition` is the case that moment missed, because it is optional: it
+  // vanished from every merged report and nothing said so. Dropping it is still
+  // the right answer, and now it is an answer rather than an omission.
   return {
     runVersion: first.report.runVersion,
     at: earliest(shards),
@@ -72,7 +83,7 @@ export function mergeReports(shards: readonly Shard[]): CliRunReport {
     ...(first.report.intent !== undefined ? { intent: first.report.intent } : {}),
     observations: observationsOf(shards),
     ...coverageOf(shards),
-    ...warningsOf(shards),
+    ...warningsOf(shards, unmergeable(shards)),
     ...ignoresOf(shards),
   };
 }
@@ -243,9 +254,47 @@ function coverageOf(shards: readonly Shard[]): { notObserved?: readonly NotObser
   return { notObserved };
 }
 
-function warningsOf(shards: readonly Shard[]): { warnings?: readonly string[] } {
+function warningsOf(
+  shards: readonly Shard[],
+  added: readonly string[],
+): { warnings?: readonly string[] } {
   // Deduplicated because every shard loads the same subject index and therefore
   // repeats the same complaint about it N times, which reads as N problems.
-  const warnings = [...new Set(shards.flatMap((shard) => shard.report.warnings ?? []))];
+  const warnings = [
+    ...new Set([...shards.flatMap((shard) => shard.report.warnings ?? []), ...added]),
+  ];
   return warnings.length === 0 ? {} : { warnings };
+}
+
+/**
+ * The one section a merge drops, and the sentence it drops it with.
+ *
+ * A union of the shard graphs is unsound in a way no reader could detect. Two
+ * subjects sharing a rendering *are* the finding, and a pair that landed in
+ * different shards is in neither report — so the union has every cross-shard
+ * edge missing, with nothing marking where. An echo count that is silently a
+ * lower bound is a bad answer; a `held` list that is silently short is a worse
+ * one, because that list is the evidence behind calling something a flake.
+ *
+ * It cannot be recomputed here either. `variants` and `renderings` count
+ * distinct digests, and the digests are in the snapshots rather than in the
+ * artifact — which is the bargain
+ * [`composition.ts`](../../../report/src/composition.ts) already states.
+ *
+ * So it is omitted, and the omission is a warning rather than a silence. The
+ * rule this file is built on is that a merged report must not say anything a
+ * single run could not; the corollary, learned here, is that it must not be
+ * quietly *missing* a section either. A reader who saw the graph yesterday and
+ * not today would otherwise conclude the suite stopped sharing components.
+ */
+function unmergeable(shards: readonly Shard[]): readonly string[] {
+  const composed = shards.filter((shard) => shard.report.composition !== undefined).length;
+  if (composed === 0) return [];
+
+  return [
+    `composition dropped: ${composed} of ${shards.length} shard(s) compared their subjects to ` +
+      'each other, and that comparison does not survive a split — two subjects sharing a ' +
+      'rendering are the finding, and a pair that landed in different shards is in neither ' +
+      'report. Run the suite unsharded to ask for the component graph.',
+  ];
 }

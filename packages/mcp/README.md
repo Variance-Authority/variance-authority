@@ -43,7 +43,7 @@ npx variance-authority-mcp .variance/run.json    # directly
 
 ## What an agent can ask
 
-Six tools, all answering from the artifact and **never re-running anything**.
+Seven tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
 are asked wherever the agent is.
 
@@ -52,6 +52,7 @@ import { toolByName } from '@variance-authority/mcp/tools';
 
 toolByName('variance_summary')?.run(report, {});
 toolByName('variance_changes')?.run(report, {});
+toolByName('variance_composition')?.run(report, {});
 toolByName('variance_describe')?.run(report, { subject: 'story:card--populated' });
 toolByName('variance_findings')?.run(report, {});
 toolByName('variance_trace_component')?.run(report, { component: 'Button' });
@@ -62,6 +63,7 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 |---|---|---|
 | `variance_summary` | how the run came out across every subject, including the ones nobody observed | starting from nothing: *did anything change, and was anything missed?* |
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
+| `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each component that moved moved — including *nothing here explains it* | a change has no obvious author, or you are about to call something flaky |
 | `variance_describe` | what changed inside one subject — regions, components, files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
 | `variance_trace_component` | every subject one component appears in, with pixels and cause-or-displaced | sizing the blast radius of a design-system or token edit |
@@ -74,6 +76,25 @@ says. It is also the only tool that hands back a *command* — the shape digest
 cannot be derived from anything else in the report, and it names which subjects
 the command will refuse, so the agent proposes something that works rather than
 something that gets rejected.
+
+`variance_composition` is the only one that reads the other axis. Everything
+else compares a subject to its baseline — two revisions, one thing. This
+compares the run's subjects to each other, at one commit, because **a
+visual-regression example is a component built from components**: the example
+*is* a component at a boundary, and the same component appears again, with the
+same or different props, inside larger examples. Once those boundaries are
+addressable the run can say which of its examples are watching literally the
+same bytes, which of them disagree at one commit, and — for anything that moved
+— whether an edited file, a moved token or an edited *caller* accounts for it.
+
+It is also where a flake gets named, and it can be named there because that is
+where the control group is. A movement nothing explains, in a subject that also
+failed to read the same way twice, is `flake`; the same movement in a subject
+nobody has read twice is `suspect`, which is a shortlist and not a verdict —
+the position in [`flakiness.md`](../../docs/flakiness.md) has not moved. Beside
+each one it prints the subjects where that same component, with the same props,
+**held**. Those are the *stable states to refer to*, and without them
+"unexplained" is a shrug rather than a finding.
 
 `variance_summary` labels a subject by what it *is*, which is not always its
 verdict. Three subjects can all be `changed` — the pixels did move — and need

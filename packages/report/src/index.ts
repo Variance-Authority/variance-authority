@@ -33,5 +33,13 @@ export type {
   DriftRecord,
 } from './format.js';
 
+export type {
+  CompositionReport,
+  ComponentRecord,
+  EchoRecord,
+  DivergenceRecord,
+  MovementRecord,
+} from './composition.js';
+
 export { clusterChanges, describeClustering } from './cluster.js';
 export type { Change, Clustering } from './cluster.js';

@@ -26,7 +26,7 @@ The specific consequences, so they are not left to be inferred:
 | They have | This has |
 |---|---|
 | Chrome, Firefox, Safari, Edge, mobile emulators or real devices | Chromium, Firefox and WebKit, all three run, on one document. One font stack, `color-scheme: light` pinned |
-| A hosted dashboard designers and PMs use without repo access | A JSON report and five MCP tools |
+| A hosted dashboard designers and PMs use without repo access | A JSON report and seven MCP tools |
 | Years of contact with third-party component libraries | One corpus, written by the same people who wrote the implementation |
 | Support, SLAs, and someone to call | A git repository |
 | MIT (Argos), or a commercial contract legal can sign | MIT, with nothing published under it. A root `LICENSE` and 21 non-private manifests at `0.0.0-beta.1` make the packages licensed and publishable; no `v*` tag has ever been pushed, so no registry has seen one and obtaining this still means cloning the repository ([spec 0015](specs/0015-the-first-published-release.md)). A reader evaluating it for adoption should read the rest as a description of an approach rather than of something installable |
@@ -910,7 +910,7 @@ four remain met only against hand-constructed ones.
   artifact has been uploaded, and no pull request has ever been commented on.
   What [ADR-0019](context/adr/0019-one-comment-that-leads-with-causes.md)
   decided is therefore unproven by execution rather than by absence of code.
-- **The MCP layer has never served an agent.** Five tools shaped by argument
+- **The MCP layer has never served an agent.** Seven tools shaped by argument
   about what an agent needs, tested against text (`packages/mcp/src/mcp.test.ts`,
   27 tests, including chunk-boundary reframing).
 
@@ -1016,7 +1016,7 @@ products above is the better answer, and in most cases it is not close.
 | **Something is needed this quarter** | Nothing above the CLI boundary has been run once. Adopting this means finishing it | Any of the four |
 | **The frontend is not React, and nobody will add a build plugin** | Provenance needs a name per element. React gets it from fiber traversal; anything else gets it from two `data-*` attributes, which is a build-step change somebody has to make and own. Without either, diffs resolve to a DOM path — what every competitor already gives, with support. On React the traversal reads unversioned internals verified only against **19.2.8**; ADR-0005 names three internal contracts, and the third fails *silently*, returning props digests one render stale. A React upgrade is a re-verification event, not a version bump | Argos, Chromatic |
 | **Cross-browser or cross-device coverage is the requirement** | Chromium, Firefox and WebKit all run as of 2026-08-04, from a `browser` config field, measured pairwise in `packages/playwright/src/engines.chromium.test.ts`. But: no Edge, no mobile, no real devices, no cross-engine run over the corpus, and no stabilization trick verified outside Chromium. One document is not a matrix | Applitools (one Page covers the matrix), Percy, Chromatic |
-| **Non-engineers must review** | There is a JSON report and five MCP tools. No dashboard, no approval UI, no threaded discussion, no invite flow | Chromatic (UI Review), Percy, Applitools |
+| **Non-engineers must review** | There is a JSON report and seven MCP tools. No dashboard, no approval UI, no threaded discussion, no invite flow | Chromatic (UI Review), Percy, Applitools |
 | **Cost predictability matters more than cost structure** | There is no unit and no bill, but also no ceiling on the engineering time to operate a spike. A published $0.004/screenshot with a spend cap is a more predictable number than "your own infrastructure" | Argos |
 | **Longitudinal flake data is needed now, with a UI on it** | Recurrence over a window ships here as of 2026-08-10, keyed on the component and band that moved rather than on a diff shape, and it needs a service you deploy. What Argos has and this does not is the surface: a per-test page, a browsable ignore register, and auto-ignore at a threshold — plus the operational history of running it at scale ([§4.1](#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be)) | Argos |
 | **Storybook is the test surface and coverage should be automatic** | Coverage *is* automatic as of 2026-08-04: the collector is shipped and the operator writes five lines ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)). What Chromatic still has and this does not is everything after the verdict — a review UI, assigned reviewers, threaded discussion on a snapshot, and the fact that they maintain Storybook itself | Chromatic |

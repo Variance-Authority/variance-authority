@@ -49,7 +49,7 @@ reading. What differs here is the last column.
 | **Lazy loading, network latency** | **construction**, since 2026-08-06 | Content that arrives late is a structural difference, and correctly so — the question is whether you were still waiting when it landed. `wait-for-images` polls `document.images`, which misses anything appended during the wait and has no entry for a `background-image`; the driver watches the wire instead and knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
 | **An asset whose bytes moved behind its URL** | **environment-key**, since 2026-08-06; on both collectors and in both keys since 2026-08-10 | Newly listed in August, because it was a silent false `unchanged` and nothing here said so: `EnvironmentInputs.assets` existed from the beginning and was filled by nobody, so a re-exported logo compared equal. Every image, font and media response is now hashed by the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carried into the **document** as well as the capture — the first version put it only in the capture, so `settle` still skipped the render and still said `unchanged` ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
 | **Animated GIFs** | **construction**, since 2026-08-06 | Newly listed for the same reason. No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. **Measured** on real screenshots. |
-| **Random seeds, unsorted data** | **nothing**, and reported since 2026-08-06 | Still absorbed by nothing — this is a real change and the fixture is the bug. What is new is that it no longer arrives as a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. See [below](#what-still-gets-through-and-how-it-is-found). |
+| **Random seeds, unsorted data** | **nothing**, and reported since 2026-08-06 | Still absorbed by nothing — this is a real change and the fixture is the bug. What is new is that it no longer arrives as a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. Since 2026-08-12 the run also says whether *anything in it* explains the movement, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
 
@@ -118,6 +118,45 @@ runs only on subjects the run already called `changed`, inside the same
 dependence. The image on disk is one of two readings, chosen by a race, and
 promoting it makes the coin flip the thing every later run is measured against.
 
+### Nothing in this run explains it
+
+Reading a subject twice answers *did it move on its own*. It does not answer
+*should it have moved at all*, and that second question is answerable from
+evidence the run already holds. Since 2026-08-12 every component the run found
+to have moved is walked down a ladder — an edited file, a moved token, an edited
+caller, a contradiction elsewhere in the suite — and stops at the first rung
+that holds ([`composition.md`](composition.md#why-a-component-moved)). The last
+rung is **unexplained**, and it is the one worth having:
+
+```
+unexplained (1) — no edited file, moved token, edited caller or contradiction in this
+  run accounts for these; 1 in subjects already proven unstable
+
+ds/chip--group · Chip (content)
+  no file, token or ancestor explains it, and the same component with the same props
+    held in 4 other place(s) in this run
+  [flake] the subject also failed to read the same way twice in this run, so both
+    halves of the sentence are present
+  held in 4 other place(s): page/all, page/active, page/completed, page/one
+```
+
+**Two names, and they are not two confidence levels in one claim.** `flake` is
+an unexplained movement in a subject that *also* failed to read the same way
+twice — both halves of the sentence, established by two different instruments,
+in one run. `suspect` is an unexplained movement in a subject nobody has read
+twice; it is a shortlist entry and the report says so in those words.
+
+**The `held` list is what makes any of it evidence.** Those are the subjects
+where the same component, with the same props, did not move — the stable states
+to refer to, which the suite already had and nothing had ever collected. An
+empty `held` list *weakens* a finding rather than strengthening it, which is why
+it is a list rather than a flag.
+
+It costs no collection, no browser and no image: it is a fold over digests the
+run already produced. What it needs is [`--since`](selecting.md), because the
+top two rungs are unreachable without a change set — and a run that did not ask
+says so beside every unexplained movement instead of accusing anybody.
+
 ### Stability is required inside the boundary, not outside it
 
 A subject that declared what it asserts on has already answered for movement
@@ -157,13 +196,24 @@ all. It costs one collection per subject and no render, which is the shape that
 pays for itself nightly rather than on every pull request, and it exits `1` even
 when every verdict is green.
 
+**The sweep still reads in plan order.** The shortlist an unexplained movement
+produces is sorted by how much control the suite has over each entry, and
+nothing yet points the sweep at it — a subject with four held siblings and a
+subject with none get the same second reading in whatever order the plan
+emitted them. That is a vacancy rather than a decision, and it is named as one
+in [`composition.md`](composition.md#the-flake-half).
+
 **Two readings is a floor, not a ceiling.** A subject that reads differently one
 time in fifty passes this forty-nine runs out of fifty, and an absent finding
 means *this run's two readings agreed* — never *this subject is stable*. The
-report says so in those words. The other instrument is
+report says so in those words. The second instrument is
 [recurrence over a window](#has-this-happened-before), which needs a record and
-therefore a service. Raster-level nondeterminism is invisible to both for the
-same reason this one is cheap — it does not move a document digest.
+therefore a service. The third is the suite itself, at this one commit: the same
+component with the same props, held in subjects that did not move
+([`composition.md`](composition.md)), which needs no record and no second run
+because the control group was already collected. Raster-level nondeterminism is
+invisible to all three for the same reason the first is cheap — it does not move
+a document digest.
 
 ### Has this happened before?
 
@@ -311,6 +361,18 @@ the count — [we do not act on it](#has-this-happened-before). Nothing is
 auto-ignored at any threshold: the count tells a reader whether to expect a long
 afternoon or a fix that already landed, and the suppression decision stays a
 declaration somebody writes down ([`ignores.md`](ignores.md)).
+
+**A third axis, since 2026-08-12: the rest of the suite at the same commit.**
+Both instruments above are longitudinal — the same subject, read again or looked
+up in a window. A visual-regression suite is also a set of examples built from
+shared components, so the same component with the same props is usually
+rendering somewhere else *right now*, and whether it moved there is a control
+the run can read for free ([`composition.md`](composition.md)). That is where
+*no related change* stops being an assumption: an unexplained movement beside
+four places the component held is a different claim from an unexplained movement
+with nothing to compare against, and the report distinguishes them rather than
+calling both flaky. What it does **not** do is decide — an unexplained movement
+is still not a flake until something has read the subject twice.
 
 The honest cost of our bet: suspicion over-reports. A coupling can exist and
 never bite, so the read-write pass alone produces findings that a confirmation

@@ -28,6 +28,22 @@ import type { ComponentHash } from './component-hash.js';
  *
  * Cheap by construction: it reads the component hashes a run already produced
  * (see {@link ./component-hash.js}) and touches no DOM, no browser and no image.
+ *
+ * ## What `composeSubjects` took from this, and what it left
+ *
+ * {@link ./composition.js} answers the same census question from richer input —
+ * instances with provenance rather than hashes — and it is the one a run report
+ * carries, so a component's subjects and instance count are now computed twice
+ * from two inputs. If they ever disagree, `composeSubjects` is the one that is
+ * right: it is what `variance run` writes and what every reader downstream of
+ * the artifact is reading. `sole` there is `subjects.length === 1`.
+ *
+ * What survives here and nowhere else is {@link SubjectValue.unique} — the
+ * components *no other subject in the set covers*. That is a question about a
+ * subject rather than about a component, and composing answers the other one:
+ * `examples` names the narrowest subject watching a component, which is not the
+ * same as naming the only one. A suite pruning its own captures needs this; a
+ * run explaining a diff needs that.
  */
 
 /** What one subject was found to contain. */

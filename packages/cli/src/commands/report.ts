@@ -134,6 +134,7 @@ function asText(options: ReportOptions): string {
   return [
     tool('variance_summary', report, {}),
     stabilization(report),
+    composition(report),
     ignores(report),
     sensitivities(report),
     warnings(report),
@@ -202,6 +203,22 @@ function stabilization(report: CliRunReport): string {
 
   const recipe = recipeOf(report.stabilization);
   return `stabilization: ${describeRecipe(recipe)}`;
+}
+
+/**
+ * The suite compared to itself, and the one case it stays quiet in.
+ *
+ * Through `tool()` like every other shared section, because it is the same
+ * answer an agent gets — that is the whole argument of this file. The one thing
+ * decided here is *whether to ask*: `variance_composition` answers an absent
+ * composition with a paragraph explaining that a raster-only run has no
+ * boundaries to join, which is the right answer to a question and the wrong
+ * thing to print unprompted at the bottom of every image-tier run. An agent
+ * asked; a reader of the page did not.
+ */
+function composition(report: CliRunReport): string {
+  if (report.composition === undefined) return '';
+  return tool('variance_composition', report, {});
 }
 
 function warnings(report: CliRunReport): string {

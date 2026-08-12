@@ -1,4 +1,5 @@
 import type { RenderIdentity } from '@variance-authority/core';
+import type { CompositionReport } from './composition.js';
 
 /**
  * The run report — the artifact an agent actually reads.
@@ -113,6 +114,17 @@ export interface RunReport {
    * empty on almost every run and is the whole story on the one where it is not.
    */
   readonly drift?: Readonly<Record<string, DriftRecord>>;
+
+  /**
+   * The suite compared to *itself*, at this one commit — see
+   * [`composition.ts`](./composition.ts).
+   *
+   * The only section of this report with no baseline in it. Absent when the
+   * collection produced no semantic snapshots to join, which is a real state and
+   * not an empty graph: a suite that shares nothing and a suite nobody could ask
+   * are different claims.
+   */
+  readonly composition?: CompositionReport;
 }
 
 /** What one token has drifted to, and how far it travelled getting there. */

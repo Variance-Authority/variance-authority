@@ -7,7 +7,7 @@ editing components and verifying its own work before any human sees it, which
 is the loop the README's first sentence promises and the one nothing here
 serves. The fixer loop keeps one paragraph at the end.
 
-What exists: five MCP tools as pure functions over a run report, a protocol
+What exists: seven MCP tools as pure functions over a run report, a protocol
 codec, `variance serve` — tested against text
 ([`packages/mcp/src/tools.ts`](../../packages/mcp/src/tools.ts), 27 tests).
 `Intent` and `adjudicate` in `packages/core/src/judge/intent.ts`. The full

@@ -1,12 +1,14 @@
-import { profileById } from '@variance-authority/core';
+import { componentInstances, profileById, type SourceIndex, type SubjectComposition } from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
 import { matchesGlob, type Plan } from './collector.js';
 import { observeOne } from './observe-one.js';
 import type { SubjectHistory } from './history.js';
+import { customProperties } from './history-rows.js';
 import { recordIfConfigured } from './history-report.js';
 import { affectedSubjects } from './affected.js';
+import { compositionOf } from './compose.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
@@ -66,6 +68,8 @@ export { sensitivityLedgerOf, summarizeSensitivities } from './sensitivities.js'
 export type { SensitivityLedger, SensitivityUsage } from './sensitivities.js';
 export type { IgnoreLedger, IgnoreUsage } from './ignores.js';
 export { recordOf } from './record.js';
+export { compositionOf } from './compose.js';
+export type { ComposeInput } from './compose.js';
 export {
   changedSince,
   decoderFor,
@@ -193,6 +197,16 @@ async function observeAll(
     () => null,
   );
 
+  // Filled unconditionally, unlike `readings` above, and that is the whole point
+  // of it being a second array. The cross-subject graph costs one walk of a tree
+  // the run already holds and needs no store, no identity and no history — so
+  // gating it on `recording` would make the suite's own composition invisible in
+  // exactly the configuration developers use most.
+  const compositions: (SubjectComposition | null)[] = Array.from(
+    { length: plan.subjects.length },
+    () => null,
+  );
+
   // The collector is a single standing world (ADR-0009), so exactly one call may
   // be in flight — collecting two subjects at once would render them into one
   // document and let each decide the other's verdict. The raster tier has no
@@ -245,6 +259,14 @@ async function observeAll(
         entry: { subject: id, kind: 'failed', because: collected.because },
       };
       return;
+    }
+
+    // Per boundary rather than per component name, which is what makes it
+    // comparable to another subject's: the instance list is the unit the suite's
+    // own graph is folded from. Taken here, in the worker, because the snapshot
+    // is not retained past this scope on the path that keeps no history.
+    if (collected.snapshot !== undefined) {
+      compositions[index] = { subject: id, instances: componentInstances(collected.snapshot) };
     }
 
     // Kept per subject, in plan order, and only when there is a record to write
@@ -345,6 +367,18 @@ async function observeAll(
     observations,
   });
 
+  // The other axis, and the only phase in this command with no baseline in it:
+  // the suite compared to itself at one commit. After the record, because the
+  // tokens that moved are the record's answer and they are what turns "this
+  // component's output changed and nobody edited it" into an explanation.
+  const composition = compositionOf({
+    subjects: compositions,
+    observations,
+    ...(options.since !== undefined ? { changed: options.since.changed } : {}),
+    ...(selected?.source !== undefined ? { source: selected.source } : {}),
+    ...(recorded.movedTokens !== undefined ? { tokens: recorded.movedTokens } : {}),
+  });
+
   const report: CliRunReport = {
     runVersion: 1,
     at,
@@ -362,6 +396,7 @@ async function observeAll(
     ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),
+    ...(composition !== undefined ? { composition } : {}),
     ...(warnings.length + selection.length + recorded.warnings.length > 0
       ? { warnings: [...warnings, ...selection, ...recorded.warnings] }
       : {}),
@@ -372,24 +407,6 @@ async function observeAll(
 
   await deps.writeReport(config.report, report);
   return report;
-}
-
-/**
- * The custom properties out of an inherited floor.
- *
- * The floor also carries `font-size`, `color` and everything else the cascade
- * hands down, and none of those is a *token*: they are the computed consequence
- * of one, and recording them would make a journey through `--va-space-3` compete
- * with a journey through every element's inherited line height.
- */
-function customProperties(
-  inherited: Readonly<Record<string, string>>,
-): Readonly<Record<string, string>> {
-  const tokens: Record<string, string> = {};
-  for (const [property, value] of Object.entries(inherited)) {
-    if (property.startsWith('--')) tokens[property] = value;
-  }
-  return tokens;
 }
 
 /**
@@ -408,7 +425,21 @@ async function selectionFor(
   plan: Plan,
   context: ObserveContext,
   options: RunOptions,
-): Promise<{ readonly skipped: ReadonlyMap<string, string>; readonly whole?: string } | undefined> {
+): Promise<
+  | {
+      readonly skipped: ReadonlyMap<string, string>;
+      readonly whole?: string;
+      /**
+       * The index the narrowing was computed from, handed on rather than rebuilt.
+       *
+       * The composition phase needs the same map — component name to the file
+       * that declares it — to say whether anybody edited what moved, and scanning
+       * the source tree twice for one answer is a disk walk nobody asked for.
+       */
+      readonly source: SourceIndex;
+    }
+  | undefined
+> {
   const { config, deps, renderer } = context;
   if (options.since === undefined) return undefined;
 
@@ -434,15 +465,17 @@ async function selectionFor(
     baselines.set(planned.subject.id, described?.components);
   }
 
+  const source = await scan(config.source.dirs);
   const answer = affectedSubjects({
     planned: plan.subjects.map((planned) => planned.subject.id),
     changed: options.since.changed,
-    source: await scan(config.source.dirs),
+    source,
     roots: config.source.dirs,
     baselines,
   });
 
   return {
+    source,
     skipped: new Map(
       answer.skipped.map((entry) => [
         entry.subject,

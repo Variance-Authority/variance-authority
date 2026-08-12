@@ -166,6 +166,14 @@ are worth knowing up front.
 appearing* is a question about the suite rather than about a run, so it does not
 fit the shape everything else here uses — the run asks, the report carries.
 
+Half of it stopped being a vacancy on 2026-08-12: *where does this component
+appear* is now answered for one commit, by the suite comparing itself against
+itself rather than against a store ([`composition.md`](composition.md)). What is
+still missing is the word *started* — a delta needs two of those graphs, and
+nothing writes one to the record. The shape is there now, which makes this a
+smaller job than it was: a component census is a list of names and subject
+counts, and comparing two of them is set arithmetic.
+
 **The eleven-step journey above has never been produced against a real
 project.** Every part of it exists and each part is tested; what has not happened
 is eleven runs, eleven approvals, and the sentence at the end of them.

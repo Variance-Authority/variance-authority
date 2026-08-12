@@ -34,7 +34,25 @@ export { resolveSource, formatSource, indexSource, mergeSourceIndexes } from './
 export type { SourceIndex, SourceRef, Resolution } from './source.js';
 
 export { hashComponents, causesBetween, movedBands, bandsBetween, UNATTRIBUTED } from './component-hash.js';
-export type { ComponentHash } from './component-hash.js';
+export type { BandDigests, ComponentHash } from './component-hash.js';
+
+export { componentInstances, attributed } from './instances.js';
+export type { ComponentInstance } from './instances.js';
+
+export { composeSubjects } from './composition.js';
+export type {
+  Composition,
+  ComponentEntry,
+  Divergence,
+  Echo,
+  PropsClass,
+  Rendering,
+  Site,
+  SubjectComposition,
+} from './composition.js';
+
+export { attributeMovement } from './movement.js';
+export type { Attribution, Cause, Evidence, Moved, Movement } from './movement.js';
 
 export { coverageOf, alsoCovering, summarizeCoverage } from './coverage.js';
 export type { Coverage, ComponentCoverage, SubjectCoverage, SubjectValue } from './coverage.js';

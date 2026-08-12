@@ -50,6 +50,15 @@ export async function recordIfConfigured(input: {
   readonly flakiness?: Readonly<Record<string, FlakinessRecord>>;
   readonly churn?: Readonly<Record<string, ChurnRecord>>;
   readonly drift?: Readonly<Record<string, DriftRecord>>;
+  /**
+   * Tokens that took a new value in this run, drifting or not.
+   *
+   * Not written into the report — the report already has `drift`, which is the
+   * sum and the finding. This is handed to the composition phase, which needs the
+   * *event*: a component that reads a token that moved has an explanation, and
+   * one step is a perfectly good explanation while being no drift at all.
+   */
+  readonly movedTokens?: readonly string[];
   readonly warnings: readonly string[];
 }> {
   const { config, deps, identity } = input;
@@ -166,6 +175,7 @@ export async function recordIfConfigured(input: {
     ...(Object.keys(flakiness).length > 0 ? { flakiness } : {}),
     ...(Object.keys(churn).length > 0 ? { churn } : {}),
     ...(Object.keys(drift).length > 0 ? { drift } : {}),
+    ...(recorded.movedTokens !== undefined ? { movedTokens: recorded.movedTokens } : {}),
     warnings: recorded.warnings,
   };
 }

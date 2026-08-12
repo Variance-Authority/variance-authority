@@ -173,6 +173,24 @@ export interface RecordedRun {
    * that would catch it is a sum, and no single review holds one.
    */
   readonly drift: Readonly<Record<string, TokenDrift>>;
+
+  /**
+   * The names of the tokens that moved, whether or not they have drifted.
+   *
+   * A superset of `drift`'s keys and a different question. `drift` is the *sum* —
+   * a token has to have moved more than once in the window to have a journey
+   * worth reporting — and this is the *event*: which custom properties resolved
+   * to a new value in this run. One step is not drift and it is a perfectly good
+   * explanation for a component whose output moved, which is what
+   * `attributeMovement` reads it for.
+   *
+   * Absent when nothing could be asked — no store answered, or the write failed
+   * before the comparison was trustworthy. Absent is not `[]`: an empty list is
+   * the claim *no token moved*, which would let an attribution rule out the token
+   * rung on the strength of a service being down.
+   */
+  readonly movedTokens?: readonly string[];
+
   /**
    * What could not be recorded or could not be asked, ready to print.
    *
@@ -397,6 +415,7 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
     flakiness,
     churn,
     drift,
+    movedTokens: moved.map((row) => row.token).sort(),
     warnings,
   };
 }

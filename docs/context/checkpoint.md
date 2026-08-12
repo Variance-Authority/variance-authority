@@ -57,6 +57,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B18 | **the author loop, and what a subject is asserted on** — a trail across a session, and a declared sensitivity | landed in `core` and reachable from the library; **not from the binary**. `trail.ts` answers the four questions a pair of observations cannot — what has changed since the session started, what the last edit did, what it put back, and whether the loop is going in circles. `sensitivity.ts` declares which bands a subject is asserted on at all, and folds onto `applyIgnores` rather than reimplementing absorption, so it inherits the register and the dead-rule reporting. Both need two snapshots; `variance run` holds one |
 | B17 | **cause on every path** — what a baseline has to carry for a run to name the component that caused a change | landed and measured; ADR-0027. Two halves stay open: the ephemeral mode holds one snapshot, and `tribunal`'s sidecar columns drop the field |
 | B16 | **ignores** — what is not the subject, and the accounting that stops one becoming a blind spot | landed and wired end to end; ADR-0025 and ADR-0026, [`docs/ignores.md`](../ignores.md). Two forms (a subtree, a difference shape), both tiers from one declaration, a per-rule ledger, and a fifth verdict — `ignored`, green, and never spelled `unchanged`. The fingerprint pays twice: `variance accept --shape` promotes one change across every subject it reached and refuses the ones where something else also moved |
+| B19 | **composition** — the suite compared to itself at one commit, and why a component moved | landed and measured ([`docs/composition.md`](../composition.md), journal 0017). The other axis: many subjects, one revision, joined on the components they share, from digests a run already computed — no second render, no image, no store. Three answers nothing could previously phrase: an **echo** (one rendering, several subjects, so eleven diffs are one review), a **divergence** (one props digest, two renderings, at one commit), and an attribution ladder over every component that moved — `edited`, `token`, `upstream`, `contradicted`, then **unexplained**, which is the finding. Unexplained carries `held`: the subjects where the same component with the same props did *not* move, which is the control group the flake argument was missing. It still refuses to call that a flake — `suspect` alone, `flake` only once a second reading of that subject also disagreed. Two decisions fell out and are ADR-0033 and ADR-0034. Does not survive a shard split, and the merge behind `variance report` over shards says so |
 | B12 | **history** — what accumulates across runs, and where it lives | **wired, and answering four of its five questions** ([`docs/history.md`](../history.md), [what is left](../specs/0002-history-store.md)). The contract gap that blocked it is decided — `current()`, the one read about the present, which never truncates because a missing previous row is a change that did not happen (ADR-0031). A run records itself, the hashes that moved, the tokens it resolved and every subject that failed to read the same way twice; `variance accept` records the approval, as a second row because an append-only store cannot flip a flag. It then asks — recurrence over a window with sweeps as the denominator (ADR-0032), churn for the components it blamed, and a journey for any token whose value moved — and carries the answers in the report, so no surface downstream holds a connection. The headline case is produced by the pipeline. Still open: `reach` has no caller, and nobody has run the eleven runs and eleven approvals that would demonstrate the 22px against a real project. First implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
@@ -92,6 +93,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | M23 | B17 | Ask why the flagship case still named `Tokens` after the hashes landed | **mixed, and it was two defects wearing one symptom** — `Tokens` wraps `Button` and measures *byte-identical* to it, so the containment join had no tighter box and broke the tie in document order, which is always the wrapper. One character (`<` → `<=`). Behind it, the larger one: the run also found the image is 1024 wide where the page is 147.33, so the whole coordinate conversion is between two layouts. Fixing the tie made the case name `Button` at `Button`'s file; the frame defect is detected and unfixed |
 | M22 | B17 | Make the durable path rank by cause: carry the previous document's component hashes in the baseline sidecar | **expected, and the measurement is what paid** — the wiring was small and the first real consumer of `hashComponents` found the hashes were wrong for this purpose. One padding edit named every enclosing component, because `transform-origin` computes to half the border box on every element. `width`/`height` were the suspects and were not the cause; discharged as ADR-0027 |
 | M21 | B16 | Answer the one thing every competitor has and this did not: a way to say *this is not the subject* | **expected, and the design work was in what it refuses** — a rectangle and a bare band are both refused, so an ignore names a subtree or a difference shape and nothing else; the shape form carries the component responsible, which no pixel fingerprint can. Found two things while wiring it: `changedPixels` had to become *net* of exclusions or a masked subject reads as one that barely moved, and a per-rule breakdown had to exist on every observation *including at zero*, because a field that vanishes when nothing was absorbed cannot report the state that matters |
+| M28 | B19 | Join the suite's examples to each other on the components they share, and ask what explains each movement | **mixed, and both corrections were in what the join is allowed to claim** — it reported **11 divergences** on `examples/todomvc` and all 11 were false, because `digestableProps` excludes `children`, so a props digest is not a statement of inputs; three refusals later the answer is **0**, which is correct (ADR-0034). And the first graph recorded only enclosure, which on real code names layout primitives: every `Chip` is `within: Stack` and `createdBy: TodoFooter`, so an edit to `src/app/todo.tsx` explained nothing until the ladder read authorship first (ADR-0033). The census has 8 components and `TodoApp`/`TodoHeader`/`TodoList`/`TodoFooter` — the four files a reviewer opens — are in none of them. **21 echoes, every one crossing a subject boundary**, and the unrequested finding: the three `ds/button--*` stories echo into the application not at all, so the design-system examples guard a component whose real usage they never touch (journal 0017) |
 | M20 | — | Build the product half — a self-hosted review backend on the operator's own D1 and R2 | **expected, and the interesting part was what it may not do** — the review surface promotes a candidate the run already uploaded and cannot render one, which forced the build to carry each candidate's document digest and identity rather than only its pixels (ADR-0021); the store joined `parity.test.ts` as a fourth backend and reached every pinned verdict, so ADR-0016 now holds across a *split* pair as well as three whole ones. **Nothing has been deployed** |
 
 ---
@@ -247,7 +249,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   page it was acquired from".
 - **The documentation is checked now, and one class of it still is not.**
   `tools/docs-links.check.ts` resolves every link, every backticked repository
-  path and every `file:line` reference across all 107 markdown files, and compiles
+  path and every `file:line` reference across all 111 markdown files, and compiles
   every README `ts` example against the built `.d.ts` with no unused import. It
   found that **11 of the 20 examples did not compile** — wrong arity, options
   that were renamed, a field that no longer exists — which is what a reader was
@@ -263,8 +265,30 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   (ADR-0024, which retired the one-owner rule). Nothing
   proves a package's name still describes what it needs — `store` could grow a
   socket and only a reader would notice.
-- **The MCP layer has never served a real agent.** Five tools shaped by argument
+- **The MCP layer has never served a real agent.** Seven tools shaped by argument
   about what an agent needs, tested against text rather than against use.
+- **The component graph has never seen a real change set.** Every attribution in
+  B19 is measured by handing `attributeMovement` a declared file list; no
+  `--since` against a repository's own history has produced one. The two rungs
+  that need it — `edited` and `token` — are therefore exercised by construction
+  rather than by use, and a run without a change set degrades to `upstream`,
+  `contradicted` and a shortlist entry that says so.
+- **A production build loses the rung that works.** `createdBy` is React's
+  `_debugOwner` and is absent from a minified bundle, so the ladder falls back to
+  enclosure — which is where it was before ADR-0033 — and the artifact records no
+  build mode, so an empty list is indistinguishable from a component genuinely
+  mounted by nothing. Both readings are printed and neither is verified. Same
+  family as "component names do not survive a minified build", and the same fix
+  would not help: `keepNames` preserves names, not owner links.
+- **The shortlist has no consumer inside the run.** An unexplained movement is
+  ranked by how much control the suite has over it, and `variance run --flakes`
+  still reads every subject in plan order. A person or an agent spends the
+  shortlist; nothing points the sweep at it. A vacancy, not a decision.
+- **Divergence refuses more than it can count.** The three checks in
+  `divergencesOf` trade a measured 100% false-positive rate for a false-negative
+  rate nobody here can measure: a component whose two renderings genuinely
+  disagree *and* mount different subtrees is refused by the third rule and
+  nothing counts it (ADR-0034).
 - **The font probe reports metric-compatible substitutes as missing.** A false
   alarm rather than a false `unchanged`, and the same hole as "one machine".
 - **Nothing accumulates across runs, and it is no longer for want of code.** Spec
@@ -311,17 +335,21 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 
 Two open fronts, and they are independent.
 
-**History (B12) is built and wired to nothing, and the next step is a decision
-rather than code.** What is recorded and where it lives are settled — ADR-0018 and
-[the history spec](../specs/0002-history-store.md) — and both have code:
-`hashComponents` ships in `core/attribute`, and
-`@variance-authority/history` and `@variance-authority/server` implement the rows,
-the drift arithmetic and the service. What is missing is the only part that was
-ever the point — **no run calls any of it.** `variance run` records nothing, so no
-row has ever been written by a run and the per-component hashes have never been
-compared across two of them. The next step is not more implementation; it is a
-consumer path, and until one exists "the hashing moves only when the component's
-own code moves" is asserted by a unit test and by nothing else.
+**History (B12) has a caller now, and what is left is a run rather than code.**
+The wiring landed on 2026-08-10: a run records itself, the hashes that moved and
+every subject that failed to read the same way twice, then asks the record how
+often that has happened before (ADR-0031, ADR-0032). The eleven-run journey the
+spec is named for has still never been produced against a real project — eleven
+runs, eleven approvals, and the sentence at the end of them — and `reach` is
+half answered, by B19 at one commit and by nothing across two.
+
+**Composition (B19) is landed and its shortlist has no consumer.** An
+unexplained movement ranks the subjects worth reading twice, and `--flakes`
+still reads in plan order; pointing it at the ranking is a change to `again.ts`
+that nothing has made. Behind that, the larger one: the graph has never met a
+real change set, so the two rungs that need `--since` are exercised by
+construction. Both are cheap. The expensive question is whether eight components
+in one application generalizes at all.
 
 **The trail has no live session to run in.** `variance serve` reads a report and
 never renders — the same refusal `variance report` takes, argued at length — so an
