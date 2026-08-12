@@ -56,10 +56,9 @@ element simply leaves its strings uncompared. The run MUST say how many nodes
 went uncompared rather than reporting a smaller number of findings as a cleaner
 result.
 
-`LocaleComparison.uncompared` is that, added on 2026-08-03 — a count per side and
-the paths where pairing stopped. **This paragraph was a MUST with nothing behind
-it for the whole of B15**, in a capability marked as built, and the failure it
-describes is the one this project exists to refuse: a date that renders as
+`LocaleComparison.uncompared` is that — a count per side and the paths where
+pairing stopped. The failure it exists to refuse is the one at the centre of this
+project: a date that renders as
 `<time>` in German and `<span>` in English takes its subtree out of the walk, so
 the locale nobody translated comes back with *fewer* findings than the one
 somebody did. The count is always present, `{ base: 0, other: 0 }` included —

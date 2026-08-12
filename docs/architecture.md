@@ -120,8 +120,9 @@ second cut, made inside a box with entrypoints.
 | `tribunal` | a database, a bucket, and a runtime to deploy into | baselines, history, and the review-and-approve surface, in an account the operator controls |
 | `cli` | all of it | the workflow, which is the one place a workflow belongs |
 
-`tribunal` is the deliberate exception to the rule this table is about, and it was
-missing from the table until 2026-08-03 — which read as though the rule had none.
+`tribunal` is the deliberate exception to the rule this table is about, and it is
+listed here rather than left out, because a rule with an unstated exception reads
+as a rule with none.
 It is a **service**, not a linked tool: the requirement it names is a deployment
 rather than something a consumer supplies to a function, and it composes five
 packages because a deployed thing has to. Named for what it is rather than for the

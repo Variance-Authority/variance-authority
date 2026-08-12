@@ -3,7 +3,7 @@
 The axes on which this project could be shown to beat Percy, Chromatic, Argos and
 Applitools, stated as procedures rather than claims.
 
-**Written 2026-08-02.** Companion to [`comparison.md`](comparison.md), which
+Companion to [`comparison.md`](comparison.md), which
 states where each competitor currently wins and why most readers should buy one
 of them. This document does not repeat that. It answers a narrower question:
 *if someone wanted to settle the disagreement with a number, what would they
@@ -428,35 +428,27 @@ no `v*` tag has ever been pushed, so the release workflow has never run and
 move after the clone in the procedure above is to add the tool, and there is no
 tool to add.
 
-**Two clauses of this paragraph were stale and are corrected here (2026-08-03),
-because leaving them made the metric look unrunnable for the wrong reason.** It
-previously read that no `variance.config.json` existed anywhere in the repository
-and that no `variance run` had ever completed against a real project. Both are
-false: `cases/storybook-case/variance.config.json` is tracked, and the full cycle
-runs over a Storybook this project did not write — *new → accept → unchanged →
-5 of 8 changed* ([comparison §4.2](comparison.md#42-nothing-above-the-cli-boundary-has-been-run)).
-The correction does not move the score. M6 measures an outside operator starting
-from public documentation, and no such operator could obtain the tool at all.
-
-**Two of the three blockers that paragraph rested on have since fallen, and the
-score still does not move (2026-08-05).** The licence and the manifests were
-fixed together — 21 packages, MIT, `0.0.0-beta.1`, no `private` field — and
-`@variance-authority/storybook-collector` now ships what
-`cases/storybook-case/collector/index.mjs` used to hand-write, taking that file
-from 234 lines to five. One blocker is left where there were three, and it is the
-one that zeroes the product: an operator who cannot install a package never
-writes the five lines. The distance to a bounded number is now a single un-pushed
-tag ([spec 0015](specs/0015-the-first-published-release.md)) — narrower than it
-was, and one sufficient blocker holds the score exactly where three did.
+**That one blocker is sufficient on its own, and it is the one that zeroes the
+product:** an operator who cannot install a package never writes the five lines.
+Everything else the metric rests on is in place.
+`cases/storybook-case/variance.config.json` is tracked, and the full cycle runs
+over a Storybook this project did not write — *new → accept → unchanged → 5 of 8
+changed* ([comparison §4.2](comparison.md#42-nothing-above-the-cli-boundary-has-been-run)).
+The manifests carry MIT and `0.0.0-beta.1` across 21 packages with no `private`
+field. `@variance-authority/storybook-collector` ships what
+`cases/storybook-case/collector/index.mjs` would otherwise hand-write, which is
+the difference between five lines and 234. The distance to a bounded number is a
+single un-pushed tag ([spec 0015](specs/0015-the-first-published-release.md)),
+and one sufficient blocker holds the score at zero as firmly as three would.
 
 **Cost to measure.** ~8 operator-hours across 5 tools plus coordination, and it
 requires outside operators — anyone who has read this repository is disqualified.
 Against this project it **cannot be run at all** until there is a published
-package. Note how far the distinction the corrections turn on has moved: a
-*worked* collector was evidence the contract is writable, a *shipped* collector
-now exists for Storybook, and what this metric needs is a *published* one.
+package. The distinction the score turns on is worth stating precisely: a
+*worked* collector is evidence the contract is writable, a *shipped* collector
+exists for Storybook, and what this metric needs is a *published* one.
 
-**What would mean we lose.** Today, everything. The target that would make this
+**What would mean we lose.** As it stands, everything. The target that would make this
 non-embarrassing, stated so it can be checked later: **under 30 minutes** on a
 repository that already has a Storybook, **≤ 2 files added**, **0 lines of code
 written by the operator**. `loadCollector` still imports a module the operator

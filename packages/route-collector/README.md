@@ -50,12 +50,12 @@ An id in the plan with no route here is **reported**, not dropped — a run that
 observes 29 of 30 subjects and says nothing about the 30th is the silence this
 project refuses.
 
-## The arm that was advertised and undemonstrated
+## The arm that enters through `subjects.kind: "list"`
 
-`subjects.kind: "list"` has parsed, planned and been unit-tested since the config
-existed, and until this package no real suite had ever entered through it —
-which [`surface.md`](../../docs/surface.md) called *"the reverse of the usual
-failure and still a failure"*. This is what enters through it.
+`subjects.kind: "list"` parses, plans and is unit-tested on its own, and a config
+arm that nothing real enters is
+[*"the reverse of the usual failure and still a
+failure"*](../../docs/surface.md). This package is what enters through it.
 
 ## Bound the subject
 

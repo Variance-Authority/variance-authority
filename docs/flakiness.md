@@ -39,34 +39,27 @@ reading. What differs here is the last column.
 
 | Cause | Absorbed by | Notes |
 |---|---|---|
-| **Anti-aliasing, text smoothing** | construction | Glyph rasterization is not a property of the box tree. **Measured:** moves a pixel differ by 177px, does not move us, with no threshold set. **And the measurement is macOS-only** — the probe perturbs `-webkit-font-smoothing`, which no other platform implements, so the first Linux run measured 0 changed pixels on both arms (2026-08-03, [checkpoint](context/checkpoint.md)). The absorption argument stands on construction; the 177px does not stand on Linux. |
+| **Anti-aliasing, text smoothing** | construction | Glyph rasterization is not a property of the box tree. **Measured:** moves a pixel differ by 177px, does not move us, with no threshold set. **And the measurement is macOS-only** — the probe perturbs `-webkit-font-smoothing`, which no other platform implements, so on Linux it measures 0 changed pixels on both arms. The absorption argument stands on construction; the 177px does not stand on Linux. |
 | **Device pixel ratio, retina runners** | environment-key | **Measured:** moves a pixel differ by 3015px. Here `deviceScaleFactor` is part of the key, so a 2× run and a 1× run are different baselines and never meet. |
 | **Different machine, GPU, driver** | environment-key | A durable baseline is stored *partitioned by renderer identity*, so a cross-machine comparison is `incomparable` — one sentence, not a day of unattributable red. See [ADR-0011](context/adr/0011-durable-and-ephemeral-retention.md). Or use the ephemeral mode, where there is no second machine to be wrong about. |
 | **Fonts substituted or not loaded** | environment-key, **and reported** | Fonts are in the key. The renderer also probes by metrics and names what it did not have, because two runs of a substituted font compare `unchanged` — true, and worthless. |
 | **Dates, clocks, dynamic content** | policy | Both arms move; both are right. The difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. **But:** headless Chromium uses overlay scrollbars, so the classic scrollbar reflow does not reproduce in CI at all — a blind spot we share with every headless pipeline, [written up rather than deleted](context/journal/0012-instability.md). |
-| **Animations mid-flight** | **construction**, since 2026-08-06 | A transform caught in flight is a computed style value and it does reach the representation — so the page is now held still *before the subject is read*, not only before it is painted. Pinned at the first frame by CSS, with the recipe's digest in the environment key so an unstabilized baseline is `incomparable` rather than a diff. **Measured:** one page, a 4s animation, read twice a second apart — the hash moves untouched and holds under the recipe ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
-| **Lazy loading, network latency** | **construction**, since 2026-08-06 | Content that arrives late is a structural difference, and correctly so — the question is whether you were still waiting when it landed. `wait-for-images` polls `document.images`, which misses anything appended during the wait and has no entry for a `background-image`; the driver watches the wire instead and knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
-| **An asset whose bytes moved behind its URL** | **environment-key**, since 2026-08-06; on both collectors and in both keys since 2026-08-10 | Newly listed in August, because it was a silent false `unchanged` and nothing here said so: `EnvironmentInputs.assets` existed from the beginning and was filled by nobody, so a re-exported logo compared equal. Every image, font and media response is now hashed by the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carried into the **document** as well as the capture — the first version put it only in the capture, so `settle` still skipped the render and still said `unchanged` ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
-| **Animated GIFs** | **construction**, since 2026-08-06 | Newly listed for the same reason. No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. **Measured** on real screenshots. |
-| **Random seeds, unsorted data** | **nothing**, and reported since 2026-08-06 | Still absorbed by nothing — this is a real change and the fixture is the bug. What is new is that it no longer arrives as a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. Since 2026-08-12 the run also says whether *anything in it* explains the movement, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
+| **Animations mid-flight** | **construction** | A transform caught in flight is a computed style value and it does reach the representation — so the page is held still *before the subject is read*, not only before it is painted. Pinned at the first frame by CSS, with the recipe's digest in the environment key so an unstabilized baseline is `incomparable` rather than a diff. **Measured:** one page, a 4s animation, read twice a second apart — the hash moves untouched and holds under the recipe ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
+| **Lazy loading, network latency** | **construction** | Content that arrives late is a structural difference, and correctly so — the question is whether you were still waiting when it landed. `wait-for-images` polls `document.images`, which misses anything appended during the wait and has no entry for a `background-image`; the driver watches the wire instead and knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
+| **An asset whose bytes moved behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Every image, font and media response is hashed by the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carried into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
+| **Animated GIFs** | **construction** | No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. **Measured** on real screenshots. |
+| **Random seeds, unsorted data** | **nothing**, and reported | Absorbed by nothing — this is a real change and the fixture is the bug. What it does not arrive as is a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. The run also says whether *anything in it* explains the movement, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
 
 **Three** rows are absorbed by nothing, and they are the honest half of the table.
 
-The count has moved three times and every move is the point. It said "the last
-four" until 2026-08-03, which quietly excluded *animations mid-flight* — the one
-a reader is most likely to hit on their first run — and became five. On
-2026-08-06 animations and lazy loading moved to *construction* and two rows were
-**added**: an asset whose bytes moved behind its URL, and animated GIFs. Both
-were live false `unchanged` verdicts that this table did not mention, which is
-worse than a row admitting a gap.
-
-A comparison that only ever finds in its own favour is an advertisement. A
-limitation left standing because writing it down felt like enough is the same
-failure with better manners — three of these rows sat here as confessions and
-were each a bug with a fix that took an afternoon.
+A comparison that only ever finds in its own favour is an advertisement, so the
+count in that sentence is the number this table is judged on. A limitation left
+standing because writing it down felt like enough is the same failure with better
+manners: a row here is a claim that nobody has found the afternoon's work that
+removes it, not a claim that none exists.
 
 ## What still gets through, and how it is found
 
@@ -222,7 +215,7 @@ The question two readings cannot answer, and the one that decides who fixes it.
 were clean* says somebody already fixed it, and rewriting that fix is a day spent
 re-solving a solved problem.
 
-Since 2026-08-10 a run records what it saw, when a history service is configured
+A run records what it saw, when a history service is configured
 ([spec 0002](specs/0002-history-store.md)), and asks the record about every
 subject it just called unstable. The answer travels in the report, so the
 summary, the pull-request comment and an agent all read one sentence:
@@ -306,9 +299,8 @@ pollution becomes a read-write conflict with a named writer:
 Measured at **3.4× faster** than rinsing, with the probe costing **~2%** of
 session time. Details in [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md).
 
-**A `variance run` does not do that**, and until 2026-08-04 this section said
-"we" in a voice that implied otherwise. The probe is a package nothing depends
-on. What a run does instead, since 2026-08-04, is cheaper and more general:
+**A `variance run` does not do that.** The probe is a package nothing depends on.
+What a run does instead is cheaper and more general:
 
 > **A subject whose change is gone when it is collected alone was moved by the
 > session, not by an edit.**
@@ -354,15 +346,15 @@ two images. The cost of ours is that it only ever fires on a subject the run
 already called `changed`; the cost of theirs is that the first several
 occurrences are red builds.
 
-Since 2026-08-10 we run **both halves**, and the difference from their design is
-now only in the last step. We count occurrences over a window, keyed on the
+We run **both halves**, and the difference from their design is in the last step
+only. We count occurrences over a window, keyed on the
 component and band that moved rather than on a diff fingerprint, and we report
 the count — [we do not act on it](#has-this-happened-before). Nothing is
 auto-ignored at any threshold: the count tells a reader whether to expect a long
 afternoon or a fix that already landed, and the suppression decision stays a
 declaration somebody writes down ([`ignores.md`](ignores.md)).
 
-**A third axis, since 2026-08-12: the rest of the suite at the same commit.**
+**A third axis: the rest of the suite at the same commit.**
 Both instruments above are longitudinal — the same subject, read again or looked
 up in a window. A visual-regression suite is also a set of examples built from
 shared components, so the same component with the same props is usually

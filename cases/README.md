@@ -108,9 +108,9 @@ Chromium layout:
 The two identical strings are one node's accessible name and its `title`, which
 carry the same untranslated text — reported as **one** finding, because reporting
 both would be reporting one missing translation twice. So: one string left in
-English, found in two places. The first version of the rule read text nodes and
-found nothing, which is the correction that made it useful: the strings that get
-forgotten are the ones that are not text nodes. And the overflow answer
+English, found in two places. A rule that reads text nodes finds nothing here,
+which is what makes this the useful case: the strings that get forgotten are the
+ones that are not text nodes. And the overflow answer
 depends on the container, not on the translation, which is why no expansion ratio
 could have produced it.
 
@@ -142,9 +142,9 @@ fired on the two commands this repository tells a developer to run in sequence,
 and the only way out was to re-record the incumbent's baselines: the guard's noise
 was teaching a reader to run the command that silences it. In the other direction
 an mtime that moves *backwards* — a restored cache, an archive unpacked with its
-times — left a changed file looking older than the bundle and passed, which is the
-original failure exactly. Both are gone, and `bundle.test.ts` holds them: the rule
-this section states was prose with nothing behind it until then.
+times — leaves a changed file looking older than the bundle and passes, which is
+the original failure exactly. `bundle.test.ts` holds both, so the rule this
+section states is a test rather than prose.
 
 ## What is not established here, and cannot be
 
@@ -193,7 +193,6 @@ Two rules, and they are the reason the directory exists:
 Both cases skip loudly, with the command attached, when their prerequisite is
 missing. A silently skipped case reads in a summary exactly like one that ran and
 agreed — so this sentence is a test rather than a promise: `tools/skips.check.ts`
-fails when any browser-gated suite stops announcing itself. It was written because
-the sentence was false when it was checked. Six of the ten gated files printed
-nothing, three of them carrying a skipped test whose *title* was the remedy, which
-reads like an announcement in review and emits nothing under the reporter CI uses.
+fails when any browser-gated suite stops announcing itself. The failure mode it
+guards is quiet: a skipped test whose *title* carries the remedy reads like an
+announcement in review and emits nothing under the reporter CI uses.

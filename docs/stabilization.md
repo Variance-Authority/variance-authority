@@ -46,13 +46,13 @@ you a component and a file, and you go looking for the edit. **Attribution makes
 a false alarm credible**, which is why this project can afford flakiness less
 than a pixel differ can.
 
-It happened because the computed-style allowlist admits `transform`, `opacity`,
+It happens because the computed-style allowlist admits `transform`, `opacity`,
 `filter`, `color` and every geometric longhand — and an animation in flight moves
 all of them. The allowlist *excludes* `animation-*` and `transition-*` on the
-stated grounds that a snapshot is taken with animations already disabled. Until
-2026-08-06 nothing disabled them.
-[ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md) is the
-repair.
+stated grounds that a snapshot is taken with animations already disabled, which
+makes disabling them a precondition rather than a nicety.
+[ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md) is where
+that precondition is met.
 
 ---
 
@@ -272,7 +272,7 @@ existed at one moment: it misses an image appended while you were waiting, it
 has no entry for a CSS `background-image` (which has no load event at all), and
 it cannot tell you what the bytes were.
 
-The driver sees every response. So since 2026-08-06 it watches.
+The driver sees every response. So it watches.
 
 ### Every asset is hashed into the environment key
 
@@ -376,7 +376,7 @@ policy and an illegitimate thing to arrive at by leaving a field out.
 
 **What it does to the environment key is the saving.** A blanked asset is
 recorded as `blank:<rule>:<width>x<height>` instead of a digest of its bytes, so
-re-exporting the illustration no longer invalidates anything. The dimensions stay
+re-exporting the illustration invalidates nothing. The dimensions stay
 in the value on purpose: a *resized* illustration moves the layout, and a key
 that recorded only the rule id would settle every subject it appears on against a
 page whose columns have shifted — a false `unchanged`, which is the one failure
@@ -454,9 +454,8 @@ visibly a run that recorded nothing rather than a run that had nothing.
 
 ### Which assets belong to which subject
 
-Wired into both collectors since 2026-08-10, and the reason it took a second step
-is the reason it is worth reading. **The wire sees a page; a verdict is about a
-subject.** A request carries no idea which story will end up using it, so a
+Wired into both collectors, and narrowed per subject on the way in.
+**The wire sees a page; a verdict is about a subject.** A request carries no idea which story will end up using it, so a
 Storybook run — one navigation, three hundred subjects — would give story 200 the
 page's whole asset set, which depends on which stories ran before it. That is not
 over-invalidation, which would merely be noise. It is **order dependence in the
@@ -482,13 +481,12 @@ contradict.
 
 ### The document carries them too, which is what `settle` reads
 
-The first version of this put the assets in the *capture* and not in the
-`RenderDocument`, and the difference had no symptom. `settle` skips a render when
-this run's document digest equals the digest the baseline was painted from — so a
-document that omitted the assets produced the same digest after a logo's bytes
-moved, the render was skipped, and the run reported `unchanged`. That is exactly
-the false verdict hashing the bytes was added to close, surviving inside the fix
-for it. Both keys carry the same scoped set now, asserted in
+Putting the assets in the *capture* alone is not enough, and the shortfall has no
+symptom. `settle` skips a render when this run's document digest equals the digest
+the baseline was painted from — so a document that omits the assets produces the
+same digest after a logo's bytes move, the render is skipped, and the run reports
+`unchanged`. That is exactly the false verdict hashing the bytes exists to close,
+reappearing one layer in. Both keys carry the same scoped set, asserted in
 `packages/route-collector/src/network.chromium.test.ts`.
 
 **What is not yet proven by a browser**: the Storybook path runs the same page

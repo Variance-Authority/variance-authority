@@ -45,16 +45,16 @@ download, not a plugin protocol. "Every tool that has claimed otherwise grew a
 plugin system whose failures are undebuggable from either side."
 
 **Size, measured rather than estimated:** `cases/storybook-case/collector/` is
-341 lines across three files, 234 of them in the module the config names. The
-source comment estimated "about thirty lines" until one was written and was
-optimistic by 8×; it now carries the measurement instead.
+341 lines across three files, 234 of them in the module the config names. An
+estimate of "about thirty lines" is optimistic by 8×, which is why the source
+comment carries the measurement rather than a guess.
 
-**That figure is now the cost where no collector is shipped.** Storybook has one
-as of 2026-08-04 — [`@variance-authority/storybook-collector`](../packages/storybook-collector)
-— and the same case is five lines of code against the same end-to-end test, which
-is what [comparison §4.3](comparison.md#43-there-is-one-shipped-collector-and-it-is-storybooks)
-now reads as. For every other subject source the 341 is still the honest number
-against Percy's twenty-plus SDKs.
+**That figure is the cost where no collector is shipped.** Storybook has one —
+[`@variance-authority/storybook-collector`](../packages/storybook-collector) — and
+the same case is five lines of code against the same end-to-end test
+([comparison §4.3](comparison.md#43-there-is-one-shipped-collector-and-it-is-storybooks)).
+For every other subject source the 341 is the honest number against Percy's
+twenty-plus SDKs.
 
 ### The page agent — one method
 
@@ -145,7 +145,7 @@ paperwork:
   no pinned runner, no stored artifact* demonstrates that in the package graph
   instead of asserting it in a comment.
 
-**Nothing is published.** The 21 packages are no longer `private: true` — each
+**Nothing is published.** None of the 21 packages is `private: true` — each
 carries MIT, version `0.0.0-beta.1` and a repository field, and a pushed `v*`
 tag would send every one of them to the registry
 ([release.yml](../.github/workflows/release.yml)). No tag has ever been pushed,
@@ -229,29 +229,24 @@ is an ergonomics complaint rather than a closed door.
 
 **The plan is handed to you either way.** `CollectorContext.plan` is populated for
 both subject kinds, so a `list` collector that *does* want the generic half
-returns `context.plan` from `plan()` and writes no planning of its own. Its doc
-comment said "present only for `subjects.kind: 'storybook'`" until 2026-08-03,
-which is the reading that costs something — an operator concludes the field is
-undefined and hand-rolls what the CLI already computed.
+returns `context.plan` from `plan()` and writes no planning of its own. Reading it
+as Storybook-only is the mistake that costs something — an operator concludes the
+field is undefined and hand-rolls what the CLI already computed.
 
-**This path had no worked example until 2026-08-04.** It parsed, it planned, and
-it was covered by unit tests in `packages/cli/src/config.test.ts`,
-`packages/cli/src/commands/run.test.ts` and
-`packages/cli/src/commands/doctor.test.ts` with a fake collector — the arm the
-configuration advertised and the repository did not demonstrate, which is the
-reverse of the usual failure and was still a failure.
-[`@variance-authority/route-collector`](../packages/route-collector) enters
-through it, against pages a real server serves, in
-`packages/route-collector/src/collector.chromium.test.ts`. What is still absent is
-a `variance run` *end to end* over the `list` arm: the collector is exercised
-directly, the way the Storybook arm was before `cases/storybook-case`.
+**The worked example is a real server.**
+[`@variance-authority/route-collector`](../packages/route-collector) enters through
+this path against pages a server serves, in
+`packages/route-collector/src/collector.chromium.test.ts`. What is absent is a
+`variance run` *end to end* over the `list` arm: the collector is exercised
+directly, where the Storybook arm has `cases/storybook-case` around a real
+binary.
 
 ### Playwright
 
 Two packages, and which one you want depends on whether you already have a suite.
 
 [`@variance-authority/playwright-test`](../packages/playwright-test) is the
-fixture, landed 2026-08-04: `expect(await variance(locator)).toBeUnchanged()`
+fixture: `expect(await variance(locator)).toBeUnchanged()`
 inside the test body you already wrote. It is the one adoption path that needs no
 collector, because a Playwright test has navigated, mounted and waited by the
 time the fixture is reached — which is also why it is the answer for anything
@@ -320,7 +315,7 @@ of your own reaches all three; `variance run` reaches none.
 
 | | The library | The binary |
 |---|---|---|
-| **A renderer across a network** | `connectRenderer` in `remote` satisfies the same contract, identity-guarded | **Closed 2026-08-04.** `"renderer": { "endpoint": … }` selects it, and `"browser": "chromium" \| "firefox" \| "webkit"` selects the engine when it is local. The two are refused together, because the engine belongs to whichever machine paints |
+| **A renderer across a network** | `connectRenderer` in `remote` satisfies the same contract, identity-guarded | **Reachable.** `"renderer": { "endpoint": … }` selects it, and `"browser": "chromium" \| "firefox" \| "webkit"` selects the engine when it is local. The two are refused together, because the engine belongs to whichever machine paints |
 | **Posting a build for review** | the tribunal's ingest route takes one | nothing in `packages/cli/src` or `.github` posts one. An operator writes the HTTP call themselves |
 | **One standing world across subjects** | `session`, measured at 3.4× with ~2% probe overhead | no caller. `session` has **zero** consumers in the entire repository — no package, no example, no case. Its only import site is the example in its own README, which the documentation gate type-checks and nothing runs |
 

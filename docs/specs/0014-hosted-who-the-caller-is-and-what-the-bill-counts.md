@@ -26,12 +26,10 @@ not what is missing.
 What is missing is that a capability is **all** it resolves to.
 
 **Consequence A — the project is chosen by the caller, not established by the
-credential.** Corrected 2026-08-05: the schema is *already* multi-tenant. Every
-table in `schema.ts` carries a `project` column and it is the leading term of
-every primary key and every index — `baselines` is keyed by
-`(project, identity_digest, subject, label)`. That was the item this spec
-originally said had to land before anything else, and it landed before the spec
-was written.
+credential.** The schema is *already* multi-tenant: every table in `schema.ts`
+carries a `project` column and it is the leading term of every primary key and
+every index — `baselines` is keyed by
+`(project, identity_digest, subject, label)`.
 
 What is missing sits one layer up. `project` arrives from `TribunalOptions` — a
 deployment setting — and on several routes from a `?project=` query parameter.

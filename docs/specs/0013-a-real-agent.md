@@ -1,11 +1,10 @@
 # Spec 0013 — A real agent
 
-**Not proven, 2026-08-05. Refocused the same day:** the first draft weighted the
-fixer loop — an agent reading a CI report after the fact — and that is the
-smaller half. The loop this spec now specifies is the **author loop**: an agent
-editing components and verifying its own work before any human sees it, which
-is the loop the README's first sentence promises and the one nothing here
-serves. The fixer loop keeps one paragraph at the end.
+**Not proven.** The loop this spec specifies is the **author loop**: an agent
+editing components and verifying its own work before any human sees it, which is
+the loop the README's first sentence promises and the one nothing here serves.
+The fixer loop — an agent reading a CI report after the fact — is the smaller
+half and keeps one paragraph at the end.
 
 What exists: seven MCP tools as pure functions over a run report, a protocol
 codec, `variance serve` — tested against text
@@ -102,11 +101,10 @@ what survives.
 
 ## The shape, and the decision it forces
 
-The first draft offered two shapes — a subject-scoped `variance run` the agent
-invokes per iteration, or a live server holding the persistent harness — and
-recommended the scoped run as the cheaper first move. Centering loop B
-reverses that, for a structural reason, not a latency one: **a stateless run
-has no held document.** Against a durable baseline it ranks by area, the
+Two shapes are available — a subject-scoped `variance run` the agent invokes per
+iteration, or a live server holding the persistent harness. The scoped run is the
+cheaper move and it is the wrong one, for a structural reason rather than a
+latency one: **a stateless run has no held document.** Against a durable baseline it ranks by area, the
 ordering journal 0013 measured as backwards; the scoped run is not a slower
 version of the loop, it is a different loop with a worse answer. The
 session-holding server is not an optimization of shape 1 — it is the only

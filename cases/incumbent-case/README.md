@@ -296,9 +296,9 @@ quietly edited to match its result is not a prediction.
 `toHaveScreenshot` describe a hard failure on a size mismatch with no comparison
 performed. What 1.62 actually does is print both dimensions *and* a count over the
 padded canvas — `Expected an image 420px by 312px, received 420px by 359px. 1967
-pixels … are different.` So the scenario lost the property it was added for, and
-now sits alongside `space-token-nudged` as a row about interpretability rather
-than refusal.
+pixels … are different.` So the scenario does not carry the property it was
+declared for, and sits alongside `space-token-nudged` as a row about
+interpretability rather than refusal.
 This is precisely what running their runner buys over reading their docs.
 
 **`indicator-dropped` was declared to name `Toolbar`.** It names `Indicator` —

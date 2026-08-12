@@ -37,7 +37,7 @@ socket.
 - **`RasterStore`** — the contract every backend satisfies, plus the in-memory
   store and the checks a stored record passes before it is believed, wherever it
   arrived from. A store failure is never a verdict: every one of them throws.
-- **`RenderCache`** — the other half of what a store used to be, split out because
+- **`RenderCache`** — a store's sibling, kept separate because
   the two have opposite loss semantics. Losing a baseline is fatal; losing a cache
   entry costs a render, so **a `RenderCache` never throws** and `neverFails` holds
   an implementation to that at construction.
@@ -47,14 +47,14 @@ socket.
 - **The stability gate** — two cheap documents compared. Never a third sample.
 - **The default plan** — the shipped composition, declared.
 
-## Interventions used to be here
+## Interventions are not here
 
-They are in [`@variance-authority/core/format`](../core) as of 2026-08-06, and
-the move was a correction rather than tidying. Holding a page still looked like
-something you do before you photograph it — until an animation in flight turned
-out to move `transform`, which the *cheap* representation carries. A
-stabilization recipe is a render input on every tier, its digest is a field of
-`EnvironmentInputs`, and it belongs beside the key it is part of. See
+They are in [`@variance-authority/core/format`](../core), and that is a claim
+about what they are rather than tidying. Holding a page still looks like something
+you do before you photograph it, but an animation in flight moves `transform`,
+which the *cheap* representation carries. A stabilization recipe is a render input
+on every tier, its digest is a field of `EnvironmentInputs`, and it belongs beside
+the key it is part of. See
 [`docs/stabilization.md`](../../docs/stabilization.md).
 
 What is still here is the plan that names one:

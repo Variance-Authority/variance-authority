@@ -414,13 +414,12 @@ one.
 
 ### How it decides, and what it costs
 
-Until 2026-08-06 this section said the declaration was reachable from the library
-and not from the binary: `applySensitivity` folds over a pair of snapshots, and
-`variance run` compares an image against a stored baseline. That was true, and it
-stopped being true when [ADR-0027](context/adr/0027-a-baseline-carries-what-its-document-said.md)
-made a baseline carry per-component hashes — but it took a second change to
-notice, because those hashes fused `a11y`, `content` and tree shape into one
-`structure` digest. Split, they name a band each:
+A declaration is reachable from the library and from the binary, which are two
+different comparisons. `applySensitivity` folds over a pair of snapshots. `variance
+run` compares an image against a stored baseline — and reaches the same answer
+because [ADR-0027](context/adr/0027-a-baseline-carries-what-its-document-said.md)
+makes a baseline carry per-component hashes, split finely enough that each digest
+names a band:
 
 | digest | band |
 |---|---|

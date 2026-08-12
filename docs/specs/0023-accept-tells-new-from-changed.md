@@ -50,5 +50,5 @@ more important than this spec.
 ## Leaves behind
 
 One amendment to ADR-0017 — the exit code says whether review is needed, and
-acceptance now has to distinguish what it is accepting, which is the same
-distinction one rung further on.
+acceptance has to distinguish what it is accepting, which is the same distinction
+one rung further on.

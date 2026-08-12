@@ -10,7 +10,7 @@ flake arithmetic
 **Packages:** `@variance-authority/history` (interface, drift math, client),
 `@variance-authority/server` (the service).
 
-**What now runs.** Since 2026-08-10 `variance run` records: the run itself,
+**What runs.** `variance run` records: the run itself,
 quiet ones included; the component hashes that moved, computed against
 `current()`; and one row per subject that failed to read the same way twice. It
 then asks `flakiness()` about every subject it called unstable and carries the
@@ -21,9 +21,9 @@ It records the **design tokens** it resolved, too: the custom properties in forc
 at each subject's root, folded to one value per token per run — and when one of
 them resolves to something the record has not seen, the run asks for its journey
 and reports what it has drifted to. That is the finding at the top of this file,
-produced by the pipeline rather than described in it. That is the axis
-the headline example at the top of this file needs — a button gaining 2px eleven
-times — and it had no source until now. A token that resolved to *two* values in
+produced by the pipeline rather than described in it, and it is the axis the
+headline example at the top of this file rests on — a button gaining 2px eleven
+times. A token that resolved to *two* values in
 one run is not recorded at all and the count is reported: a themed subtree
 overriding `--brand` is a legitimate second answer, and picking either would put a
 step in a journey whose reader could trace it to a commit and fail to reproduce
@@ -42,8 +42,7 @@ it.
   exists and each part is tested; what has not happened is eleven runs, eleven
   approvals, and the sentence at the end of them.
 
-**Acceptance is recorded, since 2026-08-10**, and it had to be a second row rather
-than a flag: the store is append-only, so nothing may flip `accepted` on an
+**Acceptance is recorded**, and it has to be a second row rather than a flag: the store is append-only, so nothing may flip `accepted` on an
 observation after the fact. `variance accept` writes one `Approval` per
 `(subject, run)` it promoted — which is exactly the decision a reviewer makes —
 and `accumulateChurn` counts a row as approved when the row says so *or* an
@@ -202,23 +201,15 @@ the reasoning is
 [ADR-0031](../context/adr/0031-the-run-asks-what-is-recorded-now.md) — including
 why the alternative, deduplicating on the server, was refused.
 
-For a cycle this contract specified a write rule and gave nobody the means to
-implement it, which is why there was code on both sides of a wire with nothing
-crossing it. That is fixed; what is still missing is the caller itself.
-
-**Two deviations from the first draft of this contract, both deliberate, both
-argued in `packages/history/src/store.ts` rather than here.** `record` takes the
-run as a required argument instead of inferring it from the rows, because a run in
-which nothing changed *has* no rows and is exactly the run that must not be lost —
-the draft's `record(observations, tokens)` cannot express a quiet run at all. And
+**Two deviations from the obvious shape, both deliberate, both argued in
+`packages/history/src/store.ts` rather than here.** `record` takes the run as a
+required argument instead of inferring it from the rows, because a run in which
+nothing changed *has* no rows and is exactly the run that must not be lost — a
+`record(observations, tokens)` cannot express a quiet run at all. And
 every answer is wrapped in `Answer<T>`, which is `T | Unkept`, because the
 alternative to saying *no record is being kept* is returning an empty result, and
 an agent handed an empty churn concludes the product is stable. That is the
 Behaviour section's first rule, expressed in the type rather than in a promise.
-
-This contract was corrected on 2026-08-03 after it was found to describe neither
-the draft's intent nor the shipped interface; the code had been right since it was
-written.
 
 ## Behaviour
 

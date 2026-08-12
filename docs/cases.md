@@ -16,11 +16,11 @@ configuration — and firmly on one face of the product coins, where it loses. T
 last section names every place the coin is welded here too, which is the useful
 part.
 
-**Written 2026-08-04, corrected and extended 2026-08-05.** The four commercial products are placed from
+**On sourcing.** The four commercial products are placed from
 [comparison.md](comparison.md), which read vendor pages on 2026-08-02 and carries
-the links; nothing about them was re-verified today. **The five entrants added
-below are placed by their published architecture and were not verified against
-vendor pages at all** — they are here because leaving them out distorts the map,
+the links. **The five other entrants are placed by their published architecture
+and are not verified against vendor pages at all** — they are here because
+leaving them out distorts the map,
 and each claim about them is structural (where bytes go, who runs the browser)
 rather than a feature or a price. Treat every cell about a tool that is not this
 one as a starting point for your own reading. Every cell about *this* project
@@ -105,10 +105,9 @@ by name; nobody has run it through a real filter on a real clone.
 
 ## Coin 3 — blocking the PR, or a side job
 
-**Corrected 2026-08-05.** An earlier version of this table had the category
-mostly on the blocking face. That is wrong, and Chromatic is the clearest
-counter-example: the CI job publishes, the job ends, and the review happens in
-their UI afterwards — `--exit-zero-on-changes` is a documented flag precisely so
+It is tempting to read this category as mostly blocking. Chromatic is the
+clearest counter-example: the CI job publishes, the job ends, and the review
+happens in their UI afterwards — `--exit-zero-on-changes` is a documented flag precisely so
 the job does not gate the merge. **Non-blocking is the norm, not the exception**,
 and a tool that can only block is the one with the missing face.
 
@@ -117,11 +116,11 @@ and a tool that can only block is the one with the missing face.
 | **A required check** — the runner matchers by construction; anything the vendors do only if you make their status check required | Every flake is now a merge block, which is how `maxDiffPixels` gets raised and never lowered |
 | **A side job** — Chromatic by design, and most real Argos and Percy setups | Nobody looks at it. A signal off the critical path decays |
 
-**Here: whichever, and the second face was missing until today.** The exit code
-is the interface ([ADR-0017](context/adr/0017-the-exit-code-is-the-interface.md)),
-so blocking is the default and needs no configuration. Not blocking used to mean
-`|| true` — which also swallows **exit 2**, so a job whose browser never launched
-posts a green tick over a suite that observed nothing. `variance run
+**Here: whichever, and both faces are addressed.** The exit code is the interface
+([ADR-0017](context/adr/0017-the-exit-code-is-the-interface.md)), so blocking is
+the default and needs no configuration. The naive way not to block is `|| true` —
+which also swallows **exit 2**, so a job whose browser never launched posts a
+green tick over a suite that observed nothing. `variance run
 --exit-zero-on-changes` suppresses exit 1 only, leaves operator errors at 2, and
 writes one line to stderr saying the code was suppressed, because a silently
 rewritten exit is indistinguishable in a log from a run that found nothing.
@@ -143,8 +142,9 @@ guessed before it.
 
 ## Coin 3½ — who owns reproducibility
 
-Added 2026-08-05 because a reader's lived experience does not fit any coin above:
-*Argos runs locally, but does not define a container, and I failed using it.*
+A coin of its own, because a reader's lived experience does not fit any of the
+ones above: *Argos runs locally, but does not define a container, and I failed
+using it.*
 
 That is not a gap in Argos's feature list. It falls out of Coin 1. A tool that
 renders in your infrastructure and stores images centrally has silently made
@@ -174,15 +174,12 @@ the store says which identity it *did* find
 ([durable.ts](../packages/store/src/durable.ts)).
 
 That is detection, and detection after a six-minute run is still an afternoon.
-So as of today `variance doctor` answers it **before** the run: the store's
-layout *is* the partition, so a `readdir` says whether any baseline here was
-painted by a machine like this one. When none was, doctor prints
-`NOT COMPARABLE HERE`, lays out the store one line per identity, exits 2, and
-names both ways out — ephemeral retention, or a `renderer` endpoint carrying the
-identity the baselines were written under
-([doctor.ts](../packages/cli/src/commands/doctor.ts)). The finding it replaces
-was a comment in that same file saying this was *"a question only a run can
-answer"*.
+So `variance doctor` answers it **before** the run: the store's layout *is* the
+partition, so a `readdir` says whether any baseline here was painted by a machine
+like this one. When none was, doctor prints `NOT COMPARABLE HERE`, lays out the
+store one line per identity, exits 2, and names both ways out — ephemeral
+retention, or a `renderer` endpoint carrying the identity the baselines were
+written under ([doctor.ts](../packages/cli/src/commands/doctor.ts)).
 
 ## Coin 4 — a small suite, or a big one
 
@@ -191,11 +188,11 @@ answer"*.
 | **Small** — tens of screens | Runner matchers, BackstopJS | Falls over on cost and on review volume, not on mechanism |
 | **Big** — thousands | Chromatic (TurboSnap), Applitools (per-Page pricing, so breadth is free), Argos | Vendor pricing multiplies `pages × browsers × widths`; [comparison.md §1](comparison.md#1-the-dimensions-a-buyer-actually-decides-on) sizes a 200-component library at ~$283/mo on the cheapest realistic plan |
 
-**Here: big is affordable, and as of today it is also readable.** The tier ladder
-means breadth costs collection rather than paint. What was missing is what
-happens after: a suite split across CI jobs produced one report per shard, so
-`variance comment` posted N comments and each shard's exit code spoke only for
-its own slice. Both commands now take the shards and answer about the suite —
+**Here: big is affordable, and it is also readable.** The tier ladder means
+breadth costs collection rather than paint. The part that decides whether that is
+usable is what happens after: a suite split across CI jobs produces one report
+per shard, and a shard's exit code speaks only for its own slice. Both commands
+take the shards and answer about the suite —
 `variance report shard-*.json`
 ([merge.ts](../packages/cli/src/commands/merge.ts)) — and the merge refuses the
 pairs that were never one run rather than averaging them.
@@ -213,7 +210,7 @@ none of them has a coverage list to see it with.
 | **Design system** | Chromatic (a story *is* a test, no authoring), Lost Pixel, Happo | A page-level story tells you "this page moved" |
 | **Product** | Percy (sitemap, static dir, crawler, URL list), Applitools, Argos via your E2E suite | Attribution stops at the page. Nothing names the component |
 
-**Here: both, since 2026-08-04, through three surfaces** — a built or served
+**Here: both, through three surfaces** — a built or served
 Storybook ([storybook-collector](../packages/storybook-collector)), a map of
 served URLs ([route-collector](../packages/route-collector)), and your existing
 Playwright suite ([playwright-test](../packages/playwright-test)), where the test
@@ -258,7 +255,7 @@ bought for a reason.
 | A design system, designers must approve without repo access | **Chromatic.** No contest — see [§5 of comparison.md](comparison.md#5-when-not-to-choose-this) |
 | A real browser matrix including Safari on macOS | **Applitools** or **Percy.** Nothing here rents a fleet |
 | Your compute, your bucket, no vendor, and the workflow you already know | **reg-suit** or **Lost Pixel OSS** today; this project when the first release is published ([spec 0015](specs/0015-the-first-published-release.md)) |
-| Flaky suite, need to know *which* tests are unreliable over time | **Argos.** Nothing here has ever written a history row ([§4.1](comparison.md#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be)) |
+| Flaky suite, need to know *which* tests are unreliable over time | **Argos.** Nothing here has ever written a history row ([§4.1](comparison.md#41-a-history-row-is-written-and-the-22px-story-still-cannot-be)) |
 | Nothing may leave your network, ever | Here, or a self-hosted Applitools — with the compliance caveats in [comparison.md](comparison.md) fully read |
 | The diff must name a component and a file, not a rectangle | Here. Nothing else in the table does it |
 | Behind a login, on your VPN, against a staging build | Here, via the Playwright surface, or Argos via your own E2E suite |

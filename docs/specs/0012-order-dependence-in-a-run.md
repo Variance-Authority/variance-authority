@@ -1,18 +1,17 @@
 # Spec 0012 — Order dependence in a run
 
-**Partly built, 2026-08-04.** A run now re-collects a changed subject in a clean
+**Partly built.** A run re-collects a changed subject in a clean
 world, and a change that is gone there is reported as order dependence rather
 than as a regression — `accept` refuses it, and both the summary and the
 per-subject tool say so. What remains is the sharpener and the history.
 
-## The model, corrected
+## The model
 
-This spec was first written around [ADR-0009](../context/adr/0009-sessions-detect-instead-of-rinse.md)'s
-own framing — a read/write conflict with a named writer — and item 2 below
-promised that an in-page probe would turn "order-dependent" into
-"order-dependent, and `story:toolbar` wrote it". **That promise was worth much
-less than it sounds, and building the rest of it on that footing would have been
-a mistake.**
+The tempting framing is [ADR-0009](../context/adr/0009-sessions-detect-instead-of-rinse.md)'s
+— a read/write conflict with a named writer — under which an in-page probe would
+turn "order-dependent" into "order-dependent, and `story:toolbar` wrote it".
+**That promise is worth much less than it sounds, and the rest of this spec must
+not be built on it.**
 
 A probe can only see what a document can read about itself: stylesheets, custom
 properties, attributes on the root and body, stray body nodes, the title. The

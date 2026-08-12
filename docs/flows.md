@@ -39,12 +39,6 @@ less. What changes is what you can *ask*, and who can answer.
 }
 ```
 
-**Corrected 2026-08-03, and the correction reverses this rung.** It previously
-read "**You set up** a config and a collector … **You cannot** detect a
-regression. `find` returns nothing, always, because there is no past to return."
-Both halves were wrong, in opposite directions, and together they described the
-wrong rung entirely. What follows is what the code does.
-
 **You set up** a config, and a collector that can produce **two documents per
 subject** — the revision under test and the one to compare against. No store, no
 bucket, no credentials, no container, nothing committed. That is genuinely no
@@ -76,7 +70,7 @@ which is where the infrastructure this rung saves reappears as build time. The
 config refuses a `baselines` key here rather than ignoring it, so a file that looks
 like it stores images and does not cannot exist.
 
-**Locale comparison is not on this list, and used to be.** `compareLocales` is a
+**Locale comparison is not on this list.** `compareLocales` is a
 library function with no caller outside its own tests and no key in the config
 (`packages/core/src/judge/locale.ts:135`). A locale comparison means hand-writing
 a test, exactly as [spec 0008](specs/0008-locale-runs.md) says — it is not
@@ -130,8 +124,7 @@ at. That is right, and it means the cache is **local to a machine**. A fresh CI
 runner starts cold and re-renders every subject, every time, even though the
 baselines came down with the checkout.
 
-**The seam is now open and the configuration is not**, which is a narrower gap
-than this rung had until 2026-08-04. `RenderCache` is its own contract with its
+**The seam is open and the configuration is not.** `RenderCache` is its own contract with its
 own rule — it never throws, because the right answer to every cache failure is to
 re-render, where a baseline that cannot be read is the only copy of what the
 subject looked like and must stop the run. Four backends implement it and the
@@ -213,7 +206,7 @@ ingest route, and the only thing in the repository that does is the Worker's own
 test suite. The review UI's client speaks to the *review* half of the surface —
 list, detail, decide, image — and never to ingest, so it is not the counterexample
 it looks like. The rung has the same no-caller hole rung 5 is marked for, on its
-write half, and this table did not say so until 2026-08-03.
+write half.
 
 **And the docket here leads with causes only when something supplied them.** The
 mechanism is worth stating exactly, because the obvious explanation is wrong: the
@@ -236,7 +229,7 @@ the adopter's problem, and it is the one that is not built.
 
 ## Rung 5 — history: recurrence, and drift across runs
 
-**Half wired, since 2026-08-10.** A run records itself, the component hashes that
+**Half wired.** A run records itself, the component hashes that
 moved, and every subject that failed to read the same way twice; it then asks how
 often that subject has done so before and carries the answer into the report —
 which is what turns a one-run flake detector into one that can say *this has been

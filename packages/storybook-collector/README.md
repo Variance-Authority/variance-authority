@@ -42,9 +42,9 @@ export default storybookCollector({
 
 Five lines of code, and `cases/storybook-case/src/cli.chromium.test.js` — *new
 (exit 1) → accept (0) → unchanged (0) → 5 of 8 changed (exit 1)* over a real
-Storybook — passes unchanged against it. That test is the evidence this package
-is entitled to; it was written against the hand-written collector and never
-touched.
+Storybook — passes against it. That test is the evidence this package is entitled
+to, and it is written against the seam rather than against either collector, so
+which side of it does the work is invisible to the test.
 
 ## What is still the adopter's, and why
 

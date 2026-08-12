@@ -184,13 +184,13 @@ correctness rule the URL path states above.
 
 - **Time to first verdict.** Theirs is an afternoon from `npx` and a token.
   [metrics.md M6](metrics.md#m6-time-to-first-verdict-on-a-cold-repository)
-  records this project's as *unbounded* — no longer because of the collector,
-  which is now five lines, but because nothing is published and there is no
-  install path at all.
+  records this project's as *unbounded* — not because of the collector, which is
+  five lines, but because nothing is published and there is no install path at
+  all.
 - **A hosted review UI.** [`packages/tribunal`](../packages/tribunal) implements
   builds, a docket and an approval that promotes the candidate the run already
   produced — and has never been deployed to Cloudflare.
-- **A hosted anything.** History now records and answers — eleven separately
+- **A hosted anything.** History records and answers — eleven separately
   correct 2px approvals produce a `DRIFT:` line naming the 22px
   ([`history.md`](history.md)) — but the service is one you run, and nobody has
   run the eleven builds that would demonstrate it end to end.

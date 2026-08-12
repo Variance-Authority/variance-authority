@@ -5,14 +5,14 @@ For engineers deciding whether the attribution approach in
 a pitch to adopt anything: [§5](#5-when-not-to-choose-this) names which product to
 buy instead, and for most readers the answer is one of the four.
 
-**Written 2026-08-02.** Vendor pricing and features move; every figure below was
-read from the vendor's own pages on that date and carries a link. Re-verify
-before relying on any of it. A claim that a competitor *lacks* something reads
-"not documented as of 2026-08-02" and cites the page searched — absence from
+**Vendor pricing and features move.** Every figure about a competitor was read
+from that vendor's own pages on 2026-08-02 and carries a link; re-verify before
+relying on any of it. A claim that a competitor *lacks* something reads "not
+documented as of 2026-08-02" and cites the page searched — absence from
 documentation is not absence from a product, and a feature may live at the
 test-runner layer rather than the vendor's. Every number attributed to this
-project carries the file that produces it, is marked **measured** or **claimed**
-accordingly, and was re-checked against the working tree on 2026-08-02.
+project carries the file that produces it and is marked **measured** or
+**claimed** accordingly.
 
 ## The asymmetry, stated first
 
@@ -43,16 +43,16 @@ surface area is not one of them.
 
 | | **Percy** (BrowserStack) | **Chromatic** | **Argos** | **Applitools** | **Variance Authority** |
 |---|---|---|---|---|---|
-| **Integration surface** | 20+ SDKs: Selenium, Playwright, Cypress, Puppeteer, Storybook, Appium; plus no-code URL list, sitemap, static dir, crawler ([SDKs](https://www.browserstack.com/docs/percy/overview/supported-sdks)) | Storybook first-class (stories become tests with no authoring), plus Playwright, Cypress, Vitest ([docs](https://www.chromatic.com/docs/storybook/)) | Playwright, Vitest, Storybook, Cypress, WebdriverIO, Puppeteer, plus a CLI that takes any PNG ([docs](https://argos-ci.com/docs/overview.md)) | 30+ SDKs across five languages, native mobile, Tosca, Katalon ([docs](https://applitools.com/docs/eyes)) | **Three shipped surfaces, and the gap to the left is still wide.** Theirs consume an existing suite's output across 20–30 SDKs. Here there are three, all landed 2026-08-04: a **built or served Storybook** through `@variance-authority/storybook-collector` (five lines of config); a **Playwright suite** through `@variance-authority/playwright-test`, where the test body you already wrote plays the collector's part — `expect(await variance(locator)).toBeUnchanged()`; and a **map of served URLs** through `@variance-authority/route-collector`, which is also the first thing to enter through `subjects.kind: "list"`. Before them, every subject was re-mounted by a collector the operator wrote, and the honest measurement of writing one is 341 lines. For Cypress, WebdriverIO, Appium or a sitemap that is still the cost — and the route collector is **not a crawler**: the URLs are a map the operator writes, because a discovered page is a subject nobody chose. Also built: a library callable inside Vitest/Jest via jsdom. Provenance from React fibers, or from **two `data-*` attributes any build step can emit** ([§3.1](#31-a-diff-that-names-a-component-and-a-file), [surface.md](surface.md)) |
+| **Integration surface** | 20+ SDKs: Selenium, Playwright, Cypress, Puppeteer, Storybook, Appium; plus no-code URL list, sitemap, static dir, crawler ([SDKs](https://www.browserstack.com/docs/percy/overview/supported-sdks)) | Storybook first-class (stories become tests with no authoring), plus Playwright, Cypress, Vitest ([docs](https://www.chromatic.com/docs/storybook/)) | Playwright, Vitest, Storybook, Cypress, WebdriverIO, Puppeteer, plus a CLI that takes any PNG ([docs](https://argos-ci.com/docs/overview.md)) | 30+ SDKs across five languages, native mobile, Tosca, Katalon ([docs](https://applitools.com/docs/eyes)) | **Three shipped surfaces, and the gap to the left is still wide.** Theirs consume an existing suite's output across 20–30 SDKs. Here there are three: a **built or served Storybook** through `@variance-authority/storybook-collector` (five lines of config); a **Playwright suite** through `@variance-authority/playwright-test`, where the test body you already wrote plays the collector's part — `expect(await variance(locator)).toBeUnchanged()`; and a **map of served URLs** through `@variance-authority/route-collector`, which is also the first thing to enter through `subjects.kind: "list"`. Anything outside those three is re-mounted by a collector the operator writes, and the honest measurement of writing one is 341 lines. For Cypress, WebdriverIO, Appium or a sitemap that is the cost — and the route collector is **not a crawler**: the URLs are a map the operator writes, because a discovered page is a subject nobody chose. Also built: a library callable inside Vitest/Jest via jsdom. Provenance from React fibers, or from **two `data-*` attributes any build step can emit** ([§3.1](#31-a-diff-that-names-a-component-and-a-file), [surface.md](surface.md)) |
 | **Where rendering happens** | Vendor. DOM serialized in your browser, re-rendered server-side across browsers/widths, **JS disabled by default** ([workflow](https://www.browserstack.com/docs/percy/integrate/percy-sdk-workflow)) | Vendor "Capture Cloud". Storybook bundle or E2E archive uploaded and re-rendered ([docs](https://www.chromatic.com/docs/snapshots/)) | **Customer CI.** Argos never launches a browser; it receives PNGs and diffs them ([docs](https://argos-ci.com/docs/overview.md)) | Vendor. Ultrafast Grid re-renders a DOM snapshot in containers; mobile is emulated/simulated ([UFG](https://applitools.com/docs/eyes/concepts/test-execution/ultrafast-grid)) | **Customer, everywhere.** jsdom in the unit-test process, or a browser the run owns — Chromium, Firefox or WebKit, chosen per renderer. Optional remote renderer the operator runs |
 | **Cost model** | **Per screenshot** = page × browser × width. Free 5,000/mo; Desktop $199/mo annual → 10,000, overage **$0.036** ([pricing](https://www.browserstack.com/pricing?product=percy)) | **Per billed snapshot** = tests × builds × browsers × modes; TurboSnap = 0.2. Free 5,000/mo; Starter $179/mo → 35,000, overage **$0.008** ([billing](https://www.chromatic.com/docs/billing/)) | **Per screenshot.** Free 5,000/mo; Pro from $100/mo → 35,000, overage **$0.004** ($0.0015 Storybook). SSO priced separately ([pricing](https://argos-ci.com/pricing)) | **Per Page** = a unique checkpoint *regardless of browser, device or version*. No public price at any tier ([pricing](https://applitools.com/pricing/), [ToS](https://applitools.com/terms-of-use/)) | No unit. Compute is the operator's; storage is a directory, git-LFS (**never exercised as git-LFS**, [§4.2](#42-nothing-above-the-cli-boundary-has-been-run)) or a remote endpoint the operator runs. Sized below — estimated, never operated |
-| **Flakiness handling** | Determinism up front — JS off, GIFs frozen, CSS animations frozen ([animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations)) — plus manual suppression. No per-snapshot flake rate, quarantine or retry documented as of 2026-08-02; retries may exist at the test-runner layer instead | SteadySnap: render stabilization, Burst Capture (multiple renders, pick most stable), freeze frame, **auto-migrated baselines across their own browser upgrades** ([SteadySnap](https://www.chromatic.com/features/steadysnap)) | **Diff fingerprints.** An ignore is a (test, diff-shape) pair; auto-ignore after N occurrences in 7 days; flakiness score 0–100 per test; an Ignored register with occurrence counts ([docs](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md)) | Perceptual matching, six match levels, floating/ignore/layout regions, DOM-anchored ignore regions, `MatchTimeout` 2s retry. No cross-run flake score documented as of 2026-08-02 ([match levels](https://applitools.com/docs/eyes/concepts/best-practices/match-levels)) | **No quarantine and no retry, and since 2026-08-10 a flake rate that divides by the runs that asked** ([flakiness.md](flakiness.md#has-this-happened-before)): a changed subject is read twice in one run, an occurrence is recorded with the component and band that moved, and a window reports occurrences, a rate over the sweeps that could have observed one, and how many sweeps have been clean since. Nothing is auto-ignored at any threshold, which is the remaining difference from the cell to the left — still less *mitigation*, now not less *data*. Underneath both is a classification of causes by what absorbs them — construction, environment key, policy, or **nothing** — and [flakiness.md](flakiness.md) names the three currently absorbed by nothing. Cross-pollution is attributed to a named writer rather than suppressed. That is a position, not a mitigation |
+| **Flakiness handling** | Determinism up front — JS off, GIFs frozen, CSS animations frozen ([animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations)) — plus manual suppression. No per-snapshot flake rate, quarantine or retry documented as of 2026-08-02; retries may exist at the test-runner layer instead | SteadySnap: render stabilization, Burst Capture (multiple renders, pick most stable), freeze frame, **auto-migrated baselines across their own browser upgrades** ([SteadySnap](https://www.chromatic.com/features/steadysnap)) | **Diff fingerprints.** An ignore is a (test, diff-shape) pair; auto-ignore after N occurrences in 7 days; flakiness score 0–100 per test; an Ignored register with occurrence counts ([docs](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md)) | Perceptual matching, six match levels, floating/ignore/layout regions, DOM-anchored ignore regions, `MatchTimeout` 2s retry. No cross-run flake score documented as of 2026-08-02 ([match levels](https://applitools.com/docs/eyes/concepts/best-practices/match-levels)) | **No quarantine and no retry, and a flake rate that divides by the runs that asked** ([flakiness.md](flakiness.md#has-this-happened-before)): a changed subject is read twice in one run, an occurrence is recorded with the component and band that moved, and a window reports occurrences, a rate over the sweeps that could have observed one, and how many sweeps have been clean since. Nothing is auto-ignored at any threshold, which is the remaining difference from the cell to the left — less *mitigation*, not less *data*. Underneath both is a classification of causes by what absorbs them — construction, environment key, policy, or **nothing** — and [flakiness.md](flakiness.md) names the three currently absorbed by nothing. Cross-pollution is attributed to a named writer rather than suppressed. That is a position, not a mitigation |
 | **Attribution: does a diff name a component and a file?** | **No.** Root Cause Analysis names the changed element's CSS class, or its tag if it has none. No component, no file, no commit ([RCA](https://www.browserstack.com/docs/percy/root-cause-analysis/overview)) | **Component yes, by construction; file no.** A snapshot *is* a story, so the story title names the component. For a page-level story the answer is "this page moved". `npx chromatic trace` walks the module graph file→story offline — the same category of offline repo lookup this project's own last hop uses, pointed the other way ([trace](https://www.chromatic.com/docs/turbosnap/trace-utility/)) | **No.** Metadata carries the *test spec's* file and line (`tests/home.spec.ts:42:3`) and the Storybook story id. No component field and no map from a diff to product code in the documented metadata ([metadata](https://argos-ci.com/docs/reference/screenshot-metadata.md)) | **No.** RCA names DOM elements and changed CSS properties with a DOM path. GitHub status Details links go to the Test Manager, not to source ([RCA](https://applitools.com/docs/eyes/concepts/reviewing-tests/root-cause-analysis)) | **Yes, measured on one corpus**: pixels → regions → components → `file:line`, ranked from the semantic tier. Two provenance adapters — React fibers, and 25 lines reading `data-component`/`data-props`, which is what a Vue or Svelte build step already emits. The `cause`/`collateral` ranking rests on one mutation, one story, one self-authored example app, one machine ([§3.1](#31-a-diff-that-names-a-component-and-a-file)) |
-| **Review and approval** | Dashboard approval persisting across a branch's lifespan, snapshot rules that persist to future branches, **unlimited users on every tier including Free** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | UI Test and UI Review as separate checks, assigned and persistent default reviewers, threaded discussion anchored to an individual snapshot, no repo access required for designers ([review](https://www.chromatic.com/docs/review/)) | Multiple independent reviewers, comments pinned to an exact pixel or line range, a full keyboard path, per-test discussion threads ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Triage grouped by the *shape* of the diff, one accept propagating across the batch ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)) | **The axis this loses hardest, and the one these products are bought for.** `variance accept` writes a sidecar beside an image and explicitly refuses to record history ([§4.1](#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be)). No UI, no reviewer model, no discussion, no merge semantics for two branches accepting differently — and it has never been run |
-| **Accumulated history** | Approval persists across a branch's lifespan; snapshot rules persist; 30-day (Free) / 12-month (paid) build history. **No longitudinal per-snapshot metric** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | Per-branch baselines with branch-point inheritance, squash/rebase detection via git provider APIs, browsable baseline revision history. Retention unpublished below Enterprise ([branching](https://www.chromatic.com/docs/branching-and-baselines/)) | **The strongest in the category.** Per-test flakiness over 24h–90d windows, changes grouped by fingerprint and ranked by recurrence, first/last seen, per-test discussion threads, account analytics with CSV ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Baselines keyed by app × test × OS × browser × viewport, with revision history, branch baselines and a merge UI; Insights charts. 1-year retention stated on Public Cloud only ([baselines](https://applitools.com/docs/eyes/getting-started/applitools-workflow/baselines)) | Per-component band hashes and instability occurrences, append-only, no pixels. **A run writes rows now**, and the flake half is answered: occurrences, a rate over sweeps, first and last seen, and sweeps-since. The drift half is not: no run resolves a token, and nothing records acceptance — see [§4.1](#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be) |
+| **Review and approval** | Dashboard approval persisting across a branch's lifespan, snapshot rules that persist to future branches, **unlimited users on every tier including Free** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | UI Test and UI Review as separate checks, assigned and persistent default reviewers, threaded discussion anchored to an individual snapshot, no repo access required for designers ([review](https://www.chromatic.com/docs/review/)) | Multiple independent reviewers, comments pinned to an exact pixel or line range, a full keyboard path, per-test discussion threads ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Triage grouped by the *shape* of the diff, one accept propagating across the batch ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)) | **The axis this loses hardest, and the one these products are bought for.** `variance accept` writes a sidecar beside an image and explicitly refuses to record history ([§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be)). No UI, no reviewer model, no discussion, no merge semantics for two branches accepting differently — and it has never been run |
+| **Accumulated history** | Approval persists across a branch's lifespan; snapshot rules persist; 30-day (Free) / 12-month (paid) build history. **No longitudinal per-snapshot metric** ([approval](https://www.browserstack.com/docs/percy/visual-testing-workflows/view-percy-build-results/approval)) | Per-branch baselines with branch-point inheritance, squash/rebase detection via git provider APIs, browsable baseline revision history. Retention unpublished below Enterprise ([branching](https://www.chromatic.com/docs/branching-and-baselines/)) | **The strongest in the category.** Per-test flakiness over 24h–90d windows, changes grouped by fingerprint and ranked by recurrence, first/last seen, per-test discussion threads, account analytics with CSV ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)) | Baselines keyed by app × test × OS × browser × viewport, with revision history, branch baselines and a merge UI; Insights charts. 1-year retention stated on Public Cloud only ([baselines](https://applitools.com/docs/eyes/getting-started/applitools-workflow/baselines)) | Per-component band hashes and instability occurrences, append-only, no pixels. **A run writes rows now**, and the flake half is answered: occurrences, a rate over sweeps, first and last seen, and sweeps-since. The drift half is not: no run resolves a token, and nothing records acceptance — see [§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be) |
 | **Self-hosting** | **None, and the architecture forecloses it** — the SDK's function is to ship your DOM to Percy's API. "Automate Self-Hosted" is a different product | **None.** "On-premises" in their docs means self-hosted *git providers* ([FAQ](https://www.chromatic.com/docs/faq/chromatic-sso-on-premises-other-git/)) | MIT-licensed in full, **and the vendor states self-hosting "is not officially supported or documented"** — needs Postgres, RabbitMQ, Redis, S3, DynamoDB, a GitHub App and Stripe ([docs](https://argos-ci.com/docs/overview.md)) | **Yes** — on-premise Eyes server, images stored locally; also private dedicated cloud ([modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes), ~7 years old). Scoped to Eyes, not Autonomous | Nothing hosted exists, so nothing has to be opted out of: no telemetry, no phone-home, one outbound call to a renderer endpoint the operator supplies. That is not the same as a self-hosting *story* — **no license** (see the table above), no install path, no upgrade path, no backup story, and the history service is one SQLite file behind a bearer token with no concurrency test ([§4.5](#45-targets-never-measured-and-limits-never-tested)) |
 | **Data residency** | Geo Region Restriction, **Enterprise plan only, via an Account Executive**; metadata such as test names stays in the default region regardless ([GRR](https://www.browserstack.com/docs/enterprise/security/geo-region-restriction)) | **Undocumented publicly.** No stated provider, region, or EU option; SOC 2 Type 2 and 99.9% SLA are stated ([security](https://www.chromatic.com/security)) | **US only.** S3 in the US under Standard Contractual Clauses; no documented EU option. SOC 2 Type II ([security](https://argos-ci.com/security)) | Customer-selectable data-centre location including EU on Azure or customer premises; ISO 27001. GDPR page last updated May 2021 ([GDPR](https://applitools.com/legal/gdpr/)) | The operator's network, and the operator's compliance work. Nothing leaves that network, but that is the operator's claim about their own infrastructure, not an attestation: no SOC 2, no ISO 27001, no DPA, no retention policy, no deletion path, no pen test, no auditor has ever read this code. Residency becomes a question about the operator rather than an answer ([§5](#5-when-not-to-choose-this)) |
-| **Maturity** | Mature, broad, backed by BrowserStack | Mature; built by the Storybook maintainers | Mature enough to run production suites; small team, key-person concentration | Mature, enterprise sales motion, some docs 7–8 years old | **M0 spike.** 84 test files, 2170 passing / 60 skipped (read 2026-08-03; the row said 76 and 1729 and had gone stale, and the skip count is the number that moved most — the browser-gated halves collapse to named skips on a machine with no Chromium). Zero external users. Nothing published, nothing licensed. A test count is a poor maturity metric here and [§4](#4-what-is-written-and-unrun) says why |
+| **Maturity** | Mature, broad, backed by BrowserStack | Mature; built by the Storybook maintainers | Mature enough to run production suites; small team, key-person concentration | Mature, enterprise sales motion, some docs 7–8 years old | **M0 spike.** 144 test files, 1876 passing / 48 skipped under `yarn test`, plus 1890 repository checks under `yarn check`. The skips are the browser-gated halves, which collapse to named skips on a machine with no Chromium. Zero external users. Nothing published, nothing licensed. A test count is a poor maturity metric here and [§4](#4-what-is-written-and-unrun) says why |
 
 ### The one commercial fact worth isolating
 
@@ -125,8 +125,8 @@ comparison: a known $283/mo against an unknown engineering commitment.
   ([animations](https://www.browserstack.com/docs/percy/stabilize-screenshots/animations)).
   Percy can disable JavaScript because it re-renders from a serialized DOM; here
   the page is the adopter's own and its JavaScript is the subject, which is the
-  one item on this list that is a position rather than a gap. The rest closed on
-  2026-08-06 ([stabilization.md](stabilization.md)): CSS animations and
+  one item on this list that is a position rather than a gap. The rest are
+  answered ([stabilization.md](stabilization.md)): CSS animations and
   transitions are pinned before the subject is *read* rather than only before it
   is painted, and GIFs are frozen **on the wire** — the response truncated to its
   first frame before the browser decodes it, which needs no canvas and therefore
@@ -204,17 +204,16 @@ comparison: a known $283/mo against an unknown engineering commitment.
   Ignored register that reports how many builds each ignore has absorbed so an
   ignore that outlived its flake does not stay a blind spot
   ([test page](https://argos-ci.com/docs/learn/reliability-and-flakiness/test-page.md)).
-  This project groups a run's diffs into distinct changes since 2026-08-06 —
-  same idea, ranked by how much of the review one action finishes rather than by
-  recurrence — but the *longitudinal* half is the whole point of theirs and this
+  This project groups a run's diffs into distinct changes — same idea, ranked by
+  how much of the review one action finishes rather than by recurrence — but the *longitudinal* half is the whole point of theirs and this
   has an accumulation design and no accumulated data. One run's grouping is not
   a flakiness score.
 - **Fingerprint-scoped ignores, in production.** An ignore is a (test,
   diff-shape) pair, not a muted screenshot and not a masked coordinate region, so
   silencing a known flake does not blind the suite to a different regression in
   the same image. The implementation is public
-  ([mask-fingerprint](https://github.com/argos-ci/mask-fingerprint)). Since
-  2026-08-05 this project has the same idea — [`ignores.md`](ignores.md),
+  ([mask-fingerprint](https://github.com/argos-ci/mask-fingerprint)). This
+  project has the same idea — [`ignores.md`](ignores.md),
   [ADR-0025](context/adr/0025-an-ignore-names-a-place-or-a-shape.md) — with the
   semantic fingerprint additionally carrying the component responsible, so a
   flake silenced in `Avatar` is not silenced in `Badge`. What Argos still has and
@@ -258,18 +257,18 @@ comparison: a known $283/mo against an unknown engineering commitment.
   region, plus floating regions and ignore-displacements — and dashboard-created
   ignore regions bind to the underlying DOM element so they survive layout shifts
   ([advanced usage](https://applitools.com/docs/eyes/playwright/advanced-usage)).
-  The nearest thing here is `sensitivity`, which landed 2026-08-06 and is a
-  narrower idea deliberately: three levels, declared per subject with a required
+  The nearest thing here is `sensitivity`, a narrower idea deliberately: three
+  levels, declared per subject with a required
   reason and a register that names a rule absorbing nothing. Applitools has more
   controls and applies them per region; this has fewer and can say, six months
   later, which of them stopped being needed.
 - **Triage that scales by grouping.** Steps are clustered by the *shape* of their
   diff regions and one accept propagates across the batch
   ([maintenance](https://applitools.com/docs/eyes/concepts/reviewing-tests/test-maintenance)).
-  Since 2026-08-05 `variance accept --shape <fingerprint>` does the same thing
-  from a command line, and refuses by name any subject where something else also
-  moved. The *clustering* landed 2026-08-06: a run's changes are grouped into
-  distinct changes ranked by how much of the review one action would finish, in
+  `variance accept --shape <fingerprint>` does the same thing from a command
+  line, and refuses by name any subject where something else also moved. The
+  clustering half is there too: a run's changes are grouped into distinct changes
+  ranked by how much of the review one action would finish, in
   the PR comment and as `variance_changes` for an agent. Applitools clusters by
   the shape of the diff regions; this clusters by a fingerprint that also carries
   the component responsible, so the same-looking change in `Avatar` and in
@@ -322,13 +321,12 @@ already walks that module graph. The gap opens on page-level and E2E subjects,
 where every competitor's answer collapses to "this page moved", and on the
 cause/collateral split, which none of them attempt at all.
 
-The cause/collateral split is also where this project's own reporting was wrong
-until 2026-08-02, which is worth stating because it is the claim being made. A
-`prop` root — `Panel → Button`, meaning `Panel` passed something new — was
-labelled correctly on the docket entry and then attributed to `Button` in the
-per-component roles the report actually prints. A reviewer following it opened a
-file nobody had edited. `Root.cause` now records the responsible component;
-`packages/dom/src/attributed.test.ts` asserts the distinction.
+The cause/collateral split is easy to get wrong one layer below the claim, so it
+is worth naming the trap. A `prop` root — `Panel → Button`, meaning `Panel`
+passed something new — can be labelled correctly on the docket entry and then
+attributed to `Button` in the per-component roles the report prints, sending a
+reviewer into a file nobody edited. `Root.cause` records the responsible
+component, and `packages/dom/src/attributed.test.ts` asserts the distinction.
 
 **Measured.** `examples/todomvc/src/observe.chromium.test.ts` (10 tests) takes a
 real Chromium screenshot pair through mask → regions → box tree → owner chain →
@@ -406,10 +404,10 @@ Supporting measurements:
   aggregates roots by stable root id and is tested on constructed diffs at
   **3 subjects** (`packages/core/src/judge/docket.test.ts`, 12 tests). "One token, 300
   collateral, one action" is demonstrated at 3, not 300.
-- **No Vue, Svelte or Angular application has been run through this.** What was
-  written here until 2026-08-02 was stronger and wrong: "provenance is
-  React-only", stated as a property of the approach. It was a count of
-  implementations. `collect()` takes `provenanceOf` as a caller-supplied
+- **No Vue, Svelte or Angular application has been run through this.** That is a
+  count of implementations rather than a property of the approach, and the two
+  are worth keeping apart: "provenance is React-only" would be the stronger claim
+  and it is false. `collect()` takes `provenanceOf` as a caller-supplied
   callback, and attribution needs a renderer to supply exactly two things — a
   component name per element and a digest of what was passed in.
   `packages/dom/src/attributed.ts` is the second implementation and reads them
@@ -438,7 +436,7 @@ The position taken here is that each cause of variance gets absorbed by
 feel unmanageable. The full table, including the rows where this loses, is in
 [`docs/flakiness.md`](flakiness.md).
 
-Since 2026-08-05 the *policy* row has a mechanism rather than only a name:
+The *policy* row has a mechanism rather than only a name:
 [ignores](ignores.md) scope to a subtree or to a difference shape, never to a
 coordinate, and every run reports what each rule absorbed and names the rules
 that absorbed nothing ([ADR-0025](context/adr/0025-an-ignore-names-a-place-or-a-shape.md),
@@ -642,7 +640,7 @@ which could hold a token value. The missing piece is the capture, not the key.)
 
 Whether the *sum* of individually-correct approvals is a defect a team actually
 suffers is an argument, not a finding. Nobody has reported it to this project,
-and [§4.1](#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be) records that the pipeline
+and [§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be) records that the pipeline
 has never produced the example once.
 
 **Built and unit-tested.** `packages/history/` (1,719 lines of implementation plus
@@ -662,12 +660,12 @@ version refusal, and two branches recording different hashes for one key both
 persisting with no merge.
 
 **Not measured, and this is the largest gap in the project.** See
-[§4.1](#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be).
+[§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be).
 
 ### 3.6 A second engine costs a second paint, not a second run
 
-**Measured 2026-08-04**, in `packages/playwright/src/engines.chromium.test.ts`,
-against a real WebKit build.
+**Measured** in `packages/playwright/src/engines.chromium.test.ts`, against a
+real WebKit build.
 
 The category prices coverage by multiplication, and both leaders say so in their
 own words: Percy's pricing FAQ works "two pages rendered across two browsers and
@@ -701,9 +699,9 @@ wrapped paragraph:
 | chromium vs webkit | 352×77 both | **630** |
 | firefox vs webkit | 352×77 both | **1288** |
 
-That is the first evidence in this repository that a baseline is genuinely
-engine-bound rather than assumed to be. Every previous number came from one
-engine, so the refusal was ceremony until now.
+That is evidence that a baseline is genuinely engine-bound rather than assumed
+to be, which is what a cross-engine refusal has to rest on to be more than
+ceremony.
 
 **And the row that is worth more than the counts: the dimensions are identical in
 all three.** Three engines agreed on the box to the pixel and disagreed only on
@@ -718,9 +716,9 @@ first time.
 recipe was written against Chromium's behaviour and none has been asked to hold
 Firefox or WebKit still. There is no Edge, no mobile emulation, no real device,
 and no cross-engine run over the corpus — one document, one machine, once. A
-buyer who needs a matrix they can *try* still has four better answers; what
-changed is that the matrix is no longer structurally absent, and that `variance
-run` reaches it through a config field rather than only a library call.
+buyer who needs a matrix they can *try* still has four better answers. What the
+measurement buys is narrower: the matrix is not structurally absent, and
+`variance run` reaches it through a config field rather than only a library call.
 
 ### 3.5 What a comparison cannot reach
 
@@ -814,7 +812,7 @@ against ground truth declared before the pipeline existed. The rest — docket,
 region, impact, raster phases, stores, sessions, history, the history service,
 MCP — is tested against constructed inputs, fakes and fixtures. That is a weaker
 claim and it is treated as one throughout this section:
-[§4.1](#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be) says spec 0002's acceptances
+[§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be) says spec 0002's acceptances
 are met "against hand-constructed rows", `store-lfs.test.ts` injects a fake
 `CommandRunner` in every test but one, and `buildDocket` is exercised at 3
 subjects.
@@ -822,47 +820,35 @@ subjects.
 Everything **at and above** the CLI boundary is written and has never been run
 against anything real.
 
-**Corrected 2026-08-03.** When this section was written the repository's own
-prose did not say so — `README.md` still stated there was no CLI and no history
-while ~16k lines implementing both had landed in commits `e76bf0f`, `9be72b3`,
-`de7e8db`, `673c4a7`, `2e683d3` and `66f4662`, and every file in `docs/specs/`
-still carried one undifferentiated status. That is fixed: there are nine specs
-carrying four distinct statuses, the `Status` column in
-[`docs/specs/README.md`](specs/README.md) says which is which, and the string
-"specified, not built" appears nowhere. The finding this section makes — written
-is not run — survives the correction, and §4.1 onward is where it is evidenced.
+*Written* and *run* are two statuses, and a document that carries one column for
+both will report a shipped subsystem as unbuilt. Nine specs carry four distinct
+statuses and the `Status` column in [`docs/specs/README.md`](specs/README.md)
+says which is which. §4.1 onward is where the distinction is evidenced.
 
-### 4.1 A history row is written now, and the 22px story still cannot be
+### 4.1 A history row is written, and the 22px story still cannot be
 
-**Corrected 2026-08-10.** This section read "nothing has ever recorded a history
-row", and that stopped being true: `variance run` records its run, the component
-hashes that moved and every subject that read differently from itself, then asks
-how often that has happened before
+`variance run` records its run, the component hashes that moved and every subject
+that read differently from itself, then asks how often that has happened before
 ([`flakiness.md`](flakiness.md#has-this-happened-before)). The wire between the
-hashing tier and the storage tier exists and carries traffic.
-
-What has **not** changed is the claim this section was written to make, and it is
-worth stating precisely rather than deleting:
+hashing tier and the storage tier exists and carries traffic. What that does not
+buy is the claim this section is here to make:
 
 - **The 22px story in [§3.4](#34-accumulation-as-text-not-pixels) is produced by
-  the pipeline and has never been *run*.** Since 2026-08-10 a run records the
-  tokens it resolved, `variance accept` records the approval, and a run whose token
-  moved asks for its journey and prints the total under a `DRIFT:` heading. What
-  has not happened is eleven runs and eleven approvals against a real project.
-- **`churn` and `reach` have rows and no caller.** Acceptance is recorded now —
-  `variance accept` writes an approval per `(subject, run)`, so the rows a run
-  wrote can be counted as approved — but nothing in the product asks the
-  questions those rows answer.
+  the pipeline and has never been *run*.** A run records the tokens it resolved,
+  `variance accept` records the approval, and a run whose token moved asks for its
+  journey and prints the total under a `DRIFT:` heading. What has not happened is
+  eleven runs and eleven approvals against a real project.
+- **`churn` and `reach` have rows and no caller.** `variance accept` writes an
+  approval per `(subject, run)`, so the rows a run wrote can be counted as
+  approved — but nothing in the product asks the questions those rows answer.
 
-So one of spec 0002's five acceptance criteria is now met against real rows and
-four remain met only against hand-constructed ones.
+One of spec 0002's five acceptance criteria is met against real rows; four are
+met only against hand-constructed ones.
 
 ### 4.2 Nothing above the CLI boundary has been run
 
-- **`variance run` now completes against a real project. Corrected 2026-08-02.**
-  This entry previously read "no `variance run` has ever completed against a real
-  project", and that is no longer true: `cases/storybook-case` carries a
-  `variance.config.json`, a collector the operator writes
+- **`variance run` completes against a real project.** `cases/storybook-case`
+  carries a `variance.config.json`, a collector the operator writes
   (`cases/storybook-case/collector/`), and
   `cases/storybook-case/src/cli.chromium.test.js`, which spawns the binary over a
   Storybook built by Storybook and asserts the whole cycle —
@@ -921,22 +907,17 @@ operator writes*, named in the config rather than discovered. That seam is
 unchanged and is still the whole extension mechanism: no registry, no download,
 no plugin protocol.
 
-**This section has been corrected twice, in opposite directions, and both
-corrections are the point.**
+**Two numbers measure that seam, and the gap between them is the finding.**
+Writing a collector by hand costs **341 lines** across three files, 234 of them
+in the module the config names — the worked example is
+`cases/storybook-case/collector/`, and it says an estimate of "about thirty
+lines" is optimistic by 8×. Against the same end-to-end run in
+[§4.2](#42-nothing-above-the-cli-boundary-has-been-run), the same case is **five
+lines** through
+[`@variance-authority/storybook-collector`](../packages/storybook-collector),
+which ships the Storybook half. So 341 is the cost **where none is shipped**.
 
-*2026-08-02.* It read "there is no shipped collector" and one existed as a worked
-example: `cases/storybook-case/collector/`, 341 lines across three files, 234 of
-them in the module the config names. So "an operator writes about thirty lines"
-became a claim with a file behind it, and the file said the estimate had been
-optimistic by 8×.
-
-*2026-08-04.* The 341 is now the cost of writing one **where none is shipped**.
-[`@variance-authority/storybook-collector`](../packages/storybook-collector) ships
-the Storybook half, and the same case is five lines of code against the same
-end-to-end run in [§4.2](#42-nothing-above-the-cli-boundary-has-been-run) — a
-test written against the hand-written collector, not touched, and passing.
-
-What the 341 measured, in hindsight, was a boundary drawn one step too far out.
+What the 341 measures is a boundary drawn one step too far out.
 A story index is a documented artifact and a preview owns its own mount, so
 serving the build, injecting the page bundle, driving the channel, acquiring a
 document and a capture from one mount and normalizing were **Storybook's own
@@ -944,8 +925,8 @@ contract being re-typed**, not knowledge the project held. Of those 341 lines th
 project-specific residue was a map of three ready selectors and one source
 directory, and that is exactly what the five lines still carry.
 
-What has not changed is what a buyer comparing integration surfaces should
-conclude for anything else. Percy ships 20+ SDKs across Selenium, Cypress,
+What a buyer comparing integration surfaces should conclude for anything else is
+unaffected. Percy ships 20+ SDKs across Selenium, Cypress,
 Puppeteer, Appium and a no-code crawler; Argos takes any PNG from a CLI. Here
 there are two entry surfaces that need no collector — a built Storybook, and a
 Playwright suite through
@@ -955,10 +936,9 @@ half is still theirs to write, once, per project. Two is not twenty.
 
 ### 4.4 The Storybook adapter and the CLI have both met a Storybook
 
-**Corrected 2026-08-02, after `cases/storybook-case` landed.** This section
-previously read "has never met a Storybook", and that is no longer true: Storybook
-is installed in the repository, `storybook build` produces `storybook-static/`,
-and `cases/storybook-case/src/storybook.chromium.test.js` drives the real preview
+Storybook is installed in the repository, `storybook build` produces
+`storybook-static/`, and
+`cases/storybook-case/src/storybook.chromium.test.js` drives the real preview
 against the `index.json` Storybook itself wrote. It also produced a finding the
 fixtures could not — the readiness gap, reproducibly: captured on Storybook's own
 `storyRendered` the deferred story is `loading…`, and captured on a declared
@@ -1015,11 +995,11 @@ products above is the better answer, and in most cases it is not close.
 |---|---|---|
 | **Something is needed this quarter** | Nothing above the CLI boundary has been run once. Adopting this means finishing it | Any of the four |
 | **The frontend is not React, and nobody will add a build plugin** | Provenance needs a name per element. React gets it from fiber traversal; anything else gets it from two `data-*` attributes, which is a build-step change somebody has to make and own. Without either, diffs resolve to a DOM path — what every competitor already gives, with support. On React the traversal reads unversioned internals verified only against **19.2.8**; ADR-0005 names three internal contracts, and the third fails *silently*, returning props digests one render stale. A React upgrade is a re-verification event, not a version bump | Argos, Chromatic |
-| **Cross-browser or cross-device coverage is the requirement** | Chromium, Firefox and WebKit all run as of 2026-08-04, from a `browser` config field, measured pairwise in `packages/playwright/src/engines.chromium.test.ts`. But: no Edge, no mobile, no real devices, no cross-engine run over the corpus, and no stabilization trick verified outside Chromium. One document is not a matrix | Applitools (one Page covers the matrix), Percy, Chromatic |
+| **Cross-browser or cross-device coverage is the requirement** | Chromium, Firefox and WebKit all run, from a `browser` config field, measured pairwise in `packages/playwright/src/engines.chromium.test.ts`. But: no Edge, no mobile, no real devices, no cross-engine run over the corpus, and no stabilization trick verified outside Chromium. One document is not a matrix | Applitools (one Page covers the matrix), Percy, Chromatic |
 | **Non-engineers must review** | There is a JSON report and seven MCP tools. No dashboard, no approval UI, no threaded discussion, no invite flow | Chromatic (UI Review), Percy, Applitools |
 | **Cost predictability matters more than cost structure** | There is no unit and no bill, but also no ceiling on the engineering time to operate a spike. A published $0.004/screenshot with a spend cap is a more predictable number than "your own infrastructure" | Argos |
-| **Longitudinal flake data is needed now, with a UI on it** | Recurrence over a window ships here as of 2026-08-10, keyed on the component and band that moved rather than on a diff shape, and it needs a service you deploy. What Argos has and this does not is the surface: a per-test page, a browsable ignore register, and auto-ignore at a threshold — plus the operational history of running it at scale ([§4.1](#41-a-history-row-is-written-now-and-the-22px-story-still-cannot-be)) | Argos |
-| **Storybook is the test surface and coverage should be automatic** | Coverage *is* automatic as of 2026-08-04: the collector is shipped and the operator writes five lines ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)). What Chromatic still has and this does not is everything after the verdict — a review UI, assigned reviewers, threaded discussion on a snapshot, and the fact that they maintain Storybook itself | Chromatic |
+| **Longitudinal flake data is needed now, with a UI on it** | Recurrence over a window ships here, keyed on the component and band that moved rather than on a diff shape, and it needs a service you deploy. What Argos has and this does not is the surface: a per-test page, a browsable ignore register, and auto-ignore at a threshold — plus the operational history of running it at scale ([§4.1](#41-a-history-row-is-written-and-the-22px-story-still-cannot-be)) | Argos |
+| **Storybook is the test surface and coverage should be automatic** | Coverage *is* automatic: the collector is shipped and the operator writes five lines ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)). What Chromatic still has and this does not is everything after the verdict — a review UI, assigned reviewers, threaded discussion on a snapshot, and the fact that they maintain Storybook itself | Chromatic |
 | **The content under test is canvas, WebGL, video, or heavy third-party iframes** | The bitmap lives in a rendering context, not the document. This is structural, not a missing feature | A pixel differ — any of them |
 | **Regulated data with a contractual residency requirement, plus a vendor to sign it** | Self-hosting solves the residency problem and creates a supplier-risk problem: the supplier is a spike with no support commitment | Applitools (real on-premise), or Percy Enterprise GRR |
 | **A team that will not maintain its own tooling** | Every property in [§3](#3-where-this-project-is-genuinely-different) is bought with operator effort that the SaaS products absorb | Any of the four |
@@ -1043,22 +1023,11 @@ the evidence supports:
 still has nowhere to go: the packages are MIT and publishable, but no tag has
 ever been pushed, so nothing has reached a registry and there is no version of
 this to install ([spec 0015](specs/0015-the-first-published-release.md)).
-Outside the three surfaces that landed 2026-08-04 — a built or served
-Storybook, a map of served URLs, a Playwright suite — the collector that mounts
+Outside the three shipped surfaces — a built or served Storybook, a map of
+served URLs, a Playwright suite — the collector that mounts
 an adopter's own components is theirs to write
 ([§4.3](#43-there-is-one-shipped-collector-and-it-is-storybooks)). Nobody can
 trial this against their own codebase today.
-
-**Corrected 2026-08-03.** This paragraph also claimed the CLI had never completed
-a run and that the repository contained no `variance.config.json`, both of which
-[§4.2](#42-nothing-above-the-cli-boundary-has-been-run) had already refuted
-higher up the same document — `cases/storybook-case/variance.config.json` is
-tracked and the cycle runs. It named `packages/core/src/compare/diff/` as
-`packages/core/src/diff/`, a directory that does not exist. Three errors in one
-paragraph, none caught by `tools/docs-links.check.ts`, because a stale
-*negative* resolves no link and a directory carries no extension for the path
-rule to check. Written-and-unrun sections rot in the one direction the gate
-cannot see: they stay pessimistic after the work lands.
 
 The realistic first move is to read `packages/core/src/compare/diff/` and
 `packages/core/src/attribute/source.ts` and decide whether the approach is worth

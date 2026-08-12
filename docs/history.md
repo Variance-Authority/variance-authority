@@ -28,12 +28,12 @@ describes a state that no longer exists by the time it lands. A store of
 observations has no merges to resolve: two branches observing different hashes
 for one key are two rows, and the query selects the lineage.
 
-It stores **no pixels**, ever. Not squeamishness about size — a measurement. The
-first version of this accumulated changed-pixel counts and was killed inside an
-hour by a 1px edit to a spacing token that produced 4949 changed pixels, because
-the count is dominated by how much page sits below the edit. A pixel count
-measures *displacement* rather than magnitude, and it is machine-bound on top of
-that. A content hash has neither problem.
+It stores **no pixels**, ever. Not squeamishness about size — a measurement. A
+1px edit to a spacing token produces 4949 changed pixels, because the count is
+dominated by how much page sits below the edit. A pixel count measures
+*displacement* rather than magnitude, and it is machine-bound on top of that. A
+content hash has neither problem, which is why accumulating one is worth doing
+and accumulating the other is not.
 
 ## Turning it on
 
@@ -166,13 +166,12 @@ are worth knowing up front.
 appearing* is a question about the suite rather than about a run, so it does not
 fit the shape everything else here uses — the run asks, the report carries.
 
-Half of it stopped being a vacancy on 2026-08-12: *where does this component
-appear* is now answered for one commit, by the suite comparing itself against
-itself rather than against a store ([`composition.md`](composition.md)). What is
-still missing is the word *started* — a delta needs two of those graphs, and
-nothing writes one to the record. The shape is there now, which makes this a
-smaller job than it was: a component census is a list of names and subject
-counts, and comparing two of them is set arithmetic.
+Half of it is answered elsewhere: *where does this component appear* is a
+question about one commit, and the suite compares itself against itself to
+answer it ([`composition.md`](composition.md)). What is missing is the word
+*started* — a delta needs two of those graphs, and nothing writes one to the
+record. It is a small job from here: a component census is a list of names and
+subject counts, and comparing two of them is set arithmetic.
 
 **The eleven-step journey above has never been produced against a real
 project.** Every part of it exists and each part is tested; what has not happened

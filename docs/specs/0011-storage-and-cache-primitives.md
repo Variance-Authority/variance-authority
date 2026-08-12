@@ -2,8 +2,8 @@
 
 **Missing:** three seams — a reduction, a baseline layout, and a lens. Plus one
 thing that must *not* be built, recorded here so nobody builds it. A fourth — a
-render cache that is not the baseline store — was built on 2026-08-04 and is kept
-below as item 1, because what it cost is the useful part.
+render cache that is not the baseline store — is built, and is kept below as
+item 1 because what it cost is the useful part.
 **Built on:** [ADR-0003](../context/adr/0003-cruft-removal-and-css-applicability.md)
 (pruning), [ADR-0007](../context/adr/0007-subject-boundary-is-the-component-tree.md)
 (boundaries), [ADR-0011](../context/adr/0011-durable-and-ephemeral-retention.md)
@@ -414,41 +414,38 @@ into with the consequence written down, and not the default.
 
 In this order, because each unblocks the next.
 
-0. ~~**`missingFonts` on `Described`.**~~ **Done, 2026-08-04.** `Described` carries
-   a fourth field, every backend supplies it out of a sidecar it was already
+0. ~~**`missingFonts` on `Described`.**~~ **Discharged.** `Described` carries a
+   fourth field, every backend supplies it out of a sidecar it was already
    reading, `settle` takes a `Described`, and the durable path calls `describe`.
-   A run in which nothing moved now reads **no baseline image at all**, which is
-   asserted rather than described — the settled-path test counts image reads and
-   expects zero. Two things were learnt that the estimate did not contain. The
-   full lookup had to move *into* `images`, behind the verdict check, because
-   once settling stopped reading images there was no `Found` left to reuse and
-   reinstating one for every subject would have given the saving straight back;
-   only a `changed` subject, which is about to write a diff anyway, now reads a
-   baseline. And the wire had to **refuse** an absent `missingFonts` rather than
-   default it to `[]`, because absent and empty are not the same claim: empty is
-   a verdict that no font was substituted, and a codec that invents it is the
-   `stabilization` failure again. The compiler catches a dropped field; only the
-   parity suite catches a hardcoded one, so it has a case for that.
-1. ~~**Split `RenderCache` out of `RasterStore`**~~ **Done, 2026-08-04.**
+   A run in which nothing moved reads **no baseline image at all**, asserted
+   rather than described — the settled-path test counts image reads and expects
+   zero. Two constraints are load-bearing and easy to lose. The full lookup sits
+   *inside* `images`, behind the verdict check, because a settling path that
+   reads no images leaves no `Found` to reuse, and reinstating one per subject
+   gives the saving straight back; only a `changed` subject, which is about to
+   write a diff anyway, reads a baseline. And the wire **refuses** an absent
+   `missingFonts` rather than defaulting it to `[]`, because absent and empty are
+   not the same claim: empty is a verdict that no font was substituted, and a
+   codec that invents it is the `stabilization` failure again. The compiler
+   catches a dropped field; only the parity suite catches a hardcoded one, so it
+   has a case for that.
+1. ~~**Split `RenderCache` out of `RasterStore`**~~ **Discharged.**
    `RasterStore` has a `renderCache` property instead of two methods, `neverFails`
    holds an implementation to the rule at construction, and the parity suite has
    the cache-loss case: all four backends answer a miss and resolve a write with
    a cache that fails both ways, while still serving a real hit.
 
-   Three things came out of it that the item did not predict. The two tests that
-   pinned the *old* rule had written its argument down — *"a store that decides
-   for itself which failures are survivable has two rules"* — and that is exactly
-   the claim the split refutes: there are two rules because there are two objects,
-   and the fix is to put the rule in a type rather than in each backend's
-   judgement. Both now assert the same damage getting two answers from one store,
-   which is a better test than either was. Second, git-LFS's pointer refusal
-   becomes a *miss* on the cache path, which is right rather than a weakening: a
-   cached entry that is 130 bytes of pointer is not an image, and re-rendering
-   gets the run correct where returning it would compare against text. Third,
-   `renderCached` was deleted rather than ported. It had no caller outside its own
-   tests, and it carried the identity bug that `observe`'s `renderOnce` was written
-   to fix — reading under `renderer.identity` and writing under the raster's, so
-   above 1x the cache could never hit its own write.
+   Three consequences are worth carrying forward. *"A store that decides for
+   itself which failures are survivable has two rules"* is the argument for the
+   split rather than against it: there are two rules because there are two
+   objects, and the rule belongs in a type rather than in each backend's
+   judgement. Second, git-LFS's pointer refusal is a *miss* on the cache path,
+   which is right rather than a weakening — a cached entry that is 130 bytes of
+   pointer is not an image, and re-rendering gets the run correct where returning
+   it would compare against text. Third, there is no `renderCached`: it has no
+   caller outside its own tests and it carries the identity bug `observe`'s
+   `renderOnce` exists to fix — reading under `renderer.identity` and writing
+   under the raster's, so above 1x the cache can never hit its own write.
 2. **`BaselineLayout` as a value**, with the identity partition applied by the
    store. Contained in `@variance-authority/store`; the existing path becomes the
    default layout and nothing moves on disk.

@@ -311,7 +311,6 @@ the engine is part of the identity a baseline is stored under, so two engines ar
 two runs with two sets of baselines. Switching it is safe by construction — a run
 under a new engine finds nothing under its key and reports every subject `new`,
 loudly, instead of diffing two engines and blaming a component for a font stack.
-The binary launched Chromium unconditionally until 2026-08-04.
 `retention: "ephemeral"` needs no baselines at all — both images are produced by
 this run.
 

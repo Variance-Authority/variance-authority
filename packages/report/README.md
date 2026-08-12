@@ -14,9 +14,9 @@ It has several readers. The CLI writes it, a PR comment renders it, the MCP tool
 read it, and none of those is the format's home — a format owned by one reader
 bends towards that reader.
 
-That was not hypothetical. These shapes used to live in
-`@variance-authority/mcp`, so the CLI depended on an agent protocol to describe
-its own output.
+The failure that shape produces is concrete: with these types living in
+`@variance-authority/mcp`, the CLI depends on an agent protocol to describe its
+own output.
 
 ## Entrypoints
 
