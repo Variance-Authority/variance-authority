@@ -377,7 +377,11 @@ export function routeCollector(
           // Normalized here rather than in the page: the ruleset is the one the
           // jsdom path uses, and running it in the browser would make the two
           // profiles two implementations of it.
-          snapshot: normalizeCapture(acquired.capture),
+          // `sourceRoot` for the same reason `scanSource` is rooted at the cwd
+          // above: both answers name files, and a report that mixes a
+          // repository-relative declaration with an absolute call site is one
+          // nobody can paste into anything.
+          snapshot: normalizeCapture(acquired.capture, { sourceRoot: process.cwd() }),
           ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
             ? { stabilization: acquired.stabilization }
             : {}),

@@ -36,6 +36,26 @@ export default {
        * not a thing anybody would guess.
        */
       keepNames: true,
+      /**
+       * **The two lines that turn a rendered node back into a line of code.**
+       *
+       * `jsxDev` is what makes the transform emit each element's file, line and
+       * column at all, and it is independent of minification — this is a
+       * production build and the locations survive it, because they are data the
+       * compiler wrote rather than names a bundler could rename. `keepNames`
+       * above is the opposite kind of setting for exactly that reason.
+       *
+       * `jsxImportSource` is what keeps them. React 19 accepts the transform's
+       * source argument and throws it away: its `jsxDEV` takes four parameters
+       * and overwrites the fifth with an `Error` of its own, and `createElement`
+       * skips `__source` by name. So the runtime named here stands in front of
+       * React's, records the location on the props object, and hands it on.
+       *
+       * What this buys, visible in `cli.chromium.test.js`: a finding names the
+       * element's own line rather than the line its component is declared on.
+       */
+      jsxDev: true,
+      jsxImportSource: '@variance-authority/jsx-source',
     },
   }),
 };

@@ -206,7 +206,10 @@ before constructing the collector. They do not fetch a sitemap or crawl links.
 - **Every route changes with shared chrome:** tighten `roots`; `body` explicitly
   includes headers, navigation, and overlays.
 - **Component names have no source lines:** configure `source.dirs` and preserve
-  component names in the production bundle.
+  component names in the production bundle. That resolves a name to where the
+  component is *declared*; for the line the changed element is written on, set
+  `jsxImportSource` to [`@variance-authority/jsx-source`](../jsx-source), which a
+  report prefers wherever it is present.
 - **A login redirect is captured:** authenticated routes are outside this
   package's current contract; use an existing Playwright test instead.
 

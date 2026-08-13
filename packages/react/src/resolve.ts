@@ -1,4 +1,10 @@
-import { propsDigest, type OwnerFrame, type Provenance, type SourceLocation } from '@variance-authority/core';
+import {
+  jsxSourceOf,
+  propsDigest,
+  type OwnerFrame,
+  type Provenance,
+  type SourceLocation,
+} from '@variance-authority/core';
 import { FiberTag, findFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { debugOwnerName, fiberComponentName } from './names.js';
 
@@ -212,16 +218,29 @@ function digestableProps(props: Readonly<Record<string, unknown>> | null): Recor
 /**
  * Source location, when a build was configured to emit it.
  *
- * `_debugSource` is populated from `element._source`, which only exists if the
- * JSX transform ran with source tracking on — the per-project compiler plugin
- * spec §6.1 describes. **React 19 removed the field outright** (verified absent
- * on 19.2.8, replaced by `_debugStack`, an `Error` captured at element creation).
- * Recovering a location from that stack means parsing a stack trace and mapping
- * it through source maps, which is a build-tool's job, not a collector's. So on
- * React 19 this returns null and `source` is simply absent — which the type
- * already declares as the normal case.
+ * Two places to look, because two different runtimes put it in two places.
+ *
+ * **The props symbol** is where `@variance-authority/jsx-source` writes it. That
+ * runtime is a `jsxImportSource` setting away in any build, and it is the path
+ * that works on React 19: React's own `jsxDEV` takes four parameters and drops
+ * the transform's fifth argument, so a location that is not intercepted before
+ * React sees it is gone. Being on `memoizedProps` is what makes it readable here
+ * at all — a fiber keeps its props, and a symbol key survives `Object.freeze`,
+ * minification, and every `for…in` React DOM runs over the same object.
+ *
+ * **`_debugSource`** is where React ≤18 put it, populated from `element._source`
+ * by the same transform argument. Read second and kept because a project on 18
+ * needs no build change to get a location, and because a wrong answer here is
+ * worse than no answer: this is the field a report points at when it says which
+ * line to open.
+ *
+ * Absent remains a normal state, not an error — a production build with the
+ * development transform off computes no location for anybody to record.
  */
 function sourceLocation(fiber: Fiber): SourceLocation | null {
+  const recorded = jsxSourceOf(fiber.memoizedProps);
+  if (recorded !== undefined) return recorded;
+
   const debugSource = fiber._debugSource;
   if (!debugSource || typeof debugSource !== 'object') return null;
 

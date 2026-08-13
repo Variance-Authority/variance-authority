@@ -89,9 +89,15 @@ export interface Fiber {
   readonly _debugOwner?: Fiber | DebugComponentInfo | null;
 
   /**
-   * Development-only, and **removed in React 19** in favour of `_debugStack`.
-   * Populated from `element._source`, which only exists when a JSX transform
-   * was configured to emit it. Absent is the normal case, not an error.
+   * Development-only, and **gone in React 19** — not renamed, dropped. The
+   * transform still computes the location and still passes it; React 19's
+   * `jsxDEV` takes four parameters and overwrites the fifth with an `Error` of
+   * its own. Populated from `element._source` on React ≤18.
+   *
+   * Its replacement is not a field on the fiber but a runtime in front of
+   * React's: `@variance-authority/jsx-source` records the same location on the
+   * props object, which arrives here as `memoizedProps`. `resolve.ts` reads that
+   * first and this second.
    */
   readonly _debugSource?: DebugSource | null;
 }

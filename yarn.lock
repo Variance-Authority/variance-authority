@@ -1934,6 +1934,7 @@ __metadata:
     "@variance-authority/cli": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
+    "@variance-authority/jsx-source": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
     "@variance-authority/storybook-collector": "workspace:^"
@@ -2046,6 +2047,20 @@ __metadata:
   resolution: "@variance-authority/history@workspace:packages/history"
   dependencies:
     "@variance-authority/core": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/jsx-source@workspace:^, @variance-authority/jsx-source@workspace:packages/jsx-source":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/jsx-source@workspace:packages/jsx-source"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    jsdom: "npm:^25.0.1"
+    react: "npm:^19.0.0"
+    react-dom: "npm:^19.0.0"
+  peerDependencies:
+    react: ">=17"
   languageName: unknown
   linkType: soft
 

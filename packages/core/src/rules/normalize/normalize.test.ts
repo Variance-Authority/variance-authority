@@ -211,3 +211,34 @@ describe('text', () => {
     expect(snapshot.root.text).toMatch(/^v1:[0-9a-f]{32}$/);
   });
 });
+
+describe('recorded source locations', () => {
+  const at = (file: string) => node({ tag: 'p', source: { file, line: 12, column: 4 } });
+  const sourceOf = (root: ReturnType<typeof node>, options = {}) =>
+    normalize(capture({ root }), options).root.provenance?.source;
+
+  it('states a path relative to the root it was told about', () => {
+    // What a transform writes is what its module graph holds, which is absolute.
+    // A baseline is compared across machines, so an absolute path in one is a
+    // home directory published in the repository and a path CI cannot resolve.
+    expect(sourceOf(at('/home/ci/work/app/src/ds.jsx'), { sourceRoot: '/home/ci/work/app' })).toEqual(
+      { file: 'src/ds.jsx', line: 12, column: 4 },
+    );
+  });
+
+  it('leaves a path outside that root alone', () => {
+    // A linked package or a dependency shipping JSX is genuinely not at a
+    // repository-relative path, and `../../..` would resolve nowhere useful.
+    const outside = '/home/ci/other/design-system/src/Button.jsx';
+    expect(sourceOf(at(outside), { sourceRoot: '/home/ci/work/app' })?.file).toBe(outside);
+  });
+
+  it('is not part of what a snapshot is a hash of', () => {
+    // Load-bearing: relativizing must be free to change without invalidating
+    // every baseline in the repository, and an element that moved down a file is
+    // not an element that changed.
+    expect(hashOf(at('/home/ci/work/app/src/ds.jsx'), { sourceRoot: '/home/ci/work/app' })).toBe(
+      hashOf(at('/elsewhere/src/ds.jsx')),
+    );
+  });
+});

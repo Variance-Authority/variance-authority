@@ -1,6 +1,7 @@
 import type { Diagnostic, RawCapture, RawNode } from '../../format/capture.js';
 import { environmentKey } from '../../format/environment.js';
 import { digestCombine, digestValue, type Digest } from '../../format/hash.js';
+import { relativizeSource, type Provenance } from '../../format/provenance.js';
 import { ALLOWLIST_VERSION, RULESET_VERSION, admitsAttribute } from '../ruleset.js';
 import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../../format/snapshot.js';
 import { aliasAttributeValue, aliasStyleValue, buildAliasMap, type AliasResult } from './alias.js';
@@ -43,10 +44,19 @@ export interface NormalizeOptions {
 
   /** Replace text with its digest. For subjects whose copy is volatile by policy. */
   readonly digestText?: boolean;
+
+  /**
+   * Absolute directory the recorded JSX source locations are made relative to.
+   *
+   * The transform writes absolute paths, and a snapshot is a stored artifact
+   * compared across machines. Normalizing here rather than at the reader is the
+   * same reason everything else is normalized here: one pipeline, both profiles.
+   */
+  readonly sourceRoot?: string;
 }
 
 export function normalize(capture: RawCapture, options: NormalizeOptions = {}): SemanticSnapshot {
-  const { collapseWrappers = true, digestText = false } = options;
+  const { collapseWrappers = true, digestText = false, sourceRoot } = options;
 
   const portals = capture.portals ?? [];
   const aliases = buildAliasMap(capture.root, portals);
@@ -81,6 +91,7 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
   const state: WalkState = {
     collapseWrappers,
     digestText,
+    ...(sourceRoot !== undefined ? { sourceRoot } : {}),
     styleProvenance,
     declaredBy: new WeakMap(),
   };
@@ -147,6 +158,7 @@ export function normalize(capture: RawCapture, options: NormalizeOptions = {}): 
 interface WalkState {
   readonly collapseWrappers: boolean;
   readonly digestText: boolean;
+  readonly sourceRoot?: string;
   readonly styleProvenance: StyleProvenanceEntry[];
   /**
    * Properties each node declared *itself*, as opposed to inheriting.
@@ -157,6 +169,20 @@ interface WalkState {
    * through the return type, so the recursive shape stays a plain tree walk.
    */
   readonly declaredBy: WeakMap<SemanticNode, ReadonlySet<string>>;
+}
+
+/**
+ * Provenance carrying a path this machine can quote back to a repository.
+ *
+ * The location arrives from the page, where nothing knows what the repository
+ * root is; the collector does, and this is the one point every node passes
+ * through afterwards.
+ */
+function rooted(provenance: Provenance, root: string | undefined): Provenance {
+  if (root === undefined || provenance.source === undefined) return provenance;
+
+  const source = relativizeSource(provenance.source, root);
+  return source === provenance.source ? provenance : { ...provenance, source };
 }
 
 function normalizeNode(
@@ -228,7 +254,7 @@ function normalizeNode(
         : {}),
       ...(capture.profile.layout && node.rect ? { rect: node.rect } : {}),
       ...(text !== undefined ? { text } : {}),
-      ...(node.provenance ? { provenance: node.provenance } : {}),
+      ...(node.provenance ? { provenance: rooted(node.provenance, state.sourceRoot) } : {}),
       ...(node.wiring ? { wiring: node.wiring } : {}),
       // Carried, never acted on. `structureOf` and `styleOf` project the fields
       // they hash by name, so this reaches the snapshot without reaching the

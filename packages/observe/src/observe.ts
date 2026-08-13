@@ -448,15 +448,25 @@ export function summarizeObservation(
       ? `unattributed${region.nearest?.component !== undefined ? ` (nearest: ${region.nearest.component})` : ''}`
       : (region.component ?? region.path ?? '?');
 
-    const file =
+    const declared =
       options.source !== undefined && region.component !== undefined
         ? resolveSource(region.component, options.source)
         : null;
 
+    // The element's own line wins. Resolving a name answers where the component
+    // is declared, which is the same answer for every instance of it; this
+    // answers which instance.
+    const file =
+      region.source !== undefined
+        ? `${region.source.file}:${region.source.line}`
+        : declared !== null
+          ? formatSource(declared)
+          : null;
+
     return [
       `  ${region.region.pixels}px at ${region.region.x},${region.region.y} — ${what}`,
       region.where !== undefined ? `      in ${region.where}` : null,
-      file !== null ? `      ${formatSource(file)}` : null,
+      file !== null ? `      ${file}` : null,
     ]
       .filter((line): line is string => line !== null)
       .join('\n');

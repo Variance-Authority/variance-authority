@@ -46,6 +46,12 @@ story id and selector instead of silently capturing a spinner.
 `source` enables component-to-`file:line` attribution. Without it the report can
 still name components, but it cannot point to their declarations.
 
+It is the answer that needs no build change, and it names where a component is
+*declared* — one line however many times that component is rendered. For the
+line the changed element is actually written on, set `jsxImportSource` to
+[`@variance-authority/jsx-source`](../jsx-source); a report prefers that location
+wherever it exists, and this collector makes it repository-relative.
+
 ### 3. Point the CLI at the Storybook index and collector
 
 In `variance.config.json`, the index is the built file and `collector` is the

@@ -142,7 +142,13 @@ export function findingsOf(
       path: finding.path,
       ...(finding.where !== undefined ? { where: finding.where } : {}),
       ...(finding.component !== undefined ? { component: finding.component } : {}),
-      ...(resolved !== null ? { file: formatSource(resolved) } : {}),
+      // As in `regionRecordOf`: the element's own line when the build recorded
+      // one, the component's declaration when it did not.
+      ...(finding.source !== undefined
+        ? { file: `${finding.source.file}:${finding.source.line}` }
+        : resolved !== null
+          ? { file: formatSource(resolved) }
+          : {}),
     };
   });
 }
@@ -240,6 +246,16 @@ function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecor
       ? resolveSource(region.component, source)
       : null;
 
+  // The element's own line before the component's declaration. Both are true and
+  // they answer different questions; a reader opening one file wants the line
+  // that rendered the pixels, not the line the component starts on.
+  const file =
+    region.source !== undefined
+      ? `${region.source.file}:${region.source.line}`
+      : resolved !== null
+        ? formatSource(resolved)
+        : undefined;
+
   if (region.unattributed) {
     // `nearest` is orientation and never attribution, so it is not written into
     // `component` — a trace tool would then count this as an appearance of a
@@ -274,7 +290,7 @@ function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecor
     ...(region.component !== undefined ? { component: region.component } : {}),
     ...(region.path !== undefined ? { path: region.path } : {}),
     ...(region.where !== undefined ? { where: region.where } : {}),
-    ...(resolved !== null ? { file: formatSource(resolved) } : {}),
+    ...(file !== undefined ? { file } : {}),
     ...(region.fingerprint !== undefined ? { fingerprint: region.fingerprint } : {}),
   };
 }

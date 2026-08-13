@@ -6,16 +6,20 @@
  * `Button` in question is the design-system one or the local one in checkout.
  * The last hop — **which file** — is what turns a finding into an edit.
  *
- * The obvious mechanism does not exist any more. Spec §6.1 assumes a babel/swc
- * plugin populating `_debugSource` on each element, and React 19 removed
- * `_debugSource` entirely (journal 0002). So per-element source is a compile-time
- * story that nothing currently tells.
+ * There are two mechanisms, and this file is the second one.
  *
- * What is available without a plugin is coarser and, for this purpose, enough:
- * attribution names *components*, so a **component → file** index answers the
- * question attribution actually asks. It is built by reading source rather than
- * by instrumenting a build, which means it works on a repository that has made no
- * changes to accommodate this tool at all.
+ * The first is exact. Spec §6.1 assumes the build tells us: every JSX transform
+ * already computes each element's file, line and column, and
+ * `@variance-authority/jsx-source` is the `jsxImportSource` setting that keeps
+ * that location as far as the fiber — React 19 drops it otherwise, on every path.
+ * When it is on, a finding names the element's own line and this index is not
+ * consulted.
+ *
+ * The second is this one, and it is what a repository that has changed nothing
+ * gets. Attribution names *components*, so a **component → file** index answers
+ * the question attribution asks. It is built by reading source rather than by
+ * configuring a build, and it answers with where a component is *declared* —
+ * coarser than a call site, and enough to open the right file.
  *
  * The index is plain data. `core` performs no I/O (ADR-0006), so building one is
  * a caller's job; resolving against one is here.

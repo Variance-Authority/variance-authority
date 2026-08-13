@@ -64,11 +64,16 @@ every item changed.
 
 ## Honest limits
 
-- **`_debugSource` is gone in React 19.** Per-element source locations were a
-  React 18 affordance and are not coming back, so component→file resolution is
-  done by reading the repository ([`core/attribute`](../core)'s `indexSource`)
-  rather than by asking the fiber
-  ([journal 0009](../../docs/context/journal/0009-impact-components-docket.md)).
+- **A source location needs a build setting on React 19.** The transform still
+  computes every element's file, line and column; React 19 is what drops it —
+  `jsxDEV` takes four parameters and overwrites the fifth, and `createElement`
+  skips `__source` by name. `resolveProvenance` reads `_debugSource` when it is
+  there (React ≤18) and otherwise reads what
+  [`@variance-authority/jsx-source`](../jsx-source) recorded, which is one
+  `jsxImportSource` setting away. With neither, attribution falls back to
+  resolving a component *name* against a repository scan
+  ([`core/attribute`](../core)'s `indexSource`) — the declaration rather than the
+  call site.
 - **A node React never rendered has no chain**, and says so — `NO_FIBER` with a
   reason, never an empty chain that reads like "no components involved".
 

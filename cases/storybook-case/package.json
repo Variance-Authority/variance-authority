@@ -19,6 +19,7 @@
     "@variance-authority/cli": "workspace:^",
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
+    "@variance-authority/jsx-source": "workspace:^",
     "@variance-authority/react": "workspace:^",
     "@variance-authority/storybook": "workspace:^",
     "esbuild": "^0.25.0",

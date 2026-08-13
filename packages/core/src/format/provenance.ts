@@ -64,6 +64,76 @@ export interface SourceLocation {
 }
 
 /**
+ * Where a JSX transform leaves the location, and where a fiber reader finds it.
+ *
+ * Every JSX transform in ordinary use already computes this. The automatic dev
+ * runtime passes `{fileName, lineNumber, columnNumber}` as the fifth argument to
+ * `jsxDEV`; the classic transform passes it as a `__source` prop. **React 19
+ * discards both** — `jsxDEV`'s public export takes four parameters and
+ * synthesizes its own `Error` for the fifth, and `createElement` skips
+ * `__source` by name when it copies config into props (both read in 19.2.8).
+ * Nothing is missing from the build; the last hop is missing from the runtime.
+ *
+ * So the runtime is the hop: `@variance-authority/jsx-source` sits in front of
+ * React's, writes the location here, and hands the props on unchanged. A symbol
+ * rather than a string key is what makes that free — `for…in` does not enumerate
+ * it, so `react-dom` never renders it as an attribute, `propsDigest` never
+ * digests it, and a component spreading `{...props}` onto a host element does not
+ * put it in the document.
+ *
+ * `Symbol.for` rather than a module-level symbol: the writer is in the page's
+ * bundle and the reader is in a page agent evaluated beside it. They are two
+ * module graphs and will never share an import, so the registry is the only
+ * place they can meet.
+ */
+export const JSX_SOURCE: unique symbol = Symbol.for(
+  '@variance-authority/jsx-source',
+) as typeof JSX_SOURCE;
+
+/**
+ * The location a JSX runtime recorded on this props object, if one did.
+ *
+ * Total, and deliberately so: this runs once per node across a whole document,
+ * for props objects React built from arbitrary user code. A shape that does not
+ * match is absence, never a throw.
+ */
+export function jsxSourceOf(props: unknown): SourceLocation | undefined {
+  if (props === null || typeof props !== 'object') return undefined;
+
+  const recorded = (props as Record<symbol, unknown>)[JSX_SOURCE];
+  if (recorded === null || typeof recorded !== 'object') return undefined;
+
+  const { file, line, column } = recorded as Partial<SourceLocation>;
+  if (typeof file !== 'string' || file === '' || typeof line !== 'number') return undefined;
+
+  return { file, line, column: typeof column === 'number' ? column : 0 };
+}
+
+/**
+ * The same location, expressed relative to a root.
+ *
+ * A transform writes the path it compiled — which for every bundler in ordinary
+ * use is absolute, because that is what its module graph holds. Two things go
+ * wrong if that reaches a report. A baseline committed from one machine names
+ * `/Users/somebody/...`, which is both a home directory in a public repository
+ * and a path that resolves nowhere in CI; and the location no longer matches
+ * `SourceRef.file`, which the source index has always answered with
+ * repository-relative paths.
+ *
+ * A path *outside* the root is returned untouched rather than turned into a
+ * chain of `..`. Something compiled from elsewhere — a linked package, a
+ * dependency shipping JSX — is genuinely not at a repository-relative path, and
+ * an absolute one an editor can open beats a relative one that resolves nowhere.
+ */
+export function relativizeSource(location: SourceLocation, root: string): SourceLocation {
+  const path = location.file.replace(/\\/g, '/');
+  const base = root.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (base === '' || !path.startsWith(`${base}/`)) return location;
+
+  return { ...location, file: path.slice(base.length + 1) };
+}
+
+/**
  * Digest a props object, tolerating values that cannot be serialized.
  *
  * The stability requirement cuts both ways (spec §11.2). Over-invalidation:

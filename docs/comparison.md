@@ -383,6 +383,19 @@ this capture measures the component→*line* hop and does not discriminate the
 component→*file* one. The ambiguity path `source.ts` documents — two files
 declaring one name — has never occurred in a measurement.
 
+**Every line above is a declaration, which is one hop short.** Reading the
+repository resolves the *name* `Toggle`, so the answer is where `Toggle` is
+written, and it is the same line for all four `<Toggle>`s on a page. The exact
+answer is the location the JSX transform already computed for the element —
+absent from React 19's fiber, but only because React 19 discards what the
+transform passes it. One `jsxImportSource` setting
+([`@variance-authority/jsx-source`](../packages/jsx-source)) keeps it, reports
+prefer it wherever it is present, and it costs nothing stored: the location rides
+a symbol-keyed prop, so it enters no digest and moves no baseline. Measured on
+`cases/storybook-case` through a **minified production build**: `Button` is
+declared on line 51 of `src/ds.jsx`, its `<button>` is written on 53, and the
+report says 53 (journal 0020).
+
 Supporting measurements:
 
 | Claim | File | Result |
@@ -391,7 +404,8 @@ Supporting measurements:
 | Portals belong to the subject by component tree, not DOM containment (ADR-0007) | `packages/dom/src/portal.test.tsx` (6 tests) | Container hash is byte-identical whether the dialog is open or closed. The **342 bytes** that move is a one-off corpus measurement from journal 0003, restated as prose at `packages/react/src/portal.ts:12` and asserted by no test |
 | Semantic diff separates root from collateral; token attribution | `packages/core/src/compare/diff/diff.test.ts` (29 tests) | — |
 | `impact` (`layout`/`paint`/`composite`) as an axis orthogonal to bands | `packages/core/src/compare/diff/impact.test.ts` (18 tests) | `--brand` → `token/paint`; `--space` → `token/layout` (journal 0009) |
-| Component → file by reading the repo, with no build plugin | `packages/core/src/attribute/source.ts`, `examples/todomvc/src/source-index.ts` | **A regex scan**, not a source map — `_debugSource` is gone in React 19, so this is deliberate. It misses components produced by a factory, assigned dynamically or re-exported under another name, and can name a capitalised non-component; a name declared in two files is reported as ambiguous rather than guessed. Limits stated in `source.ts`. **No dedicated test**; exercised only end-to-end on one example app |
+| Component → file by reading the repo, with no build change at all | `packages/core/src/attribute/source.ts`, `examples/todomvc/src/source-index.ts` | **A regex scan**, not a source map, and the answer for a repository that has configured nothing. It names where a component is *declared* — the same line for every instance of it. Misses components produced by a factory, assigned dynamically or re-exported under another name, and can name a capitalised non-component; a name declared in two files is reported as ambiguous rather than guessed. Limits stated in `source.ts`. **No dedicated test**; exercised only end-to-end on one example app |
+| Element → the line of JSX that wrote it | `packages/jsx-source` (6 tests), `cases/storybook-case/src/cli.chromium.test.js` | One `jsxImportSource` setting, no plugin and no patched React. `_debugSource` is gone in React 19, but the transform still computes the location and React is what discards it, so a runtime in front of React's keeps it. Preferred over the scan wherever present: `Button` is declared on line 51 of the case's `src/ds.jsx` and its `<button>` is written on 53, and the report says **53**, through a minified production build. Costs nothing stored — the location rides a symbol key, so it enters no digest and moved no baseline |
 | Region clustering from a change mask | `packages/core/src/attribute/region.ts`, `region.test.ts` (12 tests) | Grid `cell = 8` at `packages/core/src/attribute/region.ts:82` |
 
 **Claimed, not measured.**

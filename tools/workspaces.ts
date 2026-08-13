@@ -48,6 +48,7 @@ export interface Workspace {
 export interface Manifest {
   readonly name: string;
   readonly dependencies?: Readonly<Record<string, string>>;
+  readonly peerDependencies?: Readonly<Record<string, string>>;
   readonly devDependencies?: Readonly<Record<string, string>>;
   readonly exports?: Readonly<Record<string, { readonly types?: string; readonly default?: string }>>;
   readonly bin?: Readonly<Record<string, string>>;
@@ -143,9 +144,21 @@ export function workspaces(): readonly Workspace[] {
 export const ALL = workspaces();
 export const PACKAGES = ALL.filter((workspace) => workspace.dir.includes(`${ROOT}/packages/`));
 
-/** Everything a package may reach for at build time, and everything at test time. */
+/**
+ * Everything a package may reach for at build time, and everything at test time.
+ *
+ * A peer counts as declared, and it is the *stronger* declaration rather than a
+ * loophole. Rule 1 exists because an undeclared import resolves in a workspace
+ * and fails when somebody installs the package alone; a peer does not fail that
+ * way — an installer resolves it, and warns rather than shrugging when it cannot.
+ * It is also the only correct declaration for a runtime the consumer must not end
+ * up with two copies of, which is exactly the case for a JSX runtime.
+ */
 export function declared(workspace: Workspace): { production: Set<string>; any: Set<string> } {
-  const production = new Set(Object.keys(workspace.manifest.dependencies ?? {}));
+  const production = new Set([
+    ...Object.keys(workspace.manifest.dependencies ?? {}),
+    ...Object.keys(workspace.manifest.peerDependencies ?? {}),
+  ]);
   const any = new Set([...production, ...Object.keys(workspace.manifest.devDependencies ?? {})]);
   return { production, any };
 }

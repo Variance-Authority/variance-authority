@@ -2,6 +2,7 @@ import type { Rect } from '../format/capture.js';
 import { locate } from './locate.js';
 import type { DiffRegion } from './mask.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
+import type { SourceLocation } from '../format/provenance.js';
 
 /**
  * Isolating a pixel difference, and connecting it to the tree.
@@ -39,6 +40,19 @@ export interface AttributedRegion {
   readonly component?: string;
   /** Landmark phrase from {@link locate}, so a region has a name, not an address. */
   readonly where?: string;
+
+  /**
+   * The line of JSX that produced this node, when the build recorded one.
+   *
+   * The last hop, and a different answer from the one a component name gets.
+   * Resolving `Button` against a source index names where `Button` is
+   * *declared*; this names where the element that changed is *written*, which
+   * for anything rendered more than once is the only one of the two that
+   * distinguishes the instances. Present only under
+   * `@variance-authority/jsx-source` or React ≤18 — the name scan is what a
+   * repository that has configured nothing still gets.
+   */
+  readonly source?: SourceLocation;
 
   /**
    * `true` when no box contains the region at all.
@@ -267,7 +281,7 @@ export function rankRegions(
 function describe(
   snapshot: SemanticSnapshot,
   node: SemanticNode,
-): { component?: string; owner?: string; where?: string } {
+): { component?: string; owner?: string; where?: string; source?: SourceLocation } {
   // `createdBy` before `owners[0]`: the component whose JSX produced this element
   // owns its appearance, while the nearest enclosing component merely contains it.
   const owner = node.provenance?.owners[0]?.name;
@@ -280,6 +294,7 @@ function describe(
     // the author is noise in every report that prints it.
     ...(owner !== undefined && owner !== component ? { owner } : {}),
     ...(where !== '' ? { where } : {}),
+    ...(node.provenance?.source ? { source: node.provenance.source } : {}),
   };
 }
 

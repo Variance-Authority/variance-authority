@@ -273,6 +273,28 @@ live('the durable workflow, end to end', () => {
     expect(out).toContain('Button');
     expect(out).not.toContain('collateral');
 
+    // And the line is the element's, not the component's.
+    //
+    // Two mechanisms can answer "which file", and only one of them can answer
+    // "which of the four buttons on this page". Resolving the name `Button`
+    // against a scan of the repository lands on the line `Button` is *declared*
+    // on, which is the same line for every instance ever rendered. The fiber
+    // carries the location the transform computed for the element itself, put
+    // there by `jsxImportSource: '@variance-authority/jsx-source'` in
+    // `.storybook/main.js` and read back off `memoizedProps`.
+    //
+    // Derived rather than hard-coded, because the interesting claim is *which of
+    // the two lines* the report chose, and a literal would go stale silently the
+    // first time somebody adds an import to `ds.jsx`.
+    const ds = readFileSync(join(ROOT, 'src', 'ds.jsx'), 'utf8').split('\n');
+    const declared = ds.findIndex((line) => line.startsWith('export function Button')) + 1;
+    const written = ds.findIndex((line) => line.trimStart().startsWith('<button')) + 1;
+
+    expect(declared).toBeGreaterThan(0);
+    expect(written).toBeGreaterThan(declared);
+    expect(out).toContain(`src/ds.jsx:${written}`);
+    expect(out).not.toContain(`src/ds.jsx:${declared}`);
+
     // And the image is of the page it was acquired from. It was not until
     // 2026-08-06: Storybook's preview centres its story with a rule on `body`,
     // `applicableCss` walked only the subject and its descendants, so the rule

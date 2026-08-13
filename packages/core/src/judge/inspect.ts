@@ -1,5 +1,5 @@
 import type { Band } from '../compare/band.js';
-import type { OwnerFrame } from '../format/provenance.js';
+import type { OwnerFrame, SourceLocation } from '../format/provenance.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import { locate } from '../attribute/locate.js';
 import { formatSource, resolveSource, type SourceIndex } from '../attribute/source.js';
@@ -108,6 +108,20 @@ export interface Finding {
   /** The component whose JSX created the node, when provenance reached it. */
   readonly component?: string;
   readonly owners?: readonly OwnerFrame[];
+
+  /**
+   * The line that wrote *this element*, when a JSX runtime recorded one.
+   *
+   * Different from — and better than — resolving `component` through the source
+   * index, which answers with where the component is *declared*. A defect is
+   * rarely at a declaration: a button with no accessible name is a specific
+   * element on a specific line inside that component, and that line is the edit.
+   * The index stays as the fallback, because it needs no build change.
+   *
+   * Requires `@variance-authority/jsx-source` in the transform. Absent otherwise,
+   * and absence is normal.
+   */
+  readonly source?: SourceLocation;
 }
 
 /** Roles that are operated. A control nobody can name is a control nobody can use. */
@@ -345,6 +359,7 @@ function finding(
     ...(where !== '' ? { where } : {}),
     ...(component !== undefined ? { component } : {}),
     ...(node.provenance ? { owners: node.provenance.owners } : {}),
+    ...(node.provenance?.source ? { source: node.provenance.source } : {}),
   };
 }
 
@@ -373,17 +388,29 @@ export function summarizeFindings(
     [...byRule].map(([rule, count]) => `${count} ${rule}`).join(', ');
 
   const lines = findings.flatMap((found) => {
-    const source =
+    // The element's own line wins over the component's declaration. Both are
+    // `file:line`, so the reader cannot tell them apart and does not need to —
+    // either one opens at something worth editing, and the recorded one opens at
+    // the element the finding is actually about.
+    const declared =
       found.component !== undefined && options.source
         ? resolveSource(found.component, options.source)
         : null;
+    const where =
+      found.source !== undefined
+        ? `${found.source.file}:${String(found.source.line)}`
+        : declared
+          ? formatSource(declared)
+          : '';
+
+    const attribution = [found.component, where === '' ? undefined : where]
+      .filter((part): part is string => part !== undefined)
+      .join(' ');
 
     return [
       `  [${found.rule}] ${found.what}`,
       found.where !== undefined ? `      in ${found.where}` : null,
-      found.component !== undefined
-        ? `      ${found.component}${source ? ` ${formatSource(source)}` : ''}`
-        : null,
+      attribution === '' ? null : `      ${attribution}`,
     ].filter((line): line is string => line !== null);
   });
 
