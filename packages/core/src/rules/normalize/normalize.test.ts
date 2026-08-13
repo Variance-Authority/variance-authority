@@ -242,3 +242,32 @@ describe('recorded source locations', () => {
     );
   });
 });
+
+/**
+ * Frames, which are a location nobody has paid for yet.
+ *
+ * React 19 records no location and captures an `Error` instead, so what arrives
+ * here is a stack naming the dev server's own URLs. Turning one into a file
+ * costs a module fetch, and a run whose subjects all settle has nothing to spend
+ * it on — so normalization carries them and `locateSites` spends them later, for
+ * the few nodes a region or a finding names.
+ *
+ * That only works if they are invisible to everything in between, which is what
+ * these two assert.
+ */
+describe('frames a location has not been bought with', () => {
+  const frame = { url: 'http://127.0.0.1:5199/src/ds.jsx', line: 23, column: 26, function: 'App' };
+  const framed = () => node({ tag: 'p', stack: [frame] });
+
+  it('carries them through, so the demand side has something to spend', () => {
+    expect(normalize(capture({ root: framed() })).root.provenance?.stack).toEqual([frame]);
+  });
+
+  it('changes no hash by carrying them', () => {
+    // The one thing that would make this unsafe. A frame holds a dev server's
+    // port, so a hash that admitted one would disagree with itself across a
+    // restart — and every baseline in the repository would need re-approving by
+    // whoever next ran the suite on a different port.
+    expect(hashOf(framed())).toBe(hashOf(node({ tag: 'p' })));
+  });
+});

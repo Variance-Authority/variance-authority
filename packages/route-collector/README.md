@@ -211,9 +211,11 @@ before constructing the collector. They do not fetch a sitemap or crawl links.
   For the line the changed element is written on, see below.
 - **Elements report their component's declaration rather than their own line:**
   against a development server this needs nothing at all. React 19 captures the
-  call site itself and this collector resolves it through the source map the dev
-  server already emits; React 18 keeps the transform's own location on the fiber
-  and needs no resolving. Either way a route served by `vite dev`, `next dev` or
+  call site itself, and the elements a report is about to name are resolved
+  through the source map the dev server already emits — a changed subject costs
+  a handful of module fetches and a settled one costs none; React 18 keeps the
+  transform's own location on the fiber and needs no resolving. Either way a
+  route served by `vite dev`, `next dev` or
   any other development server reports exact lines with no build change of any
   kind. Two cases have nothing to read — a **production** build, where React
   captures nothing, and React 18 compiled with the *classic* transform, which

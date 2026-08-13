@@ -1,4 +1,4 @@
-import { documentDigest, type Level } from '@variance-authority/core';
+import { documentDigest, locateSites, type Level } from '@variance-authority/core';
 import {
   declaredIgnores,
   observeAgainstBaseline,
@@ -77,10 +77,10 @@ export async function observeOne(
       };
     }
 
-    const observation = await observePair(
-      collected.before,
-      collected.document,
-      observeOptions,
+    const observation = await located(
+      await observePair(collected.before, collected.document, observeOptions),
+      collected,
+      context,
     );
     return {
       kind: 'observed',
@@ -89,7 +89,7 @@ export async function observeOne(
         ...(collected.source !== undefined ? { source: collected.source } : {}),
         ...(await images(id, observation, collected.document, renderer, config, deps, null, collected.snapshot)),
         diagnostics,
-        ...findingsField(collected),
+        ...(await findingsField(collected, deps.collector.callSites)),
         ...(await investigate(planned, collected, observation, null, context, collecting)),
       }),
     };
@@ -122,7 +122,11 @@ export async function observeOne(
     // anything. A subject whose document digest matched its baseline has changed
     // nothing and may still contain a control with no name — that is the whole
     // reason inspection is not a comparison.
-    const findings = findingsOf(collected.snapshot, collected.source);
+    const findings = await findingsOf(
+      collected.snapshot,
+      collected.source,
+      deps.collector.callSites,
+    );
 
     // The exclusions this subject declared, on the path that compares nothing.
     // A settled subject reached its verdict from a digest, so no ignore had
@@ -160,7 +164,11 @@ export async function observeOne(
     };
   }
 
-  const observation = await observeAgainstBaseline(collected.document, key, observeOptions);
+  const observation = await located(
+    await observeAgainstBaseline(collected.document, key, observeOptions),
+    collected,
+    context,
+  );
 
   return {
     kind: 'observed',
@@ -170,10 +178,39 @@ export async function observeOne(
       ...(collected.source !== undefined ? { source: collected.source } : {}),
       ...(await images(id, observation, collected.document, renderer, config, deps, key, collected.snapshot)),
       diagnostics,
-      ...findingsField(collected),
+      ...(await findingsField(collected, deps.collector.callSites)),
       ...(await investigate(planned, collected, observation, key, context, collecting)),
     }),
   };
+}
+
+/**
+ * The signal, and the only place a captured frame is ever spent.
+ *
+ * A page reads a stack off every fiber because reading one is nearly free.
+ * Turning a stack into `src/Button.tsx:12` is not: it means fetching the module
+ * the frame names and decoding the map beside it. So the question is asked here,
+ * after attribution has already decided which nodes the report is going to
+ * print, and it is asked about those nodes only — a subject with one changed
+ * button resolves one call site, and a subject the comparison found nothing in
+ * resolves none.
+ *
+ * Nothing degrades when this does nothing. No resolver means no browser to fetch
+ * through; no snapshot means nothing carried frames; and a region whose node
+ * already recorded its own line — React ≤18, or `@variance-authority/jsx-source`
+ * — was never going to reach the map. All three are a report with the same
+ * component names and one fewer file path on it.
+ */
+async function located(
+  observation: Observation,
+  collected: Extract<Collected, { ok: true }>,
+  context: ObserveContext,
+): Promise<Observation> {
+  const resolver = context.deps.collector.callSites;
+  if (resolver === undefined || collected.snapshot === undefined) return observation;
+
+  const regions = await locateSites(observation.regions, collected.snapshot, resolver);
+  return regions === observation.regions ? observation : { ...observation, regions };
 }
 
 /**

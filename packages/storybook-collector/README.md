@@ -50,10 +50,11 @@ It names where a component is *declared* — one line however many times that
 component is rendered.
 
 For the line the changed element is actually written on, a **development**
-Storybook needs nothing: React 19 captures the call site itself and this
-collector resolves it through the source map the dev server already emits, while
-React 18 keeps the transform's own location on the fiber and needs no resolving
-at all. Against a **built, minified** Storybook there is no such capture, and the
+Storybook needs nothing: React 19 captures the call site itself, and the
+elements a report is about to name are resolved through the source map the dev
+server already emits — a story that settled on its digest resolves nothing —
+while React 18 keeps the transform's own location on the fiber and needs no
+resolving at all. Against a **built, minified** Storybook there is no such capture, and the
 way to have it there is the
 [`@variance-authority/jsx-source`](../jsx-source) plugin in your `viteFinal`
 with `esbuild.jsxDev` on. A report prefers the exact location wherever it comes

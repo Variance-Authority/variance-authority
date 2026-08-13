@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createCallSiteResolver,
-  locateCapture,
   matchesGlob,
   normalize as normalizeCapture,
 } from '@variance-authority/core';
@@ -383,12 +382,10 @@ export function routeCollector(
         });
         if (unsettled !== undefined) return { ok: false, because: unsettled };
 
-        // Frames become files here, before normalization, because `source` is a
-        // field the ruleset already knows how to root and hash. Costs nothing
-        // when a project installed `jsx-source` or built for production — no node
-        // carries frames, so nothing is fetched.
-        const located = await locateCapture(acquired.capture, callSites);
-
+        // No frames are spent here, and that is deliberate: a route that settles
+        // on its document digest has nobody to hand a location to. They ride the
+        // snapshot as provenance — which no hash projects — and `locateSites`
+        // spends them for the few nodes a region or a finding names.
         return {
           ok: true,
           document: acquired.document,
@@ -399,13 +396,15 @@ export function routeCollector(
           // above: both answers name files, and a report that mixes a
           // repository-relative declaration with an absolute call site is one
           // nobody can paste into anything.
-          snapshot: normalizeCapture(located, { sourceRoot: process.cwd() }),
+          snapshot: normalizeCapture(acquired.capture, { sourceRoot: process.cwd() }),
           ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
             ? { stabilization: acquired.stabilization }
             : {}),
           ...(source !== undefined ? { source } : {}),
         };
       },
+
+      callSites,
 
       async close(): Promise<void> {
         await network?.close();

@@ -1,5 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import type {
+  CallSiteResolver,
   RenderDocument,
   SemanticSnapshot,
   SourceIndex,
@@ -148,6 +149,22 @@ export interface Collector {
   /** Subjects to observe, plus the ones this source already refuses, with reasons. */
   plan(): Promise<Plan>;
   collect(subject: PlannedSubject): Promise<Collected>;
+
+  /**
+   * The frames a snapshot carries, spent on demand.
+   *
+   * Present when the collector drives a browser, because resolving a frame means
+   * fetching the module it names and the page is the only place that request is
+   * already correct. Absent otherwise, and absence is not a degradation: it means
+   * either that nothing captured frames, or that the run has no live page to
+   * fetch through — and both are a report without call sites rather than a
+   * report that is wrong.
+   *
+   * Handed to `locateSites` with the few nodes a region or a finding names. The
+   * resolver is per collector rather than per subject: the cache is what makes
+   * this bounded, and a suite's subjects share their modules.
+   */
+  readonly callSites?: CallSiteResolver;
 
   /**
    * Collect this subject again, in a world nothing else has touched.

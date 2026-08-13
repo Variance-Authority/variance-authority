@@ -1,8 +1,10 @@
 import {
   formatSource,
   inspect,
+  locateSites,
   rankRegions,
   resolveSource,
+  type CallSiteResolver,
   type Diagnostic,
   type RankedRegion,
   type SemanticSnapshot,
@@ -105,11 +107,14 @@ export function recordOf(
 }
 
 /** Spread helper, so `undefined` omits the key rather than setting it. */
-export function findingsField(collected: {
-  readonly snapshot?: SemanticSnapshot;
-  readonly source?: SourceIndex;
-}): { findings?: readonly FindingRecord[] } {
-  const findings = findingsOf(collected.snapshot, collected.source);
+export async function findingsField(
+  collected: {
+    readonly snapshot?: SemanticSnapshot;
+    readonly source?: SourceIndex;
+  },
+  callSites?: CallSiteResolver,
+): Promise<{ findings?: readonly FindingRecord[] }> {
+  const findings = await findingsOf(collected.snapshot, collected.source, callSites);
   return findings === undefined ? {} : { findings };
 }
 
@@ -121,16 +126,27 @@ export function findingsField(collected: {
  * present on the first run is the case a comparison can never reach, so the run
  * where there is nothing to compare against is exactly the run that most needs
  * this.
+ *
+ * `callSites` is the second of the two signals that spend a snapshot's frames,
+ * and it fires on a path where nothing was compared at all: a settled subject
+ * has no region and can still have a finding. Findings are few by construction —
+ * a clean render produces none, and none is the common case — so this is a
+ * resolution for the handful of nodes about to be printed, not for the tree.
  */
-export function findingsOf(
+export async function findingsOf(
   snapshot: SemanticSnapshot | undefined,
   source: SourceIndex | undefined,
-): readonly FindingRecord[] | undefined {
+  callSites?: CallSiteResolver,
+): Promise<readonly FindingRecord[] | undefined> {
   // `undefined`, not `[]`. A collector that supplies no snapshot has not been
   // inspected, which is not the same as having been inspected and found clean.
   if (snapshot === undefined) return undefined;
 
-  return inspect(snapshot).map((finding) => {
+  const found = inspect(snapshot);
+  const located =
+    callSites === undefined ? found : await locateSites(found, snapshot, callSites);
+
+  return located.map((finding) => {
     const resolved =
       source !== undefined && finding.component !== undefined
         ? resolveSource(finding.component, source)

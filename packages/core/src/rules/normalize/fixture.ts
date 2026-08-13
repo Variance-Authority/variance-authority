@@ -6,7 +6,7 @@ import type {
   Rect,
 } from '../../format/capture.js';
 import { CHROMIUM_PROFILE, JSDOM_PROFILE, type ObservationProfile } from '../../format/profile.js';
-import { propsDigest, type SourceLocation } from '../../format/provenance.js';
+import { propsDigest, type SourceLocation, type StackFrame } from '../../format/provenance.js';
 
 /**
  * Fixture builders for `RawCapture`.
@@ -53,6 +53,9 @@ export interface NodeSpec {
 
   /** Where the JSX that created this node is written, as a runtime records it. */
   readonly source?: SourceLocation;
+
+  /** Frames React captured, which a location has not yet been bought with. */
+  readonly stack?: readonly StackFrame[];
 }
 
 export interface OwnerSpec {
@@ -92,7 +95,7 @@ export function node(spec: NodeSpec = {}): RawNode {
     ...(spec.computedStyle ? { computedStyle: spec.computedStyle } : {}),
     ...(spec.rect ? { rect: spec.rect } : {}),
     ...(spec.text !== undefined ? { text: spec.text } : {}),
-    ...(spec.owners || spec.source
+    ...(spec.owners || spec.source || spec.stack
       ? {
           provenance: {
             owners: (spec.owners ?? []).map((owner) => ({
@@ -100,6 +103,7 @@ export function node(spec: NodeSpec = {}): RawNode {
               propsDigest: propsDigest(owner.props ?? {}),
             })),
             ...(spec.source ? { source: spec.source } : {}),
+            ...(spec.stack ? { stack: spec.stack } : {}),
           },
         }
       : {}),

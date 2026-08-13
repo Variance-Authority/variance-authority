@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Provenance, StackFrame } from '../format/provenance.js';
-import { createCallSiteResolver, locateProvenance } from './call-site.js';
+import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
+import { createCallSiteResolver, locateProvenance, locateSites } from './call-site.js';
 
 /**
  * The dev server, standing still.
@@ -221,5 +222,123 @@ describe('spending the frames a node carried', () => {
 
     expect(located.source).toBeUndefined();
     expect(located.stack).toBeUndefined();
+  });
+});
+
+/**
+ * The demand side: a handful of nodes, asked about because a report is about to
+ * name them.
+ *
+ * Every test here is really about *what was not fetched*. A page carries frames
+ * on every node because reading one off a fiber is nearly free; turning one into
+ * a file is a network round trip, and the run that pays for a tree's worth of
+ * them to print three lines has bought nothing.
+ */
+describe('spending frames for the nodes a report names', () => {
+  function node(path: string, provenance?: Provenance, children: SemanticNode[] = []): SemanticNode {
+    return {
+      path,
+      tag: 'div',
+      attributes: {},
+      style: {},
+      rect: { x: 0, y: 0, width: 10, height: 10 },
+      children,
+      ...(provenance !== undefined ? { provenance } : {}),
+    };
+  }
+
+  function snapshotOf(root: SemanticNode): SemanticSnapshot {
+    return {
+      formatVersion: 1,
+      subject: { id: 'fixture', kind: 'fixture' },
+      profile: { id: 'chromium', layout: true, computedStyle: true, paint: false, bands: [] } as never,
+      environment: { digest: 'v1:x', semanticDigest: 'v1:x', inputs: {} as never },
+      renderHash: 'v1:x',
+      structureHash: 'v1:x',
+      styleHash: 'v1:x',
+      root,
+      styleProvenance: [],
+      diagnostics: [],
+    };
+  }
+
+  const TREE = snapshotOf(
+    node('0', { owners: [], stack: [frame({ line: 4, column: 26 })] }, [
+      node('0/0', { owners: [], stack: [frame()] }),
+      node('0/1', { owners: [] }),
+    ]),
+  );
+
+  function dev() {
+    const serving = server({ [PROBE_URL]: inlined(VITE_MAP) });
+    return { asked: serving.asked, resolver: createCallSiteResolver(serving.fetch) };
+  }
+
+  it('fills the location of the node it was asked about', async () => {
+    const { resolver } = dev();
+    const [region] = await locateSites([{ path: '0/0' }], TREE, resolver);
+
+    expect(region?.source).toEqual({ file: 'src/probe.jsx', line: 21, column: 5 });
+  });
+
+  it('fetches nothing when nothing was asked about', async () => {
+    // The green-suite case, and the reason any of this is deferred. Every
+    // subject settled on its document digest, so there is no region and no
+    // finding — and a resolver that fetched anyway would be spending the whole
+    // run's savings on a report with no lines in it.
+    const { asked, resolver } = dev();
+
+    expect(await locateSites([], TREE, resolver)).toEqual([]);
+    expect(asked).toEqual([]);
+  });
+
+  it('leaves a site that already knows its line alone', async () => {
+    // React ≤18 and `jsx-source` both record the location outright, and
+    // attribution has already copied it onto the region. Nothing to resolve.
+    const { asked, resolver } = dev();
+    const recorded = { path: '0/0', source: { file: 'src/App.jsx', line: 12, column: 3 } };
+
+    expect(await locateSites([recorded], TREE, resolver)).toEqual([recorded]);
+    expect(asked).toEqual([]);
+  });
+
+  it('ignores a site that names no node', async () => {
+    // An unattributed region: no box contained it, so there is nothing to look
+    // up and the walk of the tree must not happen either.
+    const { asked, resolver } = dev();
+    const sites = [{ cause: 'layout' }];
+
+    // Returned by identity: nothing was resolved, so the caller's own array is
+    // still the right answer and a copy would only make it look otherwise.
+    expect(await locateSites(sites, TREE, resolver)).toBe(sites);
+    expect(asked).toEqual([]);
+  });
+
+  it('says nothing for a node that carried no frames', async () => {
+    const { asked, resolver } = dev();
+    const [site] = await locateSites([{ path: '0/1' }], TREE, resolver);
+
+    expect(site?.source).toBeUndefined();
+    expect(asked).toEqual([]);
+  });
+
+  it('resolves two sites in one module with one fetch', async () => {
+    // The two nodes come from different lines of the same file. What makes a
+    // heavily-changed subject affordable is that the second costs no fetch.
+    const { asked, resolver } = dev();
+    const located = await locateSites([{ path: '0' }, { path: '0/0' }], TREE, resolver);
+
+    expect(located.map((site) => site.source?.line)).toEqual([5, 21]);
+    expect(asked).toEqual([PROBE_URL]);
+  });
+
+  it('keeps everything else a site was carrying', async () => {
+    // A region is a rectangle, a cause and a component name before it is ever a
+    // file. Resolution adds one field and owns none of the others.
+    const { resolver } = dev();
+    const region = { path: '0/0', component: 'Badge', pixels: 4821 };
+    const [located] = await locateSites([region], TREE, resolver);
+
+    expect(located).toEqual({ ...region, source: { file: 'src/probe.jsx', line: 21, column: 5 } });
   });
 });

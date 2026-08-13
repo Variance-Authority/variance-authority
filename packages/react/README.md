@@ -69,9 +69,10 @@ every item changed.
   overwrites the fifth, `createElement` skips `__source` by name — and replaces
   it with something better: an `Error` captured inside its own element factory,
   kept on every fiber as `_debugStack`. `resolveProvenance` reads the first frame
-  in it that is not vendor code and hands the candidates to the collector on
-  `Provenance.stack`, which resolves them through the source map the build
-  already emits and writes `provenance.source`. Nothing is asked of the build:
+  in it that is not vendor code and hands the candidates on as
+  `Provenance.stack`, where they ride the snapshot unspent until a region or a
+  finding names the node — then `locateSites` resolves them through the source
+  map the build already emits and fills in `source`. Nothing is asked of the build:
   no plugin, no `jsxImportSource`, no `jsxDev`. It reaches the classic transform
   too, because React captures the same error in `createElement`.
 

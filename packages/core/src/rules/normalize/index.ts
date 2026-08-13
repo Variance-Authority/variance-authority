@@ -179,20 +179,24 @@ interface WalkState {
  * root is; the collector does, and this is the one point every node passes
  * through afterwards.
  *
- * `stack` is dropped here whether or not it was spent. It holds absolute URLs
- * with a dev server's port and build hash in them, and a document is hashed —
- * so a surviving frame would make a baseline disagree with the next restart of
- * the machine that wrote it. Where the collector resolved it, `source` already
- * carries the answer; where it did not, no answer is the honest outcome.
+ * **`stack` rides through, unspent and unrooted.** Frames hold absolute URLs
+ * with a dev server's port in them, which would make them machine-specific if
+ * anything compared or stored them — and nothing does. `structureOf` and
+ * `styleOf` in `packages/core/src/rules/normalize/project.ts` are whitelists
+ * and neither admits provenance at all, so a frame changes no digest and
+ * disagrees with no baseline; and a snapshot itself never reaches disk, because
+ * the history record writes the hashes it folds out of one. What a frame is, is
+ * a fetch nobody has asked for yet, kept against the moment a region or a
+ * finding names this node — which is where `locateSites` spends it.
+ *
+ * Rooting a frame here would be the wrong move even so. A frame's URL is what
+ * the *fetch* needs, and a repository-relative path is not fetchable.
  */
 function rooted(provenance: Provenance, root: string | undefined): Provenance {
-  const { stack, ...carried } = provenance;
-  const settled = stack === undefined ? provenance : carried;
+  if (root === undefined || provenance.source === undefined) return provenance;
 
-  if (root === undefined || settled.source === undefined) return settled;
-
-  const source = relativizeSource(settled.source, root);
-  return source === settled.source ? settled : { ...settled, source };
+  const source = relativizeSource(provenance.source, root);
+  return source === provenance.source ? provenance : { ...provenance, source };
 }
 
 function normalizeNode(

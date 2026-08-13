@@ -5,7 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { SemanticNode, SourceLocation } from '@variance-authority/core';
+import {
+  locateSites,
+  type CallSiteResolver,
+  type LocatableSite,
+  type SemanticNode,
+  type SemanticSnapshot,
+  type SourceLocation,
+} from '@variance-authority/core';
 import { routeCollector, type Collector, type Plan } from './index.js';
 
 /**
@@ -51,6 +58,14 @@ import { routeCollector, type Collector, type Plan } from './index.js';
  * The line numbers are load-bearing, and inserting a line above a marked element
  * is meant to fail this. Asserting that *some* line was reported would pass
  * while sending a reviewer to the wrong one.
+ *
+ * ## The location is asked for, and that is asserted too
+ *
+ * A collected snapshot does not carry React 19's answer: resolving a frame means
+ * fetching a module, and a suite where every subject settles has nobody to hand
+ * a location to. The frames ride unspent and the tests below go through
+ * `locateSites` for an answer, which is what the report does — including one
+ * that measures asking about a single element at a single call site.
  */
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -124,6 +139,15 @@ const INDEX_HTML =
 
 interface Fixture {
   readonly nodes: readonly SemanticNode[];
+  readonly snapshot: SemanticSnapshot;
+  /** The collector's resolver, because resolution is asked for and never done for you. */
+  readonly callSites: CallSiteResolver;
+  /**
+   * What the capture came back holding: React 18's recorded location, or React
+   * 19's unspent frames. The distinction is the whole reason both are tested —
+   * one of them has already paid, and the other has not paid yet.
+   */
+  readonly carries: 'source' | 'stack';
   readonly at: Record<'badge' | 'panel' | 'main', SourceLocation>;
 }
 
@@ -232,7 +256,15 @@ async function build(config: string, lead: readonly string[], react: 18 | 19): P
   // server and the run start, and which for a temporary directory is not.
   const file = react === 19 ? 'src/App.jsx' : join(root, 'src', 'App.jsx');
 
-  return { nodes: [...walk(collected.snapshot.root)], at: writtenAt(lead.length, file) };
+  if (collector.callSites === undefined) throw new Error('the collector offered no resolver');
+
+  return {
+    nodes: [...walk(collected.snapshot.root)],
+    snapshot: collected.snapshot,
+    callSites: collector.callSites,
+    carries: react === 19 ? 'stack' : 'source',
+    at: writtenAt(lead.length, file),
+  };
 }
 
 let classic: Fixture | undefined;
@@ -295,61 +327,140 @@ function marked(fixture: Fixture, title: string): SemanticNode | undefined {
   return fixture.nodes.find((node) => node.attributes['title'] === title);
 }
 
+/**
+ * A node as the report would hand it over: its path, and what the build already
+ * knew.
+ *
+ * This is what an `AttributedRegion` and a `Finding` both are by the time they
+ * reach `locateSites` — attribution copies a recorded `provenance.source` onto
+ * the region — which is why React 18 arrives answered and React 19 arrives
+ * asking.
+ */
+function siteOf(node: SemanticNode): LocatableSite {
+  return {
+    path: node.path,
+    ...(node.provenance?.source !== undefined ? { source: node.provenance.source } : {}),
+  };
+}
+
+/** What a report asking about one element would print for it. */
+async function sourceOf(fixture: Fixture, title: string): Promise<SourceLocation | undefined> {
+  const node = marked(fixture, title);
+  if (node === undefined) return undefined;
+
+  const [located] = await locateSites([siteOf(node)], fixture.snapshot, fixture.callSites);
+  return located?.source;
+}
+
 chromium_.each([
   ['React 19, an empty config, where JSX compiles to createElement', () => classic!],
   ['React 19, the automatic runtime, configured only as React', () => automatic!],
   ['React 18, the automatic runtime, configured only as React', () => automatic18!],
 ] as const)('%s', (_label, fixtureOf) => {
-  it('reports the line and column an element is written on', () => {
+  it('reports the line and column an element is written on', async () => {
     // The claim, byte-exact. Nothing in this build was arranged to produce it:
     // React's own captured error, resolved through the map Vite emits because
     // Vite emits maps.
     const fixture = fixtureOf();
-    expect(marked(fixture, 'badge')?.provenance?.source).toEqual(fixture.at.badge);
+    expect(await sourceOf(fixture, 'badge')).toEqual(fixture.at.badge);
   });
 
-  it('names the element, not the component that returned it', () => {
+  it('names the element, not the component that returned it', async () => {
     // `Badge` is declared a line above the `<span>` it returns. A reviewer sent
     // to the declaration still has to find the element, which is most of the
     // work the location was supposed to save.
     const fixture = fixtureOf();
-    expect(marked(fixture, 'badge')?.provenance?.source?.line).toBe(fixture.at.badge.line);
+    expect((await sourceOf(fixture, 'badge'))?.line).toBe(fixture.at.badge.line);
   });
 
-  it('separates two elements one component wrote', () => {
+  it('separates two elements one component wrote', async () => {
     // `<main>` and `<section>` come out of a single render of a single
     // component, one line apart. A mechanism resolving per component rather
     // than per element would give both the same line and look almost right.
     const fixture = fixtureOf();
-    expect(marked(fixture, 'panel')?.provenance?.source).toEqual(fixture.at.panel);
-    expect(fixture.nodes[0]?.tag).toBe('main');
-    expect(fixture.nodes[0]?.provenance?.source).toEqual(fixture.at.main);
+    expect(await sourceOf(fixture, 'panel')).toEqual(fixture.at.panel);
+
+    const root = fixture.nodes[0]!;
+    expect(root.tag).toBe('main');
+    const [located] = await locateSites([siteOf(root)], fixture.snapshot, fixture.callSites);
+    expect(located?.source).toEqual(fixture.at.main);
   });
 
-  it('names a path a reviewer can open, with no origin in it', () => {
+  it('names a path a reviewer can open, with no origin in it', async () => {
     // Not `http://127.0.0.1:5173/src/App.jsx`. A port is a fact about one run on
     // one machine, and a baseline holding one disagrees with the next. Which
     // path it is differs by version and is asserted with the rest of the
     // location; what may never differ is that a URL survived into it.
-    const file = marked(fixtureOf(), 'badge')?.provenance?.source?.file;
+    const file = (await sourceOf(fixtureOf(), 'badge'))?.file;
     expect(file).toMatch(/src\/App\.jsx$/);
     expect(file).not.toContain('127.0.0.1');
     expect(file).not.toContain('http');
   });
 
-  it('leaves no frames behind for anything downstream to hash', () => {
-    // Frames are transient by construction. One surviving into a snapshot would
-    // put an absolute URL with a port in it inside a render hash, and every
-    // baseline would disagree with the next dev-server restart.
-    for (const node of fixtureOf().nodes) expect(node.provenance?.stack).toBeUndefined();
+  it('carries what the build gave it, and resolves nothing on its own', () => {
+    // Neither version has been spent. React 18's location was computed by the
+    // compiler, so a capture that asks nothing still has it; React 19's is a
+    // module fetch away, and a run whose subjects all settle makes none.
+    const fixture = fixtureOf();
+    const badge = marked(fixture, 'badge');
+
+    if (fixture.carries === 'source') {
+      expect(badge?.provenance?.source).toEqual(fixture.at.badge);
+      expect(badge?.provenance?.stack).toBeUndefined();
+      return;
+    }
+
+    expect(badge?.provenance?.source).toBeUndefined();
+    expect(badge?.provenance?.stack?.length).toBeGreaterThan(0);
   });
 
-  it('locates every element it captured, not a lucky one', () => {
-    // A floor over the whole subtree rather than over the three nodes this suite
-    // names, so a mechanism that happened to work for those and failed for their
-    // siblings would still be caught.
-    const { nodes } = fixtureOf();
-    expect(nodes.filter((node) => node.provenance?.source !== undefined)).toHaveLength(nodes.length);
+  it('spends one call site to answer about one element', async () => {
+    // The economy, measured rather than described: asking about a single node
+    // resolves a single site, not the subtree it belongs to.
+    const fixture = fixtureOf();
+    const before = fixture.callSites.stats.sites;
+
+    await sourceOf(fixture, 'badge');
+
+    expect(fixture.callSites.stats.sites - before).toBeLessThanOrEqual(1);
+  });
+
+  it('locates every element it captured, not a lucky one', async () => {
+    // A floor over the whole subtree rather than the three nodes this suite
+    // names, so a mechanism that worked for those and failed for their siblings
+    // is still caught. It is also the shape a heavily-changed subject arrives
+    // in, and the resolver's cache is what keeps it to a handful of fetches.
+    const { nodes, snapshot, callSites } = fixtureOf();
+    const located = await locateSites(nodes.map(siteOf), snapshot, callSites);
+
+    expect(located.filter((site) => site.source !== undefined)).toHaveLength(nodes.length);
+  });
+});
+
+/**
+ * Frames ride the snapshot, and nothing downstream can see them.
+ *
+ * This is what makes deferral safe rather than merely cheap: a frame holds a dev
+ * server's port, so a snapshot carrying one would disagree with the next restart
+ * if anything hashed it. Nothing does — the projections a hash is folded from
+ * are whitelists, and provenance is not on them.
+ *
+ * Asserted across two fixtures rather than by reading a hash, because this is
+ * the observable form of the claim. Same JSX, same DOM, same one line of config,
+ * and two captures in genuinely different states. Equal hashes are the only
+ * outcome consistent with neither state being read.
+ */
+chromium_('a frame changes no hash', () => {
+  it('hashes the same tree identically whether it carries frames or a location', () => {
+    const withFrames = automatic!.nodes[0]!;
+    const withSource = automatic18!.nodes[0]!;
+
+    expect(withFrames.provenance?.stack?.length).toBeGreaterThan(0);
+    expect(withSource.provenance?.source).toBeDefined();
+
+    expect(withFrames.renderHash).toBe(withSource.renderHash);
+    expect(withFrames.structureHash).toBe(withSource.structureHash);
+    expect(withFrames.styleHash).toBe(withSource.styleHash);
   });
 });
 
@@ -369,10 +480,14 @@ chromium_.each([
  * reader infer from two passing versions that every combination of them passes.
  */
 chromium_('React 18 with the classic transform reports no location, and says so by absence', () => {
-  it('captures the elements but attributes none of them', () => {
-    const nodes = classic18!.nodes;
+  it('captures the elements but attributes none of them', async () => {
+    const { nodes, snapshot, callSites } = classic18!;
     expect(nodes.length).toBeGreaterThan(2);
-    expect(nodes.filter((node) => node.provenance?.source !== undefined)).toHaveLength(0);
+
+    // Asked properly, not just inspected. Nothing is recorded and nothing is
+    // resolvable, so the demand side answers with the sites it was handed.
+    const located = await locateSites(nodes.map(siteOf), snapshot, callSites);
+    expect(located.filter((site) => site.source !== undefined)).toHaveLength(0);
   });
 
   it('still names the components that wrote them', () => {

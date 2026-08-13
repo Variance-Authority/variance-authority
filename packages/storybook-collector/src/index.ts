@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
   createCallSiteResolver,
-  locateCapture,
   matchesGlob,
   normalize as normalizeCapture,
 } from '@variance-authority/core';
@@ -402,14 +401,10 @@ export function storybookCollector(
         });
         if (unsettled !== undefined) return { ok: false, because: unsettled };
 
-        // Frames become files here, before normalization, because `source` is a
-        // field the ruleset already knows how to root and hash. One resolver per
-        // run: a story's nodes come from a handful of modules and the next
-        // story's come from the same ones, so the cache is worth more the longer
-        // the run goes on. Costs nothing when a project installed `jsx-source` or
-        // built for production — no node carries frames, so nothing is fetched.
-        const located = await locateCapture(acquired.capture, callSites);
-
+        // No frames are spent here, and that is deliberate: a story that settles
+        // on its document digest has nobody to hand a location to. They ride the
+        // snapshot as provenance — which no hash projects — and `locateSites`
+        // spends them for the few nodes a region or a finding names.
         return {
           ok: true,
           document: acquired.document,
@@ -420,7 +415,7 @@ export function storybookCollector(
           // above: both answers name files, and a report that mixes a
           // repository-relative declaration with an absolute call site is one
           // nobody can paste into anything.
-          snapshot: normalizeCapture(located, { sourceRoot: process.cwd() }),
+          snapshot: normalizeCapture(acquired.capture, { sourceRoot: process.cwd() }),
           ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
             ? { stabilization: acquired.stabilization }
             : {}),
@@ -431,6 +426,8 @@ export function storybookCollector(
           // and not good.
         };
       },
+
+      callSites,
 
       async close(): Promise<void> {
         await network?.close();

@@ -44,8 +44,8 @@ export {
 } from './source-map.js';
 export type { SourceMap, OriginalPosition } from './source-map.js';
 
-export { createCallSiteResolver, locateProvenance, locateCapture } from './call-site.js';
-export type { CallSiteResolver, CallSiteStats, FetchModule } from './call-site.js';
+export { createCallSiteResolver, locateProvenance, locateSites } from './call-site.js';
+export type { CallSiteResolver, CallSiteStats, FetchModule, LocatableSite } from './call-site.js';
 
 export { hashComponents, causesBetween, movedBands, bandsBetween, UNATTRIBUTED } from './component-hash.js';
 export type { BandDigests, ComponentHash } from './component-hash.js';

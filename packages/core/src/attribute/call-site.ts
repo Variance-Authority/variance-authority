@@ -1,5 +1,5 @@
-import type { RawCapture, RawNode } from '../format/capture.js';
 import type { Provenance, SourceLocation, StackFrame } from '../format/provenance.js';
+import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import {
   inlineSourceMapOf,
   originalPositionFor,
@@ -25,6 +25,15 @@ import { isVendorPath, writerLocationOf } from './stack.js';
  * from one line of JSX. So the work is per *call site*, not per node, and the
  * cache below is not an optimization but the thing that makes the cost bounded —
  * a handful of module fetches for a whole page.
+ *
+ * **And it is asked on a signal rather than on every capture.** Fourteen sites is
+ * a bounded cost, not a free one, and a run that settles every subject on its
+ * document digest has nobody to hand a location to: no region was drawn, no
+ * finding was raised, and the fetches would answer a question nothing asked. So
+ * frames ride the snapshot — they are provenance, and no hash projects
+ * provenance — and {@link locateSites} spends them for the handful of nodes a
+ * report is about to name. A page whose only change is one button resolves one
+ * call site, not fourteen; a page that did not change resolves none.
  *
  * `fetchModule` is injected because `core` may not assume a network (ADR-0013),
  * and because the right way to fetch differs by caller: a browser-driving
@@ -169,64 +178,78 @@ export async function locateProvenance(
 }
 
 /**
- * A capture with every node's frames spent, before it is normalized.
+ * Anything a report points at: it names a node, and may already know its line.
  *
- * The one place a capture is walked for this, and it runs before normalization
- * on purpose: `source` is a field the ruleset already knows how to root and
- * hash, so resolving first means nothing downstream learns that stack frames
- * exist. What normalization does with a stack that reached it anyway is drop it.
- *
- * Returned unchanged when no node carried frames, which is the whole of a
- * production build and of any project that installed `jsx-source`. The walk is
- * still paid — it is a tree traversal against thousands of fetch-free nodes, and
- * `structuredClone`-free rebuilding only happens along paths that changed.
+ * An `AttributedRegion` and a `Finding` are both this, arrived at from opposite
+ * directions — one from a mask, one from an inspection — and both are the *few*.
+ * That is the whole reason this shape is worth having rather than two functions:
+ * what makes resolution affordable is being asked about a handful of nodes, and
+ * a handful is what a region list and a finding list are.
  */
-export async function locateCapture(
-  capture: RawCapture,
-  resolver: CallSiteResolver,
-): Promise<RawCapture> {
-  const root = await locateNode(capture.root, resolver);
-  const portals = capture.portals
-    ? await Promise.all(capture.portals.map((portal) => locateNode(portal, resolver)))
-    : undefined;
-
-  const rootHeld = root === capture.root;
-  const portalsHeld =
-    portals === undefined || portals.every((portal, index) => portal === capture.portals?.[index]);
-
-  if (rootHeld && portalsHeld) return capture;
-
-  return { ...capture, root, ...(portals !== undefined ? { portals } : {}) };
+export interface LocatableSite {
+  readonly path?: NodePath;
+  readonly source?: SourceLocation;
 }
 
-async function locateNode(node: RawNode, resolver: CallSiteResolver): Promise<RawNode> {
-  // Children first and all at once. The resolver's own cache collapses them onto
-  // a handful of modules, so the concurrency costs nothing and saves a page's
-  // worth of sequential awaits.
-  const [provenance, children, shadowChildren] = await Promise.all([
-    node.provenance === undefined
-      ? undefined
-      : locateProvenance(node.provenance, resolver),
-    Promise.all(node.children.map((child) => locateNode(child, resolver))),
-    node.shadowChildren === undefined
-      ? undefined
-      : Promise.all(node.shadowChildren.map((child) => locateNode(child, resolver))),
-  ]);
+/**
+ * The line for each site a report is about to name, and for nothing else.
+ *
+ * This is the demand side of the zero-install path. The page reads frames off
+ * every fiber because reading them is nearly free; turning one into a file is
+ * not, and this is the only place that spends it.
+ *
+ * Three ways a site costs nothing, all of them the common case:
+ *
+ * - **It has no `path`.** A region no box contains names no node.
+ * - **It already has a `source`.** React ≤18 and `@variance-authority/jsx-source`
+ *   both record the location outright, so there is nothing to resolve. Only
+ *   React 19, which throws its location away and captures an `Error` instead,
+ *   reaches the map.
+ * - **Its node carried no frames.** A production build captures nothing.
+ *
+ * And a subject that settled on its document digest never calls this at all,
+ * which is the point: no region, no finding, no fetch.
+ *
+ * Sites are resolved concurrently. The resolver's own cache collapses them onto
+ * the modules they share, so two regions in one component cost one fetch.
+ */
+export async function locateSites<T extends LocatableSite>(
+  sites: readonly T[],
+  snapshot: SemanticSnapshot,
+  resolver: CallSiteResolver,
+): Promise<readonly T[]> {
+  const wanted = sites.some((site) => site.source === undefined && site.path !== undefined);
+  if (!wanted) return sites;
 
-  const held =
-    provenance === node.provenance &&
-    children.every((child, index) => child === node.children[index]) &&
-    (shadowChildren === undefined ||
-      shadowChildren.every((child, index) => child === node.shadowChildren?.[index]));
+  // Built once and only when something asked. A path lookup on a tree is a walk,
+  // and doing it per site would make a fifty-region page walk it fifty times.
+  const nodes = index(snapshot.root);
 
-  if (held) return node;
+  const located = await Promise.all(
+    sites.map(async (site) => {
+      if (site.source !== undefined || site.path === undefined) return site;
 
-  return {
-    ...node,
-    ...(provenance !== undefined ? { provenance } : {}),
-    children,
-    ...(shadowChildren !== undefined ? { shadowChildren } : {}),
+      const provenance = nodes.get(site.path)?.provenance;
+      if (provenance?.stack === undefined) return site;
+
+      const spent = await locateProvenance(provenance, resolver);
+      return spent.source === undefined ? site : { ...site, source: spent.source };
+    }),
+  );
+
+  return located.every((site, at) => site === sites[at]) ? sites : located;
+}
+
+function index(root: SemanticNode): ReadonlyMap<NodePath, SemanticNode> {
+  const nodes = new Map<NodePath, SemanticNode>();
+
+  const walk = (node: SemanticNode): void => {
+    nodes.set(node.path, node);
+    for (const child of node.children) walk(child);
   };
+  walk(root);
+
+  return nodes;
 }
 
 /**
