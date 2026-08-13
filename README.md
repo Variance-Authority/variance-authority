@@ -68,6 +68,35 @@ be JSON, a single HTML file, or an MCP response, and the process exits with a
 verdict: `0` for nothing to review, `1` for changes to review, and `2` for an
 operator error.
 
+## A real change, a flake, and a neighbour look identical
+
+Three subjects can all report *the pixels moved*, and need three different
+people. Telling them apart is a separate job from finding the movement, and it is
+the one that decides whether an afternoon is well spent.
+
+A changed subject is therefore collected a second time, twice, each pass varying
+exactly one thing:
+
+| | world | time | answers | reported as |
+| --- | --- | --- | --- | --- |
+| `again` | held | advanced | does this subject move on its own? | `unstable` |
+| `alone` | rebuilt | same | did some *other* subject move this one? | `order-dependent` |
+
+Neither is a retry: both outcomes of both are reported, nothing is cleared, and
+`variance accept` refuses to promote either — a reading chosen by a race must not
+become the thing every later run is measured against. What comes back is not
+"this test is flaky" but a component and a band — `Clock (content)` — which is
+what a fix can be aimed at.
+
+This is affordable because a green run pays nothing: a subject whose document
+digest already matches its baseline's is settled without a render, so the budget
+goes to the subjects that moved. The same discipline of one variable runs across
+the other axes too — the suite compared to itself at one commit, and a record
+across runs. [`docs/instruments.md`](docs/instruments.md) is the full set, with
+where each claim is measured and where three of them are built and unrun;
+[`docs/flakiness.md`](docs/flakiness.md) is the position underneath it, including
+the four causes of variance nothing here absorbs.
+
 ## Evidence, with its limits attached
 
 The repository includes a head-to-head case against Playwright's real

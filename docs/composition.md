@@ -267,7 +267,9 @@ enough that their measurements are the claim.
 
 ---
 
-**Further:** [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it) for
+**Further:** [`instruments.md`](instruments.md) for where this axis sits among the
+others ·
+[`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it) for
 what an unexplained movement becomes ·
 [`history.md`](history.md) for the same questions across runs ·
 [`packages/mcp`](../packages/mcp) for `variance_composition` ·
