@@ -49,6 +49,38 @@ export interface Fiber {
   readonly memoizedState?: unknown;
 
   /**
+   * Contexts this fiber subscribes to, as a linked list off `firstContext`.
+   *
+   * Written by `readContext` during render, so it is populated by `useContext`
+   * and by a class `contextType` alike, and it is the *only* record of the
+   * subscription — `useContext` leaves no entry in the hook chain at all
+   * (measured on 19.2.8). A component's context dependencies are therefore
+   * unreadable from `memoizedState` and readable only here.
+   *
+   * INTERNAL CONTRACT: if React renames `firstContext` or stops populating it,
+   * the symptom is a `Wiring.contexts` that is silently empty — a component that
+   * subscribes to three contexts compares equal to one that subscribes to none.
+   * `wiring.test.tsx` asserts a known subscription by name for exactly this.
+   */
+  readonly dependencies?: { readonly firstContext?: ContextDependency | null } | null;
+
+  /**
+   * Development-only. Hook names in call order, exactly as React recorded them
+   * while rendering: `['useState', 'useRef', 'useEffect']`.
+   *
+   * React writes this itself, which is worth stating because the alternative is
+   * strictly worse. Walking the `memoizedState` hook chain and inferring names
+   * from cell shape cannot separate `useMemo` from `useCallback` (identical
+   * `[value, deps]` cells) or `useEffect` from `useLayoutEffect` (identical
+   * effect objects, distinguished only by a numeric `tag` whose values are
+   * themselves unversioned internals). Both measured on 19.2.8.
+   *
+   * Absent in production builds. Absent, and the band drops the field rather
+   * than substituting `[]` — see {@link Wiring.hooks}.
+   */
+  readonly _debugHookTypes?: readonly string[] | null;
+
+  /**
    * Development-only. Present on fibers created from JSX in a dev build and
    * absent entirely in production, which is why every read of it is optional.
    * React 19 widened the type: it is a `Fiber` for a client component and a
@@ -62,6 +94,12 @@ export interface Fiber {
    * was configured to emit it. Absent is the normal case, not an error.
    */
   readonly _debugSource?: DebugSource | null;
+}
+
+/** One link of the context-dependency list. `displayName` is set by the author. */
+export interface ContextDependency {
+  readonly context?: { readonly displayName?: string } | null;
+  readonly next?: ContextDependency | null;
 }
 
 /** React 19's server-component owner record. Has a `name`, but no `tag`. */

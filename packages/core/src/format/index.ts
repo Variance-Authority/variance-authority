@@ -66,6 +66,8 @@ export type {
 
 export type { Provenance, OwnerFrame, SourceLocation } from './provenance.js';
 export { propsDigest } from './provenance.js';
+export type { Wiring } from './wiring.js';
+export { keyedByPosition } from './wiring.js';
 
 export type {
   RawCapture,

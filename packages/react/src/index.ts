@@ -29,7 +29,7 @@ export type {
 } from './resolve.js';
 export { resolveProvenance, provenanceOf, NO_FIBER, UNMOUNTED } from './resolve.js';
 
-export type { Fiber, DebugComponentInfo, DebugSource } from './fiber.js';
+export type { Fiber, ContextDependency, DebugComponentInfo, DebugSource } from './fiber.js';
 export {
   FiberTag,
   findFiber,
@@ -49,6 +49,11 @@ export { suspenseBoundaries, suspenseBoundariesIn, pendingSuspense } from './sus
 
 export type { Commit, CommitTap, TapOptions, TapRefusal, QuietOptions, QuietResult } from './commits.js';
 export { tapCommits, awaitQuiet } from './commits.js';
+
+export { wiringOf } from './wiring.js';
+
+export type { Remount, RenderMark } from './identity.js';
+export { markRender, remountedSince } from './identity.js';
 
 export type { ReactRuntimeInfo, ReactKeyFormat } from './runtime.js';
 export { detectReactVersion, detectReactRuntime } from './runtime.js';

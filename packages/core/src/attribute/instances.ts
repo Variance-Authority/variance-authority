@@ -1,3 +1,4 @@
+import type { CanonicalValue } from '../format/canonical.js';
 import { digestValue } from '../format/hash.js';
 import type { Digest } from '../format/hash.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
@@ -115,6 +116,24 @@ export interface ComponentInstance {
   /** Absent under a profile without layout — absent, never empty (ADR-0002). */
   readonly geometry?: Digest;
 
+  /**
+   * How the framework holds this boundary: hook shape, wrappers, context
+   * subscriptions, reconciliation keys. See `Wiring`.
+   *
+   * Deliberately **not** folded into `rendering`, for the same reason `geometry`
+   * is not: `rendering` is the four content digests and its contract is that two
+   * instances sharing it rendered the same thing. A component that gained a
+   * `memo()` renders the same thing. Folding wiring in would make a performance
+   * annotation read as a visual regression and would re-baseline every subject
+   * on the first run after a framework adapter was wired up — which is the
+   * surest way to make a new dimension the thing people turn off.
+   *
+   * Absent when no adapter supplied wiring for any node in this boundary.
+   * Absent, never a digest of nulls, because "no framework here" and "a framework
+   * nobody could read" must not compare equal (ADR-0002).
+   */
+  readonly wiring?: Digest;
+
   /** Child boundaries, in document order. The edges of the component graph. */
   readonly renders: readonly string[];
 
@@ -162,11 +181,29 @@ export function componentInstances(snapshot: SemanticSnapshot): readonly Compone
       text,
       style,
       ...(layout ? { geometry: digestValue(shape.geometry) } : {}),
+      // Only when something reported wiring. A boundary of pure nulls is a
+      // boundary nobody read, and hashing it would give a plain-DOM page a
+      // `wiring` digest to be compared against a React page's.
+      ...(observed(shape.wiring) ? { wiring: digestValue(shape.wiring) } : {}),
       renders: shape.renders,
       nodes: shape.nodes,
       tokens: shape.tokens,
     };
   });
+}
+
+/**
+ * Whether a per-node band list holds anything at all.
+ *
+ * The band pushes one entry per node so that position stays meaningful, which
+ * means a boundary under no framework adapter produces a full-length list of
+ * `null`. That is a well-formed value and it hashes to something, and something
+ * is exactly what it must not produce — the digest would then say "this boundary
+ * has known wiring, and it is nothing", which joins against every other
+ * unread boundary in the corpus.
+ */
+function observed(band: CanonicalValue): boolean {
+  return Array.isArray(band) && band.some((entry) => entry !== null);
 }
 
 /**

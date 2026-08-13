@@ -8,6 +8,7 @@ import {
   type RawNode,
   type SubjectRef,
   type Viewport,
+  type Wiring,
 } from '@variance-authority/core';
 import { ariaOf } from './aria.js';
 import { resolveIgnores, type IgnoreSelector } from './ignore.js';
@@ -51,6 +52,18 @@ export interface CollectOptions {
    * dependency — the same seam other frameworks arrive through later (spec §9).
    */
   readonly provenanceOf?: (element: Element) => Provenance | undefined;
+
+  /**
+   * Framework wiring provider, usually `wiringOf` from
+   * `@variance-authority/react`.
+   *
+   * A second injection point rather than a field on `provenanceOf`'s return,
+   * because the two answer to different readers and a project may want either
+   * without the other: provenance makes a diff carry a name, wiring is a
+   * dimension of the subject. Absent leaves the band absent, which is what a
+   * page with no framework adapter should look like (ADR-0002).
+   */
+  readonly wiringOf?: (element: Element) => Wiring | undefined;
 
   /**
    * Fonts in play, as `family/weight/style/contentHash`.
@@ -299,6 +312,7 @@ function captureNode(
   }
 
   const provenance = options.provenanceOf?.(element);
+  const wiring = options.wiringOf?.(element);
   const ignoredBy = marks.get(element);
   const { matched, couplings } = matchRulesFor(element, index);
   for (const coupling of couplings) couplingSink.add(coupling);
@@ -338,6 +352,7 @@ function captureNode(
     ...(profile.computedStyle && view ? { computedStyle: computedStyleOf(element, view) } : {}),
     ...(profile.layout ? { rect: rectOf(element) } : {}),
     ...(provenance ? { provenance } : {}),
+    ...(wiring ? { wiring } : {}),
     children,
     ...(shadowChildren.length > 0 ? { shadowChildren } : {}),
     // Marked here and nowhere else. Only the element that matched carries the

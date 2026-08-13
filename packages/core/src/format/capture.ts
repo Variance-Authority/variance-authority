@@ -1,6 +1,7 @@
 import type { EnvironmentInputs } from './environment.js';
 import type { ObservationProfile } from './profile.js';
 import type { Provenance } from './provenance.js';
+import type { Wiring } from './wiring.js';
 
 /**
  * The collector/core boundary.
@@ -119,6 +120,16 @@ export interface RawNode {
   readonly text?: string;
 
   readonly provenance?: Provenance;
+
+  /**
+   * How the framework holds this node's component, when an adapter supplied it.
+   *
+   * Beside `provenance` because it arrives from the same seam and under the same
+   * rule: the collector carries no framework dependency and both are injected.
+   * See {@link Wiring} for why it is a dimension rather than another attribution
+   * field.
+   */
+  readonly wiring?: Wiring;
 
   readonly children: readonly RawNode[];
 

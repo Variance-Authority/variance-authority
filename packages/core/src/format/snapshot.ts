@@ -3,6 +3,7 @@ import type { EnvironmentKey } from './environment.js';
 import type { Digest } from './hash.js';
 import type { ObservationProfile } from './profile.js';
 import type { Provenance } from './provenance.js';
+import type { Wiring } from './wiring.js';
 
 /**
  * The normalized semantic snapshot: the verdict's input, and the thing a render
@@ -137,6 +138,19 @@ export interface SemanticNode {
   readonly text?: string;
 
   readonly provenance?: Provenance;
+
+  /**
+   * How the framework holds this node's component, when a framework adapter
+   * supplied it. See {@link Wiring}.
+   *
+   * On the node rather than on `Provenance`, though both come from the same
+   * adapter and the same fiber, because they answer to different readers.
+   * Provenance exists so a diff arrives carrying a name; wiring is a *dimension
+   * of the subject*, hashed into a band of its own, and a band's inputs belong
+   * beside the other bands' inputs — next to `style` and `attributes`, which is
+   * where `shapeOf` goes looking.
+   */
+  readonly wiring?: Wiring;
 
   /**
    * `true` on the root of a subtree rendered through a portal.

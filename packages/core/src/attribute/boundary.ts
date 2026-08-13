@@ -267,6 +267,19 @@ export interface Shape {
   readonly text: CanonicalValue;
   readonly style: CanonicalValue;
   readonly geometry: CanonicalValue;
+
+  /**
+   * How the framework holds this boundary, per node that reports it.
+   *
+   * Its own band because it answers its own question. `structure` through
+   * `geometry` all read what the renderer produced; this reads what the
+   * component *is* — its hook shape, its wrappers, the contexts it subscribes
+   * to, the keys it is reconciled under. Two components can agree on all five
+   * content bands and disagree here, and when they do, they behave differently
+   * under every change that follows.
+   */
+  readonly wiring: CanonicalValue;
+
   /** Child boundaries encountered, in document order. Not part of any digest. */
   readonly renders: readonly string[];
   /** Nodes this boundary owns, counting its own root. Not part of any digest. */
@@ -327,6 +340,7 @@ export function shapeOf(boundary: Boundary, layout: boolean, rename?: Rename): S
   const geometry: CanonicalValue[] = [];
   const semantics: CanonicalValue[] = [];
   const text: CanonicalValue[] = [];
+  const wiring: CanonicalValue[] = [];
   const renders: string[] = [];
   const tokens = new Set<string>();
   let nodes = 0;
@@ -365,6 +379,13 @@ export function shapeOf(boundary: Boundary, layout: boolean, rename?: Rename): S
       state: (current.state ?? null) as CanonicalValue,
     });
     text.push(current.text ?? null);
+    // `null` for a node that reports none, for the reason every list here gives:
+    // an omitted entry lets two different trees agree by coincidence. Most nodes
+    // report `null` — wiring attaches to a component's root node and not to the
+    // elements beneath it (see `wiringOf`), so a boundary's band is a short
+    // signal in a long run of nulls, and the nulls are what make its position
+    // mean anything.
+    wiring.push((current.wiring ?? null) as CanonicalValue);
 
     return {
       tag: current.tag,
@@ -413,6 +434,7 @@ export function shapeOf(boundary: Boundary, layout: boolean, rename?: Rename): S
     text,
     style,
     geometry,
+    wiring,
     renders,
     nodes,
     tokens: [...tokens].sort(),

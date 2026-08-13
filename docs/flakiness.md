@@ -343,19 +343,33 @@ suppress.** Auto-ignoring by diff shape silences the symptom without naming the
 writer, and the same suppression that hides a flake hides the real regression
 that later lands in the same region.
 
-**What a fingerprint can and cannot key on.** Argos publishes the mechanism —
+**The method, which we use too.** Argos publishes the mechanism —
 [`mask-fingerprint`](https://github.com/argos-ci/mask-fingerprint) takes the mask
 of differing pixels, dilates it, crops to its bounding box, reduces to a grid of
 densities and hashes that to an integer, so two diffs of roughly the same shape
 in roughly the same place group together in SQL. Its own framing is precise:
-tolerant equality, not approximate similarity. It is a good key, and it is a key
-in *pixel space* — change the viewport and it is a different key for the same
-defect, move the component down the page and it is a different key, and two
-unrelated components whose diffs happen to be the same blob are one key. Our key
-is a component and a band, which survives all three and carries a `file:line`.
-Neither key is recoverable from the other, and the direction matters: **you
-cannot get from the shape of the pixels that moved back to the component that
-moved them.**
+tolerant equality, not approximate similarity.
+
+It is worth reading as a **method** rather than as a rival key, because the
+method is the reusable part: *take an observation that cannot answer your
+question, derive a value from it, and reason over the derived value.* No single
+pixel comparison can say "this is the same defect as last Tuesday"; the derived
+integer says it in one `GROUP BY`. The claim lives one layer above the
+observation, and the derivation is what carries it there.
+
+That is the same move as
+[differencing two renders that vary in one prop](composition.md) to learn what
+that prop controls, and the same move as deriving a component's `wiring` from the
+fiber to separate two byte-identical documents
+([ADR-0036](context/adr/0036-the-fiber-is-a-band-and-a-finding.md)). What each
+derivation *can* license is decided by its substrate, not by its cleverness: a
+fingerprint is derived from pixels, so it is a key in pixel space — change the
+viewport and it is a different key for the same defect, move the component down
+the page and it is a different key, and two unrelated components whose diffs are
+the same blob are one key. Our recurrence key is derived from a component and a
+band, so it survives all three and carries a `file:line`. Neither is recoverable
+from the other, and the direction matters: **you cannot get from the shape of the
+pixels that moved back to the component that moved them.**
 
 The two instruments differ in what they need and in what they can say. Counting
 fingerprints needs a *window* — several runs, and a store to keep them in — and

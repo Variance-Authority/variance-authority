@@ -229,6 +229,7 @@ function normalizeNode(
       ...(capture.profile.layout && node.rect ? { rect: node.rect } : {}),
       ...(text !== undefined ? { text } : {}),
       ...(node.provenance ? { provenance: node.provenance } : {}),
+      ...(node.wiring ? { wiring: node.wiring } : {}),
       // Carried, never acted on. `structureOf` and `styleOf` project the fields
       // they hash by name, so this reaches the snapshot without reaching the
       // identity — which is the whole contract an ignore is under.
