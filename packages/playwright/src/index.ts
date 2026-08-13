@@ -38,5 +38,7 @@ export { freezeGif } from './gif.js';
 export { blankKey, blankPng, blankRuleError, blankRuleFor, imageSize } from './blank.js';
 export type { BlankRule, ImageSize } from './blank.js';
 
+export { fetchModules } from './modules.js';
+
 export { AGENT_GLOBAL } from './agent.js';
 export type { CaptureRequest, PageAgent } from './agent.js';

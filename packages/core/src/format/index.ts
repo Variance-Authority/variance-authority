@@ -64,7 +64,7 @@ export type {
   SettleTarget,
 } from './stabilize.js';
 
-export type { Provenance, OwnerFrame, SourceLocation } from './provenance.js';
+export type { Provenance, OwnerFrame, SourceLocation, StackFrame } from './provenance.js';
 export { propsDigest, jsxSourceOf, relativizeSource, JSX_SOURCE } from './provenance.js';
 export type { Wiring } from './wiring.js';
 export { keyedByPosition } from './wiring.js';

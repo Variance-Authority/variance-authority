@@ -1,9 +1,12 @@
 import {
+  isVendorPath,
   jsxSourceOf,
+  parseStackFrames,
   propsDigest,
   type OwnerFrame,
   type Provenance,
   type SourceLocation,
+  type StackFrame,
 } from '@variance-authority/core';
 import { FiberTag, findFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { debugOwnerName, fiberComponentName } from './names.js';
@@ -146,13 +149,71 @@ function provenanceFromFiber(fiber: Fiber): Provenance {
     owners: readonly OwnerFrame[];
     createdBy?: string;
     source?: SourceLocation;
+    stack?: readonly StackFrame[];
   } = { owners };
 
   if (createdBy !== null) provenance.createdBy = createdBy;
-  if (source !== null) provenance.source = source;
+
+  if (source !== null) {
+    provenance.source = source;
+  } else {
+    // Only when nothing was recorded. A runtime that wrote the location knows it
+    // exactly and without a map; this is the fallback for a project that
+    // installed nothing, and running it alongside would cost every node a stack
+    // read to arrive at an answer already in hand.
+    const stack = callSiteFrames(fiber);
+    if (stack.length > 0) provenance.stack = stack;
+  }
 
   return provenance;
 }
+
+/**
+ * Candidate call sites for this node, read off React's own captured error.
+ *
+ * Not an answer — a shortlist. Deciding which frame is the author needs source
+ * maps, and maps need to be fetched, which is Node's job and not a page agent's
+ * (ADR-0013). What this can do without leaving the page is throw away the frames
+ * that are certainly not the author: React's runtime, the renderer, and any
+ * custom JSX runtime above them, all of which are recognisable from their URL
+ * alone. That check is a filter and not the decision — the collector applies it
+ * again to the *mapped* path, which is what actually rules a frame out.
+ *
+ * The cap is what keeps this honest about cost. A stack is deep — React's
+ * renderer contributes dozens of frames — and this runs once per node on a
+ * document with thousands. Measured on a 4211-node page: every fiber carries a
+ * stack, reading all of them costs 17.6 ms, and they hold 14 distinct call sites
+ * between them. So the shortlist is short by construction, and the collector's
+ * cache absorbs the rest.
+ */
+function callSiteFrames(fiber: Fiber): readonly StackFrame[] {
+  const captured = fiber._debugStack;
+  if (captured === null || typeof captured !== 'object') return [];
+
+  const stack = (captured as { stack?: unknown }).stack;
+  if (typeof stack !== 'string' || stack === '') return [];
+
+  const candidates: StackFrame[] = [];
+  for (const frame of parseStackFrames(stack)) {
+    if (isVendorPath(frame.url)) continue;
+
+    candidates.push(frame);
+    if (candidates.length >= MAX_CALL_SITE_FRAMES) break;
+  }
+
+  return candidates;
+}
+
+/**
+ * How many project frames are worth carrying.
+ *
+ * One is the answer on every stack measured — the component that wrote the
+ * element — and the rest are its callers, which are already `owners`. More than
+ * one is kept only for the case the URL test cannot settle: a bundle served from
+ * the project's own path with a dependency compiled into it, where the first
+ * frame looks like the project and maps into `node_modules`.
+ */
+const MAX_CALL_SITE_FRAMES = 4;
 
 /**
  * Composite ancestors, innermost first, starting from `fiber` itself.

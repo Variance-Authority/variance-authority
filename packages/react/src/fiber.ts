@@ -100,6 +100,24 @@ export interface Fiber {
    * first and this second.
    */
   readonly _debugSource?: DebugSource | null;
+
+  /**
+   * Development-only, and React 19's replacement for `_debugSource` — an `Error`
+   * React constructs inside its own `jsx`/`jsxs`/`jsxDEV`, kept on every fiber
+   * built from JSX.
+   *
+   * Not a location and not meant as one; React uses it to print a component stack
+   * in a warning. But it is a location's raw material, and unlike every other
+   * route to one it costs the project nothing: React captures it whether or not
+   * the transform was asked for `jsxDev`, whether or not a plugin is installed,
+   * and whatever `jsxImportSource` is set to. The only condition is that React is
+   * the development build — which every dev server, Vitest run and Jest run
+   * already is, because that is what "not production" means.
+   *
+   * Typed as `unknown` because it is only ever read for `.stack`, and a field
+   * this deep in someone else's runtime should not be trusted to be an `Error`.
+   */
+  readonly _debugStack?: unknown;
 }
 
 /** One link of the context-dependency list. `displayName` is set by the author. */

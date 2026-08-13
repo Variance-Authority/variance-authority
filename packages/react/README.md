@@ -64,20 +64,27 @@ every item changed.
 
 ## Honest limits
 
-- **A source location needs a build setting on React 19.** The transform still
-  computes every element's file, line and column; React 19 is what drops it —
-  `jsxDEV` takes four parameters and overwrites the fifth, and `createElement`
-  skips `__source` by name. `resolveProvenance` reads `_debugSource` when it is
-  there (React ≤18) and otherwise reads what
-  [`@variance-authority/jsx-source`](../jsx-source) recorded, which is a bundler
-  plugin or a Jest resolver away and does not take `jsxImportSource`, so a
-  project already compiling against Emotion or theme-ui keeps doing that. An
-  element whose props were rebuilt by such a runtime records one fiber up, and
-  `resolveProvenance` climbs composite ancestors to find it. With neither,
-  attribution falls back to
-  resolving a component *name* against a repository scan
-  ([`core/attribute`](../core)'s `indexSource`) — the declaration rather than the
-  call site.
+- **A source location needs a React development build, and nothing else.**
+  React 19 drops what the transform computed — `jsxDEV` takes four parameters and
+  overwrites the fifth, `createElement` skips `__source` by name — and replaces
+  it with something better: an `Error` captured inside its own element factory,
+  kept on every fiber as `_debugStack`. `resolveProvenance` reads the first frame
+  in it that is not vendor code and hands the candidates to the collector on
+  `Provenance.stack`, which resolves them through the source map the build
+  already emits and writes `provenance.source`. Nothing is asked of the build:
+  no plugin, no `jsxImportSource`, no `jsxDev`. It reaches the classic transform
+  too, because React captures the same error in `createElement`.
+
+  A **production** build has no such error, and that is where
+  [`@variance-authority/jsx-source`](../jsx-source) comes in — a bundler plugin
+  or a Jest resolver, still without taking `jsxImportSource`. An element whose
+  props were rebuilt by a custom runtime records one fiber up, and
+  `resolveProvenance` climbs composite ancestors to find it. `_debugSource` is
+  read first where it exists at all (React ≤18).
+
+  With none of the three, attribution falls back to resolving a component *name*
+  against a repository scan ([`core/attribute`](../core)'s `indexSource`) — the
+  declaration rather than the call site.
 - **A node React never rendered has no chain**, and says so — `NO_FIBER` with a
   reason, never an empty chain that reads like "no components involved".
 

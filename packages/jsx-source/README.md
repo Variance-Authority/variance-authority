@@ -24,6 +24,22 @@ the props object is handed to React unchanged. React creates the element, React
 owns it, React validates it — and the location arrives at `fiber.memoizedProps`,
 where [`@variance-authority/react`](../react) reads it.
 
+## Check whether you need it
+
+**Against a React development build, you do not.** React's development build
+captures an `Error` inside its own element factory and keeps it on every fiber,
+and [`@variance-authority/react`](../react) reads that instead — resolved
+through the source map your dev server already emits, with no plugin, no
+`jsxImportSource` and no `jsxDev`. Every dev server, Vitest and Jest are that
+case, and so is the classic transform, because React captures the same error in
+`createElement`.
+
+What has no such capture is a **production** build: a built Storybook, a
+statically served bundle, anything compiled with `NODE_ENV=production`. That is
+what this package is for, and it is the case where the transform's own location
+is worth the most, because locations survive minification untouched while
+component names do not.
+
 ## Turn it on
 
 There are two ways in, and which one you want depends on a single question:

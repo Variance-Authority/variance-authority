@@ -172,17 +172,27 @@ interface WalkState {
 }
 
 /**
- * Provenance carrying a path this machine can quote back to a repository.
+ * Provenance carrying a path this machine can quote back to a repository, and
+ * carrying nothing that belongs to the machine it was captured on.
  *
  * The location arrives from the page, where nothing knows what the repository
  * root is; the collector does, and this is the one point every node passes
  * through afterwards.
+ *
+ * `stack` is dropped here whether or not it was spent. It holds absolute URLs
+ * with a dev server's port and build hash in them, and a document is hashed —
+ * so a surviving frame would make a baseline disagree with the next restart of
+ * the machine that wrote it. Where the collector resolved it, `source` already
+ * carries the answer; where it did not, no answer is the honest outcome.
  */
 function rooted(provenance: Provenance, root: string | undefined): Provenance {
-  if (root === undefined || provenance.source === undefined) return provenance;
+  const { stack, ...carried } = provenance;
+  const settled = stack === undefined ? provenance : carried;
 
-  const source = relativizeSource(provenance.source, root);
-  return source === provenance.source ? provenance : { ...provenance, source };
+  if (root === undefined || settled.source === undefined) return settled;
+
+  const source = relativizeSource(settled.source, root);
+  return source === settled.source ? settled : { ...settled, source };
 }
 
 function normalizeNode(

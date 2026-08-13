@@ -2,9 +2,15 @@ import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { matchesGlob, normalize as normalizeCapture } from '@variance-authority/core';
+import {
+  createCallSiteResolver,
+  locateCapture,
+  matchesGlob,
+  normalize as normalizeCapture,
+} from '@variance-authority/core';
 import {
   createHarness,
+  fetchModules,
   observeNetwork,
   unresizable,
   type Harness,
@@ -255,6 +261,11 @@ export function storybookCollector(
     const page = harness.page;
     const engine = harness.engine;
 
+    // One per run, not one per story. Every story in a Storybook is written in
+    // the same handful of modules, so the second story onward resolves its call
+    // sites out of this cache without a single fetch.
+    const callSites = createCallSiteResolver(fetchModules(page));
+
     return {
       async plan(): Promise<Plan> {
         if (plan === undefined) {
@@ -391,6 +402,14 @@ export function storybookCollector(
         });
         if (unsettled !== undefined) return { ok: false, because: unsettled };
 
+        // Frames become files here, before normalization, because `source` is a
+        // field the ruleset already knows how to root and hash. One resolver per
+        // run: a story's nodes come from a handful of modules and the next
+        // story's come from the same ones, so the cache is worth more the longer
+        // the run goes on. Costs nothing when a project installed `jsx-source` or
+        // built for production — no node carries frames, so nothing is fetched.
+        const located = await locateCapture(acquired.capture, callSites);
+
         return {
           ok: true,
           document: acquired.document,
@@ -401,7 +420,7 @@ export function storybookCollector(
           // above: both answers name files, and a report that mixes a
           // repository-relative declaration with an absolute call site is one
           // nobody can paste into anything.
-          snapshot: normalizeCapture(acquired.capture, { sourceRoot: process.cwd() }),
+          snapshot: normalizeCapture(located, { sourceRoot: process.cwd() }),
           ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
             ? { stabilization: acquired.stabilization }
             : {}),

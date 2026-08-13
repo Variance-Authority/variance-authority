@@ -207,11 +207,19 @@ before constructing the collector. They do not fetch a sitemap or crawl links.
   includes headers, navigation, and overlays.
 - **Component names have no source lines:** configure `source.dirs` and preserve
   component names in the production bundle. That resolves a name to where the
-  component is *declared*; for the line the changed element is written on, add
-  the [`@variance-authority/jsx-source`](../jsx-source) plugin to the
-  application's build and turn on `jsxDev`, which a report prefers wherever it is
-  present. The plugin leaves `jsxImportSource` alone, so an application built
-  against Emotion or theme-ui needs no compiler change to get it.
+  component is *declared* — one line however many times the component renders.
+  For the line the changed element is written on, see below.
+- **Elements report their component's declaration rather than their own line:**
+  against a development server this needs nothing at all. React's development
+  build captures the call site itself, and this collector resolves it through
+  the source map the dev server already emits, so a route served by `vite dev`,
+  `next dev` or any other development server reports exact lines with no build
+  change of any kind. It is unavailable against a **production** build, where
+  React captures nothing: add the
+  [`@variance-authority/jsx-source`](../jsx-source) plugin to the application's
+  build and turn on `jsxDev` for that case. The plugin leaves `jsxImportSource`
+  alone, so an application built against Emotion or theme-ui needs no compiler
+  change either way.
 - **A login redirect is captured:** authenticated routes are outside this
   package's current contract; use an existing Playwright test instead.
 

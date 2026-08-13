@@ -28,6 +28,41 @@ export interface Provenance {
 
   /** Enabled per project via a compiler plugin; absent otherwise. */
   readonly source?: SourceLocation;
+
+  /**
+   * Call-site candidates read off the fiber, awaiting a source map. **Transient.**
+   *
+   * This is what a project that installed *nothing* has: React's development
+   * build constructs an `Error` inside its own `jsx` and keeps it on every fiber,
+   * so the call site is already present in any dev server, Vitest or Jest run.
+   * What it is not yet is a location — a frame names the module the browser was
+   * served, and the file a reviewer opens is a source map away.
+   *
+   * Present only between the page read and resolution. The collector spends it,
+   * writing `source`; normalize drops it either way, so it never reaches a
+   * document, a digest or a baseline. That is deliberate rather than tidy: a
+   * frame holds an absolute URL with a build hash in it, and hashing one would
+   * make every baseline disagree with the next dev-server restart.
+   */
+  readonly stack?: readonly StackFrame[];
+}
+
+/**
+ * One frame of a stack an engine wrote, as positions in the served module.
+ *
+ * Not a `SourceLocation` and deliberately not shaped like one. A `SourceLocation`
+ * is an answer — a file and a line somebody can open. This is the question: a URL
+ * the browser fetched, at coordinates in the code it was actually sent.
+ */
+export interface StackFrame {
+  /** The URL the engine reported, with any query string kept — it is part of the module's identity. */
+  readonly url: string;
+  /** 1-based, as the engine counts. */
+  readonly line: number;
+  /** 1-based, as the engine counts. */
+  readonly column: number;
+  /** The function the engine named, when it named one. Top-level code has none. */
+  readonly function?: string;
 }
 
 export interface OwnerFrame {

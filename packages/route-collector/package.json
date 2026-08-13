@@ -30,6 +30,7 @@
     "@variance-authority/react": "workspace:^"
   },
   "devDependencies": {
-    "playwright": "^1.49.0"
+    "playwright": "^1.49.0",
+    "vite": "^6.0.0"
   }
 }

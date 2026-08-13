@@ -402,6 +402,14 @@ resolver for Jest — and every custom runtime layered above keeps working
 unchanged, because each of them forwards the transform's source argument on its
 way down (journal 0021).
 
+**Against a development build it asks for nothing at all.** React's development
+build captures an `Error` inside its own element factory and keeps it on every
+fiber; the collector resolves the first non-vendor frame in it through the source
+map the dev server already emits. No plugin, no `jsxImportSource`, no `jsxDev` —
+which matters because every one of those is an edit to the build that ships
+production code, made so that a test can see more. Proved end to end against a
+Vite dev server whose `vite.config.mjs` is `export default {}` (journal 0022).
+
 Supporting measurements:
 
 | Claim | File | Result |
@@ -412,6 +420,7 @@ Supporting measurements:
 | `impact` (`layout`/`paint`/`composite`) as an axis orthogonal to bands | `packages/core/src/compare/diff/impact.test.ts` (18 tests) | `--brand` → `token/paint`; `--space` → `token/layout` (journal 0009) |
 | Component → file by reading the repo, with no build change at all | `packages/core/src/attribute/source.ts`, `examples/todomvc/src/source-index.ts` | **A regex scan**, not a source map, and the answer for a repository that has configured nothing. It names where a component is *declared* — the same line for every instance of it. Misses components produced by a factory, assigned dynamically or re-exported under another name, and can name a capitalised non-component; a name declared in two files is reported as ambiguous rather than guessed. Limits stated in `source.ts`. **No dedicated test**; exercised only end-to-end on one example app |
 | Element → the line of JSX that wrote it | `packages/jsx-source` (11 tests), `cases/storybook-case/src/cli.chromium.test.js` | No patched React and no fork. `_debugSource` is gone in React 19, but the transform still computes the location and React is what discards it, so a runtime standing where React's used to resolve keeps it. Preferred over the scan wherever present: `Button` is declared on line 51 of the case's `src/ds.jsx` and its `<button>` is written on 53, and the report says **53**, through a minified production build. Costs nothing stored — the location rides a symbol key, so it enters no digest and moved no baseline |
+| The same, with nothing whatever in the build | `packages/route-collector/src/zero-config.chromium.test.ts` (12 tests), `packages/core/src/attribute/` (169 tests), `packages/react/src/callsite.test.tsx` (8 tests) | A React application in a temporary directory, served by a real Vite dev server, collected and asserted byte-exact. Two fixtures: one whose `vite.config.mjs` is `export default {}` — classic transform, `createElement` — and one carrying the single setting `jsx: 'automatic'`. Both report every element's own line: the `<span>` inside `Badge` rather than `Badge`'s declaration, and `<main>` and `<section>` from one render separated by the line between them. **React development builds only**; a minified production artifact carries no captured error, which is what the rows above are for |
 | The same, beside a custom JSX runtime | `packages/jsx-source/src/under.test.ts` (5 tests) | Against **Emotion 11.14**, with `jsxImportSource` left pointing at `@emotion/react`. Every element keeps its own line and Emotion still emits its generated class. The one element Emotion rebuilds — anything carrying a `css` prop — records one fiber up, because `createEmotionProps` copies with `for…in` and drops symbols; `resolveProvenance` climbs composite ancestors to find it. Verified through three installers: a production Storybook build, Vitest, and Jest |
 | Region clustering from a change mask | `packages/core/src/attribute/region.ts`, `region.test.ts` (12 tests) | Grid `cell = 8` at `packages/core/src/attribute/region.ts:82` |
 

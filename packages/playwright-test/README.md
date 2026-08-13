@@ -128,7 +128,11 @@ reaches the person who can decide which of the two states the test is about.
 Pass `loading: true` when the fallback is the subject:
 
 ```ts
-const observation = await variance(page.getByTestId('cart'), { loading: true });
+import { test } from '@variance-authority/playwright-test';
+
+test('the cart is reviewed while it loads', async ({ page, variance }) => {
+  const observation = await variance(page.getByTestId('cart'), { loading: true });
+});
 ```
 
 The declaration is checked in both directions: a subtree declared as a loading

@@ -33,6 +33,20 @@ export type { AttributedRegion, AttributionOptions, RankedRegion } from './regio
 export { resolveSource, formatSource, indexSource, mergeSourceIndexes } from './source.js';
 export type { SourceIndex, SourceRef, Resolution } from './source.js';
 
+export { parseStackFrames, isVendorPath, writerLocationOf } from './stack.js';
+export type { StackFrame } from './stack.js';
+
+export {
+  parseSourceMap,
+  originalPositionFor,
+  sourceMappingUrlOf,
+  inlineSourceMapOf,
+} from './source-map.js';
+export type { SourceMap, OriginalPosition } from './source-map.js';
+
+export { createCallSiteResolver, locateProvenance, locateCapture } from './call-site.js';
+export type { CallSiteResolver, CallSiteStats, FetchModule } from './call-site.js';
+
 export { hashComponents, causesBetween, movedBands, bandsBetween, UNATTRIBUTED } from './component-hash.js';
 export type { BandDigests, ComponentHash } from './component-hash.js';
 

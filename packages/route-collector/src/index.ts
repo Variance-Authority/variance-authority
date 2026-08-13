@@ -1,10 +1,16 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { matchesGlob, normalize as normalizeCapture } from '@variance-authority/core';
+import {
+  createCallSiteResolver,
+  locateCapture,
+  matchesGlob,
+  normalize as normalizeCapture,
+} from '@variance-authority/core';
 
 import {
   createHarness,
+  fetchModules,
   unresizable,
   observeNetwork,
   type Harness,
@@ -135,6 +141,12 @@ export function routeCollector(
 
     const page = harness.page;
     const engine = harness.engine;
+
+    // One per run, not one per route. A route's nodes come from a handful of
+    // modules and the next route shares most of them, so the cache is worth more
+    // the longer the run goes on.
+    const callSites = createCallSiteResolver(fetchModules(page));
+
     // Filled by `plan()` when the routes are discovered rather than declared.
     let resolved: Readonly<Record<string, string>> | undefined;
     // Held for the run's lifetime when a directory is being served, and closed
@@ -371,6 +383,12 @@ export function routeCollector(
         });
         if (unsettled !== undefined) return { ok: false, because: unsettled };
 
+        // Frames become files here, before normalization, because `source` is a
+        // field the ruleset already knows how to root and hash. Costs nothing
+        // when a project installed `jsx-source` or built for production — no node
+        // carries frames, so nothing is fetched.
+        const located = await locateCapture(acquired.capture, callSites);
+
         return {
           ok: true,
           document: acquired.document,
@@ -381,7 +399,7 @@ export function routeCollector(
           // above: both answers name files, and a report that mixes a
           // repository-relative declaration with an absolute call site is one
           // nobody can paste into anything.
-          snapshot: normalizeCapture(acquired.capture, { sourceRoot: process.cwd() }),
+          snapshot: normalizeCapture(located, { sourceRoot: process.cwd() }),
           ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
             ? { stabilization: acquired.stabilization }
             : {}),
