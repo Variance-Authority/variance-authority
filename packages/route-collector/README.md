@@ -1,24 +1,30 @@
 # @variance-authority/route-collector
 
-**Requires:** a browser binary on the machine, and an application already serving
-the pages you name. Nothing is built, bundled or mounted here.
+**Requires:** a browser binary and a reachable application, unless a static
+directory is supplied. Authenticated routes are currently unsupported.
+
+Turn pages your application already serves into `variance` subjects. Use this
+package when the real application has already solved bundling, providers,
+routing, and mounting, and the remaining integration is to name the pages,
+bound the part that matters, and say when each one is ready.
+
+This is a collector for [`@variance-authority/cli`](../cli), not a crawler or a
+web server for your application. Authentication has no cookie, header, or
+storage-state escape hatch.
 
 ```bash
 npx playwright install chromium
 ```
 
-The cheapest surface in the project, and the one that finally uses
-`subjects.kind: "list"`.
+## Integrate an explicit route list
 
-## Why a route is the cheapest mount there is
+### 1. Start the application
 
-`variance run` declines to write the mounting half because a project's components
-need its own bundle, its own providers and its own definition of settled. A route
-is the case where all three are already true before anything here runs: **the
-application served the page.** There is no bundle to reproduce and no provider
-tree to rebuild, and readiness is a selector the page itself attaches.
+Run the same server whose redirects, assets, and runtime behavior you want to
+observe. Readiness belongs to that page, so wait for an application-owned marker
+rather than adding an arbitrary delay.
 
-## Usage
+### 2. Add a collector module
 
 ```js
 import { routeCollector } from '@variance-authority/route-collector';
@@ -34,72 +40,181 @@ export default routeCollector({
 });
 ```
 
-The config names this module, and the ids must match `subjects.ids`:
+`roots` defines the subject. The default is `body`, meaning the entire page is
+under review. A tighter root keeps shared navigation or application chrome out
+of every route unless it is intentionally part of the assertion.
+
+### 3. Declare the same ids in the CLI config
+
+```json
+{
+  "project": "checkout-ui",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": {
+    "kind": "list",
+    "ids": ["checkout/empty", "checkout/one-item"],
+    "collector": "variance/routes.mjs"
+  },
+  "baselines": { "kind": "directory", "root": ".variance/baselines" },
+  "fonts": [],
+  "report": ".variance/report.json"
+}
+```
+
+An id planned by the config with no matching route is reported as a collection
+failure; it is never silently dropped. A route present only in the collector is
+never planned. Keeping the two lists explicit makes adding or removing coverage
+a reviewable configuration change.
+
+### 4. Check the machine, then run
+
+```bash
+variance doctor --config variance.config.json
+variance run --config variance.config.json
+```
+
+The first successful run reports the routes as `new` and exits `1`. After the
+intended candidates are accepted, an unchanged run exits `0`; later changes are
+reported against the specific route and viewport that moved.
+
+## Let another artifact define the routes
+
+Use exactly one of `routes`, `sitemap`, or `directory`.
+
+When a sitemap or built directory is already the canonical inventory, let the
+collector plan the subjects and set `subjects.kind` to `collector` in your
+otherwise complete `variance.config.json`:
+
+```js
+import { routeCollector } from '@variance-authority/route-collector';
+
+export default routeCollector({
+  sitemap: 'http://localhost:3000/sitemap.xml',
+  roots: ['main'],
+  source: { dirs: ['src'] },
+});
+```
 
 ```json
 {
   "subjects": {
-    "kind": "list",
-    "ids": ["checkout/empty", "checkout/one-item"],
-    "collector": "collector/index.mjs"
+    "kind": "collector",
+    "collector": "variance/routes.mjs"
   }
 }
 ```
 
-An id in the plan with no route here is **reported**, not dropped — a run that
-observes 29 of 30 subjects and says nothing about the 30th is the silence this
-project refuses.
+For static output, replace `sitemap` with `directory: './build'`; the collector
+serves it locally and creates one subject per `.html` file.
 
-## The arm that enters through `subjects.kind: "list"`
+Discovery removes duplicated route lists, but it changes the safety boundary: a
+page removed from the sitemap or build also disappears from the suite without a
+config diff. Use the explicit `list` form when that silence is unacceptable. A
+sitemap index is not followed—its own `<loc>` values are treated as pages—and
+links on pages are never crawled.
 
-`subjects.kind: "list"` parses, plans and is unit-tested on its own, and a config
-arm that nothing real enters is
-[*"the reverse of the usual failure and still a
-failure"*](../../docs/surface.md). This package is what enters through it.
+## Observe responsive layouts
 
-## Bound the subject
+Use `widths` when each route must be evaluated at more than one breakpoint:
 
-`roots` defaults to `body`, which is the caller saying the page *is* the subject.
-Naming something tighter is usually right: a shared header inside every subject
-means every page moves when the nav does, and the pruning ratio this project
-rests on — 1007 rules parsed, 1 reaching the normalizer — is a property of a
-**bounded** subject.
+```js
+import { routeCollector } from '@variance-authority/route-collector';
 
-## Readiness, and the one kind a marker cannot express
+export default routeCollector({
+  routes: { home: 'http://localhost:3000/' },
+  widths: [375, 1280],
+  roots: ['main'],
+});
+```
 
-`ready` maps a subject id to the selector that says the page has arrived, and it
-is the adopter's because only they know what "arrived" means for that route.
+Each width becomes its own subject—`home@375` and `home@1280`—with its own
+navigation, baseline, and verdict. The page is navigated at the requested width
+so code that reads `matchMedia` during mount makes the correct decision.
 
-Suspense is not, for a reason that is structural rather than a preference: a
-component that suspends renders no markup, so there is nothing for a marker to
-attach to and nothing for the wire to answer — the response landed, and between
-it and the render sit a promise, a retry and a commit. So the wait is this
-collector's, unconditional and ahead of stabilization, and a subject still
-showing a fallback when `suspenseTimeoutMs` (5000) runs out is **refused by
-name** rather than captured
-([ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md)).
-The escape hatch is `loading: ['checkout/*-pending']`, which says the skeleton
-*is* the subject; those subjects wait for nothing, and are refused if they ever
-settle.
+## Options
 
-## What it is not
+| Option | Use it when | Default and boundary |
+| --- | --- | --- |
+| `routes` | The config should explicitly name every subject. | Mutually exclusive with `sitemap` and `directory`. |
+| `sitemap` | The deployed application already publishes the route inventory. | Requires `subjects.kind: "collector"`; sitemap indexes are not followed. |
+| `directory` | A static build is the application under test. | Requires `subjects.kind: "collector"`; serves `.html` files locally. |
+| `widths` | Routes must be mounted independently at several breakpoints. | The run's configured viewport width. Height remains the run's height. |
+| `roots` | Only a subtree is the subject. | `['body']`, meaning the whole page. |
+| `ready` | A route finishes after ordinary page load. | No additional selector wait. Keys are route ids before any `@width` suffix. |
+| `source` | Reports should resolve components to `file:line`. | Omitted; component names can remain without source locations. |
+| `readyTimeoutMs` | A declared readiness marker legitimately needs longer. | `10000`. A timeout is reported, never replaced by a fallback capture. |
+| `loading` | A route's *fallback* is the state you intend to review. | Omitted. Id globs, matched against the subject id. |
+| `suspenseTimeoutMs` | A route legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
+| `headless` | You need to watch collection while debugging. | `true`. |
+| `network` | Asset bytes at stable URLs must affect render identity. | `true`. |
+| `stabilize` | The application has its own determinism strategy. | The standard collection recipe; `[]` records an untouched page. |
 
-**Not a crawler, and not a sitemap reader.** The routes are a map the operator
-writes, because a discovered URL is a subject nobody chose: a crawl that finds
-one more page on Tuesday reports a `new` subject that no one can approve and no
-one asked for. Percy's no-code URL list is the nearest comparable thing and it is
-genuinely less work — the difference is who decides what is under test.
+## A route still arriving is refused
 
-**Not one navigation per run.** A Storybook switches stories over its own channel
-and pays for one navigation; a route run navigates per subject, because that is
-what a route is. The page agent is reinstalled after each navigation and its
-presence checked rather than assumed.
+Before each route is read, the collector waits for every React Suspense boundary
+under the selected roots to settle. This runs first, ahead of stabilization,
+because content that arrives late brings its own images and fonts.
 
-## What it cannot do yet
+`ready` cannot cover this case and neither can the network: a component that
+suspends renders no markup for a selector to attach to, and a response that
+arrived is not a component that rendered — between them sit a promise, a retry,
+and a commit. A route still showing a fallback when the wait runs out is reported
+as **not collected**, naming the open boundaries and the components that wrote
+them. A skeleton on a slow machine and the component on a fast one is a
+difference no one authored, and every band agrees with both.
 
-- **Rank causes above collateral.** A durable baseline is an image with no
-  document behind it, so no previous snapshot exists to name the roots of a
-  change and the docket falls back to area — which measures displacement, and
-  which this project measured as backwards by 6×.
-- **Authenticate.** There is no cookie, header or storage-state option, so a
-  route behind a login is out of reach until the harness grows one.
+Declare the exception when the fallback is the subject:
+
+```js
+export default routeCollector({
+  routes: { 'checkout/pending': 'http://localhost:3000/checkout?state=pending' },
+  loading: ['checkout/pending'],
+});
+```
+
+A declared route waits for nothing, and is refused if it turns out to have
+settled — a declaration that outlived its subject is the same nondeterminism from
+the other side. The decision is
+[ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md).
+
+### Sitemap helpers
+
+The package also exports the pure helpers used by discovery:
+
+- `locationsIn(xml)` returns `<loc>` values in document order;
+- `routesFrom(xml)` turns those locations into the route map and refuses path
+  collisions;
+- `subjectIdFor(url)` derives the stable path-based subject id.
+
+Use them when your integration needs to preview or validate a sitemap plan
+before constructing the collector. They do not fetch a sitemap or crawl links.
+
+## When integration fails
+
+- **The server cannot be reached:** start the application before `variance run`
+  and verify the exact URLs from the machine running CI.
+- **A subject is missing:** for `kind: "list"`, match every config id to a key in
+  `routes`. For discovery, inspect the sitemap or built `.html` files that are
+  the actual inventory.
+- **A page times out:** verify its `ready` selector and increase
+  `readyTimeoutMs` only when the page genuinely needs more time.
+- **A route is refused as still waiting:** the named Suspense boundary never
+  resolved. Fix what it awaits, or add the route to `loading` if the fallback is
+  what you intend to review.
+- **Every route changes with shared chrome:** tighten `roots`; `body` explicitly
+  includes headers, navigation, and overlays.
+- **Component names have no source lines:** configure `source.dirs` and preserve
+  component names in the production bundle.
+- **A login redirect is captured:** authenticated routes are outside this
+  package's current contract; use an existing Playwright test instead.
+
+## Boundaries
+
+Routes navigate once per subject. Storybook can switch many subjects over one
+preview navigation, so use
+[`@variance-authority/storybook-collector`](../storybook-collector) when the
+source is Storybook. If navigation and readiness already live in a Playwright
+test, use [`@variance-authority/playwright-test`](../playwright-test) and let the
+test body remain the collector.

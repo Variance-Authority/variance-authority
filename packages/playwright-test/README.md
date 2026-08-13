@@ -1,29 +1,24 @@
 # @variance-authority/playwright-test
 
-**Requires:** a Playwright test run — a `Page` the runner has already opened and
-your test has already driven — plus a browser binary on the machine, which an
-install does not give you:
+**Requires:** a Playwright test run with an already-opened `Page`, a non-null
+viewport, and a browser binary on the machine.
+
+Add a source-aware visual observation to a Playwright test that already knows
+how to navigate, authenticate, mount data, and wait for the application. The
+test body remains the collector; this package contributes one `variance`
+fixture and one `toBeUnchanged` matcher.
+
+Use this integration when the state you need is already easiest to reach in a
+Playwright test:
 
 ```bash
 npx playwright install chromium
 ```
 
-One fixture and one matcher. Everything else in this package is the argument for
-why they are two things rather than one.
+## Add an observation to a test
 
-## Why this is cheaper than a collector
-
-`variance run` needs a collector because it has to mount a project's components
-and cannot know how — the project's own bundle, its own providers, its own
-definition of settled. A Playwright test has navigated, mounted and waited before
-the fixture is reached, so **the test body already is the collector.** What is
-left is the half this project does own: acquire, render, compare, attribute.
-
-The measured cost of the other path is 341 lines
-([`cases/storybook-case/collector/`](../../cases/storybook-case/collector)). The
-cost here is an import.
-
-## Usage
+Import `test` and `expect` from this package, drive the page as usual, then hand
+the fixture a `Locator` for the subtree you intend to review.
 
 ```ts
 import { test, expect } from '@variance-authority/playwright-test';
@@ -32,95 +27,149 @@ test('the cart survives an empty basket', async ({ page, variance }) => {
   await page.goto('https://example.test/cart');
   await page.getByRole('button', { name: 'Clear' }).click();
 
-  const observation = await variance(page.getByTestId('cart'));
+  const observation = await variance(page.getByTestId('cart'), {
+    subjectId: 'cart/empty',
+  });
 
   expect(observation).toBeUnchanged();
 });
 ```
 
-`variance` returns an `Observation` rather than asserting, so a test may read the
-verdict, the changed regions and the components they landed on before deciding
-what to do about them. `toBeUnchanged` is one reading of that value, not the only
-one available.
+`variance` returns an `Observation`; it does not assert. The matcher is the
+standard gate, but your test may also inspect `verdict`, `regions`,
+`missingFonts`, or diagnostics before deciding what to do.
 
-## A subject still arriving throws, rather than being photographed
+The default baseline directory is `.variance/baselines`. Override the worker
+fixture when the suite needs another location:
 
-Before it reads, the fixture waits for every React Suspense boundary under the
-locator to settle — first, ahead of stabilization, because content that arrives
-late brings its own images and fonts. A subtree still showing a fallback when
-`suspenseTimeoutMs` (5000) runs out **throws**, naming the open boundaries and the
-components that wrote them.
+```ts
+import { test } from '@variance-authority/playwright-test';
 
-That is deliberate and it is the one place this surface differs from a collector,
-which refuses the subject instead: `variance` returns an `Observation`, and "we
-photographed a spinner" is not a comparison result. A failed assertion is what
-actually reaches the person who can decide which of the two states the test is
-about ([ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md)).
+test.use({ varianceBaselines: 'test-artifacts/variance-baselines' });
+```
+
+## Establish the first baseline
+
+The first run returns `new`, and `toBeUnchanged` fails. That is intentional: a
+subject nobody has approved is not an unchanged subject.
+
+After reviewing the candidate, promote the image with Playwright's existing
+snapshot flag:
+
+```bash
+npx playwright test --update-snapshots
+```
+
+Acceptance promotes the candidate painted by that run; it never paints a
+second, unseen image. The observation returned by the acceptance run still
+describes what it saw, so rerun the test normally to prove the stored baseline
+is found and the matcher passes.
+
+Use an explicit `subjectId` for long-lived baselines. When it is omitted, the id
+comes from the test title path; renaming the test then produces `new` instead of
+silently comparing against a baseline that may describe another scenario.
+
+## Choose the subject deliberately
+
+The fixture accepts a `Locator`, never a `Page`. A bounded subtree keeps shared
+application chrome and unrelated CSS out of the comparison, and gives changed
+regions a useful component context.
+
+The fixture acquires the live subtree, then paints the acquired document with
+its own renderer rather than calling `locator.screenshot()`. That second paint
+is the cost of carrying a renderer identity with the baseline. A run on an
+incompatible machine can then report `incomparable` instead of presenting a
+font-stack or driver change as a component regression.
+
+## Options and fixtures
+
+### `variance(locator, options)`
+
+| Option | Use it when | Default and boundary |
+| --- | --- | --- |
+| `subjectId` | The baseline should survive test-title changes. | The test title path. A renamed implicit id becomes `new`. |
+| `subjectKind` | The subject is not a navigated route. | `route`. |
+| `fonts` | Renderer identity must include an asserted font stack. | Omitted and reported as missing identity evidence. Values are `family/weight/style/hash`. |
+| `source` | Failure output should resolve components to `file:line`. | Omitted; regions can still name components. |
+| `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled. |
+| `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
+
+### Worker fixtures
+
+| Fixture | Purpose | Default |
+| --- | --- | --- |
+| `varianceBaselines` | Directory holding durable baselines. | `.variance/baselines` |
+| `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
+| `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
+| `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
+
+Override the worker fixtures only when you are deliberately supplying another
+renderer, store, or agent bundle. The public types are
+`VarianceWorkerFixtures`, `VarianceFixtures`, and `VarianceOptions`.
+
+The package also exports `bundlePageAgent`, `acquire`, `AGENT`, and
+`AGENT_VERSION` for authors building a custom Playwright fixture. Ordinary test
+suites should use the provided `test`; the low-level exports do not create a
+renderer, store, or acceptance lifecycle on their own.
+
+## A subject still arriving throws
+
+Before the subtree is acquired, the fixture waits for every React Suspense
+boundary under the locator to settle. This runs first, ahead of stabilization,
+because content that arrives late brings its own images and fonts.
+
+A subtree still showing a fallback when `suspenseTimeoutMs` runs out throws,
+naming the open boundaries and the components that wrote them. That is
+deliberate, and it is where this integration differs from a collector, which
+reports the subject as not collected: `variance` returns an `Observation`, and a
+photographed spinner is not a comparison result. A failed assertion is what
+reaches the person who can decide which of the two states the test is about.
+
+Pass `loading: true` when the fallback is the subject:
 
 ```ts
 const observation = await variance(page.getByTestId('cart'), { loading: true });
 ```
 
-`loading: true` says the fallback *is* the subject. It waits for nothing, and
-throws if the subtree turns out to have settled — a declaration nobody deleted is
-a baseline that flips with the weather.
+The declaration is checked in both directions: a subtree declared as a loading
+capture that turns out to have settled throws as well, because a declaration
+that outlived its subject is the same nondeterminism from the other side. The
+decision is
+[ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md).
 
-## The subject is a `Locator`, never a `Page`
+## Read and act on failures
 
-A subject is a subtree, and the pruning that makes a comparison affordable and a
-report assignable needs a bounded one — 1007 CSS rules parsed, 1 reached the
-normalizer on the measurement corpus
-([ADR-0003](../../docs/context/adr/0003-cruft-removal-and-css-applicability.md)).
-Handed a page, pruning has nothing to prune against and every rule the
-application loaded enters the comparison.
+- **`new`:** no baseline exists for this subject id. Review and run once with
+  `--update-snapshots`, then rerun normally.
+- **`incomparable`:** a baseline exists under another renderer identity. Align
+  browser, platform, scale, and asserted fonts instead of accepting the wall of
+  changes.
+- **Changed regions name components but no files:** pass a `SourceIndex` as
+  `source` to `variance` or to `toBeUnchanged`.
+- **“variance needs a viewport”:** the Playwright page uses a null viewport.
+  Configure a fixed viewport so two runs have a declared size.
+- **The matcher lists a large container first:** this integration's docket is
+  ordered by changed area and explicitly describes that as displacement, not
+  blame. Do not read its ordering as cause-first attribution.
+- **“still waiting when it was read”:** the named Suspense boundary never
+  resolved. Fix what it awaits, or pass `loading: true` if the fallback is what
+  you intend to review.
+- **The page agent is missing:** import this package's `test`, not Playwright's
+  base fixture, and avoid replacing `varianceBundle` unless the custom bundle is
+  installed before navigation.
 
-## The renderer paints the document, and `locator.screenshot()` is not used
+## Boundaries
 
-The browser is right there and screenshotting it is one line, which is exactly
-why the turn is worth marking.
+This package does not merge Playwright shards into one docket. Playwright's
+`--shard` can still run the tests, but each shard owns its own result set.
 
-A live-page screenshot has no render identity behind it: nothing painted it that
-can say which machine, which scale, which font stack. Deriving that key on the
-caller's side is what `Renderer.identityFor` exists to prevent, and the failure it
-prevents is not theoretical — a read key and a write key that differ by the scale
-factor produce a run that never finds its own baseline above 1x, and reports
-`incomparable` forever in a sentence blaming a machine difference that does not
-exist.
+The matcher and docket are unit-tested, but this fixture has not yet been
+driven by a separate real-world Playwright suite. Treat the browser-facing
+integration as beta evidence, not an established compatibility claim.
 
-So the fixture pays to paint the subject a second time, from the document it
-acquired. What that buys is a baseline any machine can reproduce **from the
-document**, including a pinned one two networks away — the property the whole
-retention design rests on
-([`packages/remote`](../remote)).
-
-If that trade is the wrong one for a suite, the mode that avoids it is the
-ephemeral one: two documents acquired by this test, compared by
-[`observePair`](../observe), needing no identity at all because one renderer
-painted both.
-
-## `new` fails
-
-Every snapshot matcher in this category writes the first image it sees and
-reports green. A subject nobody has approved is not a passing subject; Playwright
-has no third outcome, so `toBeUnchanged` fails and names which one it is.
-
-`--update-snapshots` promotes what the run already painted — the candidate is
-taken from the render cache, never re-rendered, so the bytes a reviewer approved
-and the bytes that became the baseline are one image rather than two nobody
-compared ([ADR-0021](../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md)).
-A cache miss is refused by name instead.
-
-## What it cannot do yet
-
-- **Claim it has run.** The docket is unit-tested
-  ([`src/docket.test.ts`](src/docket.test.ts)); the fixture has never been driven
-  by a real Playwright suite. What is unexercised is the half with a browser in
-  it, which is the half that fails in interesting ways.
-- **Rank causes above collateral.** The durable path carries one snapshot, so
-  nothing here knows which component was edited and which was merely reflowed.
-  The docket is ordered by area — which measures displacement, and which this
-  project measured as backwards by 6× — and the failure message says so rather
-  than presenting the ordering as blame.
-- **Shard.** Playwright's own `--shard` works, because each shard is a worker
-  process with its own renderer and store. What does not exist is a merge: N
-  shards produce N sets of verdicts and nothing joins them into one docket.
+For a Storybook inventory use
+[`@variance-authority/storybook-collector`](../storybook-collector). For a map
+of served pages use
+[`@variance-authority/route-collector`](../route-collector). For two documents
+already in hand or a custom renderer/store composition, use
+[`@variance-authority/observe`](../observe).

@@ -1,14 +1,69 @@
 # @variance-authority/cli
 
-**Requires:** a config file, plus whatever that config selects — a browser for
-`profile: chromium`, a writable directory for `baselines.kind: directory`, `git`
-for `lfs`, a reachable service for `remote`. `variance doctor` reports which of
-those this machine actually has.
+**Requires:** a project config plus the runtime resources it selects: a browser
+binary for Chromium, writable storage for directory baselines, `git` for LFS,
+or reachable services for remote rendering and storage.
 
-Every other package is a tool. This is the composition an operator actually runs,
-and it is the only one allowed to know what order things happen in and what a
-project's configuration file looks like — which is why it is also the only one
-whose requirements are decided by a file rather than by its own code.
+Run the complete Variance Authority workflow from a project-owned config:
+collect subjects, settle cheap comparisons, render what remains, write one
+report, and return a CI-safe exit code.
+
+Use this package when you want an executable integration rather than a custom
+library composition. `variance doctor` checks the selected prerequisites before
+the first expensive run.
+
+## Integrate the CLI
+
+### 1. Choose how subjects enter
+
+The CLI deliberately does not guess how your application mounts. Point
+`subjects.collector` at one of the shipped adapters or at a collector module
+owned by your project:
+
+- [`@variance-authority/storybook-collector`](../storybook-collector) for a
+  built or served Storybook;
+- [`@variance-authority/route-collector`](../route-collector) for served routes,
+  a sitemap, or a static build;
+- [`@variance-authority/playwright-test`](../playwright-test) instead of this
+  CLI when navigation and readiness already live in Playwright tests.
+
+### 2. Add `variance.config.json`
+
+The config declares the observation profile, viewport, subject source,
+retention, baseline backend, renderer identity inputs, and report location.
+Start from the [configuration example](#configuration), then use the selected
+collector README for its subject-specific module.
+
+Unknown keys are refused. A misspelled option must not leave the operator
+reading one configuration while the run follows another.
+
+### 3. Diagnose the environment
+
+```bash
+variance doctor --config variance.config.json
+```
+
+Run this in the same machine or CI image that will execute `variance run`.
+Doctor reports what can be checked locally and labels remote renderer checks as
+not performed rather than pretending a network endpoint is healthy.
+
+### 4. Run, review, accept, rerun
+
+```bash
+variance run --config variance.config.json
+variance report --config variance.config.json --format html > .variance/report.html
+variance accept --config variance.config.json story:checkout--empty
+variance run --config variance.config.json
+```
+
+The first successful durable run exits `1` because its subjects are `new`.
+Review the generated candidates, accept the intended subject ids explicitly,
+then rerun. An unchanged run exits `0`; a configuration, browser, collector, or
+store failure exits `2`.
+
+Keep `accept --all` out of unattended workflows. It currently cannot
+distinguish a never-reviewed baseline from a changed one, so explicit subject
+ids are the safe default after initial setup.
 
 ## Commands
 
@@ -375,6 +430,19 @@ that mode the CI gate becomes a recorder, which is the one thing the exit codes
 above are built to prevent. Name the subjects explicitly — `variance accept
 story:card--populated …` — anywhere the difference matters, and keep `--all` out
 of anything that runs unattended.
+
+## Integration troubleshooting
+
+| Symptom | What it means | Next check |
+| --- | --- | --- |
+| Exit `2` before any docket | The run failed operationally rather than finding a reviewable change. | Run `variance doctor` in the same environment; then inspect browser, collector, renderer, and store diagnostics. Do not suppress this with `|| true`. |
+| Every subject is `new` after changing browser or renderer settings | The environment identity changed, so old and new images are intentionally partitioned. | Confirm the engine, viewport scale, fonts, and stabilization inputs. Establish new baselines only when the identity change was intended. |
+| A planned subject is absent from the report | Coverage accounting failed; a complete run must account for observed, excluded, or failed subjects. | Inspect collector failures and, for shards, verify the subject globs cover the whole plan without overlap. |
+| HTML report images are broken | Image paths are relative to the JSON report. | Upload or move the HTML report together with its report and image directory. |
+| A ready selector times out | The collector reached the subject but its project-owned completion marker never appeared. | Check the collector module's id-to-selector map; do not replace the marker with an arbitrary sleep. |
+| A clean pull request has no comment body | This is expected. `variance comment` emits an empty body for a clean report. | Keep the CI gate on `variance run`; let the posting integration delete or skip its prior comment. |
+| A merged shard report is refused | The shards did not describe one compatible run or observed the same subject twice. | Align renderer identity, retention, and intent, then make the subject globs disjoint. |
+| A change is green but reported as `ignored` | Differences existed and declarations absorbed all of them. | Read the ignore and sensitivity registers; `ignored` is intentionally distinct from `unchanged`. |
 
 ## Reading
 

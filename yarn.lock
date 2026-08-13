@@ -1951,6 +1951,7 @@ __metadata:
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/history": "workspace:^"
     "@variance-authority/mcp": "workspace:^"
     "@variance-authority/observe": "workspace:^"
     "@variance-authority/playwright": "workspace:^"
@@ -1998,6 +1999,20 @@ __metadata:
     playwright: "npm:^1.49.0"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/example-readme-case@workspace:examples/readme-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-readme-case@workspace:examples/readme-case"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
+    esbuild: "npm:^0.25.0"
+    playwright: "npm:^1.49.0"
+    vitest: "npm:^2.1.8"
   languageName: unknown
   linkType: soft
 

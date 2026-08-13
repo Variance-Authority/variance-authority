@@ -1,114 +1,168 @@
 # @variance-authority/storybook-collector
 
-**Requires:** a browser binary on the machine, and a Storybook that has been
-built or is being served. The build is the input — a `.storybook` configuration
-is never read.
+**Requires:** a browser binary and a built or already-served Storybook. The
+built `index.json` is the input; `.storybook` configuration is not read.
+
+Turn a built or already-served Storybook into subjects that `variance run` can
+observe. Use this package when Storybook already owns component mounting and you
+want source-attributed visual, semantic, accessibility, and localization
+findings without writing a browser harness.
+
+This is the Storybook adapter, not the `variance` binary. Pair it with
+[`@variance-authority/cli`](../cli).
 
 ```bash
 npx playwright install chromium
 ```
 
-The collector `variance run` needs, shipped instead of written.
+## Integrate a Storybook
 
-## Why this ships rather than being written per project
+### 1. Build the artifact you want to observe
 
-Mounting is the adopter's, once, per project. That holds for applications, where
-only the project knows how its own app comes up. Storybook is the exception, and
-a hand-written collector is what prices it: `cases/storybook-case/collector/` is
-**341 lines across three files**, against a source comment guessing "about
-thirty".
+The collector reads the artifact Storybook produced, so run your ordinary
+Storybook build first. A development server also works when you pass `baseUrl`
+below.
 
-Of those 341 lines, the parts that are genuinely *that project's* are a map of
-three ready selectors and a directory to scan for components. Everything else is
-Storybook's own contract being re-typed: serving the build, injecting the page
-bundle, driving the preview channel, acquiring a document and a capture from one
-mount, normalizing, and shutting down without hanging on a socket.
+### 2. Add a collector module
 
-A story index is a documented artifact and a preview owns its own mount. For this
-one subject source the mounting problem is already solved by somebody else, so
-charging every adopter to re-solve it charges them for our boundary rather than
-for their project.
-
-**The same case reads:**
+Create a module in your project and default-export the collector factory. The
+only project-specific facts in the common path are where components live and
+which stories need an explicit readiness marker.
 
 ```js
 import { storybookCollector } from '@variance-authority/storybook-collector';
 
 export default storybookCollector({
-  ready: { 'case-surface--deferred': '[data-testid="case-ready"]' },
-  loading: ['case-surface--suspense-stalled'],
-  source: { dirs: ['cases/storybook-case/src'] },
+  ready: { 'checkout--deferred': '[data-testid="checkout-ready"]' },
+  source: { dirs: ['src'] },
 });
 ```
 
-Five lines of code plus one this case earns — `loading` is there because one
-story deliberately never resolves — and
-`cases/storybook-case/src/cli.chromium.test.js` — *12 new
-(exit 1) → 12 accepted (0) → 12 unchanged (0) → 5 changed (exit 1)* over a real
-Storybook — passes against it. That test is the evidence this package is entitled
-to, and it is written against the seam rather than against either collector, so
-which side of it does the work is invisible to the test.
+Omit `ready` for stories that are complete when Storybook emits
+`storyRendered`. Add an entry only when a story continues mounting or fetching
+after that signal. If the selector never appears, collection fails with the
+story id and selector instead of silently capturing a spinner.
 
-## What is the adopter's, and why
+`source` enables component-to-`file:line` attribution. Without it the report can
+still name components, but it cannot point to their declarations.
 
-**Readiness, per story.** Storybook's `storyRendered` fires when the story
-function returns, which for a component that defers work is *before the component
-exists*. A story that declares a marker and never attaches it times out saying
-which selector it waited for — there is no fallback, because falling back is how
-you photograph a spinner and call it a component. A project-wide default would be
-a guess about every component to solve a problem one of them has.
+### 3. Point the CLI at the Storybook index and collector
 
-**Suspense is not the adopter's, and that is the point.** A component that
-suspends renders no markup, so a `ready` marker has nothing to attach to and
-`storyRendered` has already fired — the story function returned. So the wait is
-the collector's, unconditional and first, and a story still showing a fallback
-when it runs out is **refused by name** rather than photographed
-([ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md)).
-What is the adopter's is the one case a page cannot distinguish from a bug:
-`loading: ['my-story--empty-state']` says the skeleton *is* the subject. That
-story then waits for nothing, and is refused if it ever settles — a declaration
-nobody deleted is the same flake from the other side.
+In `variance.config.json`, the index is the built file and `collector` is the
+module you created:
 
-**Where the components live.** A directory and a set of extensions, scanned with
-a regex. Omitted, the report names components and no files. An empty scan is
-refused rather than returned: an index with nothing in it produces a report where
-every component resolves to no file, which reads exactly like a project whose
-components are anonymous and is instead a mistyped path.
+```json
+{
+  "project": "checkout-ui",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "variance/storybook.mjs"
+  },
+  "baselines": { "kind": "directory", "root": ".variance/baselines" },
+  "fonts": [],
+  "report": ".variance/report.json"
+}
+```
+
+### 4. Check the machine, then run
+
+```bash
+variance doctor --config variance.config.json
+variance run --config variance.config.json
+```
+
+The first successful run exits `1` and reports each story as `new`; a baseline
+nobody approved is not a pass. Review the candidates, accept the intended
+subjects, and run again. The next unchanged run exits `0` without painting
+subjects whose stored document digest already proves they did not move.
+
+The executable [`storybook-case`](../../cases/storybook-case) demonstrates the
+complete cycle against a Storybook-built artifact: new → accept → unchanged → a
+`Button` edit changing exactly the five stories that render it.
 
 ## Options
 
-| | |
-|---|---|
-| `ready` | story id → the selector that says it is ready |
-| `loading` | story ids, as globs, whose *fallback* is the subject. See below |
-| `suspenseTimeoutMs` | how long to wait for Suspense before refusing. Defaults to 5000; `0` skips the wait and keeps the reading |
-| `source` | `{ dirs, extensions?, exclude? }` — component to `file:line` |
-| `baseUrl` | a Storybook already served, e.g. `http://localhost:6006`. Preferred when it exists, because then nothing here has an opinion about how the build is hosted. Omitted, the directory holding `subjects.index` is served on a loopback port for the life of the run |
-| `headless` | defaults to `true` |
-| `roots` | story mount points, tightest first. Defaults to `#storybook-root`, `#root` |
+| Option | Use it when | Default and boundary |
+| --- | --- | --- |
+| `ready` | A particular story finishes after Storybook's render signal. | No additional wait. Keys are Storybook story ids. |
+| `loading` | A story's *fallback* is the state you intend to review. | Omitted. Id globs, matched against the story id and the subject id. |
+| `suspenseTimeoutMs` | A story legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
+| `source` | Reports should resolve component names to `file:line`. | Omitted; component names remain available. An empty or mistyped scan is refused. |
+| `baseUrl` | Storybook is already running. | Omitted; the directory containing `subjects.index` is served on loopback for the run. |
+| `headless` | You need to watch collection while debugging. | `true`; set `false` locally. |
+| `network` | Asset bytes at stable URLs must participate in render identity. | `true`; set `false` only when asset URLs are already content-addressed. |
+| `roots` | Your preview mounts somewhere other than the standard roots. | `['#storybook-root', '#root']`, tightest match first. |
 
-## One navigation, and nothing rinsed between stories
+The package exports `StorybookCollectorOptions` plus the collector contract
+types (`Collector`, `CollectorContext`, `Plan`, `PlannedSubject`, and
+`Collected`) for callers that need to wrap the factory without re-declaring its
+boundary. `SourceScan`, `AcquireRequest`, and `Acquired` expose the corresponding
+source and page-agent shapes.
 
-The harness is pointed at the preview, so `collectStory` finds itself already
-there and does not navigate again: N stories cost one navigation, and stories are
-switched over Storybook's own channel. That is the saving
-[ADR-0009](../../docs/context/adr/0009-sessions-detect-instead-of-rinse.md) rests
-on, and warm captures are 7.5 ms against 205 ms cold.
+The collector reads a built Storybook index and switches stories over
+Storybook's own preview channel, so a suite pays for one navigation rather than
+one navigation per story. Addon chrome remains outside the selected story root
+and does not enter the subject document.
 
-Nothing prunes Storybook's chrome and nothing needs to. The story mounts into
-`#storybook-root`, so the preview reset, the addon layout and the error overlay
-sit outside the subject subtree and are dropped by ordinary CSS applicability
-pruning. A Storybook-specific denylist would be a second normalization ruleset
-versioned by nobody.
+## A story still arriving is refused
 
-## What it does not make generic
+Before each story is read, the collector waits for every React Suspense boundary
+under the story root to settle. This runs first, ahead of stabilization, because
+content that arrives late brings its own images and fonts.
 
-Anything that is not Storybook. A Playwright suite, a route table or a bespoke
-mount is still a collector somebody writes — or, for a Playwright suite,
-[`@variance-authority/playwright-test`](../playwright-test), where the adopter's
-own test body plays that part instead.
+`ready` cannot cover this case and no marker can: a component that suspends
+renders no markup for a selector to attach to, and Storybook's `storyRendered`
+has already fired — the story function returned. A story still showing a
+fallback when the wait runs out is reported as **not collected**, naming the open
+boundaries and the components that wrote them, rather than recorded as a
+baseline. A skeleton on a slow machine and the component on a fast one is a
+difference no one authored, and every band agrees with both.
 
-And it does not rank causes above collateral. A durable baseline is an image with
-no document behind it, so no previous snapshot exists to name the roots of a
-change and the docket falls back to area — which measures displacement, and which
-this project measured as backwards by 6×.
+Declare the exception when the fallback is the subject:
+
+```js
+export default storybookCollector({
+  loading: ['inbox--empty-state'],
+  source: { dirs: ['src'] },
+});
+```
+
+A declared story waits for nothing, and is refused if it turns out to have
+settled — a declaration that outlived its subject is the same nondeterminism from
+the other side. The decision is
+[ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md).
+
+## When integration fails
+
+- **The index cannot be read:** build Storybook first and check
+  `subjects.index`. The collector reads `index.json`; it does not discover a
+  `.storybook` directory.
+- **A story times out:** verify the `ready` key is the Storybook story id and
+  that the selector is attached only after the intended UI is complete.
+- **A story is refused as still waiting:** the named Suspense boundary never
+  resolved. Fix what it awaits, or add the story to `loading` if the fallback is
+  what you intend to review.
+- **Components have names but no source lines:** add or correct `source.dirs`.
+  Production minification must also preserve component function names; the
+  worked case uses `esbuild.keepNames: true` for this reason.
+- **Images change without a document change:** leave `network` enabled so asset
+  response bodies participate in the environment key. Disable it only when the
+  URL already identifies the bytes.
+- **The browser is missing:** run `npx playwright install chromium`, then
+  `variance doctor` again.
+
+## Boundaries
+
+This package handles Storybook only. For pages your application already serves,
+use [`@variance-authority/route-collector`](../route-collector). For an existing
+Playwright test, use
+[`@variance-authority/playwright-test`](../playwright-test), where the test body
+already performs navigation, mounting, and readiness.
+
+Cause-first ordering also depends on the baseline carrying component hashes. A
+baseline without them can still produce attributed regions, but the docket must
+order those regions by area and state that displacement is not blame.

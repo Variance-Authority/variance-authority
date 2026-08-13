@@ -1,0 +1,12 @@
+{
+  "generatedBy": "examples/readme-case/scripts/generate.mjs",
+  "engine": "chromium@151.0.7922.34",
+  "change": {
+    "kind": "style-changed",
+    "property": "background-color",
+    "from": "rgb(31 111 235 / 1)",
+    "to": "rgb(130 80 223 / 1)",
+    "impact": "paint"
+  },
+  "changedPixels": 9226
+}
