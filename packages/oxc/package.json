@@ -26,7 +26,8 @@
   ],
   "scripts": {
     "build": "tsc --build",
-    "bench": "node scripts/bench.mjs"
+    "bench": "node scripts/bench.mjs",
+    "storage": "node scripts/storage.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
