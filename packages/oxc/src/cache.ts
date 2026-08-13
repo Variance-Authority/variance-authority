@@ -25,11 +25,19 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Digest } from '@variance-authority/core';
-import type { Specifier } from './read.js';
+import type { Export, Request } from './read.js';
 
 /** Everything reading one file produced that does not depend on where it sits. */
 export interface Parsed {
-  readonly specifiers: readonly Specifier[];
+  readonly requests: readonly Request[];
+  /**
+   * The names this file publishes.
+   *
+   * Cacheable by content digest for the same reason the requests are: what a
+   * file exports is in its own bytes. Which *file* is behind a re-export is not,
+   * and that join happens after resolution.
+   */
+  readonly exports?: readonly Export[];
   readonly declares?: readonly string[];
   readonly unknown?: string;
 }
@@ -52,7 +60,7 @@ export interface PersistentParseCache extends ParseCache {
 }
 
 /** Bumped when `Parsed` changes shape, so an old file is discarded, not misread. */
-const VERSION = 1;
+const VERSION = 2;
 
 /** A cache that keeps everything and remembers nothing between processes. */
 export function memoryParseCache(): ParseCache {

@@ -23,18 +23,67 @@ describe('reading a module', () => {
       "import type { A } from './types';\nimport { B } from './b';\nimport C, { type D } from './cd';\n",
     );
 
-    expect(read.specifiers).toEqual([
-      { value: './types', kind: 'type' },
-      { value: './b', kind: 'imports' },
+    expect(read.requests.map((request) => [request.value, request.kind])).toEqual([
+      ['./types', 'type'],
+      ['./b', 'imports'],
       // One type binding among values is a value import: `C` survives compilation.
-      { value: './cd', kind: 'imports' },
+      ['./cd', 'imports'],
     ]);
     expect(read.unknown).toBeUndefined();
   });
 
+  it('keeps the typeness of each binding, not of the statement', () => {
+    const read = readModule('a.tsx', 'import C, { type D, E as F } from "./cd";\n');
+
+    // The whole point of a binding row. `D` is erased at compile time and `C`
+    // and `F` are not, and a request-level kind — which has to be `imports`
+    // here, because two of the three survive — cannot say which is which.
+    expect(read.requests[0]?.bindings).toEqual([
+      { imported: 'default', local: 'C', type: false },
+      { imported: 'D', local: 'D', type: true },
+      { imported: 'E', local: 'F', type: false },
+    ]);
+  });
+
+  it('names a namespace import with a name no identifier can be', () => {
+    expect(readModule('a.ts', "import * as ns from './x';\n").requests[0]?.bindings).toEqual([
+      { imported: '*', local: 'ns', type: false },
+    ]);
+  });
+
+  it('keeps a bare specifier as written, because that is the package', () => {
+    const read = readModule('a.tsx', "import Button from '@atlaskit/button';\n");
+
+    // Resolution turns this into "not a file in this repository" and stops. The
+    // string is the only record that the file depends on the package at all, so
+    // asking what a subtree pulls in from npm has to read it from here.
+    expect(read.requests[0]?.value).toBe('@atlaskit/button');
+    expect(read.requests[0]?.bindings).toEqual([
+      { imported: 'default', local: 'Button', type: false },
+    ]);
+  });
+
   it('reads a side-effect import, which is how a stylesheet arrives', () => {
-    expect(readModule('a.tsx', "import './button.css';\n").specifiers).toEqual([
-      { value: './button.css', kind: 'imports' },
+    expect(readModule('a.tsx', "import './button.css';\n").requests).toEqual([
+      { value: './button.css', kind: 'imports', bindings: [] },
+    ]);
+  });
+
+  it('makes one request of a re-export that republishes many names', () => {
+    const read = readModule('index.ts', "export { a, b } from './x';\nexport type { c } from './x';\n");
+
+    // A barrel naming fifty exports of one module is one edge to it. Splitting
+    // per name would multiply every barrel in the repository by its width.
+    expect(read.requests).toEqual([
+      {
+        value: './x',
+        kind: 'reexports',
+        bindings: [
+          { imported: 'a', local: 'a', type: false },
+          { imported: 'b', local: 'b', type: false },
+          { imported: 'c', local: 'c', type: true },
+        ],
+      },
     ]);
   });
 
@@ -44,10 +93,30 @@ describe('reading a module', () => {
       "export * from './star';\nexport { E } from './e';\nexport type { F } from './f';\n",
     );
 
-    expect(read.specifiers).toEqual([
-      { value: './star', kind: 'reexports' },
-      { value: './e', kind: 'reexports' },
-      { value: './f', kind: 'type' },
+    expect(read.requests.map((request) => [request.value, request.kind])).toEqual([
+      ['./star', 'reexports'],
+      ['./e', 'reexports'],
+      ['./f', 'type'],
+    ]);
+  });
+
+  it('publishes a name for every export, and refuses to invent one for a star', () => {
+    const read = readModule(
+      'index.ts',
+      "export const x = 1;\nexport default function () {}\nexport * from './star';\nexport * as ns from './n';\n",
+    );
+
+    expect(read.exports).toEqual([
+      { exported: 'x', local: 'x', type: false },
+      // An anonymous default is exported and not locally accessible, so there
+      // is no declaration behind it to name.
+      { exported: 'default', type: false },
+      // The set behind `export * from` is whatever the other file publishes.
+      // Absent is not empty: asking whether this file exports `Card` has to
+      // follow `from`, and answering no from here would be a missed edge in
+      // name space rather than in file space.
+      { from: './star', imported: '*', type: false },
+      { exported: 'ns', from: './n', imported: '*', type: false },
     ]);
   });
 
@@ -57,16 +126,22 @@ describe('reading a module', () => {
       'const x = import("./dyn");\nconst y = import(`./page/${name}`);\n',
     );
 
-    expect(read.specifiers).toEqual([{ value: './dyn', kind: 'dynamic' }]);
+    expect(read.requests).toEqual([{ value: './dyn', kind: 'dynamic', bindings: [] }]);
     // The template is quoted and still not a constant, which is exactly the
     // shape that must widen rather than resolve to a directory.
     expect(read.unknown).toContain('not a literal');
   });
 
-  it('reads a literal require and widens on one it cannot read', () => {
-    const literal = readModule('a.cjs', "const a = require('./req');\n");
-    expect(literal.specifiers).toEqual([{ value: './req', kind: 'imports' }]);
-    expect(literal.unknown).toBeUndefined();
+  it('reads a literal require in either quote, and widens on one it cannot read', () => {
+    for (const source of ["const a = require('./req');\n", 'const a = require("./req");\n']) {
+      const literal = readModule('a.cjs', source);
+      // Reading only the single-quoted alternative is the worst shape a bug can
+      // take here: the specifier is undefined, so the edge points nowhere, and
+      // the literal still counts against the call total, so the file is not
+      // marked unknown either. A lost edge that does not widen is a green run.
+      expect(literal.requests).toEqual([{ value: './req', kind: 'imports', bindings: [] }]);
+      expect(literal.unknown).toBeUndefined();
+    }
 
     const computed = readModule('b.cjs', "const b = require(name);\n");
     expect(computed.unknown).toContain('require()');
@@ -95,14 +170,17 @@ describe('reading a stylesheet', () => {
       ].join('\n'),
     );
 
-    expect(read.specifiers.map((specifier) => specifier.value)).toEqual([
+    expect(read.requests.map((request) => request.value)).toEqual([
       './tokens.css',
       'sass:math',
       './mixins',
       './texture.png',
       './base.module.css',
     ]);
-    expect(read.specifiers.every((specifier) => specifier.kind === 'asset')).toBe(true);
+    expect(read.requests.every((request) => request.kind === 'asset')).toBe(true);
+    // A stylesheet request is a whole-file dependency. Nothing here binds a
+    // name, and `composes` names a class rather than an exported binding.
+    expect(read.requests.every((request) => request.bindings.length === 0)).toBe(true);
   });
 });
 

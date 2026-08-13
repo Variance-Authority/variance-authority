@@ -204,22 +204,22 @@ async function recordFor(subject: Subject): Promise<FileRecord> {
   const unresolved: string[] = [];
   const holes: string[] = [];
 
-  for (const specifier of read.specifiers) {
-    const request = requestOf(specifier.value);
+  for (const asked of read.requests) {
+    const request = requestOf(asked.value);
     if (request === undefined) continue;
 
     const target = resolveTo({ resolvers, root, from: absolute, request, style });
     if (target === undefined) {
-      unresolved.push(specifier.value);
+      unresolved.push(asked.value);
       // A bare specifier that does not resolve is a package this scan has no
       // business finding. A *relative* one names a path inside this repository
       // and could not be identified, which is a hole in the edge list rather
       // than an absence of one — so the file widens instead of narrowing.
-      if (isRelative(request)) holes.push(specifier.value);
+      if (isRelative(request)) holes.push(asked.value);
       continue;
     }
 
-    edges.push({ to: target, kind: kindFor(specifier.kind, target) });
+    edges.push({ to: target, kind: kindFor(asked.kind, target) });
   }
 
   const reasons = [
@@ -255,7 +255,8 @@ function parsedFrom(file: string, contents: string, style: boolean): Parsed {
       : Object.keys(indexSource(file, contents));
 
   return {
-    specifiers: read.specifiers,
+    requests: read.requests,
+    ...(read.exports === undefined ? {} : { exports: read.exports }),
     ...(declares.length > 0 ? { declares: declares.sort(byCodeUnit) } : {}),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
   };

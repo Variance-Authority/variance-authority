@@ -20,12 +20,16 @@
  */
 
 export {
+  DEFAULT_NAME,
   MODULE_EXTENSIONS,
+  NAMESPACE_NAME,
   STYLE_EXTENSIONS,
   readModule,
   readStyle,
+  type Binding,
+  type Export,
   type Read,
-  type Specifier,
+  type Request,
 } from './read.js';
 
 export { scanRelations, type ScanOptions } from './scan.js';

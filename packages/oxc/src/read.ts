@@ -1,5 +1,5 @@
 /**
- * One file's outgoing specifiers, without resolving any of them.
+ * One file's outgoing requests and published names, without resolving anything.
  *
  * Two readers — a module reader and a stylesheet reader — and the boundary
  * between "this file says it depends on `./x`" and "`./x` is that file over
@@ -7,14 +7,28 @@
  * this needs neither, so every rule about what counts as an edge is assertable
  * against a string.
  *
+ * ## A request is not a name
+ *
+ * `import { Card, type Props } from './ui'` is **one** request and **two**
+ * bindings, and collapsing them loses two different things. Reduced to a single
+ * edge, `Props` stops being type-only — the whole statement is type-only or none
+ * of it is — and `Card` stops being a name at all, so nothing downstream can ask
+ * which file declares it. Reduced the other way, to one edge per name, a barrel
+ * republishing fifty exports becomes fifty edges to the same file.
+ *
+ * So a request carries the specifier **as written** and the bindings hang off
+ * it. The specifier survives resolution on purpose: a bare one that resolves to
+ * nothing is the package this file depends on, and that question has no answer
+ * once the string has been thrown away for a file id.
+ *
  * ## Why the module record and not the tree
  *
  * `oxc-parser` returns a lazily-deserialized result. The full AST is available
  * behind `.program` and is the expensive half; `.module` is the ES module record
  * the parser has already computed — every static import, every re-export, every
- * `import()` — and touching it never materializes a node. A change-management
- * scan wants exactly that record and nothing else, so it pays for a parse and
- * not for a tree.
+ * `import()`, with the imported, local and exported name of each binding — and
+ * touching it never materializes a node. A change-management scan wants exactly
+ * that record and nothing else, so it pays for a parse and not for a tree.
  *
  * ## The dangerous direction
  *
@@ -34,20 +48,96 @@
  * A literal `require('./x')` is *not* in that table: it is read and becomes an
  * edge, which is what keeps a CommonJS corner of a repository from widening
  * every run it appears in.
+ *
+ * `export * from './x'` is not in that table either, and the distinction is the
+ * point. The *edge* is known — it is `./x`, right there. What is unknown is this
+ * file's export set, which is a fact about names and is carried as one: an
+ * `Export` with no `exported`. Treating it as an unknown edge list would widen
+ * every barrel in the repository to depend on everything, which is most of them.
  */
 
 import { parseSync } from 'oxc-parser';
 import type { EdgeKind } from '@variance-authority/core';
 
-export interface Specifier {
+/**
+ * The imported name of a default import, and the exported name of a default
+ * export. Not a legal identifier, so it cannot collide with a written one.
+ */
+export const DEFAULT_NAME = 'default';
+
+/** The imported name of a namespace object — `import * as ns`, `export * as ns`. */
+export const NAMESPACE_NAME = '*';
+
+export interface Binding {
+  /**
+   * The name under which the module this came from publishes it.
+   *
+   * `DEFAULT_NAME` for a default import and `NAMESPACE_NAME` for a namespace
+   * object, so every binding has a name and none of them is a written one.
+   */
+  readonly imported: string;
+
+  /** The name bound in this file. Differs from `imported` only for an alias. */
+  readonly local: string;
+
+  /** `import type { x }` and `import { type x }` alike. */
+  readonly type: boolean;
+}
+
+export interface Request {
   /** As written. Unresolved — `./x`, `@scope/pkg`, `../theme.css`. */
   readonly value: string;
+
+  /**
+   * What the whole request is, for the file-level edge.
+   *
+   * A summary of the bindings rather than a replacement for them: `type` when
+   * every name it brings in is type-only, and the per-binding truth is still
+   * in `bindings` for anything that needs to disagree.
+   */
   readonly kind: EdgeKind;
+
+  /**
+   * What this request binds, one entry per name.
+   *
+   * Empty is a real answer with three causes: `import './x'` is a side effect
+   * and binds nothing, `export * from './x'` republishes a set this file never
+   * names, and a dynamic `import('./x')` binds nothing the module record sees.
+   */
+  readonly bindings: readonly Binding[];
+}
+
+export interface Export {
+  /**
+   * The name this file publishes.
+   *
+   * Absent for `export * from './x'`, where the set is whatever the other file
+   * publishes and is not knowable from these bytes. Absent is not empty: a
+   * consumer asking whether this file exports `Card` must follow `from` rather
+   * than answer no.
+   */
+  readonly exported?: string;
+
+  /** The local declaration behind it, when this file declares it. */
+  readonly local?: string;
+
+  /** The specifier it was republished from, when it was republished. */
+  readonly from?: string;
+
+  /** The name under which that module publishes it. */
+  readonly imported?: string;
+
+  /** `export type { x }`, `export { type x }`, `export type * from './x'`. */
+  readonly type: boolean;
 }
 
 export interface Read {
-  readonly specifiers: readonly Specifier[];
-  /** Why this file's specifiers are not the whole set, when they are not. */
+  readonly requests: readonly Request[];
+
+  /** Every name this file publishes. Absent when it publishes nothing. */
+  readonly exports?: readonly Export[];
+
+  /** Why this file's requests are not the whole set, when they are not. */
   readonly unknown?: string;
 }
 
@@ -58,7 +148,7 @@ export const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', 
 export const STYLE_EXTENSIONS = ['.css', '.scss', '.sass', '.less'];
 
 /**
- * Static imports, re-exports and literal dynamic imports, from the module record.
+ * Static imports, re-exports, published names and literal dynamic imports.
  *
  * A type-only import is kept as its own kind rather than dropped. It cannot move
  * a pixel — every compiler erases it — and dropping it here would decide that for
@@ -70,30 +160,65 @@ export function readModule(file: string, contents: string): Read {
   try {
     result = parseSync(file, contents);
   } catch (error) {
-    return { specifiers: [], unknown: `${file} could not be parsed: ${messageOf(error)}` };
+    return { requests: [], unknown: `${file} could not be parsed: ${messageOf(error)}` };
   }
 
-  const specifiers: Specifier[] = [];
+  const requests: Request[] = [];
+  const published: Export[] = [];
   const record = result.module;
 
   for (const entry of record.staticImports) {
+    const bindings = entry.entries.map(
+      (binding): Binding => ({
+        imported: importedName(binding.importName),
+        local: binding.localName.value,
+        type: binding.isType,
+      }),
+    );
+
     // No entries at all is `import './x'` — a side effect, which is the shape a
     // stylesheet arrives in and never a type import.
-    const kind: EdgeKind =
-      entry.entries.length > 0 && entry.entries.every((binding) => binding.isType)
-        ? 'type'
-        : 'imports';
-    specifiers.push({ value: entry.moduleRequest.value, kind });
+    const type = bindings.length > 0 && bindings.every((binding) => binding.type);
+    requests.push({ value: entry.moduleRequest.value, kind: type ? 'type' : 'imports', bindings });
   }
+
+  // `export { a, b } from './x'` arrives as two entries naming one specifier.
+  // Grouping keeps it one request, so a barrel republishing fifty names is one
+  // edge rather than fifty, and the type-only rule is decided over the whole
+  // request the way an import's is. The group carries its own `type` because
+  // `export type * from './x'` is type-only while binding no names at all.
+  const republished = new Map<string, { bindings: Binding[]; type: boolean }>();
 
   for (const entry of record.staticExports) {
     for (const binding of entry.entries) {
-      if (binding.moduleRequest === null) continue;
-      specifiers.push({
-        value: binding.moduleRequest.value,
-        kind: binding.isType ? 'type' : 'reexports',
+      const from = binding.moduleRequest?.value;
+      const exported = publishedName(binding.exportName);
+      const imported = sourceName(binding.importName);
+      const local = localName(binding.localName);
+
+      published.push({
+        ...(exported === undefined ? {} : { exported }),
+        ...(local === undefined ? {} : { local }),
+        ...(from === undefined ? {} : { from }),
+        ...(imported === undefined ? {} : { imported }),
+        type: binding.isType,
       });
+
+      if (from === undefined) continue;
+
+      const group = republished.get(from) ?? { bindings: [], type: true };
+      if (!binding.isType) group.type = false;
+      // `export * from './x'` names nothing here, and a binding invented for it
+      // would claim a name this file never wrote.
+      if (exported !== undefined && imported !== undefined) {
+        group.bindings.push({ imported, local: exported, type: binding.isType });
+      }
+      republished.set(from, group);
     }
+  }
+
+  for (const [value, group] of republished) {
+    requests.push({ value, kind: group.type ? 'type' : 'reexports', bindings: group.bindings });
   }
 
   const reasons: string[] = [];
@@ -104,11 +229,13 @@ export function readModule(file: string, contents: string): Read {
       reasons.push('an `import()` whose specifier is not a literal');
       continue;
     }
-    specifiers.push({ value: literal, kind: 'dynamic' });
+    // What a dynamic import binds is a property access on a promise, which is a
+    // question for the tree rather than the module record.
+    requests.push({ value: literal, kind: 'dynamic', bindings: [] });
   }
 
   const required = readRequires(contents);
-  specifiers.push(...required.specifiers);
+  requests.push(...required.requests);
   if (required.unknown !== undefined) reasons.push(required.unknown);
 
   // Errors are recoverable in `oxc` — a result always comes back — so the record
@@ -119,7 +246,8 @@ export function readModule(file: string, contents: string): Read {
   }
 
   return {
-    specifiers,
+    requests,
+    ...(published.length > 0 ? { exports: published } : {}),
     ...(reasons.length > 0 ? { unknown: `${file} — ${reasons.join('; ')}` } : {}),
   };
 }
@@ -136,19 +264,23 @@ export function readModule(file: string, contents: string): Read {
  * It over-reads rather than under-reads. A specifier inside a CSS comment becomes
  * an edge that is not real, which costs a collection; a specifier this failed to
  * see would cost a subject nobody observed.
+ *
+ * Nothing here binds a name. A stylesheet request is a whole-file dependency,
+ * and `composes` is the one shape that names anything — a class rather than an
+ * exported binding, which is not the same kind of name.
  */
 export function readStyle(_file: string, contents: string): Read {
-  const specifiers: Specifier[] = [];
+  const requests: Request[] = [];
 
   for (const pattern of [AT_RULE, URL, COMPOSES]) {
     for (const match of contents.matchAll(pattern)) {
       const value = (match[1] ?? match[2] ?? match[3] ?? '').trim();
       if (value === '' || isExternal(value)) continue;
-      specifiers.push({ value, kind: 'asset' });
+      requests.push({ value, kind: 'asset', bindings: [] });
     }
   }
 
-  return { specifiers };
+  return { requests };
 }
 
 /** `@import "x"`, `@import url("x")`, `@use "x"`, `@forward "x"`. */
@@ -171,16 +303,22 @@ const COMPOSES = /\bcomposes\s*:[^;]*?\bfrom\s+(?:'([^']*)'|"([^"]*)")/g;
  * Both failure modes of a text scan are safe here. A `require(` inside a comment
  * inflates the total and widens; a literal matched inside a string adds an edge
  * to a file that may not exist, and an edge to nothing reaches nothing.
+ *
+ * What a `require` binds is a destructuring on the left of an `=`, which the
+ * module record never saw and this does not parse for, so the request binds no
+ * names rather than guessed ones.
  */
 function readRequires(contents: string): Read {
   const calls = [...contents.matchAll(REQUIRE_CALL)].length;
-  if (calls === 0) return { specifiers: [] };
+  if (calls === 0) return { requests: [] };
 
   const literals = [...contents.matchAll(REQUIRE_LITERAL)];
-  const specifiers = literals.map((match): Specifier => ({ value: match[1]!, kind: 'imports' }));
+  const requests = literals.map(
+    (match): Request => ({ value: match[1] ?? match[2]!, kind: 'imports', bindings: [] }),
+  );
 
   return {
-    specifiers,
+    requests,
     ...(literals.length < calls
       ? { unknown: `${calls - literals.length} \`require()\` call(s) with a specifier this cannot read` }
       : {}),
@@ -189,6 +327,54 @@ function readRequires(contents: string): Read {
 
 const REQUIRE_CALL = /\brequire\s*\(/g;
 const REQUIRE_LITERAL = /\brequire\s*\(\s*(?:'([^']*)'|"([^"]*)")\s*\)/g;
+
+/**
+ * The name an import binding refers to in the module it came from.
+ *
+ * Taken structurally rather than through `oxc`'s `const enum`, which cannot be
+ * imported as a value under this build's module settings. The kinds are strings.
+ */
+function importedName(name: Named): string {
+  if (name.kind === 'Default') return DEFAULT_NAME;
+  if (name.kind === 'NamespaceObject') return NAMESPACE_NAME;
+
+  return name.name ?? DEFAULT_NAME;
+}
+
+/** The name a file publishes under, or `undefined` for `export * from './x'`. */
+function publishedName(name: Named): string | undefined {
+  if (name.kind === 'Default') return DEFAULT_NAME;
+  if (name.kind === 'None') return undefined;
+
+  return name.name ?? undefined;
+}
+
+/** The name the source module publishes it under, when there is a source. */
+function sourceName(name: Named): string | undefined {
+  if (name.kind === 'All' || name.kind === 'AllButDefault') return NAMESPACE_NAME;
+  if (name.kind === 'None') return undefined;
+
+  return name.name ?? undefined;
+}
+
+/**
+ * The declaration behind an export, when the value is locally accessible.
+ *
+ * `export default function () {}` has no local name — there is nothing in the
+ * module to refer to — and that is `undefined` rather than an invented one.
+ */
+function localName(name: Named): string | undefined {
+  if (name.kind === 'Default') return DEFAULT_NAME;
+  if (name.kind === 'None') return undefined;
+
+  return name.name ?? undefined;
+}
+
+/** The shape every name in the module record shares. */
+interface Named {
+  readonly kind: string;
+  readonly name: string | null;
+}
 
 /** The contents of a quoted literal, or `undefined` when it was not one. */
 function quoted(text: string): string | undefined {
