@@ -236,8 +236,37 @@ function digestableProps(props: Readonly<Record<string, unknown>> | null): Recor
  *
  * Absent remains a normal state, not an error — a production build with the
  * development transform off computes no location for anybody to record.
+ *
+ * **Composite ancestors are consulted when the fiber itself has none.** A custom
+ * JSX runtime layered above the recording one may rebuild the props object before
+ * React ever sees it — Emotion does exactly this for an element carrying a `css`
+ * prop, copying with `for…in`, which does not copy symbols. The location is not
+ * lost when that happens, because such a runtime forwards the transform's source
+ * argument unchanged and the element it renders instead is recorded with it; it
+ * has simply moved up one fiber.
+ *
+ * The climb stops at the first host element, so it never reaches past the
+ * component that rendered this node. For a node whose own location was recorded
+ * — every node in a build that compiled with the development transform — the
+ * climb does not happen at all.
  */
 function sourceLocation(fiber: Fiber): SourceLocation | null {
+  const recorded = recordedLocation(fiber);
+  if (recorded !== null) return recorded;
+
+  for (
+    let ancestor = fiber.return;
+    ancestor !== null && isOwnerFrame(ancestor);
+    ancestor = ancestor.return
+  ) {
+    const enclosing = recordedLocation(ancestor);
+    if (enclosing !== null) return enclosing;
+  }
+
+  return null;
+}
+
+function recordedLocation(fiber: Fiber): SourceLocation | null {
   const recorded = jsxSourceOf(fiber.memoizedProps);
   if (recorded !== undefined) return recorded;
 

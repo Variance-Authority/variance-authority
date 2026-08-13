@@ -69,8 +69,12 @@ every item changed.
   `jsxDEV` takes four parameters and overwrites the fifth, and `createElement`
   skips `__source` by name. `resolveProvenance` reads `_debugSource` when it is
   there (React ≤18) and otherwise reads what
-  [`@variance-authority/jsx-source`](../jsx-source) recorded, which is one
-  `jsxImportSource` setting away. With neither, attribution falls back to
+  [`@variance-authority/jsx-source`](../jsx-source) recorded, which is a bundler
+  plugin or a Jest resolver away and does not take `jsxImportSource`, so a
+  project already compiling against Emotion or theme-ui keeps doing that. An
+  element whose props were rebuilt by such a runtime records one fiber up, and
+  `resolveProvenance` climbs composite ancestors to find it. With neither,
+  attribution falls back to
   resolving a component *name* against a repository scan
   ([`core/attribute`](../core)'s `indexSource`) — the declaration rather than the
   call site.

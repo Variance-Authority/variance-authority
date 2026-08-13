@@ -3,12 +3,24 @@
  * author. Every other test of `@variance-authority/storybook` runs against
  * fixtures written to match the format; this one runs against the format.
  */
+import { jsxSource } from '@variance-authority/jsx-source/vite';
+
 export default {
   stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
   framework: { name: '@storybook/react-vite', options: {} },
   core: { disableTelemetry: true },
   viteFinal: async (config) => ({
     ...config,
+    /**
+     * **The plugin that turns a rendered node back into a line of code.**
+     *
+     * It makes `react/jsx-dev-runtime` resolve to a runtime that keeps the
+     * location instead of dropping it, which is a thing this file can do without
+     * spending `jsxImportSource` — one setting, of which a project has exactly
+     * one, and which a project using Emotion or theme-ui has already spent.
+     * Nothing else about the build changes and nothing above React notices.
+     */
+    plugins: [...(config.plugins ?? []), jsxSource()],
     esbuild: {
       ...config.esbuild,
       // Stated rather than inherited. Without it the stories compile against the
@@ -37,25 +49,24 @@ export default {
        */
       keepNames: true,
       /**
-       * **The two lines that turn a rendered node back into a line of code.**
+       * **The setting the plugin above cannot supply for itself.**
        *
        * `jsxDev` is what makes the transform emit each element's file, line and
-       * column at all, and it is independent of minification — this is a
-       * production build and the locations survive it, because they are data the
-       * compiler wrote rather than names a bundler could rename. `keepNames`
-       * above is the opposite kind of setting for exactly that reason.
+       * column at all. Without it there is no location for anything to keep, and
+       * with it there is one even here — this is a production build, and the
+       * locations survive minification because they are data the compiler wrote
+       * rather than names a bundler could rename. `keepNames` above is the
+       * opposite kind of setting for exactly that reason.
        *
-       * `jsxImportSource` is what keeps them. React 19 accepts the transform's
-       * source argument and throws it away: its `jsxDEV` takes four parameters
-       * and overwrites the fifth with an `Error` of its own, and `createElement`
-       * skips `__source` by name. So the runtime named here stands in front of
-       * React's, records the location on the props object, and hands it on.
+       * React 19 is what drops them: its `jsxDEV` takes four parameters and
+       * overwrites the transform's fifth argument with an `Error` of its own, and
+       * `createElement` skips `__source` by name. The plugin puts a runtime in
+       * React's place that records the argument before handing it on.
        *
        * What this buys, visible in `cli.chromium.test.js`: a finding names the
        * element's own line rather than the line its component is declared on.
        */
       jsxDev: true,
-      jsxImportSource: '@variance-authority/jsx-source',
     },
   }),
 };

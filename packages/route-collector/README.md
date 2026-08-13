@@ -207,9 +207,11 @@ before constructing the collector. They do not fetch a sitemap or crawl links.
   includes headers, navigation, and overlays.
 - **Component names have no source lines:** configure `source.dirs` and preserve
   component names in the production bundle. That resolves a name to where the
-  component is *declared*; for the line the changed element is written on, set
-  `jsxImportSource` to [`@variance-authority/jsx-source`](../jsx-source), which a
-  report prefers wherever it is present.
+  component is *declared*; for the line the changed element is written on, add
+  the [`@variance-authority/jsx-source`](../jsx-source) plugin to the
+  application's build and turn on `jsxDev`, which a report prefers wherever it is
+  present. The plugin leaves `jsxImportSource` alone, so an application built
+  against Emotion or theme-ui needs no compiler change to get it.
 - **A login redirect is captured:** authenticated routes are outside this
   package's current contract; use an existing Playwright test instead.
 

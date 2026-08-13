@@ -17,10 +17,20 @@
     "./jsx-dev-runtime": {
       "types": "./dist/jsx-dev-runtime.d.ts",
       "default": "./dist/jsx-dev-runtime.js"
-    }
+    },
+    "./under": {
+      "types": "./dist/under.d.ts",
+      "default": "./dist/under.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "default": "./dist/vite.js"
+    },
+    "./jest-resolver": "./jest-resolver.cjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "jest-resolver.cjs"
   ],
   "scripts": {
     "build": "tsc --build"
@@ -32,6 +42,7 @@
     "react": ">=17"
   },
   "devDependencies": {
+    "@emotion/react": "^11.14.0",
     "@variance-authority/react": "workspace:^",
     "jsdom": "^25.0.1",
     "react": "^19.0.0",

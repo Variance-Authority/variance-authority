@@ -48,9 +48,12 @@ still name components, but it cannot point to their declarations.
 
 It is the answer that needs no build change, and it names where a component is
 *declared* — one line however many times that component is rendered. For the
-line the changed element is actually written on, set `jsxImportSource` to
-[`@variance-authority/jsx-source`](../jsx-source); a report prefers that location
-wherever it exists, and this collector makes it repository-relative.
+line the changed element is actually written on, add the
+[`@variance-authority/jsx-source`](../jsx-source) plugin to your Storybook's
+`viteFinal` and turn on `esbuild.jsxDev`; a report prefers that location wherever
+it exists, and this collector makes it repository-relative. The plugin does not
+take `jsxImportSource`, so a Storybook already compiling against Emotion or
+theme-ui keeps doing exactly that.
 
 ### 3. Point the CLI at the Storybook index and collector
 
@@ -155,6 +158,10 @@ the other side. The decision is
 - **Components have names but no source lines:** add or correct `source.dirs`.
   Production minification must also preserve component function names; the
   worked case uses `esbuild.keepNames: true` for this reason.
+- **Elements report their component's declaration rather than their own line:**
+  the `jsx-source` plugin is not installed, or `esbuild.jsxDev` is off in the
+  build that produced this artifact. Locations survive minification, so it is
+  worth turning on for a production Storybook.
 - **Images change without a document change:** leave `network` enabled so asset
   response bodies participate in the environment key. Disable it only when the
   URL already identifies the bytes.
