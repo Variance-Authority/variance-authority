@@ -1,6 +1,6 @@
 # Variance Authority
 
-**HTML-aware visual regression.**
+**Visual Regression with Verifiable Results.**
 
 Visual regression is good at telling you that something changed. It is much
 less useful at telling you why.
