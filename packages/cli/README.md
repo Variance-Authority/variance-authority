@@ -322,6 +322,18 @@ downloaded, so the run's inputs are the ones in the repository.
   },
   "baselines": { "kind": "directory", "root": "baselines" },
   "fonts": ["Inter/400/normal/sha256-abc"],
+
+  // Where components are declared, which is what `--since` narrows against.
+  // `relations` reads what imports what, so a changed stylesheet reaches the
+  // components that rest on it instead of running everything; `changes` borrows
+  // a monorepo tool's answer across the package boundary a specifier cannot
+  // cross. See ../../docs/selecting.md.
+  "source": {
+    "dirs": ["src"],
+    "relations": true,
+    "changes": { "tool": "turbo", "task": "build" }
+  },
+
   "browser": "chromium",
   "report": "out/report.json",
 
@@ -341,6 +353,21 @@ Storybook that collector is now
 lines. For anything else, neither a list of ids nor a story index says how to
 mount, and the mounting half is code you write. `baselines` is `directory`, `lfs`
 or `remote`.
+
+`source` is the only thing `--since` can narrow against, and it is three settings
+in one. `dirs` names where components are declared *and* declares the scope: a
+changed file inside it that reaches no component forces a whole run, a changed
+file outside it was never claimed to affect a render. `relations: true` reads
+what imports what, so `tokens.css` is answered by walking to the components that
+rest on it rather than by running the suite — it costs one scan of the tree,
+which is cached by content and by tree shape and so is paid once. `changes` asks
+`nx` or `turbo` what a diff affects and folds their answer in as **more changed
+input**, never as a second opinion: it is the one edge a specifier scan cannot
+see, since a workspace package imports its neighbour's built output. `turbo`
+needs a `task`, because it filters a task graph rather than describing a
+workspace. If the tool cannot be run, the run refuses — an empty project list is
+a legitimate answer meaning *this diff crossed no package boundary*, and a
+failure that produced it would skip every consumer of whatever changed.
 
 `renderer` points the run at a machine that is not this one:
 `{ "endpoint": "http://pinned-runner:7777" }`, served by `serveRenderer` from

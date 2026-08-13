@@ -9,10 +9,11 @@ Pure data in, pure data out. Collectors extract; core normalizes and adjudicates
 
 ## Entrypoints
 
-Six groups. The first five are the order an answer travels through; `core/plan`
-sits outside that line, because a plan has to exist before anything is captured —
-its digest is what decides which baselines the run can reach at all. The default
-entrypoint is all six and is what most callers want.
+Seven groups. Five of them are the order an answer travels through; `core/plan`
+and `core/relate` sit outside that line, because both are asked *before* anything
+is captured — one decides which baselines the run can reach at all, the other
+decides which subjects are worth reaching for. The default entrypoint is all
+seven and is what most callers want.
 
 | entrypoint | holds |
 |---|---|
@@ -22,6 +23,7 @@ entrypoint is all six and is what most callers want.
 | `core/attribute` | a position becomes a component becomes a file |
 | `core/judge` | policy: verdicts, intent claims, ignores, the docket a reader is handed |
 | `core/plan` | the whole configuration of a run — profile, ruleset version, viewport, policy, interventions — as one value, plus the identity digest derived from it |
+| `core/relate` | what rests on what: a file graph in adjacency form, the components a change reaches, and a closure digest over each one |
 
 The groups exist for callers who genuinely want one. Somebody implementing the
 capture format for a renderer this project has never met needs `core/format` and

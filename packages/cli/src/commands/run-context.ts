@@ -1,5 +1,5 @@
 import type { HistoryStore } from '@variance-authority/history';
-import type { SourceIndex } from '@variance-authority/core';
+import type { Relations, SourceIndex } from '@variance-authority/core';
 import type { PngDecoder } from '@variance-authority/png';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import type { Config } from '../config.js';
@@ -64,6 +64,28 @@ export interface RunDeps {
    * is assertable with no repository and no browser.
    */
   scanSource?(dirs: readonly string[]): Promise<SourceIndex>;
+
+  /**
+   * Read what imports what, when the config asked for it.
+   *
+   * Injected beside `scanSource` and for the same reason, but it answers a
+   * different question. The index says which file *declares* a component; this
+   * says which files a component *rests on*, and that is the difference between
+   * ruling out a changed token file and running the whole suite because of one.
+   *
+   * Absent when no graph was configured, and the selector states which of the two
+   * rules it applied rather than leaving an operator to infer it from the count.
+   */
+  scanRelations?(dirs: readonly string[]): Promise<Relations>;
+
+  /**
+   * Directories a monorepo tool reports as affected, when one is configured.
+   *
+   * Seeds, not an answer — see `changes.ts`. Injected because it shells out to
+   * `nx` or `turbo`, and a decision that shells out is a decision no test can
+   * make claims about.
+   */
+  changedProjects?(base: string): Promise<readonly string[]>;
 }
 
 export interface RunOptions {

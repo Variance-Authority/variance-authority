@@ -31,10 +31,11 @@ import {
   type SubjectsConfig,
 } from './config-sections.js';
 import { parseBlanks, type BlankConfig } from './config-blank.js';
+import { parseSource, type ChangeConfig, type SourceConfig } from './config-source.js';
 import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
 
-export type { BlankConfig, IgnoreConfig, SensitivityConfig };
+export type { BlankConfig, ChangeConfig, IgnoreConfig, SensitivityConfig, SourceConfig };
 
 /**
  * The configuration file, and the rule that nothing else configures a run.
@@ -130,7 +131,7 @@ export interface Config {
    * narrowing past it is the operator's own statement of where their components
    * are ([`docs/selecting.md`](../../../docs/selecting.md)).
    */
-  readonly source?: { readonly dirs: readonly string[] };
+  readonly source?: SourceConfig;
 
   /**
    * Fonts this machine is asserted to have, as `family/weight/style/hash`.
@@ -319,32 +320,6 @@ const TOP_LEVEL = [
 ] as const;
 
 /**
- * Where components are declared, for selection only.
- *
- * Directories rather than globs, matching every other place this project asks
- * the same question: a glob syntax is a small language with its own bugs, and
- * *which directories hold components* is answerable without one.
- */
-function parseSourceDirs(
-  value: unknown,
-  options: ParseOptions,
-): { readonly dirs: readonly string[] } {
-  const root = object(value, 'source', ['dirs'], options);
-  const dirs = root['dirs'];
-
-  if (!Array.isArray(dirs) || dirs.length === 0 || dirs.some((dir) => typeof dir !== 'string')) {
-    throw new ConfigError(
-      options.source,
-      'source.dirs',
-      'must be a non-empty array of directory paths; selection narrows a run by what these ' +
-        'declare, so an empty list would silently narrow it to nothing',
-    );
-  }
-
-  return { dirs: dirs as readonly string[] };
-}
-
-/**
  * Validate a parsed config value. Pure: no filesystem, no clock, no network.
  *
  * Separate from {@link loadConfig} so every rule below is testable by handing it
@@ -446,7 +421,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(baselines !== undefined ? { baselines } : {}),
     fonts: parseFonts(root['fonts'], options),
     ...(root['history'] === undefined ? {} : { history: parseHistory(root['history'], options) }),
-    ...(root['source'] === undefined ? {} : { source: parseSourceDirs(root['source'], options) }),
+    ...(root['source'] === undefined ? {} : { source: parseSource(root['source'], options) }),
     report,
     // Beside the *report* rather than beside the config: `ObservationRecord.images`
     // paths are relative to the report, so an image directory anchored anywhere

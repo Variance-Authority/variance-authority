@@ -1,0 +1,36 @@
+{
+  "name": "@variance-authority/oxc",
+  "version": "0.0.0-beta.1",
+  "license": "MIT",
+  "author": "Mechanic Garden",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "directory": "packages/oxc"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./read": {
+      "types": "./dist/read.d.ts",
+      "default": "./dist/read.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "bench": "node scripts/bench.mjs"
+  },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^",
+    "oxc-parser": "^0.144.0",
+    "oxc-resolver": "^11.24.2"
+  }
+}

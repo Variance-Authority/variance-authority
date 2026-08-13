@@ -15,6 +15,7 @@
  * | `core/rules` | the versioned opinions: allowlist, cascade, canonicalization |
  * | `core/compare` | two snapshots become deltas — and no verdict |
  * | `core/attribute` | a position becomes a component becomes a file |
+ * | `core/relate` | what reaches what: the graph a change is traversed over |
  * | `core/judge` | policy: verdicts, intent, the docket a reader is handed |
  * | `core/plan` | a composition as a value, and the identity derived from it |
  *
@@ -28,5 +29,6 @@ export * from './format/index.js';
 export * from './rules/index.js';
 export * from './compare/index.js';
 export * from './attribute/index.js';
+export * from './relate/index.js';
 export * from './judge/index.js';
 export * from './plan/index.js';

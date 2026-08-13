@@ -16,10 +16,12 @@ import {
   loadCollector,
   planList,
   planStorybook,
+  affectedProjects,
   changedSince,
   historyFor,
   identityOf,
   readCliRunReport,
+  relationsFor,
   run,
   scanSourceDirs,
   storeFor,
@@ -116,6 +118,19 @@ export async function dispatch(
             writeArtifact: writeArtifactToDisk,
             writeReport: writeCliRunReport,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
+            scanRelations: async (dirs) => relationsFor(process.cwd(), dirs),
+            ...(effective.source?.changes === undefined
+              ? {}
+              : {
+                  changedProjects: async (base) =>
+                    (
+                      await affectedProjects({
+                        source: effective.source!.changes!,
+                        base,
+                        cwd: process.cwd(),
+                      })
+                    ).dirs,
+                }),
             ...(history !== undefined ? { history } : {}),
           },
         });

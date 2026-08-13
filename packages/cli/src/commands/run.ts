@@ -1,4 +1,4 @@
-import { componentInstances, profileById, type SourceIndex, type SubjectComposition } from '@variance-authority/core';
+import { componentInstances, profileById, type SubjectComposition } from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
@@ -7,13 +7,13 @@ import { observeOne } from './observe-one.js';
 import type { SubjectHistory } from './history.js';
 import { customProperties } from './history-rows.js';
 import { recordIfConfigured } from './history-report.js';
-import { affectedSubjects } from './affected.js';
 import { compositionOf } from './compose.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
 import { concurrencyOf, pool, serial } from './schedule.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
+import { selectionFor } from './run-select.js';
 import { shardFilterBecause } from './run-report.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
 
@@ -74,11 +74,14 @@ export {
   changedSince,
   decoderFor,
   historyFor,
+  relationsFor,
   renderCacheRoot,
   scanSourceDirs,
   storeFor,
   writeArtifactToDisk,
 } from './resources.js';
+export { affectedProjects } from './changes.js';
+export type { AffectedProjects, ChangeSource, ChangeTool } from './changes.js';
 export { readCliRunReport, writeCliRunReport } from './run-report.js';
 export type {
   CliObservationRecord,
@@ -407,85 +410,6 @@ async function observeAll(
 
   await deps.writeReport(config.report, report);
   return report;
-}
-
-/**
- * What `--since` ruled out, or `undefined` when nothing asked it to.
- *
- * Every input it needs is fetched here and the decision itself is a pure
- * function next door, which is what makes the rules in `affected.ts` assertable
- * without a repository, a store or a browser.
- *
- * **It refuses rather than guesses.** A `--since` with no `source.dirs` in the
- * config cannot know where components are declared, and narrowing on an empty
- * index would rule out the entire suite. That is an operator error and is raised
- * as one; the alternative is a green run over nothing.
- */
-async function selectionFor(
-  plan: Plan,
-  context: ObserveContext,
-  options: RunOptions,
-): Promise<
-  | {
-      readonly skipped: ReadonlyMap<string, string>;
-      readonly whole?: string;
-      /**
-       * The index the narrowing was computed from, handed on rather than rebuilt.
-       *
-       * The composition phase needs the same map — component name to the file
-       * that declares it — to say whether anybody edited what moved, and scanning
-       * the source tree twice for one answer is a disk walk nobody asked for.
-       */
-      readonly source: SourceIndex;
-    }
-  | undefined
-> {
-  const { config, deps, renderer } = context;
-  if (options.since === undefined) return undefined;
-
-  const scan = deps.scanSource;
-  if (config.source === undefined || scan === undefined) {
-    throw new OperatorError(
-      '`--since` narrows a run to the subjects a diff could have changed, and needs to know ' +
-        'where your components are declared. Add `source: { dirs: [...] }` to the config. ' +
-        'Narrowing without it would rule out every subject in the suite.',
-    );
-  }
-
-  // The component list a baseline recorded, read from the sidecar without the
-  // image: this is `describe`'s whole reason to exist, and selection is the
-  // second caller that would otherwise have paid a megabyte per subject to ask a
-  // question about names.
-  const baselines = new Map<string, readonly string[] | undefined>();
-  for (const planned of plan.subjects) {
-    const described = await deps.store.describe(
-      { subject: planned.subject.id },
-      renderer.identity,
-    );
-    baselines.set(planned.subject.id, described?.components);
-  }
-
-  const source = await scan(config.source.dirs);
-  const answer = affectedSubjects({
-    planned: plan.subjects.map((planned) => planned.subject.id),
-    changed: options.since.changed,
-    source,
-    roots: config.source.dirs,
-    baselines,
-  });
-
-  return {
-    source,
-    skipped: new Map(
-      answer.skipped.map((entry) => [
-        entry.subject,
-        `not affected by the diff against ${options.since?.ref ?? 'the ref'}: ${entry.because}`,
-      ]),
-    ),
-    ...(answer.whole !== undefined
-      ? { whole: `\`--since ${options.since.ref}\` did not narrow this run: ${answer.whole}` }
-      : {}),
-  };
 }
 
 function messageOf(error: unknown): string {

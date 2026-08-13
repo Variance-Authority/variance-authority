@@ -39,6 +39,9 @@
       "path": "../packages/observe"
     },
     {
+      "path": "../packages/oxc"
+    },
+    {
       "path": "../packages/playwright"
     },
     {

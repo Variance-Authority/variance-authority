@@ -30,6 +30,10 @@
       "types": "./dist/attribute/index.d.ts",
       "default": "./dist/attribute/index.js"
     },
+    "./relate": {
+      "types": "./dist/relate/index.d.ts",
+      "default": "./dist/relate/index.js"
+    },
     "./judge": {
       "types": "./dist/judge/index.d.ts",
       "default": "./dist/judge/index.js"

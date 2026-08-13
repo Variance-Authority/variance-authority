@@ -10,7 +10,12 @@ import type { PngDecoder } from '@variance-authority/png';
 import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
 import { createRemoteStore } from '@variance-authority/remote';
 import { createDurableStore, createLfsStore } from '@variance-authority/store';
-import type { SourceIndex } from '@variance-authority/core';
+import {
+  digestString,
+  relationsOfFiles,
+  type Relations,
+  type SourceIndex,
+} from '@variance-authority/core';
 import type { Config } from '../config.js';
 import { indexOf } from './affected.js';
 import { OperatorError } from '../exit.js';
@@ -92,6 +97,27 @@ export async function decoderFor(config: Config): Promise<PngDecoder | undefined
  * PNGs until someone deletes it — the price of not committing them instead.
  */
 export function renderCacheRoot(): string {
+  return cacheRoot('renders');
+}
+
+/**
+ * Where a scan's memory of a repository goes: outside that repository, per root.
+ *
+ * The same argument as the render cache, and it holds for the same reason. Both
+ * halves of what a scan remembers are content-addressed — a parse under the digest
+ * of the bytes it came from, a record under that digest *and* a digest of the tree
+ * shape — so a stale entry, a cache from another branch, or no cache at all costs
+ * a slower scan and can never produce a different graph.
+ *
+ * Per root because the layout digest is one value for the whole tree: two
+ * checkouts sharing one file would each discard the other's records on every run,
+ * which is worse than having no cache and looks exactly like having one.
+ */
+export function scanCacheRoot(root: string): string {
+  return join(cacheRoot('scans'), digestString(root).replace(':', '-'));
+}
+
+function cacheRoot(kind: string): string {
   const configured = process.env['XDG_CACHE_HOME'];
   // A relative `XDG_CACHE_HOME` is meaningless (the spec requires absolute) and
   // would resolve against whatever directory the run was invoked from, which is
@@ -101,7 +127,7 @@ export function renderCacheRoot(): string {
       ? configured
       : join(homedir(), '.cache');
 
-  return join(base, 'variance-authority', 'renders');
+  return join(base, 'variance-authority', kind);
 }
 
 /**
@@ -156,6 +182,48 @@ export async function scanSourceDirs(
   }
 
   return indexOf(contents);
+}
+
+/**
+ * The file graph, from the same directories the component index walks.
+ *
+ * A dynamic import, and the one thing in this file that may not degrade quietly.
+ * The other resolutions here are held to *cost, not correctness* — a slower
+ * decoder decides the same thing. This one decides **what is observed**: without
+ * the graph the selector falls back to declarations, and a changed file that
+ * declares nothing widens the run. So a missing package is stated rather than
+ * absorbed, because the alternative is a suite that quietly got slower and an
+ * operator who configured a narrowing that never happened.
+ *
+ * `undefined` only when the operator asked for no graph at all — that is a
+ * choice, and the selector already knows how to work without one.
+ *
+ * Both caches are opened unasked, because a scan is on the path of every run that
+ * selects and the first one is the only one that should cost a repository. They
+ * are keyed by content and by tree shape, so the worst a bad one can do is a full
+ * scan — see `scanCacheRoot`.
+ */
+export async function relationsFor(root: string, dirs: readonly string[]): Promise<Relations> {
+  let scanner;
+  try {
+    scanner = await import('@variance-authority/oxc');
+  } catch (error) {
+    throw new OperatorError(
+      'config sets `source.relations` and the scanner could not be loaded: ' +
+        `${messageOf(error)}. Install \`@variance-authority/oxc\`, or remove the key to ` +
+        'select by declaration alone.',
+      { cause: error },
+    );
+  }
+
+  const at = scanCacheRoot(root);
+  const cache = await scanner.openParseCache(join(at, 'parse.json'));
+  const reuse = await scanner.openRecordCache(join(at, 'records.json'));
+
+  const records = await scanner.scanRelations({ root, dirs, cache, reuse });
+  await Promise.all([cache.save(), reuse.save()]);
+
+  return relationsOfFiles(records);
 }
 
 const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];

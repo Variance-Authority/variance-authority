@@ -164,11 +164,13 @@ $283/mo against an unknown engineering commitment.
 - **TurboSnap over a bundler graph.** A change is traced through webpack's own
   dependency graph, which catches a component that is imported and *not yet
   rendered* — a conditional branch nobody has taken. Selection here reads what the
-  last run actually painted instead
-  ([`selecting.md`](selecting.md)), which needs no second build to configure and
-  cannot go stale, and which is blind to exactly that case. Both widen to the
-  whole suite when a change cannot be attributed; theirs says so in its docs and
-  this says so in its report.
+  last run actually painted, and travels from a changed file to a component
+  through a graph scanned from the **source** rather than produced by a build
+  ([`selecting.md`](selecting.md)): no plugin, no stats file, and nothing that
+  goes stale when a bundler is upgraded. It is blind to exactly that case, for a
+  reason no graph fixes — a component nothing has ever rendered is in no baseline.
+  Both widen to the whole suite when a change cannot be attributed; theirs says so
+  in its docs and this says so in its report.
 - **Accessibility as a product, not a rule list.** axe on every snapshot, in a
   dashboard, with a triage flow and a history
   ([a11y](https://www.chromatic.com/docs/accessibility-tests/)). This project

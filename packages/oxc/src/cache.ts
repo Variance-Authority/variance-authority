@@ -1,0 +1,122 @@
+/**
+ * What a file's contents said, keyed by the digest of those contents.
+ *
+ * The expensive half of a scan is per file: open it, decode it, parse it, find
+ * the component names in it. All of that is a pure function of the bytes, so it is
+ * cacheable by content digest **forever** — not until something invalidates it.
+ * A digest is not a guess about freshness the way a timestamp is; two files with
+ * one digest had one content, on any machine, in any branch, in any year.
+ *
+ * That is what makes the cache shareable in the way that matters. A CI machine
+ * that has never seen this branch still holds entries for every blob the branch
+ * inherited, which is nearly all of them, and pays only for what the pull request
+ * changed. Paired with digests read out of git ([`tree.ts`](./tree.ts)) the scan
+ * never opens the files it hits on: the cost is the size of the diff and not the
+ * size of the repository.
+ *
+ * ## What is not in here
+ *
+ * Resolution. Where `./button.css` *points* depends on the directory it was
+ * written in, on `tsconfig` paths, and on what is installed — none of which is in
+ * the file's bytes, and a cache keyed by those bytes that claimed to know it would
+ * be wrong the first time a package moved. Specifiers go in; edges do not.
+ */
+
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import type { Digest } from '@variance-authority/core';
+import type { Specifier } from './read.js';
+
+/** Everything reading one file produced that does not depend on where it sits. */
+export interface Parsed {
+  readonly specifiers: readonly Specifier[];
+  readonly declares?: readonly string[];
+  readonly unknown?: string;
+}
+
+export interface ParseCache {
+  get(digest: Digest): Parsed | undefined;
+  set(digest: Digest, parsed: Parsed): void;
+}
+
+export interface PersistentParseCache extends ParseCache {
+  /**
+   * Write what this scan used back to disk.
+   *
+   * Only entries this scan read or wrote survive, which is the whole of the
+   * pruning story: a blob nothing referenced is a blob no branch holds any more,
+   * and a cache that only ever grew would eventually cost more to load than the
+   * parses it saves.
+   */
+  save(): Promise<void>;
+}
+
+/** Bumped when `Parsed` changes shape, so an old file is discarded, not misread. */
+const VERSION = 1;
+
+/** A cache that keeps everything and remembers nothing between processes. */
+export function memoryParseCache(): ParseCache {
+  const entries = new Map<Digest, Parsed>();
+
+  return {
+    get: (digest) => entries.get(digest),
+    set: (digest, parsed) => void entries.set(digest, parsed),
+  };
+}
+
+/**
+ * The cache at `path`, loaded if it is there and usable.
+ *
+ * Every failure is silent and produces an empty cache, because every failure
+ * costs the same thing — a full scan, which is what would have happened anyway.
+ * A cache that could fail a run would be a new way to break a build in exchange
+ * for a saving.
+ */
+export async function openParseCache(path: string): Promise<PersistentParseCache> {
+  const stored = await load(path);
+  const used = new Map<Digest, Parsed>();
+
+  return {
+    get(digest) {
+      const parsed = used.get(digest) ?? stored.get(digest);
+      // Reading counts as using. An entry hit by this scan is one the next scan
+      // will want, and dropping it because nothing rewrote it would throw away
+      // the whole unchanged repository on every run.
+      if (parsed !== undefined) used.set(digest, parsed);
+      return parsed;
+    },
+    set(digest, parsed) {
+      used.set(digest, parsed);
+    },
+    async save() {
+      const entries: Record<string, Parsed> = {};
+      for (const [digest, parsed] of used) entries[digest] = parsed;
+
+      try {
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, JSON.stringify({ version: VERSION, entries }), 'utf8');
+      } catch {
+        // Nothing to recover. The next scan reads the file rather than the cache.
+      }
+    },
+  };
+}
+
+async function load(path: string): Promise<ReadonlyMap<Digest, Parsed>> {
+  try {
+    const value: unknown = JSON.parse(await readFile(path, 'utf8'));
+    if (!isStored(value) || value.version !== VERSION) return new Map();
+
+    return new Map(Object.entries(value.entries));
+  } catch {
+    return new Map();
+  }
+}
+
+function isStored(value: unknown): value is { version: number; entries: Record<string, Parsed> } {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const stored = value as { version?: unknown; entries?: unknown };
+
+  return typeof stored.version === 'number' && typeof stored.entries === 'object' && stored.entries !== null;
+}

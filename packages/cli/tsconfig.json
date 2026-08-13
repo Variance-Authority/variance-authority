@@ -13,6 +13,7 @@
     { "path": "../core" },
     { "path": "../mcp" },
     { "path": "../observe" },
+    { "path": "../oxc" },
     { "path": "../playwright" },
     { "path": "../png" },
     { "path": "../png-sharp" },
