@@ -152,8 +152,8 @@ live('the durable workflow, end to end', () => {
 
     // `new` is not a regression and is not a pass. Exit 1 is the honest code:
     // something is waiting for a person, and a green build here would record
-    // nine baselines nobody looked at.
-    expect(out).toContain('9 new');
+    // twelve baselines nobody looked at.
+    expect(out).toContain('12 new');
     expect(status).toBe(1);
 
     // The whole reason the report carries a second list. A summary that says
@@ -170,7 +170,7 @@ live('the durable workflow, end to end', () => {
   it('promotes the images the run already produced, without rendering again', () => {
     const { status, out } = variance('accept', '--all');
 
-    expect(out).toContain('accepted 9 subject(s)');
+    expect(out).toContain('accepted 12 subject(s)');
     expect(status).toBe(0);
   }, 240_000);
 
@@ -182,7 +182,7 @@ live('the durable workflow, end to end', () => {
     // not exist.
     const { status, out } = variance('run');
 
-    expect(out).toContain('9 unchanged');
+    expect(out).toContain('12 unchanged');
     expect(out).not.toContain('incomparable');
     expect(out).toContain('nothing to review');
     expect(status).toBe(0);
@@ -191,12 +191,12 @@ live('the durable workflow, end to end', () => {
   it('reports exactly the stories that render the edited component', () => {
     // A source edit, judged against the baselines the trunk build recorded. The
     // interesting number is not that something changed — it is *which* subjects
-    // did. `Button` appears in five of the nine stories, and the run has to
-    // find five, not nine and not one.
+    // did. `Button` appears in five of the twelve stories, and the run has to
+    // find five, not twelve and not one.
     const { status, out } = varianceWith(changedConfigPath, 'run');
 
     expect(status).toBe(1);
-    expect(out).toContain('4 unchanged, 5 changed');
+    expect(out).toContain('7 unchanged, 5 changed');
 
     // Anchored on the id rather than on what follows it. The summary now names
     // the causing component after the subject, so a pattern that leaned on the
@@ -210,11 +210,25 @@ live('the durable workflow, end to end', () => {
       'story:case-surface--composed',
     ]);
 
-    // Every one of those renders `Button`; the four that hold — Spinner, Clock,
-    // AsyncPanel and the disclosure a play function opens — do not. Stated as the inverse too, because "5 changed" is
+    // Every one of those renders `Button`; the seven that hold — Spinner, Clock,
+    // AsyncPanel, the disclosure a play function opens and the three Suspense
+    // stories — do not. Stated as the inverse too, because "5 changed" is
     // also what a tool that changed its mind about three unrelated subjects
     // would print.
-    for (const held of ['ticking', 'loading', 'deferred']) {
+    //
+    // The Suspense three carry a second claim by being in this list at all: a
+    // subject captured mid-arrival is not stable across two builds, so
+    // `suspense-settles` and `suspense-waterfall` holding still is the wait
+    // working, and `suspense-stalled` holding still is a declared loading
+    // capture behaving like any other baseline.
+    for (const held of [
+      'ticking',
+      'loading',
+      'deferred',
+      'suspense-settles',
+      'suspense-waterfall',
+      'suspense-stalled',
+    ]) {
       expect(out).not.toContain(`[changed] story:case-surface--${held}`);
     }
 

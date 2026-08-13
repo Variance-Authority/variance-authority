@@ -21,6 +21,26 @@ import { collect } from '@variance-authority/dom';
 const capture = collect(container, { subject, viewport, engine: 'jsdom@30', provenanceOf });
 ```
 
+## What else it reads off the same fiber
+
+Provenance was the first question asked of it and is no longer the only one.
+Each of these is a different question of the same object graph, and none of them
+needs a hook, a build plugin or an annotation.
+
+| | |
+|---|---|
+| `wiringOf` | hook shape, wrapper chain, context subscriptions, reconciliation keys — a **band**, folded in beside `style` by `collect` ([`framework.md`](../../docs/framework.md)) |
+| `remountedSince` | which instances were destroyed and rebuilt rather than updated — a **finding**, because it is a property of a reading and not of a revision |
+| `awaitSuspense` / `suspenseRefusal` | wait for every boundary under a node to settle, and rule on what to do if one did not ([ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md)) |
+| `tapCommits` / `awaitQuiet` | which components are still committing, by name — the one export here with a precondition: it must be installed before `react-dom` loads, and refuses rather than reporting a page it reached too late |
+
+The Suspense pair is what every shipped collector calls before it reads a page,
+and it is split in two on purpose: the page waits and reports, the driver
+decides. `awaitSuspense` returns `settled`, `pending` or `unobserved` — three
+states, so a page with no React under it can never claim to have arrived — and
+`suspenseRefusal` turns that into `string | undefined`, which is the shape a
+caller cannot accidentally downgrade to a warning.
+
 ## Two constraints shape everything here
 
 **1. Engine independence.** Traversal reads plain JavaScript objects React

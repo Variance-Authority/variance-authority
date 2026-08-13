@@ -1,4 +1,12 @@
-import { FiberTag, currentFiber, findFiber, isOwnerFrame, type Fiber } from './fiber.js';
+import {
+  FiberTag,
+  currentFiber,
+  findFiber,
+  findReactContainers,
+  hasFiber,
+  isOwnerFrame,
+  type Fiber,
+} from './fiber.js';
 import { debugOwnerName, fiberComponentName } from './names.js';
 
 /**
@@ -37,8 +45,8 @@ import { debugOwnerName, fiberComponentName } from './names.js';
  * flipping its own `memoizedState` the same way.
  *
  * If React changes the convention, the symptom is a boundary reported
- * `resolved` while it is showing a fallback — a *silent* loss of the diagnostic
- * rather than a wrong verdict, because nothing here gates anything. The
+ * `resolved` while it is showing a fallback — which since ADR-0037 is a subject
+ * captured mid-arrival rather than merely a lost diagnostic. The
  * corroborating read of the Offscreen child exists so that the two would have to
  * change together for that to happen quietly.
  */
@@ -127,18 +135,68 @@ const CONTAINER_KEY_PREFIX = '__reactContainer$';
  * a diagnostic rather than as "no boundaries".
  */
 export function suspenseBoundariesIn(node: Node): readonly SuspenseBoundary[] {
-  let fiber: Fiber | null;
+  return boundariesUnder(node) ?? [];
+}
+
+/**
+ * Boundaries under a node, or `null` when there was no React there to read.
+ *
+ * The distinction the exported pair cannot make and `awaitSuspense` needs: an
+ * empty list means *read, and nothing is waiting*, and `null` means *nobody
+ * looked*. Reporting the second as the first would let a page with no React on
+ * it — a failed bundle, a wrong root, a framework this package does not know —
+ * report itself as fully settled, which is ADR-0002's absent-never-zeroed rule
+ * applied to a wait rather than to a band.
+ *
+ * Three ways in, because a subject root is one of three things and only one of
+ * them was covered by reading the node's own fiber:
+ *
+ * 1. **React made it.** The expando is on the node; walk from there.
+ * 2. **It *is* a root container.** `createRoot(element)` writes
+ *    `__reactContainer$…`, not `__reactFiber$…`, so a Storybook run reading
+ *    `#storybook-root` had no fiber to find and every story looked boundary-free.
+ * 3. **It contains roots.** A route run's subject is `body`, which React never
+ *    touched and which holds whatever the application mounted into.
+ *
+ * Exported to `arrival.ts` and not from the package: the wait needs the `null`,
+ * because "no React here" and "React here, nothing waiting" are different
+ * outcomes, and `suspenseBoundariesIn` has already flattened them to `[]`.
+ */
+export function boundariesUnder(node: Node): readonly SuspenseBoundary[] | null {
+  let own: Fiber | null = null;
   try {
-    fiber = findFiber(node);
+    if (hasFiber(node)) own = findFiber(node);
   } catch {
-    return [];
+    return null;
   }
-  if (fiber === null) return [];
+
+  if (own !== null) {
+    const found: SuspenseBoundary[] = [];
+    // The node's own fiber is the root of this walk, so its siblings are outside
+    // the subtree and are not visited: a subject's neighbours are not the subject.
+    collectFrom(own, found);
+    return found;
+  }
+
+  const scope = node as Node & Partial<ParentNode>;
+  if (typeof scope.querySelectorAll !== 'function') return null;
+
+  const roots: Fiber[] = [];
+  // The node itself first, and `querySelectorAll` never returns it — which is
+  // exactly how case 2 above went missing.
+  if (node.nodeType === 1) {
+    const here = containerFiber(node as Element);
+    if (here !== null) roots.push(here);
+  }
+  for (const container of findReactContainers(node as ParentNode)) {
+    const fiber = containerFiber(container);
+    if (fiber !== null) roots.push(fiber);
+  }
+
+  if (roots.length === 0) return null;
 
   const found: SuspenseBoundary[] = [];
-  // The node's own fiber is the root of this walk, so its siblings are outside
-  // the subtree and are not visited: a subject's neighbours are not the subject.
-  collectFrom(fiber, found);
+  for (const root of roots) collectFrom(root, found);
   return found;
 }
 

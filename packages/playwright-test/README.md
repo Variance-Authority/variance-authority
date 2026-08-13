@@ -43,6 +43,28 @@ verdict, the changed regions and the components they landed on before deciding
 what to do about them. `toBeUnchanged` is one reading of that value, not the only
 one available.
 
+## A subject still arriving throws, rather than being photographed
+
+Before it reads, the fixture waits for every React Suspense boundary under the
+locator to settle — first, ahead of stabilization, because content that arrives
+late brings its own images and fonts. A subtree still showing a fallback when
+`suspenseTimeoutMs` (5000) runs out **throws**, naming the open boundaries and the
+components that wrote them.
+
+That is deliberate and it is the one place this surface differs from a collector,
+which refuses the subject instead: `variance` returns an `Observation`, and "we
+photographed a spinner" is not a comparison result. A failed assertion is what
+actually reaches the person who can decide which of the two states the test is
+about ([ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md)).
+
+```ts
+const observation = await variance(page.getByTestId('cart'), { loading: true });
+```
+
+`loading: true` says the fallback *is* the subject. It waits for nothing, and
+throws if the subtree turns out to have settled — a declaration nobody deleted is
+a baseline that flips with the weather.
+
 ## The subject is a `Locator`, never a `Page`
 
 A subject is a subtree, and the pruning that makes a comparison affordable and a

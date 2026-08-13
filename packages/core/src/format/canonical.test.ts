@@ -94,6 +94,39 @@ describe('propsDigest', () => {
     expect(() => propsDigest({ node })).not.toThrow();
   });
 
+  it('names a DOM node instead of walking into it', () => {
+    // The crash this closes. `Object.keys` on a React-rendered element returns
+    // `__reactFiber$…`, so walking one walks the fiber graph — which is shared
+    // along many paths, and the cycle guard unwinds on exit by design. On a real
+    // story that is an out-of-memory kill of the renderer process, taking the
+    // capture with it. Duck-typed rather than `instanceof Node`, so this holds
+    // in Node as well as in a page.
+    const element = { nodeType: 1, nodeName: 'DIV', __reactFiber$abc: {} };
+    element.__reactFiber$abc = { back: element, huge: Array.from({ length: 50 }, () => element) };
+
+    expect(propsDigest({ canvasElement: element })).toBe(
+      propsDigest({ canvasElement: { nodeType: 1, nodeName: 'DIV' } }),
+    );
+
+    // And it is still a *shape*: two different elements are two different props.
+    expect(propsDigest({ target: { nodeType: 1, nodeName: 'DIV' } })).not.toBe(
+      propsDigest({ target: { nodeType: 1, nodeName: 'SPAN' } }),
+    );
+  });
+
+  it('stops at a budget rather than walking a graph that shares everything', () => {
+    // The second guard, for a graph nobody meant to hand us. Sharing is not a
+    // cycle — every path is finite — so the cycle guard cannot see it, and the
+    // walk is exponential in the sharing. A digest that gives up is a subject
+    // attributed vaguely; a digest that does not is a dead browser.
+    let level: Record<string, unknown> = { leaf: true };
+    for (let depth = 0; depth < 40; depth += 1) level = { a: level, b: level };
+
+    const started = Date.now();
+    expect(() => propsDigest({ level })).not.toThrow();
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
   it('treats a repeated sibling reference as shared, not cyclic', () => {
     // The cycle guard must unwind on exit, or two references to one object
     // would digest differently depending on traversal order.

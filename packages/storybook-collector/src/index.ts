@@ -3,13 +3,6 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { matchesGlob, normalize as normalizeCapture } from '@variance-authority/core';
-import type {
-  RenderDocument,
-  SemanticSnapshot,
-  SourceIndex,
-  SubjectRef,
-  Viewport,
-} from '@variance-authority/core';
 import {
   createHarness,
   observeNetwork,
@@ -18,8 +11,18 @@ import {
   type NetworkObservation,
 } from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
+import { suspenseRefusal } from '@variance-authority/react';
 import { collectStory, harnessPage } from '@variance-authority/storybook';
 import type { AcquireRequest, Acquired } from './page-agent.js';
+export type {
+  Collected,
+  Collector,
+  CollectorConfig,
+  CollectorContext,
+  Plan,
+  PlannedSubject,
+} from './contract.js';
+import type { Collected, Collector, CollectorContext, Plan, PlannedSubject } from './contract.js';
 import { serveStatic, type StaticServer } from './serve.js';
 import { scanSource, type SourceScan } from './source.js';
 
@@ -55,111 +58,6 @@ import { scanSource, type SourceScan } from './source.js';
  * where the adopter's own test body plays that part instead.
  */
 
-/** The subset of a run's configuration this collector reads. */
-export interface CollectorConfig {
-  readonly viewport: Viewport;
-  readonly fonts?: readonly string[];
-  /**
-   * Subtrees this project excludes, from `config.ignore` (spec 0024).
-   *
-   * Only the two fields a page needs: a rule id to record the mark under, and a
-   * selector to find it with. Everything else about a rule — its reason, its
-   * expiry, the bands it narrows to — is decided after collection, where a clock
-   * and the whole run's diffs are available and a browser is not.
-   */
-  readonly ignore?: readonly {
-    readonly id: string;
-    readonly select?: string;
-    /**
-     * Subjects the rule names. Read here to decide what to send, and never sent.
-     *
-     * A page can resolve a selector and cannot know which subject it is one of,
-     * so scoping has to happen on this side of the boundary. Without it a rule
-     * written for one route marks its element in every subject that renders the
-     * same shared layout, and a real regression inside that element is absorbed
-     * everywhere — an ignore silencing more than it says, which is the one thing
-     * the mechanism must not do.
-     */
-    readonly subjects?: readonly string[];
-
-    /** Tags the subject must carry. Read here to decide what to send, never sent. */
-    readonly tags?: readonly string[];
-  }[];
-
-  /**
-   * Images to serve as nothing, from `config.blank`.
-   *
-   * Handed to the driver rather than to the page, because it is enforced on the
-   * wire — before a byte is decoded, and therefore before the layout it would
-   * have participated in exists. Not scoped by subject, and it cannot be: a
-   * request carries no idea which subject will end up using it, which is the
-   * same reason the asset map is per page rather than per subject.
-   */
-  readonly blank?: readonly {
-    readonly id: string;
-    readonly url?: string;
-    readonly minPixels?: number;
-    readonly maxPixels?: number;
-  }[];
-
-  readonly subjects: { readonly index: string };
-}
-
-export interface PlannedSubject {
-  readonly subject: SubjectRef;
-  readonly viewport?: Viewport;
-
-  /**
-   * What the subject declares itself to be, from the artifact that produced it.
-   *
-   * Storybook's built index carries `tags` and does not carry a story's
-   * `parameters`, so a tag is the only per-story declaration that survives a
-   * build — and it is the right one anyway: what a subject *is* belongs in its
-   * own name, next to it, rather than in a central file repeating every id.
-   *
-   * Selection lives here; definition lives in the config. A tag is a word a
-   * story wears, and what that word *means* is the operator's to write down
-   * once, where a typo can be refused by name.
-   */
-  readonly tags?: readonly string[];
-}
-
-export interface Plan {
-  readonly subjects: readonly PlannedSubject[];
-  readonly notObserved: readonly unknown[];
-  readonly warnings: readonly string[];
-}
-
-export type Collected =
-  | {
-      readonly ok: true;
-      readonly document: RenderDocument;
-      readonly snapshot?: SemanticSnapshot;
-      readonly source?: SourceIndex;
-
-      /**
-       * Stabilization tricks applied to the page before this subject was read.
-       *
-       * Reported so a run can say what it did to somebody else's page. The
-       * digest of the same list is in the environment key, which is what makes a
-       * differently-stabilized baseline `incomparable`; this is the half a
-       * person reads.
-       */
-      readonly stabilization?: readonly string[];
-    }
-  | { readonly ok: false; readonly because: string };
-
-export interface CollectorContext {
-  readonly config: CollectorConfig;
-  /** Computed by the run from the story index. Returned unchanged. */
-  readonly plan?: Plan;
-}
-
-export interface Collector {
-  plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
-  close(): Promise<void>;
-}
 
 export interface StorybookCollectorOptions {
   /**
@@ -218,6 +116,35 @@ export interface StorybookCollectorOptions {
 
   /** Overrides the roots the story is read from. Tightest first. */
   readonly roots?: readonly string[];
+
+  /**
+   * Milliseconds to wait for a story's Suspense boundaries. Defaults to 5000.
+   *
+   * Paid only by stories that are actually waiting: a subtree with no boundary
+   * in it returns on the first read. `0` turns the wait off and keeps the
+   * reading, which is a position for a project whose readiness markers already
+   * cover its data — the refusal below still fires, so the boundary is reported
+   * rather than photographed.
+   */
+  readonly suspenseTimeoutMs?: number;
+
+  /**
+   * Stories whose *loading* state is the subject, as id globs.
+   *
+   * The escape hatch, and the only one. A story left showing its fallback is
+   * otherwise refused, because a subject that records a skeleton on a slow
+   * machine and a component on a fast one is a flake nobody wrote — so a
+   * skeleton somebody *does* want a baseline over has to be said out loud.
+   *
+   * Declared here rather than sensed, and checked in both directions: a story
+   * named by this that turns out to settle is refused too. A declaration that
+   * outlived its subject is the same nondeterminism arriving from the other side.
+   *
+   * Matched against the story id and the subject id both, so
+   * `case-surface--feed` and `story:case-surface--feed` name the same story —
+   * `ready` above is keyed by the first.
+   */
+  readonly loading?: readonly string[];
 }
 
 const STORY_ROOTS = ['#storybook-root', '#root'];
@@ -381,6 +308,15 @@ export function storybookCollector(
         // Never a failure: a page that keeps fetching is reported, not refused.
         await network?.settle();
 
+        // Either form matches. A subject is `story:case-surface--x` and a story
+        // is `case-surface--x`, and `ready` above is keyed by the second — so a
+        // declaration written the way the neighbouring option is written has to
+        // work, or the escape hatch fails silently and the story it was written
+        // for is refused anyway.
+        const declaredLoading = (options.loading ?? []).some(
+          (pattern) => matchesGlob(planned.subject.id, pattern) || matchesGlob(storyId, pattern),
+        );
+
         const worn = new Set(planned.tags ?? []);
         const selectable = (config.ignore ?? []).flatMap((rule) =>
           rule.select === undefined ||
@@ -409,6 +345,15 @@ export function storybookCollector(
           // fingerprint rule has nothing for a document to resolve, and sending
           // one would put a digest in a browser that cannot use it.
           ...(selectable.length > 0 ? { ignore: selectable } : {}),
+          // A story declared as a loading capture waits for nothing: the whole
+          // point of it is the fallback, and paying the timeout to be told the
+          // boundary is still there would cost five seconds per story to learn
+          // what the declaration already said.
+          ...(declaredLoading
+            ? { suspense: { timeoutMs: 0 } }
+            : options.suspenseTimeoutMs !== undefined
+              ? { suspense: { timeoutMs: options.suspenseTimeoutMs } }
+              : {}),
           roots,
         };
 
@@ -424,6 +369,27 @@ export function storybookCollector(
         );
 
         const acquired = JSON.parse(raw) as Acquired;
+
+        // The symptom of a page agent older than this driver, named rather than
+        // read past: `undefined` here would make `suspenseRefusal` throw inside
+        // one story and take the run with it, and defaulting it to "settled"
+        // would silently restore the behaviour this exists to end.
+        if (acquired.suspense === undefined) {
+          return {
+            ok: false,
+            because:
+              'the page agent returned no Suspense reading, which means the bundle in ' +
+              '`@variance-authority/storybook-collector` predates it — rebuild the package',
+          };
+        }
+
+        // The forced decision. A story still showing a fallback is refused with
+        // the boundary named, unless somebody declared that this is the subject.
+        const unsettled = suspenseRefusal(acquired.suspense, {
+          subjectId: planned.subject.id,
+          declaredLoading,
+        });
+        if (unsettled !== undefined) return { ok: false, because: unsettled };
 
         return {
           ok: true,

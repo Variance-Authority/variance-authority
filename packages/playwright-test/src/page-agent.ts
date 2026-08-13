@@ -1,5 +1,6 @@
 import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
-import { portalContentOf, provenanceOf } from '@variance-authority/react';
+import { awaitSuspense, portalContentOf, provenanceOf } from '@variance-authority/react';
+import type { SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
 import type { RawCapture, RenderDocument, SubjectRef, Viewport } from '@variance-authority/core';
 
@@ -52,14 +53,38 @@ export interface AcquireRequest {
    * not survive the trip; the page holds the same registry and resolves them.
    */
   readonly stabilize?: readonly string[];
+
+  /**
+   * How long to wait for the subject's Suspense boundaries, in milliseconds.
+   *
+   * A test body that has awaited its own assertions has waited for what it knows
+   * to look for, and a boundary is what it does not: `expect(locator).toBeVisible()`
+   * passes against a skeleton. `0` waits for nothing, which is what a
+   * deliberately-captured loading state sends.
+   */
+  readonly suspense?: { readonly timeoutMs?: number };
 }
 
 export interface Acquired {
   readonly document: RenderDocument;
   readonly capture: RawCapture;
+
+  /**
+   * Whether the subject had finished arriving, and what was still waiting.
+   *
+   * Reported rather than acted on here. The page can see the boundary; only the
+   * test knows whether this subject is one somebody meant to capture mid-flight.
+   */
+  readonly suspense: SuspenseSettlement;
 }
 
 export async function acquire(root: Element, request: AcquireRequest): Promise<string> {
+  // First of everything, because it decides what the rest of it is looking at.
+  // Ahead of stabilization deliberately — content that arrives late brings its
+  // own images and fonts, and a `waitForImages` that ran before them waited for
+  // the fallback's.
+  const suspense = await awaitSuspense(root, request.suspense ?? {});
+
   // Before anything is read, and by default. An animation in flight moves
   // `transform` and `opacity`, both of which the semantic representation
   // carries — so an unstabilized collection reports a fade as a regression with
@@ -87,7 +112,7 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
   });
 
-  return JSON.stringify({ document, capture });
+  return JSON.stringify({ document, capture, suspense });
 }
 
 export interface InstalledAgent {

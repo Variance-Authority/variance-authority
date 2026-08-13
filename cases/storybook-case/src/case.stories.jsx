@@ -1,4 +1,16 @@
-import { AsyncPanel, Button, Card, Clock, Disclosure, Spinner, Stack, Tokens } from './ds.jsx';
+import {
+  AsyncPanel,
+  Button,
+  Card,
+  Clock,
+  Disclosure,
+  Spinner,
+  Stack,
+  StalledFeed,
+  SuspendedRoster,
+  SuspendedWaterfall,
+  Tokens,
+} from './ds.jsx';
 
 /**
  * Real stories in a real Storybook, written to be read by something else.
@@ -121,6 +133,65 @@ export const Revealed = {
     // One frame, so React has committed before the story is declared rendered.
     await new Promise((resolve) => setTimeout(resolve, 0));
   },
+};
+
+/**
+ * Suspends, and declares nothing — because there is nothing left to declare on.
+ *
+ * `Deferred` above renders its own placeholder, so its own markup can carry the
+ * marker that says it finished. A component that *suspends* renders nothing:
+ * what is on screen belongs to the boundary above it, and no selector, no
+ * `storyRendered` and no quiescence check can be attached to a component that
+ * does not exist yet. The run waits on the boundary's fiber instead, and this
+ * story is the one that proves it did — captured on the framework's own event
+ * it is a dashed grey box.
+ */
+export const SuspenseSettles = {
+  name: 'Suspense — arrives late',
+  render: () => (
+    <Tokens>
+      <SuspendedRoster />
+    </Tokens>
+  ),
+};
+
+/**
+ * The case one clean reading gets wrong.
+ *
+ * When the outer promise settles, the tree holds one boundary and it is showing
+ * children. React then commits those children and an inner `<Suspense>` appears
+ * already showing its fallback — a boundary that did not exist a moment earlier.
+ * A wait that stopped at the first clean reading captures "loading lines…", and
+ * only on the machines where the timing lands that way.
+ */
+export const SuspenseWaterfall = {
+  name: 'Suspense — boundary inside a boundary',
+  render: () => (
+    <Tokens>
+      <SuspendedWaterfall />
+    </Tokens>
+  ),
+};
+
+/**
+ * Never resolves — and is *declared* a loading capture in `collector/index.mjs`.
+ *
+ * Both halves are the example. Undeclared, this story is refused: the run names
+ * the boundary, says which component wrote it, calls it a flake source and exits
+ * without a baseline, because a subject that records a skeleton on a slow
+ * machine and a component on a fast one is a flake nobody wrote. Declared, the
+ * fallback is the subject and the capture is deliberate — which is the only way
+ * past, and is why the case's own cycle stays green with this story in it.
+ *
+ * `src/suspense.chromium.test.js` runs it both ways.
+ */
+export const SuspenseStalled = {
+  name: 'Suspense — never resolves',
+  render: () => (
+    <Tokens>
+      <StalledFeed />
+    </Tokens>
+  ),
 };
 
 export const Composed = {

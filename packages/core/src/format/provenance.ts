@@ -85,10 +85,27 @@ export interface SourceLocation {
  * decides who gets blamed, not whether anything happened.
  */
 export function propsDigest(props: Readonly<Record<string, unknown>>): Digest {
-  return digestValue(shapeOf(props, new WeakSet()) as never);
+  return digestValue(shapeOf(props, new WeakSet(), { left: MAX_VALUES }) as never);
 }
 
-function shapeOf(value: unknown, seen: WeakSet<object>): unknown {
+/**
+ * Values one digest may walk before it stops walking.
+ *
+ * The cycle guard below unwinds on exit, deliberately — two references to one
+ * object must digest the same wherever they appear — and the cost of that is
+ * that a *shared* subgraph is re-walked once per path to it. On a graph with
+ * enough sharing that is exponential, and exponential inside somebody else's
+ * page is not a slow digest: it is the renderer process dying with the capture
+ * in it. Far above any authored props object; only a graph nobody meant to hand
+ * us reaches it.
+ */
+const MAX_VALUES = 20_000;
+
+interface Budget {
+  left: number;
+}
+
+function shapeOf(value: unknown, seen: WeakSet<object>, budget: Budget): unknown {
   if (value === null) return null;
 
   switch (typeof value) {
@@ -113,24 +130,61 @@ function shapeOf(value: unknown, seen: WeakSet<object>): unknown {
 
   // A cyclic prop graph is normal (a node holding its parent). Recursing is not.
   if (seen.has(object)) return '\u0000cycle';
+  if ((budget.left -= 1) < 0) return '\u0000budget';
   seen.add(object);
 
   try {
     if (Array.isArray(object)) {
-      return object.map((item) => shapeOf(item, seen));
+      return object.map((item) => shapeOf(item, seen, budget));
     }
 
     const element = asReactElement(object);
     if (element) return `\u0000element:${element}`;
 
+    const host = asHostObject(object);
+    if (host !== null) return host;
+
     const shape: Record<string, unknown> = {};
     for (const key of Object.keys(object).sort()) {
-      shape[key] = shapeOf((object as Record<string, unknown>)[key], seen);
+      shape[key] = shapeOf((object as Record<string, unknown>)[key], seen, budget);
     }
     return shape;
   } finally {
     seen.delete(object);
   }
+}
+
+/**
+ * A DOM node or a window, named rather than walked.
+ *
+ * **The reason this exists is a crash.** A prop holding an element is ordinary —
+ * Storybook hands every story its `canvasElement` — and `Object.keys` on an
+ * element returns its expandos, which on a React page are `__reactFiber$…` and
+ * `__reactContainer$…`. Walking one therefore walks the entire fiber graph
+ * through `child`, `sibling`, `return` and `alternate`, and that graph shares
+ * subtrees along many paths. Verified: hashing `canvasElement` on a story with
+ * two nested Suspense boundaries takes the renderer process down with an
+ * out-of-memory kill, taking the capture with it.
+ *
+ * Naming it is also the answer that was right anyway. A digest exists to say
+ * whether the *inputs* to a component changed, and an element's identity moves
+ * on every remount while its expandos move on every render — so walking one
+ * would report a prop change on a subject nobody touched. Detected structurally,
+ * because `core` runs in Node as well as in a page and may not assume `Node`
+ * exists (ADR-0001).
+ */
+function asHostObject(object: object): string | null {
+  const node = object as { nodeType?: unknown; nodeName?: unknown; window?: unknown };
+
+  if (typeof node.nodeType === 'number' && typeof node.nodeName === 'string') {
+    return `\u0000node:${node.nodeName}`;
+  }
+
+  // A window holds every global there is, including the document, and is the
+  // same explosion by another door.
+  if (node.window === object) return '\u0000window';
+
+  return null;
 }
 
 /**

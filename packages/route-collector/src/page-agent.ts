@@ -4,7 +4,8 @@ import {
   collect,
   stabilizeForObservation,
 } from '@variance-authority/dom';
-import { portalContentOf, provenanceOf } from '@variance-authority/react';
+import { awaitSuspense, portalContentOf, provenanceOf } from '@variance-authority/react';
+import type { SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
 import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core';
 
@@ -58,6 +59,16 @@ export interface AcquireRequest {
    */
   readonly stabilize?: readonly string[];
 
+  /**
+   * How long to wait for the subject's Suspense boundaries, in milliseconds.
+   *
+   * The wire is settled by the driver before this runs, which is a different
+   * question: a request that has completed is not a component that has rendered,
+   * and between the two sit a promise, a retry and a commit. `0` waits for
+   * nothing and is what a subject deliberately captured mid-arrival sends.
+   */
+  readonly suspense?: { readonly timeoutMs?: number };
+
   /** Subject roots, tightest first. */
   readonly roots: readonly string[];
 }
@@ -77,6 +88,16 @@ export interface Acquired {
    * else's page.
    */
   readonly stabilization: readonly string[];
+
+  /**
+   * Whether the subject had finished arriving, and what was still waiting.
+   *
+   * Reported rather than acted on here, for the reason every other judgement
+   * leaves this file: the page can see the boundary and only the run knows
+   * whether this subject is one somebody declared a loading capture. What comes
+   * back is the reading; `suspenseRefusal` on the driver turns it into a verdict.
+   */
+  readonly suspense: SuspenseSettlement;
 }
 
 /**
@@ -98,6 +119,14 @@ function rootOf(selectors: readonly string[]): Element {
 
 export async function acquire(request: AcquireRequest): Promise<string> {
   const root = rootOf(request.roots);
+
+  // First of everything, because it decides what the rest of it is looking at.
+  // The driver has already settled the wire, which is a different fact: a
+  // response that arrived is not a component that rendered, and between them sit
+  // a promise, a retry and a commit. Ahead of stabilization deliberately —
+  // content that arrives late brings its own images and fonts, and a
+  // `waitForImages` that ran before them waited for the skeleton's.
+  const suspense = await awaitSuspense(root, request.suspense ?? {});
 
   // Before anything is read, and by default. An animation in flight moves
   // `transform` and `opacity`, both of which the semantic representation
@@ -136,7 +165,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
   });
 
-  return JSON.stringify({ document, capture, stabilization: held.ids });
+  return JSON.stringify({ document, capture, stabilization: held.ids, suspense });
 }
 
 export const AGENT_VERSION = 'route-collector@0';

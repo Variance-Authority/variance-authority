@@ -47,6 +47,14 @@ export { portalContentOf } from './portal.js';
 export type { SuspenseBoundary, SuspenseStateName } from './suspense.js';
 export { suspenseBoundaries, suspenseBoundariesIn, pendingSuspense } from './suspense.js';
 
+export type {
+  SuspenseOutcome,
+  SuspenseSettlement,
+  SuspenseWaitOptions,
+  LoadingDeclaration,
+} from './arrival.js';
+export { awaitSuspense, suspenseRefusal } from './arrival.js';
+
 export type { Commit, CommitTap, TapOptions, TapRefusal, QuietOptions, QuietResult } from './commits.js';
 export { tapCommits, awaitQuiet } from './commits.js';
 

@@ -4,7 +4,8 @@ import {
   collect,
   stabilizeForObservation,
 } from '@variance-authority/dom';
-import { portalContentOf, provenanceOf } from '@variance-authority/react';
+import { awaitSuspense, portalContentOf, provenanceOf } from '@variance-authority/react';
+import type { SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
 import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core';
 
@@ -62,6 +63,16 @@ export interface AcquireRequest {
    */
   readonly assets?: Readonly<Record<string, string>>;
 
+  /**
+   * How long to wait for the story's Suspense boundaries, in milliseconds.
+   *
+   * Storybook's own readiness cannot answer this. `storyRendered` fires when the
+   * story function returns, and a component that suspends has returned — it is
+   * the boundary above it that is showing something else. `0` waits for nothing
+   * and is what a story deliberately captured mid-arrival sends.
+   */
+  readonly suspense?: { readonly timeoutMs?: number };
+
   /** Story mount points, tightest first. */
   readonly roots: readonly string[];
 }
@@ -81,6 +92,16 @@ export interface Acquired {
    * else's page.
    */
   readonly stabilization: readonly string[];
+
+  /**
+   * Whether the story had finished arriving, and what was still waiting.
+   *
+   * Reported rather than acted on here, for the reason every other judgement
+   * leaves this file: the page can see the boundary and only the run knows
+   * whether this story is one somebody declared a loading capture. What comes
+   * back is the reading; `suspenseRefusal` on the driver turns it into a verdict.
+   */
+  readonly suspense: SuspenseSettlement;
 }
 
 /**
@@ -102,6 +123,14 @@ function rootOf(selectors: readonly string[]): Element {
 
 export async function acquire(request: AcquireRequest): Promise<string> {
   const root = rootOf(request.roots);
+
+  // First of everything, because it decides what the rest of it is looking at.
+  // The story has rendered by Storybook's definition and may still be a
+  // skeleton: a component that suspends *has* returned, and what is on screen is
+  // the boundary above it. Ahead of stabilization deliberately — content that
+  // arrives late brings its own images and fonts, and a `waitForImages` that ran
+  // before them waited for the fallback's.
+  const suspense = await awaitSuspense(root, request.suspense ?? {});
 
   // Before anything is read, and by default. An animation in flight moves
   // `transform` and `opacity`, both of which the semantic representation
@@ -137,7 +166,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
   });
 
-  return JSON.stringify({ document, capture, stabilization: held.ids });
+  return JSON.stringify({ document, capture, stabilization: held.ids, suspense });
 }
 
 export const AGENT_VERSION = 'storybook-collector@0';

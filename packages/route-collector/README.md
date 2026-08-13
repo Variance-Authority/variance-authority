@@ -65,6 +65,23 @@ means every page moves when the nav does, and the pruning ratio this project
 rests on — 1007 rules parsed, 1 reaching the normalizer — is a property of a
 **bounded** subject.
 
+## Readiness, and the one kind a marker cannot express
+
+`ready` maps a subject id to the selector that says the page has arrived, and it
+is the adopter's because only they know what "arrived" means for that route.
+
+Suspense is not, for a reason that is structural rather than a preference: a
+component that suspends renders no markup, so there is nothing for a marker to
+attach to and nothing for the wire to answer — the response landed, and between
+it and the render sit a promise, a retry and a commit. So the wait is this
+collector's, unconditional and ahead of stabilization, and a subject still
+showing a fallback when `suspenseTimeoutMs` (5000) runs out is **refused by
+name** rather than captured
+([ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md)).
+The escape hatch is `loading: ['checkout/*-pending']`, which says the skeleton
+*is* the subject; those subjects wait for nothing, and are refused if they ever
+settle.
+
 ## What it is not
 
 **Not a crawler, and not a sitemap reader.** The routes are a map the operator

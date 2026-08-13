@@ -560,6 +560,67 @@ spinner in an `<aside>` is not this `<section>`'s problem.
 waiting for hydration, which is a different thing to be told than a fetch in
 flight.
 
+### The wait, and the decision it forces
+
+Every collector waits for that reading to come back clean before it reads the
+page. `awaitSuspense` is the *first* thing a page agent does, ahead of
+stabilization — content that arrives late brings its own images and fonts, and a
+`waitForImages` that ran before it waited for the fallback's.
+
+```ts
+{ outcome: 'settled' | 'pending' | 'unobserved', waitedMs, boundaries, pending }
+```
+
+Three outcomes, not a boolean: a subject with no React under it reports
+`unobserved` and never `settled`, because a bundle that failed to load must not
+be able to declare itself fully arrived.
+
+**Settled means two consecutive clean readings.** A boundary that resolves
+commits children that may immediately suspend on a boundary that did not exist a
+moment earlier, so the first clean reading of a waterfall lands exactly in the
+gap between them. A subtree with no boundary at all returns on the first reading
+and pays nothing, which is almost every subject.
+
+**A boundary still pending when the wait runs out is refused, not captured.**
+That is the whole point, and it is a position — see
+[ADR-0037](context/adr/0037-a-subject-still-arriving-is-refused.md). Capturing it
+would put a skeleton in the baseline on a slow machine and the component on a
+fast one, with every band agreeing and both passes consistent. The refusal names
+the subject, the open boundaries, the component that wrote each one, and the two
+things a person can do:
+
+```
+`story:case-surface--suspense-stalled` was still waiting when it was read:
+1 Suspense boundary(s) had not resolved after 5000ms — <Suspense> inside
+Stalled ← StalledFeed, written by StalledFeed. This is a flake source: the
+same subject records a fallback on a slow run and its content on a fast one,
+and nobody wrote that difference. Fix what the boundary is waiting for, or
+declare this subject as a loading-state capture to record the fallback
+deliberately.
+```
+
+The second half of that sentence is the escape hatch, and the only one. A
+collector's `loading: ['some-subject']` says the skeleton *is* what the baseline
+is over; a declared subject then waits for nothing, because paying the timeout to
+be told the boundary is open costs five seconds to learn what the declaration
+already said. `@variance-authority/playwright-test` takes the same declaration as
+`loading: true` on the fixture, and throws instead of refusing — that surface
+returns an `Observation`, and a failed assertion is what reaches the person who
+can decide.
+
+**The declaration is checked in both directions.** A subject declared as a
+loading capture that turns out to have settled is refused too: a declaration
+nobody deleted is a baseline that flips with the weather, which is the same flake
+arriving from the other side.
+
+`suspenseTimeoutMs: 0` keeps the reading and skips the wait, for a suite whose
+own markers already cover its data.
+
+All three properties run against a real Storybook build in
+[`cases/storybook-case/src/suspense.chromium.test.js`](../cases/storybook-case/src/suspense.chromium.test.js)
+— a boundary that resolves, a boundary that only appears once the first one has,
+and a boundary that never resolves, refused and then declared.
+
 ---
 
 ## What holding a page still costs
@@ -603,12 +664,14 @@ Stated rather than left for you to find.
 - **CSS `background-image`** is fetched and therefore *hashed*, but nothing pins
   a subject's wait to it specifically; `settle()` covers it only because it
   covers every request.
-- **`settle()` does not consult React.** `tapCommits` and `pendingSuspense` are
-  exports you call yourself; a collector still decides a page is ready from the
-  network and the document digest, so a subject read while a boundary is still
-  pending is caught by the second pass rather than by the wait. Wiring them in
-  means deciding what a collector does when the tap refuses, which is a policy
-  question and not a plumbing one.
+- **`settle()` does not consult the commit tap.** Suspense is wired in — every
+  collector waits for boundaries and refuses a subject that has not arrived — but
+  `tapCommits` is still an export you call yourself, and a page that is quietly
+  re-rendering forever is caught by the second pass rather than by the wait. The
+  reason is the constraint above: the tap must be installed before `react-dom`
+  loads, which a collector navigating to somebody else's page cannot guarantee,
+  so an unattached tap would refuse every subject on a page it simply arrived at
+  too late. Suspense had no such precondition, which is why it went first.
 - **`srcset` re-resolution** on a viewport change can leave a fractional height
   difference, because browsers reuse a cached candidate. Argos parses `srcset`
   and pins a single candidate; this does not.

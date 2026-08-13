@@ -19,7 +19,7 @@ the four instruments below are four different questions asked of it.
 | [`wiringOf`](#wiring-a-sixth-band) | how the framework holds this component — hooks, wrappers, contexts, keys | a **band**, hashed and stored |
 | [`remountedSince`](#remounts-what-the-document-cannot-show-you) | which instances were destroyed and rebuilt rather than updated | a **finding**, reported by a run |
 | [`awaitQuiet`](stabilization.md#tapcommits--which-components-rendered-and-when-they-stopped) | which components are still committing, by name | a wait, and a diagnostic |
-| [`pendingSuspense`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name) | which boundary has not resolved, and who wrote it | a finding |
+| [`awaitSuspense`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name) | which boundary has not resolved, and who wrote it | a wait, and a **refusal** |
 
 The last two are about a page that has not finished and live in
 [`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished).
@@ -132,8 +132,8 @@ page twice without changing anything, and if the value moved, it is not a band.*
 
 Hook shape, wrappers, contexts and keys survive that. Whether an instance
 remounted cannot, by construction — it is a property of a *reading*, not of a
-*revision*, and it has no value at all when read once. So it is reported beside
-`pendingSuspense`, and never stored beside `style`.
+*revision*, and it has no value at all when read once. So it is reported by a
+run, and never stored beside `style`.
 
 The residual ambiguity is stated: two unkeyed siblings of one component at one
 depth, one removed and one added, will match each other. That is a list with no
@@ -148,8 +148,11 @@ together.
   `provenanceOf`, so another framework supplies its own — but no other
   implementation exists today, and a page without one is absent from the band
   rather than reported as unwired.
-- **Nothing waits on it.** Like the commit tap and the Suspense reader, these are
-  exports a caller uses. A run's readiness still comes from the network and the
-  document digest.
+- **Nothing waits on these two.** Wiring and remounts are exports a caller uses.
+  The Suspense reader is the exception and is no longer one: every collector
+  waits for boundaries to settle before it reads, and refuses a subject that is
+  still showing a fallback
+  ([`stabilization.md`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)).
+  The commit tap is still an export, for the reason given there.
 - **A remount is not attributed to a line.** It names the component, its owner
   chain and its element. Which parent re-render caused it is not recovered.

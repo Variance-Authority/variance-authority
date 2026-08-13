@@ -820,8 +820,8 @@ over a production Storybook.
 
 That last one is the line a buyer is asking about, so it is worth being exact
 about where it falls. `cases/storybook-case/src/cli.chromium.test.js` spawns the
-built binary against a `storybook-static/` and asserts the whole cycle — **9 new
-(exit 1) → 9 accepted (0) → 9 unchanged (0) → 5 changed (exit 1)** — where the
+built binary against a `storybook-static/` and asserts the whole cycle — **12 new
+(exit 1) → 12 accepted (0) → 12 unchanged (0) → 5 changed (exit 1)** — where the
 changed build carries one edited component, and the run finds exactly the five
 stories that render it, at `cases/storybook-case/src/ds.jsx:51`. What is foreign
 there is Storybook: its index format, its preview and channel, its minifier. The

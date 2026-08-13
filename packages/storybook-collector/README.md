@@ -36,12 +36,15 @@ import { storybookCollector } from '@variance-authority/storybook-collector';
 
 export default storybookCollector({
   ready: { 'case-surface--deferred': '[data-testid="case-ready"]' },
+  loading: ['case-surface--suspense-stalled'],
   source: { dirs: ['cases/storybook-case/src'] },
 });
 ```
 
-Five lines of code, and `cases/storybook-case/src/cli.chromium.test.js` — *9 new
-(exit 1) → 9 accepted (0) → 9 unchanged (0) → 5 changed (exit 1)* over a real
+Five lines of code plus one this case earns — `loading` is there because one
+story deliberately never resolves — and
+`cases/storybook-case/src/cli.chromium.test.js` — *12 new
+(exit 1) → 12 accepted (0) → 12 unchanged (0) → 5 changed (exit 1)* over a real
 Storybook — passes against it. That test is the evidence this package is entitled
 to, and it is written against the seam rather than against either collector, so
 which side of it does the work is invisible to the test.
@@ -55,6 +58,17 @@ which selector it waited for — there is no fallback, because falling back is h
 you photograph a spinner and call it a component. A project-wide default would be
 a guess about every component to solve a problem one of them has.
 
+**Suspense is not the adopter's, and that is the point.** A component that
+suspends renders no markup, so a `ready` marker has nothing to attach to and
+`storyRendered` has already fired — the story function returned. So the wait is
+the collector's, unconditional and first, and a story still showing a fallback
+when it runs out is **refused by name** rather than photographed
+([ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md)).
+What is the adopter's is the one case a page cannot distinguish from a bug:
+`loading: ['my-story--empty-state']` says the skeleton *is* the subject. That
+story then waits for nothing, and is refused if it ever settles — a declaration
+nobody deleted is the same flake from the other side.
+
 **Where the components live.** A directory and a set of extensions, scanned with
 a regex. Omitted, the report names components and no files. An empty scan is
 refused rather than returned: an index with nothing in it produces a report where
@@ -66,6 +80,8 @@ components are anonymous and is instead a mistyped path.
 | | |
 |---|---|
 | `ready` | story id → the selector that says it is ready |
+| `loading` | story ids, as globs, whose *fallback* is the subject. See below |
+| `suspenseTimeoutMs` | how long to wait for Suspense before refusing. Defaults to 5000; `0` skips the wait and keeps the reading |
 | `source` | `{ dirs, extensions?, exclude? }` — component to `file:line` |
 | `baseUrl` | a Storybook already served, e.g. `http://localhost:6006`. Preferred when it exists, because then nothing here has an opinion about how the build is hosted. Omitted, the directory holding `subjects.index` is served on a loopback port for the life of the run |
 | `headless` | defaults to `true` |

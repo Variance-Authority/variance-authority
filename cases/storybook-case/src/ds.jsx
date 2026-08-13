@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, use, useEffect, useState } from 'react';
 
 /**
  * A small design system, plus three components that are deliberately unstable.
@@ -157,6 +157,140 @@ export function Disclosure() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The three components below suspend, which is a different problem to `AsyncPanel`.
+ *
+ * `AsyncPanel` renders a placeholder *itself*, so its own markup can carry the
+ * marker that says it is finished. A component that suspends renders nothing at
+ * all: what is on screen belongs to a `<Suspense>` boundary somewhere above it,
+ * and there is no place left to attach a declaration to. Every readiness
+ * mechanism that asks the subject to speak — Storybook's `storyRendered`, a
+ * `waitForSelector`, a two-frame quiescence check — is asking a component that
+ * does not exist yet.
+ *
+ * So they are here to be waited on from the outside, by reading the boundary's
+ * fiber. See `awaitSuspense` in `@variance-authority/react`.
+ */
+
+/** A promise the case owns, so a story suspends for a reason the story states. */
+function arriving(value, delayMs) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(value), delayMs);
+  });
+}
+
+/**
+ * One object, resolved by nobody.
+ *
+ * The shape of a real outage — a request that was never sent, a query key that
+ * never matches, a promise created in a branch that returns early. On a fast
+ * machine and on a slow one this renders the same fallback, which is what makes
+ * it worth capturing deliberately and dangerous to capture by accident.
+ */
+const NEVER_ARRIVES = new Promise(() => {});
+
+/** Deliberately still: an animated fallback would be a second, unrelated flake. */
+function Skeleton({ label }) {
+  return (
+    <div
+      data-testid="skeleton"
+      style={{
+        minWidth: 260,
+        minHeight: 72,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '1px dashed var(--case-border)',
+        borderRadius: 'var(--case-radius)',
+        color: '#767a85',
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+function Rows({ source }) {
+  const rows = use(source);
+
+  return (
+    <div data-testid="suspense-ready" style={{ minWidth: 260 }}>
+      <Stack>
+        {rows.map((row) => (
+          <div key={row} style={{ color: 'var(--case-text)' }}>
+            {row}
+          </div>
+        ))}
+      </Stack>
+    </div>
+  );
+}
+
+/**
+ * Suspends, then arrives. Nothing about it is declared anywhere.
+ *
+ * The promise is created in a lazy `useState` so it is one promise per mount:
+ * created during render it would be a new object every attempt, and the boundary
+ * would never resolve for a reason that has nothing to do with the data.
+ */
+export function SuspendedRoster({ delayMs = 120 }) {
+  const [source] = useState(() => arriving(['Ada', 'Grace', 'Katherine'], delayMs));
+
+  return (
+    <Suspense fallback={<Skeleton label="loading roster…" />}>
+      <Rows source={source} />
+    </Suspense>
+  );
+}
+
+/**
+ * A boundary that does not exist until another boundary resolves.
+ *
+ * This is the case a single clean reading gets wrong. At the moment the outer
+ * promise settles there is exactly one boundary in the tree and it is showing
+ * children — settled, by any measure taken right then. React then commits those
+ * children, `Invoice` mounts, and the inner `<Suspense>` appears *already
+ * showing its fallback*. Anything that captured on the first clean reading
+ * photographs "loading lines…".
+ */
+function Invoice({ source, innerMs }) {
+  const title = use(source);
+  const [lines] = useState(() => arriving(['Design', 'Build', 'Handover'], innerMs));
+
+  return (
+    <div data-testid="waterfall" style={{ minWidth: 260 }}>
+      <h3 style={{ margin: 0, marginBottom: 'var(--case-space)', color: 'var(--case-text)' }}>{title}</h3>
+      <Suspense fallback={<Skeleton label="loading lines…" />}>
+        <Rows source={lines} />
+      </Suspense>
+    </div>
+  );
+}
+
+export function SuspendedWaterfall({ outerMs = 80, innerMs = 80 }) {
+  const [source] = useState(() => arriving('Invoice #4021', outerMs));
+
+  return (
+    <Suspense fallback={<Skeleton label="loading invoice…" />}>
+      <Invoice source={source} innerMs={innerMs} />
+    </Suspense>
+  );
+}
+
+function Stalled() {
+  use(NEVER_ARRIVES);
+  return <div>unreachable</div>;
+}
+
+/** Suspends forever. The story is the decision it forces, not the markup. */
+export function StalledFeed() {
+  return (
+    <Suspense fallback={<Skeleton label="loading feed…" />}>
+      <Stalled />
+    </Suspense>
   );
 }
 

@@ -9,6 +9,7 @@ import type {
 import { observeAgainstBaseline, type Observation } from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
+import { suspenseRefusal } from '@variance-authority/react';
 import { createDurableStore } from '@variance-authority/store';
 import { bundlePageAgent } from './bundle.js';
 import { AGENT, type Acquired, type AcquireRequest, type InstalledAgent } from './page-agent.js';
@@ -66,6 +67,20 @@ export interface VarianceOptions {
 
   /** Component to file. Without it the docket names components and no lines. */
   readonly source?: SourceIndex;
+
+  /** Milliseconds to wait for the subject's Suspense boundaries. Defaults to 5000. */
+  readonly suspenseTimeoutMs?: number;
+
+  /**
+   * This subject's *loading* state is what is being captured.
+   *
+   * The escape hatch. Without it, a subtree still showing a Suspense fallback
+   * **throws** rather than being recorded: a baseline over a skeleton that was
+   * never meant to be one turns every faster machine into a regression, and a
+   * failed assertion here is the only thing that reaches the person who can
+   * decide which of the two states this test is about.
+   */
+  readonly loading?: boolean;
 }
 
 export interface VarianceFixtures {
@@ -163,6 +178,14 @@ export const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>({
         viewport: viewportOf(page.viewportSize(), testInfo),
         engine: `chromium@${page.context().browser()?.version() ?? 'unknown'}`,
         ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
+        // A deliberate loading capture waits for nothing: the fallback is the
+        // subject, and paying the timeout to be told the boundary is still there
+        // would add five seconds to every such assertion.
+        ...(options.loading === true
+          ? { suspense: { timeoutMs: 0 } }
+          : options.suspenseTimeoutMs !== undefined
+            ? { suspense: { timeoutMs: options.suspenseTimeoutMs } }
+            : {}),
       };
 
       // The element, not a selector: Playwright resolves the locator and hands
@@ -181,7 +204,18 @@ export const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>({
         [AGENT, request] as const,
       );
 
-      const { document, capture } = JSON.parse(raw) as Acquired;
+      const { document, capture, suspense } = JSON.parse(raw) as Acquired;
+
+      // Thrown, not returned. This surface has no refusal channel — an
+      // `Observation` says what a comparison found, and "we photographed a
+      // spinner" is not a comparison result — and a failed assertion is what
+      // actually reaches the person who can decide which state this test is
+      // about. `loading: true` is the way past it.
+      const unsettled = suspenseRefusal(suspense, {
+        subjectId: subject.id,
+        declaredLoading: options.loading === true,
+      });
+      if (unsettled !== undefined) throw new Error(unsettled);
       const snapshot: SemanticSnapshot = normalize(capture);
       const key: BaselineKey = { subject: subject.id };
 

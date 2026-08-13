@@ -434,8 +434,8 @@ tool to add.
 product:** an operator who cannot install a package never writes the five lines.
 Everything else the metric rests on is in place.
 `cases/storybook-case/variance.config.json` is tracked, and the full cycle runs
-over a Storybook this project did not write — *9 new → 9 accepted → 9 unchanged →
-5 changed* ([comparison §4](comparison.md#4-what-is-written-and-unrun)).
+over a Storybook this project did not write — *12 new → 12 accepted → 12
+unchanged → 5 changed* ([comparison §4](comparison.md#4-what-is-written-and-unrun)).
 The manifests carry MIT and `0.0.0-beta.1` across 21 packages with no `private`
 field. `@variance-authority/storybook-collector` ships what
 `cases/storybook-case/collector/index.mjs` would otherwise hand-write, which is

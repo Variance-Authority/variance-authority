@@ -29,10 +29,10 @@ yarn workspace @variance-authority/case-storybook storybook
 ## What is in the stories
 
 A small design system — `Button`, `Stack`, `Card`, `Spinner`, `Clock`,
-`AsyncPanel`, `Panel` — chosen so the nine stories cover the cases that actually
-decide whether an adapter is any good.
+`AsyncPanel`, `Panel`, and three Suspense trees — chosen so the twelve stories
+cover the cases that actually decide whether an adapter is any good.
 
-Nine stories, covered by **one navigation**:
+Twelve stories, covered by **one navigation**:
 
 | story | what it is for |
 |---|---|
@@ -42,8 +42,11 @@ Nine stories, covered by **one navigation**:
 | `Clock — ticking` | content that changes because time passed, not because code did |
 | `AsyncPanel — settles late` | settles *after* Storybook says it is done |
 | `Panel — revealed by its play function` | a subject that does not exist until an interaction runs |
+| `Suspense — settles` | a boundary no marker could cover: the component that would carry one has not rendered |
+| `Suspense — waterfall` | a boundary that only exists once the first one resolves, so one clean reading is not enough |
+| `Suspense — stalled` | a boundary that never resolves, which is a flake source and is refused unless declared |
 
-Those last four are the four that hold when `Button` changes.
+Those last seven are the seven that hold when `Button` changes.
 
 The adapter's remaining path — a story that throws, reported as an error overlay
 with the story's own stack rather than as a timeout — has no standing story here;
@@ -80,15 +83,18 @@ Four steps, which is the workflow a team actually runs:
 
 | step | verdicts | exit |
 |---|---|---|
-| `variance run` on a fresh checkout | 9 new | **1** |
-| `variance accept --all` | 9 accepted | 0 |
-| `variance run` again | 9 unchanged, *nothing to review* | 0 |
-| `variance run` on the changed build | 4 unchanged, **5 changed** | **1** |
+| `variance run` on a fresh checkout | 12 new | **1** |
+| `variance accept --all` | 12 accepted | 0 |
+| `variance run` again | 12 unchanged, *nothing to review* | 0 |
+| `variance run` on the changed build | 7 unchanged, **5 changed** | **1** |
 
-The last row is the one worth reading. `Button` appears in five of the nine
-stories, and the run finds exactly those five — the four that hold are `Spinner`,
-`Clock`, `AsyncPanel` and the disclosure a play function opens, none of which
-render one. The report resolves to source:
+The last row is the one worth reading. `Button` appears in five of the twelve
+stories, and the run finds exactly those five — the seven that hold are
+`Spinner`, `Clock`, `AsyncPanel`, the disclosure a play function opens and the
+three Suspense trees, none of which render one. The three Suspense stories
+holding still is the wait working: two of them arrive after Storybook says the
+story is done, and would otherwise record a skeleton on one run and a component
+on the next. The report resolves to source:
 
 ```
 [changed] story:case-surface--button-primary
