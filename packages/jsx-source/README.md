@@ -26,19 +26,29 @@ where [`@variance-authority/react`](../react) reads it.
 
 ## Check whether you need it
 
-**Against a React development build, you do not.** React's development build
-captures an `Error` inside its own element factory and keeps it on every fiber,
-and [`@variance-authority/react`](../react) reads that instead — resolved
-through the source map your dev server already emits, with no plugin, no
-`jsxImportSource` and no `jsxDev`. Every dev server, Vitest and Jest are that
-case, and so is the classic transform, because React captures the same error in
-`createElement`.
+**Against a React development build, you probably do not.**
+[`@variance-authority/react`](../react) reads two fields off the fiber before
+anything here is involved, and between them they cover every dev server, Vitest
+and Jest:
 
-What has no such capture is a **production** build: a built Storybook, a
+| | automatic transform | classic transform |
+| --- | --- | --- |
+| **React 19** | `_debugStack` | `_debugStack` |
+| **React 18** | `_debugSource` | **nothing — install this** |
+
+React 19 captures an `Error` inside its own element factory, `createElement`
+included, and the frame in it is resolved through the source map your dev server
+already emits — no plugin, no `jsxImportSource`, no `jsxDev`. React 18 kept the
+transform's own location as `_debugSource`, which is cheaper still because
+nothing has to be resolved. React 18 with the classic transform is the one
+development corner with neither: esbuild writes no `__source` on that path and
+React 18 captures no error to replace it.
+
+What has no capture at all is a **production** build: a built Storybook, a
 statically served bundle, anything compiled with `NODE_ENV=production`. That is
-what this package is for, and it is the case where the transform's own location
-is worth the most, because locations survive minification untouched while
-component names do not.
+what this package is mainly for, and it is the case where the transform's own
+location is worth the most, because locations survive minification untouched
+while component names do not.
 
 ## Turn it on
 

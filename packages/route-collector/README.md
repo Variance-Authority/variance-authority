@@ -210,12 +210,14 @@ before constructing the collector. They do not fetch a sitemap or crawl links.
   component is *declared* — one line however many times the component renders.
   For the line the changed element is written on, see below.
 - **Elements report their component's declaration rather than their own line:**
-  against a development server this needs nothing at all. React's development
-  build captures the call site itself, and this collector resolves it through
-  the source map the dev server already emits, so a route served by `vite dev`,
-  `next dev` or any other development server reports exact lines with no build
-  change of any kind. It is unavailable against a **production** build, where
-  React captures nothing: add the
+  against a development server this needs nothing at all. React 19 captures the
+  call site itself and this collector resolves it through the source map the dev
+  server already emits; React 18 keeps the transform's own location on the fiber
+  and needs no resolving. Either way a route served by `vite dev`, `next dev` or
+  any other development server reports exact lines with no build change of any
+  kind. Two cases have nothing to read — a **production** build, where React
+  captures nothing, and React 18 compiled with the *classic* transform, which
+  emits no location for React to keep. For both, add the
   [`@variance-authority/jsx-source`](../jsx-source) plugin to the application's
   build and turn on `jsxDev` for that case. The plugin leaves `jsxImportSource`
   alone, so an application built against Emotion or theme-ui needs no compiler

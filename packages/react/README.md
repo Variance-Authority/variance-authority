@@ -79,8 +79,16 @@ every item changed.
   [`@variance-authority/jsx-source`](../jsx-source) comes in — a bundler plugin
   or a Jest resolver, still without taking `jsxImportSource`. An element whose
   props were rebuilt by a custom runtime records one fiber up, and
-  `resolveProvenance` climbs composite ancestors to find it. `_debugSource` is
-  read first where it exists at all (React ≤18).
+  `resolveProvenance` climbs composite ancestors to find it.
+
+  **React 18 is served first and more cheaply.** It kept the transform's own
+  `{fileName, lineNumber, columnNumber}` on the fiber as `_debugSource`, which
+  `resolveProvenance` reads before it looks at any stack — a location the
+  compiler already computed needs no frame, no module fetch and no source map.
+  A React 18 dev server therefore costs nothing at all for what React 19 spends
+  a map hop on. The one combination with no answer is React 18 *and* the classic
+  transform, where the compiler emits no `__source` and React captures no error
+  to replace it; that corner is the plugin's.
 
   With none of the three, attribution falls back to resolving a component *name*
   against a repository scan ([`core/attribute`](../core)'s `indexSource`) — the
