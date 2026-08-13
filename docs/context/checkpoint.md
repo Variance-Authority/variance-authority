@@ -58,6 +58,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
 | B17 | **cause on every path** — what a baseline has to carry for a run to name the component that caused a change | landed and measured; ADR-0027. Two halves stay open: the ephemeral mode holds one snapshot, and `tribunal`'s sidecar columns drop the field |
 | B16 | **ignores** — what is not the subject, and the accounting that stops one becoming a blind spot | landed and wired end to end; ADR-0025 and ADR-0026, [`docs/ignores.md`](../ignores.md). Two forms (a subtree, a difference shape), both tiers from one declaration, a per-rule ledger, and a fifth verdict — `ignored`, green, and never spelled `unchanged`. The fingerprint pays twice: `variance accept --shape` promotes one change across every subject it reached and refuses the ones where something else also moved |
 | B19 | **composition** — the suite compared to itself at one commit, and why a component moved | landed and measured ([`docs/composition.md`](../composition.md), journal 0017). The other axis: many subjects, one revision, joined on the components they share, from digests a run already computed — no second render, no image, no store. Three answers nothing could previously phrase: an **echo** (one rendering, several subjects, so eleven diffs are one review), a **divergence** (one props digest, two renderings, at one commit), and an attribution ladder over every component that moved — `edited`, `token`, `upstream`, `contradicted`, then **unexplained**, which is the finding. Unexplained carries `held`: the subjects where the same component with the same props did *not* move, which is the control group the flake argument was missing. It still refuses to call that a flake — `suspect` alone, `flake` only once a second reading of that subject also disagreed. Two decisions fell out and are ADR-0033 and ADR-0034. Does not survive a shard split, and the merge behind `variance report` over shards says so |
+| B20 | **the entry point** — where a change enters a rendered page, above the wire and above the end state | landed in `packages/react`, wired into nothing ([journal 0018](journal/0018-where-a-change-enters-the-room.md)). Two instruments the pipeline did not have. `tapCommits` installs React's own commit hook — which must exist *before* `react-dom` loads, so a tap that attached late **refuses** rather than reporting a quiet page — and reads `PerformedWork` off the committed tree, so `awaitQuiet` answers a page that never settles with the components still committing by name and leaves out the ones that merely mounted. `pendingSuspense` needs no hook and no advance warning: a boundary's state is reachable by traversal from the expando provenance already reads, at any time, in production, and it comes back with the owner chain and who wrote the `<Suspense>` rather than as a count. Both replace a poll in pixel space — the incumbent screenshots until two agree, which costs a raster per poll and names nothing on failure. **What is open is policy, not code:** `settle()` decides readiness from the network and the document digest, and wiring these in means deciding what a collector does when the tap refuses. The fourth depth — which *prop* controls which band — is measured and specced ([0024](../specs/0024-what-a-prop-controls.md)), and three of seven predictions were wrong, which is the argument for measuring it per component |
 | B12 | **history** — what accumulates across runs, and where it lives | **wired, and answering four of its five questions** ([`docs/history.md`](../history.md), [what is left](../specs/0002-history-store.md)). The contract gap that blocked it is decided — `current()`, the one read about the present, which never truncates because a missing previous row is a change that did not happen (ADR-0031). A run records itself, the hashes that moved, the tokens it resolved and every subject that failed to read the same way twice; `variance accept` records the approval, as a second row because an append-only store cannot flip a flag. It then asks — recurrence over a window with sweeps as the denominator (ADR-0032), churn for the components it blamed, and a journey for any token whose value moved — and carries the answers in the report, so no surface downstream holds a connection. The headline case is produced by the pipeline. Still open: `reach` has no caller, and nobody has run the eleven runs and eleven approvals that would demonstrate the 22px against a real project. First implementation refuted and retired ([epitaphs](epitaphs.md)) |
 
 ---
@@ -249,7 +250,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   page it was acquired from".
 - **The documentation is checked now, and one class of it still is not.**
   `tools/docs-links.check.ts` resolves every link, every backticked repository
-  path and every `file:line` reference across all 113 markdown files, and compiles
+  path and every `file:line` reference across all 115 markdown files, and compiles
   every README `ts` example against the built `.d.ts` with no unused import. It
   found that **11 of the 20 examples did not compile** — wrong arity, options
   that were renamed, a field that no longer exists — which is what a reader was
@@ -357,6 +358,14 @@ agent cannot yet hold a trail and observe again through it. Everything the loop
 needs exists as values and pure functions; what is missing is a boundary that may
 observe, and adding one inverts a stated position rather than filling a gap. That
 is a decision, not a task.
+
+**The entry-point instruments (B20) have no collector.** `tapCommits` and
+`pendingSuspense` are exports; `settle()` has never called either. Wiring them in
+is small and the decision in front of it is not: a tap that refuses is the normal
+case on a page instrumented through a Storybook preview nobody controls, and a
+collector has to say what it does then — wait as before and record that it could
+not ask, or refuse the subject. Same question one rung further: whether a pending
+boundary makes a reading `unstable` or merely annotated.
 
 **Generality remains unmeasured.** One corpus, one mutation behind the ranking,
 one machine behind every ratio, and an MCP surface nothing has used. The cheapest

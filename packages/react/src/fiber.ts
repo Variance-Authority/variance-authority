@@ -40,6 +40,15 @@ export interface Fiber {
   readonly memoizedProps: Readonly<Record<string, unknown>> | null;
 
   /**
+   * Per-tag state, and `unknown` because every tag means something different by
+   * it: a hook list on a function component, a `SuspenseState` or `null` on a
+   * Suspense boundary, an update queue on a class. Only `suspense.ts` reads it,
+   * and only after checking the tag — narrowing it here would be a claim about
+   * every other tag that nothing has measured.
+   */
+  readonly memoizedState?: unknown;
+
+  /**
    * Development-only. Present on fibers created from JSX in a dev build and
    * absent entirely in production, which is why every read of it is optional.
    * React 19 widened the type: it is a `Fiber` for a client component and a

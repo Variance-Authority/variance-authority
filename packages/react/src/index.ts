@@ -44,5 +44,11 @@ export { componentName, fiberComponentName, debugOwnerName, ANONYMOUS } from './
 
 export { portalContentOf } from './portal.js';
 
+export type { SuspenseBoundary, SuspenseStateName } from './suspense.js';
+export { suspenseBoundaries, suspenseBoundariesIn, pendingSuspense } from './suspense.js';
+
+export type { Commit, CommitTap, TapOptions, TapRefusal, QuietOptions, QuietResult } from './commits.js';
+export { tapCommits, awaitQuiet } from './commits.js';
+
 export type { ReactRuntimeInfo, ReactKeyFormat } from './runtime.js';
 export { detectReactVersion, detectReactRuntime } from './runtime.js';

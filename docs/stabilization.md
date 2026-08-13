@@ -496,6 +496,72 @@ its URL.
 
 ---
 
+## The framework, which knows when it has finished
+
+The wire answers *have the bytes arrived*. It cannot answer *has the application
+finished rendering them*, and those are different questions: a page whose every
+request has settled can still be three commits from its final state.
+
+The usual answer is to poll in pixel space — Playwright's `toHaveScreenshot`
+takes screenshots until two consecutive ones match. It costs a raster per poll,
+and when it gives up it can only report that the page kept changing. React knows
+exactly when it commits and will say so, so `@variance-authority/react` asks.
+
+### `tapCommits` — which components rendered, and when they stopped
+
+`__REACT_DEVTOOLS_GLOBAL_HOOK__` is a handshake, not a debugging aid: a renderer
+looks for that global when its module body runs, and reports every commit to
+whatever it finds. `tapCommits()` installs one, wrapping any handler already
+there and restoring it on `stop()`.
+
+Each commit records the components that actually rendered, read from the
+`PerformedWork` flag React sets on the fibers it worked on — so a memoized
+sibling that bailed out is **absent**, not listed as unchanged. `awaitQuiet(tap)`
+resolves when no commit has arrived for `quietFor` milliseconds, and on a page
+that never settles it names what is moving:
+
+```ts
+{ settled: false, commits: 41, restless: [{ name: 'Ticker', commits: 39 }] }
+```
+
+A component that rendered once at mount and never again is not in that list at
+all, which is the difference between a diagnostic and a stack of everything.
+
+**It must exist before `react-dom` does.** That is the whole operational
+constraint, and it has a sharp failure mode: a tap installed one script too late
+hears nothing, and hearing nothing is indistinguishable from a page that has
+gone quiet. So `tapCommits` looks for a React container in the document and
+refuses if it finds one — `attached: false`,
+`reason: 'react-already-loaded'` — and an unattached tap returns `settled: false`
+from `awaitQuiet`, always. **Silence is never reported as quiet.**
+
+### `pendingSuspense` — the boundary that has not arrived, by name
+
+Reading Suspense needs no hook and no advance warning. A Suspense fiber's
+`memoizedState` is `null` while it shows its children and an object while it
+shows its fallback, so the state of every boundary is reachable by traversal from
+the same `__reactFiber$…` expando provenance already reads — at any time, on a
+page nobody instrumented, including in production.
+
+What comes back is not a count. Each boundary carries the owner chain above it,
+innermost first, the component that wrote the `<Suspense>`, its key, and how many
+boundaries enclose it:
+
+```ts
+{ state: 'pending', owners: ['Panel', 'Page'], createdBy: 'Panel', depth: 0 }
+```
+
+Nested boundaries report separately, so an outer boundary that never fell back
+reads `resolved` while the inner one reads `pending` — reporting both would send
+a reader to the wrong `<Suspense>`. And the walk is scoped to the subject: a
+spinner in an `<aside>` is not this `<section>`'s problem.
+
+`dehydrated` is a third state, distinct from `pending`: server-rendered markup
+waiting for hydration, which is a different thing to be told than a fetch in
+flight.
+
+---
+
 ## What holding a page still costs
 
 Measured, because a stabilization claim is only free if you do not check.
@@ -537,6 +603,12 @@ Stated rather than left for you to find.
 - **CSS `background-image`** is fetched and therefore *hashed*, but nothing pins
   a subject's wait to it specifically; `settle()` covers it only because it
   covers every request.
+- **`settle()` does not consult React.** `tapCommits` and `pendingSuspense` are
+  exports you call yourself; a collector still decides a page is ready from the
+  network and the document digest, so a subject read while a boundary is still
+  pending is caught by the second pass rather than by the wait. Wiring them in
+  means deciding what a collector does when the tap refuses, which is a policy
+  question and not a plumbing one.
 - **`srcset` re-resolution** on a viewport change can leave a fractional height
   difference, because browsers reuse a cached candidate. Argos parses `srcset`
   and pins a single candidate; this does not.

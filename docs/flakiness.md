@@ -47,13 +47,14 @@ reading. What differs here is the last column.
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. **But:** headless Chromium uses overlay scrollbars, so the classic scrollbar reflow does not reproduce in CI at all — a blind spot we share with every headless pipeline, [written up rather than deleted](context/journal/0012-instability.md). |
 | **Animations mid-flight** | **construction** | A transform caught in flight is a computed style value and it does reach the representation — so the page is held still *before the subject is read*, not only before it is painted. Pinned at the first frame by CSS, with the recipe's digest in the environment key so an unstabilized baseline is `incomparable` rather than a diff. **Measured:** one page, a 4s animation, read twice a second apart — the hash moves untouched and holds under the recipe ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
 | **Lazy loading, network latency** | **construction** | Content that arrives late is a structural difference, and correctly so — the question is whether you were still waiting when it landed. `wait-for-images` polls `document.images`, which misses anything appended during the wait and has no entry for a `background-image`; the driver watches the wire instead and knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
+| **A framework still committing** | **nothing**, and now readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. The state of the art screenshots until two consecutive images agree — a raster per poll, and a timeout that names nothing. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*, and `pendingSuspense` names the boundary that has not resolved and the component that wrote it. **Absorbed by nothing today** — a collector still decides readiness from the network and the document digest, so these are exports you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
 | **An asset whose bytes moved behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Every image, font and media response is hashed by the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carried into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
 | **Animated GIFs** | **construction** | No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. **Measured** on real screenshots. |
 | **Random seeds, unsorted data** | **nothing**, and reported | Absorbed by nothing — this is a real change and the fixture is the bug. What it does not arrive as is a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. The run also says whether *anything in it* explains the movement, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
 
-**Three** rows are absorbed by nothing, and they are the honest half of the table.
+**Four** rows are absorbed by nothing, and they are the honest half of the table.
 
 A comparison that only ever finds in its own favour is an advertisement, so the
 count in that sentence is the number this table is judged on. A limitation left
@@ -341,6 +342,20 @@ Our bet is different: **an unstable hash is a finding with a cause, not noise to
 suppress.** Auto-ignoring by diff shape silences the symptom without naming the
 writer, and the same suppression that hides a flake hides the real regression
 that later lands in the same region.
+
+**What a fingerprint can and cannot key on.** Argos publishes the mechanism —
+[`mask-fingerprint`](https://github.com/argos-ci/mask-fingerprint) takes the mask
+of differing pixels, dilates it, crops to its bounding box, reduces to a grid of
+densities and hashes that to an integer, so two diffs of roughly the same shape
+in roughly the same place group together in SQL. Its own framing is precise:
+tolerant equality, not approximate similarity. It is a good key, and it is a key
+in *pixel space* — change the viewport and it is a different key for the same
+defect, move the component down the page and it is a different key, and two
+unrelated components whose diffs happen to be the same blob are one key. Our key
+is a component and a band, which survives all three and carries a `file:line`.
+Neither key is recoverable from the other, and the direction matters: **you
+cannot get from the shape of the pixels that moved back to the component that
+moved them.**
 
 The two instruments differ in what they need and in what they can say. Counting
 fingerprints needs a *window* — several runs, and a store to keep them in — and
