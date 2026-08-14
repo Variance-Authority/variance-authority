@@ -44,6 +44,32 @@ the product refuses to conclude, and what it cannot reach — all in the present
 The journal is where "we tried X, it cost Y, we changed to Z" goes. It is
 written for us, and it is the only place that shape is welcome.
 
+## Who the reader is, and what they already know
+
+**Read `docs/context/` before writing anything.** The checkpoint says where the
+project stands, the ADRs hold the decisions and what each one cost, the journal
+holds what was tried. A page written without them re-derives a settled decision,
+re-argues one, or contradicts it. They are the first source, not the last resort.
+
+**Write from a senior engineer's baseline.** The reader has shipped software, has
+opinions about build tools, and has been bitten by most of what this project is
+defending against. So:
+
+- **Nothing foundational is explained.** Not what a git blob is, not what a
+  symlink does, not why a stringified closure loses its scope, not how
+  case-insensitive filesystems behave. Name it and move on; the reader fills it
+  in faster than the sentence takes to read.
+- **A defence is not a story.** State what the code refuses and why it matters
+  *here*. The failure mode it prevents is a clause, not a section — and if it
+  needs a section, it is an ADR.
+- **Every paragraph earns its place in one story.** A page has a spine. Anything
+  true but off-spine goes in an ADR, a docstring, or nowhere. Interesting is not
+  a reason to include something.
+
+The failure this rules out is a correct page nobody finishes: three levels of
+detail on a defence that runs once, in front of the mechanism the reader opened
+the page for.
+
 ## The project reports on itself in code
 
 How far along the project is — what is written and has never run, what nobody

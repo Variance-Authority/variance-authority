@@ -133,7 +133,7 @@ caller passing three where it passed two moves the container. That residual limi
 is stated in
 [ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md).
 
-### Two things had to change for a digest to cross a subject
+### What the join key must not depend on
 
 **Aliases are re-numbered per boundary.** The normalizer replaces every id with
 `#a0`, `#a1`, … in document order across the whole *subject*
@@ -248,9 +248,7 @@ an ancestor's cascade — or a reading that is not repeatable. The bands say whi
 kind, in the same vocabulary a sensitivity absorbs, so a divergence entirely
 inside a relaxed band can be dismissed without opening it.
 
-**Measured on todomvc: zero.** Before the checks below existed, eleven were
-reported and all eleven were false — which is what a finding built on an
-incomplete key looks like. A props digest is not a complete statement of a
+**Measured on todomvc: zero.** A props digest is not a complete statement of a
 component's inputs, so three shapes reach the check and are refused by it
 ([ADR-0034](context/adr/0034-a-divergence-must-survive-the-children-it-excludes.md)):
 

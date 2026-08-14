@@ -7,8 +7,9 @@ was supposed to replace.
 
 Attribution is the chain that turns that number into a sentence: **this region,
 inside `Toggle`, in `main → region "Todos" → item 2 of 3`, written at
-`examples/todomvc/src/ds/components.tsx:107`.** Five hops, each one a pure function over data the run
-already holds, and each one able to fail in a way the next hop can see.
+`examples/todomvc/src/ds/components.tsx:107`.** Five hops, each one a pure
+function over data the run already holds, and each one able to fail in a way the
+next hop can see.
 
 | hop | from | to | where |
 |---|---|---|---|
@@ -190,10 +191,10 @@ opens is a source map away. Both halves are written out rather than installed,
 because `core` has no third-party dependencies
 ([ADR-0013](context/adr/0013-packages-are-named-for-their-requirements.md)).
 
-Parsing a stack is a fact about a JavaScript engine — V8's `at App (url:23:26)`
-and SpiderMonkey's `App@url:23:26` both, with unreadable lines dropped rather
-than raised, since a stack is diagnostic output and a frame nobody can read is
-one fewer candidate.
+Stack syntax is an engine fact, so both spellings are read — V8's
+`at App (url:23:26)` and SpiderMonkey's `App@url:23:26` — and a line neither
+matches is dropped rather than raised. A stack is diagnostic output, and a frame
+nobody can parse is one fewer candidate.
 
 Choosing *which* frame is the author is a policy, and it has a defensible rule
 rather than a heuristic: **the first frame that resolves to a file the project
