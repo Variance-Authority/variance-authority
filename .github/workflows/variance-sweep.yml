@@ -1,0 +1,229 @@
+name: variance sweep
+
+# The nightly recipe: find a flake one run before it costs somebody a build.
+#
+# An example workflow, meant to be copied and edited rather than read as the only
+# way to wire this up. Everything in it that is a decision is commented as one.
+#
+# ## What this asks that the pull-request gate cannot
+#
+# `.github/workflows/variance.yml` asks *is this change real*. Every run already
+# reads a **changed** subject a second time before believing its verdict, so that
+# workflow catches a subject that will not hold still only among the subjects that
+# moved.
+#
+# `--flakes` reads **every** subject twice, whatever the verdict. That is a
+# different question — *which of these subjects would flake tomorrow* — and it is
+# unreachable from a verdict: a green suite settles on its digests and never
+# builds a comparison at all, so the subject that agrees with its baseline and
+# disagrees with itself is invisible to every run that is not this one.
+#
+# ## Why it is nightly rather than per pull request
+#
+# Price. A sweep costs one collection per subject and **never a render**, so 300
+# subjects is 300 cheap collections and no browser paint. That is affordable on a
+# schedule and wasteful on every push, where the same money buys nothing the gate
+# did not already get.
+#
+# ## Why this calls the CLI instead of `.github/actions/variance`
+#
+# The action is the pull-request shape: it takes no `--flakes`, and its two extra
+# steps — post the docket, optionally commit baselines — are both addressed to a
+# pull request that does not exist here. Wrapping it would mean adding an input
+# for a mode it cannot comment on. So this is `variance run` directly, which is
+# the same binary the action shells out to.
+
+on:
+  schedule:
+    # A non-zero minute on purpose. Everybody's cron fires at :00, GitHub's
+    # scheduler queues rather than drops, and a sweep that starts twenty minutes
+    # late every night is a sweep whose duration nobody can read.
+    #
+    # Two things about `schedule` that are not this file's fault and will still
+    # look like its bug: it only ever runs on the default branch, whatever branch
+    # this file is edited on; and GitHub disables scheduled workflows in a
+    # repository with no pushes for 60 days, silently, until somebody re-enables
+    # them in the Actions tab.
+    - cron: '17 3 * * *'
+
+  # Kept, because the first question after a red sweep is "does it still do that",
+  # and waiting until 03:17 to find out is how a finding gets forgotten.
+  workflow_dispatch:
+
+permissions:
+  # Read the code, and nothing else. There is no pull request to comment on and
+  # no branch to push to: this workflow's entire output is an artifact and an
+  # exit code.
+  contents: read
+
+concurrency:
+  group: variance-sweep
+  # NOT cancel-in-progress, unlike the gate. There, a superseded run is answering
+  # about a commit nobody will merge. Here, a manual dispatch cancelling the
+  # nightly would delete the only sweep of the day, and a sweep that ran is worth
+  # more than a sweep that is current.
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+
+    # A sweep re-collects and does not paint, so the usual reason for pinning the
+    # image — a moving Chromium moving the renderer identity and invalidating
+    # every baseline (ADR-0011) — does not apply here: nothing this job produces
+    # is stored or compared against a stored thing.
+    #
+    # It is pinned anyway, and for a different reason worth keeping separate in
+    # your head: the collector runs in a browser too. A subject reported unstable
+    # is a claim about the application, and a claim made under a browser that
+    # moved last Tuesday is a claim about the browser. Same image as the gate, so
+    # "it flakes nightly but not on pull requests" cannot be the engine.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      # Chromium's renderer processes need more than a container's default 64MB
+      # of shared memory. Without this the browser dies partway through, which
+      # arrives as subjects missing from the sweep rather than as a crash — and a
+      # sweep is exactly the run where nobody is watching for that.
+      options: --ipc=host
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: config
+        name: is there anything to observe
+        shell: bash
+        run: |
+          # This repository does not commit a variance config yet, and a nightly
+          # job that fails every night because a file it needs was never written
+          # is a job people mute.
+          #
+          # TODO: point this and the --config below at
+          # cases/storybook-case/variance.config.json, which is tracked, and add
+          # the Storybook build it reads; then delete this gate. While it looks at
+          # the repository root, every step below is skipped and no sweep has ever
+          # collected anything.
+          if [ -f variance.config.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::no variance.config.json in this repository, so nothing was swept."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.config.outputs.present == 'true'
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - if: steps.config.outputs.present == 'true'
+        shell: bash
+        run: yarn build
+
+      - if: steps.config.outputs.present == 'true'
+        id: sweep
+        name: variance run --flakes
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          # `if` rather than `set +e`: the condition of an `if` is exempt from
+          # errexit, so the code is captured without disarming the shell for the
+          # lines after it.
+          if node packages/cli/dist/bin.js run \
+               --config variance.config.json \
+               --profile chromium \
+               --flakes \
+               --intent 'nightly stability sweep'; then
+            code=0
+          else
+            code=$?
+          fi
+
+          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+          echo "variance exited $code"
+
+          # `--exit-zero-on-changes` is deliberately absent, and it is the one
+          # flag somebody will reach for the first time this goes red.
+          #
+          # Unstable subjects exit 1 even when every verdict is green. That is the
+          # entire finding this workflow exists to produce, so suppressing 1 here
+          # would leave a job that sweeps 300 subjects nightly and reports its
+          # results to nobody. Read a red sweep as a finding, not as a break.
+          #
+          # Two other things reach 1 here and are worth telling apart in the
+          # report rather than in this file: a subject genuinely changed on the
+          # default branch since its baseline was accepted, and a subject that is
+          # new. Both are real, neither is a flake, and the docket names which.
+
+      # Written because there is no pull-request comment on this path. The gate
+      # gets a docket in a thread somebody is already reading; a sweep gets a file
+      # or it gets nothing, and "one page, no service behind it" is what the HTML
+      # renderer is for. Image paths in it are relative to the report, which is why
+      # the whole directory is uploaded rather than the page alone.
+      - if: ${{ always() && steps.config.outputs.present == 'true' && steps.sweep.outputs.exit-code != '2' }}
+        name: render the sweep as one page
+        shell: bash
+        run: |
+          set -euo pipefail
+          node packages/cli/dist/bin.js report \
+            --config variance.config.json \
+            --format html \
+            --exit-zero-on-changes > .variance/sweep.html
+
+          # `--exit-zero-on-changes` *is* right here, and for the opposite reason
+          # to the step above: this step renders, it does not adjudicate. The
+          # verdict was stated by the run and is carried by the job's own exit
+          # code; a renderer that could also fail the build would give the sweep
+          # two places to be red and no way to tell which one spoke.
+
+      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-sweep
+          path: .variance/
+          if-no-files-found: warn
+
+          # Longer than the 90-day default would be the wrong instinct. A sweep is
+          # a sample, and the thing worth keeping across months is not the sample
+          # but the row: whether a subject has done this before, and how often,
+          # lives in the history store (docs/history.md), which answers over a
+          # window and divides by the runs that actually asked. An artifact
+          # hoard is a worse version of that question with no way to ask it.
+          retention-days: 14
+
+      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+        name: verdict
+        shell: bash
+        env:
+          CODE: ${{ steps.sweep.outputs.exit-code }}
+        run: |
+          case "${CODE:-}" in
+            0)
+              echo "every subject read the same way twice."
+              ;;
+            1)
+              echo "::error::the sweep found subjects that did not read the same way twice, or subjects that changed. The docket names the component, the file and the frequency band; the report is in the variance-sweep artifact."
+              exit 1
+              ;;
+            2)
+              echo "::error::variance could not run as configured. This is not a finding about stability: no subject was collected twice, and nothing here says anything about the suite."
+              exit 2
+              ;;
+            '')
+              echo "::error::the sweep step produced no exit code, so this workflow cannot say what happened."
+              exit 2
+              ;;
+            *)
+              echo "::error::variance exited $CODE, which is not one of its three codes; treating it as a failure."
+              exit "$CODE"
+              ;;
+          esac
+
+# ## One config key that behaves differently here, and why
+#
+# `alone.limit` caps how many subjects a run will re-read on its own. It does not
+# apply to `--flakes`, and that is deliberate rather than an oversight: an
+# operator who asked about the whole suite must not be handed the first twenty
+# subjects under a whole-suite heading.
+#
+# `alone.limit: 0` still turns the sweep off entirely, because one number cannot
+# mean *do not re-collect anything* on Tuesday and something else on Wednesday.
+# If a config sets it to 0, this workflow reports a clean sweep of nothing.

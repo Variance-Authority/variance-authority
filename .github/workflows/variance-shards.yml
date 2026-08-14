@@ -1,0 +1,375 @@
+name: variance shards
+
+# The sharded recipe: split a suite across CI jobs, and answer about the suite.
+#
+# An example workflow, meant to be copied and edited rather than read as the only
+# way to wire this up. Everything in it that is a decision is commented as one.
+#
+# ## Read this before copying: sharding introduces a failure nothing else can see
+#
+# Each shard runs `variance run --subjects <glob>` and records every subject
+# outside its slice as `excluded`. So three shards report each subject as excluded
+# twice and observed once, and each shard exits `0` because each did exactly what
+# it was told.
+#
+# A subject that **every** shard excluded was observed by nobody. Its slice has no
+# component in the report to be missing from, and every individual job is green.
+# `variance report` over all the shard files resolves the excludes against what
+# was actually observed and promotes that subject to `failed`, turning the merged
+# run red — which is the entire reason the merge job below exists and the reason
+# no shard job may be the gate.
+#
+# ## The two ways an operator's globs can be wrong, and what catches each
+#
+# **They overlap.** Two shards observe the same subject, the merge refuses naming
+# both files, and only the operator can resolve it — the tool cannot know which
+# of two observations of one subject was the one you meant.
+#
+# **They leave a gap.** Every shard excludes the subject, and the paragraph above
+# happens. Red, named, at the merge.
+#
+# Both are caught, which is why the globs below do not have to be proven a
+# partition before they are written. What is *not* caught is a shard that never
+# ran at all — see the guard in the merge job.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: variance-shards-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The shard list, in one place, emitted as data.
+  #
+  # It could be written inline as a `matrix:` literal, and then the merge job
+  # would have to be told how many shards to expect a second time. Two hardcoded
+  # counts that must agree, with nothing checking that they do, is how a shard
+  # gets deleted from the matrix and quietly stops being waited for.
+  prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      shards: ${{ steps.list.outputs.shards }}
+      count: ${{ steps.list.outputs.count }}
+    steps:
+      - id: list
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # `subjects` is a glob over subject **ids**, not over files. What an id
+          # looks like is the collector's business — `story:checkout--empty` from
+          # Storybook, a route path from the route collector — so a partition that
+          # made sense for one subject source is meaningless for another.
+          #
+          # Splitting by first letter is the example, not the advice. The useful
+          # split is by cost: the slowest shard sets the wall clock, and a suite
+          # where one component has 200 stories does not divide alphabetically.
+          shards='[
+            {"name": "a-h", "subjects": "*:[a-h]*"},
+            {"name": "i-p", "subjects": "*:[i-p]*"},
+            {"name": "q-z", "subjects": "*:[q-z]*"}
+          ]'
+
+          {
+            echo "shards=$(echo "$shards" | jq -c .)"
+            echo "count=$(echo "$shards" | jq 'length')"
+          } >> "$GITHUB_OUTPUT"
+
+  shard:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      # No `pull-requests: write` here, and that is the point of splitting the
+      # permissions per job rather than declaring them once at the top. A shard
+      # has nothing to say to the pull request — the docket is the merge's to
+      # post — so a shard job that tried would be doing something this workflow
+      # does not intend, with a token that cannot.
+      contents: read
+
+    strategy:
+      # Every shard runs, whatever the others did. The default would cancel the
+      # rest as soon as one failed, and a shard fails when it finds a change —
+      # which is a normal outcome here. Cancelling on it would produce a merged
+      # report missing the shards that were still running, i.e. the exact hole
+      # the merge job is built to refuse.
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.prepare.outputs.shards) }}
+
+    # Every shard in the same image, and this one is not optional the way the
+    # sweep's pin is. Shards whose renderer identity differs were not one run, and
+    # the merge refuses them naming both files (ADR-0011). A matrix that varied
+    # the image would produce three reports that cannot be added up.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --ipc=host
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: config
+        name: is there anything to observe
+        shell: bash
+        run: |
+          # TODO: point this and the `config:` input below at
+          # cases/storybook-case/variance.config.json, which is tracked, and add
+          # the Storybook build it reads; then delete this gate. While it looks at
+          # the repository root, every step below is skipped — no shard here has
+          # ever observed a subject.
+          if [ -f variance.config.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::no variance.config.json in this repository, so nothing was observed."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.config.outputs.present == 'true'
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - if: steps.config.outputs.present == 'true'
+        shell: bash
+        run: yarn build
+
+      - if: steps.config.outputs.present == 'true'
+        id: variance
+        uses: ./.github/actions/variance
+        with:
+          config: variance.config.json
+          profile: chromium
+          command: node packages/cli/dist/bin.js
+          subjects: ${{ matrix.shard.subjects }}
+
+          # Identical across shards, and it has to be: the merge refuses shards
+          # whose `--intent` differs, because a run's intent is what lets the
+          # verdict say *this is the change you said you were making*, and three
+          # shards claiming three intents were three runs.
+          intent: ${{ github.event.pull_request.title }}
+
+          # OFF, once per shard, and the reason is not the same as the gate's.
+          # There, one comment per run is what the marker keeps in place. Here,
+          # three shards commenting would produce three dockets each describing a
+          # third of the suite, and the marker would make them fight over one
+          # comment — each rewriting the last with a narrower answer.
+          comment: 'false'
+
+          # OFF, and it must stay off in a sharded workflow specifically. `accept
+          # --all` in a shard promotes what *that shard* observed, so three
+          # concurrent jobs would race to push three partial baseline commits to
+          # one branch. Approval belongs to a person, after the merged docket.
+          commit-baselines: 'false'
+
+      # The report, kept whole. `--format html` is not rendered per shard: image
+      # paths in it are relative to the report, and a page describing a third of
+      # the suite would look like a complete run with most of it missing.
+      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-shard-${{ matrix.shard.name }}
+          path: .variance/
+          # `error`, not `warn`. An absent report from a shard is the one hole the
+          # merge cannot reason about: a subject nobody observed is *missing* from
+          # every file rather than excluded in all of them, so the merged suite
+          # would simply be smaller and still green. Fail here, where the shard's
+          # own log says why.
+          if-no-files-found: error
+
+  merge:
+    needs: [prepare, shard]
+
+    # `always()`, and this is the load-bearing line of the file. A shard that
+    # found a change exits 1 and fails its own job; the default `needs` behaviour
+    # would then skip this job, and the suite's answer — the one that resolves the
+    # excludes and catches the subject nobody looked at — would never be computed
+    # for exactly the pull requests that needed it.
+    if: ${{ always() }}
+
+    runs-on: ubuntu-24.04
+
+    # No container. `report` and `comment` open nothing — no browser, no store, no
+    # network beyond the comment itself — so this job has no reason to pay for an
+    # image, and giving it one would invite somebody to run a subject here.
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: config
+        shell: bash
+        run: |
+          if [ -f variance.config.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::no variance.config.json in this repository, so there is nothing to merge."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.config.outputs.present == 'true'
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - if: steps.config.outputs.present == 'true'
+        shell: bash
+        run: yarn build
+
+      - if: steps.config.outputs.present == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: variance-shard-*
+          path: shards
+          # NOT `merge-multiple`. Every shard writes its report to the same path
+          # from its config, so flattening them into one directory would have each
+          # overwrite the last and leave one file where there should be three —
+          # and `variance report` over one file is a valid, quiet, wrong answer
+          # about the suite.
+          merge-multiple: false
+
+      - if: steps.config.outputs.present == 'true'
+        id: collect
+        name: every shard reported, or none of this is about the suite
+        shell: bash
+        env:
+          EXPECTED: ${{ needs.prepare.outputs.count }}
+        run: |
+          set -euo pipefail
+
+          # The report's filename comes from the config, through the same locator
+          # the action uses, rather than being guessed or re-declared here. A
+          # config that moved `report` would otherwise make this find nothing and
+          # report it as a missing shard.
+          report_path="$(node .github/actions/variance/locate-artifacts.mjs variance.config.json \
+            | sed -n 's/^report=//p')"
+          name="$(basename "$report_path")"
+
+          # A read loop rather than `mapfile` or `xargs -d`: both are fine on this
+          # runner and neither is portable, and the point of an example workflow
+          # is that it survives being pasted somewhere else. `IFS=` and `-r` are
+          # what keep a path with a space in it one path.
+          found=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && found+=("$line")
+          done < <(find shards -type f -name "$name" | sort)
+
+          echo "found ${#found[@]} of $EXPECTED shard report(s):"
+          printf '  %s\n' "${found[@]:-}"
+
+          # The guard the merge cannot do for itself. `variance report` resolves
+          # excludes against observations *in the files it was given*, so a shard
+          # whose job died — exit 2, a killed browser, a cancelled run — takes its
+          # slice out of the arithmetic entirely: those subjects are absent rather
+          # than excluded-everywhere, and the merged suite comes back smaller and
+          # green. Refusing here is how "a shard did not run" stops looking like
+          # "the suite is smaller than you thought".
+          if [ "${#found[@]}" -ne "$EXPECTED" ]; then
+            echo "::error::expected $EXPECTED shard reports and found ${#found[@]}; a shard that did not run removes its subjects from the merge instead of failing them, so this refuses rather than reporting about a suite it did not see."
+            exit 2
+          fi
+
+          # Newline-separated into one output, read back into an array by the
+          # steps below, so a path with a space cannot split into two arguments.
+          {
+            echo 'reports<<EOF'
+            printf '%s\n' "${found[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - if: steps.config.outputs.present == 'true'
+        id: report
+        name: variance report — the suite, not a slice
+        shell: bash
+        env:
+          REPORTS: ${{ steps.collect.outputs.reports }}
+        run: |
+          set -uo pipefail
+
+          reports=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && reports+=("$line")
+          done <<< "$REPORTS"
+
+          # This exit code is the check's colour. Not any shard's: each shard
+          # answered about its own slice and exited 0 for doing so correctly, and
+          # the promotion of an everywhere-excluded subject to `failed` happens
+          # here or nowhere.
+          if node packages/cli/dist/bin.js report \
+               --config variance.config.json "${reports[@]}"; then
+            code=0
+          else
+            code=$?
+          fi
+
+          echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+          echo "variance report exited $code"
+
+      - if: ${{ steps.config.outputs.present == 'true' && steps.report.outputs.exit-code != '2' }}
+        id: render
+        name: render one docket
+        shell: bash
+        env:
+          REPORTS: ${{ steps.collect.outputs.reports }}
+        run: |
+          set -euo pipefail
+
+          marker=$(node packages/cli/dist/bin.js comment --config variance.config.json --marker)
+          echo "marker=$marker" >> "$GITHUB_OUTPUT"
+
+          reports=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && reports+=("$line")
+          done <<< "$REPORTS"
+
+          # Naming reports replaces the configured one rather than adding to it,
+          # so this body is about the three shards and nothing else. The body is
+          # written even when empty: the poster distinguishes "nothing needs
+          # review" — which may clear a previous docket — from "the render never
+          # happened", which may not.
+          node packages/cli/dist/bin.js comment \
+            --config variance.config.json \
+            --body-file "$RUNNER_TEMP/variance-comment.md" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            "${reports[@]}"
+
+      - if: ${{ steps.config.outputs.present == 'true' && steps.report.outputs.exit-code != '2' }}
+        name: post the docket
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VARIANCE_MARKER: ${{ steps.render.outputs.marker }}
+        run: |
+          node .github/actions/variance/post-comment.mjs \
+            --body-file "$RUNNER_TEMP/variance-comment.md" \
+            --marker "$VARIANCE_MARKER"
+
+      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+        name: verdict
+        shell: bash
+        env:
+          CODE: ${{ steps.report.outputs.exit-code }}
+        run: |
+          case "${CODE:-}" in
+            0)
+              echo "nothing needs review, across every shard."
+              ;;
+            1)
+              echo "::error::variance found changes that need review; the docket is in the pull request comment. A subject listed as failed with no diff is one that every shard filtered out — that is a hole in the globs, not a change in the product."
+              exit 1
+              ;;
+            2)
+              echo "::error::the shards could not be merged into one answer. No verdict was reached about the suite. See the collect step."
+              exit 2
+              ;;
+            '')
+              echo "::error::the report step produced no exit code, so this workflow cannot say what happened."
+              exit 2
+              ;;
+            *)
+              echo "::error::variance exited $CODE, which is not one of its three codes; treating it as a failure."
+              exit "$CODE"
+              ;;
+          esac
