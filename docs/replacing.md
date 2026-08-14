@@ -41,10 +41,10 @@ test('the cart survives an empty basket', async ({ page, variance }) => {
 **What you get.** The failure names a component and a file instead of a number.
 The measured version of that difference, from
 [`examples/todomvc/src/observe.chromium.test.ts`](../examples/todomvc/src/observe.chromium.test.ts):
-1530 changed pixels become 5 regions across 3 components, one of which is the
-edit and two of which are collateral. You also get `incomparable` — a baseline
-painted by another machine is refused rather than diffed, which is the failure
-mode `maxDiffPixels` was raised to hide.
+1530 changed pixels become 5 regions across 3 components, two of which are causes
+and one of which merely reflowed around them. You also get `incomparable` — a
+baseline painted by another machine is refused rather than diffed, which is the
+failure mode `maxDiffPixels` was raised to hide.
 
 **What you lose.**
 
@@ -176,7 +176,7 @@ changed (exit 1)* on a build with one component edited, finding exactly the five
 stories that render it. Rendering stays yours, storage is a directory or git-LFS,
 and there is no per-snapshot meter.
 
-A story that declares its own viewport is now read at it — applied to the page
+A story that declares its own viewport is read at it — applied to the page
 before the story mounts, rather than recorded and ignored, which is the same
 correctness rule the URL path states above.
 
@@ -210,8 +210,10 @@ not worth the bill — and an accessibility lint that reads source, not renders.
 **What you get.** The two capabilities in this project that need no past to
 compare against: nine inspection rules that read one snapshot and name a
 component and a file, and a locale comparison that finds the string nobody
-translated and the box that stopped fitting. Both attach to the same record a
-comparison would, by the same provenance chain — which is the cleanest
+translated and the box that stopped fitting. The first comes from the run; the
+second is `compareLocales` in `core/judge`, called from a test that captures the
+subject twice ([spec 0008](specs/0008-locale-runs.md)). Both attach to the same
+record a comparison would, by the same provenance chain — which is the cleanest
 demonstration that the image is not the unit of review.
 
 **What you lose.** Nothing, and that is the point of the rung. What you do not

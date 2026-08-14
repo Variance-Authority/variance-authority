@@ -167,11 +167,12 @@ describe('the documented command line is the real one', () => {
  * measurements, and a measurement is a claim about a run rather than about the
  * repository as it stands.
  *
- * **"the other N" is read as N + 1**, because the root README says "this and the
- * other 68 markdown files" and is right. The alternative was to reword that
- * sentence so a simpler rule would accept it, which is the wrong direction: a
- * checker that quietly forces one phrasing is a checker that edits the prose it
- * was supposed to be checking.
+ * **"the other N" is read as N + 1**, because a page counting the rest of the
+ * repository from inside it writes "this and the other N markdown files" and is
+ * right. The alternative was to require the phrasing a simpler rule would accept,
+ * which is the wrong direction: a checker that quietly forces one phrasing is a
+ * checker that edits the prose it was supposed to be checking. No page is written
+ * that way, so the branch answers a phrasing rather than a line.
  */
 describe('a stated file count is the file count', () => {
   const STATED = MARKDOWN.flatMap((file) => {

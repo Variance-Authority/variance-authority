@@ -87,6 +87,12 @@ deletes the claim** rather than leaving it to be noticed.
 - **Commit to `main`.** No branch, no PR, unless asked.
 - **Absent is not empty** (ADR-0002). A thing the run could not determine is
   missing from the output, never zero, never `[]`.
+- **A package is named for what it is for** (ADR-0042), never for a library it
+  imports. A name comes from a requirement the manifest cannot state, from what
+  the thing is, or from a target, format or protocol it serves — a format is a
+  public interface and a library is not. `tools/boundaries.check.ts` refuses a
+  name that shares a word with one of its own third-party dependencies until
+  somebody has written down which of the two it is.
 - **Code-unit sorting.** Never `localeCompare` in anything that reaches a
   committed artifact — it makes byte-stability a promise about `LANG`.
 - **500 lines per file**, enforced by `tools/shape.check.ts`.

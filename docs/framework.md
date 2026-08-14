@@ -146,12 +146,11 @@ together.
 
 - **It is React.** `collect()` takes `wiringOf` as a callback, exactly as it takes
   `provenanceOf`, so another framework supplies its own — but no other
-  implementation exists today, and a page without one is absent from the band
-  rather than reported as unwired.
+  implementation exists, and a page without one is absent from the band rather
+  than reported as unwired.
 - **Nothing waits on these two.** Wiring and remounts are exports a caller uses.
-  The Suspense reader is the exception and is no longer one: every collector
-  waits for boundaries to settle before it reads, and refuses a subject that is
-  still showing a fallback
+  The Suspense reader is the exception: every collector waits for boundaries to
+  settle before it reads, and refuses a subject that is still showing a fallback
   ([`stabilization.md`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)).
   The commit tap is still an export, for the reason given there.
 - **A remount is not attributed to a line.** It names the component, its owner

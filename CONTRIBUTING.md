@@ -38,4 +38,6 @@ yarn vitest run examples/kitchen-sink/src/measure.chromium.test.tsx
 
 Unfinished product work lives in [`docs/specs`](docs/specs/README.md); the
 current implementation checkpoint lives in
-[`docs/context/checkpoint.md`](docs/context/checkpoint.md).
+[`docs/context/checkpoint.md`](docs/context/checkpoint.md). The standards a
+change is held to — where each kind of writing goes, how a status claim is
+recorded, and how a package is named — are in [`AGENTS.md`](AGENTS.md).

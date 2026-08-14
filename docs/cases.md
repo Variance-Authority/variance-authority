@@ -130,15 +130,17 @@ and ephemeral retention lets a side job run with nothing stored at all.
 
 **The thing that makes the choice cheap is not on this coin at all.** Chromatic
 needs TurboSnap — a module-graph walk, with a documented list of changes that
-defeat it — because a full run is billed and slow. Nothing equivalent exists here
-and nothing needs to: a `RenderDocument` is a complete statement of what would be
-painted, so if its digest matches the digest the stored baseline was painted from
-*under the same identity*, repainting can only reproduce the same image. The
-subject settles without a browser touching it
+defeat it — because a full run is billed and slow. No bundler graph is read here:
+a `RenderDocument` is a complete statement of what would be painted, so if its
+digest matches the digest the stored baseline was painted from *under the same
+identity*, repainting can only reproduce the same image. The subject settles
+without a browser touching it
 ([settle.ts](../packages/raster/src/settle.ts)). Collection is ~7.5 ms warm
 against ~65 ms to paint, so "300 subjects of which two changed" costs two paints,
 decided by content addressing after the fact rather than by a dependency graph
-guessed before it.
+guessed before it. Narrowing *before* collection reads the same store rather than
+a build: a baseline records the components its document rendered, so a diff skips
+the subjects none of them reach ([`selecting.md`](selecting.md)).
 
 ## Coin 3½ — who owns reproducibility
 
@@ -191,8 +193,8 @@ written under ([doctor.ts](../packages/cli/src/commands/doctor.ts)).
 **Here: big is affordable, and it is also readable.** The tier ladder means
 breadth costs collection rather than paint. The part that decides whether that is
 usable is what happens after: a suite split across CI jobs produces one report
-per shard, and a shard's exit code speaks only for its own slice. Both commands
-take the shards and answer about the suite —
+per shard, and a shard's exit code speaks only for its own slice. Both `variance
+report` and `variance comment` take the shards and answer about the suite —
 `variance report shard-*.json`
 ([merge.ts](../packages/cli/src/commands/merge.ts)) — and the merge refuses the
 pairs that were never one run rather than averaging them.
@@ -273,11 +275,14 @@ welds is a brochure.
 1. **No review UI is deployed.** `tribunal` is written; it has never been stood
    up, and standing it up needs a Cloudflare account. This is the axis these
    products are actually bought for.
-2. **No history row has ever been written.** The drift arithmetic, the store and
-   the wire protocol are all in [history](../packages/history); `variance accept`
-   explicitly refuses to record, because a row carries per-component band hashes
-   that a run report does not contain and cannot derive
-   ([accept.ts](../packages/cli/src/commands/accept.ts)).
+2. **The record is a service you run.** A run writes the observations and the
+   component hashes it blamed; `variance accept` writes the acceptance, one row
+   per `(subject, run)`, and the store joins them on that key — the split that
+   makes both halves possible, since a run cannot know whether anybody agreed and
+   the command cannot derive the hashes from a report
+   ([accept.ts](../packages/cli/src/commands/accept.ts)). Recurrence, churn and
+   drift are all answered from a [history](../packages/history) endpoint somebody
+   deploys.
 3. **No vendor fleet.** Coin 1, permanently.
 4. **No ignore or floating regions.** Coin 6.
 5. **One modern surface short.** Cypress, WebdriverIO and Appium are explicitly
@@ -287,8 +292,8 @@ welds is a brochure.
    browser, driven by Playwright, with the test body already in the page. The
    jsdom library path and the Playwright fixture both exist; nothing bridges the
    arrangement where the test code itself runs in the browser.
-6. **Nothing is published.** The 21 packages are MIT, carry a version and are no
-   longer private, and a pushed tag would send them to the registry
+6. **Nothing is published.** The 23 packages are MIT, carry a version and are not
+   private, and a pushed tag would send them to the registry
    ([release.yml](../.github/workflows/release.yml)) — no tag has been pushed,
    so obtaining this still means cloning the repository
    ([spec 0015](specs/0015-the-first-published-release.md)).

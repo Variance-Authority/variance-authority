@@ -13,7 +13,7 @@ The short version, before the detail:
 | | |
 |---|---|
 | **Code you write** | For Storybook or a set of served URLs, roughly five lines: a shipped collector plus the facts only you hold. For a Playwright suite, an import. For anything else, three seams — three methods, one and one — and the worked example that measured 341 lines |
-| **Packages you install** | Between one and four, chosen by what you already have |
+| **Packages you install** | Between one and five, chosen by what you already have |
 | **Suites supported today** | Storybook end to end with a shipped collector; a Playwright suite through a fixture where the test body is the collector; and any set of served URLs through a shipped route collector. Anything else through the same collector contract — the run takes its subject list from the collector, not from the config, so a new subject source needs no change here |
 | **What cannot enter** | An image this system did not paint. Deliberately, and the refusal is a named error |
 
@@ -26,7 +26,7 @@ operator supplies, named in a config file or passed as an argument.
 
 ### The collector — three methods
 
-`Collector` at `packages/cli/src/commands/collector.ts:109` is the half of a run this
+`Collector` at `packages/cli/src/commands/collector.ts:148` is the half of a run this
 project declines to write, and the reason is in the source above it: planning
 from a story index is generic because the index is a file with a documented
 shape, and *mounting* a project's components is not — it needs the project's own
@@ -39,15 +39,16 @@ close()    -> release whatever plan() opened
 ```
 
 The config names a module path, the CLI imports it by path, and that is the whole
-extension mechanism — `loadCollector` at `packages/cli/src/commands/collector.ts:226` is
+extension mechanism — `loadCollector` at `packages/cli/src/commands/collector.ts:306` is
 twenty-five lines of `import()` and a type check. Not a registry lookup, not a
 download, not a plugin protocol. "Every tool that has claimed otherwise grew a
 plugin system whose failures are undebuggable from either side."
 
-**Size, measured rather than estimated:** `cases/storybook-case/collector/` is
-341 lines across three files, 234 of them in the module the config names. An
-estimate of "about thirty lines" is optimistic by 8×, which is why the source
-comment carries the measurement rather than a guess.
+**Size, measured rather than estimated:** writing the Storybook case's collector
+by hand costs 234 lines in the module the config names, and 341 across three
+files once the page agent and its bundler are counted. An estimate of "about
+thirty lines" is optimistic by 8×, which is why the source comment carries the
+measurement rather than a guess.
 
 **That figure is the cost where no collector is shipped.** Storybook has one —
 [`@variance-authority/storybook-collector`](../packages/storybook-collector) — and
@@ -81,7 +82,7 @@ cycle fails at this boundary rather than three transports later.
 
 Attribution needs exactly two things per element: a component name, and a digest
 of what was passed in. `collect()` takes them as a caller-supplied callback
-(`packages/dom/src/collect.ts:52`), so the framework is not a property of the
+(`packages/dom/src/collect.ts:54`), so the framework is not a property of the
 approach — it is a count of implementations, of which there are two:
 
 | Source | Where | Cost |
@@ -103,9 +104,14 @@ evidence.
 There is no "public API" and no "internals" in this repository. The cut is
 different, and [ADR-0013](context/adr/0013-packages-are-named-for-their-requirements.md)
 states it: **the first cut between packages is what a consumer must supply.** A
-package is named for its requirement and holds only code that has it, so the
-question "what does this cost me" is answered by the package list rather than by
-a document that drifts from it.
+package holds only code that has one requirement, so the question "what does this
+cost me" is answered by the package list rather than by a document that drifts
+from it. What a package is *called* is the second question, and
+[ADR-0042](context/adr/0042-a-package-is-named-for-what-it-is-for.md) answers it:
+a name says what the package is **for** — a requirement the manifest cannot
+state, or what the thing is, or the format, protocol or target it serves. Never a
+library it imports, which the manifest already states and a later release can
+replace underneath the name.
 
 Read down the column you can satisfy:
 
@@ -114,38 +120,48 @@ Read down the column you can satisfy:
 | `core` | nothing | Always. The format, the differ, the docket, the rules |
 | `dom` | a DOM to read | You collect from jsdom or a live page |
 | `react` | a tree `react-dom` rendered | Provenance comes from fibers rather than attributes |
+| `jsx-source` | a build you control the JSX transform of, and a React runtime for it to resolve | The subject is a production build, where nothing captures the call site. No source file imports this one — a build setting resolves it |
 | `playwright` | a browser binary | You want this project to launch one |
-| `png` | — (owns `pngjs`, `pixelmatch`) | You compare images yourself |
+| `playwright-test` | a Playwright run with an opened `Page`, a non-null viewport, and a browser binary | A suite already navigates, authenticates and waits, so the test body is the collector and there is none to write |
+| `png` | a runtime with `Buffer` | You compare images yourself |
+| `png-sharp` | a runtime that can load a compiled native addon, on `sharp`'s published platform matrix — the one package where the vendor is the requirement | You compare images yourself and decoding is the cost — 90% of a comparison. The binary already depends on it and falls back to `png` when the addon will not load |
 | `raster` | nothing | Contracts, policies, ephemeral retention |
 | `store` | a directory you can write | Baselines live on a disk or in git-LFS |
 | `remote` | a service already running | Baselines or rendering live behind HTTP |
 | `history`, `server` | a database | How often a subject has flaked, and drift across runs — see [flows.md rung 5](flows.md#rung-5--history-recurrence-and-drift-across-runs) |
+| `tribunal` | a database, an object store, a `fetch` runtime, and two different bearer tokens | Reviewing and approving a build happens somewhere other than the pull request — see [flows.md rung 4](flows.md#rung-4--tribunal-the-review-loop) |
 | `report`, `mcp` | a disk / an agent | You read a run's output as a file or over MCP |
 | `session` | a DOM | One standing world instead of rinsing between subjects |
 | `storybook` | **nothing** | You read a story index. Not a browser: it names the three page methods it drives instead of importing a `Page` |
-| `cli` | all of the above | You want the binary rather than the library |
+| `storybook-collector` | a browser binary, and a Storybook built or already served | Storybook owns mounting, and you would rather not write the browser half yourself |
+| `route-collector` | a browser binary, and an application to reach or a static directory to serve | The subjects are pages your server already serves, so bundling, providers and routing are its problem rather than yours |
+| `sense` | a checkout you can read, with its dependencies installed | You want `--since` to narrow a run past the file that declares no component — this is the graph a change travels to reach one ([selecting.md](selecting.md#the-expensive-row-and-what-retires-it)) |
+| `cli` | a project config, plus the runtime resources it selects | You want the binary rather than the library |
 
 **The bill is demonstrated, not asserted.** Every example and case in this
-repository that uses the library rather than the binary depends on exactly the
-same four — `core`, `dom`, `react`, `playwright` — and nothing else at runtime.
-That is `examples/kitchen-sink`, `examples/todomvc` and `cases/incumbent-case`,
-three call sites that were written separately and converged.
+repository that uses the library rather than the binary depends at runtime on the
+same three — `core`, `dom`, `playwright` — and then on at most two more, both of
+them declinable rows in the table above: `react` where provenance comes from
+fibers, `png` where the call site compares the images itself. That is
+`examples/kitchen-sink`, `examples/todomvc`, `examples/readme-case` and
+`cases/incumbent-case`, four call sites written separately that converged on the
+same floor.
 
 Two entries deserve calling out because they are the rule working rather than
 paperwork:
 
-- **`observe` is not on the list.** It is the only package in the repository
-  where an order is hard-wired, it is named for being one composition, and
-  nothing below it imports it. A package claiming to be a tool while depending on
-  four requirements is a composition that has not admitted it; this one admits it
-  in its first paragraph.
+- **`observe` is the one package not on the list.** It is the only package in
+  the repository where an order is hard-wired, it is named for being one
+  composition, and nothing below it imports it. A package claiming to be a tool
+  while depending on four requirements is a composition that has not admitted
+  it; this one admits it in its first paragraph.
 - **The ephemeral store is in `raster` and the durable one is in `store`,** which
   reads oddly in a table of retention modes and is the honest placement: one
   needs a disk and the other does not. The mode whose argument is *no container,
   no pinned runner, no stored artifact* demonstrates that in the package graph
   instead of asserting it in a comment.
 
-**Nothing is published.** None of the 21 packages is `private: true` — each
+**Nothing is published.** None of the 23 packages is `private: true` — each
 carries MIT, version `0.0.0-beta.1` and a repository field, and a pushed `v*`
 tag would send every one of them to the registry
 ([release.yml](../.github/workflows/release.yml)). No tag has ever been pushed,
@@ -209,13 +225,13 @@ versioned by nobody.
 ```
 
 `ListSubjects packages/cli/src/config-sections.ts:96` is the arbitrary-suite path. The
-CLI branches to `planList`, at `packages/cli/src/commands/collector.ts:211`, and from
+CLI branches to `planList`, at `packages/cli/src/commands/collector.ts:267`, and from
 there the run is identical — same normalizer, same bands, same docket, same store.
 
 **The union is a much weaker constraint than it looks, and this is the
 most useful fact in the document.** `run()` never reads `config.subjects` — not
 once. The subject list is whatever `deps.collector.plan()` returns
-(`packages/cli/src/commands/run.ts:169`), and the loop iterates that. What the
+(`packages/cli/src/commands/run.ts:108`), and the loop iterates that. What the
 `kind` union actually decides is two things: which collector module to import,
 and which generic pre-plan to compute *for the collector's convenience*.
 
@@ -283,7 +299,7 @@ There is no ingest verb; the six the binary has are `run`, `accept`, `report`,
 This is the most concrete thing Argos does that this cannot — its CLI takes any
 PNG from anywhere — so it is worth being exact about whether it is a gap or a
 position. It is a position, and it is already written down at
-`packages/cli/src/commands/accept.ts:12`: **acceptance promotes an image the run
+`packages/cli/src/commands/accept.ts:13`: **acceptance promotes an image the run
 already produced, and never produces one.** A candidate whose sidecar is missing
 is refused by name rather than reconstructed, because an invented document digest
 would settle every future run to `unchanged` against an image nobody can

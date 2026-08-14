@@ -62,7 +62,7 @@ stores agreeing on a wrong answer is not a pass.
 | `@variance-authority/tribunal/testing` | Node 22 | D1 over `node:sqlite`, an in-memory bucket |
 
 **The table is for reading, not for slimming an install.** Everywhere else in
-this repository a package is named for its requirements because a *tool* that
+this repository a package is cut by its requirements because a *tool* that
 drags a browser or a socket in behind your back has decided something for you.
 This is not a tool. It is one service, deployed once, and a service is entitled to
 whatever it needs to serve — so React is an ordinary production dependency even

@@ -4,7 +4,7 @@ The axes on which this project could be shown to beat Percy, Chromatic, Argos an
 Applitools, stated as procedures rather than claims.
 
 Companion to [`comparison.md`](comparison.md), which
-states where each competitor currently wins and why most readers should buy one
+states where each competitor wins and why most readers should buy one
 of them. This document does not repeat that. It answers a narrower question:
 *if someone wanted to settle the disagreement with a number, what would they
 run?*
@@ -17,7 +17,7 @@ ranking in [§4](#4-ranking) is the useful part for anyone deciding what to buil
 next, and [§4.3](#43-where-the-two-rankings-disagree) is the part that argues
 against this project's own priorities.
 
-Three of the nine metrics cannot be run against this project today at all,
+Three of the nine metrics cannot be run against this project at all,
 because the code paths they would measure have never executed
 ([comparison §4](comparison.md#4-what-is-written-and-unrun)). That is stated per
 metric rather than collected into a caveat at the end.
@@ -180,7 +180,7 @@ regex scan misses components produced by a factory, assigned dynamically, or
 re-exported under another name, and can name a capitalised non-component. None of
 those have ever occurred in a measurement, because the only measurement resolved
 all three lines to one 143-line file that declares all seven of the example's
-components — so the component→*file* hop is currently untested by the one capture
+components — so the component→*file* hop is untested by the one capture
 that appears to test it.
 
 ### M2. Review items per real change
@@ -423,7 +423,7 @@ directory, or a crawler with no code changes at all. Argos is a CI step. All
 three are single-digit files and zero lines of operator-written code.
 
 **This project's current score is unbounded, and that is not a figure of speech.**
-Nothing is published. The 21 packages are MIT-licensed and none is `private`, but
+Nothing is published. The 23 packages are MIT-licensed and none is `private`, but
 no `v*` tag has ever been pushed, so the release workflow has never run and
 `@variance-authority/*` resolves to nothing from outside a clone
 ([spec 0015](specs/0015-the-first-published-release.md)). The operator's first
@@ -436,7 +436,7 @@ Everything else the metric rests on is in place.
 `cases/storybook-case/variance.config.json` is tracked, and the full cycle runs
 over a Storybook this project did not write — *12 new → 12 accepted → 12
 unchanged → 5 changed* ([comparison §4](comparison.md#4-what-is-written-and-unrun)).
-The manifests carry MIT and `0.0.0-beta.1` across 21 packages with no `private`
+The manifests carry MIT and `0.0.0-beta.1` across 23 packages with no `private`
 field. `@variance-authority/storybook-collector` ships what
 `cases/storybook-case/collector/index.mjs` would otherwise hand-write, which is
 the difference between five lines and 234. The distance to a bounded number is a
@@ -517,15 +517,16 @@ capture it — and the missing piece is the capture, not the key: Chromatic keys
 a stable story id and Argos to a test fingerprint, either of which could hold a
 token value.
 
-**And this project also scores zero today.** `hashComponents`,
-`observationsFrom` and `createHttpHistoryStore` are called by **no non-test code
-anywhere**; `variance accept` explicitly refuses to write history. There is a
-hashing tier, an arithmetic tier and a storage tier, and no wire between the
-first and the second. The 22px story has never once been produced by the
-pipeline.
+**And this project has never produced the number either.** The tiers are wired: a
+run records each subject's component hashes and the design tokens it resolved,
+`variance accept` records the acceptance separately, and a token taking a value
+the record has not seen comes back as a `DRIFT:` line
+([`history.md`](history.md#how-far-a-token-has-drifted)). The eleven cycles are an
+`it.todo` in `cases/storybook-case/src/cli.chromium.test.js`, against a deployed
+`@variance-authority/server`.
 
-**Cost to measure.** Unmeasurable until that wire exists. After it does, the
-experiment itself is cheap — a scripted history and one query.
+**Cost to measure.** A deployed history service, a scripted history of K commits,
+and one query. The experiment is cheap; the deployment is the price.
 
 **What would mean we lose.** Two things, and the second is the serious one:
 
@@ -591,7 +592,7 @@ is the finding.
 
 | Rank | Metric | Why | Main risk |
 |---|---|---|---|
-| 1 | **M7** cause/collateral ranking | Nobody attempts it, and the null model is measurably wrong (area outranks the real edit ~6×). Needs no competitor account | N = 1 today. Generality unmeasured |
+| 1 | **M7** cause/collateral ranking | Nobody attempts it, and the null model is measurably wrong (area outranks the real edit ~6×). Needs no competitor account | N = 1. Generality unmeasured |
 | 2 | **M1** file attribution, page-level stratum | Three competitors are at a structural zero; Chromatic collapses on this stratum | `named-wrong` on a regex scan meeting third-party code for the first time |
 | 3 | **M2b** grouping precision | An exact root id versus a shape heuristic, on the case designed to break heuristics | `buildDocket` tested at 3 subjects; Applitools not measurable |
 | 4 | **M4a** false alarm, rasterization causes | Structural, and already measured: 177 px and 3015 px on the pixel arm, unmoved here | Reindentation is a known loss on the same corpus |
@@ -599,8 +600,8 @@ is the finding.
 | 6 | **M3** CI machine-seconds | The cheap tier is genuinely cheap | Only comparable against Argos; total cost of ownership is the number buyers use and it is unmeasurable in advance |
 | 7 | **M5** cross-machine | Coin flip | The repository has pre-committed that a bad result refutes ADR-0010. Fonts are a string, not a content hash |
 | 8 | **M4b** false miss | Lost on non-DOM strata by construction | — |
-| 9= | **M8** drift | Unmeasurable: nothing has ever recorded a row | — |
-| 9= | **M6** time-to-first-verdict | Unbounded today. Licensed, versioned and publishable; no published package | — |
+| 9= | **M8** drift | Unmeasurable until a history service is deployed and eleven approvals have gone through it | — |
+| 9= | **M6** time-to-first-verdict | Unbounded: licensed, versioned and publishable, but no published package | — |
 | — | **M9** blind spots | Designed to be lost. Only the completeness claim is falsifiable | Two gaps found in one afternoon |
 
 ### 4.2 By how much a buyer cares
@@ -641,7 +642,7 @@ that anyone wanted it.
 
 **The inverse zone: M6 and M4.** Ranked 1 and 2 on buyer care, ranked 9= and 8
 on likelihood of winning. The axes that decide purchases are the axes this
-project currently fails, and the failures are not subtle: there is no evaluation
+project fails, and the failures are not subtle: there is no evaluation
 path at all, and the false-alarm rate has never been measured while one false
 alarm is demonstrated.
 

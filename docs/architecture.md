@@ -30,6 +30,11 @@ supports are individual tricks, each declaring the cheapest tier that can observ
 its effect and the property it governs. A recipe is a list of them. Two tricks
 over one property is a conflict to report, not a precedence rule to invent.
 
+Every kind here is asked about a subject that already exists. Which subjects are
+worth asking about is settled before any of them runs, out of the components a
+stored baseline recorded and the files a change reaches in source
+([selecting.md](selecting.md)).
+
 ## What flows between them
 
 Values, never handles. Every tool takes and returns something serializable, which
@@ -93,12 +98,15 @@ end. The pieces below the one they replace do not know.
 **The first cut between packages is what a consumer must supply, not what the
 code does.**
 
-A box is named for its requirement, and code that needs one requirement may not
-sit with code that needs another. Storybook support does not belong with
-Playwright helpers — not because they are different features, but because a
-Storybook user would then install a browser and a Playwright user would install a
-Storybook adapter, and neither asked for the other. What something *does* is the
-second cut, made inside a box with entrypoints.
+A box is named for what it is for — a requirement the manifest cannot state, what
+the thing is, or a target, format or protocol it serves, never a library it
+imports ([ADR-0042](context/adr/0042-a-package-is-named-for-what-it-is-for.md)).
+Code that needs one requirement may not sit with code that needs another.
+Storybook support does not belong with Playwright helpers — not because they are
+different features, but because a Storybook user would then install a browser and
+a Playwright user would install a Storybook adapter, and neither asked for the
+other. What something *does* is the second cut, made inside a box with
+entrypoints.
 
 | package | requires | holds |
 |---|---|---|
@@ -107,11 +115,17 @@ second cut, made inside a box with entrypoints.
 | `report` | nothing | what a run leaves behind, so several readers can share one shape |
 | `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
 | `storybook` | nothing | a project's own stories as a subject list |
+| `storybook-collector` | a browser, and a Storybook built or already served | the browser half: each story opened, made ready, and collected |
+| `route-collector` | a browser, and an application to reach or a directory to serve | pages an application already serves, opened and collected |
+| `sense` | a readable checkout | the source read rather than run: one record per file, and the probes that mark which regions a run entered |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |
 | `react` | React internals | fibers → owner chains, props digests, portals |
+| `jsx-source` | a JSX transform you control, and a React runtime | the file and line that wrote an element, carried as far as the DOM node |
 | `session` | a live DOM | many subjects in one standing world |
 | `playwright` | a browser | the persistent harness, and a renderer |
+| `playwright-test` | a browser, and a Playwright test run | one fixture and one matcher, in a test that is already the collector |
 | `png` | a PNG codec | decoding, comparison, the diff image |
+| `png-sharp` | a runtime that can load a native addon, and a platform published for it | the same comparison, with the decoding done natively |
 | `store` | a filesystem | baselines on disk, and in git-LFS |
 | `remote` | a socket | a renderer and a store on the other side of a hop |
 | `server` | a database | the history service the operator runs |
@@ -130,10 +144,12 @@ host it currently runs on
 ([ADR-0023](context/adr/0023-a-service-is-named-for-what-it-is.md)), which is why
 the row does not say `cloudflare`.
 
-Five boxes require nothing at all. That is the same distribution the tool table
-shows, arrived at from the other end, and it is what makes the cheap tiers cheap
-in practice rather than only on paper: running the ephemeral retention mode pulls
-in no filesystem and no socket, because the mode does not have one.
+Five boxes require nothing at all, and hash, compare and isolate — the three
+kinds the tool table shows needing nothing — all live in one of them. That is the
+same economic argument arrived at from the other end, and it is what makes the
+cheap tiers cheap in practice rather than only on paper: running the ephemeral
+retention mode pulls in no filesystem and no socket, because the mode does not
+have one.
 
 Entrypoints are the second cut. `store/lfs` needs a `git`; `history/client`
 needs a network; `server/sqlite` needs `node:sqlite`; `report/file` needs a disk;
@@ -148,8 +164,10 @@ Two consequences worth stating, because they are the ones that get argued about:
   produces small boxes, and a small box with one requirement is better than a
   large one with four.
 - **The rule is enforced, not documented.** `tools/boundaries.check.ts` fails when
-  an import is undeclared, a declaration is unused, a third-party requirement
-  is reached through by adopter-facing code, the production graph gains a cycle, or an advertised
+  an import is undeclared, a declaration is unused, a name shares a word with one
+  of the outside libraries the package depends on and nobody has written down
+  which of the two it is, a third-party requirement is reached through by
+  adopter-facing code, the production graph gains a cycle, or an advertised
   entrypoint does not resolve. It found four packages' worth of drift the first
   time it ran.
 

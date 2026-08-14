@@ -117,7 +117,7 @@ representative sample of anyone else's suite, and they ran on one machine.
 [Journal 0014](docs/context/journal/0014-the-incumbent.md) records the two times
 the measurement corrected this project's own expectations.
 
-The broader corpus currently scores 38/38 under `jsdom` and 39/39 under
+The broader corpus scores 38/38 under `jsdom` and 39/39 under
 Chromium. It remains the only corpus of its kind in the repository. The
 measurement and the evidence still missing are tracked in
 [`docs/metrics.md`](docs/metrics.md).
@@ -167,7 +167,7 @@ is the artifact that matters.
 
 These are the current package boundaries, not hypothetical presets.
 `@variance-authority/playwright-test` is a one-package integration. Storybook
-and route adoption currently require the shared CLI plus one collector package;
+and route adoption require the shared CLI plus one collector package;
 the collector owns how the UI becomes ready, while the CLI owns baselines,
 reports, acceptance, and CI exit codes.
 

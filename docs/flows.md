@@ -23,7 +23,7 @@ less. What changes is what you can *ask*, and who can answer.
 | 2. Shared cache | a CI cache | cold runners stop re-rendering; documents, so the docket ranks by cause | **no** — [spec 0011](specs/0011-storage-and-cache-primitives.md) |
 | 3. Remote baselines | one service, one token | no bot commits, no LFS quota | yes |
 | 4. Tribunal | a database and a bucket, two tokens | a review UI, approval without a commit | the surface ships; **nothing posts a build to it** |
-| 5. History | a history endpoint | recurrence of a flake; drift across runs | a run records and asks about flakes; **drift has no caller** — [spec 0002](specs/0002-history-store.md) |
+| 5. History | a history endpoint | recurrence of a flake; drift across runs | a run records and asks; flake rate, churn and token drift reach the report; **`reach` has no caller** — [spec 0002](specs/0002-history-store.md) |
 
 ## Rung 0 — ephemeral: nothing is stored
 
@@ -44,7 +44,7 @@ subject** — the revision under test and the one to compare against. No store, 
 bucket, no credentials, no container, nothing committed. That is genuinely no
 infrastructure, and it is not no work: a collector that can mount only the current
 checkout does not satisfy this rung. Every subject it cannot supply a `before` for
-is recorded `failed` with that as the reason (`packages/cli/src/commands/observe-one.ts:52`),
+is recorded `failed` with that as the reason (`packages/cli/src/commands/observe-one.ts:67`),
 so the run reports nothing about it rather than reporting it clean.
 
 **You get regression detection — this is a comparison rung, and the cheapest one.**
@@ -210,8 +210,8 @@ write half.
 
 **And the docket here leads with causes only when something supplied them.** The
 mechanism is worth stating exactly, because the obvious explanation is wrong: the
-run passes `collected.causes` on the durable path and the ephemeral path on
-identical terms (`packages/cli/src/commands/observe-one.ts:70` and `:122`), so nothing
+run passes `collected.causes` on the ephemeral path and the durable path on
+identical terms (`packages/cli/src/commands/observe-one.ts:88` and `:177`), so nothing
 in the retention mode suppresses them. What is missing is a wire *back*. Causes
 are derived by diffing two **snapshots**, and a durable baseline is an image, so a
 collector reaching this rung has nothing to derive them from and supplies none —
@@ -221,11 +221,13 @@ records as measured backwards by 6×.
 
 Two consequences follow, and neither is "the durable path cannot rank". A
 collector that can reach the previous revision's document — the same thing rung 0
-requires — can supply causes here today, unchanged. And **no collector ships at
-all**: the one in the tree is a case fixture that declines to supply causes and
-says so in a comment, so "supplies none" describes what has been written rather
-than what the code permits. Rung 2 is what would make it the default rather than
-the adopter's problem, and it is the one that is not built.
+requires — can supply causes here today, unchanged. And **no collector that ships
+supplies them**: `@variance-authority/storybook-collector` declines and says so in
+a comment (`packages/storybook-collector/src/index.ts:423`), while the contract
+carries the field (`packages/cli/src/commands/collector.ts:112`) — so "supplies
+none" describes what has been written rather than what the code permits. Rung 2
+is what would make it the default rather than the adopter's problem, and it is
+the one that is not built.
 
 ## Rung 5 — history: recurrence, and drift across runs
 
@@ -237,15 +239,16 @@ happening for a month* or *nine sweeps have been clean since*
 ([`flakiness.md`](flakiness.md),
 [ADR-0032](context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md)).
 
-**Drift has its rows and not its readers.** `variance accept` records the
-acceptance — a row per `(subject, run)`, because an append-only store cannot flip
-a flag — and a run records the design tokens it resolved, so the twenty-two-pixel
-story this rung exists for is reachable. A run also asks how often each component it
-blamed has changed before, and — when a design token resolves to something the
-record has not seen — what that token has drifted to across every approved change
-in the window. That last one is the sum no review holds: eleven correct approvals
-of 2px each are eleven correct decisions and one 22px change nobody made. What is
-missing is `reach`, which asks about the suite rather than about this run. See
+**Both sides of a drift row are written, and the run asks for the sum.**
+`variance accept` records the acceptance — a row per `(subject, run)`, because an
+append-only store cannot flip a flag — and a run records the design tokens it
+resolved, so the twenty-two-pixel story this rung exists for is reachable. A run
+also asks how often each component it blamed has changed before, and — when a
+design token resolves to something the record has not seen — what that token has
+drifted to across every approved change in the window. That last one is the sum
+no review holds: eleven correct approvals of 2px each are eleven correct
+decisions and one 22px change nobody made. What is missing is `reach`, which
+asks about the suite rather than about this run. See
 [spec 0002](specs/0002-history-store.md).
 
 Worth stating anyway, because it is the only rung that answers a question the
