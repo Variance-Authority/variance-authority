@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Raster } from '@variance-authority/core';
-import { neverFails } from '@variance-authority/raster';
+import { neverFails, RasterStoreError, REFUSAL } from '@variance-authority/raster';
 import type { Described, Found, RasterStore } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 
@@ -248,6 +248,14 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
  * re-records whatever is on screen and destroys the baseline it was supposed to
  * compare against, which is the same failure the remote store refuses.
  *
+ * A {@link RasterStoreError} rather than a plain one, because the fault is in the
+ * checkout and not in the subject. `run` routes that type to the operator exit and
+ * takes any other throw as being about the component it was observing, so a plain
+ * error reports every subject that reaches this method as `failed` and exits 1 —
+ * a verdict on code nobody has touched, where spec 0018 asks for exit 2. Not every
+ * subject on the clone: `describe` settles the ones whose document did not move
+ * without ever looking a raster up, which is the cost admitted above.
+ *
  * Only the pointer signature is rejected. Anything else is passed through
  * untouched, so this store does not quietly acquire a stricter idea of what a
  * raster may contain than the store it delegates to.
@@ -258,19 +266,10 @@ function refuseAPointer(raster: Raster, what: string): void {
   const head = Buffer.from(raster.bytes.slice(0, 60), 'base64').toString('utf8');
   if (!head.startsWith(POINTER_PREFIX)) return;
 
-  // FIXME: this is a plain `Error`, so `run`'s per-subject catch takes it as being
-  // about the subject and records `failed` — on an unsmudged clone that is every
-  // subject, and the run exits 1, a verdict, for a checkout the operator has to
-  // fix. Spec 0018 asks for exit 2. `RasterStoreError` from
-  // `@variance-authority/raster` is the class `run.ts` routes there, and this file
-  // already imports from that package.
-
-  throw new Error(
+  throw new RasterStoreError(
     `${what} is a git-LFS pointer, not an image. The file was checked out without ` +
       'git-lfs installed, so the working tree holds the pointer text where the PNG ' +
-      'should be. Run `git lfs install && git lfs pull`. Refusing to treat this as a ' +
-      'missing baseline, because recording a new one would overwrite the baseline ' +
-      'this run was supposed to compare against.',
+      `should be. Run \`git lfs install && git lfs pull\`. ${REFUSAL}.`,
   );
 }
 

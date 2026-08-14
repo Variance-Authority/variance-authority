@@ -4,8 +4,8 @@
 **Date:** 2026-08-14
 **Relates to:** [ADR-0006](0006-host-free-core.md),
 [ADR-0038](0038-a-change-reaches-a-component-through-files.md),
-[`packages/oxc/src/read.ts`](../../../packages/oxc/src/read.ts) (the reader),
-[`packages/oxc/src/cache.ts`](../../../packages/oxc/src/cache.ts) (what is cached),
+[`packages/sense/src/read.ts`](../../../packages/sense/src/read.ts) (the reader),
+[`packages/sense/src/cache.ts`](../../../packages/sense/src/cache.ts) (what is cached),
 [`docs/specs/0025-component-relations.md`](../../specs/0025-component-relations.md)
 
 ## Context

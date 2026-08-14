@@ -122,7 +122,7 @@ line is the only thing in the run that tells you which file to fix to make the
 next run smaller — and a count would tell you there is nothing to be done.
 
 What the scan reads, and where it stops, is
-[`packages/oxc`](../packages/oxc). The graph itself is data: fold the records
+[`packages/sense`](../packages/sense). The graph itself is data: fold the records
 into it, walk it, ask it things. The traversals live in
 [`core/relate`](../packages/core/src/relate) and open nothing, so a repository
 that already computes its own dependency graph can feed this from that instead.
@@ -213,7 +213,7 @@ second run onward.
 ---
 
 **Further:** [`flows.md`](flows.md) for where baselines live ·
-[`packages/oxc`](../packages/oxc) for what the scan reads and where it stops ·
+[`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
 [`packages/cli`](../packages/cli) for the rest of the command line ·
 [`comparison.md §2`](comparison.md#chromatic) for what TurboSnap does that this
 does not.

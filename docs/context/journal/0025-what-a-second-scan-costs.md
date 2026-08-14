@@ -13,7 +13,7 @@ implementation.
 ## The reproduction
 
 ```bash
-yarn workspace @variance-authority/oxc bench
+yarn workspace @variance-authority/sense bench
 ```
 
 One Mac, one sitting, two runs back to back. The tree is generated and committed

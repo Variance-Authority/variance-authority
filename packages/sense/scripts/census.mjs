@@ -24,7 +24,7 @@
  * hundred files of real TypeScript, against fixtures that only cover what somebody
  * thought to write down.
  *
- * Run:  yarn workspace @variance-authority/oxc census
+ * Run:  yarn workspace @variance-authority/sense census
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core';
 import { identityDigest } from '@variance-authority/core';
+import { RasterStoreError } from '@variance-authority/raster';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
 
 /**
@@ -234,6 +235,13 @@ describe('a clone without git-lfs', () => {
       'oid sha256:4d7a2145b0d3f1e2c4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7\nsize 1024\n';
     await writeFile(join(root, identityDigest(MAC), 'todo--empty.png'), pointer, 'utf8');
 
+    // The class as much as the message: `run` routes a `RasterStoreError` to the
+    // operator exit and reads any other throw as a fact about the subject it was
+    // observing. A plain error here is every subject that gets as far as a lookup
+    // recorded `failed` and the run exiting 1 — a verdict, for a checkout.
+    await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toBeInstanceOf(
+      RasterStoreError,
+    );
     await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
       /git-LFS pointer, not an image/,
     );

@@ -1,5 +1,5 @@
 /**
- * `@variance-authority/oxc` — the file graph, read off a disk.
+ * `@variance-authority/sense` — the file graph, read off a disk.
  *
  * [`core/relate`](../../core/src/relate) holds the structure and answers the
  * questions; it performs no I/O and depends on nothing (ADR-0006). This is the

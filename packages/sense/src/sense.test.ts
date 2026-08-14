@@ -188,7 +188,7 @@ describe('scanning a tree', () => {
   let root: string;
 
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), 'variance-oxc-'));
+    root = await mkdtemp(join(tmpdir(), 'variance-sense-'));
 
     await write(root, 'package.json', '{ "name": "fixture", "type": "module" }');
     await write(root, 'design/tokens.css', ':root { --accent: rebeccapurple; }');

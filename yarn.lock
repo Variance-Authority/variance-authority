@@ -2418,6 +2418,7 @@ __metadata:
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/remote": "workspace:^"
     "@variance-authority/report": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
     "@variance-authority/store": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
   bin:
@@ -2547,16 +2548,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/oxc@workspace:packages/oxc":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/oxc@workspace:packages/oxc"
-  dependencies:
-    "@variance-authority/core": "workspace:^"
-    oxc-parser: "npm:^0.144.0"
-    oxc-resolver: "npm:^11.24.2"
-  languageName: unknown
-  linkType: soft
-
 "@variance-authority/playwright-test@workspace:packages/playwright-test":
   version: 0.0.0-use.local
   resolution: "@variance-authority/playwright-test@workspace:packages/playwright-test"
@@ -2656,6 +2647,16 @@ __metadata:
     react-18: "npm:react@^18.3.1"
     react-dom-18: "npm:react-dom@^18.3.1"
     vite: "npm:^6.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/sense@workspace:^, @variance-authority/sense@workspace:packages/sense":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/sense@workspace:packages/sense"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    oxc-parser: "npm:^0.144.0"
+    oxc-resolver: "npm:^11.24.2"
   languageName: unknown
   linkType: soft
 

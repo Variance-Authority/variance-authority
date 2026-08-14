@@ -23,7 +23,7 @@ dist
 # The two copies of `dist` the probe-overhead benchmark compares. Inside the
 # package because a bare specifier only resolves from somewhere `node_modules` is
 # reachable, and removed in a `finally` — this catches an interrupted run.
-packages/oxc/.overhead-*
+packages/sense/.overhead-*
 
 # Test + capture artifacts
 .variance/

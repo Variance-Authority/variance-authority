@@ -272,6 +272,44 @@ describe('source stays greppable', () => {
   });
 });
 
+/**
+ * The packages whose name collides with a dependency's, and why each is right.
+ *
+ * A name may come from a requirement the manifest cannot state, from what the
+ * thing is, or from a target it serves — never from a library it imports
+ * ([ADR-0042](../docs/context/adr/0042-a-package-is-named-for-what-it-is-for.md)).
+ * Only the third kind can collide, because the suite a package plugs into is
+ * usually also the package that suite ships, so a collision has to be argued
+ * rather than assumed.
+ *
+ * The sentence is the entry. One that could be written about the library instead
+ * of the target is the one that is wrong, and it is the only thing standing
+ * between this list and the exemption list it must never become.
+ */
+const SERVES: Record<string, string> = {
+  '@variance-authority/playwright':
+    'a Playwright suite, whose requirement is a browser binary an install does not fetch',
+  '@variance-authority/playwright-test':
+    'a run of the Playwright test runner, entered through its fixture protocol',
+  '@variance-authority/png-sharp':
+    "a runtime that can load a compiled native addon, on sharp's published platform matrix — " +
+    'the vendor is the requirement here, which is what makes this the one exception',
+};
+
+/** `playwright-test` from `@playwright/test`, `sharp` from `sharp`. */
+function shortName(specifier: string): string {
+  return specifier.startsWith('@') ? specifier.split('/').slice(1).join('-') : specifier;
+}
+
+/** Every third-party dependency sharing a hyphen-separated word with the name. */
+function vendorsInName(workspace: Workspace): string[] {
+  const words = new Set(shortName(workspace.name).split('-'));
+
+  return Object.keys(workspace.manifest.dependencies ?? {})
+    .filter((dependency) => !dependency.startsWith('@variance-authority/'))
+    .filter((dependency) => shortName(dependency).split('-').some((word) => words.has(word)));
+}
+
 describe('every package says what it is', () => {
   it.each(ALL.map((workspace) => [workspace.name, workspace] as const))(
     '%s has a README',
@@ -311,6 +349,33 @@ describe('every package says what it is', () => {
       expect(restated).toEqual([]);
     },
   );
+
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s is not named for a library it imports',
+    (_name, workspace) => {
+      // The rule above says the *requirement paragraph* may not name a
+      // dependency. This says the same of the name over it, and they are not the
+      // same rule: `packages/oxc` stated its requirement correctly — a readable
+      // checkout — and was still named for its parser
+      // ([ADR-0042](../docs/context/adr/0042-a-package-is-named-for-what-it-is-for.md)).
+      // A collision is not automatically wrong — a package may be named for the
+      // suite it plugs into, which is usually also the package that suite ships.
+      // It is wrong until somebody writes down which of the two it is.
+      expect(vendorsInName(workspace).length === 0 || workspace.name in SERVES).toBe(true);
+    },
+  );
+
+  it('finds the collisions, so the list of arguments cannot describe nothing', () => {
+    const colliding = PACKAGES.filter((workspace) => vendorsInName(workspace).length > 0).map(
+      (workspace) => workspace.name,
+    );
+
+    // Equality in both directions on purpose. A missing entry is the rule not
+    // being applied; a surviving entry for a package that no longer collides is
+    // an argument nobody is making any more, and that is how an exemption list
+    // starts.
+    expect(colliding.sort()).toEqual(Object.keys(SERVES).sort());
+  });
 
   it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
     '%s documents every entrypoint it advertises',

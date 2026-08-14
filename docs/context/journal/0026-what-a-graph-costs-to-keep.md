@@ -8,7 +8,7 @@ before anything was chosen.
 ## The reproduction
 
 ```bash
-yarn workspace @variance-authority/oxc storage
+yarn workspace @variance-authority/sense storage
 ```
 
 Takes a file count as its argument and defaults to 200,000 — a synthetic graph of

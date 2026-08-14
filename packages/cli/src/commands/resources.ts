@@ -206,11 +206,11 @@ export async function scanSourceDirs(
 export async function relationsFor(root: string, dirs: readonly string[]): Promise<Relations> {
   let scanner;
   try {
-    scanner = await import('@variance-authority/oxc');
+    scanner = await import('@variance-authority/sense');
   } catch (error) {
     throw new OperatorError(
       'config sets `source.relations` and the scanner could not be loaded: ' +
-        `${messageOf(error)}. Install \`@variance-authority/oxc\`, or remove the key to ` +
+        `${messageOf(error)}. Install \`@variance-authority/sense\`, or remove the key to ` +
         'select by declaration alone.',
       { cause: error },
     );

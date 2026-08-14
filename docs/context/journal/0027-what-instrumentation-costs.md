@@ -10,15 +10,15 @@ the question.
 ## The reproduction
 
 ```bash
-yarn workspace @variance-authority/oxc build
+yarn workspace @variance-authority/sense build
 ```
 
 ```bash
-yarn workspace @variance-authority/oxc census
+yarn workspace @variance-authority/sense census
 ```
 
 ```bash
-yarn workspace @variance-authority/oxc overhead
+yarn workspace @variance-authority/sense overhead
 ```
 
 ```bash
@@ -33,29 +33,29 @@ suite itself, run through the transform.
 ## The probe set is 0.4× Istanbul
 
 ```
-297 product files, 0 unparseable, instrumented and re-parsed in 223 ms
+300 product files, 0 unparseable, instrumented and re-parsed in 224 ms
 
-  module           297    3.0%
-  function        2449   25.1%
-  branch          3688   37.8%
-  continuation    2038   20.9%
-  resume           490    5.0%
-  loop             551    5.6%
-  case             111    1.1%
+  module           300    3.0%
+  function        2486   25.1%
+  branch          3734   37.7%
+  continuation    2065   20.8%
+  resume           490    4.9%
+  loop             559    5.6%
+  case             141    1.4%
   handler          134    1.4%
-  TOTAL           9758
+  TOTAL           9909
 
-  32.9 probes per file
+  33.0 probes per file
 
   Istanbul, by its own rules on the same tree:
-    statements   13100
-    functions     2449
-    branches      8935
-    counters     24484
+    statements   13325
+    functions     2486
+    branches      9057
+    counters     24868
 
-  0.745x its statements
-  0.399x every counter it inserts
-  expression-position decisions would add 5145 probes — 0.609x
+  0.744x its statements
+  0.398x every counter it inserts
+  expression-position decisions would add 5191 probes — 0.607x
 ```
 
 The comparator is Istanbul's *rule*, not Istanbul's output: its visitor list is
@@ -65,9 +65,15 @@ applied to the same `oxc` trees. It is a ratio between two models and does not
 need Babel installed to be worth having.
 
 The function column matching exactly is structural, not a finding: both models give
-every function one entry site. The whole saving is that 13,100 statements collapse
-into 2,038 continuation regions, because a run of statements with no decision in it
+every function one entry site. The whole saving is that 13,325 statements collapse
+into 2,065 continuation regions, because a run of statements with no decision in it
 is one region and one arrival condition.
+
+The corpus is this repository, so the absolute counts move whenever a file is added
+and the reading above is the one taken on the day the ratio was pre-registered. The
+ratio is what was being tested and the ratio is what holds: 0.40× at 297 files and
+0.40× at 300. Anywhere the figure is load-bearing rather than illustrative, the
+command is cited instead of its output.
 
 The census re-parses every instrumented file and fails on the first that no longer
 compiles. Three hundred files of real TypeScript is a far broader correctness check
@@ -114,7 +120,14 @@ is that the probes are under the resolution of the measurement.
 What that still excludes is worth carrying: the warm arm does no parsing at all, so
 nearly every millisecond is this package's own instrumented JavaScript, and 545,000
 increments land in it per run without moving the clock past the noise. A probe
-costs **under 1.2 ns**.
+costs **under 1.2 ns** on this reading.
+
+That last figure is a division, not a measurement: the increments are counted and
+the time they could be hiding in is whatever the control band leaves unaccounted,
+so the bound tightens or loosens with the machine's noise on the day. A later run
+on the same tree put it at 2.7 ns by the same arithmetic, on a quieter control. The
+result being reported is the one that does not move — probed and unprobed are not
+separable at this resolution — and the nanosecond figure is its shadow.
 
 The two arms differ only in how diluted the instrumented code is. Cold spends most
 of its time inside the native parser, which carries no probes — which is also why a

@@ -5,7 +5,7 @@
       "path": "./packages/core"
     },
     {
-      "path": "./packages/oxc"
+      "path": "./packages/sense"
     },
     {
       "path": "./packages/raster"

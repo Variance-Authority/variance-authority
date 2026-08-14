@@ -5,7 +5,7 @@
 **Relates to:** [ADR-0006](0006-host-free-core.md),
 [ADR-0018](0018-a-component-hash-covers-its-own-nodes.md),
 [`packages/core/src/relate/graph.ts`](../../../packages/core/src/relate/graph.ts) (the structure),
-[`packages/oxc`](../../../packages/oxc) (the scan),
+[`packages/sense`](../../../packages/sense) (the scan),
 [`packages/cli/src/commands/affected.ts`](../../../packages/cli/src/commands/affected.ts) (the decision),
 [`packages/cli/src/commands/changes.ts`](../../../packages/cli/src/commands/changes.ts) (nx and turbo),
 [`docs/selecting.md`](../../selecting.md)

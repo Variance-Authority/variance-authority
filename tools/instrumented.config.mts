@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { instrument } from '../packages/oxc/dist/instrument/index.js';
+import { instrument } from '../packages/sense/dist/instrument/index.js';
 
 /**
  * The same suite, with every product file instrumented.
@@ -16,7 +16,7 @@ import { instrument } from '../packages/oxc/dist/instrument/index.js';
  * [spec 0027](../docs/specs/0027-a-test-is-selected-by-what-it-executed.md), and
  * no other component can measure it.
  *
- * Run:  yarn workspace @variance-authority/oxc differential
+ * Run:  yarn workspace @variance-authority/sense differential
  *
  * `enforce: 'post'` is load-bearing twice over. It puts this after esbuild, so the
  * probes land on JavaScript rather than on TypeScript nobody will run; and it puts

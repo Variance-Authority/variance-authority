@@ -1,24 +1,11 @@
 /**
  * The walk that decides where a probe goes, and what the region behind it is called.
  *
- * One rule generates the whole set: **a block is a region with exactly one arrival
- * condition**, and a probe is placed only where control can diverge. Entering a
- * `try` block is implied by entering the region around it, so it gets nothing;
- * entering its `catch` is not, so it gets a probe. A loop body may run zero times.
- * The code after an `if` is not implied by the code before it, because a branch may
- * have left. That test — *does reaching here follow from reaching the enclosing
- * region* — is the whole of the design, and it is why this is not statement
- * coverage under another name.
- *
- * ## What is deliberately not a decision
- *
- * Ternaries, `&&`, `||`, `??` and `?.` belong to the region that contains them
- * ([spec 0028](../../../../docs/specs/0028-the-instrument.md)). For
- * `if (order.isPremium && order.total > 100)` the fact worth recording is which
- * branch ran, not which operand short-circuited, and a change to either operand
- * still reaches every test that evaluated the condition — through the region the
- * condition sits in. They are priced in the census and deliberately not taken
- * first.
+ * Two questions, one descent, because neither can be answered without the other's
+ * state: `if#1/then` is numbered within the path that contains it and against the
+ * scope that opened it, and both are only known while standing in them. The rule
+ * this applies — one arrival condition per region — and the vocabulary it produces
+ * are in [`blocks.ts`](./blocks.ts).
  *
  * ## Nothing is re-printed
  *
@@ -34,74 +21,10 @@
  * that reason alone.
  */
 
-/** What kind of region a probe stands in front of. */
-export type BlockKind =
-  | 'module'
-  | 'function'
-  | 'branch'
-  | 'continuation'
-  | 'resume'
-  | 'loop'
-  | 'case'
-  | 'handler';
-
-/**
- * One observed region.
- *
- * `name` and `path` are the two halves of identity that survive an edit above them;
- * `start` and `end` are offsets into the *original* source, which is what a diff
- * hunk lands on. A synthesized region — the `else` of a bare `if`, a `default`
- * nobody wrote — has no source, so its two offsets are equal.
- */
-export interface Block {
-  readonly ordinal: number;
-  readonly kind: BlockKind;
-  /** Declaration name path: `Cart/render/anon#0`, `applyTier/reduce.arg0`. */
-  readonly name: string;
-  /** Structural path inside that declaration: `if#0/else`, `switch#1/case#2`. */
-  readonly path: string;
-  readonly start: number;
-  readonly end: number;
-}
-
-/** One insertion, at an offset in the original source. */
-export interface Edit {
-  readonly at: number;
-  readonly text: string;
-}
-
-export interface Walked {
-  readonly blocks: readonly Block[];
-  readonly edits: readonly Edit[];
-  /** Where the header goes: after directives, imports and hoisted mocks. */
-  readonly prologue: number;
-}
-
-/**
- * The two shapes a recording call takes, supplied by whoever owns the runtime.
- *
- * Splitting them is not decoration: most probes sit in statement position and
- * their value is discarded, but the one after an `await` wraps an expression whose
- * value has to reach the code that wanted it. A caller that could only produce the
- * first would have to re-print the awaited expression to record the second.
- */
-export interface Probes {
-  /** One recording expression, evaluated for effect. */
-  readonly hit: (ordinal: number) => string;
-  /** Text spliced before and after an expression whose value must survive. */
-  readonly around: (ordinal: number) => readonly [string, string];
-}
-
-/** The tree as it is actually read — by name, one level at a time. */
-interface Node {
-  readonly type: string;
-  readonly start: number;
-  readonly end: number;
-  readonly [key: string]: unknown;
-}
+import type { Block, BlockKind, Edit, Node, Probes } from './blocks.js';
 
 /** A scope for names, carried down so a nested function knows what contains it. */
-interface Scope {
+export interface Scope {
   /** The declaration name path built so far. */
   readonly name: string;
   /** Step counters keyed by structural path, so numbering stays local to a parent. */
@@ -131,92 +54,7 @@ const LOOPS = new Set([
   'DoWhileStatement',
 ]);
 
-/** Calls vitest hoists above everything, so a header must not land in front of them. */
-const HOISTED = new Set(['mock', 'doMock', 'unmock', 'hoisted']);
-
-const scope = (name: string): Scope => ({ name, counts: new Map(), anon: { at: 0 } });
-
-/**
- * Every block in a program, and the insertions that record them.
- *
- * `probes` supplies the *text* of a recording call — the caller owns the runtime,
- * so this stays a pure function of the tree and can be exercised with a counter
- * array and nothing else.
- */
-export function walkBlocks(tree: unknown, probes: Probes): Walked {
-  // One cast, at the boundary. `oxc`'s `Program` is a closed type per node kind and
-  // this walk reads by name across every kind, so a union of two hundred interfaces
-  // would be narrowed back to `unknown` at the first property access anyway.
-  const program = tree as Node;
-  const walker = new Walker(probes);
-
-  /** The module's own initialization region. Ordinal 0, always, in every file. */
-  walker.open('module', scope(''), 'module', program.start, program.end);
-  walker.list(program.body as readonly Node[], scope(''));
-
-  return { blocks: walker.blocks, edits: walker.edits, prologue: prologueEnd(program) };
-}
-
-/**
- * The offset after the last statement nothing may be inserted in front of.
- *
- * A directive loses its meaning the moment a statement precedes it, and vitest
- * hoists `vi.mock` in its own transform — which runs *before* this one — so a
- * header at offset 0 would sit above a mock and change evaluation order. Import
- * declarations are included because they are the ordinary case and stepping past
- * them costs nothing.
- */
-function prologueEnd(program: Node): number {
-  let at = (program.hashbang as Node | null | undefined)?.end ?? 0;
-
-  for (const statement of program.body as readonly Node[]) {
-    if (!isPrologue(statement)) return statement.start;
-    at = statement.end;
-  }
-
-  return at;
-}
-
-function isPrologue(statement: Node): boolean {
-  switch (statement.type) {
-    case 'ImportDeclaration':
-    case 'ExportAllDeclaration':
-    case 'TSImportEqualsDeclaration':
-      return true;
-    case 'ExportNamedDeclaration':
-      return statement.source !== null && statement.source !== undefined;
-    case 'ExpressionStatement': {
-      const expression = statement.expression as Node;
-      // A directive prologue, or a hoisted mock.
-      return expression.type === 'Literal'
-        ? typeof (expression as { value?: unknown }).value === 'string'
-        : isHoistedCall(expression);
-    }
-    case 'VariableDeclaration':
-      // `const spy = vi.hoisted(() => …)` moves with the mocks.
-      return (statement.declarations as readonly Node[]).every((declarator) =>
-        isHoistedCall(declarator.init as Node | null),
-      );
-    default:
-      return false;
-  }
-}
-
-function isHoistedCall(node: Node | null | undefined): boolean {
-  if (node?.type !== 'CallExpression') return false;
-
-  const callee = node.callee as Node;
-  if (callee.type !== 'MemberExpression') return false;
-
-  const object = callee.object as Node;
-  const property = callee.property as Node;
-
-  return (
-    object.type === 'Identifier' &&
-    ['vi', 'jest'].includes(String(object.name)) &&
-    HOISTED.has(String(property.name))
-  );
-}
+export const scope = (name: string): Scope => ({ name, counts: new Map(), anon: { at: 0 } });
 
 /**
  * The recursive descent itself.
@@ -226,7 +64,7 @@ function isHoistedCall(node: Node | null | undefined): boolean {
  * probe: the list knows there is a following statement, the decision knows what it
  * is called, and neither can work it out alone.
  */
-class Walker {
+export class Walker {
   readonly blocks: Block[] = [];
   readonly edits: Edit[] = [];
 
@@ -275,6 +113,12 @@ class Walker {
       case 'ClassExpression':
         this.descend(node, this.named(node, at, hint), path);
         return undefined;
+      // TODO: `ConditionalExpression` and `LogicalExpression` fall through to
+      // `descend`, so `a ? b : c` and `x ?? y` belong to the region containing
+      // them and no run can say which side was taken — needs an outcome region in
+      // expression position. The `census` script prices it against Istanbul's
+      // counters, and the price is not repeated here because it is a figure over
+      // this repository's own source and moves every time a file is added.
       default:
         break;
     }

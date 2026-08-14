@@ -1,11 +1,12 @@
-# @variance-authority/oxc
+# @variance-authority/sense
 
 **Requires:** the repository on a disk this process can read, in the state its
 imports were written against — dependencies installed, so a bare specifier
 resolves to something, and any `tsconfig.json` whose `paths` the source relies on
 present where the source expects it.
 
-What a change could have moved, read from source.
+What this project can tell about a codebase by reading it rather than by running
+it: what a change could have moved, and what a run actually crossed.
 
 ## The question
 
@@ -27,8 +28,8 @@ This package walks those hops.
 | entrypoint | requires | holds, and when you want it |
 |---|---|---|
 | `.` | a readable checkout | the scan: walk the configured roots, resolve what they import, follow it, and produce one record per file. This is the one to take. |
-| `@variance-authority/oxc/read` | nothing but a string | the two readers, without a disk. Take it when the file contents come from somewhere else — a bundler plugin, an editor buffer, an already-open VFS — and only the specifier extraction is wanted. |
-| `@variance-authority/oxc/instrument` | nothing but a string | the transform that records which regions a run entered. A different question from the rest of this package: not *what could a change reach* but *what did execution actually cross*. Take it in a bundler plugin. |
+| `@variance-authority/sense/read` | nothing but a string | the two readers, without a disk. Take it when the file contents come from somewhere else — a bundler plugin, an editor buffer, an already-open VFS — and only the specifier extraction is wanted. |
+| `@variance-authority/sense/instrument` | nothing but a string | the transform that records which regions a run entered. A different question from the rest of this package: not *what could a change reach* but *what did execution actually cross*. Take it in a bundler plugin. |
 
 ## What it produces, and who answers with it
 
@@ -39,7 +40,7 @@ so a repository that already computes its own dependency graph can produce
 records from that instead and every answer downstream is identical.
 
 ```ts
-import { scanRelations } from '@variance-authority/oxc';
+import { scanRelations } from '@variance-authority/sense';
 import { movedBy, relationsOfFiles } from '@variance-authority/core';
 
 const relations = relationsOfFiles(await scanRelations({ root: '.', dirs: ['src'] }));
@@ -56,7 +57,7 @@ the first one — it is the one after a one-line edit. Three things arrive alrea
 known, and each removes a layer:
 
 ```ts
-import { openParseCache, openRecordCache, scanRelations } from '@variance-authority/oxc';
+import { openParseCache, openRecordCache, scanRelations } from '@variance-authority/sense';
 
 // Anywhere outside the work tree. The CLI puts both under `XDG_CACHE_HOME`,
 // keyed by repository root.
@@ -78,7 +79,7 @@ of the bytes, so it is additionally keyed by a digest over the repository's path
 set and resolution settings: any file appearing, disappearing or moving costs one
 full scan, and every run that only edits files costs the diff.
 
-30,500 files and 40,479 edges, one Mac, `yarn workspace @variance-authority/oxc bench`:
+30,500 files and 40,479 edges, one Mac, `yarn workspace @variance-authority/sense bench`:
 
 | | cost | what it did |
 |---|---|---|
@@ -153,7 +154,7 @@ other half — *what did execution actually cross* — by splicing a recording c
 front of every execution boundary.
 
 ```ts
-import { instrument } from '@variance-authority/oxc/instrument';
+import { instrument } from '@variance-authority/sense/instrument';
 
 // undefined if the source could not be parsed — *not instrumented* is a report,
 // and an empty block list would read as *not executed*.
@@ -184,11 +185,11 @@ It is presence, not path: a counter per region, no stack, so it answers *this te
 entered this block* and not yet *by what route*.
 
 ```bash
-yarn workspace @variance-authority/oxc census
+yarn workspace @variance-authority/sense census
 ```
 
 ```bash
-yarn workspace @variance-authority/oxc overhead
+yarn workspace @variance-authority/sense overhead
 ```
 
 The first counts what it would place across a real repository and prices it against

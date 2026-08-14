@@ -39,7 +39,7 @@
       "path": "../packages/observe"
     },
     {
-      "path": "../packages/oxc"
+      "path": "../packages/sense"
     },
     {
       "path": "../packages/playwright"

@@ -18,8 +18,8 @@
  * being measured are git's own and a tree with no `HEAD` would silently take the
  * cold path in every arm.
  *
- * Run:  yarn workspace @variance-authority/oxc bench
- *       yarn workspace @variance-authority/oxc bench 40000
+ * Run:  yarn workspace @variance-authority/sense bench
+ *       yarn workspace @variance-authority/sense bench 40000
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

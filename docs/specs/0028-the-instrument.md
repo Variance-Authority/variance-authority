@@ -1,7 +1,7 @@
 # Spec 0028 — the instrument that records the path, not the percentage
 
 **Missing:** the worker runtime's maintained stack, the runner seams, and every
-consumer. `@variance-authority/oxc/instrument` emits presence probes and the two
+consumer. `@variance-authority/sense/instrument` emits presence probes and the two
 numbers that decide [0027](0027-a-test-is-selected-by-what-it-executed.md) —
 probe density and instrumented overhead — are measured below, but nothing
 records *how* a block was reached and `variance` has no command that runs a test
@@ -29,26 +29,27 @@ project is not worth building, and no other component can tell us that.
 ## What would discharge it
 
 **1. The probe set, and it is smaller than statement coverage by design.**
-Measured over this repository's 297 product files by
-`yarn workspace @variance-authority/oxc census`: **9,758 probes**, 32.9 per file.
-Istanbul's own visitor rules, counted on the same trees, put **24,484** counters
-in the same code — 13,100 statements, 2,449 functions, 8,935 branches. This is
-**0.399× every counter it inserts**, and 0.745× its statements alone.
+Istanbul's own visitor rules, counted on the same trees, put **2.5× as many**
+counters in the same code: this is **0.40× every counter it inserts**, and 0.74×
+its statements alone. The ratio is the claim, and it is what holds still —
+`yarn workspace @variance-authority/sense census` prints it beside the absolute
+counts, which are a figure over this repository's own source and move whenever a
+file is added. The table below is one such reading, at 300 product files.
 
 | Probe | Count | What it means |
 |---|---|---|
-| module | 297 | the module's top level evaluated |
-| function entry | 2,449 | entered, and owns every statement before the first decision |
-| branch outcome | 3,688 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
-| continuation | 2,038 | the region *after* a decision, up to the next one |
+| module | 300 | the module's top level evaluated |
+| function entry | 2,486 | entered, and owns every statement before the first decision |
+| branch outcome | 3,734 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
+| continuation | 2,065 | the region *after* a decision, up to the next one |
 | `await` resume | 490 | execution came back — the stack after is not the stack before |
-| loop body | 551 | the body was entered at least once |
-| `switch` case | 111 | per clause, plus a synthesized `default` where none is written |
+| loop body | 559 | the body was entered at least once |
+| `switch` case | 141 | per clause, plus a synthesized `default` where none is written |
 | handler | 134 | `catch` and `finally` |
 
 The function count matching Istanbul's exactly is not a coincidence and not a
 result: both give every function one entry site. The saving is entirely in the
-other two columns — 13,100 statements collapse to 2,038 continuations, because a
+other two columns — 13,325 statements collapse to 2,065 continuations, because a
 run of statements with no decision in it is one region.
 
 **A decision carries no probe of its own.** Its outcomes do. A bare
@@ -58,8 +59,9 @@ must reach every test that ever evaluated it.
 **Ternaries, `&& || ??` and `?.` are not decisions in v1**, and this is the
 brief's own rule: for `if (order.isPremium && order.total > 100)` the fact worth
 recording is which branch ran, not which operand short-circuited. They belong to
-their containing region. The census prices them: **5,145 more probes**, moving
-the density to 0.609× — a real option, priced, and deliberately not taken first.
+their containing region. The census prices them: **roughly half as many probes
+again**, moving the density from 0.40× to 0.61× — a real option, priced, and
+deliberately not taken first.
 Mark the site with `// TODO:` rather than a paragraph.
 
 **2. Span-based insertion, not a re-print.** `oxc-parser` gives a full AST with
@@ -73,13 +75,16 @@ of counters indexed by block ordinal, plus a maintained stack so each crossing
 records *how it was reached*. Exception correctness is required — an unwound
 frame must pop.
 
-The counters half is built and measured. `yarn workspace @variance-authority/oxc
+The counters half is built and measured. `yarn workspace @variance-authority/sense
 overhead` instruments a copy of this package's own build, runs its scan against a
 generated tree, and — this is the part that makes the ratio readable — measures a
 *third*, uninstrumented copy the same way, so every ratio is reported beside the
 noise floor of the machine it was taken on. At 545,000 increments per run against
-uninstrumented code, the probes cost **under 1.2 ns each** and the ratio is inside
-the band a second identical build produces against the first.
+uninstrumented code, the probed copy lands **inside the band a second identical
+build produces against the first**. That is the claim. The per-increment figure it
+implies is low single-digit nanoseconds, and it is a bound set by the noise floor
+rather than by the probe, so it moves between readings and the command is cited
+instead of a number.
 
 **The stack half is not built, so its cost is not claimed.** It is the part that
 can be expensive — a push and a pop per region, and a `try/finally` around every

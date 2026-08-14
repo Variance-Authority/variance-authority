@@ -5,9 +5,9 @@
 **Relates to:** [ADR-0004](0004-defer-native-acceleration.md),
 [ADR-0038](0038-a-change-reaches-a-component-through-files.md),
 [ADR-0039](0039-the-digest-is-the-proof-the-trail-is-the-explanation.md),
-[`packages/oxc/src/tree.ts`](../../../packages/oxc/src/tree.ts) (the digests),
-[`packages/oxc/src/cache.ts`](../../../packages/oxc/src/cache.ts) (the parses),
-[`packages/oxc/src/reuse.ts`](../../../packages/oxc/src/reuse.ts) (the records),
+[`packages/sense/src/tree.ts`](../../../packages/sense/src/tree.ts) (the digests),
+[`packages/sense/src/cache.ts`](../../../packages/sense/src/cache.ts) (the parses),
+[`packages/sense/src/reuse.ts`](../../../packages/sense/src/reuse.ts) (the records),
 [journal 0025](../journal/0025-what-a-second-scan-costs.md)
 
 ## Context
@@ -70,7 +70,7 @@ records on every run.
 ## Consequences
 
 **A warm scan costs the diff rather than the repository.** Measured on this
-repository, one Mac, `yarn workspace @variance-authority/oxc bench`
+repository, one Mac, `yarn workspace @variance-authority/sense bench`
 ([journal 0025](../journal/0025-what-a-second-scan-costs.md)): 95 ms to name
 30,501 files, 3002 ms cold, 657 ms with parses remembered, 236 ms with records
 remembered too, and 236 ms for the run after a one-file edit — the edit is inside

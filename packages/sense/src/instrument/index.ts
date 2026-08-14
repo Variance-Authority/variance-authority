@@ -1,5 +1,5 @@
 /**
- * `@variance-authority/oxc/instrument` — the transform that records the path.
+ * `@variance-authority/sense/instrument` — the transform that records the path.
  *
  * A pure function of a string: `instrument(source, id)` parses, decides where the
  * execution boundaries are ([`blocks.ts`](./blocks.ts)), and splices a recording
