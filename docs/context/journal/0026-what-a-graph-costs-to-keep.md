@@ -88,7 +88,7 @@ target's export rows → `from` when the export is a republication:
 ```
 
 The 95 that did not are the deliberate rings, stopped by the 16-hop bound. This is
-the step [`docs/specs/0025-component-relations.md`](../specs/0025-component-relations.md)
+the step [`docs/specs/0025-component-relations.md`](../../specs/0025-component-relations.md)
 was waiting on, and at 0.2 µs it does not need its own index.
 
 ## Walking the reverse graph

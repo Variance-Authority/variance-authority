@@ -70,9 +70,10 @@ the module record never saw). Collapsing them would make "binds nothing" mean
 **An export with no name is not an export of nothing.** `export * from './x'`
 publishes whatever the other file publishes. It is carried as an export row with
 the name absent, and a consumer asking *does this file export `Card`* has to
-follow `from` rather than answer no. This is [ADR-0002](0002-absent-is-not-empty.md)
-in name space rather than file space, and it is the reason the star is not simply
-dropped as uninformative.
+follow `from` rather than answer no. This is
+[ADR-0008](0008-per-profile-expectations.md) in name space rather than in
+observation, and it is the reason the star is not simply dropped as
+uninformative.
 
 **A mock is built on top, not stored as a field.** `jest.mock('./b')` cuts an
 edge, and cutting edges is real. It is not a column on a request, because the
