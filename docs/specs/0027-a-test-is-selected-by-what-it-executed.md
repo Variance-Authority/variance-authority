@@ -7,7 +7,7 @@ The vacancies it splits into are [0028](0028-the-instrument.md),
 [0029](0029-what-a-run-remembers.md) and [0030](0030-a-diff-lands-on-blocks.md).
 
 **Built on:** [`selecting.md`](../selecting.md) (the static selector this
-narrows, and the hole it names),
+narrows, and the forks it cannot see the outcome of),
 [ADR-0038](../context/adr/0038-a-change-reaches-a-component-through-files.md)
 (the file graph),
 [ADR-0041](../context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)
@@ -21,11 +21,14 @@ answer, which is why an unobserved block is never an empty one).
 
 [`selecting.md`](../selecting.md) answers *which subjects could this diff have
 moved* by walking a file graph backwards from a diff. It over-includes on every
-uncertainty, it refuses rather than narrowing, and it works. It also names its
-own hole, in its own words: **a component imported but never rendered.**
+uncertainty, it refuses rather than narrowing, and it works. One of those
+inclusions is not a hedge it chose: rendering is a series of choices, and a graph
+over imports reads **every choice as though it went both ways.** A test that
+enters the file and never takes the branch that renders `Button` is selected by a
+change to `Button`, and nothing static says the render did not happen.
 
-That hole is the whole product. A file graph knows what *could* reach what. It
-cannot know what *did*, so it answers every question at the granularity of a
+That inclusion is the whole product. A file graph knows what *could* reach what.
+It cannot know what *did*, so it answers every question at the granularity of a
 file and at the confidence of an import. Three consequences, each ordinary:
 
 **A barrel makes everything reach everything.** One `export *` and the graph

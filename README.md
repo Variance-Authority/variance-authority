@@ -92,10 +92,10 @@ This is affordable because a green run pays nothing: a subject whose document
 digest already matches its baseline's is settled without a render, so the budget
 goes to the subjects that moved. The same discipline of one variable runs across
 the other axes too — the suite compared to itself at one commit, and a record
-across runs. [`docs/instruments.md`](docs/instruments.md) is the full set, with
-where each claim is measured and where three of them are built and unrun;
-[`docs/flakiness.md`](docs/flakiness.md) is the position underneath it, including
-the four causes of variance nothing here absorbs.
+across runs kept by a service you deploy.
+[`docs/instruments.md`](docs/instruments.md) is the full set, with where each
+claim is measured; [`docs/flakiness.md`](docs/flakiness.md) is the position
+underneath it, including the four causes of variance nothing here absorbs.
 
 ## Evidence, with its limits attached
 

@@ -305,8 +305,9 @@ pollution becomes a read-write conflict with a named writer:
 Measured at **3.4× faster** than rinsing, with the probe costing **~2%** of
 session time. Details in [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md).
 
-**A `variance run` does not do that.** The probe is a package nothing depends on.
-What a run does instead is cheaper and more general:
+**A `variance run` does not do that.** It calls the adopter's collector once per
+subject, and the mount a probe would bracket happens inside that call, in a world
+the collector owns. What a run does instead is cheaper and more general:
 
 > **A subject whose change is gone when it is collected alone was moved by the
 > session, not by an edit.**
@@ -316,6 +317,9 @@ shared render is already cached, so a red one pays a single render per subject,
 capped by `alone.limit`. The result is reported as `order-dependent` rather than
 `changed`, and **`accept` refuses it** — promoting it would make the leak the
 baseline, and the subject would compare clean for as long as the leak survived.
+The clean world is the collector's to build, like the shared one: a fourth method
+on [the contract](surface.md#1-the-three-things-you-write), optional because a
+collector holding one page open across every subject has none to give.
 
 This catches the case the probe's own confirmation tier cannot. `verify()`
 re-runs a subject **in the same session**: it varies time and holds the world

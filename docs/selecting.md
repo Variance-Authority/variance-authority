@@ -196,15 +196,20 @@ a different graph. Deleting them costs one cold scan and nothing else.
 
 ## What this does not reach
 
-**A component imported but never rendered.** The graph answers *which components
-a change reaches*; the subject side of the question is still what the last run
-painted. So a subject that would **newly** render `Button` after this change — a
-conditional branch nothing has ever taken — is not selected by a change to
-`Button`, with `relations` on or off, because no baseline records a component
-that has never appeared. A bundler graph over stories catches that case and this
+**A fork that has never gone the other way.** Rendering is a series of choices —
+this branch, that child, or none — and a baseline records the ones that were
+made. The graph answers *which components a change reaches*; the subject side of
+the question is still what the last run painted. So a subject that would
+**newly** render `Button` after this change — a branch no run has taken — is not
+selected by a change to `Button`, because a component that has never appeared is
+in no baseline to be matched against. `relations` does not change it: the graph
+widens what a change reaches, and never what a subject is known to have rendered.
+No observation closes that, however closely a run is watched — a record holds
+what happened, and this render did not. A bundler graph over stories reaches it,
+because on the subject side it too reads imports rather than a record, and this
 does not. What holds the line is the row above it: a change the selection cannot
 attribute runs everything, and a new branch usually arrives with an edit to the
-file that renders it.
+file that decides it.
 
 **A first run.** Nothing has baselines, so nothing can be ruled out, and the
 whole suite runs. That is correct and worth expecting: `--since` pays from the

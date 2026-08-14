@@ -6,6 +6,12 @@ page.
 
 Run many subjects in one standing world.
 
+A session is the **runner**, not an instrument bolted onto one: it creates the
+container, subjects arrive through `session.run`, and taking it means writing your
+collection around it rather than adding a probe to a loop you already have. The
+detector below is a passenger on that: it brackets the mount, so it can only see
+the subjects that went through here.
+
 ## The saving, and what it buys with
 
 Nothing is torn down between subjects: no fresh jsdom per file, no browser per
@@ -32,7 +38,12 @@ derived from its own capture. Which turns *"these tests are flaky in CI"* into:
             cannot reach `story:card`
 ```
 
-Isolation is an enemy of cost. Attribution is not.
+Isolation is an enemy of cost and detection is not, which is the half that
+generalises. Naming the writer is the narrow half: a `via:` line can only ever be
+something the document can read about itself — a stylesheet, a root custom
+property, an attribute on the root or body, a stray body child, the title. That
+set was chosen for cost and it is the right set for the cost; it is also a small
+fraction of the ways one subject reaches another.
 
 See [ADR-0009](../../docs/context/adr/0009-sessions-detect-instead-of-rinse.md).
 
@@ -76,9 +87,22 @@ promise; `run` awaits it and stays entirely synchronous when it does not, becaus
 the synchronous path is the overwhelming majority and the package exists to be
 cheap.
 
-## Honest limit
+## Honest limits
 
-**Module-level state is outside the probe.** A singleton store or a cached client
-cannot be seen. Confirmation still catches the symptom — the same subject
-producing a different hash with no code change — and attribution correctly
-reports no culprit rather than inventing one.
+**Detection generalises; attribution does not.** Module-level state — a singleton
+store, a cached client, a memoized selector, a mocked clock — is outside the DOM
+and so outside the probe, and there is no stack to fall back on: the write
+happened during an earlier subject's render, in a frame that returned before this
+subject was ever compared. Confirmation still catches the symptom, the same
+subject producing a different hash with no code change, and attribution reports no
+culprit rather than inventing one.
+
+**Confirmation varies time and holds the world fixed.** Re-running a subject in
+the same session proves it is unstable; a leak that happens *every* time renders
+the same wrong way in both passes and never moves the hash, so one the probe
+never saw either is reported as nothing at all. That is the two limits composing,
+and it is the kind that becomes a false regression rather than a flake. Catching
+it means varying the world instead — collecting the subject in one nothing else
+has touched, which is what a `variance run` asks its collector for when a
+subject's pixels moved
+([spec 0012](../../docs/specs/0012-order-dependence-in-a-run.md)).

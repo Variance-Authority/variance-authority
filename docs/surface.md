@@ -131,7 +131,7 @@ Read down the column you can satisfy:
 | `history`, `server` | a database | How often a subject has flaked, and drift across runs — see [flows.md rung 5](flows.md#rung-5--history-recurrence-and-drift-across-runs) |
 | `tribunal` | a database, an object store, a `fetch` runtime, and two different bearer tokens | Reviewing and approving a build happens somewhere other than the pull request — see [flows.md rung 4](flows.md#rung-4--tribunal-the-review-loop) |
 | `report`, `mcp` | a disk / an agent | You read a run's output as a file or over MCP |
-| `session` | a DOM | One standing world instead of rinsing between subjects |
+| `session` | a DOM, and a `mount` function you write | One standing world instead of rinsing between subjects, and the loop the subjects arrive through is yours |
 | `storybook` | **nothing** | You read a story index. Not a browser: it names the three page methods it drives instead of importing a `Page` |
 | `storybook-collector` | a browser binary, and a Storybook built or already served | Storybook owns mounting, and you would rather not write the browser half yourself |
 | `route-collector` | a browser binary, and an application to reach or a static directory to serve | The subjects are pages your server already serves, so bundling, providers and routing are its problem rather than yours |
@@ -289,7 +289,7 @@ what it returns.
 
 ---
 
-## 4. What cannot enter, and what the binary cannot reach
+## 4. What cannot enter, and where the binary stops
 
 ### An image this system did not paint
 
@@ -323,21 +323,33 @@ What remains is a pixel count and some region clustering, which is the incumbent
 Accepting foreign PNGs would not extend this tool; it would offer a second,
 worse tool under the same command name.
 
-### Three things the library can do and the binary cannot
+### Three seams the library opens, and what the binary does with each
 
-The distinction matters when reading §6's flexibility claim, because each of
-these is a seam that is open in the library and closed in the CLI. A composition
-of your own reaches all three; `variance run` reaches none.
+The distinction matters when reading §6's flexibility claim. A composition of
+your own reaches all three; `variance run` reaches the first, leaves the second
+to an operator's own HTTP call, and cannot reach the third without taking the
+loop from the caller.
 
 | | The library | The binary |
 |---|---|---|
 | **A renderer across a network** | `connectRenderer` in `remote` satisfies the same contract, identity-guarded | **Reachable.** `"renderer": { "endpoint": … }` selects it, and `"browser": "chromium" \| "firefox" \| "webkit"` selects the engine when it is local. The two are refused together, because the engine belongs to whichever machine paints |
 | **Posting a build for review** | the tribunal's ingest route takes one | nothing in `packages/cli/src` or `.github` posts one. An operator writes the HTTP call themselves |
-| **One standing world across subjects** | `session`, measured at 3.4× with ~2% probe overhead | no caller. `session` has **zero** consumers in the entire repository — no package, no example, no case. Its only import site is the example in its own README, which the documentation gate type-checks and nothing runs |
+| **One standing world across subjects** | `session` runs many subjects in one live DOM with nothing torn down between them — measured at 3.4× against rinsing, and the pollution probe riding on it costs ~2% of session time | **Out of reach by construction.** `run` calls the adopter's collector once per subject (`packages/cli/src/commands/run.ts:258`), so the page, the mounting and whatever persists between two of those calls are the collector's ([contract 5](architecture.md#the-contracts) — *order is the caller's*). A session is itself a runner, with its own container and its own mount, so standing one here would mean the binary mounting your components — the half of a run it declines to write (§1) |
 
 The third is the one to be careful about, because a measured multiple reads like a
-shipped feature. It is a real measurement of a real package that no pipeline in
-this repository has ever invoked; an adopter using it would be the first caller.
+shipped feature, and what it states is where the mechanism applies. A caller who
+owns the loop — a composition of yours that mounts its own subjects — gets the
+3.4×, and the pollution findings that ride on it
+([ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md)). A `variance
+run` cannot own one and does not try: it answers order dependence from outside the
+world instead, by re-collecting a changed subject alone and reporting the
+difference against the session rather than against an edit
+([flakiness.md](flakiness.md#test-order-and-shared-state)). The clean world is the
+collector's to build too — a fourth method beyond the three in §1, optional
+because a collector holding one page open across every subject has none to offer.
+A subject that *could not* be re-collected carries the reason, and the reasons
+are kept apart on purpose: a collector with no clean world to give means write
+the method, and a spent `alone.limit` means raise the number.
 
 ---
 

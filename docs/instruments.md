@@ -41,6 +41,21 @@ lets the answer be a sentence instead of a probability. It is also why the rows
 compose: `again` and `alone` vary opposite things, so running both on one changed
 subject partitions three causes that arrive identically.
 
+**Where a row is reached from is a fact about it rather than a detail of
+packaging.** The record behind recurrence, sweeps-since and drift is a service
+the operator runs, and a run reaches it exactly when the config names an endpoint
+and a token and the run can name itself
+([`history.md`](history.md#turning-it-on)); with none of those named it computes
+nothing for the record, rather than hashing three hundred snapshots to hand them
+to something that discards them. The session probe rides on a standing
+world — `createSession` is the runner, and the probe brackets every mount that
+arrives through `session.run` — so naming the *writer* means owning the loop; a
+run hands each subject to the adopter's collector instead and asks `alone` of a
+subject it called `changed`, which establishes at most that something else in
+the suite moved this one, and never which thing. `trail` is the same division: a
+value in `core/judge` and pure functions over it, whose holder is whoever runs
+the loop, for as long as they hold it.
+
 ### The pair that decides whether a change is real
 
 A run calling a subject `changed` is claiming something about a component, and
@@ -154,12 +169,6 @@ stable*.
 **Four causes of variance are absorbed by nothing**, and they are named in
 [`flakiness.md`](flakiness.md#the-causes-and-what-absorbs-each) rather than left
 for a reader to discover.
-
-**Three instruments are built and unrun.** The record behind recurrence and drift
-needs a service you deploy and has never seen eleven approvals of two pixels; the
-session probe is a package nothing depends on; and `trail` answers the author
-loop's four questions from `core` and is reachable from the library rather than
-from the binary.
 
 ---
 
