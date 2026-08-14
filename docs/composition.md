@@ -55,17 +55,31 @@ sharing a rendering *are* the finding, so a pair that landed in different shards
 is in neither shard's report and a union of the shard graphs would be a graph
 with every cross-shard edge missing and nothing marking where.
 
-## Two relations run upward, and they are not the same relation
+## Where a boundary is placed
 
-**Parent** is what a node is *inside*: React's `return` chain, the boxes it
-ended up in. **Owner** is what *rendered* it: the code that wrote the element. A
-layout wrapper is the parent of everything handed to it and the owner of none of
-it.
+Two relations run upward out of a rendered node and they are not the same
+relation. **Parent** is what a node is *inside*: React's `return` chain, the
+boxes it ended up in. **Owner** is what *rendered* it: the code that wrote the
+element. A layout wrapper is the parent of everything handed to it and the owner
+of none of it.
 
-Boundaries are placed by owner. Every component standing over an element holds a
-boundary at that element, nested outermost-first — so three components that
-return one another share one `div` and hold three boundaries on it, and **a
-component that renders nothing but other components is still a component**.
+The walk in [`boundary.ts`](../packages/core/src/attribute/boundary.ts) uses both,
+for different halves of one answer:
+
+- **Parent decides nesting.** A boundary owns a contiguous region of the
+  document, and what encloses that region is a fact about the tree. Reading the
+  owner for this would produce a boundary set that is not a partition.
+- **Owner decides membership and naming.** A component's own content is what
+  *it* wrote. Content it was handed is a hole in its output — present, sized and
+  positioned by it, authored somewhere else.
+
+Boundaries are placed by owner, and by **every** rung of the owner chain rather
+than its head. Three components that return one another share one `div` and hold
+three boundaries on it, so **a component that renders nothing but other
+components is still a component**. Reading only `owners[0]` loses exactly the two
+shapes a design system is made of: a variant wrapper (`DangerButton` returning a
+`Button`) authors no host node and would be a boundary nowhere, and a container
+would absorb its caller's content.
 
 Each boundary then carries both relations, because they answer different
 questions:
@@ -87,9 +101,10 @@ enclosing edge adds `Stack` and `Card` — the two nobody does.
 **`created by` is empty on a production build**, where React's owner links are
 gone. Empty is *not* "nothing mounted it", and nothing here reads it that way. A
 run without owner links still places boundaries and still names enclosures; it
-loses the caller, not the graph.
+loses the caller, not the graph. Both rules degrade to naming everything, which
+is the enclosure answer — coarser, never wrong in a new direction.
 
-## A component's hash covers its own nodes, and that is what makes it a unit
+## What a boundary hashes
 
 Inside a boundary, a child boundary is a placeholder rather than its content.
 Where the enclosing component placed the child, the placeholder names it; where
@@ -118,13 +133,68 @@ caller passing three where it passed two moves the container. That residual limi
 is stated in
 [ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md).
 
+### Two things had to change for a digest to cross a subject
+
+**Aliases are re-numbered per boundary.** The normalizer replaces every id with
+`#a0`, `#a1`, … in document order across the whole *subject*
+([ADR-0003](context/adr/0003-cruft-removal-and-css-applicability.md)). That is
+right for a subject and fatal across two: the same field rendered in a story and
+on a page gets `#a0` in one and `#a7` in the other, so their structure digests
+differ for a reason that is an artefact of what else happened to be mounted.
+[`instances.ts`](../packages/core/src/attribute/instances.ts) re-aliases to `#b0`,
+`#b1`, … in the boundary's own document order. The association survives — a `for`
+pointing at an input inside the boundary keeps pointing at it — while a reference
+that escapes keeps its own slot and points at nothing in particular, because from
+inside, one foreign target is indistinguishable from another.
+
+**Geometry is left out of the joining digest.** A rect is absolute page
+coordinates, so two identical renderings in two subjects disagree on it always.
+The join key is the four content digests — structure, semantics, text, style —
+and geometry is carried beside it, where a caller comparing two instances *within*
+one subject can still read it. Framework wiring is excluded for the same reason
+in the other direction: a component that gained a `memo()` renders the same
+thing, and folding wiring in would make a performance annotation read as a visual
+regression.
+
+**Layout output is not style.** Under a profile with a layout engine the snapshot
+carries resolved values, so a block element's computed `height` is whatever its
+contents made it — and a button two levels down growing by six pixels moves the
+computed height of every ancestor. Measured on
+[`cases/storybook-case`](../cases/storybook-case), one padding edit inside
+`Button` made `Tokens`, `Stack`, `Card` and the unattributed root all report a
+moved style hash, so every component in every affected story was named a cause.
+Those properties fold into `geometry` instead, `transform-origin` included — it
+computes to half the border box, so it moves whenever the box does, on every
+element.
+
+## The fold
+
+`composeSubjects` walks the per-subject instance lists once, in plan order, and
+buckets them: component → props class → rendering → sites. Every unattributed
+boundary is skipped, and a boundary with no provenance is filed under a sentinel
+rather than under `undefined`, so nothing downstream can read "unknown props" as
+a props class like any other.
+
+| level | key | why |
+|---|---|---|
+| component | name | the unit an edit moves |
+| props class | props digest | the same inputs, or unknown |
+| rendering | the four content digests | the same output |
+| site | subject and path | the third `Chip`, which is a sentence |
+
+It is pure and ordered: the report has to be a function of the plan, and a phase
+that accumulated as a worker pool finished would produce a different artefact
+from the same suite on a slower machine.
+
 ## What it answers
 
 ### Two examples watching the same bytes
 
 An **echo** is one rendering digest with sites in more than one subject. Three
 identical chips in one list say nothing; the same chip in a chip story and in a
-page footer says that a reviewer looking at two diffs is looking at one.
+page footer says that a reviewer looking at two diffs is looking at one. The
+two-subject rule is the whole test — a rendering that survives being mounted
+somewhere else is the one a second subject is watching.
 
 Measured on todomvc — 15 stories, 12 components — **26 shared renderings**, every
 one of them spanning more than one subject. The widest is a `Chip` rendering
@@ -144,9 +214,11 @@ than a paragraph.
 
 ### Which layer a subject is an example of
 
-A subject's **example** is its shallowest boundary — the component the subject
-exists to show. On a suite built in layers this is where a design system finds out
-what it has actually covered:
+A subject's **example** is its shallowest attributed boundary — the component the
+subject exists to show — and only when it is alone at that depth. A story usually
+mounts one thing; a page mounts a layout that mounts several, and calling the
+first of them the subject's component would be picking a winner out of document
+order.
 
 | subject | example of | what that means |
 |---|---|---|
@@ -176,8 +248,10 @@ an ancestor's cascade — or a reading that is not repeatable. The bands say whi
 kind, in the same vocabulary a sensitivity absorbs, so a divergence entirely
 inside a relaxed band can be dismissed without opening it.
 
-**Measured on todomvc: zero.** A props digest excludes `children` by
-construction, so three shapes reach the check and are refused by it
+**Measured on todomvc: zero.** Before the checks below existed, eleven were
+reported and all eleven were false — which is what a finding built on an
+incomplete key looks like. A props digest is not a complete statement of a
+component's inputs, so three shapes reach the check and are refused by it
 ([ADR-0034](context/adr/0034-a-divergence-must-survive-the-children-it-excludes.md)):
 
 | shape | why it is not a divergence |
@@ -185,6 +259,22 @@ construction, so three shapes reach the check and are refused by it
 | Two boundaries of one component in one subject | Different nodes, not two renderings of one node |
 | Different `children`, same props digest | The excluded field is the one that differs |
 | Different rendered subtrees | Two sites that mount different components below them did not receive one input |
+
+Each refusal is a check with a field behind it. Unknown props are not shared
+props, so an instance whose provenance did not survive is never grouped with
+another. A component whose nodes are interrupted by a nested boundary is walked
+as two boundaries under one owner frame — one `TextField` becoming a label-shaped
+rendering and an input-shaped one — so renderings that co-occur in a single
+subject are one instance in two pieces, indistinguishable from two that genuinely
+disagree. And `propsDigest` excludes `children` deliberately, so
+`<Card><Stack/></Card>` and `<Card><Text/></Card>` share one; two proxies for
+"the children differed" are required to be quiet, the child components mounted
+and the boundary's own text.
+
+The asymmetry is the reason those checks are code rather than prose: a movement
+wrongly dismissed as `contradicted` is an explanation nobody can act on, while
+the same movement left unexplained lands on the suspect shortlist, where a second
+reading settles it.
 
 Zero is a real and common answer, and it means nothing in the suite renders two
 ways from one input. `Card` keeps one props class and two renderings, which is the
@@ -206,8 +296,10 @@ a ladder and stops at the first rung that holds:
 | `unexplained` | none of the above | the finding |
 
 `edited` and `token` need [`--since`](selecting.md), and a run that did not ask
-cannot reach either. That degrades honestly: an unexplained movement in a run with
-no change set carries a sentence saying so instead of an accusation.
+cannot reach either. That degrades honestly, and it is checked in
+[`movement.ts`](../packages/core/src/attribute/movement.ts) rather than trusted to
+the caller: an unexplained movement in a run with no change set carries a sentence
+saying so instead of an accusation.
 
 **The `upstream` rung reads `created by` before `within`, and that is not a
 tie-break.** The component that wrote the element is the one whose edit changed
@@ -220,15 +312,26 @@ which is what makes it worth anything: every subject on a themed page resolves
 through every token in the theme, so a subject-level intersection names them all
 and explains nothing.
 
-An unexplained movement is where this page stops. What the run does with one — the
-control group beside it, and the second instrument that turns it into a verdict —
+Two things ride beside every movement. **`alsoIn`** is the other subjects the
+same component moved in this run — a reviewer reading eleven changed subjects is
+often reading one edit, and the count is the difference between a frightening
+report and an accurate one. **`held`** is the control group: sites of the same
+component, with the same props, that this run did *not* report moving. Empty
+means there was no control, which weakens the finding, and is why it is a list
+rather than a flag.
+
+An unexplained movement is where this page stops. What the run does with one — how
+the shortlist is ordered, and the second instrument that turns it into a verdict —
 belongs to [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it).
 
 ## What it costs
 
 One pass over the instances every subject already reported, after the worker pool
 and in plan order, so a slower machine that finishes subject 41 before subject 3
-produces the same bytes. No browser, no image, no disk, no service.
+produces the same bytes. No browser, no image, no disk, no service. Every list
+that reaches the artifact is sorted by code unit rather than by locale, because a
+report is committed, diffed and read back on another runner, and a locale-aware
+comparison makes the byte order a promise about `LANG`.
 
 What reaches the artifact is smaller than what produced it. The full graph carries
 one entry per boundary per subject — tens of thousands of objects on a real suite
@@ -239,6 +342,10 @@ the artifact, because a cap that says nothing reads as coverage.
 
 ## What this refuses to conclude
 
+**It never decides anything.** Two subjects sharing a rendering is not a reason to
+delete either: a component can be correct in one context and broken in the next,
+which is why the contexts are separate subjects in the first place.
+
 **An unexplained movement is not a flake.** It is a movement this run cannot
 explain, which is a statement about the evidence the run assembled and not about
 the subject. `variance run --flakes` is what settles one.
@@ -247,6 +354,10 @@ the subject. `variance run --flakes` is what settles one.
 this suite rendered two ways from one *props digest*, in the shapes the exclusion
 of `children` could not explain". A component whose output depends on something no
 subject varied is invisible here.
+
+**A props digest is one-way.** Two instances can be shown to have received
+different props; *which* prop differed is not recoverable, and nothing here
+pretends it is.
 
 **An empty `created by` is not "nothing mounted it".** It is a production build,
 where the owner links are gone. Every consumer of that field keeps the two apart,
@@ -269,6 +380,8 @@ enough that their measurements are the claim.
 
 **Further:** [`instruments.md`](instruments.md) for where this axis sits among the
 others ·
+[`attribution.md`](attribution.md) for how a changed pixel arrives with a
+component name on it ·
 [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it) for
 what an unexplained movement becomes ·
 [`history.md`](history.md) for the same questions across runs ·

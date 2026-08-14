@@ -46,6 +46,10 @@ to know that happened.
 document → identity → raster → difference → places → components → verdict
 ```
 
+The last three hops of that line are one chain and it is written out in
+[`attribution.md`](attribution.md); the graph the first question is asked of is
+in [`source.md`](source.md).
+
 ## The contracts
 
 Five rules. A tool that breaks one is broken, whatever it produces.
