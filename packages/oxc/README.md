@@ -28,6 +28,7 @@ This package walks those hops.
 |---|---|---|
 | `.` | a readable checkout | the scan: walk the configured roots, resolve what they import, follow it, and produce one record per file. This is the one to take. |
 | `@variance-authority/oxc/read` | nothing but a string | the two readers, without a disk. Take it when the file contents come from somewhere else — a bundler plugin, an editor buffer, an already-open VFS — and only the specifier extraction is wanted. |
+| `@variance-authority/oxc/instrument` | nothing but a string | the transform that records which regions a run entered. A different question from the rest of this package: not *what could a change reach* but *what did execution actually cross*. Take it in a bundler plugin. |
 
 ## What it produces, and who answers with it
 
@@ -144,3 +145,54 @@ the gap `nx` and `turbo` were built to fill: both already compute which projects
 diff affects, across exactly that boundary. The CLI unions their answer into the
 seed set rather than choosing between them —
 see [`docs/selecting.md`](../../docs/selecting.md).
+
+## What a run crossed
+
+Everything above answers *what could a change reach*. `/instrument` answers the
+other half — *what did execution actually cross* — by splicing a recording call in
+front of every execution boundary.
+
+```ts
+import { instrument } from '@variance-authority/oxc/instrument';
+
+// undefined if the source could not be parsed — *not instrumented* is a report,
+// and an empty block list would read as *not executed*.
+const done = instrument('export const price = (n: number) => (n > 0 ? n : 0);', 'src/price.ts');
+
+done?.code;            // the same source, with probes, on the same lines
+done?.blocks;          // one entry per region. `blocks[0]` is always the module
+```
+
+A **block** is a region with exactly one arrival condition, and a probe goes only
+where control can diverge. Entering a `try` follows from entering the region around
+it, so it gets nothing; entering its `catch` does not, so it gets a probe. That
+test is the whole of the design, and it is why this is a third of the counters
+statement coverage would insert rather than a rename of it.
+
+Every insertion is single-line, so **line numbers are preserved exactly** and a
+stack trace still points where it did. Nothing is re-printed: probes are spliced at
+offsets in the original text.
+
+The emitted runtime is two hoisted functions and a global lookup. Its absence is
+not a crash — instrumented code with nothing listening runs correctly and records
+into a private array, which is what makes differential execution possible. Every
+call site is guarded with `typeof`, so a function whose *source* crosses into
+another realm — `page.evaluate(fn)`, a worker built from `fn.toString()` — runs
+there and records nothing rather than throwing.
+
+It is presence, not path: a counter per region, no stack, so it answers *this test
+entered this block* and not yet *by what route*.
+
+```bash
+yarn workspace @variance-authority/oxc census
+```
+
+```bash
+yarn workspace @variance-authority/oxc overhead
+```
+
+The first counts what it would place across a real repository and prices it against
+Istanbul's rules. The second times a real workload with and without probes, beside
+a second uninstrumented copy that establishes the noise floor —
+[journal 0027](../../docs/context/journal/0027-what-instrumentation-costs.md) has
+the numbers.

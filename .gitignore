@@ -20,6 +20,11 @@ node_modules
 dist
 *.tsbuildinfo
 
+# The two copies of `dist` the probe-overhead benchmark compares. Inside the
+# package because a bare specifier only resolves from somewhere `node_modules` is
+# reachable, and removed in a `finally` — this catches an interrupted run.
+packages/oxc/.overhead-*
+
 # Test + capture artifacts
 .variance/
 coverage/

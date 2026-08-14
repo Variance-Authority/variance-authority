@@ -54,7 +54,7 @@ try {
   const bundle = encode(built);
   const loaded = load(bundle);
   resolveThroughBarrels(built, loaded);
-  await traverse(built);
+  await traverse();
 } finally {
   rmSync(at, { recursive: true, force: true });
 }
@@ -411,7 +411,7 @@ function resolveThroughBarrels(built, view) {
  * touching a handful of composite files, and a change to a token file that most
  * of the repository is downstream of.
  */
-async function traverse(built) {
+async function traverse() {
   const LAYERS = [0.05, 0.2, 0.3, 0.28, 0.17];
   const bounds = [];
   let cut = 0;
@@ -425,7 +425,7 @@ async function traverse(built) {
 
   // The reverse graph: who imports this. A reverse edge goes one layer up, so a
   // leaf reaches a cone and a token file reaches most of the tree.
-  const rows = new Array(FILES);
+  const rows = Array.from({ length: FILES });
   let edges = 0;
   for (let i = 0; i < FILES; i += 1) {
     const above = bounds[layerOf(i) + 1];

@@ -17,6 +17,10 @@
     "./read": {
       "types": "./dist/read.d.ts",
       "default": "./dist/read.js"
+    },
+    "./instrument": {
+      "types": "./dist/instrument/index.d.ts",
+      "default": "./dist/instrument/index.js"
     }
   },
   "main": "./dist/index.js",
@@ -27,7 +31,9 @@
   "scripts": {
     "build": "tsc --build",
     "bench": "node scripts/bench.mjs",
-    "storage": "node scripts/storage.mjs"
+    "storage": "node scripts/storage.mjs",
+    "census": "node scripts/census.mjs",
+    "overhead": "node scripts/overhead.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",

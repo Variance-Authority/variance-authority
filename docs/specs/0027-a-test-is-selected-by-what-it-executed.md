@@ -64,13 +64,14 @@ transformed script text, so every question has to be reconstructed through a
 source map.
 
 And it is **path-free**. There is no stack in it, so no distance, no runtime
-context, no *how did this test get here*. The flow is the product.
+context, no *how did this test get here*. The flow is the product, and that
+alone decides it — none of the three grounds is a cost argument, so none needs a
+benchmark to stand.
 
-Measured on this checkout: V8 costs 1.69 ms per test — 3.7 s against this
-suite's 38.29 s, a fixed 10%. Hand-written probes on realistic work cost 1.03×
-for counters and **1.05× with a maintained, exception-correct call stack**. The
-portable option is also the cheaper one, and the path rides along for about two
-percentage points.
+What the cost had to be was *affordable*, and that is measured:
+[0028](0028-the-instrument.md) puts hand-written presence probes under 1.2 ns
+each and `o` at 1.00 over this suite. A maintained stack is not built and its
+cost is not claimed.
 
 ## How to use
 
