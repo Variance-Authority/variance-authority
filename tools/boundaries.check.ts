@@ -221,9 +221,14 @@ describe('every advertised entrypoint exists', () => {
       }
 
       // An entrypoint is a promise to a consumer, and a promise nobody checks is
-      // discovered by the consumer. Requires a build first, which is how the
-      // suite is run.
-      expect(missing).toEqual([]);
+      // discovered by the consumer.
+      //
+      // The remedy is in the assertion rather than in this comment because the
+      // two causes look identical in a report and only one of them is a defect.
+      // These paths point into `dist/`, so an unbuilt checkout fails every row
+      // at once — which reads as a repository that advertises entrypoints it
+      // does not have, and sends the reader to edit a manifest that is correct.
+      expect(missing, 'unbuilt, or the manifest is wrong: `yarn build` first').toEqual([]);
     },
   );
 });

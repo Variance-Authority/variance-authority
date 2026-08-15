@@ -136,3 +136,24 @@ yarn build && yarn verify
 `verify` includes the documentation checks in `tools/`: every link resolves,
 every path named in prose exists, every `file:line` lands where it says, stated
 counts are the counts, and the CLI command lists match the binary's own table.
+
+**An out-of-date checkout reports defects, not errors, and that is what makes it
+expensive.** Nothing here imports another package by relative path, so a check
+asking the CLI what a setting means resolves through the manifest's `exports`
+into `dist/` — the same path a consumer takes. A *missing* build announces
+itself. A **stale** one answers every question fluently and answers some of them
+wrong, and the answer arrives dressed as a defect in whatever was asked about:
+`packages/cli/README.md` documenting a setting the parser rejects, run against a
+`dist/` built before that setting existed. A stale `node_modules` does the same
+one layer down — *Invalid hook call … more than one copy of React*, which reads
+as a defect in the runtime layering and is not one.
+
+Both are worst in a fresh worktree, which starts with neither. So:
+
+```bash
+yarn install && yarn build && yarn verify
+```
+
+The cost is never the red line. It is the change somebody makes to satisfy it —
+correct documentation deleted, working code rewritten — so **reconcile the
+checkout before believing a failure**, and re-run before reporting one.
