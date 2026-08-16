@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/dom
 
 **Requires:** a live DOM in scope — a mounted element and the `document` that

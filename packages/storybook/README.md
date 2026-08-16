@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/storybook
 
 **Requires:** a built Storybook's `index.json`, **as a value** — you decide where

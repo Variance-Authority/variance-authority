@@ -1,6 +1,15 @@
+<p align="center">
+  <a href="docs/visual-guidelines.md">
+    <img src="assets/brand/variance-authority-logo.svg" alt="Variance Authority logo" width="800">
+  </a>
+</p>
+
 # Variance Authority
 
 **Visual Regression with Verifiable Results.**
+
+The [visual guidelines](docs/visual-guidelines.md) define the fork mark,
+palette and illustration grammar used across the repository and its packages.
 
 Visual regression is good at telling you that something changed. It is much
 less useful at telling you why.

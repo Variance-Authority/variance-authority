@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/session
 
 **Requires:** a live DOM, and a `mount` function you write. It knows about React

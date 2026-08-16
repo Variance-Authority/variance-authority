@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/history
 
 **Requires:** nothing. `history/client` requires a service already running at an

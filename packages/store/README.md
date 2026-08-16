@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/store
 
 **Requires:** a directory this process can write. `store/lfs` additionally

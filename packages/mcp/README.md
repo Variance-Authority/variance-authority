@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/mcp
 
 **Requires:** a run report that already exists, and a client that speaks MCP over

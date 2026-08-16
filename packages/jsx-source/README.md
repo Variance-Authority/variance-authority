@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/jsx-source
 
 **Requires:** a build you control the JSX transform of, and a React runtime for

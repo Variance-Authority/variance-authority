@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/storybook-collector
 
 **Requires:** a browser binary and a built or already-served Storybook. The

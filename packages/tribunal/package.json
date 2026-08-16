@@ -51,6 +51,7 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "mark.svg",
     "migrations",
     "wrangler.jsonc"
   ],

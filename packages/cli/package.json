@@ -21,7 +21,8 @@
     "variance": "./dist/bin.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "mark.svg"
   ],
   "scripts": {
     "build": "tsc --build"

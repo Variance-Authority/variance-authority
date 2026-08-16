@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/react
 
 **Requires:** that `react-dom` rendered the tree you are pointing at. Not the

@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/png-sharp
 
 **Requires:** a runtime that can load a compiled native addon, and a platform

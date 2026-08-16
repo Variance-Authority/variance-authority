@@ -30,7 +30,8 @@
   },
   "files": [
     "dist",
-    "jest-resolver.cjs"
+    "jest-resolver.cjs",
+    "mark.svg"
   ],
   "scripts": {
     "build": "tsc --build"

@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/playwright-test
 
 **Requires:** a Playwright test run with an already-opened `Page`, a non-null

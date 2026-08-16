@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/report
 
 **Requires:** nothing for the format. `report/file` requires a path this process

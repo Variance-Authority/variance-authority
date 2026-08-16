@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/playwright
 
 **Requires:** a browser **binary** on the machine, which an install does not give

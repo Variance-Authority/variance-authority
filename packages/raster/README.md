@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/raster
 
 **Requires:** nothing. No browser to launch, no directory to write, no port to

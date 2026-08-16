@@ -29,7 +29,8 @@
     "variance-authority-mcp": "./dist/bin.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "mark.svg"
   ],
   "scripts": {
     "build": "tsc --build"

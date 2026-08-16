@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/cli
 
 **Requires:** a project config plus the runtime resources it selects: a browser

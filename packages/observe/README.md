@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/observe
 
 **Requires:** a renderer and raster store supplied by the caller for

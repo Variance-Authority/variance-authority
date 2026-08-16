@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/remote
 
 **Requires:** a port to bind, or a peer to reach. Nothing else: what is served is

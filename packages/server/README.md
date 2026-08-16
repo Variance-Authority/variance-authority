@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/server
 
 The history service. The half of [spec 0002](../../docs/specs/0002-history-store.md)

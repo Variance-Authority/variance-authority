@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/sense
 
 **Requires:** the repository on a disk this process can read, in the state its

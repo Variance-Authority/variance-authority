@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 110 1600 330" role="img" aria-labelledby="title description">
+  <title id="title">Variance Authority logo</title>
+  <desc id="description">A bottom-rooted fork with one upward branch selected, paired with the Variance Authority wordmark.</desc>
+
+  <defs>
+    <radialGradient id="backgroundGlow" cx="29%" cy="48%" r="58%">
+      <stop offset="0" stop-color="#18120f"/>
+      <stop offset="0.48" stop-color="#0c0b0a"/>
+      <stop offset="1" stop-color="#080909"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="640" fill="url(#backgroundGlow)"/>
+
+  <g id="mark" transform="translate(236 157)">
+    <!-- Literal fork: a compact head over a longer bottom root. -->
+    <path d="M80 132 H20 V48" fill="none" stroke="#756d67" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter"/>
+
+    <!-- One continuous route: bottom root → junction → chosen branch. -->
+    <path d="M80 216 V132 H140 V48" fill="none" stroke="#ff8a3d" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+
+  <g id="wordmark" transform="translate(500 208)">
+    <text x="0" y="0" fill="#d7cec7" font-family="'Nimbus Sans Narrow', 'Arial Narrow', sans-serif" font-size="74" font-weight="400" letter-spacing="17">VARIANCE</text>
+    <text x="0" y="96" fill="#ff8a3d" font-family="'Nimbus Sans Narrow', 'Arial Narrow', sans-serif" font-size="74" font-weight="400" letter-spacing="17">AUTHORITY</text>
+  </g>
+</svg>

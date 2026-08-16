@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/core
 
 **Requires:** nothing — not even a runtime with a `Buffer`. No DOM, no I/O, no

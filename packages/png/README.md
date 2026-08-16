@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/png
 
 **Requires:** a runtime with `Buffer` — so Node, not a browser. Nothing to launch,

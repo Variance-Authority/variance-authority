@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/tribunal
 
 **Requires:** a database this deployment owns, an object store beside it, a
