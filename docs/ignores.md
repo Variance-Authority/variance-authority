@@ -8,10 +8,18 @@ This page is how you say so, and — more importantly — what the run says back
 
 ## An ignore is not a tolerance
 
-This project has no thresholds. Not as an oversight: a tolerance is an anonymous
-number, chosen by whoever wrote the default, that hides anything small enough to
-fit under it. Nobody can tell you what a given run's tolerance absorbed, because
-nothing recorded it.
+This project has no difference tolerance. Not as an oversight: a tolerance is an
+anonymous number, chosen by whoever wrote the default, that hides anything small
+enough to fit under it. Nobody can tell you what a given run's tolerance
+absorbed, because nothing recorded it.
+
+There *is* a per-pixel colour threshold — `DiffPolicy.threshold`, `pixelmatch`'s
+YIQ distance — and it is the one number that decides whether two pixel values
+count as different at all. It is not anonymous: every comparison is reported
+under both `default` and `strict`, so "zero pixels changed" can be told apart
+from "zero pixels changed *after forgiveness*", and the policy id is folded into
+the plan's digest. Quoting only the forgiving policy is the single most common
+way to lie with a pixel measurement, which is why neither is quoted alone.
 
 An ignore is the opposite in every respect that matters.
 
@@ -92,7 +100,7 @@ compared — the library path, not the binary's.
   "ignore": [
     {
       "id": "avatar-crop",
-      "reason": "the avatar CDN serves two crops of the same image",
+      "reason": "gravatar serves two crops of the same source image",
       "fingerprints": ["v1:2c4f9a1e0b7d3856a91c4e2f8b06d735"]
     }
   ]
@@ -149,7 +157,7 @@ should not be silenced in every subject that happens to match.
   "id": "support-widget",
   "reason": "vendor iframe; version and copy change without our deploys",
   "select": "#support-root",
-  "subjects": ["route:/help*", "route:/contact"]
+  "subjects": ["route/help*", "route/contact"]
 }
 ```
 
@@ -171,14 +179,11 @@ Excluding the avatar by place would also stop reporting an avatar that vanished.
 Excluding it by shape does not.
 
 **When the image is never under test at all, blank it instead.** A fingerprint
-absorbs the difference after the page has fetched the image, laid itself out
-around it, and put its bytes into the environment key — so a re-exported hero
-still re-renders every subject it appears on to reach a verdict that was going to
-be absorbed. A `blank` rule replaces it on the wire with a transparent image of
-the same intrinsic size: same layout, no second render, and the key records the
-blank rather than the bytes. See
-[Some images can be served as nothing](stabilization.md#some-images-can-be-served-as-nothing).
-The trade is the one every ignore makes, made earlier and more completely — a
+absorbs the difference after the page has already fetched the image and put its
+bytes into the environment key, so a re-exported hero still re-renders every
+subject it appears on to reach a verdict that was going to be absorbed. A
+[`blank` rule](stabilization.md#some-images-can-be-served-as-nothing) intercepts
+it earlier. The trade is the one every ignore makes, made more completely — a
 real change inside a blanked image is not reported, and cannot be.
 
 ### A flake you cannot place
@@ -268,7 +273,7 @@ this is the field that makes that the easy option.
 ### Markup you would rather annotate than configure
 
 Add `data-variance-ignore` to the element. The attribute's value is the rule id
-it is recorded under.
+it is recorded under; a bare attribute with no value is recorded under `marked`.
 
 ```html
 <div data-variance-ignore="live-feed">…</div>
@@ -288,14 +293,14 @@ it is worth reading even when everything is green.
 ```
 IGNORED — 1284 pixel(s) absorbed by 3 rule(s); 12 subject(s) differed only there
   dashboard-clock — 1284px in 12 subject(s): renders wall time
-  [dead] hero-carousel — excluded a subtree in 40 subject(s) and absorbed nothing
-    (auto-advances on a 4s timer); the flake it was written for may be fixed
+  [dead] hero-carousel — excluded a subtree in 40 subject(s), 40 of them compared,
+    and absorbed nothing (auto-advances on a 4s timer)
   [dead] support-widget — matched nothing in any subject (vendor iframe); either it
     is no longer needed, or its selector stopped matching and something you believe
     is silenced is being reported
 ```
 
-Three states, and they need different actions:
+Five states, and they need different actions:
 
 | Line | What happened | What to do |
 |---|---|---|
@@ -303,6 +308,8 @@ Three states, and they need different actions:
 | `[dead]` … `absorbed nothing` | it found its element and there was no difference in it | consider deleting it; the flake may be fixed |
 | `[dead]` … `matched nothing in any subject` | the selector resolved nowhere | fix or delete it — you believe something is silenced and it is not |
 | `[expired]` | past its `until` | the differences are being reported again; decide again |
+| `[unworn]` | the rule is scoped to tags no subject in this run carries | check the spelling against the run's vocabulary, which the line offers |
+| … `none of which was compared this run` | it found its element, and no subject carrying it reached a comparison | nothing yet — this run says nothing either way |
 
 The second and third are the ones a coordinate mask can never tell you, and they
 are the reason a masked suite rots.
@@ -324,7 +331,7 @@ Reported per subject, in the report and in `variance report`:
 
 ```json
 {
-  "subject": "route:/dashboard",
+  "subject": "route/dashboard",
   "verdict": "ignored",
   "because": "412 pixel(s) differ and all of them fall inside 1 excluded region(s); nothing outside them moved",
   "changedPixels": 0,
@@ -479,12 +486,14 @@ from a different run, and that is worth being told.
 - **It cannot apply to a subject with no baseline.** A `new` subject has nothing
   to compare against, so there is nothing to absorb. An ignore that quietly
   reshaped a first baseline would be how a defect gets approved into one.
-- **It cannot be scoped by band.** A rule must name a `select` or a
-  `fingerprints`; anything narrower than that and broader than a place is a
-  tolerance wearing an ignore's clothes. Narrowing by band is what `sensitivity`
-  is — declared positively, scoped to named subjects, and counted in a register
-  of its own. An `ignore` scoped by band would be the same act said in a way
-  nobody can audit.
+- **It cannot be scoped by band from the config.** `IgnoreRule.bands` exists and
+  narrows what a rule absorbs in `applyIgnores`, over a pair of snapshots. The
+  binary compares images against a stored baseline and never builds that pair, so
+  a `bands` written in config would parse, validate, appear to work and change
+  nothing — and a config key with no consumer is worse than a missing feature,
+  because the operator believes they have it. Narrowing by band from config is
+  what `sensitivity` is: declared positively, scoped to named subjects, and
+  counted in a register of its own.
 - **It cannot change what is rendered.** Ignores sit outside the environment key,
   so editing one never invalidates a baseline — and never changes an image.
 - **It cannot silence a size change.** A subject that resized is reported whatever

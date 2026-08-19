@@ -26,9 +26,9 @@ can look at one and a decision about it survives — the half
 for a review to live.
 
 **Status:** built, never deployed — see [ADR-0021](../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md).
-93 tests pass against the real SQL and an in-memory bucket. **Nothing here has
-ever run on Cloudflare.** Read [the limits](#what-has-not-been-measured) before
-believing any of the rest.
+The SQL, the routes, the promotion path and the refusals are tested against real
+SQL and an in-memory bucket; the platform is not. Read
+[the limits](#what-has-not-been-measured) before believing any of the rest.
 
 ## Two of the three surfaces are protocols that already existed
 
@@ -142,11 +142,11 @@ wrangler secret put REVIEW_TOKEN
 wrangler deploy
 ```
 
-**Never deployed.** Not by anybody, not once — every line above is read from the
-platform's documentation rather than reported from a deployment, and the first
-person to run it should expect to correct this section. It is checked in because
-the distance between this repository and a running review surface should be a
-command with a known failure mode rather than an unknown amount of work.
+Every line above is read from the platform's documentation rather than reported
+from a deployment, and the first person to run it should expect to correct this
+section. It is checked in because the distance between this repository and a
+running review surface should be a command with a known failure mode rather than
+an unknown amount of work.
 
 Two properties worth knowing before you run it. The migration in `migrations/` is
 **generated** from `SCHEMA` by `tools/tribunal-migrations.mjs` and asserted
@@ -326,8 +326,7 @@ account.
 
 ## What has not been measured
 
-**This has never run on Cloudflare.** The SQL, the routes, the promotion path and
-the refusals are verified; the platform is not. Specifically unmeasured: whether
+**This has never run on Cloudflare.** Specifically unmeasured: whether
 D1's `batch` is transactional in the way the history backend's atomicity rests
 on, object-size ceilings, request and subrequest limits, every quota, consistency
 between two Workers writing at once, and whether `STRICT` tables and

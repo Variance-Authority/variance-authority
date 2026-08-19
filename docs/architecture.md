@@ -120,23 +120,23 @@ entrypoints.
 | `raster` | nothing | the pixel tier as data: assembly, contracts, policies, interventions, the gate |
 | `report` | nothing | what a run leaves behind, so several readers can share one shape |
 | `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
-| `storybook` | nothing | a project's own stories as a subject list |
+| `storybook` | a built Storybook's `index.json`, as a value | a project's own stories as a subject list |
 | `storybook-collector` | a browser, and a Storybook built or already served | the browser half: each story opened, made ready, and collected |
 | `route-collector` | a browser, and an application to reach or a directory to serve | pages an application already serves, opened and collected |
-| `sense` | a readable checkout | the source read rather than run: one record per file, and the probes that mark which regions a run entered |
+| `sense` | a readable checkout | the source read rather than run: a row per request, per binding and per export, and the probes that mark which regions a run entered |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |
 | `react` | React internals | fibers → owner chains, props digests, portals |
 | `jsx-source` | a JSX transform you control, and a React runtime | the file and line that wrote an element, carried as far as the DOM node |
 | `session` | a live DOM | many subjects in one standing world |
 | `playwright` | a browser | the persistent harness, and a renderer |
 | `playwright-test` | a browser, and a Playwright test run | additive observation and assertion helpers; optional unbound fixture and matcher parts |
-| `unit-test` | a browserless DOM | resource-closed capture archives and a CLI collector for a later render process |
-| `png` | a PNG codec | decoding, comparison, the diff image |
+| `unit-test` | a live DOM, and a writable artifact directory | resource-closed capture archives and a CLI collector for a later render process |
+| `png` | a runtime with `Buffer` — Node, not a browser | decoding, comparison, the diff image |
 | `png-sharp` | a runtime that can load a native addon, and a platform published for it | the same comparison, with the decoding done natively |
 | `store` | a filesystem | baselines on disk, and in git-LFS |
 | `remote` | a socket | a renderer and a store on the other side of a hop |
-| `server` | a database | the history service the operator runs |
-| `mcp` | stdio | the observation, exposed to an agent |
+| `server` | a port and a bearer token; `server/sqlite` is the entrypoint that adds a database | the history service the operator runs |
+| `mcp` | a run report that already exists, and a client that speaks MCP over stdio | the observation, exposed to an agent |
 | `observe` | the three it composes | one composition, shipped as an example |
 | `tribunal` | a database, a bucket, and a runtime to deploy into | baselines, history, and the review-and-approve surface, in an account the operator controls |
 | `cli` | all of it | the workflow, which is the one place a workflow belongs |
@@ -151,7 +151,7 @@ host it currently runs on
 ([ADR-0023](context/adr/0023-a-service-is-named-for-what-it-is.md)), which is why
 the row does not say `cloudflare`.
 
-Five boxes require nothing at all, and hash, compare and isolate — the three
+Four boxes require nothing at all, and hash, compare and isolate — the three
 kinds the tool table shows needing nothing — all live in one of them. That is the
 same economic argument arrived at from the other end, and it is what makes the
 cheap tiers cheap in practice rather than only on paper: running the ephemeral
@@ -171,8 +171,8 @@ Two consequences worth stating, because they are the ones that get argued about:
 - **The rule is enforced, not documented.** `tools/boundaries.check.ts` fails when
   an import is undeclared, a declaration is unused, a name shares a word with one
   of the outside libraries the package depends on and nobody has written down
-  which of the two it is, a third-party requirement is reached through by
-  adopter-facing code, the production graph gains a cycle, or an advertised
+  which of the two it is, adopter-facing code reaches through one package of this
+  scope to import another, the production graph gains a cycle, or an advertised
   entrypoint does not resolve.
 
 ## What this forecloses

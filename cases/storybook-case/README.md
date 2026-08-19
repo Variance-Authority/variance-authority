@@ -131,15 +131,17 @@ stories, and the run finds exactly those five. The report resolves to source:
 
   cause      1025px at 17,17 114×48 — Button
       in button "Continue"
-      cases/storybook-case/src/ds.jsx:51
+      cases/storybook-case/src/ds.jsx:53
       shape v1:91eb0e5b6b0e067766e31876a572b70b
   cause      295px at 37,32 69×15 — Button
       in button "Continue"
-      cases/storybook-case/src/ds.jsx:51
+      cases/storybook-case/src/ds.jsx:53
       shape v1:b4e5b4bc82d098302edb209a111cf07e
 ```
 
-The edit is to `Button`. The report says `Button`, at `Button`'s file — `ds.jsx:51`
-is the component, not `ds.jsx:26`, which is the `Tokens` wrapper it is rendered
-inside. That sentence is the whole claim, and this case is where it is checked
-against a real binary rather than argued.
+The edit is to `Button`. The report says `Button`, at the line that wrote the
+element — `ds.jsx:53`, not `ds.jsx:51` where the component is declared, and not
+`ds.jsx:26`, which is the `Tokens` wrapper it is rendered inside. Both halves of
+that sentence are the claim, and `cli.chromium.test.js` derives the two line
+numbers from the file rather than quoting them, so this stays true when somebody
+adds an import.

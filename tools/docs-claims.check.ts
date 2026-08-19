@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseConfig } from '@variance-authority/cli';
 import { FENCES, MARKDOWN, ROOT, fencesIn, lineOf, prose } from './markdown.js';
@@ -173,9 +174,14 @@ describe('the documented command line is the real one', () => {
  * which is the wrong direction: a checker that quietly forces one phrasing is a
  * checker that edits the prose it was supposed to be checking. No page is written
  * that way, so the branch answers a phrasing rather than a line.
+ *
+ * `backlog/` is excluded. A task's notes record what a run observed on the day it
+ * ran, quoting the numbers it saw — including the ones it saw be *wrong*. Holding
+ * a frozen record to the present count would demand editing history to keep a
+ * checker quiet, which is the one repair that makes the record worthless.
  */
 describe('a stated file count is the file count', () => {
-  const STATED = MARKDOWN.flatMap((file) => {
+  const STATED = MARKDOWN.filter((file) => !file.startsWith('backlog/')).flatMap((file) => {
     const text = prose(file);
     return [...text.matchAll(/(the other )?(\d+)\s+markdown files/g)].map(
       (match) =>
@@ -272,5 +278,168 @@ describe('every documented config parses', () => {
     expect(() =>
       parseConfig(JSON.parse(json), { source: where, baseDir: dirname(join(ROOT, fence.file)) }),
     ).not.toThrow();
+  });
+});
+
+/**
+ * Every package the documentation names is a package that exists.
+ *
+ * ADR-0042 renamed packages for what they are *for* rather than what they
+ * import, and a rename is exactly the event prose cannot survive on its own:
+ * the code moves in one commit and the sentence describing it keeps working,
+ * because a sentence has no compiler. A reader who runs `yarn add` on a name
+ * this repository retired gets a registry error and no way to guess the new one.
+ *
+ * Source is checked alongside prose, and that is where the rule earned itself:
+ * two example scripts still imported a `harness-playwright` package under this
+ * scope, a name the rename retired, so both had been failing at module
+ * resolution with their READMEs still advertising the command. Nothing else looks at them —
+ * neither is imported by a test, which is what let them rot quietly.
+ *
+ * `docs/context/` is excluded on purpose. ADRs and journals are a record of what
+ * was decided when, and an ADR that names the package it decided to rename is
+ * correct precisely because that package no longer exists.
+ */
+describe('every package this repository names exists', () => {
+  const WORKSPACES = new Set(
+    execFileSync('git', ['ls-files', 'package.json', '*/package.json', '*/*/package.json'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    })
+      .trim()
+      .split('\n')
+      .map((file) => JSON.parse(readFileSync(join(ROOT, file), 'utf8')).name as string),
+  );
+
+  const SOURCE = execFileSync(
+    'git',
+    ['ls-files', '*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs'],
+    { cwd: ROOT, encoding: 'utf8' },
+  )
+    .trim()
+    .split('\n');
+
+  const NAMED = [
+    ...MARKDOWN.filter((file) => !file.startsWith('docs/context/')),
+    ...SOURCE,
+  ].flatMap((file) => {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    return [...text.matchAll(/@variance-authority\/[a-z0-9-]+/g)].map(
+      (match) => [`${file}:${lineOf(text, match.index)}`, match[0]] as const,
+    );
+  });
+
+  it('finds names to check, so this rule cannot pass by reading nothing', () => {
+    expect(NAMED.length).toBeGreaterThan(20);
+    expect(WORKSPACES.size).toBeGreaterThan(20);
+  });
+
+  it.each(NAMED)('%s names %s', (_where, name) => {
+    expect([...WORKSPACES], `${name} is documented and no workspace is called that`).toContain(
+      name,
+    );
+  });
+});
+
+/**
+ * Every relative link goes somewhere.
+ *
+ * The cheapest rule here and the one with the widest reach: documentation that
+ * cross-references itself is documentation that can be moved out from under its
+ * own references. Absolute links are left alone — an external URL that rots is
+ * the other end's decision, and checking it would make this suite need a network.
+ */
+describe('every relative link resolves', () => {
+  const LINKS = MARKDOWN.flatMap((file) => {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    return [...text.matchAll(/\]\(([^)\s]+)\)/g)]
+      .map((match) => [`${file}:${lineOf(text, match.index)}`, match[1]!] as const)
+      .filter(([, target]) => !/^(?:https?:|mailto:|#)/.test(target))
+      .map(([where, target]) => [where, target, resolve(dirname(join(ROOT, file)), target.replace(/[#?].*$/, ''))] as const);
+  });
+
+  it('finds links to check, so this rule cannot pass by reading nothing', () => {
+    expect(LINKS.length).toBeGreaterThan(50);
+  });
+
+  it.each(LINKS)('%s links to %s', (_where, target, path) => {
+    expect(existsSync(path), `${target} is linked and nothing is there`).toBe(true);
+  });
+});
+
+/**
+ * The options a package accepts and the options its README describes.
+ *
+ * An adopter reads the README and never opens the type. An option missing from
+ * the table is a capability that ships, is supported, and cannot be found —
+ * which is the same outcome as not building it, reached at full cost.
+ *
+ * The check is deliberately shallow: it asks whether the key is *mentioned*, not
+ * whether the sentence about it is true. A rule that tried to grade the prose
+ * would be a rule someone deletes the first time it is wrong.
+ */
+const DOCUMENTED_OPTIONS = execFileSync('git', ['ls-files', 'packages/*/src/options.ts'], {
+  cwd: ROOT,
+  encoding: 'utf8',
+})
+  .trim()
+  .split('\n')
+  .filter((file) => file.length > 0)
+  .flatMap((file) => {
+    const pkg = file.replace(/\/src\/options\.ts$/, '');
+    return [...readFileSync(join(ROOT, file), 'utf8').matchAll(/^ {2}readonly ([a-zA-Z]+)\??:/gm)].map(
+      (match) => [`${pkg}/README.md`, match[1]!] as const,
+    );
+  });
+
+describe('every option a package accepts is named in its README', () => {
+  it('finds options to check, so this rule cannot pass by reading nothing', () => {
+    expect(DOCUMENTED_OPTIONS.length).toBeGreaterThan(10);
+  });
+
+  it.each(DOCUMENTED_OPTIONS)('%s names `%s`', (readme, option) => {
+    expect(readFileSync(join(ROOT, readme), 'utf8'), `\`${option}\` ships and the README is silent`)
+      .toContain(`\`${option}\``);
+  });
+});
+
+/**
+ * A gate does not report **no** about something that ships.
+ *
+ * `gates.md` scored sitemap discovery as **no** for as long as
+ * `route-collector` had a documented `sitemap` option, a `sitemap.ts`, and tests
+ * for it. Nothing caught it, because every rule in this file until now checked
+ * documentation for *overstatement* — and a capability table understating the
+ * product is the same class of defect read from the other side. It costs a
+ * reader the feature and costs the project the comparison.
+ *
+ * Only flat **no** rows are checked. **partial** and **conditional** rows name
+ * the part that works, so they mention shipped things by design; grading those
+ * would need the rule to understand the sentence, and it does not.
+ */
+describe('a gate does not say no about a shipped option', () => {
+  const OPTIONS = new Set(DOCUMENTED_OPTIONS.map(([, option]) => option.toLowerCase()));
+
+  const REFUSALS = MARKDOWN.filter((file) => file.endsWith('gates.md')).flatMap((file) => {
+    const text = readFileSync(join(ROOT, file), 'utf8');
+    return [...text.matchAll(/^\|([^|]+)\|\s*\*\*no\*\*[^|]*\|/gm)].map(
+      (match) => [`${file}:${lineOf(text, match.index)}`, match[1]!.trim()] as const,
+    );
+  });
+
+  it('finds refusals to check, so this rule cannot pass by reading nothing', () => {
+    expect(REFUSALS.length).toBeGreaterThan(3);
+    expect(OPTIONS.size).toBeGreaterThan(10);
+  });
+
+  it.each(REFUSALS)('%s refuses %s', (_where, requirement) => {
+    const shipped = (requirement.toLowerCase().match(/[a-z]{5,}/g) ?? []).filter((word) =>
+      OPTIONS.has(word),
+    );
+    expect(
+      shipped,
+      `this row reports no, and ${shipped.join(', ')} is a supported option — ` +
+        'if the refusal is a product boundary, name the boundary rather than the option',
+    ).toEqual([]);
   });
 });

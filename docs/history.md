@@ -40,8 +40,13 @@ and accumulating the other is not.
 Run the service, and point a config at it.
 
 ```bash
-variance-authority-server
+VARIANCE_HISTORY_TOKEN=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))") variance-authority-server
 ```
+
+It refuses to start without that token, and refuses one shorter than 16
+characters: an unauthenticated history listens, accepts writes it cannot
+attribute to any run, and answers every question asked of it — silently and
+successfully.
 
 ```json
 {
@@ -70,7 +75,7 @@ happened, so none is invented.
 | | when | roughly |
 |---|---|---|
 | The run itself | always, including runs where nothing changed | one row |
-| A component hash | when it moved | one row per `(subject, component, band)` that moved |
+| A component hash | when it moved | one row per `(subject, component, band, profile)` that moved |
 | A resolved token | when a token's value moved | one row per token |
 | An instability | every time a subject fails to read the same way twice | one row per named cause |
 
@@ -95,8 +100,9 @@ without any of them holding a connection to your service.
 DRIFT: 1 token(s) moved in this run, and the record says what they have
   drifted to across every approved change in the window. No single review saw these
   totals, because each of them approved one step:
-    `--va-space-3` changed 11 time(s) over 2026-05-02 → 2026-08-10, 12px → 20px;
-    net +8px, largest single step +2px, spread across 11 reviews
+    `--va-space-3` drifted 12px → 20px, 8px across 11 approved commit(s)
+    (2026-05-02 → 2026-08-10); the largest single step was 2px, so no per-change
+    review could have seen the total
 ```
 
 The last clause is the finding. `largest single step` is the most any one
@@ -162,20 +168,21 @@ flake that was fixed into a flake that never happened.
 [`spec 0002`](specs/0002-history-store.md) is the live list, and two things on it
 are worth knowing up front.
 
-**`reach` is not asked by anything.** *Where has this component started
-appearing* is a question about the suite rather than about a run, so it does not
-fit the shape everything else here uses — the run asks, the report carries.
+**`lastChanged` and `reach` are not asked by anything.** Both are implemented in
+every backend and served by `packages/server/src/http.ts` and
+`packages/tribunal/src/worker.ts`; the other four reads are asked by `recordRun`.
+*When did this component last move* and *where has it started appearing* are
+questions about the suite rather than about a run, so they do not fit the shape
+everything else here uses — the run asks, the report carries.
 
 Half of it is answered elsewhere: *where does this component appear* is a
 question about one commit, and the suite compares itself against itself to
 answer it ([`composition.md`](composition.md)). What is missing is the word
 *started* — a delta needs two of those graphs, and nothing writes one to the
-record. It is a small job from here: a component census is a list of names and
-subject counts, and comparing two of them is set arithmetic.
+record.
 
-**The eleven-step journey above has never been produced against a real
-project.** Every part of it exists and each part is tested; what has not happened
-is eleven runs, eleven approvals, and the sentence at the end of them.
+**The eleven-step journey above is assembled from parts, not observed.** Every
+part exists and each is tested; no real project has produced the whole sequence.
 
 ---
 

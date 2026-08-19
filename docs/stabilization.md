@@ -56,13 +56,13 @@ that precondition is met.
 
 ---
 
-## Two stages, two recipes
+## Two recipes, and the wire
 
 | | applied to | recipe |
 |---|---|---|
 | **Collection** | the live page, before the subject is read | `pin-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images` |
 | **Render** | the reconstructed page, before it is painted | `hold-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images`, `hide-caret` |
-| **The wire** | every response the page is served | `freeze-gifs`, `hash-assets` |
+| **The wire** | every response the page is served | `freezeAnimatedImages`, `hashAssets` — network-observer options rather than recipe ids, because a response body is not something a stylesheet can reach |
 
 The collection and render recipes differ in exactly one trick and it is not a
 preference: `hold-animations` is a *screenshot* option, and at collection nobody
@@ -84,8 +84,8 @@ what already happened to your subject.
 | `wait-for-images` | an image whose intrinsic size had not landed | `document.images` at one moment. Anything appended during the wait is missed — the wire covers that |
 | `hide-scrollbars` | a platform and preference difference, and the reflow at the overflow threshold | headless Chromium uses overlay scrollbars, so the classic scrollbar flake does not reproduce in CI at all |
 | `hide-caret` | a cursor blinking on its own schedule | a screenshot option, so it applies at render and not at collection — a tier that never rasterizes cannot see a caret and must not pay to hide it |
-| `freeze-gifs` | an animated GIF, served as its first frame | on the wire, so a cross-origin image is no harder than any other |
-| `hash-assets` | *nothing* — it reports rather than absorbs | see [the wire](#the-wire-which-knows-what-the-page-cannot) |
+| `freezeAnimatedImages` | an animated GIF, served as its first frame | on the wire, so a cross-origin image is no harder than any other |
+| `hashAssets` | *nothing* — it reports rather than absorbs | see [the wire](#the-wire-which-knows-what-the-page-cannot) |
 
 <details>
 <summary>How <code>pin-animations</code> works, and why it is not <code>animation: none</code></summary>
@@ -170,8 +170,8 @@ Each clause comes from the trick's own `because`, so a project that writes its
 own gets a sentence here without editing anything, and a trick whose description
 is wrong is wrong in exactly one place.
 
-Absent means no collector reported stabilizing — which is a real state and not a
-missing feature: a jsdom collection has nothing to hold still.
+Absent means no collector reported stabilizing: a jsdom collection has nothing
+to hold still.
 
 ## The baseline remembers
 
@@ -281,17 +281,12 @@ snapshot.environment.inputs.assets
 // { 'https://app.test/logo.png': 'v1:9f3c…', 'https://app.test/Inter.woff2': 'v1:20ab…' }
 ```
 
-`EnvironmentInputs.assets` has existed since the format did, documented as
-"external assets keyed by request URL, valued by content hash", with its own
-warning that an uncovered input is a false `unchanged`. **It was filled by
-nobody.** Every run in this repository's history hashed an empty object, so a
-logo re-exported at a different compression, a hero image swapped behind a CDN
-path, or a font replaced under the same URL produced a different picture under an
-identical key — and the run said `unchanged`.
-
-That is the one failure this product exists to prevent, and it was open the whole
-time because the field that closes it had no source. A page cannot be that
-source: it can read a URL and not the bytes behind it.
+`EnvironmentInputs.assets` keys external assets by request URL and values them
+by content hash. Without it, a logo re-exported at a different compression, a
+hero image swapped behind a CDN path, or a font replaced under the same URL
+produces a different picture under an identical key — and the run says
+`unchanged`. The page cannot close that gap: it can read a URL and not the bytes
+behind it. The wire can.
 
 Hashed: `image`, `font`, `media`. Not hashed: documents, scripts and stylesheets,
 whose effect on the render arrives through the capture itself — the DOM, the rule
@@ -629,22 +624,22 @@ Measured, because a stabilization claim is only free if you do not check.
 
 ```
 STABILIZATION COST — 12 collections of one subject, warm
-  untouched    2.5 ms/subject
-  held still   2.3 ms/subject
-  difference  -0.2 ms/subject
+  untouched    2.3 ms/subject
+  held still   2.6 ms/subject
+  difference  +0.3 ms/subject
 ```
 
-Nothing, within noise — and it was **25.8 ms/subject** until the run that
-measured it. The recipe injects a sheet, awaits fonts and images, and then waits
-two animation frames for the pinned state to be in force; the two frames are the
+Within noise. Waiting unconditionally costs **25.8 ms/subject** instead — eleven
+times the cost of the reading itself, spent watching a page that is already
+still. The recipe injects a sheet, awaits fonts and images, and then waits two
+animation frames for the pinned state to be in force; the two frames are the
 whole cost, and on every subject after the first there is nothing for them to
 wait for. The sheet is already there, its CSS is unchanged, and an animation
 paused at its first frame stays paused.
 
 So the frame wait is skipped when the CSS is unchanged — a condition that reads
-off the page rather than a counter somebody has to keep correct. Eleven times the
-cost of the reading itself, removed, on every subject but one. On a two-hundred
-subject suite that is five seconds a run.
+off the page rather than a counter somebody has to keep correct. On a
+two-hundred subject suite that is five seconds a run.
 
 The first subject still pays, and should: that is the one where the sheet arrives
 and something is genuinely moving.
@@ -682,8 +677,9 @@ Stated rather than left for you to find.
 - **Sticky and fixed positioning** are not neutralized for a full-page capture.
 - **Spellcheck squiggles** and **subpixel image sizing** are not addressed.
 
-The last four are all tricks Argos ships and this does not, and none of them is
-hard — they are `Intervention` values nobody has written yet. The registry is
+Hover, sticky and fixed positioning, spellcheck squiggles and subpixel image
+sizing are all tricks Argos ships and this does not, and none of them is hard —
+they are `Intervention` values nobody has written yet. The registry is
 open precisely so that adding one is a value and not a fork.
 
 **What gets past all of it is caught rather than tolerated.** A subject the run
@@ -691,9 +687,7 @@ calls `changed` is read a second time in the same world, and one that disagrees
 with itself is reported `unstable` — with the component and the frequency band
 that moved, not a page to go and read. That is where this page hands over to
 [`flakiness.md`](flakiness.md#what-still-gets-through-and-how-it-is-found) and to
-[ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md). The first
-thing the check found was a bug in *this* repository, which is the argument for
-having it.
+[ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md).
 
 ---
 

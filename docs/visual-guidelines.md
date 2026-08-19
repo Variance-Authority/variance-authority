@@ -43,6 +43,11 @@ accents. Green indicates a positive state only; it does not compete with the
 active amber path. Blue, purple, cyan and rainbow gradients are outside the
 palette.
 
+This governs brand and illustration assets. The review surface in
+[`@variance-authority/tribunal`](../packages/tribunal) is on a light ground with
+its own slate and blue, chosen for a verdict UI before this palette existed, and
+does not follow it.
+
 ## Shape and line grammar
 
 Build illustrations from a small vocabulary:
@@ -132,5 +137,5 @@ or dot field is acceptable only when the primary geometry remains dominant.
 - Prefer the mark asset over a hand-drawn approximation.
 
 The logo is an identity asset. The illustration grammar is a construction rule
-for future visuals. Neither requires a realistic product interface to explain
-the product.
+for anything made from it. Neither requires a realistic product interface to
+explain the product.

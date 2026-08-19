@@ -87,8 +87,9 @@ without its rows leaves a quiet run that was not quiet.
 
 ## Who writes to it
 
-**Only a client you call yourself.** The service stores what is posted to it and
-nothing else: `variance run` records no observations, and `variance doctor`
-reports only whether a history endpoint is configured. An empty database under a
-configured endpoint is therefore the designed state, not a misconfiguration —
-until something in your own pipeline posts a row, there is nothing to read back.
+**A configured CLI, or a client you call yourself.** The service stores what is
+posted to it and nothing else. `variance run` posts the run and its observations
+when a `history` config block is present and the run can name itself — a run with
+no identity writes nothing and says so — and `variance accept` posts approvals.
+An empty database under a configured endpoint therefore means either that no run
+could name itself, or that nothing in your pipeline has posted yet.

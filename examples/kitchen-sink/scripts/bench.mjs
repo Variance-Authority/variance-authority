@@ -17,7 +17,7 @@
  *
  * Run:  yarn workspace @variance-authority/example-kitchen-sink bench
  */
-import { createHarness, captureOnce } from '@variance-authority/harness-playwright';
+import { createHarness, captureOnce } from '@variance-authority/playwright';
 import { CORPUS } from '../dist/corpus.js';
 import { buildAgentBundle, HARNESS_PAGE_URL } from './agent-bundle.mjs';
 

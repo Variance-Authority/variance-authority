@@ -26,9 +26,9 @@ export interface RouteCollectorOptions {
    * without a second commit. Requires `subjects.kind: "collector"`, because the
    * subject list is then discovered rather than declared — and that trade is the
    * operator's to make, since a page dropped from the sitemap stops being watched
-   * silently. Mutually exclusive with `routes`; a config naming both is asking
-   * two lists to be one, and quietly merging them is how a run watches a page
-   * nobody listed ([`docs/selecting.md`](../../../docs/selecting.md)).
+   * silently. Mutually exclusive with `routes`, `directory` and each other; a
+   * config naming two is asking two lists to be one, and quietly merging them is
+   * how a run watches a page nobody listed.
    *
    * A sitemap *index* is not followed. Fetching what a fetched document points at
    * is a crawler, and a crawler is a different product with a different failure

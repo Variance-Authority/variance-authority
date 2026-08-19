@@ -348,13 +348,16 @@ downloaded, so the run's inputs are the ones in the repository.
 }
 ```
 
-`subjects` is either `{ kind: "list", ids, collector }` or
-`{ kind: "storybook", index, collector }` — **both need a collector**, and for
-Storybook that collector is now
+`subjects` is one of three kinds. `{ kind: "list", ids, collector }` and
+`{ kind: "storybook", index, collector }` name the subjects up front — **both
+need a collector**, and for Storybook that collector is
 [`@variance-authority/storybook-collector`](../storybook-collector) and five
 lines. For anything else, neither a list of ids nor a story index says how to
-mount, and the mounting half is code you write. `baselines` is `directory`, `lfs`
-or `remote`.
+mount, and the mounting half is code you write. `{ kind: "collector", collector }`
+is the third: the collector discovers the subject list itself, which is what a
+`sitemap` or a `directory` route collector needs, and the trade is the operator's
+— a page that stops being discovered stops being watched. `baselines` is
+`directory`, `lfs` or `remote`.
 
 `source` is the only thing `--since` can narrow against, and it is three settings
 in one. `dirs` names where components are declared *and* declares the scope: a
@@ -383,11 +386,22 @@ clean: doctor makes no network calls, and an unasked question is not a failed on
 `ignore` is the one setting that makes a run *less* observant, so it is the one
 with the most rules attached. Each entry excludes a subtree (`select`) or a
 difference shape (`fingerprints`, copied out of a previous run's regions), may be
-narrowed by `subjects`, and may carry an `until` date after which it
+narrowed by `subjects` or by `tags`, and may carry an `until` date after which it
 stops absorbing. A subject whose only differences were absorbed reports
 **`ignored`**, never `unchanged`, and every run prints a ledger naming the rules
 that absorbed nothing — the two states that make a masked suite rot. Full
 treatment with a case per situation in [`docs/ignores.md`](../../docs/ignores.md).
+
+The remaining top-level keys, each with its own page: `history` points the run at
+a history service, and is what makes `variance run` record observations and
+`variance accept` record approvals ([`docs/history.md`](../../docs/history.md));
+`images` decides what a run writes alongside its report; `blank` replaces an
+image on the wire with a transparent one of the same intrinsic size
+([`docs/stabilization.md`](../../docs/stabilization.md)); `sensitivity` narrows a
+named subject by band ([`docs/ignores.md`](../../docs/ignores.md)); `decoder`
+chooses the PNG implementation; `concurrency` bounds how many subjects are in
+flight; `intent` and `alone` say what this run is for and what it must not share
+a world with.
 
 `browser` is `chromium` (the default), `firefox` or `webkit`. **One word, not a
 matrix**, and that is a property of what a run is rather than a missing feature:

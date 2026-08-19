@@ -6,7 +6,7 @@
  * cannot peek at a live document" is a compile error rather than a convention
  * (ADR-0001). Collectors extract; core normalizes and adjudicates.
  *
- * Six groups, each its own entrypoint, in the order an answer travels through
+ * Seven groups, each its own entrypoint, in the order an answer travels through
  * them:
  *
  * | entrypoint | what it holds |

@@ -14,11 +14,11 @@ gated in CI.
 | --- | --- |
 | Explicit route list | **yes** — `@variance-authority/route-collector` |
 | Static directory | **yes** — the route collector serves and plans its HTML files |
-| Sitemap or crawler discovery | **no** — the supported contract requires chosen, stable subject ids |
+| Sitemap or crawler discovery | **partial** — `sitemap` reads a list the application publishes about itself, under `subjects.kind: "collector"`; a crawler is refused, because following what a fetched page points at makes the subject list whatever shipped on Tuesday |
 | Several widths | **yes** — each width is a distinct planned subject |
 | Local or remote deferred render | **yes** — `portable: true` closes the collected document over the bytes the wire served |
 | Managed browser/device grid | **no** — renderer engines and capacity are operator-owned |
-| Hosted review UI | **no** — reports and acceptance are CLI/library workflows |
+| Hosted review UI | **partial** — `@variance-authority/tribunal` ships a self-hosted review surface with per-subject decisions; nothing posts a build to it, and nothing is vendor-hosted |
 
 **Verdict:** suitable for an explicit route/static suite when operator-owned
 rendering and review are acceptable. Choose Percy when managed breadth or hosted

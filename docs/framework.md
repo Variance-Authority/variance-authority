@@ -17,7 +17,7 @@ the four instruments below are four different questions asked of it.
 | Instrument | Answers | Shape |
 |---|---|---|
 | [`wiringOf`](#wiring-a-sixth-band) | how the framework holds this component — hooks, wrappers, contexts, keys | a **band**, hashed and stored |
-| [`remountedSince`](#remounts-what-the-document-cannot-show-you) | which instances were destroyed and rebuilt rather than updated | a **finding**, reported by a run |
+| [`remountedSince`](#remounts-what-the-document-cannot-show-you) | which instances were destroyed and rebuilt rather than updated | a **finding**, from an export you call |
 | [`awaitQuiet`](stabilization.md#tapcommits--which-components-rendered-and-when-they-stopped) | which components are still committing, by name | a wait, and a diagnostic |
 | [`awaitSuspense`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name) | which boundary has not resolved, and who wrote it | a wait, and a **refusal** |
 
@@ -112,9 +112,11 @@ entire page — the mark is what makes the distinction impossible to forget.
 Measured
 ([`identity.test.tsx`](../packages/react/src/identity.test.tsx)): a child declared
 inside its parent's body, which is the most common way to write this bug, against
-the same child declared at module scope. Identical `outerHTML`, identical
-`rendering`, identical `wiring`. A counter clicked once reads `1 of 1` under the
-stable child and `0 of 1` under the inline one.
+the same child declared at module scope. The two renders serialize identically,
+and a counter clicked once reads `1 of 1` under the stable child and `0 of 1`
+under the inline one. That the same pair is identical in `rendering` and in
+`wiring` as well is measured separately, on differently-named boundaries, in
+[`fiber.test.tsx`](../examples/todomvc/src/fiber.test.tsx).
 
 **A remount that was asked for and one that was not look identical**, so the
 reconciliation key is reported rather than filtered on. Under a key, somebody
@@ -148,9 +150,12 @@ together.
   `provenanceOf`, so another framework supplies its own — but no other
   implementation exists, and a page without one is absent from the band rather
   than reported as unwired.
-- **Nothing waits on these two.** Wiring and remounts are exports a caller uses.
-  The Suspense reader is the exception: every collector waits for boundaries to
-  settle before it reads, and refuses a subject that is still showing a fallback
+- **Nothing waits on these two.** Wiring and remounts are exports a caller uses,
+  and no shipped collector passes `wiringOf` — the band is defined and hashed
+  where a caller supplies the reader, and absent otherwise.
+  The Suspense reader is the exception: every *browser* collector waits for
+  boundaries to settle before it reads, and refuses a subject that is still
+  showing a fallback
   ([`stabilization.md`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)).
   The commit tap is still an export, for the reason given there.
 - **A remount is not attributed to a line.** It names the component, its owner

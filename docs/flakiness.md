@@ -413,11 +413,9 @@ Every finding carries a `confidence` field for exactly this reason.
 
 Every instability probe we have run **simulates** its cause — a smoothing mode
 instead of a different GPU driver, a second browser context instead of a second
-runner — because varying the machine is not available from inside a test. Every
-number on this page comes from one Mac and one Chromium.
-
-That is a real limit on what the measurements prove, and it is stated here rather
-than left for you to work out.
+runner — because varying the machine is not available from inside a test. Except
+where a row says otherwise, every number on this page comes from one Mac and one
+Chromium, which bounds what they prove.
 
 ---
 

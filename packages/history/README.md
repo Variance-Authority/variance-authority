@@ -64,9 +64,15 @@ client throws on every transport failure for the same reason, and
 
 ## Who writes a row
 
-**Whoever calls this package does.** The CLI parses a `history` config block and
-`variance doctor` reports whether one is configured, but `variance run` records no
-observations — so a store reached through `createHttpHistoryStore` holds exactly
-what your own code posted to it. Design against that: with no writer of your own,
-every drift query answers from an empty store, which `createAbsentStore` and the
-`unkept` sentence above already give you a truthful way to report.
+**A configured `variance run` does, and so does `variance accept`.** The CLI
+parses a `history` config block; `variance run` records the run and its
+observations when that block is present *and* the run can name itself, and
+`variance accept` records approvals. A run with a store but no identity writes
+nothing and says so, because a history that quietly stops growing the day
+somebody changes CI provider answers every later drift query over a window
+missing the runs nobody noticed were absent.
+
+A store you reach directly through `createHttpHistoryStore`, outside the CLI,
+holds exactly what your own code posted to it — and with no writer at all, every
+drift query answers from an empty store, which `createAbsentStore` and the
+`unkept` sentence above give you a truthful way to report.

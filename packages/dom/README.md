@@ -72,7 +72,14 @@ know that happened.
 | `media` / `specificity` | `@media`/`@supports` evaluation, and cascade order |
 | `aria` | role, accessible name, and state — computed, not read off attributes |
 | `ignore` | which subtrees the operator excluded, from selectors and from `data-variance-ignore` — resolved here because that is the only step needing a document, and recorded as a **mark** rather than a deletion |
-| `inherit` | what the ancestors outside the subject contribute, which is the only part of collection that looks outward |
+| `profile` | which tier this DOM can actually answer for, detected rather than declared |
+| `assets` | the external URLs a document refers to, so the wire's hashes have somewhere to land |
+| `stabilize` | the collection recipe applied to a live page, and what it reports having applied |
+| `attributed` | provenance and state written onto the nodes that carry them |
+
+`inherit` is used by `collect` and is not part of the export surface: what the
+ancestors outside the subject contribute is decided during collection, not by a
+caller.
 
 ## Owner chains are optional and injected
 

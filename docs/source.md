@@ -7,9 +7,9 @@ files, resolves what they point at, and hands back one record per file.
 
 It is a *reader*, not a builder. Nothing here executes the code it reads, loads a
 config that a bundler would load, or asks a package manager anything. The whole
-mechanism is a parse, a resolver and two caches — which is why a scan of a
-thirty-thousand-file repository is measured in hundreds of milliseconds rather
-than in the minutes a build costs.
+mechanism is a parse, a resolver and two caches — which is why a cold scan of a
+thirty-thousand-file repository is three seconds, every scan after it is a
+fraction of that, and neither is the minutes a build costs.
 
 The package is [`packages/sense`](../packages/sense), and it is named for what it
 is for: sensing what is there. The graph it feeds lives in

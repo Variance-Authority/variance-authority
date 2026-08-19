@@ -54,11 +54,18 @@ import { routeOf, widthsOf } from './widths.js';
  *
  * ## What it is not
  *
- * Not a crawler and not a sitemap reader. The routes are a map the operator
- * writes, because a discovered URL is a subject nobody chose: a crawl that finds
- * one more page on Tuesday reports a `new` subject that no one can approve and
- * no one asked for. Percy's no-code URL list is the nearest comparable thing and
- * it is genuinely less work; the difference is who decides what is under test.
+ * Not a crawler. A crawl follows what a fetched page points at, so the subject
+ * list is decided by whatever shipped on Tuesday: one more link is a `new`
+ * subject nobody chose and nobody can approve.
+ *
+ * A sitemap is a different object, and `discover` reads one. It is a list the
+ * application publishes about itself — declared discovery rather than inferred —
+ * and it requires `subjects.kind: "collector"` because the subject list is then
+ * discovered rather than written down. That trade is the operator's: a page
+ * dropped from the sitemap stops being watched silently, which is why `routes`
+ * stays the form that says who decides what is under test. A sitemap *index* is
+ * still not followed; fetching what a fetched document points at is the crawler
+ * above.
  */
 
 

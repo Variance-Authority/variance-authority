@@ -23,7 +23,7 @@ less. What changes is what you can *ask*, and who can answer.
 | 2. Shared cache | a CI cache | cold runners stop re-rendering; documents, so the docket ranks by cause | **no** — [spec 0011](specs/0011-storage-and-cache-primitives.md) |
 | 3. Remote baselines | one service, one token | no bot commits, no LFS quota | yes |
 | 4. Tribunal | a database and a bucket, two tokens | a review UI, approval without a commit | the surface ships; **nothing posts a build to it** |
-| 5. History | a history endpoint | recurrence of a flake; drift across runs | a run records and asks; flake rate, churn and token drift reach the report; **`reach` has no caller** — [spec 0002](specs/0002-history-store.md) |
+| 5. History | a history endpoint | recurrence of a flake; drift across runs | a run records and asks; flake rate, churn and token drift reach the report; **`lastChanged` and `reach` have no caller** — [spec 0002](specs/0002-history-store.md) |
 
 ## Rung 0 — ephemeral: nothing is stored
 
@@ -223,7 +223,7 @@ Two consequences follow, and neither is "the durable path cannot rank". A
 collector that can reach the previous revision's document — the same thing rung 0
 requires — can supply causes here today, unchanged. And **no collector that ships
 supplies them**: `@variance-authority/storybook-collector` declines and says so in
-a comment (`packages/storybook-collector/src/index.ts:423`), while the contract
+a comment (`packages/storybook-collector/src/index.ts:427`), while the contract
 carries the field (`packages/cli/src/commands/collector.ts:112`) — so "supplies
 none" describes what has been written rather than what the code permits. Rung 2
 is what would make it the default rather than the adopter's problem, and it is

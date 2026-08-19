@@ -21,8 +21,8 @@ is affordable at all.
 
 There is one move underneath all of them: **hold everything still, vary exactly
 one thing, and read a representation cheap enough to read again.** A semantic
-snapshot is text and costs about 7.5 ms warm against roughly 65 ms to paint
-([ADR-0010](context/adr/0010-tier-specific-environment-keys.md)), which is what makes
+snapshot is text and costs 3.4 ms against 65.4 ms to paint the same page in the
+same process ([ADR-0010](context/adr/0010-tier-specific-environment-keys.md)), which is what makes
 "read it again" a design option rather than a budget line.
 
 | instrument | varies | holds | names |
@@ -146,7 +146,7 @@ than three tools stapled together.
 | A component's hash covers its own nodes, so one edit moves one component | `examples/todomvc/src/closure.test.tsx` |
 | The suite shares renderings, and which examples watch the same bytes | `examples/todomvc/src/composition.test.tsx` — 26 shared renderings, 0 divergences |
 | Wiring separates two byte-identical documents | `examples/todomvc/src/fiber.test.tsx` |
-| A remount is invisible to every band | `packages/react/src/identity.test.tsx` — `1 of 1` against `0 of 1` |
+| A remount is invisible to the document | `packages/react/src/identity.test.tsx` — the two renders serialize identically, while the UI reads `1 of 1` against `0 of 1` |
 | Detecting cross-pollution beats rinsing it away | 3.4× faster, probe overhead ~2% of session time ([ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md)) |
 | Which bands a single prop reaches | `examples/todomvc/src/contrast.test.tsx` — seven props, five distinct sets |
 

@@ -3,8 +3,9 @@
 # @variance-authority/react
 
 **Requires:** that `react-dom` rendered the tree you are pointing at. Not the
-React package — there is no `import 'react'` anywhere in `src`, so it cannot pin,
-duplicate or conflict with the application's own copy.
+React package — no shipped module imports `react`, and `react` is a
+devDependency the tests use to build trees to read, so this cannot pin, duplicate
+or conflict with the application's own copy.
 
 That distinction is the whole reason this is a package instead of a folder in
 [`@variance-authority/dom`](../dom). The requirement is real and a consumer is
