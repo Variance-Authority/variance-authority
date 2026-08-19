@@ -77,8 +77,18 @@ LFS not installed, or `GIT_LFS_SKIP_SMUDGE` set — hands you 130 bytes of text
 where a PNG should be, and comparing two of those reports `unchanged` for every
 subject in the suite.
 
-The `git` invocation is injected (`CommandRunner`), so all of this is testable
-without a git repository.
+`createLfsStore` takes:
+
+| option | default | what it decides |
+|---|---|---|
+| `root` | required | baseline root, laid out exactly as the durable store lays it out |
+| `pattern` | `*.png` | which files are tracked, relative to the `.gitattributes` holding the entry. Deliberately narrow: the `.json` sidecar beside each image is small, readable, and the only thing that says which machine wrote a baseline, so putting it through LFS makes the reviewable half unreviewable in exchange for nothing |
+| `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives. In the baseline root rather than the repository root, because attributes apply to the directory holding the file and everything under it — which is exactly this store's scope. Writing to the repository root takes a shared file hostage to a subdirectory's needs |
+| `cacheRoot` | `root` | where the render cache goes. The cache is regenerable and keyed by document digest, so it grows with every edit and is worth nothing after one. Left at the default it is tracked and committed like a baseline — correct, and expensive. Point it outside the work tree to not pay for it |
+| `verify` | `true` | `false` skips consulting git entirely, and says so in `tracking.diagnostics` rather than silently |
+| `git` | `runCommand` | the `CommandRunner` git is invoked through |
+
+`git` is injected, so all of this is testable without a git repository.
 
 ## Reading
 

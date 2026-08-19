@@ -37,6 +37,28 @@ test('save button', async () => {
 This process acquires markup, applicable CSS, semantic evidence, and resources.
 It does not produce a screenshot or visual verdict.
 
+`capture(root, options)` takes:
+
+| option | default | what it decides |
+|---|---|---|
+| `subject` | required | `'button/save'`, or a full `SubjectRef`. A bare string becomes `kind: 'fixture'` |
+| `viewport` | required | width, height, scale, colour scheme. Media queries are resolved against it here, in the unit process, because the later renderer never sees this DOM |
+| `engine` | the DOM's own user agent | what painted, as it lands in the identity |
+| `fonts` | none | the font stack this capture is asserted to have, as `family/weight/style/hash` |
+| `features` | none | environment facts folded into the capture and into media-condition resolution |
+| `sourceRoot` | none | the root component paths are made relative to, so `file:line` survives the move to another machine |
+| `resolveResource` | none | `(url) => bytes`. **Required the moment the subtree references anything**: a subtree with resources and no resolver throws at capture, naming every URL it would have had to guess at, and a resolver returning `null` for one of them throws naming that one |
+
+`resolveResource` is the whole of the requirement above. A capture is rendered in
+another process — possibly on another machine, possibly hours later — so a
+document that carries digests and no bytes is a document that paints holes over
+there and cannot say why. Refusing here costs one test failure; the alternative
+costs a report nobody can act on.
+
+`writeCapture(directory, artifact)` writes one versioned file per subject;
+`readCapture` and `captureFiles` are the read half, and `CAPTURE_SUFFIX` is what
+they match on.
+
 ## Render later
 
 Point the normal CLI collector setting at a module exporting the artifact
@@ -47,6 +69,10 @@ import { captureCollector } from '@variance-authority/unit-test';
 
 export default captureCollector({ directory: '.variance/captures' });
 ```
+
+`directory` is the only option, and duplicate subject ids inside it are an error
+rather than a last-write-wins: two tests writing `button/save` is a name
+collision, and picking one silently makes half the suite invisible.
 
 `variance run` reads those captures and uses its configured local or remote
 renderer, baseline store, comparison policy, and report. Use a fresh capture

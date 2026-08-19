@@ -67,6 +67,23 @@ for (const subject of subjects) session.run(subject.ref, () => render(subject.re
 const findings = session.verify(render);           // confirmed | suspected, with a cause and a fix
 ```
 
+`createSession` takes:
+
+| option | default | what it decides |
+|---|---|---|
+| `document` | required | the live DOM the container is appended to |
+| `viewport` | required | width, height, scale, colour scheme — media conditions are resolved against it |
+| `engine` | required | what read the DOM, e.g. `jsdom@30`, as it lands in the identity |
+| `fonts` | none | the font stack this session is asserted to have |
+| `provenanceOf` | none | element to `Provenance`, so a finding can name the component that wrote a node rather than the node |
+| `portalsOf` | none | root to the elements it rendered outside itself. Without it a portal's content is somebody else's body child, which reads as pollution |
+| `clearContainer` | `true` | empty the container between subjects. The one teardown a session still performs, because it is the one that is cheap: emptying is proportional to the last subject, rebuilding a document is proportional to everything. `false` models a suite that appends without cleaning up — a real pattern, and one the detector should describe rather than forbid |
+
+`verify(replay, sample?)` takes an optional second argument: the subject ids to
+re-run. Omitted, every subject the session saw is replayed. Pass a sample when
+confirmation is the expensive half and you already know which subjects are worth
+the second pass.
+
 **`verify` takes the renderer back, and that is not a convenience.** Confirming a
 suspicion means rendering the subject again and seeing whether its hash moves,
 and a `verify` that could not re-render would have to assert the coupling from

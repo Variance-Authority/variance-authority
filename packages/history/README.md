@@ -72,6 +72,16 @@ nothing and says so, because a history that quietly stops growing the day
 somebody changes CI provider answers every later drift query over a window
 missing the runs nobody noticed were absent.
 
+`createHttpHistoryStore` takes:
+
+| option | default | what it decides |
+|---|---|---|
+| `endpoint` | required | base URL of the service you run, e.g. `http://history.internal:7788` |
+| `token` | required | the bearer the service was started with. The service holds no accounts and no identity of its own; everything it stores was produced by runs you own, and the token is how it refuses a write it cannot attribute to one |
+| `project` | none | scopes every query and is checked against every row written. Optional because a single-project deployment does not need it, and dangerous to omit on a shared one: unscoped queries blend two projects' `Button` into one rate and nothing in the answer would show it. Set, a write carrying another project's rows throws rather than landing in the wrong history |
+| `timeoutMs` | `10000` | a history query that hangs must fail, not stall the run |
+| `fetch` | `globalThis.fetch` | for a caller with its own agent or proxy |
+
 A store you reach directly through `createHttpHistoryStore`, outside the CLI,
 holds exactly what your own code posted to it — and with no writer at all, every
 drift query answers from an empty store, which `createAbsentStore` and the

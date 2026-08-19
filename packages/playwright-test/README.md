@@ -172,6 +172,28 @@ defaults to `2` and cannot lower the check below two captures.
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 
+### The matcher, for a suite that owns its `expect`
+
+`toBeUnchanged` is the same verdict read as a matcher rather than an assertion,
+and it takes an `Observation` rather than a `Locator`. That is the whole design:
+every third-party matcher that takes a page ends up owning a browser, a store and
+a bundle in module-level state, because `expect.extend` cannot reach a fixture.
+Both it and `assertUnchanged` accept `UnchangedOptions` — today one field,
+`source`, a `SourceIndex` resolving components to `file:line` when the
+observation was made without one.
+
+```ts
+// the suite's own expect, in the suite's own extension module
+import { expect as base } from '@playwright/test';
+import { observe, varianceMatchers } from '@variance-authority/playwright-test';
+
+export const expect = base.extend(varianceMatchers);
+
+// …then, in a test:
+declare const observation: Awaited<ReturnType<typeof observe>>;
+expect(observation).toBeUnchanged();
+```
+
 `varianceFixtures` and `varianceMatchers` are exported as unbound pieces for a
 suite that already owns a shared Playwright extension module. Compose them into
 that module's existing `test` and `expect`; this package never exports either

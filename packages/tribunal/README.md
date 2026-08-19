@@ -148,6 +148,28 @@ section. It is checked in because the distance between this repository and a
 running review surface should be a command with a known failure mode rather than
 an unknown amount of work.
 
+`worker-entry` is the only file in the package that reads an environment, and it
+reads four names plus two optional ones:
+
+| name | kind | what it decides |
+|---|---|---|
+| `DB` | binding | D1. The schema is in `migrations/` |
+| `BUCKET` | binding | R2. Baseline and candidate bytes; never a row |
+| `INGEST_TOKEN` | secret | written into CI. Writes builds, baselines and history. 16 characters or more |
+| `REVIEW_TOKEN` | secret | held by people. Reads the review surface and decides. 16 characters or more |
+| `PROJECT` | var, default `default` | scopes every row and object |
+| `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back rather than sweeping everything |
+
+A bad environment answers **500 with a sentence**, not a deployment-wide platform
+error: construction happens inside `fetch`, so *your token is too short* and *your
+two tokens are the same* reach the operator as the response body.
+
+`PROJECT` being a deployment setting is exactly what
+[spec 0014](../../docs/specs/0014-hosted-who-the-caller-is-and-what-the-bill-counts.md)
+says has to change before a second tenant exists — the credential should
+establish the project and no route should accept one. Harmless while a deployment
+serves one project, and the whole of the problem at two.
+
 Two properties worth knowing before you run it. The migration in `migrations/` is
 **generated** from `SCHEMA` by `tools/tribunal-migrations.mjs` and asserted
 against it by `migrations.test.ts` — editing the `.sql` by hand deploys a table

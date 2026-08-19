@@ -393,5 +393,9 @@ it.todo(
 );
 
 it.todo(
+  'a story whose image changes behind an unchanged URL is reported as changed, because the wire hashed the response body — the route path proves this in `packages/route-collector/src/network.chromium.test.ts` and the Storybook path runs the same page agent and the same per-story narrowing, so nothing here needs building — needs a served Storybook fixture whose asset bytes can be swapped between two runs at one URL, which this case has no origin to do',
+);
+
+it.todo(
   'the same story, captured as an in-place raster from the preview page the runner already painted, reaches the same verdict as the document this case renders later — ADR-0044 calls this cell coherent because the preview is a painted page, and nothing builds it: the collector needs an in-place material option and the host launch recipe declared the way `@variance-authority/playwright-test` declares it',
 );

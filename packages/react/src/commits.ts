@@ -170,6 +170,15 @@ interface DevToolsHook {
  * - **A hook exists.** Its `onCommitFiberRoot` is wrapped, the original still
  *   called first. That covers the DevTools extension and any other harness, and
  *   `stop()` puts the original back rather than deleting the field.
+ *
+ * FIXME: no collector composes this. `awaitSuspense` runs ahead of stabilization
+ * in every page agent, but nothing asks {@link awaitQuiet} whether the framework
+ * has stopped committing — so a page whose requests have all settled and whose
+ * components are still rendering is read at whatever commit the raster lands on.
+ * The blocker is the ordering constraint above: a tap must be installed before
+ * `react-dom` runs, and a collector's bundle is injected into a page the host
+ * already built. `examples/todomvc` is the only caller, and it gets there by
+ * owning its own entry.
  */
 export function tapCommits(options: TapOptions = {}): CommitTap {
   const scope = options.scope ?? (globalThis as unknown as Record<string, unknown>);

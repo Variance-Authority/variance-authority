@@ -64,6 +64,17 @@ interchangeable.
 |---|---|---|
 | `maxBatch` | 16 | A farm with a request-size limit, or one whose per-request timeout is tighter than a batch of paints |
 | `batchWindowMs` | `0` | Raise it only against a farm billed **per invocation**. Zero sends what is already waiting on the next turn of the loop, so a serial caller pays nothing; a window taxes that caller on every item and cannot help them |
+| `timeoutMs` | `30000` | A render that hangs must fail rather than stall the run |
+| `fetch` | `globalThis.fetch` | Substituted to route through a proxy, add headers, or test the transport without a socket |
+
+`createRemoteStore` takes the same `endpoint`, `timeoutMs` and `fetch`, plus
+`token` — the bearer the operator set on the service. It constructs
+synchronously, unlike `connectRenderer`, and the asymmetry is deliberate: a
+renderer has an identity that must be learned before anything it returns can be
+trusted, whereas a store has none of its own. The identity in play belongs to the
+renderer and travels on every call, so there is nothing to hand-shake about and a
+constructor that pinged the endpoint would move the failure earlier without
+changing what it means.
 
 Two properties the batch does not get to soften. **The identity check stays per
 document** — it is the thing that stops a raster being filed under a key nobody
