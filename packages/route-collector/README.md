@@ -151,6 +151,7 @@ so code that reads `matchMedia` during mount makes the correct decision.
 | `suspenseTimeoutMs` | A route legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
 | `headless` | You need to watch collection while debugging. | `true`. |
 | `network` | Asset bytes at stable URLs must affect render identity. | `true`. |
+| `portable` | The pixels will be made on a machine with no route to your asset origin. | `false`. Requires `network`; a resource that cannot be closed fails its route and names itself. |
 | `stabilize` | The application has its own determinism strategy. | The standard collection recipe; `[]` records an untouched page. |
 
 ## A route still arriving is refused

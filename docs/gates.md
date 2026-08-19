@@ -16,7 +16,7 @@ gated in CI.
 | Static directory | **yes** — the route collector serves and plans its HTML files |
 | Sitemap or crawler discovery | **no** — the supported contract requires chosen, stable subject ids |
 | Several widths | **yes** — each width is a distinct planned subject |
-| Local or remote deferred render | **conditional** — remote rendering needs equivalent access to referenced resources |
+| Local or remote deferred render | **yes** — `portable: true` closes the collected document over the bytes the wire served |
 | Managed browser/device grid | **no** — renderer engines and capacity are operator-owned |
 | Hosted review UI | **no** — reports and acceptance are CLI/library workflows |
 

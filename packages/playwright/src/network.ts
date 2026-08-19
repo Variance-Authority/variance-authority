@@ -1,4 +1,9 @@
-import { digestBytes, type Diagnostic, type Digest } from '@variance-authority/core';
+import {
+  digestBytes,
+  type Diagnostic,
+  type Digest,
+  type RenderResource,
+} from '@variance-authority/core';
 import type { Page, Route } from 'playwright';
 import {
   type BlankRule,
@@ -100,6 +105,22 @@ export interface NetworkOptions {
    * knows the URL and the intrinsic size, and it does not know the DOM.
    */
   readonly blank?: readonly BlankRule[];
+
+  /**
+   * Keep the bytes, not just their digest, so the document can be painted
+   * somewhere with no route to this origin. Off by default.
+   *
+   * The read has already happened — every hashed type is fetched and its body
+   * held long enough to digest it. This is retention, not acquisition, which is
+   * why the portable document costs a map rather than a second crawl.
+   *
+   * What is kept is what was *served*: the blank an image became, the single
+   * frame a GIF was truncated to, the bytes that actually reached the page. The
+   * alternative — keeping what arrived — would paint a different picture later
+   * than the run that observed it, which is the one thing an archive exists to
+   * prevent.
+   */
+  readonly retainResources?: boolean;
 }
 
 export interface NetworkObservation {
@@ -121,6 +142,22 @@ export interface NetworkObservation {
 
   /** Anything it could not do. Never a thrown error — see {@link observeNetwork}. */
   readonly diagnostics: readonly Diagnostic[];
+
+  /**
+   * Whether what was served can be handed to a renderer with no route to this
+   * origin, and the bytes if it can.
+   *
+   * A result rather than a map, because "portable" is a claim that can fail and
+   * the failure has to arrive at capture, holding the URLs, while the operator
+   * is still standing next to the page that produced them. Discovering it at
+   * render time means discovering it on a different machine, in a different
+   * process, from a digest mismatch — the same fact, arriving where nobody can
+   * act on it.
+   *
+   * Always `ok: false` when {@link NetworkOptions.retainResources} is off: no
+   * bytes were kept, so nothing can be claimed.
+   */
+  closure(): ResourceClosure;
 
   /**
    * Resolve when nothing is in flight, or report what is still outstanding.
@@ -150,6 +187,18 @@ export interface NetworkObservation {
 }
 
 /** One image that was replaced, with enough to find it again. */
+/**
+ * Either every served resource, or the names of the ones that stop the claim.
+ *
+ * `unresolved` carries a reason per URL rather than a bare list. An operator
+ * reading "could not close 3 resources" has to go and find out why; the same
+ * operator reading that a video is past the hash ceiling and two fonts were
+ * never observed already knows which lever each one needs.
+ */
+export type ResourceClosure =
+  | { readonly ok: true; readonly resources: Readonly<Record<string, RenderResource>> }
+  | { readonly ok: false; readonly unresolved: readonly string[] };
+
 export interface BlankedAsset {
   readonly url: string;
   /** {@link BlankRule.id} of the rule that matched. */
@@ -185,11 +234,15 @@ export async function observeNetwork(
   const ruleError = blankRuleError(blankRules);
   if (ruleError !== null) throw new Error(ruleError);
 
+  const retain = options.retainResources ?? false;
+
   const assets: Record<string, string> = {};
   const frozen: string[] = [];
   const blanked: BlankedAsset[] = [];
   const diagnostics: Diagnostic[] = [];
   const inFlight = new Set<string>();
+  const resources = new Map<string, RenderResource>();
+  const unresolved = new Map<string, string>();
   let idle: (() => void) | undefined;
 
   await page.route('**/*', handle);
@@ -200,10 +253,27 @@ export async function observeNetwork(
     blanked,
     diagnostics,
     settle,
+    closure(): ResourceClosure {
+      if (!retain) {
+        return {
+          ok: false,
+          unresolved: ['no resource was retained: observeNetwork ran with retainResources off'],
+        };
+      }
+      if (unresolved.size > 0) {
+        return { ok: false, unresolved: [...unresolved.values()].sort() };
+      }
+      return { ok: true, resources: Object.fromEntries(resources) };
+    },
     reset(): void {
       for (const url of Object.keys(assets)) delete assets[url];
       frozen.length = 0;
       blanked.length = 0;
+      // Cleared with the rest. `reset` marks the boundary between subjects, and a
+      // resource carried across it would close one subject's document over bytes
+      // another subject's page fetched.
+      resources.clear();
+      unresolved.clear();
     },
     async close(): Promise<void> {
       await page.unroute('**/*', handle);
@@ -239,8 +309,12 @@ export async function observeNetwork(
 
       if (still !== null) {
         frozen.push(url);
+        // The frame, not the film. Retaining the original would hand a later
+        // renderer an animation this run had already stopped.
+        keep(url, still, response.headers()['content-type'] ?? 'image/gif');
         await route.fulfill({ response, body: Buffer.from(still) });
       } else {
+        keep(url, body, response.headers()['content-type'] ?? 'application/octet-stream');
         await route.fulfill({ response, body: Buffer.from(body) });
       }
     } catch (error) {
@@ -253,6 +327,10 @@ export async function observeNetwork(
           `could not read ${url}, so its bytes are absent from the environment key: ` +
           messageOf(error),
       });
+      // A warning for the environment key, but a refusal for portability: the
+      // key can survive one unread asset as a weaker claim, and an archive that
+      // is missing one cannot be painted at all.
+      unresolved.set(url, `${url} could not be read: ${messageOf(error)}`);
       await route.continue().catch(noteRouteFailure(url));
     } finally {
       inFlight.delete(url);
@@ -295,12 +373,43 @@ export async function observeNetwork(
     assets[url] = blankKey(rule, size);
     blanked.push({ url, rule: rule.id, width: size.width, height: size.height });
 
-    await route.fulfill({
-      status: 200,
-      contentType: 'image/png',
-      body: blankPng(size.width, size.height),
-    });
+    // The blank it became, for the same reason the key records the blank: a
+    // later render that fetched the real image back would disagree with the
+    // capture about pixels the operator deliberately removed.
+    const blank = blankPng(size.width, size.height);
+    keep(url, blank, 'image/png');
+
+    await route.fulfill({ status: 200, contentType: 'image/png', body: blank });
     return true;
+  }
+
+  /**
+   * Hold the bytes that were served, or record why this URL cannot be closed.
+   *
+   * The ceiling is the interesting case. `assets` may record a large file as
+   * `size:<n>` and stay useful, because a size still moves when the file moves.
+   * An archive cannot: the renderer verifies each resource against a content
+   * digest before painting, so a `size:` claim would be a resource that fails
+   * verification on arrival. It refuses here instead, while the URL still means
+   * something to whoever is reading.
+   */
+  function keep(url: string, body: Uint8Array, contentType: string): void {
+    if (!retain) return;
+
+    if (body.length > ceiling) {
+      unresolved.set(
+        url,
+        `${url} is ${body.length} bytes, past the ${ceiling}-byte ceiling, so it is recorded ` +
+          'by size and cannot be closed over by content',
+      );
+      return;
+    }
+
+    resources.set(url, {
+      contentType,
+      bytes: Buffer.from(body).toString('base64'),
+      digest: digestBytes(body),
+    });
   }
 
   async function settle(timeoutMs = DEFAULT_SETTLE_MS): Promise<void> {

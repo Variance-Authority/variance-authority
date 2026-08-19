@@ -117,6 +117,18 @@ export function routeCollector(
     // observe the one already paid for.
     let network: NetworkObservation | undefined;
 
+    // Refused here rather than per route. A run asking for portable documents
+    // with the wire switched off cannot produce one for any subject, and saying
+    // so once — before a browser opens — beats saying it identically on every
+    // route after paying for all of them.
+    const portable = options.portable ?? false;
+    if (portable && options.network === false) {
+      throw new Error(
+        'portable documents need the network observer: the retained bytes are the ones the ' +
+          'page was served, and `network: false` is the option that stops anyone seeing them',
+      );
+    }
+
     const harness: Harness = await createHarness({
       // Somewhere to be while the agent is installed. With a discovered plan
       // there is no first route yet — the sitemap has not been fetched — so the
@@ -130,10 +142,10 @@ export function routeCollector(
         ? {}
         : {
             prepare: async (page): Promise<void> => {
-              network = await observeNetwork(
-                page,
-                config.blank !== undefined ? { blank: config.blank } : {},
-              );
+              network = await observeNetwork(page, {
+                ...(config.blank !== undefined ? { blank: config.blank } : {}),
+                ...(portable ? { retainResources: true } : {}),
+              });
             },
           }),
     });
@@ -386,9 +398,38 @@ export function routeCollector(
         // on its document digest has nobody to hand a location to. They ride the
         // snapshot as provenance — which no hash projects — and `locateSites`
         // spends them for the few nodes a region or a finding names.
+        // The portability claim is made here, where the URLs still mean
+        // something, or it is not made at all. A document that reaches a
+        // renderer claiming closure it does not have fails on digest
+        // verification in another process on another machine.
+        const closure = portable ? network?.closure() : undefined;
+        if (closure !== undefined && !closure.ok) {
+          return {
+            ok: false,
+            because:
+              `${planned.subject.id} cannot be captured as a portable document: ` +
+              closure.unresolved.join('; '),
+          };
+        }
+
         return {
           ok: true,
-          document: acquired.document,
+          document:
+            closure === undefined
+              ? acquired.document
+              : {
+                  ...acquired.document,
+                  // Carried with the bytes, and load-bearing for them. The
+                  // resource map is keyed by absolute URL because that is what
+                  // the wire saw, while the captured HTML holds whatever the
+                  // author wrote — usually `/logo.svg`. Without a base, a later
+                  // render resolves that against the renderer's own blank page,
+                  // requests nothing, finds nothing missing, and paints a
+                  // document with a hole in it. `page.url()` rather than the
+                  // planned address, so a redirect is recorded where it landed.
+                  baseUrl: page.url(),
+                  resources: closure.resources,
+                },
           // Normalized here rather than in the page: the ruleset is the one the
           // jsdom path uses, and running it in the browser would make the two
           // profiles two implementations of it.

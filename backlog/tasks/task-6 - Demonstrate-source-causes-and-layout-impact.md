@@ -1,10 +1,10 @@
 ---
 id: TASK-6
 title: Demonstrate source causes and layout impact
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-19 06:47'
-updated_date: '2026-08-19 06:48'
+updated_date: '2026-08-20 08:00'
 labels: []
 dependencies: []
 priority: high
@@ -20,10 +20,10 @@ Add a small runnable example that makes Variance’s answer concrete: a changed 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A browser-run example identifies a pixel region in a sidebar, names its React component and resolves it to the changed source file.
-- [ ] #2 The example distinguishes a style-only Heading change from geometry changes, including a SidePanel that is 50 CSS pixels wider and a button that is 4 CSS pixels taller.
-- [ ] #3 The example includes one structural/semantic change whose result is reported separately from style and geometry.
-- [ ] #4 Reader documentation states the showcase, the exact answer each scenario demonstrates, and the boundary between source cause, location, geometry, and structure.
+- [x] #1 A browser-run example identifies a pixel region in a sidebar, names its React component and resolves it to the changed source file.
+- [x] #2 The example distinguishes a style-only Heading change from geometry changes, including a SidePanel that is 50 CSS pixels wider and a button that is 4 CSS pixels taller.
+- [x] #3 The example includes one structural/semantic change whose result is reported separately from style and geometry.
+- [x] #4 Reader documentation states the showcase, the exact answer each scenario demonstrates, and the boundary between source cause, location, geometry, and structure.
 <!-- AC:END -->
 
 ## Implementation Plan

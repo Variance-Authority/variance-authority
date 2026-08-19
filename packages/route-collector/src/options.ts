@@ -116,6 +116,26 @@ export interface RouteCollectorOptions {
   readonly network?: boolean;
 
   /**
+   * Emit documents that carry the bytes they need, not just references to them.
+   * Defaults to `false`.
+   *
+   * On, each collected document is resource-closed: a renderer paints it with
+   * every network channel blocked, which is what lets the pixels be made on a
+   * machine that has no route to the asset origin — a pinned renderer, a queue,
+   * another architecture. Off, a document names its assets by digest, which is
+   * enough to notice one changed and not enough to reproduce it elsewhere.
+   *
+   * Requires `network` — the bytes come from the wire, because the wire is the
+   * only party that saw them. A resource that cannot be closed fails its route
+   * and names itself rather than shipping a document that claims more than it
+   * carries; see ADR-0044.
+   *
+   * The cost is size. A document grows by its assets, and a report holding a
+   * hundred of them holds their bytes too.
+   */
+  readonly portable?: boolean;
+
+  /**
    * Stabilization tricks to hold each page still with, by id. Defaults to
    * `COLLECT_RECIPE`, which is almost certainly what you want.
    *
