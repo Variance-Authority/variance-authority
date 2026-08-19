@@ -1,4 +1,3 @@
-import { expect as base } from '@playwright/test';
 import type { SourceIndex } from '@variance-authority/core';
 import type { Observation } from '@variance-authority/observe';
 import { describeObservation } from './docket.js';
@@ -19,22 +18,25 @@ export interface UnchangedOptions {
   readonly source?: SourceIndex;
 }
 
-export const expect = base.extend({
-  /**
-   * Passes only on `unchanged`.
-   *
-   * `new` fails, and that is the whole of the disagreement with every snapshot
-   * matcher in this category: they write the first image they see and report
-   * green. A subject nobody has approved is not a passing subject. Playwright
-   * has no third outcome, so this fails and names which one it is.
-   */
-  toBeUnchanged(observation: Observation, options: UnchangedOptions = {}) {
-    return {
-      pass: observation.verdict === 'unchanged',
-      message: () =>
-        observation.verdict === 'unchanged'
-          ? `${observation.subject}: ${observation.because}`
-          : describeObservation(observation, options.source),
-    };
-  },
-});
+/** A matcher function suites may compose into an expect they already own. */
+export function toBeUnchanged(observation: Observation, options: UnchangedOptions = {}) {
+  return {
+    pass: observation.verdict === 'unchanged',
+    message: () =>
+      observation.verdict === 'unchanged'
+        ? `${observation.subject}: ${observation.because}`
+        : describeObservation(observation, options.source),
+  };
+}
+
+export const varianceMatchers = { toBeUnchanged };
+
+/** Assert without replacing the suite's existing `expect`. */
+export function assertUnchanged(
+  observation: Observation,
+  options: UnchangedOptions = {},
+): void {
+  if (observation.verdict !== 'unchanged') {
+    throw new Error(describeObservation(observation, options.source));
+  }
+}

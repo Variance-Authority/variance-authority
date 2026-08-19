@@ -261,12 +261,12 @@ binary.
 
 Two packages, and which one you want depends on whether you already have a suite.
 
-[`@variance-authority/playwright-test`](../packages/playwright-test) is the
-fixture: `expect(await variance(locator)).toBeUnchanged()`
-inside the test body you already wrote. It is the one adoption path that needs no
-collector, because a Playwright test has navigated, mounted and waited by the
-time the fixture is reached — which is also why it is the answer for anything
-behind a login or several steps into a flow. See
+[`@variance-authority/playwright-test`](../packages/playwright-test) is an
+additive observation: `assertUnchanged(await observe(page, locator, testInfo))`
+inside the test body you already wrote. It exports neither `test` nor `expect`.
+It is the one adoption path that needs no collector, because a Playwright test
+has navigated, mounted and waited by the time the observation is made — which is
+also why it is the answer for anything behind a login or several steps into a flow. See
 [replacing.md §1](replacing.md#1-replacing-expectpagetohavescreenshot).
 
 `@variance-authority/playwright` underneath it is **a renderer and a harness**: a

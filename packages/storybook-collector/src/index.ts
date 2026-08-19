@@ -122,6 +122,9 @@ export interface StorybookCollectorOptions {
   /** Overrides the roots the story is read from. Tightest first. */
   readonly roots?: readonly string[];
 
+  /** Milliseconds for Storybook or a declared marker to report readiness. Defaults to 15000. */
+  readonly readyTimeoutMs?: number;
+
   /**
    * Milliseconds to wait for a story's Suspense boundaries. Defaults to 5000.
    *
@@ -296,6 +299,7 @@ export function storybookCollector(
 
         const outcome = await collectStory(harnessPage({ page }), storyId, {
           baseUrl,
+          ...(options.readyTimeoutMs !== undefined ? { timeoutMs: options.readyTimeoutMs } : {}),
           ...(readySelector !== undefined ? { readySelector } : {}),
         });
 

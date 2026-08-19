@@ -35,6 +35,7 @@ import { storybookCollector } from '@variance-authority/storybook-collector';
 
 export default storybookCollector({
   ready: { 'case-surface--deferred': '[data-testid="case-ready"]' },
+  readyTimeoutMs: 30_000,
   loading: ['case-surface--suspense-stalled'],
   source: { dirs: ['cases/storybook-case/src'] },
 });

@@ -7,8 +7,9 @@ viewport, and a browser binary on the machine.
 
 Add a source-aware visual observation to a Playwright test that already knows
 how to navigate, authenticate, mount data, and wait for the application. The
-test body remains the collector; this package contributes one `variance`
-fixture and one `toBeUnchanged` matcher.
+test body remains the collector. This package does not export `test` or
+`expect`; the suite keeps the runner, fixtures, matchers, and import paths it
+already owns.
 
 Use this integration when the state you need is already easiest to reach in a
 Playwright test:
@@ -19,40 +20,54 @@ npx playwright install chromium
 
 ## Add an observation to a test
 
-Import `test` and `expect` from this package, drive the page as usual, then hand
-the fixture a `Locator` for the subtree you intend to review.
+Keep importing `test` and `expect` from the suite's existing owner. Pass the
+opened `Page`, a bounded `Locator`, and Playwright's `TestInfo` to the additive
+helper.
 
 ```ts
-import { test, expect } from '@variance-authority/playwright-test';
+import { test, expect } from '@playwright/test';
+import { assertUnchanged, observe } from '@variance-authority/playwright-test';
 
-test('the cart survives an empty basket', async ({ page, variance }) => {
+test('the cart survives an empty basket', async ({ page }, testInfo) => {
   await page.goto('https://example.test/cart');
   await page.getByRole('button', { name: 'Clear' }).click();
 
-  const observation = await variance(page.getByTestId('cart'), {
+  const observation = await observe(page, page.getByTestId('cart'), testInfo, {
     subjectId: 'cart/empty',
   });
 
-  expect(observation).toBeUnchanged();
+  assertUnchanged(observation);
+  expect(observation.subject).toBe('cart/empty');
 });
 ```
 
-`variance` returns an `Observation`; it does not assert. The matcher is the
-standard gate, but your test may also inspect `verdict`, `regions`,
+`observe` creates and closes its renderer around one observation. It returns an
+`Observation`; `assertUnchanged` is a plain assertion helper, not a replacement
+for Playwright's `expect`. A test may also inspect `verdict`, `regions`,
 `missingFonts`, or diagnostics before deciding what to do.
 
-The default baseline directory is `.variance/baselines`. Override the worker
-fixture when the suite needs another location:
+For several observations in one test, keep one renderer alive explicitly:
 
 ```ts
-import { test } from '@variance-authority/playwright-test';
+import { test } from '@playwright/test';
+import { assertUnchanged, createVariance } from '@variance-authority/playwright-test';
 
-test.use({ varianceBaselines: 'test-artifacts/variance-baselines' });
+test('the cart states', async ({ page }, testInfo) => {
+  const variance = await createVariance(page, testInfo, {
+    baselines: 'test-artifacts/variance-baselines',
+  });
+  try {
+    assertUnchanged(await variance.observe(page.getByTestId('cart')));
+    assertUnchanged(await variance.observe(page.getByTestId('summary')));
+  } finally {
+    await variance.close();
+  }
+});
 ```
 
 ## Establish the first baseline
 
-The first run returns `new`, and `toBeUnchanged` fails. That is intentional: a
+The first run returns `new`, and `assertUnchanged` fails. That is intentional: a
 subject nobody has approved is not an unchanged subject.
 
 After reviewing the candidate, promote the image with Playwright's existing
@@ -65,7 +80,7 @@ npx playwright test --update-snapshots
 Acceptance promotes the candidate painted by that run; it never paints a
 second, unseen image. The observation returned by the acceptance run still
 describes what it saw, so rerun the test normally to prove the stored baseline
-is found and the matcher passes.
+is found and the assertion passes.
 
 Use an explicit `subjectId` for long-lived baselines. When it is omitted, the id
 comes from the test title path; renaming the test then produces `new` instead of
@@ -73,19 +88,19 @@ silently comparing against a baseline that may describe another scenario.
 
 ## Choose the subject deliberately
 
-The fixture accepts a `Locator`, never a `Page`. A bounded subtree keeps shared
+The observation accepts a `Locator`, never an unbounded page. A bounded subtree keeps shared
 application chrome and unrelated CSS out of the comparison, and gives changed
 regions a useful component context.
 
-The fixture acquires the live subtree, then paints the acquired document with
+The helper acquires the live subtree, then paints the acquired document with
 its own renderer rather than calling `locator.screenshot()`. That second paint
 is the cost of carrying a renderer identity with the baseline. A run on an
 incompatible machine can then report `incomparable` instead of presenting a
 font-stack or driver change as a component regression.
 
-## Options and fixtures
+## Options and composition
 
-### `variance(locator, options)`
+### `observe(page, locator, testInfo, options)` and `session.observe(locator, options)`
 
 | Option | Use it when | Default and boundary |
 | --- | --- | --- |
@@ -96,7 +111,7 @@ font-stack or driver change as a component regression.
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled. |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
 
-### Worker fixtures
+### Optional fixture composition
 
 | Fixture | Purpose | Default |
 | --- | --- | --- |
@@ -105,35 +120,41 @@ font-stack or driver change as a component regression.
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 
-Override the worker fixtures only when you are deliberately supplying another
-renderer, store, or agent bundle. The public types are
+`varianceFixtures` and `varianceMatchers` are exported as unbound pieces for a
+suite that already owns a shared Playwright extension module. Compose them into
+that module's existing `test` and `expect`; this package never exports either
+symbol. Override the worker fixtures only when the suite deliberately supplies
+another renderer, store, or agent bundle. The public types are
 `VarianceWorkerFixtures`, `VarianceFixtures`, and `VarianceOptions`.
 
 The package also exports `bundlePageAgent`, `acquire`, `AGENT`, and
 `AGENT_VERSION` for authors building a custom Playwright fixture. Ordinary test
-suites should use the provided `test`; the low-level exports do not create a
-renderer, store, or acceptance lifecycle on their own.
+suites should use `observe` or `createVariance`; the low-level exports do not
+create a renderer, store, or acceptance lifecycle on their own.
 
 ## A subject still arriving throws
 
-Before the subtree is acquired, the fixture waits for every React Suspense
+Before the subtree is acquired, the integration waits for every React Suspense
 boundary under the locator to settle. This runs first, ahead of stabilization,
 because content that arrives late brings its own images and fonts.
 
 A subtree still showing a fallback when `suspenseTimeoutMs` runs out throws,
 naming the open boundaries and the components that wrote them. That is
 deliberate, and it is where this integration differs from a collector, which
-reports the subject as not collected: `variance` returns an `Observation`, and a
+reports the subject as not collected: `observe` returns an `Observation`, and a
 photographed spinner is not a comparison result. A failed assertion is what
 reaches the person who can decide which of the two states the test is about.
 
 Pass `loading: true` when the fallback is the subject:
 
 ```ts
-import { test } from '@variance-authority/playwright-test';
+import { test } from '@playwright/test';
+import { observe } from '@variance-authority/playwright-test';
 
-test('the cart is reviewed while it loads', async ({ page, variance }) => {
-  const observation = await variance(page.getByTestId('cart'), { loading: true });
+test('the cart is reviewed while it loads', async ({ page }, testInfo) => {
+  const observation = await observe(page, page.getByTestId('cart'), testInfo, {
+    loading: true,
+  });
 });
 ```
 
@@ -151,25 +172,25 @@ decision is
   browser, platform, scale, and asserted fonts instead of accepting the wall of
   changes.
 - **Changed regions name components but no files:** pass a `SourceIndex` as
-  `source` to `variance` or to `toBeUnchanged`.
+  `source` to `observe`, `session.observe`, or `assertUnchanged`.
 - **“variance needs a viewport”:** the Playwright page uses a null viewport.
   Configure a fixed viewport so two runs have a declared size.
-- **The matcher lists a large container first:** this integration's docket is
+- **The assertion lists a large container first:** this integration's docket is
   ordered by changed area and explicitly describes that as displacement, not
   blame. Do not read its ordering as cause-first attribution.
 - **“still waiting when it was read”:** the named Suspense boundary never
   resolved. Fix what it awaits, or pass `loading: true` if the fallback is what
   you intend to review.
-- **The page agent is missing:** import this package's `test`, not Playwright's
-  base fixture, and avoid replacing `varianceBundle` unless the custom bundle is
-  installed before navigation.
+- **The page agent is missing:** use `observe`, `createVariance`, or compose
+  `varianceFixtures`; avoid replacing the bundle unless the custom bundle is
+  installed in both the current document and future navigations.
 
 ## Boundaries
 
 This package does not merge Playwright shards into one docket. Playwright's
 `--shard` can still run the tests, but each shard owns its own result set.
 
-The matcher and docket are unit-tested, but this fixture has not yet been
+The assertion and docket are unit-tested, but this integration has not yet been
 driven by a separate real-world Playwright suite. Treat the browser-facing
 integration as beta evidence, not an established compatibility claim.
 

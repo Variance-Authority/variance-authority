@@ -198,8 +198,9 @@ navigating every route independently. Choose routes when the served application
 is the artifact that matters.
 
 These are the current package boundaries, not hypothetical presets.
-`@variance-authority/playwright-test` is a one-package integration. Storybook
-and route adoption require the shared CLI plus one collector package;
+`@variance-authority/playwright-test` is a one-package integration that leaves
+the suite's existing `test` and `expect` imports in place. Storybook and route
+adoption require the shared CLI plus one collector package;
 the collector owns how the UI becomes ready, while the CLI owns baselines,
 reports, acceptance, and CI exit codes.
 

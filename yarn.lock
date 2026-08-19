@@ -2444,6 +2444,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-dynamic-route-flake@workspace:examples/dynamic-route-flake":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-dynamic-route-flake@workspace:examples/dynamic-route-flake"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    esbuild: "npm:^0.25.0"
+    playwright: "npm:^1.49.0"
+    react: "npm:^19"
+    react-dom: "npm:^19"
+    vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/example-kitchen-sink@workspace:examples/kitchen-sink":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-kitchen-sink@workspace:examples/kitchen-sink"
@@ -2458,6 +2475,23 @@ __metadata:
     playwright: "npm:^1.49.0"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/example-layout-impact@workspace:examples/layout-impact":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-layout-impact@workspace:examples/layout-impact"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    esbuild: "npm:^0.25.0"
+    playwright: "npm:^1.49.0"
+    react: "npm:^19"
+    react-dom: "npm:^19"
+    vitest: "npm:^2.1.8"
   languageName: unknown
   linkType: soft
 
@@ -2481,23 +2515,6 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/sense": "workspace:^"
-    vitest: "npm:^2.1.8"
-  languageName: unknown
-  linkType: soft
-
-"@variance-authority/example-dynamic-route-flake@workspace:examples/dynamic-route-flake":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/example-dynamic-route-flake@workspace:examples/dynamic-route-flake"
-  dependencies:
-    "@variance-authority/core": "workspace:^"
-    "@variance-authority/dom": "workspace:^"
-    "@variance-authority/playwright": "workspace:^"
-    "@variance-authority/png": "workspace:^"
-    "@variance-authority/react": "workspace:^"
-    esbuild: "npm:^0.25.0"
-    playwright: "npm:^1.49.0"
-    react: "npm:^19"
-    react-dom: "npm:^19"
     vitest: "npm:^2.1.8"
   languageName: unknown
   linkType: soft
@@ -2593,7 +2610,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/playwright-test@workspace:packages/playwright-test"
   dependencies:
-    "@playwright/test": "npm:^1.62.1"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
     "@variance-authority/observe": "workspace:^"
@@ -2601,6 +2617,8 @@ __metadata:
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/react": "workspace:^"
     "@variance-authority/store": "workspace:^"
+  peerDependencies:
+    "@playwright/test": ">=1.49 <2"
   languageName: unknown
   linkType: soft
 
@@ -5748,6 +5766,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "variance-authority@workspace:."
   dependencies:
+    "@playwright/test": "npm:^1.62.1"
     "@types/node": "npm:^22.10.2"
     "@types/pngjs": "npm:^6.0.5"
     "@types/react": "npm:^19"

@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -21,6 +20,7 @@ import {
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { comparePngs } from '@variance-authority/png';
 import type { Variant } from './workspace.js';
+import { pageAgentBundle } from '../test/page-agent-bundle.js';
 
 const BROWSER_AVAILABLE = (() => {
   try { return existsSync(chromium.executablePath()); } catch { return false; }
@@ -35,19 +35,11 @@ const SOURCE = mergeSourceIndexes([
   indexSource('src/action-button.tsx', readFileSync(join(HERE, 'action-button.tsx'), 'utf8')),
 ]);
 
-async function bundle(): Promise<string> {
-  const result = await build({
-    entryPoints: [join(HERE, 'page-agent.tsx')],
-    bundle: true,
-    format: 'iife',
-    target: 'es2022',
-    write: false,
-    jsx: 'automatic',
-    define: { 'process.env.NODE_ENV': '"development"' },
-  });
-  const output = result.outputFiles[0];
-  if (output === undefined) throw new Error('esbuild produced no page agent');
-  return output.text;
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\nexamples/layout-impact: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 async function read(harness: Harness, variant: Variant) {
@@ -92,7 +84,7 @@ beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
   harness = await createHarness({
     url: pathToFileURL(join(ROOT, 'page', 'harness.html')).href,
-    bundle: await bundle(),
+    bundle: await pageAgentBundle(),
     viewport: VIEWPORT,
     subjectId: () => SUBJECT,
   });
@@ -127,15 +119,41 @@ describe.skipIf(!BROWSER_AVAILABLE)('source cause and layout impact', () => {
     const deltas = layoutDiff!.deltas;
     expect(deltas.some((delta) => delta.kind === 'style-changed' && delta.band === 'token')).toBe(true);
     expect(deltas.some((delta) => delta.kind === 'rect-changed' && delta.band === 'geometry')).toBe(true);
+    expect(deltas).toContainEqual(
+      expect.objectContaining({
+        kind: 'style-changed',
+        band: 'token',
+        createdBy: 'ActionButton',
+        property: 'height',
+      }),
+    );
+    expect(deltas).toContainEqual(
+      expect.objectContaining({
+        kind: 'rect-changed',
+        band: 'geometry',
+        createdBy: 'ActionButton',
+      }),
+    );
     const docket = buildDocket([layoutDiff!]);
     expect(docket.entries).toContainEqual(expect.objectContaining({ label: 'SidePanel', band: 'geometry', structureIntact: true }));
-    expect(docket.entries).toContainEqual(expect.objectContaining({ label: 'ActionButton', band: 'geometry', structureIntact: true }));
+    expect(docket.entries[0]?.components).toContainEqual(
+      expect.objectContaining({ name: 'ActionButton', role: 'collateral' }),
+    );
   });
 
   it('reports the sidebar landmark change as structural/semantic, separately from paint and size', () => {
     expect(structureDiff!.deltas.some((delta) => delta.kind === 'role-changed' || delta.kind === 'node-added' || delta.kind === 'node-removed')).toBe(true);
     const docket = buildDocket([structureDiff!]);
-    expect(docket.entries.some((entry) => entry.label === 'SidePanel' && entry.structureIntact === false)).toBe(true);
+    expect(docket.entries).toContainEqual(
+      expect.objectContaining({
+        kind: 'prop',
+        label: 'Workspace',
+        structureIntact: false,
+      }),
+    );
+    expect(docket.entries[0]?.components).toContainEqual(
+      expect.objectContaining({ name: 'SidePanel', role: 'root' }),
+    );
     expect(structureDiff!.deltas.some((delta) => delta.kind === 'style-changed')).toBe(false);
   });
 });

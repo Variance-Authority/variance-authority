@@ -1,4 +1,11 @@
-import { test as base, type Locator, type TestInfo } from '@playwright/test';
+import type {
+  Fixtures,
+  Locator,
+  Page,
+  PlaywrightTestArgs,
+  PlaywrightWorkerArgs,
+  TestInfo,
+} from '@playwright/test';
 import { documentDigest, hashComponents, normalize } from '@variance-authority/core';
 import type {
   SemanticSnapshot,
@@ -15,7 +22,8 @@ import { bundlePageAgent } from './bundle.js';
 import { AGENT, type Acquired, type AcquireRequest, type InstalledAgent } from './page-agent.js';
 
 /**
- * The Playwright surface: one fixture, and the matcher next door.
+ * The optional Playwright fixture parts, for a suite that already owns a shared
+ * extension module.
  *
  * What makes this cheaper than the CLI's collector is that **the adopter's test
  * body already is the collector.** `variance run` needs one because it has to
@@ -95,6 +103,13 @@ export interface VarianceWorkerFixtures {
   readonly varianceBaselines: string;
 }
 
+export interface VarianceRuntime {
+  readonly page: Page;
+  readonly testInfo: TestInfo;
+  readonly renderer: Renderer;
+  readonly store: RasterStore;
+}
+
 /**
  * Where a run is allowed to promote what it just painted.
  *
@@ -129,7 +144,12 @@ function viewportOf(
   };
 }
 
-export const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>({
+export const varianceFixtures: Fixtures<
+  VarianceFixtures,
+  VarianceWorkerFixtures,
+  PlaywrightTestArgs,
+  PlaywrightWorkerArgs
+> = {
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
   varianceBundle: [
@@ -166,101 +186,90 @@ export const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>({
 
   variance: async ({ page, varianceBundle, varianceRenderer, varianceStore }, use, testInfo) => {
     await page.addInitScript(varianceBundle);
-
-    await use(async (locator, options = {}) => {
-      const subject: SubjectRef = {
-        id: options.subjectId ?? testInfo.titlePath.slice(1).join('/'),
-        kind: options.subjectKind ?? 'route',
-      };
-
-      const request: AcquireRequest = {
-        subject,
-        viewport: viewportOf(page.viewportSize(), testInfo),
-        engine: `chromium@${page.context().browser()?.version() ?? 'unknown'}`,
-        ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
-        // A deliberate loading capture waits for nothing: the fallback is the
-        // subject, and paying the timeout to be told the boundary is still there
-        // would add five seconds to every such assertion.
-        ...(options.loading === true
-          ? { suspense: { timeoutMs: 0 } }
-          : options.suspenseTimeoutMs !== undefined
-            ? { suspense: { timeoutMs: options.suspenseTimeoutMs } }
-            : {}),
-      };
-
-      // The element, not a selector: Playwright resolves the locator and hands
-      // the node across, which is the whole of what a collector's root search
-      // exists to do.
-      const raw = await locator.evaluate(
-        (element, [global, sent]: readonly [string, AcquireRequest]) => {
-          const agent = (globalThis as unknown as Record<string, InstalledAgent | undefined>)[
-            global
-          ];
-          if (agent === undefined) {
-            throw new Error(`the variance page agent is not installed at ${global}`);
-          }
-          return agent.acquire(element, sent);
+    await use((locator, options) =>
+      observeLocator(
+        {
+          page,
+          testInfo,
+          renderer: varianceRenderer,
+          store: varianceStore,
         },
-        [AGENT, request] as const,
-      );
-
-      const { document, capture, suspense } = JSON.parse(raw) as Acquired;
-
-      // Thrown, not returned. This surface has no refusal channel — an
-      // `Observation` says what a comparison found, and "we photographed a
-      // spinner" is not a comparison result — and a failed assertion is what
-      // actually reaches the person who can decide which state this test is
-      // about. `loading: true` is the way past it.
-      const unsettled = suspenseRefusal(suspense, {
-        subjectId: subject.id,
-        declaredLoading: options.loading === true,
-      });
-      if (unsettled !== undefined) throw new Error(unsettled);
-      const snapshot: SemanticSnapshot = normalize(capture);
-      const key: BaselineKey = { subject: subject.id };
-
-      // The settlement query, and it reads no image. `describe` answers from the
-      // sidecar — a few hundred bytes of text against a base64-encoded PNG — so a
-      // suite where nothing moved decodes nothing and paints nothing. On a
-      // Playwright suite that is most runs, which is why this is the first thing
-      // that happens and not an optimization bolted on later.
-      //
-      // `identityFor(document)`, never `renderer.identity`: the two differ by the
-      // document's scale factor, and asking under a key nothing was written under
-      // switches the whole economy off above 1x while looking healthy.
-      const identity = varianceRenderer.identityFor(document);
-      const settlement = settle(
-        documentDigest(document),
-        await varianceStore.describe(key, identity),
-        identity,
-      );
-
-      if (settlement.kind === 'settled') {
-        return {
-          subject: subject.id,
-          verdict: settlement.verdict,
-          because: settlement.because,
-          regions: [],
-          rendered: false,
-          missingFonts: settlement.missingFonts ?? [],
-        };
-      }
-
-      const observation = await observeAgainstBaseline(document, key, {
-        renderer: varianceRenderer,
-        store: varianceStore,
-        snapshot,
-        ...(options.source !== undefined ? { source: options.source } : {}),
-      });
-
-      if (accepting(testInfo) && observation.verdict !== 'unchanged') {
-        await promote(varianceStore, varianceRenderer, document, key, snapshot);
-      }
-
-      return observation;
-    });
+        locator,
+        options,
+      ),
+    );
   },
-});
+};
+
+export async function observeLocator(
+  runtime: VarianceRuntime,
+  locator: Locator,
+  options: VarianceOptions = {},
+): Promise<Observation> {
+  const { page, testInfo, renderer, store } = runtime;
+  const subject: SubjectRef = {
+    id: options.subjectId ?? testInfo.titlePath.slice(1).join('/'),
+    kind: options.subjectKind ?? 'route',
+  };
+
+  const request: AcquireRequest = {
+    subject,
+    viewport: viewportOf(page.viewportSize(), testInfo),
+    engine: `chromium@${page.context().browser()?.version() ?? 'unknown'}`,
+    ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
+    ...(options.loading === true
+      ? { suspense: { timeoutMs: 0 } }
+      : options.suspenseTimeoutMs !== undefined
+        ? { suspense: { timeoutMs: options.suspenseTimeoutMs } }
+        : {}),
+  };
+
+  const raw = await locator.evaluate(
+    (element, [global, sent]: readonly [string, AcquireRequest]) => {
+      const agent = (globalThis as unknown as Record<string, InstalledAgent | undefined>)[global];
+      if (agent === undefined) {
+        throw new Error(`the variance page agent is not installed at ${global}`);
+      }
+      return agent.acquire(element, sent);
+    },
+    [AGENT, request] as const,
+  );
+
+  const { document, capture, suspense } = JSON.parse(raw) as Acquired;
+  const unsettled = suspenseRefusal(suspense, {
+    subjectId: subject.id,
+    declaredLoading: options.loading === true,
+  });
+  if (unsettled !== undefined) throw new Error(unsettled);
+  const snapshot: SemanticSnapshot = normalize(capture);
+  const key: BaselineKey = { subject: subject.id };
+  const identity = renderer.identityFor(document);
+  const settlement = settle(documentDigest(document), await store.describe(key, identity), identity);
+
+  if (settlement.kind === 'settled') {
+    return {
+      subject: subject.id,
+      verdict: settlement.verdict,
+      because: settlement.because,
+      regions: [],
+      rendered: false,
+      missingFonts: settlement.missingFonts ?? [],
+    };
+  }
+
+  const observation = await observeAgainstBaseline(document, key, {
+    renderer,
+    store,
+    snapshot,
+    ...(options.source !== undefined ? { source: options.source } : {}),
+  });
+
+  if (accepting(testInfo) && observation.verdict !== 'unchanged') {
+    await promote(store, renderer, document, key, snapshot);
+  }
+
+  return observation;
+}
 
 /**
  * Promote the candidate this run already painted.
@@ -299,5 +308,3 @@ async function promote(
   // backwards — on the one surface where both documents were in hand.
   await store.put(key, { ...candidate, components: hashComponents(snapshot) });
 }
-
-export { expect } from './matcher.js';

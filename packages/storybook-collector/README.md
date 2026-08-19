@@ -107,6 +107,7 @@ complete cycle against a Storybook-built artifact: new → accept → unchanged 
 | Option | Use it when | Default and boundary |
 | --- | --- | --- |
 | `ready` | A particular story finishes after Storybook's render signal. | No additional wait. Keys are Storybook story ids. |
+| `readyTimeoutMs` | Storybook or a declared readiness marker legitimately needs longer to answer. | `15000`. A timeout is reported, never replaced by a fallback capture. |
 | `loading` | A story's *fallback* is the state you intend to review. | Omitted. Id globs, matched against the story id and the subject id. |
 | `suspenseTimeoutMs` | A story legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
 | `source` | Reports should resolve component names to `file:line`. | Omitted; component names remain available. An empty or mistyped scan is refused. |

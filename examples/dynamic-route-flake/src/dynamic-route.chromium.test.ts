@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -24,6 +23,7 @@ import {
 } from '@variance-authority/core';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { comparePngs } from '@variance-authority/png';
+import { pageAgentBundle } from '../test/page-agent-bundle.js';
 
 const BROWSER_AVAILABLE = (() => {
   try { return existsSync(chromium.executablePath()); } catch { return false; }
@@ -38,19 +38,11 @@ const SOURCE = mergeSourceIndexes([
   indexSource('src/dynamic-image.tsx', readFileSync(join(HERE, 'dynamic-image.tsx'), 'utf8')),
 ]);
 
-async function bundle(): Promise<string> {
-  const result = await build({
-    entryPoints: [join(HERE, 'page-agent.tsx')],
-    bundle: true,
-    format: 'iife',
-    target: 'es2022',
-    write: false,
-    jsx: 'automatic',
-    define: { 'process.env.NODE_ENV': '"development"' },
-  });
-  const output = result.outputFiles[0];
-  if (output === undefined) throw new Error('esbuild produced no page agent');
-  return output.text;
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\nexamples/dynamic-route-flake: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 async function waitForImage(harness: Harness): Promise<void> {
@@ -84,7 +76,7 @@ let secondDocument = '';
 async function read(variant: 'before' | 'after', image: string) {
   const local = await createHarness({
     url: pathToFileURL(join(ROOT, 'page', 'harness.html')).href,
-    bundle: await bundle(),
+    bundle: await pageAgentBundle(),
     viewport: VIEWPORT,
     subjectId: () => SUBJECT,
     prepare: async (page) => {

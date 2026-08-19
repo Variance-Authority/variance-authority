@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 /**
  * The page half, read from this package's own build output.
@@ -16,16 +17,24 @@ import { readFile } from 'node:fs/promises';
  * load does not.
  */
 export async function bundlePageAgent(): Promise<string> {
-  const path = new URL('./page-agent.bundle.js', import.meta.url);
+  const candidates = [
+    new URL('./page-agent.bundle.js', import.meta.url),
+    new URL('../dist/page-agent.bundle.js', import.meta.url),
+  ];
 
-  try {
-    return await readFile(path, 'utf8');
-  } catch {
-    // Named rather than swallowed. Without this the failure arrives in a browser
-    // as an agent that is merely absent, which reads like a page problem.
-    throw new Error(
-      `the variance page agent bundle is missing at ${path.pathname}; ` +
-        'it is produced by this repository’s build, not at test time',
-    );
+  for (const path of candidates) {
+    try {
+      return await readFile(path, 'utf8');
+    } catch {
+      // The source path is used by tests; the dist path is used by consumers.
+    }
   }
+
+  // Named rather than swallowed. Without this the failure arrives in a browser
+  // as an agent that is merely absent, which reads like a page problem.
+  throw new Error(
+    `the variance page agent bundle is missing (looked in ` +
+      `${candidates.map((path) => fileURLToPath(path)).join(' and ')}); ` +
+      'it is produced by this repository’s build, not at test time',
+  );
 }

@@ -21,20 +21,22 @@ and [spec 0015](specs/0015-the-first-published-release.md).
 `--update-snapshots` when it goes red, and a `maxDiffPixels` somebody raised
 after the third flake and nobody has lowered since.
 
-**What you write.** An import. The fixture is
+**What you write.** One additive observation. The helper is
 [`@variance-authority/playwright-test`](../packages/playwright-test), and the
 test body you already have is the collector — this is the one adoption path in
 the project that needs no collector written, because a Playwright test has
-navigated, mounted and waited before the fixture is reached.
+navigated, mounted and waited before the observation is made. The package does
+not export `test` or `expect`.
 
 ```ts
-import { test, expect } from '@variance-authority/playwright-test';
+import { test } from '@playwright/test';
+import { assertUnchanged, observe } from '@variance-authority/playwright-test';
 
-test('the cart survives an empty basket', async ({ page, variance }) => {
+test('the cart survives an empty basket', async ({ page }, testInfo) => {
   await page.goto('https://example.test/cart');
   await page.getByRole('button', { name: 'Clear' }).click();
 
-  expect(await variance(page.getByTestId('cart'))).toBeUnchanged();
+  assertUnchanged(await observe(page, page.getByTestId('cart'), testInfo));
 });
 ```
 

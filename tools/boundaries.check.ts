@@ -309,8 +309,12 @@ function shortName(specifier: string): string {
 /** Every third-party dependency sharing a hyphen-separated word with the name. */
 function vendorsInName(workspace: Workspace): string[] {
   const words = new Set(shortName(workspace.name).split('-'));
+  const requirements = {
+    ...workspace.manifest.dependencies,
+    ...workspace.manifest.peerDependencies,
+  };
 
-  return Object.keys(workspace.manifest.dependencies ?? {})
+  return Object.keys(requirements)
     .filter((dependency) => !dependency.startsWith('@variance-authority/'))
     .filter((dependency) => shortName(dependency).split('-').some((word) => words.has(word)));
 }

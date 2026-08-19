@@ -218,7 +218,7 @@ served URLs ([route-collector](../packages/route-collector)), and your existing
 Playwright suite ([playwright-test](../packages/playwright-test)), where the test
 body you already wrote plays the collector's part. The third is the one that
 answers login walls and multi-step flows, because your test has already logged in
-by the time the fixture is reached.
+by the time the observation is made.
 
 **One face is refused on purpose:** the route collector is not a crawler. The
 URLs are a map the operator writes, because a discovered page is a subject nobody

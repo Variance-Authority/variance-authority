@@ -25,7 +25,6 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@playwright/test": "^1.62.1",
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
     "@variance-authority/observe": "workspace:^",
@@ -33,5 +32,8 @@
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/react": "workspace:^",
     "@variance-authority/store": "workspace:^"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.49 <2"
   }
 }

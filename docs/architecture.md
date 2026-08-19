@@ -127,7 +127,7 @@ entrypoints.
 | `jsx-source` | a JSX transform you control, and a React runtime | the file and line that wrote an element, carried as far as the DOM node |
 | `session` | a live DOM | many subjects in one standing world |
 | `playwright` | a browser | the persistent harness, and a renderer |
-| `playwright-test` | a browser, and a Playwright test run | one fixture and one matcher, in a test that is already the collector |
+| `playwright-test` | a browser, and a Playwright test run | additive observation and assertion helpers; optional unbound fixture and matcher parts |
 | `png` | a PNG codec | decoding, comparison, the diff image |
 | `png-sharp` | a runtime that can load a native addon, and a platform published for it | the same comparison, with the decoding done natively |
 | `store` | a filesystem | baselines on disk, and in git-LFS |

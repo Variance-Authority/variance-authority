@@ -1,12 +1,12 @@
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildDocket, diffSnapshots, normalize } from '@variance-authority/core';
 import { createHarness } from '@variance-authority/playwright';
 import { comparePngs } from '@variance-authority/png';
+import { pageAgentBundle } from '../test/page-agent-bundle.js';
 
 const BROWSER_AVAILABLE = (() => {
   try {
@@ -21,20 +21,10 @@ const ROOT = join(HERE, '..');
 const VIEWPORT = { width: 320, height: 176, deviceScaleFactor: 1, colorScheme: 'light' } as const;
 
 if (!BROWSER_AVAILABLE) {
-  console.warn('\nexamples/structural-change: skipped.\n  no browser — npx playwright install chromium\n');
-}
-
-async function bundle(): Promise<string> {
-  const result = await build({
-    entryPoints: [join(HERE, 'page-agent.js')],
-    bundle: true,
-    format: 'iife',
-    target: 'es2022',
-    write: false,
-  });
-  const output = result.outputFiles[0];
-  if (output === undefined) throw new Error('esbuild produced no page-agent bundle');
-  return output.text;
+  console.warn(
+    '\nexamples/structural-change: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 let result:
@@ -50,7 +40,7 @@ beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
   const harness = await createHarness({
     url: pathToFileURL(join(ROOT, 'page', 'harness.html')).href,
-    bundle: await bundle(),
+    bundle: await pageAgentBundle(),
     viewport: VIEWPORT,
     fonts: ['Arial/600/normal/system'],
     subjectId: () => 'component/account-card',
