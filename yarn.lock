@@ -2475,6 +2475,47 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-selection-reuse@workspace:examples/selection-reuse":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-selection-reuse@workspace:examples/selection-reuse"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
+    vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/example-dynamic-route-flake@workspace:examples/dynamic-route-flake":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-dynamic-route-flake@workspace:examples/dynamic-route-flake"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    esbuild: "npm:^0.25.0"
+    playwright: "npm:^1.49.0"
+    react: "npm:^19"
+    react-dom: "npm:^19"
+    vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/example-structural-change@workspace:examples/structural-change":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-structural-change@workspace:examples/structural-change"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
+    esbuild: "npm:^0.25.0"
+    playwright: "npm:^1.49.0"
+    vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/example-todomvc@workspace:examples/todomvc":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-todomvc@workspace:examples/todomvc"

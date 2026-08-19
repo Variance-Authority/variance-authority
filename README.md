@@ -131,6 +131,29 @@ Chromium. It remains the only corpus of its kind in the repository. The
 measurement and the evidence still missing are tracked in
 [`docs/metrics.md`](docs/metrics.md).
 
+## Examples by showcase
+
+The first three rows form the simple progression: ordinary visual regression,
+then one structural question, then one source-selection question. The later
+examples and cases are deliberately comprehensive reference surfaces; choose the
+smallest surface that answers the question you have:
+
+| Start here | Showcase | Reader question |
+| --- | --- | --- |
+| [`examples/readme-case`](examples/readme-case) | Ordinary visual regression, with one semantic attribution step | What does a one-component paint regression look like from artifact to review item? |
+| [`examples/structural-change`](examples/structural-change) | Advanced structural change, not ordinary visual regression | What changes when pixels hold still but element semantics do not? |
+| [`examples/layout-impact`](examples/layout-impact) | Focused source cause, sidebar location, and layout impact | Is this Heading style change in the Sidebar, a 50px panel resize, a 4px button resize, or a structural change? |
+| [`examples/selection-reuse`](examples/selection-reuse) | Advanced cached source-graph selection | Which stories can a token edit reach, and what source work can the warm scan reuse? |
+| [`examples/dynamic-route-flake`](examples/dynamic-route-flake) | Advanced Playwright asset flake and composition | Which pixel difference belongs to a dynamic route, and why does its Fiber boundary not become a source accusation? |
+| [`examples/kitchen-sink`](examples/kitchen-sink) | Advanced corpus and profile validation | How do normalization profiles behave against declared ground truth? |
+| [`examples/todomvc`](examples/todomvc) | Advanced attribution, flakiness, composition, and render offload | How do attribution and instability behave in an application? |
+| [`cases/incumbent-case`](cases/incumbent-case) | Advanced replacement comparison | How does semantic inspection differ from a real screenshot runner? |
+| [`cases/storybook-case`](cases/storybook-case) | Advanced Storybook integration, readiness, and flake diagnosis | How does a built Storybook behave through collection, readiness, and CLI diagnosis? |
+
+The examples are project-authored measurement fixtures. The cases are the
+stronger evidence: they run against a real external runner or build and can
+therefore disagree with the implementation.
+
 ## Scope and non-goals
 
 **The technical bargain.**
