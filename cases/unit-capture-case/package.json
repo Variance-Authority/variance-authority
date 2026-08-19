@@ -1,0 +1,13 @@
+{
+  "name": "@variance-authority/case-unit-capture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@variance-authority/unit-test": "workspace:^"
+  },
+  "devDependencies": {
+    "@variance-authority/cli": "workspace:^",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,5 +1,9 @@
 # incumbent-case
 
+**Showcase:** advanced replacement comparison, not ordinary visual regression.
+It exercises a real screenshot incumbent and the semantic questions a PNG
+cannot answer.
+
 **A real `toHaveScreenshot`, run by a real `playwright test`, on the same page we
 read.**
 
@@ -14,6 +18,14 @@ measures the reimplementation — the same objection
 [`storybook-case`](../storybook-case) raises about fixtures, and the same answer:
 the only arrangement in which we can be **wrong** is the one where the other side
 is real.
+
+**What it proves:** the comparison scoreboard, render-only inspection, baseline
+migration, and locale layout results come from the incumbent's runner and from
+the same page our arm reads.
+
+**Boundary:** eight declared scenarios on one Mac and one Chromium. It says
+nothing about a hosted review product, a browser fleet, or a representative
+win rate.
 
 ## Why this incumbent
 

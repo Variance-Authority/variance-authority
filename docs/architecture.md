@@ -11,7 +11,7 @@ can be reasoned about, replaced, and composed without reading the others.
 
 | Kind | Takes | Gives | Needs |
 |---|---|---|---|
-| **acquire** | a live tree | a document — markup plus the CSS that applies to it | a DOM |
+| **acquire** | a live tree | capture material — a document or an in-place raster | a DOM or browser |
 | **prepare** | a subject | a subject that holds still | varies; each declares its own |
 | **render** | a document | pixels | a browser, here or elsewhere |
 | **hash** | anything | an identity | nothing |
@@ -37,10 +37,12 @@ stored baseline recorded and the files a change reaches in source
 
 ## What flows between them
 
-Values, never handles. Every tool takes and returns something serializable, which
-is what lets any hop become a network hop — a document acquired in a unit test
-can be rendered on a machine that pins its pixels, and nothing in the design has
-to know that happened.
+Values, never handles. Every tool takes and returns something serializable. A
+`CaptureArtifact` carries either a `RenderDocument` or a `Raster` plus the
+semantic and source evidence acquisition could retain. A document is portable
+across environments only when it closes over its resource bytes; otherwise the
+renderer must have equivalent access to its references. The raster has already
+materialized in the host browser and joins at observation.
 
 ```
 document → identity → raster → difference → places → components → verdict
@@ -70,14 +72,13 @@ three states. Collapsing any two produces a pass that nobody earned. This is the
 single failure the system exists to refuse, and it reappears at every layer in a
 new costume.
 
-**4. Never loop to make a problem go away.** Re-observing until two observations
-agree hides the finding, costs the most expensive step twice, and buys a green
-run that teaches nobody anything. Detect on the cheap tier, refuse to proceed,
-and name the component and the file. The fix belongs in the subject and is paid
-once; a wait belongs to every subject forever.
+**4. Never retry to make a problem go away.** Re-observing until one attempt
+happens to agree hides the finding. Repeated reads may classify stability, but
+all scheduled reads count and any disagreement refuses the candidate. Detect on
+the cheapest capable tier and name the component and file.
 
 **5. Order is the caller's.** Tools compose in whatever order their types allow.
-This repository ships compositions as examples, not as the product.
+The shipped compositions are supported offerings, not one mandatory pipeline.
 
 ## Compositions
 
@@ -93,13 +94,14 @@ judge. What a change costs when the cheap gate cannot settle it.
 **Stability check.** acquire twice → compare → map. No render. Catches a subject
 that will not hold still, and names why, before any image exists.
 
-**Extension.** A team with Playwright tests already keeps their capture and takes
-compare, isolate and map. A team with images from elsewhere takes only the reading
-end. The pieces below the one they replace do not know.
+**Extension.** A team with Playwright tests chooses an in-place raster or a
+deferred document without replacing its runner. A browserless unit suite writes
+a document archive for a later browser process. A team with images from elsewhere
+takes only the reading end. The pieces below the chosen material do not know.
 
 ## Packages
 
-**The first cut between packages is what a consumer must supply, not what the
+**The primary cut between packages is what a consumer must supply, not what the
 code does.**
 
 A box is named for what it is for — a requirement the manifest cannot state, what
@@ -128,6 +130,7 @@ entrypoints.
 | `session` | a live DOM | many subjects in one standing world |
 | `playwright` | a browser | the persistent harness, and a renderer |
 | `playwright-test` | a browser, and a Playwright test run | additive observation and assertion helpers; optional unbound fixture and matcher parts |
+| `unit-test` | a browserless DOM | resource-closed capture archives and a CLI collector for a later render process |
 | `png` | a PNG codec | decoding, comparison, the diff image |
 | `png-sharp` | a runtime that can load a native addon, and a platform published for it | the same comparison, with the decoding done natively |
 | `store` | a filesystem | baselines on disk, and in git-LFS |
@@ -163,17 +166,14 @@ different things to have.
 
 Two consequences worth stating, because they are the ones that get argued about:
 
-- **A package may be small.** `png` is three files and two entrypoints, and was
-  one file until a second comparator arrived. Splitting by requirement
-  produces small boxes, and a small box with one requirement is better than a
-  large one with four.
+- **A package may be small.** Splitting by requirement produces small boxes, and
+  a small box with one requirement is better than a large one with four.
 - **The rule is enforced, not documented.** `tools/boundaries.check.ts` fails when
   an import is undeclared, a declaration is unused, a name shares a word with one
   of the outside libraries the package depends on and nobody has written down
   which of the two it is, a third-party requirement is reached through by
   adopter-facing code, the production graph gains a cycle, or an advertised
-  entrypoint does not resolve. It found four packages' worth of drift the first
-  time it ran.
+  entrypoint does not resolve.
 
 ## What this forecloses
 

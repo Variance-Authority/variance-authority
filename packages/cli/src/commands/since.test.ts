@@ -75,6 +75,33 @@ describe('narrowing a run to what a diff could have changed', () => {
     expect(report.notObserved).toEqual([]);
   });
 
+  it('looks up selection sidecars under the planned viewport identity', async () => {
+    const plan: Plan = {
+      ...PLAN,
+      subjects: [{ ...PLAN.subjects[0]!, viewport: { ...CONFIG.viewport, deviceScaleFactor: 2 } }],
+    };
+    const collector = collectorOf(plan, (subject): Collected => ({
+      ok: true,
+      document: documentFor(subject.subject.id),
+    }));
+    const base = stored(['Clock']);
+    let describedScale = 0;
+    const store = {
+      ...base,
+      async describe(key: Parameters<typeof base.describe>[0], identity: Parameters<typeof base.describe>[1]) {
+        describedScale = identity.deviceScaleFactor;
+        return await base.describe(key, identity);
+      },
+    };
+
+    await runWith(CONFIG, collector, store, {
+      since: { ref: 'origin/main', changed: ['src/Button.tsx'] },
+      scanSource: async () => SOURCE,
+    });
+
+    expect(describedScale).toBe(2);
+  });
+
   it('says out loud when it declined to narrow', async () => {
     // "We could not rule anything out" and "nothing needed ruling out" produce
     // the same run and mean opposite things about the next one.

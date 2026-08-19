@@ -1,0 +1,13 @@
+{
+  "name": "@variance-authority/case-playwright-additive",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@playwright/test": "^1.49.0",
+    "@variance-authority/playwright-test": "workspace:^"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}

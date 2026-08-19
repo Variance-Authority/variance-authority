@@ -2,7 +2,7 @@ import { acquireDocument, collect, stabilizeForObservation } from '@variance-aut
 import { awaitSuspense, portalContentOf, provenanceOf } from '@variance-authority/react';
 import type { SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
-import type { RawCapture, RenderDocument, SubjectRef, Viewport } from '@variance-authority/core';
+import type { Digest, RawCapture, RenderDocument, SubjectRef, Viewport } from '@variance-authority/core';
 
 /**
  * The page half, bundled as an IIFE and installed on `window`.
@@ -68,6 +68,7 @@ export interface AcquireRequest {
 export interface Acquired {
   readonly document: RenderDocument;
   readonly capture: RawCapture;
+  readonly stabilization: { readonly ids: readonly string[]; readonly digest?: Digest };
 
   /**
    * Whether the subject had finished arriving, and what was still waiting.
@@ -103,7 +104,7 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   // One mount, two products, deliberately. Two mounts would be two renders, and
   // any disagreement between the image and the names attached to it would be a
   // story about which of them was looking at what.
-  const document = acquireDocument(root, shared);
+  const document = { ...acquireDocument(root, shared), baseUrl: root.ownerDocument.baseURI };
   const capture = collect(root, {
     ...shared,
     engine: request.engine,
@@ -112,7 +113,15 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
   });
 
-  return JSON.stringify({ document, capture, suspense });
+  return JSON.stringify({
+    document,
+    capture,
+    suspense,
+    stabilization: {
+      ids: held.ids,
+      ...(held.digest === undefined ? {} : { digest: held.digest }),
+    },
+  });
 }
 
 export interface InstalledAgent {

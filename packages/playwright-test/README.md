@@ -65,6 +65,54 @@ test('the cart states', async ({ page }, testInfo) => {
 });
 ```
 
+## Choose where pixels are made
+
+Deferred document rendering is the default. It repaints the acquired document
+through the session renderer, which may be local or remote and may reuse its
+render cache. The adapter preserves the acquisition base URL but does not archive
+resource bytes, so a remote renderer must be able to reach equivalent resources.
+
+For a browser the suite already pins, capture the caller-owned locator in place.
+Configure Chromium with the exported text-rendering arguments, then declare the
+same launch recipe to the session:
+
+```ts
+import { defineConfig } from '@playwright/test';
+import { CHROMIUM_RASTER_ARGS } from '@variance-authority/playwright-test';
+
+export default defineConfig({
+  use: { launchOptions: { args: [...CHROMIUM_RASTER_ARGS] } },
+});
+```
+
+```ts
+import { test } from '@playwright/test';
+import {
+  assertUnchanged,
+  CHROMIUM_RASTER_ARGS,
+  createVariance,
+} from '@variance-authority/playwright-test';
+
+test('the cart states', async ({ page }, testInfo) => {
+  const variance = await createVariance(page, testInfo, {
+    materialization: {
+      kind: 'in-place',
+      browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+    },
+  });
+  try {
+    assertUnchanged(await variance.observe(page.getByTestId('cart')));
+  } finally {
+    await variance.close();
+  }
+});
+```
+
+In-place capture takes at least two screenshots and refuses them when they
+disagree before consulting a baseline. It opens no second browser. The declared
+headless state and ordered launch arguments enter renderer identity; they must
+match the suite's Playwright configuration.
+
 ## Establish the first baseline
 
 The first run returns `new`, and `assertUnchanged` fails. That is intentional: a
@@ -74,7 +122,7 @@ After reviewing the candidate, promote the image with Playwright's existing
 snapshot flag:
 
 ```bash
-npx playwright test --update-snapshots
+npx playwright test --update-snapshots=all
 ```
 
 Acceptance promotes the candidate painted by that run; it never paints a
@@ -92,11 +140,10 @@ The observation accepts a `Locator`, never an unbounded page. A bounded subtree 
 application chrome and unrelated CSS out of the comparison, and gives changed
 regions a useful component context.
 
-The helper acquires the live subtree, then paints the acquired document with
-its own renderer rather than calling `locator.screenshot()`. That second paint
-is the cost of carrying a renderer identity with the baseline. A run on an
-incompatible machine can then report `incomparable` instead of presenting a
-font-stack or driver change as a component regression.
+The helper always acquires the live subtree and semantic evidence. Deferred mode
+then paints the document through a renderer. In-place mode screenshots the live
+locator and stamps the raster with the browser identity declared by the suite.
+Both modes reach the same baseline comparison and attribution path.
 
 ## Options and composition
 
@@ -110,6 +157,11 @@ font-stack or driver change as a component regression.
 | `source` | Failure output should resolve components to `file:line`. | Omitted; regions can still name components. |
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled. |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
+
+`createVariance` and one-shot `observe` additionally accept `materialization`.
+`{ kind: 'deferred' }` is the default. `{ kind: 'in-place', browser,
+stabilityChecks }` requires the host browser declaration; `stabilityChecks`
+defaults to `2` and cannot lower the check below two captures.
 
 ### Optional fixture composition
 
@@ -190,13 +242,11 @@ decision is
 This package does not merge Playwright shards into one docket. Playwright's
 `--shard` can still run the tests, but each shard owns its own result set.
 
-The assertion and docket are unit-tested, but this integration has not yet been
-driven by a separate real-world Playwright suite. Treat the browser-facing
-integration as beta evidence, not an established compatibility claim.
-
 For a Storybook inventory use
 [`@variance-authority/storybook-collector`](../storybook-collector). For a map
 of served pages use
 [`@variance-authority/route-collector`](../route-collector). For two documents
 already in hand or a custom renderer/store composition, use
 [`@variance-authority/observe`](../observe).
+For browserless Jest or Vitest acquisition followed by a later renderer, use
+[`@variance-authority/unit-test`](../unit-test).

@@ -1,0 +1,34 @@
+{
+  "name": "@variance-authority/unit-test",
+  "version": "0.0.0-beta.1",
+  "license": "MIT",
+  "author": "Mechanic Garden",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "directory": "packages/unit-test"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/dom": "workspace:^"
+  },
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
+}

@@ -49,7 +49,7 @@ export interface Renderer {
    * would be asserting on a renderer's behalf, which is how the two keys drifted
    * apart the first time. The cost is one more method on every implementation.
    */
-  identityFor(document: RenderDocument): RenderIdentity;
+  identityFor(document: Pick<RenderDocument, 'viewport'>): RenderIdentity;
 
   render(document: RenderDocument): Promise<Raster>;
 
@@ -70,7 +70,7 @@ export interface Renderer {
  */
 export function identityAtScale(
   identity: RenderIdentity,
-  document: RenderDocument,
+  document: Pick<RenderDocument, 'viewport'>,
 ): RenderIdentity {
   return { ...identity, deviceScaleFactor: document.viewport.deviceScaleFactor };
 }
@@ -98,10 +98,14 @@ export function describeIdentity(identity: RenderIdentity): string {
     identity.stabilization === undefined
       ? 'no stabilization recorded'
       : `stabilization ${short(identity.stabilization)}`;
+  const rasterization =
+    identity.rasterization === undefined
+      ? 'no rasterization recipe recorded'
+      : `rasterization ${short(identity.rasterization)}`;
 
   return (
     `${identity.renderer} (${identity.engine}, ${identity.platform}, ` +
-    `${identity.deviceScaleFactor}x, ${fonts}, ${recipe})`
+    `${identity.deviceScaleFactor}x, ${fonts}, ${recipe}, ${rasterization})`
   );
 }
 

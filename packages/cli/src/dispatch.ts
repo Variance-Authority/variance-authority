@@ -272,10 +272,6 @@ async function planFor(config: Config): Promise<Plan | undefined> {
   // watches nothing and has to be able to say so.
   if (config.subjects.kind === 'collector') return undefined;
 
-  // `images` never reaches here: `collectorPath` refuses it first, above, where
-  // the refusal can name the command that does apply.
-  if (config.subjects.kind === 'images') return undefined;
-
   return planList(config.subjects.ids);
 }
 

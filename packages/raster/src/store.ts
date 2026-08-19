@@ -429,6 +429,7 @@ export function identityFrom(value: unknown): RenderIdentity | null {
 
   const fonts = stringsFrom(identity.fonts);
   const stabilization = identity.stabilization;
+  const rasterization = identity.rasterization;
 
   if (
     fonts === null ||
@@ -439,7 +440,8 @@ export function identityFrom(value: unknown): RenderIdentity | null {
     // Absent is allowed — a renderer may predate the field — but a present value
     // of the wrong type is refused rather than dropped, because dropping it is
     // exactly the failure above.
-    (stabilization !== undefined && typeof stabilization !== 'string')
+    (stabilization !== undefined && typeof stabilization !== 'string') ||
+    (rasterization !== undefined && typeof rasterization !== 'string')
   ) {
     return null;
   }
@@ -451,6 +453,7 @@ export function identityFrom(value: unknown): RenderIdentity | null {
     deviceScaleFactor: identity.deviceScaleFactor,
     fonts,
     ...(stabilization !== undefined ? { stabilization } : {}),
+    ...(rasterization !== undefined ? { rasterization } : {}),
   };
 }
 

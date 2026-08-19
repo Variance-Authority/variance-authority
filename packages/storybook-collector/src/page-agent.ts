@@ -156,7 +156,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
   // saving: two indexes built either side of a lazily-inserted `<style>` would
   // describe two different documents, and the run would compare an image of one
   // against the names of the other.
-  const document = acquireDocument(root, shared);
+  const document = { ...acquireDocument(root, shared), baseUrl: root.ownerDocument.baseURI };
   const capture = collect(root, {
     ...shared,
     engine: request.engine,

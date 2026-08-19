@@ -272,27 +272,8 @@ export function planList(ids: readonly string[]): Plan {
   };
 }
 
-/**
- * The collector this config names, or a refusal saying which command to use.
- *
- * Three of the four subject sources name a module that mounts something; the
- * fourth names a directory of images that were mounted somewhere else, months
- * ago, by a tool this project has never seen. There is nothing for `run` to load
- * and nothing for it to render, so it stops here with the verb that does apply.
- *
- * A `run` that quietly did the ingest instead would be the exact thing
- * `docs/surface.md §4` refuses — a weaker tool wearing the stronger one's name —
- * and the reader would have no way to tell which one produced their green.
- */
+/** The collector module named by the configured subject source. */
 export function collectorPath(subjects: SubjectsConfig): string {
-  if (subjects.kind === 'images') {
-    throw new OperatorError(
-      '`subjects.kind: "images"` is a directory of PNG files this tool did not paint, so there ' +
-        'is nothing for `variance run` to render. Use `variance ingest`, which compares them on ' +
-        'pixels alone and says so — see docs/ingest.md for what that costs.',
-    );
-  }
-
   return subjects.collector;
 }
 

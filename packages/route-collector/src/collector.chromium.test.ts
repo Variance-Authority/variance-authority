@@ -160,3 +160,7 @@ chromium_('a run over routes', () => {
     expect(collected.because).toContain('page/missing');
   }, 60_000);
 });
+
+it.todo(
+  'a route captured as an in-place raster from the page this collector already drove reaches the same verdict as the document it emits today — ADR-0044 calls this cell coherent because the collector owns a painted browser, and nothing builds it: the collector needs an in-place material option and its own launch recipe carried as renderer identity',
+);

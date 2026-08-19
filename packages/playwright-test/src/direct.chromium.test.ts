@@ -2,9 +2,16 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chromium, type Browser, type Page, type TestInfo } from '@playwright/test';
+import { chromium, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { assertUnchanged, observe } from './index.js';
+import type { RenderDocument } from '@variance-authority/core';
+import type { Renderer } from '@variance-authority/raster';
+import {
+  assertUnchanged,
+  CHROMIUM_RASTER_ARGS,
+  createVariance,
+  observe,
+} from './index.js';
 
 const BROWSER_AVAILABLE = ((): boolean => {
   try {
@@ -29,7 +36,7 @@ function info(updateSnapshots: 'all' | 'none'): TestInfo {
 beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
   baselines = await mkdtemp(join(tmpdir(), 'variance-playwright-test-'));
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, args: [...CHROMIUM_RASTER_ARGS] });
   page = await browser.newPage({ viewport: { width: 800, height: 600 } });
   await page.setContent('<main><section id="cart"><h1>Cart</h1><p>Empty</p></section></main>');
 });
@@ -63,5 +70,179 @@ chromium_('the additive Playwright path', () => {
     });
     expect(() => assertUnchanged(unchanged)).not.toThrow();
     expect(unchanged.verdict).toBe('unchanged');
+  }, 60_000);
+
+  it('captures in place without calling an injected renderer', async () => {
+    let rendererCalls = 0;
+    const poison: Renderer = {
+      identity: {
+        renderer: 'must-not-run',
+        engine: 'must-not-run',
+        platform: 'must-not-run',
+        deviceScaleFactor: 1,
+        fonts: [],
+      },
+      identityFor(_document: RenderDocument) {
+        rendererCalls += 1;
+        return this.identity;
+      },
+      async render() {
+        rendererCalls += 1;
+        throw new Error('in-place capture called the deferred renderer');
+      },
+      async close() {},
+    };
+    const materialization = {
+      kind: 'in-place',
+      browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+    } as const;
+    const session = await createVariance(page!, info('all'), {
+      baselines,
+      renderer: poison,
+      materialization,
+    });
+
+    try {
+      const first = await session.observe(page!.locator('#cart'), {
+        subjectId: 'cart/in-place',
+      });
+      const second = await session.observe(page!.locator('#cart'), {
+        subjectId: 'cart/in-place',
+      });
+
+      expect(first.verdict).toBe('new');
+      expect(second.verdict).toBe('unchanged');
+      expect(second.rendered).toBe(false);
+      expect(rendererCalls).toBe(0);
+    } finally {
+      await session.close();
+    }
+
+    const changedIdentity = await createVariance(page!, info('none'), {
+      baselines,
+      materialization: {
+        kind: 'in-place',
+        browser: { headless: true, launchArgs: ['--disable-lcd-text'] },
+      },
+    });
+    try {
+      const incomparable = await changedIdentity.observe(page!.locator('#cart'), {
+        subjectId: 'cart/in-place',
+      });
+      expect(incomparable.verdict).toBe('incomparable');
+    } finally {
+      await changedIdentity.close();
+    }
+  }, 60_000);
+
+  it('refuses an in-place image that changes between stability reads', async () => {
+    const target = page!.locator('#cart');
+    let screenshots = 0;
+    const changing = new Proxy(target, {
+      get(locator, property) {
+        if (property === 'screenshot') {
+          return async (options: Parameters<Locator['screenshot']>[0]) => {
+            screenshots += 1;
+            await locator.evaluate((element, index) => {
+              (element as HTMLElement).style.backgroundColor = index % 2 === 0 ? 'blue' : 'red';
+            }, screenshots);
+            return locator.screenshot(options);
+          };
+        }
+        const value = Reflect.get(locator, property);
+        return typeof value === 'function' ? value.bind(locator) : value;
+      },
+    });
+    const session = await createVariance(page!, info('none'), {
+      baselines,
+      materialization: {
+        kind: 'in-place',
+        browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+      },
+    });
+
+    try {
+      await expect(
+        session.observe(changing, { subjectId: 'cart/in-place-unstable' }),
+      ).rejects.toThrow('repeated screenshots disagree');
+      expect(screenshots).toBe(2);
+    } finally {
+      await target.evaluate((element) => {
+        (element as HTMLElement).style.removeProperty('background-color');
+      });
+      await session.close();
+    }
+  }, 60_000);
+
+  it('refuses a stable image acquired from stale semantics', async () => {
+    const target = page!.locator('#cart');
+    let screenshots = 0;
+    const mutating = new Proxy(target, {
+      get(locator, property) {
+        if (property === 'screenshot') {
+          return async (options: Parameters<Locator['screenshot']>[0]) => {
+            screenshots += 1;
+            if (screenshots === 1) {
+              await locator.evaluate((element) => {
+                element.querySelector('p')!.textContent = 'One item';
+              });
+            }
+            return locator.screenshot(options);
+          };
+        }
+        const value = Reflect.get(locator, property);
+        return typeof value === 'function' ? value.bind(locator) : value;
+      },
+    });
+    const session = await createVariance(page!, info('none'), {
+      baselines,
+      materialization: {
+        kind: 'in-place',
+        browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+      },
+    });
+
+    try {
+      await expect(
+        session.observe(mutating, { subjectId: 'cart/in-place-stale-semantics' }),
+      ).rejects.toThrow('changed between acquisition and screenshots');
+      expect(screenshots).toBe(2);
+    } finally {
+      await target.locator('p').evaluate((element) => {
+        element.textContent = 'Empty';
+      });
+      await session.close();
+    }
+  }, 60_000);
+
+  it('uses the acquisition animation hold for both semantics and pixels', async () => {
+    const target = page!.locator('#cart');
+    await target.evaluate((element) => {
+      (element as HTMLElement).style.animation = 'variance-pulse 10ms linear infinite';
+      const style = document.createElement('style');
+      style.dataset.varianceTest = 'animation';
+      style.textContent = '@keyframes variance-pulse{from{opacity:.2}to{opacity:1}}';
+      document.head.append(style);
+    });
+    const session = await createVariance(page!, info('all'), {
+      baselines,
+      materialization: {
+        kind: 'in-place',
+        browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+      },
+    });
+
+    try {
+      const first = await session.observe(target, { subjectId: 'cart/in-place-animation' });
+      const second = await session.observe(target, { subjectId: 'cart/in-place-animation' });
+      expect(first.verdict).toBe('new');
+      expect(second.verdict).toBe('unchanged');
+    } finally {
+      await target.evaluate((element) => {
+        (element as HTMLElement).style.removeProperty('animation');
+        document.querySelector('style[data-variance-test="animation"]')?.remove();
+      });
+      await session.close();
+    }
   }, 60_000);
 });

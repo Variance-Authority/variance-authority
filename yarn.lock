@@ -1603,7 +1603,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@playwright/test@npm:^1.62.1":
+"@playwright/test@npm:^1.49.0, @playwright/test@npm:^1.62.1":
   version: 1.62.1
   resolution: "@playwright/test@npm:1.62.1"
   dependencies:
@@ -2383,6 +2383,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/case-playwright-additive@workspace:cases/playwright-additive-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-playwright-additive@workspace:cases/playwright-additive-case"
+  dependencies:
+    "@playwright/test": "npm:^1.49.0"
+    "@variance-authority/playwright-test": "workspace:^"
+    vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/case-storybook@workspace:cases/storybook-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/case-storybook@workspace:cases/storybook-case"
@@ -2401,6 +2411,16 @@ __metadata:
     react-dom: "npm:^19"
     storybook: "npm:^9.1.13"
     vite: "npm:^6.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/case-unit-capture@workspace:cases/unit-capture-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-unit-capture@workspace:cases/unit-capture-case"
+  dependencies:
+    "@variance-authority/cli": "workspace:^"
+    "@variance-authority/unit-test": "workspace:^"
+    vitest: "npm:^2.1.8"
   languageName: unknown
   linkType: soft
 
@@ -2606,7 +2626,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/playwright-test@workspace:packages/playwright-test":
+"@variance-authority/playwright-test@workspace:^, @variance-authority/playwright-test@workspace:packages/playwright-test":
   version: 0.0.0-use.local
   resolution: "@variance-authority/playwright-test@workspace:packages/playwright-test"
   dependencies:
@@ -2787,6 +2807,16 @@ __metadata:
     pngjs: "npm:^7.0.0"
     react: "npm:^19"
     react-dom: "npm:^19"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/unit-test@workspace:^, @variance-authority/unit-test@workspace:packages/unit-test":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/unit-test@workspace:packages/unit-test"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    jsdom: "npm:^30.0.1"
   languageName: unknown
   linkType: soft
 

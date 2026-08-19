@@ -66,7 +66,7 @@ export async function selectionFor(
   for (const planned of plan.subjects) {
     const described = await deps.store.describe(
       { subject: planned.subject.id },
-      renderer.identity,
+      renderer.identityFor({ viewport: planned.viewport ?? config.viewport }),
     );
     baselines.set(planned.subject.id, described?.components);
   }

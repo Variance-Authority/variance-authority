@@ -1,7 +1,17 @@
-import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright';
+import {
+  chromium,
+  firefox,
+  webkit,
+  type Browser,
+  type BrowserContext,
+  type BrowserType,
+  type Page,
+} from 'playwright';
 import {
   RASTER_RECIPE,
   conflicts,
+  digestBytes,
+  digestValue,
   documentDigest,
   recipeCss,
   recipeDigest,
@@ -70,8 +80,22 @@ export type BrowserEngine = 'chromium' | 'firefox' | 'webkit';
 
 const ENGINES: Readonly<Record<BrowserEngine, BrowserType>> = { chromium, firefox, webkit };
 
+/** Chromium settings that make text rasterization independent of host defaults. */
+export const CHROMIUM_RASTER_ARGS = [
+  '--disable-lcd-text',
+  '--font-render-hinting=none',
+] as const;
+
 export interface PlaywrightRendererOptions {
   readonly headless?: boolean;
+
+  /**
+   * Browser launch arguments that may affect pixels.
+   *
+   * Chromium defaults to {@link CHROMIUM_RASTER_ARGS}; other engines default to
+   * none. The exact ordered list is folded into `RenderIdentity`.
+   */
+  readonly launchArgs?: readonly string[];
 
   /** Which engine paints. Defaults to `chromium`. See {@link BrowserEngine}. */
   readonly browser?: BrowserEngine;
@@ -130,10 +154,13 @@ export async function createPlaywrightRenderer(
   options: PlaywrightRendererOptions = {},
 ): Promise<Renderer> {
   const engine = options.browser ?? 'chromium';
-  const browser = await ENGINES[engine].launch({ headless: options.headless ?? true });
+  const headless = options.headless ?? true;
+  const launchArgs = options.launchArgs ?? (engine === 'chromium' ? CHROMIUM_RASTER_ARGS : []);
+  const browser = await ENGINES[engine].launch({ headless, args: [...launchArgs] });
   const recipe = options.stabilization ?? RASTER_RECIPE;
   const holdStill = recipeCss(recipe);
   const shot = recipeScreenshot(recipe);
+  const screenshot = { type: 'png', ...shot } as const;
 
   // Refused rather than resolved. Two tricks over one property means one wins by
   // accident of ordering, and which one is invisible in every image that follows.
@@ -158,10 +185,17 @@ export async function createPlaywrightRenderer(
       deviceScaleFactor: 1,
       fonts: options.fonts ?? [],
       stabilization: recipeDigest(recipe),
+      rasterization: digestValue({
+        browser: { headless, launchArgs: [...launchArgs] },
+        screenshot,
+      }),
     };
 
     const concurrency = Math.max(1, options.concurrency ?? 1);
-    const pool = new PagePool(browser, concurrency);
+    const activeResources = new WeakMap<BrowserContext, Set<string>>();
+    const pool = new PagePool(browser, concurrency, (context, url) => {
+      activeResources.get(context)?.add(`websocket ${url}`);
+    });
 
     // One expression, used by `render` to stamp the raster and by the pipeline
     // to look a baseline up. Two expressions is how the write key and the lookup
@@ -174,13 +208,51 @@ export async function createPlaywrightRenderer(
       identityFor,
 
       async render(document: RenderDocument): Promise<Raster> {
-        const lease = await pool.acquire(document.viewport);
+        assertClosedResources(document);
+        const closed = document.resources !== undefined;
+        const lease = await pool.acquire(document.viewport, closed);
         const page = lease.page;
+        const context = page.context();
 
         try {
+          const missingResources = new Set<string>();
+          await context.unrouteAll({ behavior: 'wait' });
+          if (closed) {
+            activeResources.set(context, missingResources);
+            await context.route('**/*', async (route) => {
+              const url = route.request().url();
+              const resource = document.resources?.[url];
+              if (resource === undefined) {
+                missingResources.add(url);
+                await route.abort('blockedbyclient');
+                return;
+              }
+
+              const bytes = Buffer.from(resource.bytes, 'base64');
+              const actual = digestBytes(bytes);
+              if (actual !== resource.digest) {
+                missingResources.add(`${url} (digest ${resource.digest} does not match ${actual})`);
+                await route.abort('blockedbyclient');
+                return;
+              }
+
+              await route.fulfill({
+                body: bytes,
+                contentType: resource.contentType,
+                headers: {
+                  'access-control-allow-origin': '*',
+                  'cross-origin-resource-policy': 'cross-origin',
+                  'cache-control': 'public, max-age=31536000, immutable',
+                },
+              });
+            });
+          }
+
           await page.setContent(assemble(document, options.assemble ?? {}), {
             waitUntil: options.waitForFonts === false ? 'domcontentloaded' : 'load',
           });
+
+          refuseMissingResources(document, missingResources);
 
           // After `setContent`, because `setContent` replaces the document and
           // would discard a sheet added before it.
@@ -198,8 +270,16 @@ export async function createPlaywrightRenderer(
           // and cancels an infinite one to its initial frame, then replays it.
           // Injected CSS can only pin frame zero, which captures a fade-in at the
           // moment it is invisible.
-          const bytes = await subject.screenshot({ type: 'png', ...shot });
+          const bytes = await subject.screenshot(screenshot);
           const box = await subject.boundingBox();
+
+          // Catch work queued by load/font completion or the screenshot itself.
+          // Every network channel remains blocked for the whole lease; this turn
+          // gives queued callbacks one browser frame in which to declare a miss.
+          await page.evaluate(
+            () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+          );
+          refuseMissingResources(document, missingResources);
 
           if (box === null) {
             throw new Error(
@@ -220,6 +300,10 @@ export async function createPlaywrightRenderer(
             missingFonts,
           };
         } finally {
+          activeResources.delete(context);
+          await Promise.all(
+            context.pages().filter((candidate) => candidate !== page).map((candidate) => candidate.close()),
+          );
           // Released on the failure path too. A render that throws while holding
           // the only page of a pool of one deadlocks every subject after it.
           lease.release();
@@ -235,6 +319,25 @@ export async function createPlaywrightRenderer(
     // otherwise leave it running for the life of the caller.
     await browser.close();
     throw error;
+  }
+}
+
+function assertClosedResources(document: RenderDocument): void {
+  if (document.resources === undefined) return;
+
+  for (const [url, expected] of Object.entries(document.assets ?? {})) {
+    const resource = document.resources[url];
+    if (resource === undefined) {
+      throw new Error(
+        `resource-closed document ${document.subject.id} has no bytes for ${url}`,
+      );
+    }
+    const actual = digestBytes(Buffer.from(resource.bytes, 'base64'));
+    if (actual !== expected || actual !== resource.digest) {
+      throw new Error(
+        `resource-closed document ${document.subject.id} has inconsistent bytes for ${url}`,
+      );
+    }
   }
 }
 
@@ -293,14 +396,20 @@ function probeFonts(families: readonly string[]): string[] {
 class PagePool {
   readonly #browser: Browser;
   readonly #limit: number;
+  readonly #onWebSocket: (context: BrowserContext, url: string) => void;
   /** Idle pages, per viewport key. A render takes one and puts it back. */
   readonly #idle = new Map<string, Page[]>();
   #leased = 0;
   readonly #waiting: (() => void)[] = [];
 
-  constructor(browser: Browser, limit: number) {
+  constructor(
+    browser: Browser,
+    limit: number,
+    onWebSocket: (context: BrowserContext, url: string) => void,
+  ) {
     this.#browser = browser;
     this.#limit = limit;
+    this.#onWebSocket = onWebSocket;
   }
 
   /**
@@ -312,17 +421,17 @@ class PagePool {
    * viewport and scale factor cannot be changed without recreating its context.
    * A run at one viewport — the normal case — reuses the same pages forever.
    */
-  async acquire(viewport: Viewport): Promise<{ page: Page; release: () => void }> {
+  async acquire(viewport: Viewport, closed: boolean): Promise<{ page: Page; release: () => void }> {
     while (this.#leased >= this.#limit) {
       await new Promise<void>((resolve) => this.#waiting.push(resolve));
     }
     this.#leased += 1;
 
-    const key = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor}/${viewport.colorScheme}`;
+    const key = `${viewport.width}x${viewport.height}@${viewport.deviceScaleFactor}/${viewport.colorScheme}/${closed ? 'closed' : 'open'}`;
 
     try {
       const free = this.#idle.get(key) ?? [];
-      const page = free.pop() ?? (await this.#open(viewport));
+      const page = free.pop() ?? (await this.#open(viewport, closed));
       this.#idle.set(key, free);
 
       let released = false;
@@ -345,14 +454,37 @@ class PagePool {
     }
   }
 
-  async #open(viewport: Viewport): Promise<Page> {
+  async #open(viewport: Viewport, closed: boolean): Promise<Page> {
     // Not tracked for teardown: `close()` closes the browser, which takes every
     // context with it. A second list to keep in step would only drift.
     const context = await this.#browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
       deviceScaleFactor: viewport.deviceScaleFactor,
       colorScheme: viewport.colorScheme,
+      serviceWorkers: closed ? 'block' : 'allow',
     });
-    return context.newPage();
+    const page = await context.newPage();
+    if (closed) {
+      await context.routeWebSocket(/.*/, async (route) => {
+        this.#onWebSocket(context, route.url());
+        await route.close({ code: 1008, reason: 'resource-closed render' });
+      });
+      // A page that has never committed a navigation is not covered by WebSocket
+      // interception, and `setContent` alone does not commit one — it replaces the
+      // document of the page the browser opened at. Without this the socket policy
+      // is silently absent and a resource-closed document dials out unrefused.
+      // `about:blank` because it is where the page already is: the URL, and so the
+      // resolution context for a document carrying no `<base>`, is left unchanged.
+      await page.goto('about:blank');
+    }
+    return page;
   }
+}
+
+function refuseMissingResources(document: RenderDocument, missing: ReadonlySet<string>): void {
+  if (missing.size === 0) return;
+  throw new Error(
+    `resource-closed document ${document.subject.id} requested unavailable resources: ` +
+      [...missing].sort().join(', '),
+  );
 }

@@ -185,6 +185,33 @@ describe('accept', () => {
     expect(result.refused[0]?.because).toContain('already is the baseline');
   });
 
+  it('keeps an unstable unchanged subject out of the baseline count', async () => {
+    const { store } = recordingStore();
+
+    const result = await accept({
+      report: reportOf([
+        observation({
+          verdict: 'unchanged',
+          images: undefined,
+          unstable: {
+            components: [{ name: 'Clock' }],
+            bands: ['content'],
+            because: 'Clock read differently (content)',
+          },
+        }),
+      ]),
+      reportDir: '/repo/out',
+      store,
+      subjects: ['fixture:a'],
+      all: false,
+      read: async () => CANDIDATE,
+    });
+
+    expect(result.alreadyBaseline).toBe(0);
+    expect(result.refused[0]?.because).toContain('Clock read differently (content)');
+    expect(result.refused[0]?.because).toContain('one of two readings');
+  });
+
   it('counts unchanged subjects under --all rather than omitting them', async () => {
     // "accepted 1" over a 300-subject run reads as though 299 were ignored for
     // some reason nobody stated.

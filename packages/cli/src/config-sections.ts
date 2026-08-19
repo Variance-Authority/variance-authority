@@ -81,8 +81,7 @@ export const DEFAULT_ALONE_LIMIT = 20;
 export type SubjectsConfig =
   | StorybookSubjects
   | ListSubjects
-  | DiscoveredSubjects
-  | ImageSubjects;
+  | DiscoveredSubjects;
 
 export interface StorybookSubjects {
   readonly kind: 'storybook';
@@ -116,40 +115,6 @@ export interface ListSubjects {
 export interface DiscoveredSubjects {
   readonly kind: 'collector';
   readonly collector: string;
-}
-
-/**
- * The subjects are PNG files somebody else painted.
- *
- * The one arm of this union with **no collector**, because there is nothing to
- * collect: the artifact has already been produced and this project's job starts
- * and ends at comparing it. It is therefore also the one arm `variance run`
- * refuses — running would mean rendering, and rendering is what did not happen
- * here. `variance ingest` is the verb, and the separation is deliberate rather
- * than cosmetic: everything above the pixel tier needs a document, so a mode with
- * no document has to be reachable under a name that does not promise one
- * (`docs/ingest.md`, and `docs/surface.md §4` for the arithmetic).
- *
- * Declaring it in the config rather than passing it as a flag is the same
- * decision `list` embodies: what a project watches, and how much of it this tool
- * can say anything about, is a fact reviewers should meet in a diff.
- */
-export interface ImageSubjects {
-  readonly kind: 'images';
-  /** Directory walked for `.png` files. Every one of them is a subject. */
-  readonly directory: string;
-
-  /**
-   * What painted these images, in the operator's own words.
-   *
-   * Required, and the requirement is the whole safety property. This process
-   * cannot inspect the machine behind a foreign PNG, so the identity a baseline
-   * is partitioned by is whatever this says — which means a *changed* string
-   * makes the next comparison `incomparable` instead of red, and an unchanged
-   * string is an assertion the operator is making. Defaulting it would make that
-   * assertion on their behalf, for a machine neither of us has seen.
-   */
-  readonly painter: string;
 }
 
 export type BaselinesConfig = DirectoryBaselines | LfsBaselines | RemoteBaselines;
@@ -238,22 +203,7 @@ export function parseViewport(value: unknown, options: ParseOptions): Viewport {
 }
 
 export function parseSubjects(value: unknown, options: ParseOptions): SubjectsConfig {
-  const kind = kindOf(value, 'subjects', ['storybook', 'list', 'collector', 'images'], options);
-
-  if (kind === 'images') {
-    const source = object(value, 'subjects', ['kind', 'directory', 'painter'], options);
-    return {
-      kind: 'images',
-      directory: resolveFrom(
-        options.baseDir,
-        nonEmpty(source, 'directory', options, 'subjects.directory'),
-      ),
-      // Not resolved, not normalized, not validated beyond being non-empty:
-      // there is nothing on this machine to check it against. Its only contract
-      // is with its own past values.
-      painter: nonEmpty(source, 'painter', options, 'subjects.painter'),
-    };
-  }
+  const kind = kindOf(value, 'subjects', ['storybook', 'list', 'collector'], options);
 
   if (kind === 'collector') {
     const source = object(value, 'subjects', ['kind', 'collector'], options);

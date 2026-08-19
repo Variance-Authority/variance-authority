@@ -2,11 +2,12 @@
 
 # @variance-authority/observe
 
-**Requires:** a renderer and raster store supplied by the caller for
-document-based paths; `observeRasters` needs neither.
+**Requires:** by entrypoint, `observeRasters` needs only two rasters. Durable
+raster observation needs a store. Document paths need a renderer and store.
 
-Compare render documents or rasters with a renderer and store you provide, and
-receive one `Observation` regardless of where the images came from.
+Compare render documents or rasters and receive one `Observation` regardless of
+where the images came from. The entrypoint determines which capabilities the
+caller supplies.
 
 Use this package when you are building a custom integration below the CLI,
 Storybook, route, or Playwright surfaces. It fixes the order of render, lookup,
@@ -27,11 +28,17 @@ with [`@variance-authority/cli`](../cli),
 | `observePair` | Both render documents were produced now and should be compared ephemerally. | Two documents, one renderer, and one raster store for the render cache. |
 | `observeAgainstBaseline` | The current document should be compared with a durable baseline. | A document, baseline key, renderer, and store containing the approved baseline. |
 | `observeRasters` | Both PNG rasters already exist, including foreign-image ingestion. | A subject id and two rasters; snapshot and source are optional enrichment. |
+| `observeCaptureAgainstBaseline` | An adapter emits the shared document-or-raster artifact. | A `CaptureArtifact`, baseline key, and store; a renderer only when the artifact contains a document. |
 | `summarizeObservation` | A caller needs a compact serializable summary of an observation. | An `Observation`. |
 | `declaredIgnores` | A report must account for ignore declarations even on paths that never compare. | The semantic snapshot and device scale. Most integrators should let the higher-level pipeline call it. |
 
 `observePair` and `observeAgainstBaseline` return the same `Observation`, so the
 code that handles verdicts does not need a branch for retention mode.
+
+`observeCaptureAgainstBaseline` is the adapter seam. A document artifact
+delegates to the ordinary render path. A raster artifact compares and stores the
+provided bytes without constructing or calling a renderer. Both preserve the
+artifact's snapshot and source evidence.
 
 ## Compare two revisions from one run
 

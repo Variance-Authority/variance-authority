@@ -6,14 +6,22 @@ import type {
   PlaywrightWorkerArgs,
   TestInfo,
 } from '@playwright/test';
-import { documentDigest, hashComponents, normalize } from '@variance-authority/core';
+import { digestValue, documentDigest, hashComponents, normalize } from '@variance-authority/core';
 import type {
+  CaptureArtifact,
+  Raster,
+  RenderIdentity,
   SemanticSnapshot,
   SourceIndex,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core';
-import { observeAgainstBaseline, type Observation } from '@variance-authority/observe';
+import {
+  observeAgainstBaseline,
+  observeCaptureAgainstBaseline,
+  observeRasters,
+  type Observation,
+} from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
@@ -91,6 +99,21 @@ export interface VarianceOptions {
   readonly loading?: boolean;
 }
 
+export interface InPlaceCaptureOptions {
+  readonly kind: 'in-place';
+  /** Must describe the browser launch owned by the Playwright configuration. */
+  readonly browser: {
+    readonly headless: boolean;
+    readonly launchArgs: readonly string[];
+  };
+  /** Independent screenshots required to agree. Defaults to 2; minimum 2. */
+  readonly stabilityChecks?: number;
+}
+
+export type MaterializationOptions =
+  | { readonly kind: 'deferred' }
+  | InPlaceCaptureOptions;
+
 export interface VarianceFixtures {
   /** Observe one subtree against its stored baseline. */
   readonly variance: (locator: Locator, options?: VarianceOptions) => Promise<Observation>;
@@ -106,8 +129,9 @@ export interface VarianceWorkerFixtures {
 export interface VarianceRuntime {
   readonly page: Page;
   readonly testInfo: TestInfo;
-  readonly renderer: Renderer;
+  readonly renderer?: Renderer;
   readonly store: RasterStore;
+  readonly materialization?: MaterializationOptions;
 }
 
 /**
@@ -122,7 +146,11 @@ export interface VarianceRuntime {
  */
 function accepting(testInfo: TestInfo): boolean {
   const flag = testInfo.config.updateSnapshots;
-  return flag === 'all' || flag === 'changed' || flag === 'missing';
+  // Playwright defaults this field to `missing` even when the operator supplied
+  // no update flag. Treating that default as approval writes a new baseline from
+  // the same failed run that reported it unreviewed. Only explicit update modes
+  // may cross the review boundary.
+  return flag === 'all' || flag === 'changed';
 }
 
 function viewportOf(
@@ -215,7 +243,7 @@ export async function observeLocator(
   const request: AcquireRequest = {
     subject,
     viewport: viewportOf(page.viewportSize(), testInfo),
-    engine: `chromium@${page.context().browser()?.version() ?? 'unknown'}`,
+    engine: engineOf(page),
     ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
     ...(options.loading === true
       ? { suspense: { timeoutMs: 0 } }
@@ -224,18 +252,8 @@ export async function observeLocator(
         : {}),
   };
 
-  const raw = await locator.evaluate(
-    (element, [global, sent]: readonly [string, AcquireRequest]) => {
-      const agent = (globalThis as unknown as Record<string, InstalledAgent | undefined>)[global];
-      if (agent === undefined) {
-        throw new Error(`the variance page agent is not installed at ${global}`);
-      }
-      return agent.acquire(element, sent);
-    },
-    [AGENT, request] as const,
-  );
-
-  const { document, capture, suspense } = JSON.parse(raw) as Acquired;
+  const acquired = await acquireFrom(locator, request);
+  const { document, capture, suspense, stabilization } = acquired;
   const unsettled = suspenseRefusal(suspense, {
     subjectId: subject.id,
     declaredLoading: options.loading === true,
@@ -243,6 +261,50 @@ export async function observeLocator(
   if (unsettled !== undefined) throw new Error(unsettled);
   const snapshot: SemanticSnapshot = normalize(capture);
   const key: BaselineKey = { subject: subject.id };
+  const materialization = runtime.materialization ?? { kind: 'deferred' };
+
+  if (materialization.kind === 'in-place') {
+    const candidate = await stableRaster(
+      page,
+      locator,
+      document,
+      options.fonts ?? [],
+      stabilization.digest,
+      materialization,
+      snapshot,
+    );
+    const confirmed = await acquireFrom(locator, request);
+    const confirmedUnsettled = suspenseRefusal(confirmed.suspense, {
+      subjectId: subject.id,
+      declaredLoading: options.loading === true,
+    });
+    if (confirmedUnsettled !== undefined) throw new Error(confirmedUnsettled);
+    const confirmedSnapshot = normalize(confirmed.capture);
+    if (
+      documentDigest(confirmed.document) !== documentDigest(document) ||
+      digestValue(JSON.stringify(confirmedSnapshot)) !== digestValue(JSON.stringify(snapshot)) ||
+      confirmed.stabilization.digest !== stabilization.digest
+    ) {
+      throw new Error(
+        `in-place capture for ${subject.id} changed between acquisition and screenshots`,
+      );
+    }
+    const artifact: CaptureArtifact = {
+      artifactVersion: 1,
+      subject,
+      material: { kind: 'raster', raster: candidate },
+      snapshot,
+      ...(options.source === undefined ? {} : { source: options.source }),
+      stabilization: stabilization.ids,
+    };
+    const observation = await observeCaptureAgainstBaseline(artifact, key, { store });
+    if (accepting(testInfo) && observation.verdict !== 'unchanged') {
+      await store.put(key, { ...candidate, components: hashComponents(snapshot) });
+    }
+    return observation;
+  }
+
+  if (renderer === undefined) throw new Error('deferred capture needs a renderer');
   const identity = renderer.identityFor(document);
   const settlement = settle(documentDigest(document), await store.describe(key, identity), identity);
 
@@ -269,6 +331,89 @@ export async function observeLocator(
   }
 
   return observation;
+}
+
+async function acquireFrom(locator: Locator, request: AcquireRequest): Promise<Acquired> {
+  const raw = await locator.evaluate(
+    (element, [global, sent]: readonly [string, AcquireRequest]) => {
+      const agent = (globalThis as unknown as Record<string, InstalledAgent | undefined>)[global];
+      if (agent === undefined) {
+        throw new Error(`the variance page agent is not installed at ${global}`);
+      }
+      return agent.acquire(element, sent);
+    },
+    [AGENT, request] as const,
+  );
+  return JSON.parse(raw) as Acquired;
+}
+
+function engineOf(page: Page): string {
+  const browser = page.context().browser();
+  const name = browser?.browserType().name() ?? 'browser';
+  return `${name}@${browser?.version() ?? 'unknown'}`;
+}
+
+async function stableRaster(
+  page: Page,
+  locator: Locator,
+  document: Parameters<typeof documentDigest>[0],
+  fonts: readonly string[],
+  stabilization: RenderIdentity['stabilization'],
+  options: InPlaceCaptureOptions,
+  snapshot: SemanticSnapshot,
+): Promise<Raster> {
+  const screenshot = {
+    type: 'png',
+    // Acquisition leaves the declared CSS animation hold installed. Let that
+    // one owner define both semantic and pixel state; asking Playwright to
+    // fast-forward here would apply a conflicting second intervention.
+    animations: 'allow',
+    caret: 'hide',
+  } as const;
+  const browser = page.context().browser();
+  const engine = browser?.browserType().name() ?? 'browser';
+  const identity: RenderIdentity = {
+    renderer: `playwright-${engine}-existing-page`,
+    engine: `${engine}@${browser?.version() ?? 'unknown'}`,
+    platform: `${process.platform}/${process.arch}`,
+    deviceScaleFactor: document.viewport.deviceScaleFactor,
+    fonts,
+    ...(stabilization === undefined ? {} : { stabilization }),
+    rasterization: digestValue({
+      browser: {
+        headless: options.browser.headless,
+        launchArgs: [...options.browser.launchArgs],
+      },
+      screenshot,
+    }),
+  };
+  const count = Math.max(2, options.stabilityChecks ?? 2);
+  const rasters: Raster[] = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const bytes = await locator.screenshot(screenshot);
+    const box = await locator.boundingBox();
+    if (box === null) throw new Error(`subject ${document.subject.id} has no screenshot box`);
+    rasters.push({
+      documentDigest: documentDigest(document),
+      identity,
+      width: Math.round(box.width * document.viewport.deviceScaleFactor),
+      height: Math.round(box.height * document.viewport.deviceScaleFactor),
+      bytes: bytes.toString('base64'),
+      missingFonts: [],
+    });
+  }
+
+  const first = rasters[0]!;
+  for (const next of rasters.slice(1)) {
+    const agreement = await observeRasters(document.subject.id, first, next, { snapshot });
+    if (agreement.verdict !== 'unchanged') {
+      throw new Error(
+        `in-place capture for ${document.subject.id} is unstable: repeated screenshots disagree`,
+      );
+    }
+  }
+  return first;
 }
 
 /**

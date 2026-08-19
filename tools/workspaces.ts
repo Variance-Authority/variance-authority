@@ -24,6 +24,7 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  */
 export const SURFACES = [
   '@variance-authority/playwright-test',
+  '@variance-authority/unit-test',
   '@variance-authority/storybook-collector',
   '@variance-authority/route-collector',
 ];

@@ -1,11 +1,22 @@
 # kitchen-sink
 
+**Showcase:** advanced corpus and observation-profile validation, not an
+ordinary visual-regression demo.
+
 **The measurement's ground truth.** 8 subjects, 40 declared cases.
 
 Not a demo. This is the corpus the normalizer is scored against, and its whole
 value is that every case declares its expected outcome **before** the pipeline
 runs — so a run that agrees is evidence and a run that disagrees is a defect
 report rather than a discussion.
+
+**What it proves:** the normalizer and its `jsdom`/Chromium collection paths
+answer the declared cases, agree where both profiles can observe, and expose
+undecidable or contested cases instead of counting blindness as success.
+
+**Boundary:** one component library written in this repository. The scores do
+not establish behavior on a third-party library or provide a false-alarm rate
+for no-op edits.
 
 ## Running it
 

@@ -12,7 +12,7 @@ import type { ComponentHash } from './snapshot.js';
  * machine, or a pinned container two networks away, and no code upstream of it
  * may assume which.
  *
- * Three routes produce one of these, and the point of the type is that they are
+ * Two routes produce one of these, and the point of the type is that they are
  * interchangeable:
  *
  * 1. **jsdom → document → render elsewhere.** jsdom cannot rasterize. It can
@@ -22,8 +22,9 @@ import type { ComponentHash } from './snapshot.js';
  * 2. **playwright → document → render on a server.** The same payload, acquired
  *    from a real engine. Used when the *deciding* machine and the *pinned*
  *    machine are different, which is the case every CI setup actually has.
- * 3. **playwright → image, here.** No document leaves the process. Cheapest when
- *    the comparison is ephemeral and both sides are rendered in the same page.
+ *
+ * A browser may instead capture a `Raster` in place. That is the sibling branch
+ * of `CaptureMaterial`, not a third route that somehow produces this type.
  *
  * ## Why this is small
  *
@@ -94,7 +95,32 @@ export interface RenderDocument {
   /** External references, url → content hash. Present so a swap is visible. */
   readonly assets?: Readonly<Record<string, string>>;
 
+  /**
+   * Base against which relative resource references were resolved.
+   *
+   * Preserves relative-reference resolution for either document kind. Resource
+   * closure is denoted by `resources`, not by the presence of this field.
+   */
+  readonly baseUrl?: string;
+
+  /**
+   * Immutable responses needed to paint this document, keyed by absolute URL.
+   *
+   * Presence — including an empty object — means the document is
+   * resource-closed: a renderer must not consult the network for a missing URL.
+   * Absence preserves the older network-capable document contract and must not
+   * be described as portable to another machine.
+   */
+  readonly resources?: Readonly<Record<string, RenderResource>>;
+
   readonly diagnostics: readonly Diagnostic[];
+}
+
+export interface RenderResource {
+  readonly contentType: string;
+  /** Response bytes, base64. */
+  readonly bytes: string;
+  readonly digest: Digest;
 }
 
 export interface RenderFrame {
@@ -162,6 +188,17 @@ export function documentDigest(document: RenderDocument): Digest {
     inherited: { ...document.inherited },
     fonts: [...document.fonts],
     ...(document.assets ? { assets: { ...document.assets } } : {}),
+    ...(document.baseUrl !== undefined ? { baseUrl: document.baseUrl } : {}),
+    ...(document.resources !== undefined
+      ? {
+          resources: Object.fromEntries(
+            Object.entries(document.resources).map(([url, resource]) => [
+              url,
+              { ...resource },
+            ]),
+          ),
+        }
+      : {}),
   });
 }
 
@@ -210,6 +247,14 @@ export interface RenderIdentity {
    * that argues for every renderer setting it.
    */
   readonly stabilization?: Digest;
+
+  /**
+   * Digest of pixel-affecting browser launch and raster settings.
+   *
+   * Separate from stabilization: one describes how the browser paints, the
+   * other what was done to the page before it was read.
+   */
+  readonly rasterization?: Digest;
 }
 
 export function identityDigest(identity: RenderIdentity): Digest {
@@ -218,6 +263,7 @@ export function identityDigest(identity: RenderIdentity): Digest {
     engine: identity.engine,
     platform: identity.platform,
     ...(identity.stabilization !== undefined ? { stabilization: identity.stabilization } : {}),
+    ...(identity.rasterization !== undefined ? { rasterization: identity.rasterization } : {}),
     deviceScaleFactor: identity.deviceScaleFactor,
     fonts: [...identity.fonts],
   });

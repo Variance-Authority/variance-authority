@@ -33,6 +33,9 @@ export function assemble(document: RenderDocument, options: AssembleOptions = {}
     '<!doctype html>',
     `<html${attributes(document.frame.html)}>`,
     '<head><meta charset="utf-8">',
+    ...(document.baseUrl === undefined
+      ? []
+      : [`<base href="${escapeAttribute(document.baseUrl)}">`]),
     `<style>${sheet(document, options)}</style>`,
     '</head>',
     `<body${attributes(document.frame.body)}>`,

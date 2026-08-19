@@ -189,6 +189,20 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
   }
 
   for (const observation of targets) {
+    // A verdict of `unchanged` normally means there is nothing to promote. An
+    // unstable unchanged subject is the exception: `--flakes` reached the same
+    // baseline twice and found two readings. Calling it "already the baseline"
+    // hides the diagnostic that made the command refuse it.
+    if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
+      refused.push({
+        subject: observation.subject,
+        because:
+          `${observation.unstable.because}. Accepting it would promote one of two readings ` +
+          'as the baseline; fix what moves between them, or re-run once it is fixed',
+      });
+      continue;
+    }
+
     if (observation.verdict === 'unchanged') {
       // Under `--all` this is the overwhelming majority and is not a finding.
       // Named explicitly, it is worth a sentence: the operator asked for
@@ -200,34 +214,6 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
           because: 'it did not change, so it already is the baseline; nothing to accept',
         });
       }
-      continue;
-    }
-
-    // Refused ahead of the image check, because this is the one refusal that is
-    // about the *content* of the candidate rather than its availability. The
-    // image exists and is readable; promoting it would write a render the
-    // session poisoned as the thing every later run is measured against, and
-    // the subject would then compare `unchanged` for exactly as long as the leak
-    // survives — the failure being baselined along with the pixels.
-    // Ahead of the leak refusal, in the order the run established them. A subject
-    // that does not read the same way twice has no candidate to promote — the
-    // image on disk is one of the two readings, chosen by which one the renderer
-    // happened to be handed, and approving it makes the coin flip the baseline
-    // that every later run is measured against.
-    //
-    // Unless the subject said it does not assert on any of it. A route declared
-    // `layout` whose clock ticks between readings is promotable: the two readings
-    // differ in a band nothing here is measured on, and refusing it would make
-    // every route-level baseline unpromotable for the exact reason the level was
-    // declared. The image is still one of two — that is what the declaration is
-    // for.
-    if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
-      refused.push({
-        subject: observation.subject,
-        because:
-          `${observation.unstable.because}. Accepting it would promote one of two readings ` +
-          'as the baseline; fix what moves between them, or re-run once it is fixed',
-      });
       continue;
     }
 

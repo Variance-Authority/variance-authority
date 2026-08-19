@@ -1,7 +1,18 @@
 # todomvc
 
+**Showcase:** advanced semantic attribution, flakiness diagnosis, composition,
+and render offload; this is not a normal visual-regression starter.
+
 A small design system, and three suites over it: attribution, a pixel-diff
 opponent to measure it against, and the render offload.
+
+**What it proves:** a real application can turn a pixel count into named causes
+and collateral, compare the mechanisms that absorb instability, relate subjects
+through their shared component graph, and render an acquired document elsewhere.
+
+**Boundary:** the fixtures are authored here. The offload proof establishes
+byte identity and subject geometry over the wire, not that the reconstructed
+image is faithful to the original page.
 
 Where the claims stop being about snapshots and start being about **pixels
 attached to code lines**.

@@ -29,3 +29,5 @@ export type {
   RasterVerdict,
   IgnoredPixels,
 } from './observe.js';
+export { observeCaptureAgainstBaseline } from './capture.js';
+export type { ObserveCaptureOptions } from './capture.js';

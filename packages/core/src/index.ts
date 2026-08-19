@@ -32,3 +32,4 @@ export * from './attribute/index.js';
 export * from './relate/index.js';
 export * from './judge/index.js';
 export * from './plan/index.js';
+export * from './artifact.js';

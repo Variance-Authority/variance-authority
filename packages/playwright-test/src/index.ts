@@ -8,6 +8,8 @@ export { varianceFixtures } from './fixture.js';
 export type {
   VarianceFixtures,
   VarianceOptions,
+  InPlaceCaptureOptions,
+  MaterializationOptions,
   VarianceRuntime,
   VarianceWorkerFixtures,
 } from './fixture.js';
@@ -16,3 +18,4 @@ export type { UnchangedOptions } from './matcher.js';
 export { AGENT, AGENT_VERSION, acquire } from './page-agent.js';
 export type { Acquired, AcquireRequest, InstalledAgent } from './page-agent.js';
 export { bundlePageAgent } from './bundle.js';
+export { CHROMIUM_RASTER_ARGS } from '@variance-authority/playwright';

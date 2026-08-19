@@ -4,7 +4,11 @@ import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store';
 import { bundlePageAgent } from './bundle.js';
-import { observeLocator, type VarianceOptions } from './fixture.js';
+import {
+  observeLocator,
+  type MaterializationOptions,
+  type VarianceOptions,
+} from './fixture.js';
 import { AGENT } from './page-agent.js';
 
 export interface CreateVarianceOptions {
@@ -16,11 +20,15 @@ export interface CreateVarianceOptions {
   readonly store?: RasterStore;
   /** Override only when the suite deliberately builds its own page agent. */
   readonly bundle?: string;
+  /** Defaults to deferred document rendering. */
+  readonly materialization?: MaterializationOptions;
 }
 
 export interface DirectObservationOptions extends VarianceOptions {
   /** Defaults to `.variance/baselines`. */
   readonly baselines?: string;
+  /** Defaults to deferred document rendering. */
+  readonly materialization?: MaterializationOptions;
 }
 
 export interface VarianceSession {
@@ -43,9 +51,9 @@ export async function createVariance(
   options: CreateVarianceOptions = {},
 ): Promise<VarianceSession> {
   const bundle = options.bundle ?? (await bundlePageAgent());
-  const renderer = options.renderer ?? (await createPlaywrightRenderer());
+  const materialization = options.materialization ?? { kind: 'deferred' };
   const store = options.store ?? createDurableStore(options.baselines ?? '.variance/baselines');
-  const ownsRenderer = options.renderer === undefined;
+  const ownsRenderer = materialization.kind === 'deferred' && options.renderer === undefined;
   let closed = false;
 
   // Future navigations receive the agent before application code. The current
@@ -59,11 +67,24 @@ export async function createVariance(
   );
   if (!installed) await page.evaluate(bundle);
 
+  // Open an owned renderer only after page setup can no longer fail. Before
+  // this point no session exists whose `close` the caller could reach.
+  const renderer =
+    materialization.kind === 'deferred'
+      ? options.renderer ?? (await createPlaywrightRenderer())
+      : options.renderer;
+
   return {
     observe: async (locator, varianceOptions) => {
       if (closed) throw new Error('the variance session is closed');
       return observeLocator(
-        { page, testInfo, renderer, store },
+        {
+          page,
+          testInfo,
+          store,
+          materialization,
+          ...(renderer === undefined ? {} : { renderer }),
+        },
         locator,
         varianceOptions,
       );
@@ -71,7 +92,7 @@ export async function createVariance(
     close: async () => {
       if (closed) return;
       closed = true;
-      if (ownsRenderer) await renderer.close();
+      if (ownsRenderer) await renderer!.close();
     },
   };
 }
@@ -83,11 +104,12 @@ export async function observe(
   testInfo: TestInfo,
   options: DirectObservationOptions = {},
 ): Promise<Observation> {
-  const session = await createVariance(
-    page,
-    testInfo,
-    options.baselines === undefined ? {} : { baselines: options.baselines },
-  );
+  const session = await createVariance(page, testInfo, {
+    ...(options.baselines === undefined ? {} : { baselines: options.baselines }),
+    ...(options.materialization === undefined
+      ? {}
+      : { materialization: options.materialization }),
+  });
   try {
     return await session.observe(locator, options);
   } finally {

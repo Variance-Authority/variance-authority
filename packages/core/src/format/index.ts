@@ -94,6 +94,7 @@ export type {
   RenderDocument,
   RenderFrame,
   FrameElement,
+  RenderResource,
   RenderIdentity,
   Raster,
 } from './document.js';

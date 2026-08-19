@@ -94,6 +94,17 @@ const renderer = await createPlaywrightRenderer();
 const raster = await renderer.render(document);
 ```
 
+Chromium launches with `--disable-lcd-text` and
+`--font-render-hinting=none` by default. An explicit ordered `launchArgs` list
+replaces that default. Headless mode and the ordered launch recipe are hashed
+into `RenderIdentity.rasterization`, so changing font rasterization settings
+partitions baselines instead of appearing as a product diff.
+
+A resource-closed document is rendered without network access: archived
+resource bytes satisfy matching requests and every unresolved request is
+aborted. A document without a `resources` field remains a local, environment-
+dependent input and may use the network available to the renderer.
+
 **The viewport is not a renderer setting.** It arrives with each document, and
 the renderer keeps one page per viewport and reuses it — so one renderer serves
 1x and 2x, or a phone width and a desktop one, in the same run without a second

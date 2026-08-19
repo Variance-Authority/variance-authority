@@ -188,6 +188,32 @@ live('the durable workflow, end to end', () => {
     expect(status).toBe(0);
   }, 240_000);
 
+  it('diagnoses a ticking story as unstable and refuses to accept its coin-flip candidate', () => {
+    // This is deliberately an unchanged story. Without `--flakes`, its baseline
+    // settles before a second read and the clock is invisible to the normal
+    // verdict path. The sweep asks the different question: does this subject
+    // agree with itself when nothing in the repository changed?
+    const subject = 'story:case-surface--ticking';
+    const { status, out } = variance('run', '--flakes', '--subjects', subject);
+
+    expect(status).toBe(1);
+    expect(out).toContain('unstable');
+
+    const report = JSON.parse(readFileSync(join(workspace, 'run.json'), 'utf8'));
+    const observation = report.observations.find((entry) => entry.subject === subject);
+
+    expect(observation?.verdict).toBe('unchanged');
+    expect(observation?.unstable?.because).toContain('read differently');
+
+    const refused = variance('accept', subject);
+    // `accept` has no safe action to take, so refusal is an operator outcome
+    // rather than a second review verdict. The important part is that no
+    // baseline can be promoted from either reading of the ticking story.
+    expect(refused.status).toBe(2);
+    expect(refused.out).toContain('accepted 0 subject(s), refused 1');
+    expect(refused.out).toContain('Accepting it would promote one of two readings');
+  }, 240_000);
+
   it('reports exactly the stories that render the edited component', () => {
     // A source edit, judged against the baselines the trunk build recorded. The
     // interesting number is not that something changed — it is *which* subjects
@@ -364,4 +390,8 @@ it.todo(
 
 it.todo(
   'the same new → accept → unchanged → changed cycle reaches the same verdicts over a component library this project did not write — needs a third-party library vendored as a case, with the edit and the subjects it should move declared before the run (spec 0022)',
+);
+
+it.todo(
+  'the same story, captured as an in-place raster from the preview page the runner already painted, reaches the same verdict as the document this case renders later — ADR-0044 calls this cell coherent because the preview is a painted page, and nothing builds it: the collector needs an in-place material option and the host launch recipe declared the way `@variance-authority/playwright-test` declares it',
 );

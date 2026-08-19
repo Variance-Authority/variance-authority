@@ -24,9 +24,10 @@ changed region to the component that caused it and the `file:line` where that
 component lives. The screenshot remains evidence; it stops being the whole
 answer.
 
-Variance Authority runs as a local `variance` command in your own CI, against
-UI states your Storybook, application, or Playwright tests already know how to
-reach. There is no account, no hosted dashboard, and no build to upload.
+Variance Authority runs in infrastructure you control, against UI states your
+Storybook, application, Playwright tests, or browserless unit tests already know
+how to reach. There is no vendor account or hosted dashboard. Capture material
+stays local or travels only to a renderer and store you choose.
 
 ## One change. One place to look.
 
@@ -166,7 +167,7 @@ onto the team adopting it:
 | --- | --- |
 | **Compute** | Rendering happens on your machines or on a pinned renderer you operate. |
 | **Storage** | Baselines can live in a directory, git-LFS, or a service you deploy. Storage location does not change the verdict. |
-| **Mounting** | Storybook, served URLs, and Playwright suites have shipped adapters. A custom component environment supplies its own collector and definition of “ready.” |
+| **Mounting** | Storybook, served URLs, Playwright suites, and browserless unit DOMs have adapters. A custom component environment supplies its own collector and definition of “ready.” |
 | **The gate** | The exit code integrates with any CI that runs a command. Pull-request comments and their credentials remain your workflow. |
 | **Comparability** | Raster artifacts are keyed by renderer identity. Two incompatible identities are reported as `incomparable`, never `different`. |
 
@@ -188,16 +189,18 @@ state. Do not rebuild that environment inside Variance Authority.
 | Your UI is already ready in | Integration recipe | First complete loop |
 | --- | --- | --- |
 | A Playwright test | [`@variance-authority/playwright-test`: add an observation](packages/playwright-test/README.md#add-an-observation-to-a-test) | Run → review the `new` candidate → run with `--update-snapshots` → rerun unchanged. |
+| A Jest or Vitest jsdom test | [`@variance-authority/unit-test`: capture now, render later](packages/unit-test/README.md) | Unit process writes a resource-closed archive → later `variance run` renders it locally or remotely. |
 | A built or served Storybook | [`@variance-authority/storybook-collector`: integrate a Storybook](packages/storybook-collector/README.md#integrate-a-storybook) | `variance doctor` → `variance run` → accept named stories → rerun unchanged. |
 | A running application or static build | [`@variance-authority/route-collector`: integrate a route list](packages/route-collector/README.md#integrate-an-explicit-route-list) | Start the app → `variance doctor` → `variance run` → accept named routes → rerun unchanged. |
 | A custom renderer, store, or pipeline | [`@variance-authority/observe`: choose the entrypoint](packages/observe/README.md#choose-the-entrypoint) | Call `observePair`, `observeAgainstBaseline`, or `observeRasters`, then handle every returned verdict explicitly. |
 
-If more than one row fits, prefer the highest one: reuse an existing Playwright
-test before adding a second navigation harness; otherwise reuse Storybook before
-navigating every route independently. Choose routes when the served application
-is the artifact that matters.
+If more than one row fits, choose the state owner and material separately. Reuse
+an existing Playwright test when its browser owns the meaningful state; choose
+in-place pixels for that browser's exact paint or a deferred document for a
+renderer with equivalent resource access. Use the unit surface when the test owns a DOM but
+must not own a browser. Reuse Storybook before navigating every route
+independently; choose routes when the served application is the artifact.
 
-These are the current package boundaries, not hypothetical presets.
 `@variance-authority/playwright-test` is a one-package integration that leaves
 the suite's existing `test` and `expect` imports in place. Storybook and route
 adoption require the shared CLI plus one collector package;

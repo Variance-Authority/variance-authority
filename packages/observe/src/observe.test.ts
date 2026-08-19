@@ -5,6 +5,7 @@ import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   documentDigest,
+  type CaptureArtifact,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
@@ -12,6 +13,7 @@ import {
 } from '@variance-authority/core';
 import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store';
+import { observeCaptureAgainstBaseline } from './capture.js';
 import { observeAgainstBaseline } from './observe.js';
 
 /**
@@ -157,5 +159,53 @@ describe('a durable observation above 1x', () => {
     await observeAgainstBaseline(document, { subject: 's' }, { renderer, store });
 
     expect(renderer.calls).toBe(1);
+  });
+
+  it('observes an existing raster without opening a renderer', async () => {
+    const store = createDurableStore(root);
+    const renderer = fakeRenderer();
+    const document = documentAt(1);
+    const raster = await renderer.render(document);
+    await store.put({ subject: 's' }, raster);
+    const artifact: CaptureArtifact = {
+      artifactVersion: 1,
+      subject: document.subject,
+      material: { kind: 'raster', raster: { ...raster, components: [] } },
+    };
+
+    const observation = await observeCaptureAgainstBaseline(
+      artifact,
+      { subject: 's' },
+      { store },
+    );
+
+    expect(observation).toMatchObject({ verdict: 'unchanged', rendered: false });
+    expect(renderer.calls).toBe(1);
+    expect(
+      await store.renderCache.get(raster.documentDigest, raster.identity),
+    ).not.toHaveProperty('components');
+  });
+
+  it('renders document material through the supplied renderer', async () => {
+    const store = createDurableStore(root);
+    const renderer = fakeRenderer();
+    const document = documentAt(1);
+    await store.put({ subject: 's' }, await renderer.render(document));
+    const artifact: CaptureArtifact = {
+      artifactVersion: 1,
+      subject: document.subject,
+      material: { kind: 'document', document },
+    };
+
+    await expect(
+      observeCaptureAgainstBaseline(artifact, { subject: 's' }, { store }),
+    ).rejects.toThrow('document capture needs a renderer');
+
+    const observation = await observeCaptureAgainstBaseline(
+      artifact,
+      { subject: 's' },
+      { renderer, store },
+    );
+    expect(observation.verdict).toBe('unchanged');
   });
 });

@@ -40,7 +40,7 @@ import { createPlaywrightRenderer } from '@variance-authority/playwright';
 const server = await serveRenderer(await createPlaywrightRenderer(), 7777);
 
 // Anywhere else — the pipeline cannot tell the difference:
-const renderer = connectRenderer({ endpoint: 'http://pinned-runner:7777' });
+const renderer = await connectRenderer({ endpoint: 'http://pinned-runner:7777' });
 ```
 
 `serveRenderer` and `serveRasterStore` wrap whatever you hand them. Neither knows

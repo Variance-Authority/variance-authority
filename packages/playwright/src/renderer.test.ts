@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { describe, expect, it } from 'vitest';
-import { documentDigest, type RenderDocument } from '@variance-authority/core';
+import { digestBytes, documentDigest, identityDigest, type RenderDocument } from '@variance-authority/core';
 import { comparePngs, decode } from '@variance-authority/png';
 import { createPlaywrightRenderer } from './renderer.js';
 
@@ -44,6 +44,108 @@ function documentOf(id: string, colour: string): RenderDocument {
 }
 
 describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', () => {
+  it('partitions identity by the browser rasterization recipe', async () => {
+    const pinned = await createPlaywrightRenderer();
+    const changed = await createPlaywrightRenderer({ launchArgs: ['--disable-lcd-text'] });
+
+    try {
+      expect(pinned.identity.rasterization).toBeDefined();
+      expect(identityDigest(pinned.identity)).not.toBe(identityDigest(changed.identity));
+    } finally {
+      await Promise.all([pinned.close(), changed.close()]);
+    }
+  });
+
+  it('paints resource-closed documents without consulting the network', async () => {
+    const renderer = await createPlaywrightRenderer({ waitForFonts: false });
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="red"/></svg>',
+    );
+    const url = 'https://assets.example/components/icon.svg';
+    const document: RenderDocument = {
+      ...documentOf('fixture:resource', '#fff'),
+      baseUrl: 'https://assets.example/components/',
+      html: '<div data-va-path="0"><img src="icon.svg" width="20" height="20"></div>',
+      assets: { [url]: digestBytes(svg) },
+      resources: {
+        [url]: {
+          contentType: 'image/svg+xml',
+          bytes: svg.toString('base64'),
+          digest: digestBytes(svg),
+        },
+      },
+    };
+
+    try {
+      await expect(renderer.render(document)).resolves.toMatchObject({
+        documentDigest: documentDigest(document),
+      });
+      await expect(
+        renderer.render({ ...document, resources: {} }),
+      ).rejects.toThrow('has no bytes');
+    } finally {
+      await renderer.close();
+    }
+  });
+
+  it('refuses queued HTTP and WebSocket egress from a resource-closed document', async () => {
+    const renderer = await createPlaywrightRenderer({ waitForFonts: false });
+    const closed = {
+      ...documentOf('fixture:egress', '#fff'),
+      resources: {},
+      assets: {},
+    } satisfies RenderDocument;
+
+    try {
+      await expect(
+        renderer.render({
+          ...closed,
+          html:
+            '<div data-va-path="0">HTTP</div>' +
+            '<script>requestAnimationFrame(() => fetch("https://escape.example/late"))</script>',
+        }),
+      ).rejects.toThrow('https://escape.example/late');
+
+      await expect(
+        renderer.render({
+          ...closed,
+          html:
+            '<div data-va-path="0">WebSocket</div>' +
+            '<script>new WebSocket("wss://escape.example/socket")</script>',
+        }),
+      ).rejects.toThrow('websocket wss://escape.example/socket');
+
+      await expect(
+        renderer.render({
+          ...closed,
+          html:
+            '<div data-va-path="0">Popup</div>' +
+            '<script>window.open("https://escape.example/popup")</script>',
+        }),
+      ).rejects.toThrow('https://escape.example/popup');
+    } finally {
+      await renderer.close();
+    }
+  });
+
+  it('does not apply resource-closed WebSocket policy to open documents', async () => {
+    const renderer = await createPlaywrightRenderer({ waitForFonts: false });
+    const document = {
+      ...documentOf('fixture:open-websocket', '#fff'),
+      html:
+        '<div data-va-path="0">Open</div>' +
+        '<script>new WebSocket("ws://127.0.0.1:1/socket")</script>',
+    } satisfies RenderDocument;
+
+    try {
+      await expect(renderer.render(document)).resolves.toMatchObject({
+        documentDigest: documentDigest(document),
+      });
+    } finally {
+      await renderer.close();
+    }
+  });
+
   it('paints each document into its own page when several render at once', async () => {
     // The whole point. Six distinct colours rendered concurrently through a pool
     // of four: if any two shared a page, at least one image would carry another

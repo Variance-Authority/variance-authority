@@ -4,7 +4,6 @@ import {
   hashComponents,
   type Raster,
   type RenderDocument,
-  type RenderIdentity,
   type SemanticSnapshot,
 } from '@variance-authority/core';
 import type { Observation } from '@variance-authority/observe';
@@ -89,7 +88,7 @@ export async function images(
   //
   // After the verdict check on purpose: `unchanged`, `new` and `incomparable`
   // never write a `before.png`, so for them this read would be pure waste.
-  const before = (await deps.store.find(key, renderer.identity))?.raster;
+  const before = (await deps.store.find(key, renderer.identityFor(document)))?.raster;
   if (before === undefined) {
     // No `before` means nothing to subtract from, so a diff image would be the
     // candidate itself painted red. Omitted rather than written, and its absence
@@ -120,13 +119,8 @@ export async function images(
  * shape that makes this tool unusable on a real suite. The cache has them under
  * the document's digest, so this is a lookup, not a render.
  *
- * **Two keys, and the reason is a seam in the tier below.** A renderer reports
- * `deviceScaleFactor: 1` until it knows the document, whose viewport supplies the
- * real one — so a raster is written under a scaled identity while a caller
- * holding only the renderer has the unscaled one. At 1x they coincide and the
- * first key hits. Above 1x only the second does. Trying both is two cheap
- * lookups; guessing one would silently lose every image on a 2x run, and a
- * missing image is a subject that cannot be accepted.
+ * The renderer owns its document-specific identity. Asking it here keeps image
+ * recovery on the same key as rendering and baseline lookup, including scale.
  *
  * `null` is a real answer — some renderer or store combination kept nothing — and
  * it produces a record with no `images`, which `accept` later refuses by name
@@ -138,13 +132,5 @@ async function candidateRaster(
   renderer: Renderer,
 ): Promise<Raster | null> {
   const digest = documentDigest(document);
-  const scaled: RenderIdentity = {
-    ...renderer.identity,
-    deviceScaleFactor: document.viewport.deviceScaleFactor,
-  };
-
-  return (
-    (await store.renderCache.get(digest, scaled)) ??
-    (await store.renderCache.get(digest, renderer.identity))
-  );
+  return await store.renderCache.get(digest, renderer.identityFor(document));
 }

@@ -5,20 +5,10 @@ import { PNG } from 'pngjs';
  * An image this system did not paint, given the smallest identity that can still
  * be compared.
  *
- * `docs/surface.md §4` argued for months that there could be no such function,
- * and the argument was right about the arithmetic and wrong about the
- * conclusion. Everything it lists as lost — provenance, bands, causes,
- * snapshots, the render cache — really is lost, and none of it is recoverable by
- * being clever with bytes. What it got wrong is that the remainder is worthless.
- * The remainder is *did these pixels change, and is the thing that painted them
- * the same thing that painted the baseline*, which is the entire product two
- * competitors sell.
- *
- * So the position survives intact and moves one level down: this is a weaker
- * tool, and it is offered **under a different command name**
- * (`variance ingest`, never `variance run`), with the reduction stated on every
- * record it writes. What was refused was a second, worse tool wearing the first
- * one's name. This is not that.
+ * The resulting raster can answer whether pixels changed under the same declared
+ * painter. It cannot recover provenance, bands, causes, snapshots, or render-
+ * cache settlement from image bytes; callers receive only the evidence they
+ * supply alongside it. This is a low-level library seam, not a CLI ingest flow.
  *
  * ## The two fields that are not obvious
  *

@@ -163,12 +163,10 @@ export interface IgnoredPixels {
  * or where they were kept — it was written against `ObserveOptions` only because
  * that is what its callers happened to have.
  *
- * Naming the smaller set is what makes a comparison possible for two images that
- * arrived from somewhere else entirely (`variance ingest`, `docs/ingest.md`).
- * That is not a weakening of the contract: every field below is still honoured,
- * and the ones a foreign image cannot supply — the snapshot, and therefore the
- * exclusions, the attribution and the bands — are already optional here and
- * already degrade by saying less rather than by guessing.
+ * Naming the smaller set makes comparison available to callers that already own
+ * both rasters. Every supplied field is still honoured. Evidence a raster-only
+ * caller cannot supply — snapshot, exclusions, attribution, and bands — remains
+ * absent rather than being guessed.
  */
 export interface CompareInputs {
   /**
@@ -246,9 +244,7 @@ export interface ObserveOptions extends CompareInputs {
  * The same function every other path in this package ends at, reachable without
  * a renderer or a store. `observePair` renders two documents and calls it;
  * `observeAgainstBaseline` renders one and looks the other up; this one is for
- * the caller who has both and no document behind either — which is exactly what
- * `variance ingest` is, and is why the position on foreign images could be
- * priced instead of only argued.
+ * the caller who has both and no document behind either.
  *
  * `rendered` is `false` and cannot be otherwise: nothing was painted here, and a
  * run reporting otherwise would be claiming a render cost it did not pay.

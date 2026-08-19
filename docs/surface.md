@@ -1,463 +1,249 @@
 # Surface
 
-What an adopter writes, what they install, and what they cannot do.
+A suite connects to Variance Authority by composing independent choices:
 
-[`flows.md`](flows.md) answers one question — *how much infrastructure do I stand
-up?* — and it is the wrong axis for the question people actually ask first, which
-is *how does my suite get in?* The two are orthogonal: the storage rung decides
-where a baseline lives, and this decides how a subject arrives. Either can be
-chosen without the other.
+1. the host reaches the state to observe;
+2. acquisition keeps either a `RenderDocument` or a `Raster`;
+3. a document is painted by a local or remote renderer, while a raster is
+   already painted;
+4. both reach the same observation, retention, and reporting contracts.
 
-The short version, before the detail:
-
-| | |
-|---|---|
-| **Code you write** | For Storybook or a set of served URLs, roughly five lines: a shipped collector plus the facts only you hold. For a Playwright suite, an import. For anything else, three seams — three methods, one and one — and the worked example that measured 341 lines |
-| **Packages you install** | Between one and five, chosen by what you already have |
-| **Suites supported today** | Storybook end to end with a shipped collector; a Playwright suite through a fixture where the test body is the collector; and any set of served URLs through a shipped route collector. Anything else through the same collector contract — the run takes its subject list from the collector, not from the config, so a new subject source needs no change here |
-| **What cannot enter** | An image this system did not paint. Deliberately, and the refusal is a named error |
-
----
+The host adapter owns discovery, lifecycle, and naming. It does not replace the
+host's test runner, assertions, configuration, build, or teardown. The resulting
+constellation is chosen for the suite's privacy, latency, repeatability, and
+coverage requirements; in-place and deferred rendering are both first-class.
 
 ## 1. The three things you write
 
-Nothing is discovered, registered or scanned for. Each seam is a value the
-operator supplies, named in a config file or passed as an argument.
+The smallest integration names a subject, acquires its state, and chooses where
+the resulting material goes. Host surfaces remove one or more of those
+steps.
 
 ### The collector — three methods
 
-`Collector` at `packages/cli/src/commands/collector.ts:148` is the half of a run this
-project declines to write, and the reason is in the source above it: planning
-from a story index is generic because the index is a file with a documented
-shape, and *mounting* a project's components is not — it needs the project's own
-bundle, its own providers and its own definition of settled.
+The CLI collector contract is for hosts whose subjects are observed as a run:
 
-```text
-plan()     -> subjects to observe, plus the ones this source already refuses, with reasons
-collect(s) -> a RenderDocument for one subject, or { ok: false, because }
-close()    -> release whatever plan() opened
+```ts
+interface Collector {
+  plan(): Promise<Plan>;
+  collect(subject: PlannedSubject): Promise<Collected>;
+  close(): Promise<void>;
+}
 ```
 
-The config names a module path, the CLI imports it by path, and that is the whole
-extension mechanism — `loadCollector` at `packages/cli/src/commands/collector.ts:306` is
-twenty-five lines of `import()` and a type check. Not a registry lookup, not a
-download, not a plugin protocol. "Every tool that has claimed otherwise grew a
-plugin system whose failures are undebuggable from either side."
+`plan` names what the run intends to observe. `collect` returns a render document
+and optional semantic/source evidence. `close` releases the host. The
+Storybook, route, and unit-capture surfaces implement this contract.
 
-**Size, measured rather than estimated:** writing the Storybook case's collector
-by hand costs 234 lines in the module the config names, and 341 across three
-files once the page agent and its bundler are counted. An estimate of "about
-thirty lines" is optimistic by 8×, which is why the source comment carries the
-measurement rather than a guess.
-
-**That figure is the cost where no collector is shipped.** Storybook has one —
-[`@variance-authority/storybook-collector`](../packages/storybook-collector) — and
-the same case is five lines of code against the same end-to-end test
-([comparison §4](comparison.md#4-what-is-written-and-unrun)).
-For every other subject source the 341 is the honest number against Percy's
-twenty-plus SDKs.
+Collectors do not choose the renderer or baseline store. `variance run` wires
+their documents to the configured local or remote renderer and then to the
+ordinary observation/report path.
 
 ### The page agent — one method
 
-If the collector drives a browser, the browser half is
-`PageAgent packages/playwright/src/agent.ts:66`, and it is one method:
+A browser collector installs a serializable page-side acquisition method:
 
-```text
-capture(request) -> a JSON string
+```ts
+interface PageAgent {
+  capture(root: Element, request: CaptureRequest): Promise<RawCapture>;
+}
 ```
 
-The harness that calls it owns one Chromium, one page, one navigation and one
-bundle injection, and **knows nothing about subjects, variants, React or the
-corpus**. That ignorance is the load-bearing property: it is why the same harness
-serves a Storybook, a fixture page or a route without acquiring a dependency on
-any of them, and why the same agent could sit behind a worker or a device farm
-instead of a `page.evaluate`.
-
-`capture` returns a string rather than an object on purpose. Playwright would
-happily structured-clone the object, and that would hide the constraint the
-transport story depends on — a capture that acquires a `Map`, a DOM handle or a
-cycle fails at this boundary rather than three transports later.
+The Storybook and route collectors include their own agent. The
+Playwright Test surface also bundles one, because the suite's existing `Locator`
+already identifies the root.
 
 ### Provenance — one function
 
-Attribution needs exactly two things per element: a component name, and a digest
-of what was passed in. `collect()` takes them as a caller-supplied callback
-(`packages/dom/src/collect.ts:54`), so the framework is not a property of the
-approach — it is a count of implementations, of which there are two:
+Acquisition may inject component provenance without making the DOM package
+framework-specific:
 
-| Source | Where | Cost |
-|---|---|---|
-| React fibers | `packages/react/src/resolve.ts` | Nothing to write. Reads the `__reactFiber$…` expando, needs no DevTools hook |
-| Two `data-*` attributes | `attributeProvenance`, at `packages/dom/src/attributed.ts:96` | 25 lines here, plus a build step you own that emits them |
+```ts
+type ProvenanceOf = (element: Element) => Provenance | undefined;
+```
 
-The second is what a non-React project uses, and the attributes are dropped
-before hashing, so adding the build plugin invalidates no stored baseline. Vue's
-`vite-plugin-vue-inspector` already emits an attribute of this shape and Svelte's
-compiler knows the component and file for every element — **but no Vue, Svelte or
-Angular application has been run through this**, and that is the whole of the
-evidence.
-
----
+Absence reduces attribution; it does not prevent capture or pixel comparison.
+React and emitted `data-*` metadata are supported provenance sources. The host
+surface decides which one is available before acquisition.
 
 ## 2. What you install
 
-There is no "public API" and no "internals" in this repository. The cut is
-different, and [ADR-0013](context/adr/0013-packages-are-named-for-their-requirements.md)
-states it: **the first cut between packages is what a consumer must supply.** A
-package holds only code that has one requirement, so the question "what does this
-cost me" is answered by the package list rather than by a document that drifts
-from it. What a package is *called* is the second question, and
-[ADR-0042](context/adr/0042-a-package-is-named-for-what-it-is-for.md) answers it:
-a name says what the package is **for** — a requirement the manifest cannot
-state, or what the thing is, or the format, protocol or target it serves. Never a
-library it imports, which the manifest already states and a later release can
-replace underneath the name.
+Choose the adopter-facing package for the host. Its collaborators remain behind
+that package boundary.
 
-Read down the column you can satisfy:
+| Existing host | Surface | Material and placement |
+| --- | --- | --- |
+| Built or served Storybook | `@variance-authority/storybook-collector` | Document rendered later; a remote renderer needs equivalent resource access. |
+| Served routes or a static directory | `@variance-authority/route-collector` | Document rendered later; a remote renderer needs equivalent resource access. |
+| Existing Playwright Test | `@variance-authority/playwright-test` | Deferred document by default, or explicit in-place raster from the caller-owned page. |
+| Jest or Vitest with jsdom | `@variance-authority/unit-test` | Resource-closed document archive written in the unit process and rendered by a later CLI process. |
+| Custom library composition | `@variance-authority/observe` | Existing raster or document material through an injected store and, for documents, a renderer. |
 
-| Package | Requires | You install it when |
-|---|---|---|
-| `core` | nothing | Always. The format, the differ, the docket, the rules |
-| `dom` | a DOM to read | You collect from jsdom or a live page |
-| `react` | a tree `react-dom` rendered | Provenance comes from fibers rather than attributes |
-| `jsx-source` | a build you control the JSX transform of, and a React runtime for it to resolve | The subject is a production build, where nothing captures the call site. No source file imports this one — a build setting resolves it |
-| `playwright` | a browser binary | You want this project to launch one |
-| `playwright-test` | a Playwright run with an opened `Page`, a non-null viewport, and a browser binary | A suite already navigates, authenticates and waits, so the test body is the collector and there is none to write |
-| `png` | a runtime with `Buffer` | You compare images yourself |
-| `png-sharp` | a runtime that can load a compiled native addon, on `sharp`'s published platform matrix — the one package where the vendor is the requirement | You compare images yourself and decoding is the cost — 90% of a comparison. The binary already depends on it and falls back to `png` when the addon will not load |
-| `raster` | nothing | Contracts, policies, ephemeral retention |
-| `store` | a directory you can write | Baselines live on a disk or in git-LFS |
-| `remote` | a service already running | Baselines or rendering live behind HTTP |
-| `history`, `server` | a database | How often a subject has flaked, and drift across runs — see [flows.md rung 5](flows.md#rung-5--history-recurrence-and-drift-across-runs) |
-| `tribunal` | a database, an object store, a `fetch` runtime, and two different bearer tokens | Reviewing and approving a build happens somewhere other than the pull request — see [flows.md rung 4](flows.md#rung-4--tribunal-the-review-loop) |
-| `report`, `mcp` | a disk / an agent | You read a run's output as a file or over MCP |
-| `session` | a DOM, and a `mount` function you write | One standing world instead of rinsing between subjects, and the loop the subjects arrive through is yours |
-| `storybook` | **nothing** | You read a story index. Not a browser: it names the three page methods it drives instead of importing a `Page` |
-| `storybook-collector` | a browser binary, and a Storybook built or already served | Storybook owns mounting, and you would rather not write the browser half yourself |
-| `route-collector` | a browser binary, and an application to reach or a static directory to serve | The subjects are pages your server already serves, so bundling, providers and routing are its problem rather than yours |
-| `sense` | a checkout you can read, with its dependencies installed | You want `--since` to narrow a run past the file that declares no component — this is the graph a change travels to reach one ([selecting.md](selecting.md#the-expensive-row-and-what-retires-it)) |
-| `cli` | a project config, plus the runtime resources it selects | You want the binary rather than the library |
-
-**The bill is demonstrated, not asserted.** Every example and case in this
-repository that uses the library rather than the binary depends at runtime on the
-same three — `core`, `dom`, `playwright` — and then on at most two more, both of
-them declinable rows in the table above: `react` where provenance comes from
-fibers, `png` where the call site compares the images itself. That is
-`examples/kitchen-sink`, `examples/todomvc`, `examples/readme-case` and
-`cases/incumbent-case`, four call sites written separately that converged on the
-same floor.
-
-Two entries deserve calling out because they are the rule working rather than
-paperwork:
-
-- **`observe` is the one package not on the list.** It is the only package in
-  the repository where an order is hard-wired, it is named for being one
-  composition, and nothing below it imports it. A package claiming to be a tool
-  while depending on four requirements is a composition that has not admitted
-  it; this one admits it in its first paragraph.
-- **The ephemeral store is in `raster` and the durable one is in `store`,** which
-  reads oddly in a table of retention modes and is the honest placement: one
-  needs a disk and the other does not. The mode whose argument is *no container,
-  no pinned runner, no stored artifact* demonstrates that in the package graph
-  instead of asserting it in a comment.
-
-**Nothing is published.** None of the 23 packages is `private: true` — each
-carries MIT, version `0.0.0-beta.1` and a repository field, and a pushed `v*`
-tag would send every one of them to the registry
-([release.yml](../.github/workflows/release.yml)). No tag has ever been pushed,
-so `npm install` reaches nothing: the table above prices an install that cannot
-yet be performed, and obtaining any of this still means cloning the repository.
-What is left is one tag and one install demonstrated from outside a clone,
-tracked in [spec 0015](specs/0015-the-first-published-release.md). That is the
-top item of [comparison §5](comparison.md#5-when-not-to-choose-this) and it is
-not a formality — it is why
-[metrics.md M6](metrics.md#m6-time-to-first-verdict-on-a-cold-repository) records
-this project's time-to-first-verdict as *unbounded*.
-
----
+The CLI, renderer, and store packages remain available for operators composing
+their own run. Adopter-facing examples import one surface package; reaching
+through it to its collaborators is not required.
 
 ## 3. By suite
 
-`SubjectsConfig packages/cli/src/config-sections.ts:81` is a four-arm union. Three of
-them name a collector, and the second of those is the general case; the fourth names no
-collector at all, because its subjects are images somebody else painted — and it is
-therefore the one arm `run` refuses rather than renders (§4).
-
 ### Storybook
 
-```json
-{
-  "subjects": {
-    "kind": "storybook",
-    "index": "storybook-static/index.json",
-    "collector": "collector/index.mjs",
-    "excludeTags": ["no-variance"]
-  }
-}
-```
+The Storybook collector reads `index.json`, reuses one preview, switches stories
+through Storybook's channel, waits for the rendered state, and acquires each
+subject. It operates beside Storybook: it does not install an addon, modify
+`.storybook`, replace the renderer, or own the build command.
 
-Reads what a **built** Storybook declares and refuses anything that is not that:
-no browser, no evaluation, no `.storybook/` directory
-([ADR-0020](context/adr/0020-read-the-artifact-not-the-configuration.md)). v3, v4
-and v5 index shapes parse. Stories move over Storybook's own channel rather than
-by reload, so N stories cost one navigation.
+This route deliberately produces documents. A run may paint them locally, reuse
+a cached raster, or use a remote renderer that can reach the same resources. The
+Storybook collector records resource hashes but not resource bytes, so its output
+is not a resource-closed portable archive. Acquisition is unchanged by renderer
+placement.
 
-Demonstrated end to end: *new (exit 1) → accept (0) → unchanged (0) → 5 of 8
-changed (exit 1)* on a build with one component edited, finding exactly the five
-stories that render it.
-
-Nothing prunes Storybook's chrome and nothing needs to. The story mounts into
-`#storybook-root`, so the preview reset, the addon layout and the error overlay
-are outside the subject subtree and are dropped by ordinary CSS applicability
-pruning. A Storybook-specific denylist would be a second normalization ruleset
-versioned by nobody.
+See [`@variance-authority/storybook-collector`](../packages/storybook-collector)
+for the collector module and configuration.
 
 ### Any other suite
 
-```json
-{
-  "subjects": {
-    "kind": "list",
-    "ids": ["checkout/empty", "checkout/one-item"],
-    "collector": "collector/index.mjs"
-  }
-}
-```
+A host-specific surface is useful only when it removes real host work without
+taking ownership of the host. For an unsupported browser harness, a custom
+collector can satisfy `plan`, `collect`, and `close`. For a mounted browserless
+DOM, the unit-test surface already supplies the archive and collector lifecycle.
 
-`ListSubjects packages/cli/src/config-sections.ts:96` is the arbitrary-suite path. The
-CLI branches to `planList`, at `packages/cli/src/commands/collector.ts:267`, and from
-there the run is identical — same normalizer, same bands, same docket, same store.
-
-**The union is a much weaker constraint than it looks, and this is the
-most useful fact in the document.** `run()` never reads `config.subjects` — not
-once. The subject list is whatever `deps.collector.plan()` returns
-(`packages/cli/src/commands/run.ts:108`), and the loop iterates that. What the
-`kind` union actually decides is two things: which collector module to import,
-and which generic pre-plan to compute *for the collector's convenience*.
-
-So a collector may ignore `context.plan` entirely and return subjects read from a
-route table, a build manifest, or a suite's own discovery output — including
-`SubjectRef.kind: 'route'`, which the format declares and nothing yet constructs —
-with **no change to `packages/cli`**. Adding a genuinely new subject source is a
-module in your repository, not a pull request here. The `ids` array becomes a
-one-element formality in that case, because the parser refuses an empty one; that
-is an ergonomics complaint rather than a closed door.
-
-**The plan is handed to you either way.** `CollectorContext.plan` is populated for
-both subject kinds, so a `list` collector that *does* want the generic half
-returns `context.plan` from `plan()` and writes no planning of its own. Reading it
-as Storybook-only is the mistake that costs something — an operator concludes the
-field is undefined and hand-rolls what the CLI already computed.
-
-**The worked example is a real server.**
-[`@variance-authority/route-collector`](../packages/route-collector) enters through
-this path against pages a server serves, in
-`packages/route-collector/src/collector.chromium.test.ts`. What is absent is a
-`variance run` *end to end* over the `list` arm: the collector is exercised
-directly, where the Storybook arm has `cases/storybook-case` around a real
-binary.
+Cypress, WebdriverIO, and Appium do not acquire special status from being test
+runners. Their adapters would name subjects and emit the shared capture material;
+they would not create new comparison or retention pipelines.
 
 ### Playwright
 
-Two packages, and which one you want depends on whether you already have a suite.
+The Playwright Test integration is additive:
 
-[`@variance-authority/playwright-test`](../packages/playwright-test) is an
-additive observation: `assertUnchanged(await observe(page, locator, testInfo))`
-inside the test body you already wrote. It exports neither `test` nor `expect`.
-It is the one adoption path that needs no collector, because a Playwright test
-has navigated, mounted and waited by the time the observation is made — which is
-also why it is the answer for anything behind a login or several steps into a flow. See
-[replacing.md §1](replacing.md#1-replacing-expectpagetohavescreenshot).
+```ts
+import { test, expect } from '@playwright/test';
+import { assertUnchanged, observe } from '@variance-authority/playwright-test';
 
-`@variance-authority/playwright` underneath it is **a renderer and a harness**: a
-`Renderer packages/raster/src/renderer.ts:18` — a document in, a raster out —
-satisfying the same contract a renderer across a network satisfies, and usable on
-its own by a collector that drives its own pages. `cases/incumbent-case` installs
-`@playwright/test` and runs it, but as **the incumbent being measured**, not as an
-integration.
+test('empty cart', async ({ page }, testInfo) => {
+  await page.goto('https://example.test/cart');
+  const observation = await observe(page, page.getByTestId('cart'), testInfo, {
+    subjectId: 'cart/empty',
+  });
+
+  assertUnchanged(observation);
+  expect(observation.subject).toBe('cart/empty');
+});
+```
+
+The deferred default acquires from the caller's locator and paints the document
+through a separate renderer. It supports render-cache reuse and a local or remote
+renderer with equivalent resource access; this adapter does not archive external
+resource bytes.
+
+The explicit in-place option captures the caller-owned locator twice, refuses
+same-run pixel disagreement, and sends the agreeing raster directly to baseline
+observation. It requires the suite to declare the browser launch recipe used by
+its Playwright configuration; the declaration enters renderer identity.
+
+```ts
+import { CHROMIUM_RASTER_ARGS, createVariance } from '@variance-authority/playwright-test';
+
+const variance = await createVariance(page, testInfo, {
+  materialization: {
+    kind: 'in-place',
+    browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+  },
+});
+```
+
+The package exports neither `test` nor `expect`. Fixtures and matcher parts are
+unbound values for suites that already own a shared extension module.
 
 ### jest and vitest
 
-This works today and needs no CLI at all. `dom` collects from jsdom in the
-unit-test process; `examples/kitchen-sink/src/measure.test.tsx` scores 38 of 38
-corpus cases this way. jsdom is not a cheap browser — it is an earlier gate that
-settles the token band and structural geometry before anything renders, and a
-band it cannot observe reports `unobserved` rather than passing.
+Vanilla Jest or Vitest has a DOM and no rasterizer. The unit surface therefore
+does acquisition only:
 
-There is no matcher and no snapshot file. You call the library and assert on
-what it returns.
+```ts
+import { test, expect } from 'vitest';
+import { capture, writeCapture } from '@variance-authority/unit-test';
 
----
+test('save button', async () => {
+  const artifact = await capture(document.querySelector('button')!, {
+    subject: 'button/save',
+    viewport: { width: 320, height: 200, deviceScaleFactor: 1, colorScheme: 'light' },
+  });
+  await writeCapture('.variance/captures', artifact);
+  expect(document.querySelector('button')?.textContent).toBe('Save');
+});
+```
+
+A later `variance run` loads those artifacts with `captureCollector` and uses its
+configured local or remote browser. The unit process has finished before that
+browser starts. External resources must be supplied as immutable bytes during
+capture; unresolved resources are refused.
+
+Vitest Browser Mode with the Playwright provider is the Playwright composition.
+It is not the browserless unit route under another name.
 
 ## 4. What cannot enter, and where the binary stops
 
 ### An image this system did not paint
 
-There is no ingest verb; the six the binary has are `run`, `accept`, `report`,
-`comment`, `doctor` and `serve`.
+The observation engine accepts an existing `Raster`. A `CaptureArtifact` with
+`material.kind: "raster"` reaches `observeCaptureAgainstBaseline` without a
+renderer, and `observeRasters` compares two images already in hand.
 
-This is the most concrete thing Argos does that this cannot — its CLI takes any
-PNG from anywhere — so it is worth being exact about whether it is a gap or a
-position. It is a position, and it is already written down at
-`packages/cli/src/commands/accept.ts:13`: **acceptance promotes an image the run
-already produced, and never produces one.** A candidate whose sidecar is missing
-is refused by name rather than reconstructed, because an invented document digest
-would settle every future run to `unchanged` against an image nobody can
-reproduce.
+The CLI does not expose a foreign-PNG ingest command. Its run collectors produce
+documents, and its acceptance workflow expects the candidate cache, semantic
+evidence, and renderer identity created by a run. That CLI boundary is not a
+claim that raster evidence is forbidden from the engine.
 
-The reason that rule cannot be relaxed for foreign PNGs is arithmetic rather than
-policy. A baseline here is a pair — bytes, plus the identity that painted them,
-the dimensions, the missing fonts, and the digest of the document they came from.
-A PNG arriving from outside has none of the second half, and everything this
-project is for is downstream of it:
-
-| Without a document | What is lost |
-|---|---|
-| no provenance | no component, no `file:line` — the entire attribution claim |
-| no bands | no `structure`/`token`/`a11y` split, so no policy that blocks on one |
-| no causes | the docket ranks by area, which was measured as backwards by 6× |
-| no snapshot | no inspection rules, no locale comparison — the two capabilities that need no baseline |
-| no digest | no render cache, and no cheap settlement |
-
-What remains is a pixel count and some region clustering, which is the incumbent.
-Accepting foreign PNGs would not extend this tool; it would offer a second,
-worse tool under the same command name.
+A foreign raster is useful only with an honest identity declaration. Without a
+snapshot it also has no component attribution, exclusions, or band-specific
+policy; those fields remain absent rather than being inferred from pixels.
 
 ### Three seams the library opens, and what the binary does with each
 
-The distinction matters when reading §6's flexibility claim. A composition of
-your own reaches all three; `variance run` reaches the first, leaves the second
-to an operator's own HTTP call, and cannot reach the third without taking the
-loop from the caller.
+| Seam | Library contract | CLI composition |
+| --- | --- | --- |
+| Document material | `Renderer.render(document)` | Local Playwright renderer or configured remote endpoint. |
+| Raster material | `observeCaptureAgainstBaseline` / `observeRasters` | No foreign-image command; in-place Playwright uses the library seam directly. |
+| Retention | `RasterStore` and `RenderCache` | Durable directory or configured remote backend. |
 
-| | The library | The binary |
-|---|---|---|
-| **A renderer across a network** | `connectRenderer` in `remote` satisfies the same contract, identity-guarded | **Reachable.** `"renderer": { "endpoint": … }` selects it, and `"browser": "chromium" \| "firefox" \| "webkit"` selects the engine when it is local. The two are refused together, because the engine belongs to whichever machine paints |
-| **Posting a build for review** | the tribunal's ingest route takes one | nothing in `packages/cli/src` or `.github` posts one. An operator writes the HTTP call themselves |
-| **One standing world across subjects** | `session` runs many subjects in one live DOM with nothing torn down between them — measured at 3.4× against rinsing, and the pollution probe riding on it costs ~2% of session time | **Out of reach by construction.** `run` calls the adopter's collector once per subject (`packages/cli/src/commands/run.ts:258`), so the page, the mounting and whatever persists between two of those calls are the collector's ([contract 5](architecture.md#the-contracts) — *order is the caller's*). A session is itself a runner, with its own container and its own mount, so standing one here would mean the binary mounting your components — the half of a run it declines to write (§1) |
-
-The third is the one to be careful about, because a measured multiple reads like a
-shipped feature, and what it states is where the mechanism applies. A caller who
-owns the loop — a composition of yours that mounts its own subjects — gets the
-3.4×, and the pollution findings that ride on it
-([ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md)). A `variance
-run` cannot own one and does not try: it answers order dependence from outside the
-world instead, by re-collecting a changed subject alone and reporting the
-difference against the session rather than against an edit
-([flakiness.md](flakiness.md#test-order-and-shared-state)). The clean world is the
-collector's to build too — a fourth method beyond the three in §1, optional
-because a collector holding one page open across every subject has none to offer.
-A subject that *could not* be re-collected carries the reason, and the reasons
-are kept apart on purpose: a collector with no clean world to give means write
-the method, and a spent `alone.limit` means raise the number.
-
----
+The distinction is intentional: a library accepts injected capabilities; a
+binary needs a complete operator workflow, error contract, and acceptance path.
 
 ## 5. Cost, speed and signal
 
-One claim unifies all three: **each is managed by choosing a representation, not
-by tuning a threshold.** Details live in three documents; the shape is here.
+The material and placement choices trade different costs:
 
-**Cost has no unit,** because there is no vendor. Compute is the operator's and
-storage is a directory, a git-LFS pointer or an endpoint they run. The bill is
-engineering time, and the number to beat is small — about **$283/month** for a
-200-component library at 100 PR builds on Chromatic Starter with TurboSnap
-([comparison §1](comparison.md#the-one-commercial-fact-worth-isolating)). The
-compute for the same 600 subjects is single-digit CI-minutes. The compute is not
-the bill and never was.
+| Choice | Saves | Pays | Best fit |
+| --- | --- | --- | --- |
+| In-place raster | reconstruction and a second browser | host-browser identity discipline; repeated screenshots; raster egress if remote review follows | state already reached in a stable, pinned browser; DOM disclosure is unacceptable |
+| Deferred local document | application rerun; enables render caching | resource closure or equivalent-access discipline, plus local browser cost | browserless acquisition or one pinned local renderer |
+| Deferred remote document | pinning the acquisition machine; enables remote fan-out | document/resource disclosure and transport; environment-dependent documents require equivalent resource access | shared render service; cross-environment portability only for closed documents |
+| Existing raster library input | all acquisition and rendering work | reduced semantic evidence unless the caller supplies it | another trusted capture system already owns pixels and identity |
 
-**Speed is four multipliers, each with a file behind it** — cruft removal before
-comparison, one warm browser instead of one per subject, one standing world
-instead of rinsing between subjects, and deciding semantically before rendering.
-The README tabulates them; [comparison §3.3](comparison.md#33-deciding-at-the-cheapest-representation-that-can-decide)
-records that three of the six rows are asserted by no test, and that the cheap
-tier's advantage is **~5×, not the ~100× the architecture was drawn around**.
-
-**A reporting job is a flag, not `|| true`.** `variance run
---exit-zero-on-changes` suppresses exit 1 and leaves exit 2 alone, so a
-non-blocking check still fails when the browser never launched — which is the
-distinction `|| true` destroys. One line to stderr says the code was suppressed.
-
-**Whether this machine can compare at all is answered before the run.** A durable
-store is partitioned by `identityDigest`, so `variance doctor` reads the layout
-and says whether any baseline in it was painted by a machine like this one. When
-none was, it prints `NOT COMPARABLE HERE`, lists the store one line per identity,
-exits 2, and names the two ways out. That is the failure mode of every tool that
-renders in your CI and stores images centrally, and it otherwise presents as
-three hundred components regressing at once on a runner nobody touched.
-
-**Sharding is a glob per job and one merge at the end.** `variance run --subjects
-<glob>` narrows a run to a slice; `variance report shard-1.json shard-2.json …`
-reads them back as one suite, so a split suite still has one exit code and one
-pull-request comment. The merge refuses shards that were not one run — differing
-renderer identity, retention or `--intent`, or two shards that observed the same
-subject — and resolves each shard's `excluded` entries against what the others
-observed. The case worth knowing: **a subject every shard filtered out is
-promoted to `failed`**, because each shard exits `0` having done exactly what it
-was told while the suite quietly stopped watching a component. See
-[`packages/cli/README.md`](../packages/cli/README.md).
-
-**Signal is four refusals**, and refusing is the whole technique:
-
-| Situation | What a threshold would say | What this says |
-|---|---|---|
-| The environment key differs | `unchanged`, or a false alarm | `incomparable` — never compared |
-| The profile cannot see the band | pass | `unobserved` |
-| Twelve components moved, one was edited | twelve entries, ranked by area | causes first, collateral counted |
-| No causes were supplied | ranked by area, silently | ranked by area, **and the report says so** |
-
-The counterweight, stated where it cannot be skipped: a false-*miss* rate is
-measured at 0/20 and a false-*alarm* rate has **never been measured**, while one
-false alarm is demonstrated — reindenting JSX inside a block element renders at
-0px and moves the hash. [`flakiness.md`](flakiness.md) has the full taxonomy
-including the rows where this loses.
-
----
+Renderer identity partitions durable baselines by engine, platform, scale,
+fonts, stabilization, and rasterization recipe. Chromium rendering defaults to
+`--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered launch
+recipe changes identity instead of presenting font rasterization as a component
+regression.
 
 ## 6. Why this is flexible, and what flexibility costs
 
-Five properties, ordered by how much weight each actually carries.
+The engine is composable because each expensive or host-bound capability arrives
+as a value: collector, renderer, store, decoder, and source evidence. A remote
+renderer implements the same `Renderer` contract as the local one. An in-place
+raster skips that contract because materialization already happened, then joins
+the same observation path.
 
-1. **Every seam is an argument, not a plugin.** Renderer, store, collector,
-   provenance. Nothing is discovered; each is a value passed in or a path named
-   in a config file. There is no registry to fail mysteriously. The sharpest
-   instance is §3's: the run asks the collector what the subjects are and never
-   consults the config, so the config's closed two-arm union constrains almost
-   nothing about what can be observed.
-2. **The package graph is cut by requirement, so a cost can be declined.** No
-   other tool in the category lets you refuse the browser, the image codec or the
-   framework binding independently — because no other tool separates them.
-3. **Rendering is the operator's, everywhere.** Argos is the only competitor that
-   shares this, and Argos then takes the PNG to its cloud.
-4. **The artifact is a document, not only an image.** This is the one that
-   compounds: a lens written next year reads artifacts stored last year, with no
-   re-render. Nine inspection rules and a locale comparison already do it, and
-   nothing image-based can — the evidence is not in the representation.
-5. **Where a baseline is kept decides nothing**
-   ([ADR-0016](context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)), so
-   the storage rung can be climbed without re-baselining.
+Flexibility costs explicit boundaries:
 
-**And the price.** Every one of those five is a choice the operator makes and
-then owns. The products in this category are less flexible precisely because they
-made the choices, and that is most of what a buyer is paying for: a green check
-in an afternoon, from `npx` and a token. Here, four of the five properties above
-begin with work.
+- A host adapter must preserve lifecycle and name stable subjects.
+- A portable document must close over every resource it needs to paint.
+- An in-place browser must declare the launch recipe that owns its pixels.
+- A baseline store must refuse cross-identity comparison.
+- Repeated-render instability must be classified before baseline difference.
+- Missing semantic or source evidence reduces the report instead of inventing an
+  empty answer.
 
-So the claim is narrower than *more flexible*, and stating it narrowly is the
-only version that survives contact with a real evaluation:
-
-> **The choices are declinable, and each declination is priced in the package
-> graph rather than hidden in a plan tier.**
-
-Whether that is worth anything depends entirely on whether you were going to make
-those choices anyway. [comparison §5](comparison.md#5-when-not-to-choose-this)
-lists ten conditions under which you were not, and for most readers at least one
-of them holds.
-
----
-
-**See also.** [`flows.md`](flows.md) — the storage axis, six rungs ·
-[`architecture.md`](architecture.md) — why there is no pipeline ·
-[`comparison.md`](comparison.md) — where each competitor wins ·
-[`metrics.md`](metrics.md) — what would settle the disagreement with a number ·
-[`flakiness.md`](flakiness.md) — the position on variance
+Those costs are carried by types, artifact validation, identity digests, and
+tests. They are not configuration folklore the adopter is expected to remember.

@@ -1,108 +1,93 @@
 # Can this replace what you are paying for?
 
-Three questions, answered as a scorecard rather than as a pitch. Every row links
-to the thing that backs it, and the rows that say **no** are the point of the
-page — a comparison that only ever finds in its own favour is an advertisement.
-
-Read [`comparison.md`](comparison.md) for what each product does *better*, and
-[`replacing.md`](replacing.md) for what a move actually costs.
+Replacement depends on the job being bought. These gates cover capture,
+comparison, attribution, and CI operation. Managed review, browser fleets, and
+vendor commitments remain separate buying decisions; see
+[`comparison.md`](comparison.md).
 
 ## Gate 1 — Percy
 
-**A suite of URLs, captured at several widths, gated in CI.**
+**Job:** a known set of URLs or static pages, captured at several widths and
+gated in CI.
 
-| | |
-|---|---|
-| Snapshot a list of URLs with no collector to write | **yes** — [`route-collector`](../packages/route-collector), [replacing §2b](replacing.md#2b-replacing-percy-on-a-set-of-urls) |
-| Take the list from a sitemap instead | **yes** — `sitemap:` with `subjects.kind: "collector"` |
-| Several widths per page | **yes**, and each is genuinely laid out: the page is re-navigated at the new size, so a `matchMedia` read at mount decides again |
-| Determinism without asking for it | **yes** — animations pinned before the subject is *read*, GIFs frozen on the wire, assets hashed into the key, waits on what was actually requested ([`stabilization.md`](stabilization.md)) |
-| Silence a clock or a carousel | **yes**, by element or by difference shape, with a ledger of what each rule absorbed ([`ignores.md`](ignores.md)) |
-| Gate a pull request | **yes** — exit codes and `variance comment`; **never run on a real one** ([spec 0016](specs/0016-ci-that-has-run.md)) |
-| Cross-browser rendering from one capture | **no**, and out of scope ([spec 0020](specs/0020-a-cross-browser-grid.md)). The largest single thing Percy sells that this does not have |
-| Retroactive rules from a dashboard | **no.** An ignore is a declaration in your config and applies to the next run — auditable, and slower |
-| A static directory, served for you | **yes** — `directory: './build'` with `subjects.kind: "collector"` plans a subject per `.html`, addressed as the site will be (`about/index.html` → `about`) |
-| A crawler | **no.** A sitemap is read and a directory is walked; nothing follows a link, and a sitemap *index* is taken as pages rather than followed |
-| A hosted review UI | **no**, by decision. [`tribunal`](../packages/tribunal) is one you deploy, and has never been deployed |
+| Requirement | Fit |
+| --- | --- |
+| Explicit route list | **yes** — `@variance-authority/route-collector` |
+| Static directory | **yes** — the route collector serves and plans its HTML files |
+| Sitemap or crawler discovery | **no** — the supported contract requires chosen, stable subject ids |
+| Several widths | **yes** — each width is a distinct planned subject |
+| Local or remote deferred render | **conditional** — remote rendering needs equivalent access to referenced resources |
+| Managed browser/device grid | **no** — renderer engines and capacity are operator-owned |
+| Hosted review UI | **no** — reports and acceptance are CLI/library workflows |
 
-**Verdict: yes for a URL suite gated in CI, provided you do not need cross-browser
-and do not need a dashboard.** All three of Percy's on-ramps that do not crawl —
-a URL list, a sitemap, a static directory — are shipped paths. The honest blocker for anybody at all is that
-nothing is published yet ([spec 0015](specs/0015-the-first-published-release.md)),
-so adopting means vendoring this repository.
+**Verdict:** suitable for an explicit route/static suite when operator-owned
+rendering and review are acceptable. Choose Percy when managed breadth or hosted
+review is part of the job.
 
-## Gate 2 — Argos, without the web interface
+## Gate 2 — Argos
 
-**Flake handling, mask management, and per-test history from a CLI.**
+**Job:** capture screenshots from existing test environments, compare them, and
+track review or flake history.
 
-| | |
-|---|---|
-| Detect a flaky test | **yes**, and one run earlier than a comparison can: a subject is read twice and disagreement names a component and a band ([`flakiness.md`](flakiness.md)) |
-| Say how often it has flaked | **yes** — over a window, dividing by the runs that actually asked ([`history.md`](history.md)) |
-| Say whether it has stopped | **yes** — sweeps since the last occurrence, which is the number that decides whether to write a fix or look for one |
-| Manage a difference across many screenshots | **yes** — a difference *shape* is a fingerprint, `accept --shape` promotes it wherever it is the whole change, and refuses by name any subject where something else also moved ([`ignores.md`](ignores.md)) |
-| Ignore masks that survive layout moving | **yes** — an ignore names an element or a shape, never a coordinate box |
-| Shard a suite and merge the shards | **yes**, including promoting a subject *every* shard excluded to a failure ([`packages/cli`](../packages/cli#sharding-report-takes-more-than-one-file)) |
-| Upload PNGs produced by something else | **no**, by decision. A baseline is bytes *plus* the identity and document that produced them ([`surface.md`](surface.md)) |
-| Auto-ignore a difference after N occurrences | **no**, by decision. The count is reported; the suppression stays a declaration somebody writes down |
-| Twenty SDKs | **no.** Three entry surfaces need no collector; anything else is a module you write once |
+| Requirement | Fit |
+| --- | --- |
+| Additive Playwright capture | **yes** — native `test` and `expect` stay with Playwright |
+| In-place page screenshot | **yes** — two or more agreeing captures become the candidate raster |
+| Deferred render instead | **yes** — the same adapter can emit a document |
+| Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact` |
+| Arbitrary PNG CLI upload | **no** — the CLI has no ingest workflow |
+| Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe partition baselines |
+| Hosted comments, reviewers, and flake register | **no** — those are Argos product capabilities |
 
-**Verdict: yes, if your screenshots are produced here.** The one hard "no" is
-ingesting foreign images, and it is a position rather than a gap — everything
-above the pixel tier depends on a baseline knowing which document produced it.
+**Verdict:** suitable when the adopter owns the test browser and the reporting
+workflow. Choose Argos when its hosted review/history surface is the required
+outcome.
 
 ## Gate 3 — Chromatic
 
-**Storybook, with the suite kept cheap.**
+**Job:** treat Storybook as the UI catalog and turn stories into reviewable
+visual checks.
 
-| | |
-|---|---|
-| A built Storybook with no collector to write | **yes** — five lines of config, demonstrated end to end against a Storybook this project did not write ([comparison §4](comparison.md#4-what-is-written-and-unrun)) |
-| Only test what a change could have touched | **yes** — `--since`, from what the last run actually painted, reaching a component through a graph scanned from the source rather than one a bundler produced ([`selecting.md`](selecting.md)) |
-| A story read at its own viewport | **yes**, applied to the page before the story mounts |
-| Interaction (play) functions before capture | **yes**, and this row said *no* until it was measured. Storybook's preview runs the play function and its phase order is `playing` → `completed` → `storyRendered`, so waiting on `storyRendered` — which this already did — is waiting on the interaction. Asserted against a real story whose subject only exists after a click ([`cases/storybook-case`](../cases/storybook-case)) |
-| Accessibility as a product | **partly.** Defects come with a component and a file, which axe does not do — against nine rules rather than ninety, with no triage flow |
-| Branch and baseline semantics worked out in production | **no.** Never exercised across a rebase; spec §10's target is unmeasured |
-| Reviewers who are not engineers | **no.** No UI, no assignment, no threads |
+| Requirement | Fit |
+| --- | --- |
+| Built or served Storybook | **yes** — `@variance-authority/storybook-collector` operates beside it |
+| Story discovery and stable ids | **yes** — Storybook's index is the plan |
+| Interaction/play completion | **yes** — collection waits for Storybook's rendered state |
+| Local or remote render | **conditional** — the Storybook document does not archive resource bytes |
+| Managed change selection | **partial** — source/baseline selection exists, without Chromatic's hosted module-graph service |
+| Managed branch baselines and reviewer workflow | **no** |
+| Non-engineer hosted review | **no** |
 
-**Verdict: yes for the capture-and-gate half, no for the review half.** What
-Chromatic sells that this does not is the workflow around the diff, and that is
-the axis [comparison §2](comparison.md#chromatic) calls the one it loses hardest.
+**Verdict:** suitable for operator-owned Storybook capture and gating. Choose
+Chromatic when Storybook-native hosted review, branch semantics, and managed
+stability are the product being bought.
 
-One row on this table was wrong in the pessimistic direction until somebody
-checked, which is worth more than the row: a scorecard nobody measures drifts in
-whichever direction its author last guessed.
+## Unit-runner gate
 
-## What is left, and who it belongs to
+**Job:** capture a mounted DOM in vanilla Jest or Vitest without running a browser
+inside the unit process, then render pixels later.
 
-Every remaining **no** on this page is one of four things, and none of them is
-work that was merely not got to yet. They are listed together because the
-difference between *this can replace it* and *this has replaced it* is entirely
-here.
+| Requirement | Fit |
+| --- | --- |
+| Preserve runner primitives | **yes** — the unit surface exports no `test` or `expect` |
+| Browserless acquisition | **yes** — `capture` reads the mounted DOM |
+| Durable handoff | **yes** — `writeCapture` writes a versioned archive |
+| Resource closure | **required** — external resources must resolve to immutable bytes |
+| Later local browser | **yes** — `captureCollector` feeds the CLI renderer |
+| Later remote browser | **yes** — the ordinary remote `Renderer` contract is interchangeable |
+| Visual verdict inside jsdom | **no** — jsdom supplies no rasterizer |
 
-**Two are decisions somebody has to make.**
+**Verdict:** suitable for the two-step document-then-browser model. Vitest Browser
+Mode with a Playwright provider belongs to the Playwright gate, not this one.
 
-- *Foreign PNGs.* Argos's CLI takes an image from anywhere; this has no verb that
-  does. [`surface.md §4`](surface.md#an-image-this-system-did-not-paint) argues
-  it as a position with the arithmetic attached — without a document there is no
-  component, no band, no cause, no settlement — and concludes that accepting them
-  "would offer a second, worse tool under the same command name". It is
-  *reversible*: an ingested image with an operator-**declared** identity would
-  compare on pixels alone, and the reduced power could be stated rather than
-  hidden. That is a product decision, not an implementation one.
-- *A cross-browser grid.* [Parked deliberately](specs/0020-a-cross-browser-grid.md),
-  and the largest single thing Percy sells that this does not have.
+## Product boundaries
 
-**Two are actions on somebody's infrastructure.**
+- Capture material is a document or an already-painted raster. A document is
+  portable only when its resources are closed.
+- The observation engine accepts both; the CLI currently collects documents.
+- Storybook and route adapters never modify the host build or renderer.
+- Playwright and unit adapters never replace the host's runner primitives.
+- Managed review, managed browser/device fleets, and vendor contracts are outside
+  the offering.
 
-- *Nothing has been published.* No tag, no registry, no install path
-  ([spec 0015](specs/0015-the-first-published-release.md)). Every "yes" above is a
-  yes for somebody who vendors this repository.
-- *Nothing has run on a real pull request*, and no review surface has been
-  deployed. The workflow, the composite action, the comment, the commit-back and
-  [`tribunal`](../packages/tribunal) are all written and exercised against
-  fixtures; none has met production
-  ([spec 0016](specs/0016-ci-that-has-run.md),
-  [spec 0021](specs/0021-tribunal-on-a-real-deployment.md)).
-
-No amount of further capability closes any of the four.
+The composition and exact package choices are in [`surface.md`](surface.md).
