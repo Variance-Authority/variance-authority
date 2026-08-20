@@ -6,6 +6,7 @@ import {
   causeBlocks,
   clamp,
   coverageBlocks,
+  driftBlocks,
   footerBlocks,
   headingBlocks,
   warningBlocks,
@@ -35,6 +36,12 @@ import {
  * nowhere, and the count is what makes the omission legible: "612 further regions
  * moved with these changes" is a fact a reviewer can size, while their absence
  * without a number would be indistinguishable from their non-existence.
+ *
+ * Exactly one block precedes the causes, and it is the one no reviewer of this
+ * pull request could have reached without it: a token's drift is a *sum* across
+ * approvals, so it is invisible to the comparison the reviewer is looking at and
+ * actionable only by the person about to approve the next step. See
+ * {@link driftBlocks}.
  *
  * **The comment exists exactly when the check is red, and one function decides
  * both.** {@link exitFor} owns the question. A second rule here — say, "comment
@@ -111,6 +118,8 @@ export interface CommentLimits {
   readonly subjects: number;
   /** Unobserved subjects listed before the rest are counted. */
   readonly notObserved: number;
+  /** Drifted tokens listed before the rest are counted. */
+  readonly drift: number;
   /** Hard ceiling on the body, including the marker and the notice. */
   readonly characters: number;
 }
@@ -119,6 +128,7 @@ export const DEFAULT_LIMITS: CommentLimits = {
   causes: 20,
   subjects: 3,
   notObserved: 20,
+  drift: 10,
   characters: 65_536,
 };
 
@@ -158,6 +168,7 @@ export function renderComment(options: CommentOptions): string {
   const blocks = [
     COMMENT_MARKER,
     ...headingBlocks(report, docket),
+    ...driftBlocks(report, limits),
     ...causeBlocks(docket, limits),
     ...bulkBlocks(report, limits),
     ...withoutCauseBlocks(docket, limits),

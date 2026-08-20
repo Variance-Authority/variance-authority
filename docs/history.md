@@ -96,6 +96,11 @@ without any of them holding a connection to your service.
 
 ### How far a token has drifted
 
+Printed in the run summary, and **above the docket** in the pull-request comment —
+ahead of the causes, because it is the one finding on that page a reviewer could
+not have reached by looking at the diff in front of them, and they are the person
+about to approve the next step:
+
 ```
 DRIFT: 1 token(s) moved in this run, and the record says what they have
   drifted to across every approved change in the window. No single review saw these

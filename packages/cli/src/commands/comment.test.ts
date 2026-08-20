@@ -353,4 +353,64 @@ describe('renderComment', () => {
     expect(withLink).toContain('https://example.invalid/run/1');
     expect(renderComment({ report: tokenChange(1) })).not.toContain('Full report and images');
   });
+
+  it('carries the drift total to the reviewer who is about to approve the next step', () => {
+    // The finding no comparison on this pull request can reach. Each of the
+    // eleven approvals was correct about the 2px it saw; the 8px is a sum, and
+    // the person standing where it can still be acted on is this reviewer.
+    const body = renderComment({
+      report: reportOf(tokenChange(1).observations, {
+        drift: {
+          '--va-space-3': {
+            from: '12px',
+            to: '20px',
+            steps: 11,
+            firstAt: '2026-05-02T00:00:00.000Z',
+            lastAt: '2026-08-10T00:00:00.000Z',
+            quantity: { unit: 'px', net: 8, largestStep: 2, travel: 8 },
+            because:
+              '`--va-space-3` drifted 12px → 20px, 8px across 11 approved commit(s); the ' +
+              'largest single step was 2px, so no per-change review could have seen the total',
+          },
+        },
+      }),
+    });
+
+    expect(body).toContain('1 token moved in this run');
+    expect(body).toContain('no per-change review could have seen the total');
+    // Above the docket: a reviewer who has read the first cause has often left,
+    // and this changes how that cause should be read.
+    expect(body.indexOf('Further than any single review saw')).toBeLessThan(
+      body.indexOf('### Causes'),
+    );
+  });
+
+  it('says nothing about drift on the runs where nothing drifted', () => {
+    // Empty on almost every run. A standing "no tokens drifted" line is a line
+    // the reader learns to skip, and it is the line they must not skip.
+    expect(renderComment({ report: tokenChange(1) })).not.toContain('review saw');
+  });
+
+  it('counts the drifted tokens it did not list', () => {
+    const drift = Object.fromEntries(
+      Array.from({ length: 12 }, (_, index) => [
+        `--va-space-${index}`,
+        {
+          from: '2px',
+          to: '4px',
+          steps: 2,
+          firstAt: '2026-05-02T00:00:00.000Z',
+          lastAt: '2026-08-10T00:00:00.000Z',
+          because: `\`--va-space-${index}\` drifted 2px → 4px`,
+        },
+      ]),
+    );
+
+    const body = renderComment({
+      report: reportOf(tokenChange(1).observations, { drift }),
+      limits: { drift: 4 },
+    });
+
+    expect(body).toContain('8 further drifted token(s) are not listed here');
+  });
 });

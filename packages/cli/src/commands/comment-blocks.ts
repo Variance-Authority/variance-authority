@@ -359,3 +359,45 @@ function describeIdentity(report: CliRunReport): string {
   const { renderer, engine, platform, deviceScaleFactor } = report.identity;
   return `${renderer} (${engine}, ${platform}, ${deviceScaleFactor}x)`;
 }
+
+/**
+ * The one finding on the page that no reviewer of this pull request could have
+ * reached, and the reason it is printed above the causes.
+ *
+ * Every other block answers *what moved in this run*, which is a comparison
+ * between two states and is exactly what the reviewer is already looking at. This
+ * answers *how far it has moved altogether*, which is a sum across approvals —
+ * eleven correct approvals of 2px each are eleven correct decisions and one 22px
+ * change nobody made. The reviewer about to make the twelfth is the only person
+ * who can act on it, and the pull request is the only place they are standing.
+ *
+ * It leads rather than follows because a reviewer who has read the first cause
+ * has often already left, and because it does not compete with the docket for
+ * that position: it is empty on almost every run, and on the run where it is not,
+ * it changes how every line under it should be read.
+ *
+ * The sentence itself comes from the package that owns the arithmetic, not from
+ * here — the same `because` the summary and the MCP tools print. A second phrasing
+ * of a number this load-bearing is how a human and an agent end up disagreeing
+ * about what the record said.
+ */
+export function driftBlocks(report: CliRunReport, limits: CommentLimits): readonly string[] {
+  const moved = Object.entries(report.drift ?? {});
+  if (moved.length === 0) return [];
+
+  const shown = moved.slice(0, limits.drift);
+  const items = shown.map(([, record]) => `- ${record.because}`);
+
+  return [
+    '### Further than any single review saw',
+    `${count(moved.length, 'token')} moved in this run, and the record sums every approved ` +
+      'change in the window. No review saw these totals, because each of them approved one step:',
+    items.join('\n'),
+    ...(moved.length > shown.length
+      ? [
+          `${count(moved.length - shown.length, 'further drifted token')} are not listed here; ` +
+            'the run report has all of them.',
+        ]
+      : []),
+  ];
+}
