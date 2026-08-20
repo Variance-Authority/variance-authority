@@ -2418,6 +2418,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/case-unit-capture@workspace:cases/unit-capture-case"
   dependencies:
+    "@playwright/test": "npm:^1.49.0"
     "@variance-authority/cli": "workspace:^"
     "@variance-authority/unit-test": "workspace:^"
     vitest: "npm:^2.1.8"
@@ -2461,6 +2462,19 @@ __metadata:
     jsdom: "npm:^30.0.1"
     react: "npm:^19"
     react-dom: "npm:^19"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/example-agent-claim@workspace:examples/agent-claim":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-agent-claim@workspace:examples/agent-claim"
+  dependencies:
+    "@variance-authority/cli": "workspace:^"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    esbuild: "npm:^0.25.0"
+    playwright: "npm:^1.49.0"
   languageName: unknown
   linkType: soft
 

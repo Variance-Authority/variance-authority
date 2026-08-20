@@ -72,6 +72,7 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--flakes] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
+variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
@@ -79,6 +80,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 ```
 
 `run` produces the verdict and the exit code; `report` re-reads what it wrote;
+`adjudicate` re-reads it against what you said you were doing;
 `accept` promotes a candidate image to baseline — by subject, by `--all`, or by
 `--shape`, which accepts a difference *shape* wherever it is the whole change and
 refuses by name any subject where something else moved too; `doctor` says what this machine
@@ -214,15 +216,38 @@ config's `intent`. **It is a label, and it changes no verdict.** The string is
 recorded in the report and printed by the summary, the docket, the HTML page and
 the MCP tools, so a reader knows what the run was for; nothing reads it back.
 
-The half that would adjudicate against it is built and unwired: `adjudicate` and
-`summarizeAdjudication` (`packages/core/src/judge/intent.ts:122`) turn a docket
-and a set of claims into *delivered*, *undelivered* and *unclaimed*, and their
-only caller is [`examples/readme-case`](../../examples/readme-case). Reaching it
-from here needs claims with a shape a flag cannot carry — a region, a component,
-a direction — so the flag stays a label until there is somewhere to declare one
-properly.
+`adjudicate` is where a declaration is read back. It takes claims as a file
+rather than a flag because a claim is a root, a reason and a bound, and
+`--intent "tighten the card"` is a sentence:
 
-Those six are the whole surface. **No command posts anything anywhere.**
+```bash
+variance adjudicate --claims claims.json
+```
+
+```jsonc
+{ "claims": [
+  { "root": "component:Button", "reason": "new brand accent", "maxSubjects": 3 },
+  { "root": "component:Card", "reason": "tighten the gap above the action" }
+] }
+```
+
+It answers three things, and the third is the one nothing else here can reach.
+What you declared and delivered. What moved that you did not declare. And **what
+you declared that did not happen** — `Card` rendered in two subjects and held
+still, which means a wrong file, a dead branch, an overridden rule or a stale
+build, and no comparison of screenshots can tell you that. The composition census
+is what separates it from *`Card` never rendered, so nothing here is evidence*.
+
+Declare before reading the diff. The command derives no claim, so claims copied
+out of a report score the run against itself — nothing can prevent that, but the
+tool never does it for you. Over-claiming is not an escape either: a claim
+reaching more subjects than it declared comes back `overreached`. It changes no
+verdict and no exit code; it reports on the run `run` already judged.
+[`examples/agent-claim`](../../examples/agent-claim) exercises every arm of it,
+and [`variance serve`](../mcp) exposes the same thing to an agent as
+`variance_adjudicate`.
+
+Those seven are the whole surface. **No command posts anything anywhere.**
 `comment` produces the body; sending it is
 [`.github/actions/variance`](../../.github/actions/variance)'s job, with the
 operator's own token, and the exit code and the report remain what a CI job

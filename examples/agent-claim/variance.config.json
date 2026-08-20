@@ -1,0 +1,9 @@
+{
+  "project": "agent-claim",
+  "profile": "chromium",
+  "viewport": { "width": 256, "height": 96, "deviceScaleFactor": 1, "colorScheme": "light" },
+  "retention": "ephemeral",
+  "subjects": { "kind": "collector", "collector": "collector/index.mjs" },
+  "fonts": ["Arial/600/normal/system"],
+  "report": ".variance/run.json"
+}

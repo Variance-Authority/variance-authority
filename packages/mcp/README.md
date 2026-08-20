@@ -45,15 +45,19 @@ npx variance-authority-mcp .variance/run.json    # directly
 
 ## What an agent can ask
 
-Seven tools, all answering from the artifact and **never re-running anything**.
+Eight tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
-are asked wherever the agent is.
+are asked wherever the agent is. Seven of them hand evidence out; one takes
+evidence in.
 
 ```ts
 import { toolByName } from '@variance-authority/mcp/tools';
 
 toolByName('variance_summary')?.run(report, {});
 toolByName('variance_changes')?.run(report, {});
+toolByName('variance_adjudicate')?.run(report, {
+  claims: [{ root: 'component:Button', reason: 'new brand accent', maxSubjects: 3 }],
+});
 toolByName('variance_composition')?.run(report, {});
 toolByName('variance_describe')?.run(report, { subject: 'story:card--populated' });
 toolByName('variance_findings')?.run(report, {});
@@ -65,6 +69,7 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 |---|---|---|
 | `variance_summary` | how the run came out across every subject, including the ones nobody observed | starting from nothing: *did anything change, and was anything missed?* |
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
+| `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, moved and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
 | `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each component that moved moved — including *nothing here explains it* | a change has no obvious author, or you are about to call something flaky |
 | `variance_describe` | what changed inside one subject — regions, components, files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
@@ -78,6 +83,31 @@ says. It is also the only tool that hands back a *command* — the shape digest
 cannot be derived from anything else in the report, and it names which subjects
 the command will refuse, so the agent proposes something that works rather than
 something that gets rejected.
+
+`variance_adjudicate` is the only tool that takes evidence *in*, and the only
+one that can report an **absence**. Everything else answers about the run;
+this answers about the agent. `variance_changes` can say that `Button` moved in
+twelve subjects. It cannot say that `Card` — which the agent believes it just
+edited — did not move at all, because a diff has no opinion about what was
+supposed to happen. That third arm is where a wrong file, a dead branch, an
+overridden rule or a stale build surfaces, and no screenshot comparison reaches
+it.
+
+The declaration has to come first. The tool takes claims as an argument and
+derives none, so an agent that reads `variance_changes` and submits the answer
+back as its intent is scoring the run against itself — visibly, because the
+transcript shows the order. Nothing here can prevent that; what it can do is
+never do it *for* the agent. Over-claiming is not a way out either: a claim that
+reaches more subjects than it declared comes back `overreached`, so the agent
+that widens its claims to avoid *this moved and you did not mention it* walks
+into *its reach is not what you said*. Both directions cost something, which is
+what makes the declaration worth reading.
+
+A claim carrying a field this resolution cannot check is named rather than
+dropped. An agent told `delivered` about a band nothing looked at has been told
+something the run never established, so the answer ends `Not checked here:
+bands`. [`examples/agent-claim`](../../examples/agent-claim) runs the whole
+boundary — CLI and this tool, every verdict, one process.
 
 `variance_composition` is the only one that reads the other axis. Everything
 else compares a subject to its baseline — two revisions, one thing. This

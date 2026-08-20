@@ -86,6 +86,15 @@ export type Parsed =
       /** Difference shapes to accept wherever they are the whole change. */
       readonly shapes: readonly string[];
     }
+  | {
+      readonly command: 'adjudicate';
+      readonly config: string;
+      /** `--claims <path>`: the declaration. Required; there is no default intent. */
+      readonly claims: string;
+      /** Reports to read instead of the configured one. More than one is merged. */
+      readonly reports: readonly string[];
+      readonly exitZeroOnChanges: boolean;
+    }
   | { readonly command: 'serve'; readonly config: string }
   | { readonly command: 'doctor'; readonly config: string }
   | {
@@ -99,7 +108,7 @@ export type Parsed =
     }
   | { readonly command: 'help' };
 
-const COMMANDS = ['run', 'report', 'accept', 'serve', 'doctor', 'comment'] as const;
+const COMMANDS = ['run', 'report', 'adjudicate', 'accept', 'serve', 'doctor', 'comment'] as const;
 
 const DEFAULT_CONFIG = 'variance.config.json';
 
@@ -118,6 +127,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
     '--exit-zero-on-changes',
   ],
   report: ['--format', '--subject', '--exit-zero-on-changes'],
+  adjudicate: ['--claims', '--exit-zero-on-changes'],
   accept: ['--all', '--shape'],
   serve: [],
   doctor: [],
@@ -127,6 +137,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--flakes] [--exit-zero-on-changes]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
+  'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]',
   'variance serve   [--config <path>]              # MCP over stdio',
   'variance doctor  [--config <path>]',
@@ -199,6 +210,28 @@ export function parseArgs(argv: readonly string[]): Parsed {
         // heard of — and once it names them, adding the configured report to the
         // pile would merge in a file the operator did not ask for (ADR-0020).
         reports: flags.positionals.map((path) => resolve(path)),
+      };
+    }
+
+    case 'adjudicate': {
+      const claims = flags.values.get('--claims');
+      if (claims === undefined) {
+        // No default, and no inference from the report. A declaration this
+        // command invented would be one the author never made, and every arm of
+        // the answer is about the distance between the two.
+        throw new OperatorError(
+          'adjudicate needs `--claims <path>`: what you meant to change, declared before the ' +
+            'diff was read. Without it there is nothing to hold the run against and this would ' +
+            'only repeat `variance report`.',
+        );
+      }
+
+      return {
+        command: 'adjudicate',
+        config,
+        claims: resolve(claims),
+        reports: flags.positionals.map((path) => resolve(path)),
+        exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
       };
     }
 

@@ -24,7 +24,7 @@ own output.
 
 | entrypoint | requires | holds |
 |---|---|---|
-| `.` | nothing | `RunReport`, `ObservationRecord`, `RegionRecord`, `NotObserved` |
+| `.` | nothing | `RunReport`, `ObservationRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun` |
 | `./file` | a filesystem | `readRunReport`, `writeRunReport` |
 
 The split exists because a run happening on a pinned machine in CI and the
@@ -43,6 +43,39 @@ await writeRunReport('.variance/run.json', runReport);
 // Throws on anything that is not one, so the type is earned rather than asserted.
 const report: RunReport = await readRunReport('.variance/run.json');
 ```
+
+## The two derivations that belong to the format
+
+Neither has a home in a reader. `clusterChanges` groups a run's changed subjects
+by fingerprint, so a token edit across forty stories is **one decision presented
+once** rather than forty. `adjudicateRun` reads those changes back against what
+the author said they were doing:
+
+```ts
+import { adjudicateRun, describeAdjudication } from '@variance-authority/report';
+
+const answer = adjudicateRun(
+  report,
+  [{ root: 'component:Button', reason: 'new brand accent', maxSubjects: 3 }],
+  { unchecked: ['bands'] },
+);
+
+console.log(describeAdjudication(answer));
+```
+
+Each claim comes back `delivered`, `overreached`, `undelivered` or
+`unobservable`, alongside the changes no claim covered. `undelivered` is the one
+no diff can produce on its own — a component that **rendered and held still**,
+which means the edit did not take. Telling that apart from *never rendered, so
+nothing here is evidence* is what the composition census is for, and why the
+adjudication lives beside the format rather than inside a reader.
+
+`unchecked` is how a boundary keeps a claim it could not verify. A caller that
+parses agent-supplied claims — the MCP tool, the CLI — passes the field names
+this resolution does not read, and the answer ends `Not checked here: bands`
+instead of reporting `delivered` about something nothing looked at. Dropping
+them silently would be the more comfortable default and the worse one: the agent
+would be told its band claim held.
 
 ## What it refuses
 

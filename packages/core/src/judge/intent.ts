@@ -120,13 +120,19 @@ export interface Adjudicated {
 }
 
 /**
- * FIXME: nothing shipped calls this. `variance run --intent` carries a string
- * into the report and four formatters print it, but no command builds an
- * `Intent` and no verdict, band or exit code reads one back — the only caller is
- * `examples/readme-case`. The blocker is the flag: a claim is a root, a
- * direction and a bound, and `--intent "tighten the card"` is a sentence. Making
- * this reachable needs somewhere to declare a claim with that shape, which is a
- * config section rather than a flag, and `packages/cli/README.md` says so.
+ * FIXME: nothing shipped calls this, and the reason is no longer the one it used
+ * to be. Somewhere to declare a claim with this shape now exists — `variance
+ * adjudicate --claims <path>` and the `variance_adjudicate` MCP tool — but they
+ * resolve against a run report through `adjudicateRun`, which answers *what you
+ * declared against what moved* and deliberately changes no verdict.
+ *
+ * This one is the other half: it takes a `Docket`, so it reads bands and returns
+ * `authorized` / `needs-review` / `violation` — a claim that can turn a red run
+ * green. That is a policy decision with an exit code behind it, and shipping it
+ * needs the thing neither caller has: somewhere durable to declare a claim
+ * *before* the branch that exercises it, so the authorization is reviewable
+ * separately from the change it authorizes. A claim supplied by the same agent
+ * whose work it excuses cannot do that job.
  */
 export function adjudicate(
   docket: Docket,

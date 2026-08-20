@@ -1,3 +1,4 @@
+import { adjudicate } from './tools/adjudicate.js';
 import { changes } from './tools/changes.js';
 import { composition } from './tools/composition.js';
 import { describe } from './tools/describe.js';
@@ -20,11 +21,20 @@ import { trace } from './tools/trace-component.js';
  * sentence a person would want, with a file path on the end. So these read like
  * the report does: cause first, collateral counted, and a path an editor opens.
  *
+ * `variance_adjudicate` is the one tool that takes evidence *in*. It sits third
+ * because it needs nothing the first two printed and everything they cannot
+ * supply: an agent's own account of what it was doing. The other seven answer
+ * *what changed*; this one answers *what changed against what you claimed*, and
+ * its third arm — declared, and did not happen — is the only thing here that can
+ * catch an edit which never landed. An agent that has just edited something
+ * should call it before `describe`, and an agent reviewing somebody else's run
+ * has nothing to declare and should skip it.
+ *
  * One tool per module under `./tools/`, and this file is the list. Each answer is
  * a paragraph somebody argued about, and the arguments do not compose — the
  * reason the summary refuses to say "nothing to review" has nothing to do with
  * the reason findings are grouped by rule — so they are read, and edited, one at
- * a time. What stays here is the only thing that is genuinely about all seven:
+ * a time. What stays here is the only thing that is genuinely about all eight:
  * the order, which is the order `tools/list` announces them in and therefore the
  * order an agent meets them in. `variance_summary` is first because every other
  * tool takes an argument it printed, and `variance_changes` is second because it
@@ -32,8 +42,8 @@ import { trace } from './tools/trace-component.js';
  * forty changed subjects one at a time spends forty calls learning what one call
  * says, which is *three things happened and one of them explains thirty-one*.
  *
- * `variance_composition` is third, and the boundary it sits on is the one worth
- * seeing: the first three answer about the *suite* and the last four narrow to a
+ * `variance_composition` is fourth, and the boundary it sits on is the one worth
+ * seeing: the first four answer about the *suite* and the last four narrow to a
  * subject. It goes after `changes` rather than before because the two reshape
  * the same run along different axes and only one of them is about this run's
  * diff — `changes` says which decisions there are, and this says which component
@@ -46,6 +56,7 @@ export type { Tool };
 export const TOOLS: readonly Tool[] = [
   summarize,
   changes,
+  adjudicate,
   composition,
   describe,
   findings,

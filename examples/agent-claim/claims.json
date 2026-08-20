@@ -1,0 +1,21 @@
+{
+  "claims": [
+    {
+      "root": "component:Button",
+      "reason": "new brand accent on the primary action",
+      "maxSubjects": 1
+    },
+    {
+      "root": "component:Badge",
+      "reason": "new brand accent on the status pill"
+    },
+    {
+      "root": "component:Card",
+      "reason": "tighten the gap between the avatar and the action"
+    },
+    {
+      "root": "component:Tooltip",
+      "reason": "arrow follows the new accent"
+    }
+  ]
+}

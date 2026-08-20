@@ -6,12 +6,20 @@ the loop the README's first sentence promises and the one nothing here serves.
 The fixer loop — an agent reading a CI report after the fact — is the smaller
 half and keeps one paragraph at the end.
 
-What exists: seven MCP tools as pure functions over a run report, a protocol
+What exists: eight MCP tools as pure functions over a run report, a protocol
 codec, `variance serve` — tested against text
-([`packages/mcp/src/tools.ts`](../../packages/mcp/src/tools.ts), 27 tests).
-`Intent` and `adjudicate` in `packages/core/src/judge/intent.ts`. The full
-cause-ranked answer, running today inside one test file. No agent has ever
-called any of it.
+([`packages/mcp/src/tools.ts`](../../packages/mcp/src/tools.ts)). One of the
+eight is `variance_adjudicate`, and `variance adjudicate --claims` is the same
+thing at the CLI: a declaration read back against a run, all three arms,
+over-claiming visible, exercised end to end by
+[`examples/agent-claim`](../../examples/agent-claim). What it reads back is a
+*finished run*, not a held observation — the agent declares, runs, and is
+answered, which is the fixer loop's shape applied to the agent's own work. The
+author loop's cadence, where the observation is held across the edit, has no
+boundary yet. `Intent` and the docket-shaped `adjudicate` in
+`packages/core/src/judge/intent.ts` — the half that could turn a red run green —
+still have no caller and want a durable place to declare a claim before the
+branch that exercises it.
 
 ## The loop, stated as a session
 
@@ -60,12 +68,13 @@ costume. What is missing is the boundary an agent reaches it through.
 
 ## The half-sentence intent adds
 
-The agent knows what it meant to do, and nothing asks it. `adjudicate` scores
-declared claims against findings and is reachable from no boundary above the
-library. Wired into the loop, observation stops answering "what changed" and
-starts answering **"what changed against what you claimed"**, and the
-adjudication has three arms, each worth naming because they are different
-products:
+The agent knows what it meant to do, and until something asks it, observation
+answers "what changed" and stops there. Asked, it answers **"what changed
+against what you claimed"**. That question is now reachable — `variance
+adjudicate` and `variance_adjudicate`, both over a completed run — and what
+remains is asking it *inside* the loop, against a held observation, where the
+answer arrives before the edit is finished rather than after. The adjudication
+has three arms, each worth naming because they are different products:
 
 - **Claimed and observed.** Confirmation. The edit did what the agent said.
 - **Observed and unclaimed.** Collateral the agent did not intend — the reflow
@@ -202,7 +211,11 @@ is paying for the same evidence twice.
    (Storybook is the shipped one), answering from the held document with the
    full attribution chain.
 2. **The intent wire** — `adjudicate` reachable at that boundary, all three
-   arms reported, over-claiming visible.
+   arms reported, over-claiming visible. *Reachable over a completed run:*
+   `variance adjudicate --claims` and `variance_adjudicate`, with the census
+   splitting the third arm into *rendered and held still* and *never rendered*.
+   What is left is the same wire against a held observation, which is item 1's
+   boundary and not this one's.
 3. **One recorded authoring session** — a real agent, a declared edit, the
    transcript journaled: what it observed, what it claimed, what the third
    arm caught.

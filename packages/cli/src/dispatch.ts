@@ -31,6 +31,12 @@ import {
   type Plan,
 } from './commands/run.js';
 import { formatReport } from './commands/report.js';
+import {
+  adjudicateReport,
+  exitForAdjudication,
+  formatAdjudication,
+  readClaims,
+} from './commands/adjudicate.js';
 import { liveIgnores } from './commands/ignores.js';
 import { mergeReports } from './commands/merge.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
@@ -157,6 +163,17 @@ export async function dispatch(
       // that exited 0 while describing a change would make the two halves of this
       // tool disagree about the same file.
       return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+    }
+
+    case 'adjudicate': {
+      // Both halves before either is used, so a broken declaration is reported
+      // as a broken declaration rather than as a run with nothing in it.
+      const claims = await readClaims(parsed.claims);
+      const report = await reportsFor(parsed.reports, config);
+      const result = adjudicateReport({ report, claims });
+
+      streams.out(formatAdjudication(result));
+      return sideJob(exitForAdjudication(result), parsed.exitZeroOnChanges, streams);
     }
 
     case 'accept': {

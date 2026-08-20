@@ -12,10 +12,13 @@
  * home. That was not a hypothetical: the shapes used to live in the MCP package,
  * so the CLI depended on an agent protocol to describe its own output.
  *
- * It also holds the one derivation that belongs to the format rather than to any
- * reader: grouping a run's changes into the *distinct things that happened*, so
- * a token edit across forty stories is one decision rather than forty. The CLI
- * prints it, the MCP tools answer from it, and neither owns it.
+ * It also holds the two derivations that belong to the format rather than to any
+ * reader. The first groups a run's changes into the *distinct things that
+ * happened*, so a token edit across forty stories is one decision rather than
+ * forty. The second reads those changes back against what the author said they
+ * were doing, which is the only way an artifact can report the edit that never
+ * landed. The CLI prints both, the MCP tools answer from both, and neither owns
+ * them.
  *
  * The default entrypoint is the format and needs nothing.
  * `@variance-authority/report/file` reads and writes it on a disk.
@@ -43,3 +46,14 @@ export type {
 
 export { clusterChanges, describeClustering } from './cluster.js';
 export type { Change, Clustering } from './cluster.js';
+
+export { adjudicateRun, describeAdjudication, parseRoot } from './intent.js';
+export type {
+  AdjudicateOptions,
+  Claim,
+  ClaimOutcome,
+  ClaimRootKind,
+  ClaimVerdict,
+  RunAdjudication,
+  UnclaimedChange,
+} from './intent.js';
