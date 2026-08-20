@@ -257,3 +257,9 @@ describe.skipIf(!BROWSER_AVAILABLE)('an animation in flight, observed twice', ()
     expect(style).not.toContain('scroll-behavior');
   }, 60_000);
 });
+
+// Column 0, because the describe above is skipped on a machine with no browser
+// and a todo inside it would go quiet on exactly the machines running least.
+it.todo(
+  "a third arm pays the two frames on every subject, so the skip's saving is a measured difference rather than a remembered one — needs a way to defeat the `already` check from outside `stabilizeDocument`, because `stabilize` is fixed when the collector is built and the sheet survives every collection after the first, so no arrangement of the option reaches the unconditional path",
+);

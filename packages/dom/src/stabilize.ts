@@ -128,11 +128,12 @@ export async function stabilizeForObservation(
   // change to flush and nothing has been unpinned in the meantime — an animation
   // paused at its first frame stays there.
   //
-  // Measured, both ways, by `stabilization.chromium.test.ts`: waiting
-  // unconditionally costs **25.8 ms/subject** against an untouched collection of
-  // 2.3 ms — eleven times the cost of the reading itself, spent watching a page
-  // that is already still. With the skip the same comparison is 2.3 against 2.6,
-  // which is noise. On two hundred subjects that is five seconds a run.
+  // Measured by `stabilization.chromium.test.ts`: with the skip, an untouched
+  // collection is 2.3 ms/subject against 2.6 held still, which is noise. The
+  // cost of *not* skipping is bounded rather than read — two frames at 60Hz is
+  // ~32 ms a subject, six seconds on two hundred — because no arrangement of the
+  // `stabilize` option reaches the unconditional path from outside. The test
+  // carries a todo saying so.
   //
   // The condition is *the CSS is unchanged* rather than a counter somebody has
   // to keep correct, so the saving is a property of the sheet being idempotent

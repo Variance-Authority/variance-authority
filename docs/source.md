@@ -240,6 +240,12 @@ was
 Above that sits a Merkle closure: one digest per node covering everything it
 rests on, with cycles condensed so a strongly-connected component hashes as a
 unit, and anything downstream of an unknown marked volatile rather than digested.
+**Selection does not use it.** `closureOf` and `driftedBetween` are complete and
+tested and their callers are their own tests — a closure digest is only a fact
+against an earlier one, and nothing writes one down. So `--since` resolves to a
+git diff and inherits every way a shallow clone, a rebase or a wrong ref can
+shape one; the closure is what would replace that, and it is
+[spec 0026](specs/0026-selection-by-closure-digest.md)'s to finish.
 
 ## The transform that records the path
 
@@ -249,14 +255,18 @@ rendering is a series of choices, and a file graph sees both sides of every fork
 `@variance-authority/sense/instrument` is the other half's foundation: a pure
 function of a string, `instrument(source, id)`, which parses, decides where the
 execution boundaries are, and splices a recording call in front of each one. No
-disk, no runner, no index, so it is testable against a fixture.
+disk, no runner, no index, so it is testable against a fixture — and **no
+command instruments anything.** Its callers are two benchmark scripts and a
+vitest config; there is no flag, no config key, and nothing that reads
+`globalThis.__VA__` back. What follows is a measurement of the transform, not a
+description of what a run does.
 
 Its probe set is smaller than statement coverage by design. Istanbul's own
 visitor rules, counted on the same trees, put **2.5× as many** counters in the
 same code; this is **0.40×** of every counter it inserts. The saving is not in
 functions — both give every function one entry site — it is that a run of
 statements with no decision in it is *one region*: on this repository's own
-source, 13,325 statements collapse to 2,065 continuations. A decision carries no
+source, 13,714 statements collapse to 2,123 continuations. A decision carries no
 probe of its own; its outcomes do, including the synthesized `else` of a bare
 `if`, because a change to the condition must reach every test that ever evaluated
 it.

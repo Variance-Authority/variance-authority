@@ -31,7 +31,7 @@ Semantic band hashes per component boundary, plus resolved token values. **Never
 pixels, never images, never coordinates.** So a question like
 
 ```
---va-space-3: 12px → 20px across eight approvals
+--va-space-3: 12px → 20px across eleven approvals
 ```
 
 is exact and machine-independent, and nobody has to keep a PNG in their history

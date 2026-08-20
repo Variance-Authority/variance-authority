@@ -210,9 +210,17 @@ means *this rendered*, never *the run was clean* — the verdict belongs to `run
 which already said it.
 
 `--intent <text>` declares what the change was *meant* to do, overriding the
-config's `intent`. A run that matches its declared intent is adjudicated
-differently from one that does not: the claim is what lets a verdict say *this is
-the change you said you were making* instead of only *this changed*.
+config's `intent`. **It is a label, and it changes no verdict.** The string is
+recorded in the report and printed by the summary, the docket, the HTML page and
+the MCP tools, so a reader knows what the run was for; nothing reads it back.
+
+The half that would adjudicate against it is built and unwired: `adjudicate` and
+`summarizeAdjudication` (`packages/core/src/judge/intent.ts:122`) turn a docket
+and a set of claims into *delivered*, *undelivered* and *unclaimed*, and their
+only caller is [`examples/readme-case`](../../examples/readme-case). Reaching it
+from here needs claims with a shape a flag cannot carry — a region, a component,
+a direction — so the flag stays a label until there is somewhere to declare one
+properly.
 
 Those six are the whole surface. **No command posts anything anywhere.**
 `comment` produces the body; sending it is

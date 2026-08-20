@@ -25,16 +25,16 @@ snapshot is text and costs 3.4 ms against 65.4 ms to paint the same page in the
 same process ([ADR-0010](context/adr/0010-tier-specific-environment-keys.md)), which is what makes
 "read it again" a design option rather than a budget line.
 
-| instrument | varies | holds | names |
-|---|---|---|---|
-| **baseline comparison** | the revision | the subject, the world | a component, a band, a `file:line` |
-| **[`again`](flakiness.md#what-still-gets-through-and-how-it-is-found)** | time | the world | `unstable`, with the component and band that moved |
-| **[`alone`](flakiness.md#test-order-and-shared-state)** | the world | time | `order-dependent`, and `accept` refuses it |
-| **[composition](composition.md)** | the subject | the revision | echoes, divergences, and why each component moved |
-| **[history](history.md)** | the run | the subject | recurrence, sweeps-since, and [drift](history.md#how-far-a-token-has-drifted) |
-| **[the session probe](../packages/session)** | subject order | the world | the *writer*, by subject and by what it wrote |
-| **[`trail`](../packages/core)** | the edit step | the subject | since-start, put-back, and going in circles |
-| **the engine** | the observer | everything | which tier can decide, and which cannot see it |
+| instrument | varies | holds | names | run reaches it |
+|---|---|---|---|---|
+| **baseline comparison** | the revision | the subject, the world | a component, a band, a `file:line` | yes |
+| **[`again`](flakiness.md#what-still-gets-through-and-how-it-is-found)** | time | the world | `unstable`, with the component and band that moved | yes |
+| **[`alone`](flakiness.md#test-order-and-shared-state)** | the world | time | `order-dependent`, and `accept` refuses it | yes |
+| **[composition](composition.md)** | the subject | the revision | echoes, divergences, and why each component moved | yes |
+| **[history](history.md)** | the run | the subject | recurrence, sweeps-since, and [drift](history.md#how-far-a-token-has-drifted) | when configured |
+| **[the session probe](../packages/session)** | subject order | the world | the *writer*, by subject and by what it wrote | **no** |
+| **[`trail`](../packages/core)** | the edit step | the subject | since-start, put-back, and going in circles | **no** |
+| **the engine** | the observer | everything | which tier can decide, and which cannot see it | yes |
 
 Each row is a controlled experiment, and the discipline of one variable is what
 lets the answer be a sentence instead of a probability. It is also why the rows
@@ -42,7 +42,11 @@ compose: `again` and `alone` vary opposite things, so running both on one change
 subject partitions three causes that arrive identically.
 
 **Where a row is reached from is a fact about it rather than a detail of
-packaging.** The record behind recurrence, sweeps-since and drift is a service
+packaging**, and the last column is that fact. Two rows are **built, tested, and
+called by nothing a run does** — they are in the table because they are the same
+move as the rest, not because a `variance run` performs them.
+
+The record behind recurrence, sweeps-since and drift is a service
 the operator runs, and a run reaches it exactly when the config names an endpoint
 and a token and the run can name itself
 ([`history.md`](history.md#turning-it-on)); with none of those named it computes
@@ -52,9 +56,15 @@ world — `createSession` is the runner, and the probe brackets every mount that
 arrives through `session.run` — so naming the *writer* means owning the loop; a
 run hands each subject to the adopter's collector instead and asks `alone` of a
 subject it called `changed`, which establishes at most that something else in
-the suite moved this one, and never which thing. `trail` is the same division: a
-value in `core/judge` and pure functions over it, whose holder is whoever runs
-the loop, for as long as they hold it.
+the suite moved this one, and never which thing. **No package in this workspace
+depends on `@variance-authority/session`**, so the bracket it describes is
+applied by nothing shipped.
+
+`trail` is the same division one step further: a value in `core/judge` and pure
+functions over it, whose holder is whoever runs the loop, for as long as they
+hold it. **Its callers are its own tests.** An edit loop is the only thing that
+can hold a trail, `variance` does not run one, and until something does, the row
+above is a shape rather than a reading.
 
 ### The pair that decides whether a change is real
 

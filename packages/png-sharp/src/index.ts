@@ -7,13 +7,14 @@ import type { DecodedImage, PngDecoder } from '@variance-authority/png';
  * This package exists because of one measurement and one constraint.
  *
  * The measurement (journal 0016): decoding is **90% of a raster comparison**,
- * `pixelmatch` is 9%, and on a 1280×800 image `pngjs` takes 22.6 ms against
- * libvips' 15.0 ms. That alone is a 1.5× on the dominant cost. The larger number
+ * `pixelmatch` is 9%, and on a 1280×800 image `pngjs` takes 23.5 ms against
+ * libvips' 14.5 ms. That alone is a 1.6× on the dominant cost. The larger number
  * is that libvips decodes on **libuv's threadpool**, so images decoded
- * concurrently leave the event loop entirely: 32 at once come in at **1.9 ms
- * each**, which is **12×** `pngjs`. Two wasm decoders were measured and both
- * were slower than the pure-JS one, so this is not a case where the portable
- * option is also the fast one.
+ * concurrently leave the event loop entirely — `scripts/bench.mjs` measures
+ * roughly 4x over the same decoder in a loop and 9x over sequential `pngjs`.
+ * Two wasm decoders were measured and both were slower than the pure-JS one, so
+ * this is not a case where the portable option is also the fast one. Chromium
+ * decodes faster than any of them, and is not a library this package can be.
  *
  * The constraint (ADR-0013): `sharp` is a **native addon**. A Cloudflare Worker
  * cannot load one, and neither can a bundle for anywhere that is not this
@@ -27,10 +28,11 @@ import type { DecodedImage, PngDecoder } from '@variance-authority/png';
  * const comparison = await compareRasters(before, after, { decoder: sharpDecoder });
  * ```
  *
- * **Threadpool size is the whole story on the concurrent number.** libuv
- * defaults to 4 threads; at `UV_THREADPOOL_SIZE=12` the same benchmark went from
- * 4.1 ms to 1.9 ms per image. It can only be set before the process starts doing
- * threadpool work, so it belongs in the environment, not in this file.
+ * **Threadpool size is the smaller lever, and it is machine-dependent.** libuv
+ * defaults to 4 threads; on a 16-core host raising it to `UV_THREADPOOL_SIZE=12`
+ * buys about 1.25x, because four libvips threads already saturate a decode this
+ * cheap. It can only be set before the process starts doing threadpool work, so
+ * it belongs in the environment, not in this file.
  */
 export const sharpDecoder: PngDecoder = {
   async decode(bytes: Buffer): Promise<DecodedImage> {

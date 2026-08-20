@@ -629,26 +629,32 @@ STABILIZATION COST — 12 collections of one subject, warm
   difference  +0.3 ms/subject
 ```
 
-Within noise. Waiting unconditionally costs **25.8 ms/subject** instead — eleven
-times the cost of the reading itself, spent watching a page that is already
-still. The recipe injects a sheet, awaits fonts and images, and then waits two
-animation frames for the pinned state to be in force; the two frames are the
-whole cost, and on every subject after the first there is nothing for them to
-wait for. The sheet is already there, its CSS is unchanged, and an animation
-paused at its first frame stays paused.
+Within noise, and that is the claim: **holding the page still is free on a warm
+subject.** The recipe injects a sheet, awaits fonts and images, and then waits
+two animation frames for the pinned state to be in force — but on every subject
+after the first there is nothing for those frames to wait for. The sheet is
+already there, its CSS is unchanged, and an animation paused at its first frame
+stays paused.
 
 So the frame wait is skipped when the CSS is unchanged — a condition that reads
-off the page rather than a counter somebody has to keep correct. On a
-two-hundred subject suite that is five seconds a run.
+off the page rather than a counter somebody has to keep correct. The first
+subject still pays, and should: that is the one where the sheet arrives and
+something is genuinely moving.
 
-The first subject still pays, and should: that is the one where the sheet arrives
-and something is genuinely moving.
+**What the skip saves is bounded rather than measured.** Two animation frames on
+a 60Hz compositor is ~32 ms, so the regression that puts them back into every
+subject costs a third of a second on a ten-story Storybook and about six on two
+hundred — arithmetic, not a reading. The arm that would measure it is not there:
+`stabilize` is fixed when a collector is built and the sheet survives every
+collection after the first, so nothing the option can express reaches the
+unconditional path. That gap is recorded as a todo at the test rather than
+rounded into a figure.
 
 Produced by
 [`packages/route-collector/src/stabilization.chromium.test.ts`](../packages/route-collector/src/stabilization.chromium.test.ts),
-which also holds the regression to under 20 ms — so putting the two frames back
-into every subject fails the suite rather than showing up as a slow CI job
-nobody attributes to anything.
+which holds the regression to under 20 ms — so putting the two frames back into
+every subject fails the suite rather than showing up as a slow CI job nobody
+attributes to anything.
 
 ---
 

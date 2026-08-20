@@ -34,22 +34,22 @@ counters in the same code: this is **0.40× every counter it inserts**, and 0.74
 its statements alone. The ratio is the claim, and it is what holds still —
 `yarn workspace @variance-authority/sense census` prints it beside the absolute
 counts, which are a figure over this repository's own source and move whenever a
-file is added. The table below is one such reading, at 300 product files.
+file is added. The table below is one such reading, at 308 product files.
 
 | Probe | Count | What it means |
 |---|---|---|
-| module | 300 | the module's top level evaluated |
-| function entry | 2,486 | entered, and owns every statement before the first decision |
-| branch outcome | 3,734 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
-| continuation | 2,065 | the region *after* a decision, up to the next one |
-| `await` resume | 490 | execution came back — the stack after is not the stack before |
-| loop body | 559 | the body was entered at least once |
+| module | 308 | the module's top level evaluated |
+| function entry | 2,565 | entered, and owns every statement before the first decision |
+| branch outcome | 3,844 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
+| continuation | 2,123 | the region *after* a decision, up to the next one |
+| `await` resume | 532 | execution came back — the stack after is not the stack before |
+| loop body | 568 | the body was entered at least once |
 | `switch` case | 141 | per clause, plus a synthesized `default` where none is written |
-| handler | 134 | `catch` and `finally` |
+| handler | 138 | `catch` and `finally` |
 
 The function count matching Istanbul's exactly is not a coincidence and not a
 result: both give every function one entry site. The saving is entirely in the
-other two columns — 13,325 statements collapse to 2,065 continuations, because a
+other two columns — 13,714 statements collapse to 2,123 continuations, because a
 run of statements with no decision in it is one region.
 
 **A decision carries no probe of its own.** Its outcomes do. A bare

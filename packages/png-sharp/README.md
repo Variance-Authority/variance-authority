@@ -26,30 +26,56 @@ So it lives here, and a consumer opts in by depending on it.
 found the raster tier's cost is not where it looks. Decoding is **90% of a
 comparison**; `pixelmatch` is 9%. So the decoder *is* the cost.
 
+Sixteen distinct 1280×800 images, cold, every candidate verified byte-identical
+to `pngjs`'s RGBA before being timed:
+
 | One 1280×800 PNG → RGBA | |
 |---|---|
-| this package | **15.0 ms** |
-| `pngjs` (the default) | 22.6 ms |
+| Chromium | **12.4 ms** |
+| this package | **14.5 ms** |
+| `pngjs` (the default) | 23.5 ms |
 | `@cwasm/lodepng` | 28.3 ms |
 | `@cf-wasm/png` | 99.8 ms |
 
-The per-image 1.5× is the smaller half. libvips decodes on **libuv's threadpool**,
-so images decoded concurrently leave the main thread entirely:
-
-| 32 images, one process | per image |
-|---|---|
-| `Promise.all`, `UV_THREADPOOL_SIZE=12` | **1.9 ms** |
-| `Promise.all`, default pool of 4 | 4.1 ms |
-| one at a time | 14.6 ms |
-| `pngjs`, one at a time | 23.9 ms |
-
-**12× at the top end**, and the threadpool size is most of the difference between
-the first two rows. libuv reads `UV_THREADPOOL_SIZE` from the environment before
-the pool is first used, so it cannot be set from inside this package.
-
 Both wasm decoders measured *slower* than the pure-JS one, which is why the
 portable default is not simply the second-fastest option — there is no fast
-portable option to pick.
+portable option to pick. **And the fastest decoder in that table is not a
+library at all**: it is the browser this system already launches. That is a real
+win and it is not this package — it is a design change, and it is
+[spec 0011](../../docs/specs/0011-storage-and-cache-primitives.md)'s to make. Nothing here
+recovers it.
+
+That table is journal-transcribed and only the middle three rows can be
+re-derived from this workspace; the wasm decoders are not dependencies of
+anything here and Chromium is not reachable from a package that must not need
+one.
+
+The per-image 1.6× is the smaller half. libvips decodes on **libuv's
+threadpool**, so images decoded concurrently leave the main thread entirely:
+
+```
+$ UV_THREADPOOL_SIZE=12 node packages/png-sharp/scripts/bench.mjs
+32 images, 1280×800, ~283 KiB each, one process
+node v26.7.0, sharp 0.34.5, libvips 8.17.3
+
+| `Promise.all`, pool of 12 | 0.8 ms |
+| one at a time            | 3.3 ms |
+| `pngjs`, one at a time   | 7.3 ms |
+
+spread: 8.8×
+```
+
+**Concurrency is the whole prize** — 4× over the same decoder called in a loop,
+and 9× over the default. The threadpool size is the smaller lever and its size
+depends on the machine: on the 16-core host above, a pool of 12 buys 1.25× over
+the default pool of 4, because four libvips threads already saturate a decode
+this cheap. On a smaller box the gap is wider. libuv reads `UV_THREADPOOL_SIZE`
+from the environment before the pool is first used, so it cannot be set from
+inside this package, and the number above is the *shape* of the effect rather
+than a figure to expect.
+
+`scripts/bench.mjs` generates its own images and re-derives every row, so these
+three are reproducible where the first table's outer rows are not.
 
 ## Use
 

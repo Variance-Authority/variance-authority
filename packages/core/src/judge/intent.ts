@@ -119,6 +119,15 @@ export interface Adjudicated {
   readonly violations: number;
 }
 
+/**
+ * FIXME: nothing shipped calls this. `variance run --intent` carries a string
+ * into the report and four formatters print it, but no command builds an
+ * `Intent` and no verdict, band or exit code reads one back — the only caller is
+ * `examples/readme-case`. The blocker is the flag: a claim is a root, a
+ * direction and a bound, and `--intent "tighten the card"` is a sentence. Making
+ * this reachable needs somewhere to declare a claim with that shape, which is a
+ * config section rather than a flag, and `packages/cli/README.md` says so.
+ */
 export function adjudicate(
   docket: Docket,
   intent: Intent,
