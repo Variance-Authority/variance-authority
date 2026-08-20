@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { handle, createLineReader, PROTOCOL_VERSION } from './protocol.js';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
-import { serve } from './server.js';
+import { serve, serveReportFile } from './server.js';
 import { TOOLS, toolByName } from './tools.js';
 
 /**
@@ -358,6 +358,51 @@ describe('framing', () => {
   });
 });
 
+/** One `tools/call` for a subject, by id. */
+function ask(id: number, subject: string): unknown {
+  return {
+    jsonrpc: '2.0',
+    id,
+    method: 'tools/call',
+    params: { name: 'variance_describe', arguments: { subject } },
+  };
+}
+
+/**
+ * Read one response line at a time.
+ *
+ * Attached before the first request rather than per-request, so a reply that
+ * arrives while nobody is listening is still there to be read.
+ */
+function readLines(output: PassThrough): () => Promise<string> {
+  const held: string[] = [];
+  let waiting: ((line: string) => void) | undefined;
+
+  let buffer = '';
+  output.on('data', (chunk: Buffer | string) => {
+    buffer += chunk.toString();
+    for (let end = buffer.indexOf('\n'); end !== -1; end = buffer.indexOf('\n')) {
+      const line = buffer.slice(0, end);
+      buffer = buffer.slice(end + 1);
+      if (waiting !== undefined) {
+        const resolve = waiting;
+        waiting = undefined;
+        resolve(line);
+      } else {
+        held.push(line);
+      }
+    }
+  });
+
+  return () => {
+    const line = held.shift();
+    if (line !== undefined) return Promise.resolve(line);
+    return new Promise<string>((resolve) => {
+      waiting = resolve;
+    });
+  };
+}
+
 describe('the server', () => {
   it('answers a request written to its input', async () => {
     const input = new PassThrough();
@@ -378,9 +423,43 @@ describe('the server', () => {
     expect(() => input.write('not json\n')).not.toThrow();
   });
 
-  it.todo(
-    '`serveReportFile` answers the second request from a report rewritten since the first, so an agent that re-runs is not answered from the copy it loaded at boot — needs that function to take its streams the way `serve` does, since it names `process.stdin` and `process.stdout` in place',
-  );
+  it('answers from the report as it is now, not as it was at boot', async () => {
+    // The failure this prevents is the worst one the package can produce. An
+    // agent fixes something, re-runs, asks again — and is told from the previous
+    // report that its edit did not take.
+    const directory = await mkdtemp(join(tmpdir(), 'va-mcp-'));
+    try {
+      const path = join(directory, 'run.json');
+      await writeRunReport(path, REPORT);
+
+      const input = new PassThrough();
+      const output = new PassThrough();
+      const lines = readLines(output);
+      const stop = await serveReportFile(path, { input, output });
+
+      try {
+        input.write(`${JSON.stringify(ask(1, 'story:card--populated'))}\n`);
+        expect(await lines()).toContain('story:card--populated');
+
+        await writeRunReport(path, {
+          ...REPORT,
+          observations: REPORT.observations.map((observation) => ({
+            ...observation,
+            subject: 'story:card--rewritten',
+          })),
+        });
+
+        input.write(`${JSON.stringify(ask(2, 'story:card--rewritten'))}\n`);
+        const answer = await lines();
+        expect(answer).toContain('story:card--rewritten');
+        expect(answer).not.toContain('unknown subject');
+      } finally {
+        stop();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('the report file', () => {

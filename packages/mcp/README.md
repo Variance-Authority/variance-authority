@@ -183,7 +183,7 @@ composes when the report does not come from a file:
 |---|---|
 | `input` | the `Readable` requests arrive on |
 | `output` | the `Writable` responses leave on |
-| `report` | supplies the current `RunReport`. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot |
+| `report` | supplies the current `RunReport`. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot. It may be async, and the request waits for it: a supplier that started a refresh and answered from the previous value would make *this* request the stale one, and this request is the agent that just re-ran |
 
 Both return a function that detaches the server from its streams.
 

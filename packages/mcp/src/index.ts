@@ -36,4 +36,4 @@ export {
 export type { JsonRpcRequest, JsonRpcResponse } from './protocol.js';
 
 export { serve, serveReportFile } from './server.js';
-export type { ServerOptions } from './server.js';
+export type { ReportFileOptions, ServerOptions } from './server.js';

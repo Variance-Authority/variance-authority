@@ -63,3 +63,23 @@ adjudicate` reading it back against the declaration, each with its exit code
 decoded, and then the same question over MCP — `initialize`, `tools/list`, one
 `tools/call`. It asserts nothing. The audience is whoever — or whatever — reads
 the output and decides what to edit next.
+
+What decides is a second script, kept separate because a file that both
+narrates and asserts does neither well:
+
+```bash
+yarn workspace @variance-authority/example-agent-claim verify
+```
+
+It checks the claims this page makes, against the shipped binaries, and exits
+non-zero when one stops holding. The interesting ones are the transport claims a
+pure unit test cannot reach — a JSON-RPC frame split where the OS split it, a
+notification that must produce no reply at all, a report rewritten under an open
+session — and the one that matters most for two surfaces: **the CLI and the MCP
+tool, given the same claims, answer with the same text.** Two renderings of one
+adjudication is how they drift.
+
+It is this repository's client talking to this repository's server, so it proves
+the transport works rather than that it matches somebody else's reading of the
+spec — the same trade [`packages/mcp/src/protocol.ts`](../../packages/mcp/src/protocol.ts)
+takes for the server half.

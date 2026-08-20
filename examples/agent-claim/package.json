@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "demo": "node scripts/demo.mjs"
+    "demo": "node scripts/demo.mjs",
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
