@@ -93,6 +93,38 @@ The lookup asks under `renderer.identityFor(document)`. A baseline found under
 another identity returns `incomparable`; it is never diffed and blamed on the
 subject.
 
+## Compare two images this process never painted
+
+Use `observeRasters` when the pixels arrive from somewhere else entirely — a
+device farm, a native simulator, a design-tool export — and there is no document
+to render and no store to read.
+
+```ts
+import { observeRasters } from '@variance-authority/observe';
+import { foreignRaster } from '@variance-authority/png';
+
+declare const beforePng: Buffer;
+declare const afterPng: Buffer;
+
+const observation = await observeRasters(
+  'ios:checkout',
+  foreignRaster(beforePng, { painter: 'ios-simulator-17.4' }),
+  foreignRaster(afterPng, { painter: 'ios-simulator-17.4' }),
+);
+```
+
+**The declaration is what makes the comparison legal.** Pixels are machine-bound,
+and this is the one entrypoint where nothing upstream has already established
+that two images came from the same painter: the ephemeral path paints both sides
+with one renderer, and the durable path asks the store under a key the renderer
+supplied. Here the caller is handing over two buffers from anywhere. So the
+identities are checked here, and two different painters return `incomparable`
+naming both — one word rather than a wall of red that `accept` could promote into
+a baseline.
+
+The ceiling is pixels: no components, no bands, no causes. An image carries no
+structure, so `regions` comes back empty and attribution needs a document.
+
 ## Handle every verdict
 
 | Verdict | Meaning | Integration response |
@@ -100,7 +132,7 @@ subject.
 | `unchanged` | Comparable images contain no changed pixels. | Continue without review. |
 | `changed` | A comparable image differs; regions contain as much attribution as the supplied snapshot and source allow. | Present the evidence and require review. |
 | `new` | No baseline exists for the durable key and renderer. | Review and explicitly approve or reject the candidate. Do not treat it as green. |
-| `incomparable` | A baseline exists under an incompatible renderer identity. | Align renderer inputs or establish a separate baseline; do not accept the noise as a component change. |
+| `incomparable` | The two sides were painted under incompatible identities — a baseline stored under another renderer identity, or two rasters from two declared painters. | Align renderer inputs or establish a separate baseline; do not accept the noise as a component change. |
 | `ignored` | Pixels moved, but every difference was absorbed by a declared exclusion or sensitivity. | Continue while recording that the green result depended on a rule. |
 
 An observation also records whether rendering occurred, missing fonts,

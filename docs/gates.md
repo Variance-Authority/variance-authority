@@ -34,7 +34,7 @@ track review or flake history.
 | Additive Playwright capture | **yes** — native `test` and `expect` stay with Playwright |
 | In-place page screenshot | **yes** — two or more agreeing captures become the candidate raster |
 | Deferred render instead | **yes** — the same adapter can emit a document |
-| Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact` |
+| Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters return `incomparable` rather than a wall of red |
 | Arbitrary PNG CLI upload | **no** — the CLI has no ingest workflow |
 | Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe partition baselines |
 | Hosted comments, reviewers, and flake register | **no** — those are Argos product capabilities |

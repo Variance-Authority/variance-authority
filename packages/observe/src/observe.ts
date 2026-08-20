@@ -11,7 +11,7 @@ import {
   type SemanticSnapshot,
   type SourceIndex,
 } from '@variance-authority/core';
-import { documentDigest, formatSource, resolveSource } from '@variance-authority/core';
+import { documentDigest, formatSource, identityDigest, resolveSource } from '@variance-authority/core';
 import type { PngDecoder } from '@variance-authority/png';
 import {
   describeIdentity,
@@ -254,6 +254,15 @@ export interface ObserveOptions extends CompareInputs {
  * snapshot means no attribution, no exclusions and no bands. Each of those is
  * already an `undefined` that `decide` handles by saying less, so the reduction
  * arrives as absent fields in the observation rather than as a second code path.
+ *
+ * **The identities are checked here, and nowhere else could do it.** The two
+ * other paths get comparability for free — `observePair` renders both sides with
+ * one renderer in one run, and `observeAgainstBaseline` gets it from the store
+ * lookup, which knows what a baseline was written under. This one is handed two
+ * rasters from anywhere, so it is the only entry point where a caller can
+ * compare a WebKit baseline against a Chromium run, or an iOS simulator capture
+ * against a Figma export. Pixels are machine-bound; two identities is one word,
+ * and the alternative is a wall of red with no cause attached to it.
  */
 export async function observeRasters(
   subject: string,
@@ -261,6 +270,20 @@ export async function observeRasters(
   after: Raster,
   options: CompareInputs = {},
 ): Promise<Observation> {
+  if (identityDigest(before.identity) !== identityDigest(after.identity)) {
+    return {
+      subject,
+      verdict: 'incomparable',
+      because:
+        `\`${subject}\` was given two images from different painters: ` +
+        `${describeIdentity(before.identity)} and ${describeIdentity(after.identity)}; ` +
+        'pixels are machine-bound, so the two are not comparable',
+      regions: [],
+      rendered: false,
+      missingFonts: [],
+    };
+  }
+
   return await decide(subject, before, after, false, options);
 }
 
