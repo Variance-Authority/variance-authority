@@ -90,8 +90,9 @@ what survives.
   component reached last time — the reverse map the report already carries and
   `variance_trace_component` already reads), diff against the held
   observation, answer cause-first. Semantic tiers settle what they can; a
-  paint happens only when a raster question is asked. Warm-world costs are the
-  measured ones: ~7.5 ms a semantic capture, ~65 ms a paint.
+  paint happens only when a raster question is asked. In a warm world a paint
+  costs roughly an order of magnitude more than a semantic capture, which is
+  what makes cause-first affordable.
 - **`claim`** — declare intent for the next observation; the answer leads
   with the two arms that are not confirmation.
 - **`findings`** — the nine inspection rules over the current render, scoped

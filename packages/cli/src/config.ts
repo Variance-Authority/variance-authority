@@ -269,8 +269,8 @@ export interface Config {
    * high this is set, because the collector owns one standing world (ADR-0009)
    * and mounting two subjects into one document would let each decide the
    * other's verdict. What parallelises is rendering, decoding, comparing and
-   * writing — which is also where the time is: ~65 ms to paint against ~7.5 ms
-   * to collect.
+   * writing — which is also where the time is, by roughly an order of magnitude
+   * over collecting.
    *
    * Raising it is the operator's call because the cost is theirs. Each lane
    * holds a browser page and the decoded pixels of two images, so on a large

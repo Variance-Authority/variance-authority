@@ -105,7 +105,7 @@ export interface Acquired {
  *
  * A route's document holds a header, a nav and a footer that are not the subject,
  * and comparing all of it means every page moves when the nav does. Bounding the
- * subtree is also what makes pruning affordable — 1007 rules parsed, 1 reached
+ * subtree is also what makes pruning affordable — 1010 rules parsed, 1 reached
  * the normalizer, and that ratio is a property of a *bounded* subject. `body` is
  * accepted and is the caller saying the page is the subject.
  */

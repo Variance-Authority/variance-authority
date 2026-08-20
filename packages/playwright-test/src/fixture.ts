@@ -43,7 +43,7 @@ import { AGENT, type Acquired, type AcquireRequest, type InstalledAgent } from '
  *
  * **The subject is a `Locator`, never a `Page`.** A subject is a subtree, and
  * pruning is what makes the comparison affordable and the report assignable
- * (ADR-0003: 1007 rules parsed, 1 reached the normalizer). Handed a page, pruning
+ * (ADR-0003: 1010 rules parsed, 1 reached the normalizer). Handed a page, pruning
  * has nothing bounded to prune against and every rule the application loaded is
  * in the comparison.
  *

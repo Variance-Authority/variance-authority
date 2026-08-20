@@ -9,9 +9,9 @@ import type { Config } from '../config.js';
  * however wide that is. Splitting the pair across files is how somebody later
  * widens the half that must not widen.
  *
- * The numbers behind the shape: collecting a subject costs ~7.5 ms and painting
- * one ~65 ms, so the lane that is allowed to go wide is the one where the time
- * is, and the lane that may not is the cheap one.
+ * The number behind the shape: painting a subject costs roughly an order of
+ * magnitude more than collecting one, so the lane that is allowed to go wide is
+ * the one where the time is, and the lane that may not is the cheap one.
  */
 
 /**
@@ -24,7 +24,8 @@ import type { Config } from '../config.js';
  * removed: the shared world *is* the saving.
  *
  * So collection is serialized and everything downstream is not, which is the
- * right way round: collecting costs ~7.5 ms and the raster tier ~65 ms.
+ * right way round: the raster tier is where the time is, by an order of
+ * magnitude.
  */
 export function serial(): <T>(job: () => Promise<T>) => Promise<T> {
   let tail: Promise<unknown> = Promise.resolve();

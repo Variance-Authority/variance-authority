@@ -302,8 +302,11 @@ pollution becomes a read-write conflict with a named writer:
             cannot reach `story:card`
 ```
 
-Measured at **3.4× faster** than rinsing, with the probe costing **~2%** of
-session time. Details in [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md).
+Measured at **3–4× faster** than rinsing, with the probe costing **~2%** of
+session time. `packages/session/src/cost.test.ts` re-measures it on every run and
+asserts only that it is materially cheaper, because the multiple moves with the
+machine and a tight bound would fail on a loaded CI box. Details in
+[ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md).
 
 **A `variance run` does not do that.** It calls the adopter's collector once per
 subject, and the mount a probe would bracket happens inside that call, in a world

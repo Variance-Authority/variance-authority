@@ -18,7 +18,10 @@ the subjects that went through here.
 
 Nothing is torn down between subjects: no fresh jsdom per file, no browser per
 story, no Storybook reload, no re-parsing the design system's stylesheet.
-**Measured at 3.4× faster, with probe overhead around 2% of session time.**
+**Measured at 3–4× faster, with probe overhead around 2% of session time.**
+`src/cost.test.ts` takes both readings on every run and asserts a floor rather
+than the figure — the multiple moves with the machine, and a bound that pinned it
+would fail on a loaded CI box and teach everyone to ignore it.
 
 The risk that buys is cross-pollution — one subject leaving state another one
 reads. The industry answer is to rinse between subjects, and rinsing is exactly

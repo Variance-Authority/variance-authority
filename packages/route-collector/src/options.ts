@@ -74,7 +74,7 @@ export interface RouteCollectorOptions {
    * The subject's root, tightest first. Defaults to `body`.
    *
    * Bounding it is what keeps a shared header out of every page's comparison,
-   * and what makes pruning affordable — the 1007-rules-to-1 ratio is a property
+   * and what makes pruning affordable — the 1010-rules-to-1 ratio is a property
    * of a bounded subject. `body` is the caller saying the page is the subject.
    */
   readonly roots?: readonly string[];

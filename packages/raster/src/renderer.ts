@@ -4,8 +4,10 @@ import type { Raster, RenderDocument, RenderIdentity } from '@variance-authority
  * Rendering — phase two, and the only phase that is allowed to be expensive.
  *
  * One interface, three implementations, and the reason they share it is the
- * economics. Rasterization is machine-bound and slow: 65.4 ms against 3.4 ms for
- * a semantic collection of the same page in the same process (ADR-0010). Every
+ * economics. Rasterization is machine-bound and slow — roughly 18× a semantic
+ * collection of the same page in the same process, measured by
+ * `examples/todomvc`'s pixel arm at 54.0 ms against 3.0 ms and, on an earlier
+ * machine, 65.4 against 3.4. The multiple is the durable half. Every
  * strategy this project has for that cost — defer it, cache it, offload it to a
  * pinned machine, skip it entirely because the semantic tier already decided — is
  * a strategy about *who* implements this method, and none of them is expressible

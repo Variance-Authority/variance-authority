@@ -77,6 +77,6 @@ confident wrong answer, and the confidence is what makes it expensive.
 ## Reading
 
 - [ADR-0001](../../docs/context/adr/0001-toolchain-and-layout.md) — layout and direction
-- [ADR-0003](../../docs/context/adr/0003-cruft-removal-and-css-applicability.md) — CSS applicability pruning, 1007 rules → 1
+- [ADR-0003](../../docs/context/adr/0003-cruft-removal-and-css-applicability.md) — CSS applicability pruning, 1010 rules → 1
 - [ADR-0007](../../docs/context/adr/0007-subject-boundary-is-the-component-tree.md) — the subject boundary
 - [ADR-0008](../../docs/context/adr/0008-per-profile-expectations.md) — undecidable / divergent / undeclared

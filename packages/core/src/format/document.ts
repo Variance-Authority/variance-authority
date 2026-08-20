@@ -28,8 +28,9 @@ import type { ComponentHash } from './snapshot.js';
  *
  * ## Why this is small
  *
- * `css` holds the *applicable* rules only — the pruning of ADR-0003, which on the
- * todomvc corpus takes 1007 rules to 1. That number is a cost claim as much as a
+ * `css` holds the *applicable* rules only — the pruning of ADR-0003, which on
+ * `@variance-authority/dom`'s accretion fixture takes 1010 rules to 1. That
+ * number is a cost claim as much as a
  * correctness one: shipping a document over a network hop is only sensible if the
  * document is not the entire design system plus Storybook's chrome.
  */

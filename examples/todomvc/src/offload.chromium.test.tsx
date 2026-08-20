@@ -24,9 +24,9 @@ import { renderStory } from './render.js';
  * That is the direct answer to the cost that made containers the industry
  * default: rather than pin the whole pipeline everywhere in order to stabilise
  * the one artifact that is machine-bound, send the machine-bound artifact to the
- * one machine that is pinned. Measured on this corpus, a screenshot costs 65.4 ms
- * against 3.4 ms for a semantic collection (ADR-0010) — so the tier being
- * offloaded is also the tier that is rarely needed.
+ * one machine that is pinned. Measured on this corpus by `scripts/pixel-arm.mjs`,
+ * a screenshot costs roughly 18× a semantic collection of the same page — so the
+ * tier being offloaded is also the tier that is rarely needed.
  *
  * What is asserted here is not "the image is right" — nothing in this repository
  * can define that without a second implementation to compare against. It is the

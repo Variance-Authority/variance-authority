@@ -25,7 +25,8 @@ import { attributesOf, elements } from './dom-list.js';
  * What the two share is the expensive, load-bearing half: applicability pruning
  * (ADR-0003). A subject carrying Storybook's chrome, a preview reset, the design
  * system, and a CSS-in-JS tag that has been accreting since page load ships as
- * the rules that actually touch it — on the todomvc corpus, 1007 rules to 1.
+ * the rules that actually touch it — 1010 rules to 1 on the fixture in
+ * `collect.test.ts`.
  * That is a correctness result for comparison and a *transport* result here: an
  * offloaded render is only worth offloading if the payload is not the whole
  * application.

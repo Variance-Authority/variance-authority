@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { normalize, diffSnapshots, type Viewport } from '@variance-authority/core';
 import { collect } from './collect.js';
+import { indexStyleSheets } from './css-index.js';
 
 /**
  * The claim under test is ADR-0003's headline, and it is the one M0 could not
@@ -94,11 +95,30 @@ describe('CSS applicability pruning', () => {
   });
 
   it('prunes far more rules than it keeps', () => {
-    const root = render(SUBJECT_HTML, `${IRRELEVANT_CSS}\n${accretedCss(100)}\n${SUBJECT_CSS}`);
+    // ADR-0003's headline figure, taken here rather than reproduced by hand:
+    // the page it describes is 500 generations of CSS-in-JS accretion plus
+    // Storybook's chrome against a single-button subject. The ratio is the
+    // claim — `1007 → 1` is one reading of it, and the rule count moves the
+    // moment anybody edits a fixture above.
+    const css = `${IRRELEVANT_CSS}\n${accretedCss(500)}\n${SUBJECT_CSS}`;
+    const root = render(SUBJECT_HTML, css);
     const capture = collect(root, options);
 
+    const parsed = indexStyleSheets(document, {
+      viewport: VIEWPORT,
+      features: {},
+    }).totalRules;
     const kept = countRules(capture.root);
+
+    console.log(
+      `\n  CSS APPLICABILITY PRUNING\n    parsed: ${parsed}\n    kept:   ${kept}\n` +
+        `    pruned: ${(((parsed - kept) / parsed) * 100).toFixed(2)}%\n`,
+    );
+
+    // Bounds, not the figure. A tighter assertion here would fail on a fixture
+    // edit that changed nothing about pruning.
     expect(kept).toBeLessThan(10);
+    expect(parsed / kept).toBeGreaterThan(100);
   });
 });
 

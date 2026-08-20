@@ -44,13 +44,22 @@ scored** — ground truth declared before the run, per case, with its argument.
 
 ## The measurements that no test asserts
 
-Three figures the documentation leads with are reproducible only by running a
-named script: **1007 CSS rules → 1**, **7.5 ms warm against 205 ms cold**, and
-**3.4 ms semantic against 65.4 ms for a screenshot**. Each is a real measurement
-recorded in a journal, and each is one refactor away from being quietly wrong.
-Whatever asserts them should assert a **bound** rather than the figure — the
-session speedup already demonstrates why, having been recorded as 3.4×, 3.5× and
-a 3.1×–3.9× range in three different places for one quantity.
+Three figures the documentation leads with were quoted to a decimal place and
+reproducible only by hand: **1007 CSS rules → 1**, **7.5 ms warm against 205 ms
+cold**, and **3.4 ms semantic against 65.4 ms for a screenshot**. Running the
+three producers found that all three had drifted — to 1010 → 1, 9.0 against
+233.3 ms, and 3.0 against 54.0 ms — which is what a figure quoted as a constant
+does when only prose is holding it.
+
+The pruning ratio is now asserted where it is measured
+(`packages/dom/src/collect.test.ts` bounds it at 100× rather than pinning the
+count). The two timing figures cannot be: both need Chromium and half a minute,
+so neither belongs in a gate that has to stay fast and browserless. What was
+done instead is to stop quoting them as constants — the prose carries the
+**ratio**, which is machine-independent, and names the command that reproduces
+it. Whatever asserts a figure should assert a **bound**; the session speedup
+demonstrated why, having been recorded as 3.4×, 3.5× and a 3.1×–3.9× range in
+three different places for one quantity that reads 3.2× today.
 
 ## Leaves behind
 

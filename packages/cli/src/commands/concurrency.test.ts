@@ -6,8 +6,9 @@ import { configOf, documentFor, runWith, storeAnswering } from './run-fixture.js
 /**
  * Concurrency, and the two things it must not cost.
  *
- * Going wide over the raster tier is the largest lever a run has — painting is
- * ~65 ms against ~7.5 ms to collect — but it is worth nothing if it makes the
+ * Going wide over the raster tier is the largest lever a run has — painting
+ * costs roughly an order of magnitude more than collecting — but it is worth
+ * nothing if it makes the
  * report a function of timing, and it is actively dangerous if it lets two
  * subjects into the collector's one standing world at the same time.
  */

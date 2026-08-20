@@ -23,7 +23,11 @@ construction.
 
 ## The pruning is the moat
 
-**1007 CSS rules parsed → 1 reached the normalizer** on the measurement corpus.
+**1010 CSS rules parsed → 1 reached the normalizer — 99.90% pruned.** Measured
+in `src/collect.test.ts`, on a page carrying Storybook's chrome, a preview reset,
+dead utility classes and 500 generations of CSS-in-JS accretion against a
+single-button subject. The test asserts the ratio rather than the count, because
+the count moves with the fixture and the ratio is the claim.
 A design system's stylesheet is almost entirely irrelevant to any one subject,
 and a comparison that carries it is comparing the document a subject happened to
 be mounted in.
