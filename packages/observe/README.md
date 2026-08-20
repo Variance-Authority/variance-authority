@@ -29,7 +29,7 @@ with [`@variance-authority/cli`](../cli),
 | `observeAgainstBaseline` | The current document should be compared with a durable baseline. | A document, baseline key, renderer, and store containing the approved baseline. |
 | `observeRasters` | Both PNG rasters already exist, including foreign-image ingestion. | A subject id and two rasters; snapshot and source are optional enrichment. |
 | `observeCaptureAgainstBaseline` | An adapter emits the shared document-or-raster artifact. | A `CaptureArtifact`, baseline key, and store; a renderer only when the artifact contains a document. |
-| `summarizeObservation` | A caller needs a compact serializable summary of an observation. | An `Observation`. |
+| `summarizeObservation` | You are printing an observation to a person or an agent, outside the CLI. It is the string a failing `assertUnchanged` prints, and there is deliberately only one of it. | An `Observation`, and a `SourceIndex` when you want file lines. |
 | `declaredIgnores` | A report must account for ignore declarations even on paths that never compare. | The semantic snapshot and device scale. Most integrators should let the higher-level pipeline call it. |
 
 `observePair` and `observeAgainstBaseline` return the same `Observation`, so the

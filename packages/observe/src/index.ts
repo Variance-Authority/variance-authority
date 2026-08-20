@@ -15,12 +15,8 @@
  * which verdicts exist, and which of them are allowed to be `unchanged`.
  */
 
-export {
-  observePair,
-  observeAgainstBaseline,
-  observeRasters,
-  summarizeObservation,
-} from './observe.js';
+export { observePair, observeAgainstBaseline, observeRasters } from './observe.js';
+export { summarizeObservation } from './summarize.js';
 export { declaredIgnores } from './decide.js';
 export type {
   CompareInputs,

@@ -11,7 +11,7 @@ import {
   type SemanticSnapshot,
   type SourceIndex,
 } from '@variance-authority/core';
-import { documentDigest, formatSource, identityDigest, resolveSource } from '@variance-authority/core';
+import { documentDigest, identityDigest } from '@variance-authority/core';
 import type { PngDecoder } from '@variance-authority/png';
 import {
   describeIdentity,
@@ -448,48 +448,3 @@ function withComponents(
   return components === undefined ? pixels : { ...pixels, components };
 }
 
-/**
- * The observation as the thing a reviewer or an agent reads.
- *
- * The same shape the semantic report settled on, for the same reasons: a cause
- * per line rather than a picture, and a file path on the end, because `Toggle` is
- * an identifier and `src/ds/components.tsx:107` is an edit.
- */
-export function summarizeObservation(
-  observation: Observation,
-  options: { readonly source?: SourceIndex } = {},
-): string {
-  const head = `[${observation.verdict}] ${observation.subject} — ${observation.because}`;
-  if (observation.regions.length === 0) return head;
-
-  const lines = observation.regions.map((region) => {
-    const what = region.unattributed
-      ? `unattributed${region.nearest?.component !== undefined ? ` (nearest: ${region.nearest.component})` : ''}`
-      : (region.component ?? region.path ?? '?');
-
-    const declared =
-      options.source !== undefined && region.component !== undefined
-        ? resolveSource(region.component, options.source)
-        : null;
-
-    // The element's own line wins. Resolving a name answers where the component
-    // is declared, which is the same answer for every instance of it; this
-    // answers which instance.
-    const file =
-      region.source !== undefined
-        ? `${region.source.file}:${region.source.line}`
-        : declared !== null
-          ? formatSource(declared)
-          : null;
-
-    return [
-      `  ${region.region.pixels}px at ${region.region.x},${region.region.y} — ${what}`,
-      region.where !== undefined ? `      in ${region.where}` : null,
-      file !== null ? `      ${file}` : null,
-    ]
-      .filter((line): line is string => line !== null)
-      .join('\n');
-  });
-
-  return [head, ...lines].join('\n');
-}
