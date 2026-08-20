@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { identityDigest } from '@variance-authority/core';
 import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
 import type { Renderer } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import type { Config } from '../config.js';
-import { doctor, fontProbeDocument, type DoctorProbes } from './doctor.js';
+import { doctor, fontProbeDocument, machineProbes, type DoctorProbes } from './doctor.js';
 import { exitForDiagnosis, formatDiagnosis } from './doctor-report.js';
 
 const VIEWPORT: Viewport = {
@@ -197,5 +201,68 @@ describe('formatDiagnosis', () => {
     expect(text).toContain('NOT AVAILABLE');
     expect(text).toContain('fonts: not probed');
     expect(text).not.toContain('known limit');
+  });
+});
+
+/**
+ * The partition probe, against a real directory.
+ *
+ * Everything above injects probes; this is the one place the filesystem walk is
+ * asked what it sees, because the sentence it produces — *these baselines were
+ * painted by a machine you are not* — is the answer that otherwise costs an
+ * afternoon, and it is produced from directory names alone.
+ */
+describe('machineProbes partitions', () => {
+  const identity = identityDigest(IDENTITY);
+  const other = identityDigest({ ...IDENTITY, platform: 'darwin/arm64' });
+  const roots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  });
+
+  async function rootWith(files: readonly string[]): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'variance-doctor-'));
+    roots.push(root);
+    for (const file of files) {
+      await mkdir(join(root, dirname(file)), { recursive: true });
+      await writeFile(join(root, file), '', 'utf8');
+    }
+    return root;
+  }
+
+  it('counts a flat root', async () => {
+    const root = await rootWith([`${identity}/a.png`, `${identity}/b.png`, `${other}/a.png`]);
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([
+      { identity, baselines: 2 },
+      { identity: other, baselines: 1 },
+    ]);
+  });
+
+  it('finds partitions a `beside` layout put next to the components', async () => {
+    // A scan one level deep answers "this root holds nothing" for a root full of
+    // baselines, and a doctor that is wrong in the direction of fine is worse
+    // than no doctor.
+    const root = await rootWith([
+      `src/ui/Button/${identity}/primary.png`,
+      `src/ui/Card/${identity}/wide.png`,
+    ]);
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([{ identity, baselines: 2 }]);
+  });
+
+  it('does not read a render cache as a machine', async () => {
+    // `by-document` is a directory inside a partition. Counting it would report
+    // a second machine that does not exist, on every store whose cache sits
+    // beside its baselines.
+    const root = await rootWith([`${identity}/a.png`, `${identity}/by-document/v1:doc.png`]);
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([{ identity, baselines: 1 }]);
+  });
+
+  it('reports nothing for a root that is not there', async () => {
+    expect(await machineProbes(configOf()).partitions(join(tmpdir(), 'variance-doctor-absent')))
+      .toEqual([]);
   });
 });

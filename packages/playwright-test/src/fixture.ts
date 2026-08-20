@@ -300,6 +300,7 @@ export async function observeLocator(
     const observation = await observeCaptureAgainstBaseline(artifact, key, { store });
     if (accepting(testInfo) && observation.verdict !== 'unchanged') {
       await store.put(key, { ...candidate, components: hashComponents(snapshot) });
+      return accepted(observation);
     }
     return observation;
   }
@@ -328,9 +329,38 @@ export async function observeLocator(
 
   if (accepting(testInfo) && observation.verdict !== 'unchanged') {
     await promote(store, renderer, document, key, snapshot);
+    return accepted(observation);
   }
 
   return observation;
+}
+
+/**
+ * What a promoted subject reports, once it has been promoted.
+ *
+ * `--update-snapshots` is Playwright's word for *I have decided*, and a run under
+ * it that still reports `new` fails its own assertion — so the documented way to
+ * establish a first baseline exits 1, and every suite that follows the
+ * instruction has to grow a branch around `assertUnchanged` to survive the one
+ * command that is supposed to be routine.
+ *
+ * The verdict is the run's answer at the end of the step, and at the end of this
+ * one the stored baseline is this image. `because` carries what actually
+ * happened, because "unchanged" with no history is the sentence an operator would
+ * be right to distrust. The comparison and the regions go: both describe the
+ * baseline this run replaced, and a docket entry against an image nobody can
+ * fetch any more is a region ranking over a ghost.
+ */
+function accepted(observation: Observation): Observation {
+  const { comparison, ...rest } = observation;
+  void comparison;
+
+  return {
+    ...rest,
+    verdict: 'unchanged',
+    because: `accepted under --update-snapshots (${observation.because}); this run's image is the baseline`,
+    regions: [],
+  };
 }
 
 async function acquireFrom(locator: Locator, request: AcquireRequest): Promise<Acquired> {

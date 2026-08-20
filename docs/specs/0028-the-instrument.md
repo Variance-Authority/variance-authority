@@ -34,22 +34,22 @@ counters in the same code: this is **0.40× every counter it inserts**, and 0.74
 its statements alone. The ratio is the claim, and it is what holds still —
 `yarn workspace @variance-authority/sense census` prints it beside the absolute
 counts, which are a figure over this repository's own source and move whenever a
-file is added. The table below is one such reading, at 309 product files.
+file is added. The table below is one such reading, at 311 product files.
 
 | Probe | Count | What it means |
 |---|---|---|
-| module | 309 | the module's top level evaluated |
-| function entry | 2,554 | entered, and owns every statement before the first decision |
-| branch outcome | 3,842 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
-| continuation | 2,122 | the region *after* a decision, up to the next one |
-| `await` resume | 532 | execution came back — the stack after is not the stack before |
-| loop body | 566 | the body was entered at least once |
-| `switch` case | 141 | per clause, plus a synthesized `default` where none is written |
-| handler | 138 | `catch` and `finally` |
+| module | 311 | the module's top level evaluated |
+| function entry | 2,568 | entered, and owns every statement before the first decision |
+| branch outcome | 3,870 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
+| continuation | 2,139 | the region *after* a decision, up to the next one |
+| `await` resume | 538 | execution came back — the stack after is not the stack before |
+| loop body | 569 | the body was entered at least once |
+| `switch` case | 142 | per clause, plus a synthesized `default` where none is written |
+| handler | 141 | `catch` and `finally` |
 
 The function count matching Istanbul's exactly is not a coincidence and not a
 result: both give every function one entry site. The saving is entirely in the
-other two columns — 13,688 statements collapse to 2,122 continuations, because a
+other two columns — 13,787 statements collapse to 2,139 continuations, because a
 run of statements with no decision in it is one region.
 
 **A decision carries no probe of its own.** Its outcomes do. A bare

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import type { Raster } from '@variance-authority/core';
 import { neverFails, RasterStoreError, REFUSAL } from '@variance-authority/raster';
 import type { Described, Found, RasterStore } from '@variance-authority/raster';
-import { createDurableStore } from './durable.js';
+import { createDurableStore, type BaselineLayout } from './durable.js';
 
 /**
  * Baselines in the repository, tracked by git-LFS.
@@ -106,6 +106,17 @@ export interface LfsStoreOptions {
    */
   readonly cacheRoot?: string;
 
+  /**
+   * Where a subject's baseline sits under the root. See {@link BaselineLayout}.
+   *
+   * `beside` is the reason this store has the option at all: baselines in the
+   * source tree, tracked, arriving with the checkout and moving when the
+   * component moves. The `.gitattributes` entry needs nothing extra — attributes
+   * apply to the directory holding the file *and everything under it*, which is
+   * already why the entry lives in the baseline root.
+   */
+  readonly layout?: BaselineLayout;
+
   /** `false` skips consulting git entirely, and says so in the diagnostics. */
   readonly verify?: boolean;
 
@@ -151,9 +162,10 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
   const pattern = options.pattern ?? DEFAULT_PATTERN;
   const attributesFile = options.attributesFile ?? join(options.root, '.gitattributes');
 
-  const baselines = createDurableStore(options.root);
+  const layout = options.layout === undefined ? {} : { layout: options.layout };
+  const baselines = createDurableStore(options.root, layout);
   const cache =
-    options.cacheRoot === undefined ? baselines : createDurableStore(options.cacheRoot);
+    options.cacheRoot === undefined ? baselines : createDurableStore(options.cacheRoot, layout);
 
   // Ordered: writing the entry creates the directory that the check then runs
   // in, and a check in a directory that does not exist fails to spawn, which

@@ -22,12 +22,8 @@ test('observes without replacing Playwright primitives', async ({ page }, testIn
       subjectId: 'cart/empty',
     });
     expect(observation.subject).toBe('cart/empty');
-    if (process.env.VA_ACCEPT !== '1') {
-      assertUnchanged(observation);
-      expect(observation.verdict).toBe('unchanged');
-    } else {
-      expect(observation.verdict).toBe('new');
-    }
+    assertUnchanged(observation);
+    expect(observation.verdict).toBe('unchanged');
   } finally {
     await variance.close();
   }

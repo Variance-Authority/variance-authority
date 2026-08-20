@@ -14,6 +14,7 @@
  */
 
 export { createDurableStore } from './durable.js';
+export type { BaselineLayout, DurableStoreOptions } from './durable.js';
 
 export { createLfsStore } from './lfs.js';
 export type {

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { capture } from './capture.js';
-import { readCapture, writeCapture } from './archive.js';
+import { captureFiles, readCapture, writeCapture } from './archive.js';
 import { captureCollector } from './collector.js';
 
 const VIEWPORT = {
@@ -129,5 +129,63 @@ describe('browserless capture archive', () => {
     const nodePath = join(directory, 'node.va-capture.json');
     await writeFile(nodePath, JSON.stringify(malformedNested), 'utf8');
     await expect(readCapture(nodePath)).rejects.toThrow('invalid semantic snapshot');
+  });
+});
+
+/**
+ * One subject id, one capture, and a refusal for the second.
+ *
+ * The filename is the subject id, so two tests capturing `button/save` address
+ * one file. The README has always said this is an error; `rename` made it a
+ * silent last-write-wins, which means half a suite disappearing from a run that
+ * reports green over the half that remained.
+ */
+describe('a colliding subject id', () => {
+  async function captureInto(directory: string, html: string): Promise<void> {
+    await writeCapture(
+      directory,
+      await capture(mount(html), { subject: 'button/save', viewport: VIEWPORT }),
+    );
+  }
+
+  it('refuses the second write and names the file both wanted', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'variance-unit-'));
+    temporary.push(directory);
+
+    await captureInto(directory, '<button>Save</button>');
+
+    await expect(captureInto(directory, '<button>Store</button>')).rejects.toThrow(
+      'already has a capture at',
+    );
+  });
+
+  it('leaves the first capture as the one on disk', async () => {
+    // The point of refusing rather than overwriting: the earlier subject is
+    // still there to be rendered, and the run reads it rather than missing it.
+    const directory = await mkdtemp(join(tmpdir(), 'variance-unit-'));
+    temporary.push(directory);
+
+    await captureInto(directory, '<button>Save</button>');
+    await captureInto(directory, '<button>Store</button>').catch(() => undefined);
+
+    const files = await captureFiles(directory);
+    expect(files).toHaveLength(1);
+    const artifact = await readCapture(files[0]!);
+    expect(
+      artifact.material.kind === 'document' ? artifact.material.document.html : '',
+    ).toContain('Save');
+  });
+
+  it('leaves no temporary file behind when it refuses', async () => {
+    // The write lands under a `.tmp` name before it is published. A refusal that
+    // left it there would put a file in the handoff directory that the next
+    // `captureFiles` cannot explain and nothing will ever remove.
+    const directory = await mkdtemp(join(tmpdir(), 'variance-unit-'));
+    temporary.push(directory);
+
+    await captureInto(directory, '<button>Save</button>');
+    await captureInto(directory, '<button>Store</button>').catch(() => undefined);
+
+    expect((await readdir(directory)).filter((name) => name.endsWith('.tmp'))).toEqual([]);
   });
 });

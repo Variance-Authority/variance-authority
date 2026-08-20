@@ -1,8 +1,10 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { chromium } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const CASE = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -13,11 +15,34 @@ const CAPTURE_TEST = join(CASE, 'capture/button.capture.test.mjs');
 const CAPTURE_CONFIG = join(CASE, 'capture/vitest.config.mjs');
 const COLLECTOR = join(CASE, 'collector/index.mjs');
 
+const BROWSER_AVAILABLE = (() => {
+  try {
+    return existsSync(chromium.executablePath());
+  } catch {
+    return false;
+  }
+})();
+
+// The capture half is browserless by design; the second half of this workflow is
+// the CLI rendering what it captured, which is neither.
+const READY = BROWSER_AVAILABLE && existsSync(CLI);
+const live = READY ? describe : describe.skip;
+
+if (!READY) {
+  console.warn(
+    '\ncases/unit-capture-case: skipped.' +
+      (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
+      (existsSync(CLI) ? '' : '\n  the CLI is not built — yarn build') +
+      '\n',
+  );
+}
+
 let directory;
 let config;
 let environment;
 
 beforeAll(async () => {
+  if (!READY) return;
   directory = await mkdtemp(join(tmpdir(), 'variance-unit-workflow-'));
   const captures = join(directory, 'captures');
   config = join(directory, 'variance.config.json');
@@ -59,7 +84,7 @@ afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-describe('unit capture in one process, browser rendering in another', () => {
+live('unit capture in one process, browser rendering in another', () => {
   it('records and then re-observes the browserless artifact', () => {
     expect(() =>
       execFileSync(process.execPath, [CLI, 'run', '--config', config, '--exit-zero-on-changes'], {

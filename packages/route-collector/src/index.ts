@@ -252,6 +252,8 @@ export function routeCollector(
 
       async collect(planned: PlannedSubject): Promise<Collected> {
         const id = planned.subject.id;
+        const readyFor = (subject: string): string | undefined =>
+          options.ready?.[subject] ?? options.ready?.[routeOf(subject, options.widths)];
         // `route/home@375` is one width of `route/home`, and the URL belongs to
         // the route. Resolved here rather than by rewriting the plan's ids,
         // because the id is what a baseline, a report line and a `--subjects`
@@ -298,7 +300,12 @@ export function routeCollector(
             await page.goto(url, { waitUntil: 'load' });
           }
 
-          const ready = options.ready?.[id];
+          // Keyed by route, with the widened id winning when it is named. A
+          // readiness marker belongs to what the route renders, so an entry
+          // under `home` that stopped applying the moment `widths` was added
+          // would be a wait nobody asked to lose — silently, since a page that
+          // never became ready is captured mid-arrival rather than refused.
+          const ready = readyFor(id);
           if (ready !== undefined) {
             await page.waitForSelector(ready, {
               timeout: options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS,
@@ -309,9 +316,7 @@ export function routeCollector(
             ok: false,
             because:
               `the route did not become ready at ${url}` +
-              (options.ready?.[id] === undefined
-                ? ''
-                : ` (waiting for ${options.ready[id]})`) +
+              (readyFor(id) === undefined ? '' : ` (waiting for ${readyFor(id)})`) +
               `: ${error instanceof Error ? error.message : String(error)}`,
           };
         }

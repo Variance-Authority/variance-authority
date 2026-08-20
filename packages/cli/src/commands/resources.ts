@@ -291,7 +291,14 @@ export async function storeFor(config: Config): Promise<RasterStore> {
 
   switch (baselines.kind) {
     case 'directory':
-      return createDurableStore(baselines.root);
+      // Same rule as the LFS arm below, and for the same reason: every on-disk
+      // placement in `docs/placement.md` is a directory the operator commits, so
+      // the tracked root holds baselines and nothing else. See
+      // {@link renderCacheRoot}.
+      return createDurableStore(baselines.root, {
+        cacheRoot: renderCacheRoot(),
+        ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
+      });
     case 'lfs':
       return createLfsStore({
         root: baselines.root,
@@ -300,6 +307,7 @@ export async function storeFor(config: Config): Promise<RasterStore> {
         // make in the config file and why it is safe for it not to be.
         cacheRoot: renderCacheRoot(),
         ...(baselines.pattern !== undefined ? { pattern: baselines.pattern } : {}),
+        ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
       });
     case 'remote':
       return createRemoteStore({

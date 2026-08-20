@@ -28,18 +28,68 @@ import {
  * *means* — the shape of a record, the refusal, the wording — is in
  * `@variance-authority/raster` and is shared with every other backend.
  */
-export function createDurableStore(root: string): RasterStore {
+/**
+ * Where a subject's baseline sits under the root.
+ *
+ * `flat` is the original and the default: every image for the root lives under
+ * one identity directory, and a subject id with slashes in it is percent-encoded
+ * into a single filename. It is the placement to take when the baselines are a
+ * corpus — a directory somebody backs up, prunes, or points a bucket at.
+ *
+ * `beside` spends the slashes instead of encoding them, so `components/Button/primary`
+ * lands in `components/Button/`. With the root pointed at the source tree the
+ * baseline is in the directory holding the component it is a baseline of, which
+ * is what puts it in the same review, the same move and the same delete as the
+ * code. `docs/placement.md` is the page that chooses between them.
+ *
+ * The identity partition is unchanged either way — it moves down to the leaf
+ * directory rather than disappearing, because a baseline painted by another
+ * machine must still be in a directory this one does not read
+ * ([ADR-0011](../../../docs/context/adr/0011-durable-and-ephemeral-retention.md)).
+ */
+export type BaselineLayout = 'flat' | 'beside';
+
+export interface DurableStoreOptions {
+  /**
+   * Where a subject's baseline sits under the root. See {@link BaselineLayout}.
+   */
+  readonly layout?: BaselineLayout;
+
+  /**
+   * Where the render cache goes, if not beside the baselines.
+   *
+   * A durable store is also a render cache, and the cache is keyed by document
+   * digest — so it gains an entry for every edit and is worth nothing after the
+   * next one. Beside the baselines it shares their fate: a root the operator
+   * commits, and every placement in
+   * [`placement.md`](../../../docs/placement.md) except `remote` is one an
+   * operator commits. The tracked root then grows without bound with images
+   * nobody will look at, and the quota bought for baselines pays for them.
+   *
+   * Left unset the cache stays under `root`, which is what a store with no
+   * opinion about the work tree should do. The CLI sets it, because the CLI is
+   * the caller that knows the root is tracked.
+   */
+  readonly cacheRoot?: string;
+}
+
+export function createDurableStore(root: string, options: DurableStoreOptions = {}): RasterStore {
+  const cacheRoot = options.cacheRoot ?? root;
+  const layout = options.layout ?? 'flat';
+  const holderFor = (key: BaselineKey): string => holder(root, layout, key);
+
   return {
     retention: 'durable',
 
     async find(key, identity): Promise<Found | null> {
       const mine = identityDigest(identity);
-      const own = await load(root, mine, key);
+      const where = holderFor(key);
+      const own = await load(where, mine, key, layout);
       if (own !== null) return { raster: own.raster, comparable: true, storedUnder: own.identity };
 
-      for (const other of await identities(root)) {
+      for (const other of await identities(where)) {
         if (other === mine) continue;
-        const found = await load(root, other, key);
+        const found = await load(where, other, key, layout);
         if (found !== null) {
           return { raster: found.raster, comparable: false, storedUnder: found.identity };
         }
@@ -53,7 +103,8 @@ export function createDurableStore(root: string): RasterStore {
       // `find`, because "in terms of `find`" is precisely the megabyte this
       // exists to not spend.
       const mine = identityDigest(identity);
-      const own = await readSidecar(pathFor(root, mine, key));
+      const where = holderFor(key);
+      const own = await readSidecar(pathFor(where, mine, key, layout));
       if (own !== null) {
         return {
           documentDigest: own.documentDigest,
@@ -69,9 +120,9 @@ export function createDurableStore(root: string): RasterStore {
         };
       }
 
-      for (const other of await identities(root)) {
+      for (const other of await identities(where)) {
         if (other === mine) continue;
-        const sidecar = await readSidecar(pathFor(root, other, key));
+        const sidecar = await readSidecar(pathFor(where, other, key, layout));
         if (sidecar !== null) {
           return {
             documentDigest: sidecar.documentDigest,
@@ -88,7 +139,7 @@ export function createDurableStore(root: string): RasterStore {
     },
 
     async put(key, raster): Promise<void> {
-      const path = pathFor(root, identityDigest(raster.identity), key);
+      const path = pathFor(holderFor(key), identityDigest(raster.identity), key, layout);
       await mkdir(dirname(path), { recursive: true });
       await writeFile(`${path}.png`, Buffer.from(raster.bytes, 'base64'));
       // The sidecar carries the identity in readable form. A directory named by a
@@ -112,12 +163,12 @@ export function createDurableStore(root: string): RasterStore {
     // of something we can make again.
     renderCache: neverFails({
       async get(digest, identity): Promise<Raster | null> {
-        return readRaster(join(root, identityDigest(identity), 'by-document', digest));
+        return readRaster(join(cacheRoot, identityDigest(identity), 'by-document', digest));
       },
 
       async put(raster): Promise<void> {
         const path = join(
-          root,
+          cacheRoot,
           identityDigest(raster.identity),
           'by-document',
           raster.documentDigest,
@@ -134,9 +185,62 @@ export function createDurableStore(root: string): RasterStore {
   };
 }
 
-function pathFor(root: string, identity: Digest, key: BaselineKey): string {
-  const name = key.label === undefined ? key.subject : `${key.subject}__${key.label}`;
-  return join(root, identity, encodeURIComponent(name));
+/**
+ * What an identity directory is named, so a scan can tell one from a neighbour.
+ *
+ * `flat` never needed this — everything under the root was a partition. `beside`
+ * puts partitions among the subject's own siblings, where `Button/` and
+ * `by-document/` are directories too, and a sibling scan that reported them as
+ * machine identities would answer `incomparable` naming a component.
+ */
+const IDENTITY_DIRECTORY = /^v1:[0-9a-f]{32}$/;
+
+function pathFor(holder: string, identity: Digest, key: BaselineKey, layout: BaselineLayout): string {
+  return join(holder, identity, encodeURIComponent(fileName(key, layout)));
+}
+
+/**
+ * The directory holding this key's identity partitions.
+ *
+ * `flat` answers the root for every key, which is what makes one `readdir` the
+ * whole sibling scan. `beside` answers the subject's own directory, so the scan
+ * that turns a wrong-machine run into `incomparable` reads that directory rather
+ * than the tree — cheaper, and scoped to the subject actually being asked about.
+ */
+function holder(root: string, layout: BaselineLayout, key: BaselineKey): string {
+  if (layout === 'flat') return root;
+  return join(root, ...segments(key.subject).slice(0, -1));
+}
+
+function fileName(key: BaselineKey, layout: BaselineLayout): string {
+  const subject = layout === 'flat' ? key.subject : segments(key.subject).at(-1) as string;
+  return key.label === undefined ? subject : `${subject}__${key.label}`;
+}
+
+/**
+ * A subject id split into path segments, refusing the ones that escape the root.
+ *
+ * Only `beside` splits, and only `beside` can therefore be steered by a subject
+ * id: a collector naming a subject `../../etc/hosts` would otherwise write a PNG
+ * wherever the id said. `..`, an absolute id and an empty segment are refused by
+ * name, because the alternative is a store whose write location is decided by
+ * whatever produced the plan.
+ */
+function segments(subject: string): readonly string[] {
+  if (subject.startsWith('/')) {
+    throw new RasterStoreError(`subject id ${JSON.stringify(subject)} is an absolute path`);
+  }
+  const parts = subject.split('/');
+  for (const part of parts) {
+    if (part === '' || part === '.' || part === '..') {
+      throw new RasterStoreError(
+        `subject id ${JSON.stringify(subject)} has a ${JSON.stringify(part)} segment, and a ` +
+          '`beside` layout would write outside the baseline root. Use the `flat` layout, or ' +
+          'give the subject an id that is a path.',
+      );
+    }
+  }
+  return parts;
 }
 
 /**
@@ -148,18 +252,21 @@ function pathFor(root: string, identity: Digest, key: BaselineKey): string {
  * `incomparable` instead of `new`, so a directory this process was refused would
  * otherwise quietly downgrade that sentence into the one that re-records.
  */
-async function identities(root: string): Promise<readonly string[]> {
-  const entries = await orAbsent(() => readdir(root, { withFileTypes: true }), root);
+async function identities(holder: string): Promise<readonly string[]> {
+  const entries = await orAbsent(() => readdir(holder, { withFileTypes: true }), holder);
   if (entries === null) return [];
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  return entries
+    .filter((entry) => entry.isDirectory() && IDENTITY_DIRECTORY.test(entry.name))
+    .map((entry) => entry.name);
 }
 
 async function load(
-  root: string,
+  holder: string,
   identity: string,
   key: BaselineKey,
+  layout: BaselineLayout,
 ): Promise<{ raster: Raster; identity: RenderIdentity } | null> {
-  const raster = await readRaster(pathFor(root, identity, key));
+  const raster = await readRaster(pathFor(holder, identity, key, layout));
   return raster === null ? null : { raster, identity: raster.identity };
 }
 

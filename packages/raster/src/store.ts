@@ -178,6 +178,24 @@ export interface RasterStore {
   put(key: BaselineKey, raster: Raster): Promise<void>;
 
   /**
+   * What this run is about to ask about — a hint, and never a question.
+   *
+   * A store on a disk ignores it: `describe` is a `readFile`, and there is
+   * nothing to save. A store across a hop is the reason it exists. Most subjects
+   * in a run are settled from the sidecar without an image ever moving, which is
+   * the whole argument for `describe` — and across a network that saving is spent
+   * again as three hundred sequential round trips to answer thirty-two hex
+   * characters each. Declared up front they are one request.
+   *
+   * Optional, and calling it must change no verdict. It declares nothing about
+   * the subjects that are *not* named: a lookup outside the declared set is
+   * answered exactly as it would have been, because a run that narrowed its
+   * selection and then asked about something else must get an answer rather than
+   * a miss.
+   */
+  expect?(keys: readonly BaselineKey[]): void;
+
+  /**
    * Images this machine has already painted. See {@link RenderCache}.
    *
    * A property rather than two methods, because it is a different object with a

@@ -85,11 +85,14 @@ something a rung buys.
 }
 ```
 
-**You set up** git-lfs. The store writes its own `.gitattributes` entry, so the
-operator's step is installing the filter. Local development can use
-`{ "kind": "directory" }` instead — the same layout without the filter — but in CI
-a plain directory either bloats the git history with binary blobs or does not
-persist between runs, which is why LFS is the floor rather than the fallback.
+**You set up** git-lfs, and a root your repository actually commits — an ignored
+baseline directory reports every subject `new` forever without ever erroring, and
+[`placement.md`](placement.md) is where that and the other two placements are
+chosen. The store writes its own `.gitattributes` entry, so the operator's step is
+installing the filter. Local development can use `{ "kind": "directory" }` instead
+— the same layout without the filter — but in CI a plain directory either bloats
+the git history with binary blobs or does not persist between runs, which is why
+LFS is the floor rather than the fallback.
 
 **You get** regression, reviewed on the pull request. The action fails the check
 from the CLI's exit code, posts one comment updated in place that leads with causes
@@ -167,7 +170,10 @@ reason to climb to rung 4 than storage capacity is.
 }
 ```
 
-**You set up** one deployment serving five paths, and one token in CI.
+**You set up** one deployment serving six paths, and one token in CI. The sixth
+is the working set — one request that answers every subject the run selected,
+instead of one per subject — and a deployment without it is answered per key
+rather than refused ([`placement.md`](placement.md#somewhere-else-entirely)).
 
 **You get** baselines out of the repository. No bot commits on branches, no LFS
 bandwidth quota, and a corpus that can grow past what anyone wants in a clone.

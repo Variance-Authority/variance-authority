@@ -125,10 +125,17 @@ snapshot flag:
 npx playwright test --update-snapshots=all
 ```
 
-Acceptance promotes the candidate painted by that run; it never paints a
-second, unseen image. The observation returned by the acceptance run still
-describes what it saw, so rerun the test normally to prove the stored baseline
-is found and the assertion passes.
+Acceptance promotes the candidate painted by that run; it never paints a second,
+unseen image. That run **passes**: a subject it promoted comes back `unchanged`,
+with a `because` naming the acceptance and the verdict it replaced, so the
+documented command is one an operator can run without a branch in the spec around
+`assertUnchanged`. The comparison and the ranked regions are dropped with it —
+both describe the baseline that was just replaced.
+
+Only `--update-snapshots=all` and `=changed` cross that boundary. Playwright
+defaults the field to `missing` with no flag supplied, and treating the default as
+approval would write a baseline from the same failed run that reported it
+unreviewed.
 
 Use an explicit `subjectId` for long-lived baselines. When it is omitted, the id
 comes from the test title path; renaming the test then produces `new` instead of

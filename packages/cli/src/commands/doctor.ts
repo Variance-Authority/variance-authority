@@ -1,6 +1,3 @@
-import { access, readdir } from 'node:fs/promises';
-import type { Dirent } from 'node:fs';
-import { join } from 'node:path';
 import {
   identityDigest,
   type ProfileId,
@@ -8,9 +5,9 @@ import {
   type RenderIdentity,
   type Viewport,
 } from '@variance-authority/core';
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
-import type { BrowserEngine, Config } from '../config.js';
+import type { Config } from '../config.js';
+import type { DoctorProbes } from './doctor-probes.js';
 
 /**
  * `variance doctor` — what *this* machine can observe, and nothing else.
@@ -100,7 +97,8 @@ export interface BaselineFinding {
    * above all others — the machine you are on is not the machine that painted
    * the baselines — and it usually surfaces as a full-red run with no
    * explanation. It is a `readdir` here, because the store's layout *is* the
-   * partition: `<root>/<identityDigest>/<subject>.png`.
+   * partition: `<…>/<identityDigest>/<subject>.png`, at the root under a `flat`
+   * layout and in the subject's own directory under `beside`.
    *
    * Absent when nothing was looked at: a remote store is not contacted, and an
    * ephemeral run has no baselines to be comparable with.
@@ -124,86 +122,10 @@ export interface HistoryFinding {
   readonly because: string;
 }
 
-export interface DoctorProbes {
-  /** Opens a renderer on this machine. Rejecting is a finding, not an error. */
-  renderer(): Promise<Renderer>;
-  /** Whether a path exists here. Used for baseline roots; never for a URL. */
-  exists(path: string): Promise<boolean>;
-  /**
-   * The identity directories under a baseline root, and how many images each holds.
-   *
-   * A probe rather than a call into `@variance-authority/store` because doctor
-   * must answer for a root that is empty, absent, or holds something else
-   * entirely — none of which a store can open — and because the CLI does not
-   * reach into a backend's layout to ask a question the backend was not asked.
-   */
-  partitions(root: string): Promise<readonly { identity: string; baselines: number }[]>;
-}
-
-/**
- * Everything the config says about the renderer, in one expression.
- *
- * One expression because there are two call sites — this file and `rendererFor`
- * in `bin.ts` — and they answer the same question. They had already drifted once
- * by construction: `browser` arrived as a config field and `bin` read it while
- * this did not, which makes `doctor` launch Chromium, report *a renderer opened*,
- * and hand a green answer to an operator whose run is about to fail on a WebKit
- * that is not installed. A doctor that is wrong in the direction of "fine" is
- * worse than no doctor.
- */
-export function rendererOptionsFor(config: Config): { fonts: readonly string[]; browser?: BrowserEngine } {
-  return {
-    fonts: config.fonts,
-    ...(config.browser === undefined ? {} : { browser: config.browser }),
-  };
-}
-
-/** The probes as they run for real: a browser, and the filesystem. */
-export function machineProbes(config: Config): DoctorProbes {
-  return {
-    renderer: () => createPlaywrightRenderer(rendererOptionsFor(config)),
-    exists: async (path) => {
-      try {
-        await access(path);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    partitions: async (root) => {
-      let entries: Dirent[];
-      try {
-        entries = await readdir(root, { withFileTypes: true });
-      } catch {
-        // A root that cannot be listed is reported by `exists` in the same
-        // finding. Two ways to say "there is nothing here" would let the two
-        // disagree, and the one with the better sentence should win.
-        return [];
-      }
-
-      return (
-        await Promise.all(
-          entries
-            .filter((entry) => entry.isDirectory())
-            .map(async (entry) => ({
-              identity: entry.name,
-              baselines: (await orNone(join(root, entry.name))).filter((name) =>
-                name.endsWith('.png'),
-              ).length,
-            })),
-        )
-      ).sort((left, right) => right.baselines - left.baselines);
-    },
-  };
-}
-
-async function orNone(directory: string): Promise<readonly string[]> {
-  try {
-    return await readdir(directory);
-  } catch {
-    return [];
-  }
-}
+// The machine half lives next door; `./doctor` remains the one import for both,
+// because a caller needs the probes and the reasoning together or neither.
+export { machineProbes, rendererOptionsFor } from './doctor-probes.js';
+export type { DoctorProbes } from './doctor-probes.js';
 
 export async function doctor(config: Config, probes: DoctorProbes): Promise<Diagnosis> {
   let renderer: Renderer | null = null;

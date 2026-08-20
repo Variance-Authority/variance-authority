@@ -1,14 +1,33 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { chromium } from '@playwright/test';
 import { describe, expect, it } from 'vitest';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const cli = fileURLToPath(new URL('../../../node_modules/@playwright/test/cli.js', import.meta.url));
 
-function playwright(arguments_, baselines, accepting = false) {
+const BROWSER_AVAILABLE = (() => {
+  try {
+    return existsSync(chromium.executablePath());
+  } catch {
+    return false;
+  }
+})();
+
+const live = BROWSER_AVAILABLE ? describe : describe.skip;
+
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\ncases/playwright-additive-case: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
+function playwright(arguments_, baselines) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
@@ -19,7 +38,6 @@ function playwright(arguments_, baselines, accepting = false) {
           ...process.env,
           VA_BASELINES: baselines,
           VA_RESULTS: join(baselines, 'playwright-results'),
-          ...(accepting ? { VA_ACCEPT: '1' } : {}),
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       },
@@ -36,14 +54,16 @@ function playwright(arguments_, baselines, accepting = false) {
   });
 }
 
-describe('native Playwright Test consumer', () => {
+live('native Playwright Test consumer', () => {
   it('accepts then observes an in-place raster with native test and expect', async () => {
     const baselines = await mkdtemp(join(tmpdir(), 'variance-playwright-consumer-'));
     try {
       const unapproved = await playwright([], baselines);
       expect(unapproved.code, unapproved.output).toBe(1);
 
-      const accepted = await playwright(['--update-snapshots=all'], baselines, true);
+      // The documented command, run exactly as the README gives it: no branch in
+      // the spec around `assertUnchanged`, and exit 0 for a subject it promoted.
+      const accepted = await playwright(['--update-snapshots=all'], baselines);
       expect(accepted, accepted.output).toMatchObject({ code: 0 });
 
       const unchanged = await playwright([], baselines);

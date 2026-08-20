@@ -45,6 +45,20 @@ The sidecar carries the identity in readable form. A directory named by a digest
 is unreviewable, and a baseline nobody can attribute to a machine is a baseline
 nobody can decide to discard.
 
+`createDurableStore(root, options)` takes two, and `createLfsStore` passes both
+through:
+
+| option | default | what it decides |
+|---|---|---|
+| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` reads the subject id as a path and walks it down from the root — `src/ui/Button/<identityDigest>/primary.png` — so baselines sit in the source tree, arrive with the checkout, and move when the component moves. An id with a `..` or an empty segment is refused rather than resolved, because it would write outside the root |
+| `cacheRoot` | `root` | where the render cache goes, since a durable store is also one. See the LFS table below; the argument is the same and so is the default |
+
+Both layouts keep the identity directory, because that partition is the only
+thing between a runner-image upgrade and a day of unattributable red. Which
+placement a project wants — and the one rule neither layout can enforce, that a
+committed root has to actually be committed — is
+[`placement.md`](../../docs/placement.md).
+
 ## `null` is earned by exactly one outcome
 
 Both halves of the pair absent. Everything else throws — one file without the

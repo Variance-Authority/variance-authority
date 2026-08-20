@@ -102,6 +102,23 @@ client is not the only thing that could want it. It takes `maxBatch` and
 `batchWindowMs`, renamed there because at that level "batch" is already implied
 and `windowMs` alone would read as a timeout.
 
+## A suite is one request when the store is asked in advance
+
+Most subjects settle from the sidecar — 32 hex characters, no image moved — and
+over a socket that saving is spent again as one request per subject. `expect(keys)`
+on the store is where a caller says which subjects this run is going to ask about;
+the client then fetches all of their sidecars for one identity from
+`/baseline/working-set` in a single request, and answers `describe` out of it.
+`variance run` declares the set after selection, so a narrowed run does not fetch
+what it will not consult.
+
+It is a hint and never a question. It is optional on `RasterStore`, so a store on
+a disk simply does not have it; a server from before the path existed answers 404
+and the client falls back to one request per key; a subject with no baseline comes
+back as an *answer* rather than as a miss, so a first run costs one request too.
+Nothing about it can move a verdict, which is the property that lets it be added
+to a deployed protocol at all.
+
 ## Nothing that arrives is believed on different terms
 
 A record off a socket passes the same checks a record off a disk passes, from

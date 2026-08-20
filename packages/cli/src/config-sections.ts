@@ -1,4 +1,5 @@
 import type { Viewport } from '@variance-authority/core';
+import type { BaselineLayout } from '@variance-authority/store';
 import {
   fail,
   integer,
@@ -117,17 +118,30 @@ export interface DiscoveredSubjects {
   readonly collector: string;
 }
 
+/**
+ * Where baselines live — the one axis with no default and no inferred answer.
+ *
+ * Three placements, chosen in [`placement.md`](../../../docs/placement.md), and
+ * the choice is the operator's because the three fail in different directions
+ * and none of them is safe to guess: `directory` and `lfs` are committed, and a
+ * repository that ignores them reports every subject `new` forever without ever
+ * erroring; `remote` is not committed, and a run that cannot reach it must stop.
+ * Nothing here reads a verdict differently
+ * ([ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)).
+ */
 export type BaselinesConfig = DirectoryBaselines | LfsBaselines | RemoteBaselines;
 
 export interface DirectoryBaselines {
   readonly kind: 'directory';
   readonly root: string;
+  readonly layout?: BaselineLayout;
 }
 
 export interface LfsBaselines {
   readonly kind: 'lfs';
   readonly root: string;
   readonly pattern?: string;
+  readonly layout?: BaselineLayout;
 }
 
 export interface RemoteBaselines {
@@ -268,21 +282,33 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
   }
 
   if (kind === 'lfs') {
-    const source = object(value, 'baselines', ['kind', 'root', 'pattern'], options);
+    const source = object(value, 'baselines', ['kind', 'root', 'pattern', 'layout'], options);
     const pattern = optionalText(source, 'pattern', options, 'baselines.pattern');
+    const layout = parseLayout(source['layout'], options);
 
     return {
       kind: 'lfs',
       root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
       ...(pattern !== undefined ? { pattern } : {}),
+      ...(layout !== undefined ? { layout } : {}),
     };
   }
 
-  const source = object(value, 'baselines', ['kind', 'root'], options);
+  const source = object(value, 'baselines', ['kind', 'root', 'layout'], options);
+  const layout = parseLayout(source['layout'], options);
   return {
     kind: 'directory',
     root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
+    ...(layout !== undefined ? { layout } : {}),
   };
+}
+
+function parseLayout(value: unknown, options: ParseOptions): BaselineLayout | undefined {
+  if (value === undefined) return undefined;
+  if (value !== 'flat' && value !== 'beside') {
+    fail('baselines.layout', `must be "flat" or "beside", not ${quote(value)}`, options);
+  }
+  return value as BaselineLayout;
 }
 
 export function parseRenderer(value: unknown, options: ParseOptions): RemoteRendererConfig {

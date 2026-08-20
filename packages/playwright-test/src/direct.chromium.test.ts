@@ -62,7 +62,13 @@ chromium_('the additive Playwright path', () => {
       baselines,
       subjectId: 'cart/empty',
     });
-    expect(accepted.verdict).toBe('new');
+    // The run the README tells an adopter to make. It promoted the candidate, so
+    // it passes its own assertion — a first baseline that could only be
+    // established by a failing run is a documented command nobody can put in CI.
+    expect(() => assertUnchanged(accepted)).not.toThrow();
+    expect(accepted.verdict).toBe('unchanged');
+    expect(accepted.because).toContain('accepted under --update-snapshots');
+    expect(accepted.because).toContain('cart/empty');
 
     const unchanged = await observe(page!, locator, info('none'), {
       baselines,
@@ -110,8 +116,12 @@ chromium_('the additive Playwright path', () => {
         subjectId: 'cart/in-place',
       });
 
-      expect(first.verdict).toBe('new');
+      // Both `unchanged`, for different reasons: the first because it was
+      // accepted, the second because it was compared.
+      expect(first.verdict).toBe('unchanged');
+      expect(first.because).toContain('accepted under --update-snapshots');
       expect(second.verdict).toBe('unchanged');
+      expect(second.because).not.toContain('accepted');
       expect(second.rendered).toBe(false);
       expect(rendererCalls).toBe(0);
     } finally {
@@ -235,7 +245,9 @@ chromium_('the additive Playwright path', () => {
     try {
       const first = await session.observe(target, { subjectId: 'cart/in-place-animation' });
       const second = await session.observe(target, { subjectId: 'cart/in-place-animation' });
-      expect(first.verdict).toBe('new');
+      // Two `unchanged` verdicts is the whole assertion: the second compared an
+      // animating subject against the first and found the same pixels.
+      expect(first.because).toContain('accepted under --update-snapshots');
       expect(second.verdict).toBe('unchanged');
     } finally {
       await target.evaluate((element) => {

@@ -92,6 +92,14 @@ through Storybook's channel, waits for the rendered state, and acquires each
 subject. It operates beside Storybook: it does not install an addon, modify
 `.storybook`, replace the renderer, or own the build command.
 
+One capability is bought in the build rather than beside it. Resolving a changed
+element to the line it is *written* on needs a call site, and a built, minified
+Storybook has none — so that route reports the line each component is **declared**
+on until `.storybook/main.js` carries the
+[`jsx-source`](../packages/jsx-source) plugin, `esbuild.jsxDev`, and
+`esbuild.keepNames`. A development Storybook needs none of the three. Every other
+part of collection is unaffected either way.
+
 This route deliberately produces documents. A run may paint them locally, reuse
 a cached raster, or use a remote renderer that can reach the same resources. The
 Storybook collector records resource hashes but not resource bytes, so its output

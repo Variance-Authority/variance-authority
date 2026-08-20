@@ -7,6 +7,7 @@ import { RasterStoreError, type RasterStore } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store';
 import {
   BASELINE_DESCRIBE_PATH,
+  BASELINE_WORKING_SET_PATH,
   createRemoteStore,
   serveRasterStore,
   type StoreServer,
@@ -349,5 +350,133 @@ describe('a store that cannot answer', () => {
     const store = createRemoteStore({ endpoint: server.url, timeoutMs: 50 });
 
     await expect(store.find({ subject: 's' }, MAC)).rejects.toBeInstanceOf(RasterStoreError);
+  });
+});
+
+/**
+ * The working set: one request for what the run will ask about.
+ *
+ * A run settles most subjects from the sidecar and never moves an image, which
+ * is what makes `describe` worth having — and across a hop that saving is spent
+ * again as one round trip per subject. These tests count requests, because the
+ * count is the whole claim.
+ */
+describe('a declared working set', () => {
+  /** Counts by path, so "one request" is an assertion rather than a description. */
+  function counting(): { fetch: typeof globalThis.fetch; paths: string[] } {
+    const paths: string[] = [];
+    return {
+      paths,
+      fetch: (input, init) => {
+        paths.push(new URL(String(input)).pathname);
+        return globalThis.fetch(input, init);
+      },
+    };
+  }
+
+  it('answers every declared subject from one request', async () => {
+    const backing = createDurableStore(root);
+    await backing.put({ subject: 'a' }, rasterOf(MAC));
+    await backing.put({ subject: 'b' }, rasterOf(MAC));
+    server = await serveRasterStore(backing);
+    const counted = counting();
+    const store = createRemoteStore({ endpoint: server.url, fetch: counted.fetch });
+
+    store.expect?.([{ subject: 'a' }, { subject: 'b' }, { subject: 'c' }]);
+    const described = [
+      await store.describe({ subject: 'a' }, MAC),
+      await store.describe({ subject: 'b' }, MAC),
+      await store.describe({ subject: 'c' }, MAC),
+    ];
+
+    expect(described.map((entry) => entry?.documentDigest ?? null)).toEqual([
+      'v1:doc',
+      'v1:doc',
+      null,
+    ]);
+    expect(counted.paths).toEqual([BASELINE_WORKING_SET_PATH]);
+  });
+
+  it('keeps `comparable` false for another machine`s baseline', async () => {
+    // The prefetch must not become a second implementation of the sibling scan
+    // with a different answer. It is the server's `describe`, in bulk.
+    const backing = createDurableStore(root);
+    await backing.put({ subject: 'a' }, rasterOf(RUNNER));
+    server = await serveRasterStore(backing);
+    const store = createRemoteStore({ endpoint: server.url });
+
+    store.expect?.([{ subject: 'a' }]);
+
+    const described = await store.describe({ subject: 'a' }, MAC);
+    expect(described?.comparable).toBe(false);
+    expect(described?.storedUnder.platform).toBe('linux/x64');
+  });
+
+  it('asks the endpoint for a subject nobody declared', async () => {
+    // Declaring narrows what is fetched, never what can be asked. A run that
+    // looked up something outside its selection must get an answer, not a miss.
+    const backing = createDurableStore(root);
+    await backing.put({ subject: 'undeclared' }, rasterOf(MAC));
+    server = await serveRasterStore(backing);
+    const counted = counting();
+    const store = createRemoteStore({ endpoint: server.url, fetch: counted.fetch });
+
+    store.expect?.([{ subject: 'a' }]);
+    const described = await store.describe({ subject: 'undeclared' }, MAC);
+
+    expect(described?.documentDigest).toBe('v1:doc');
+    expect(counted.paths).toEqual([BASELINE_WORKING_SET_PATH, BASELINE_DESCRIBE_PATH]);
+  });
+
+  it('falls back to one request per key against a server without the path', async () => {
+    // The path was added to a protocol that is already deployed. A server that
+    // has never heard of it still answers every `describe` correctly, so the
+    // client degrades to slower rather than to broken.
+    const backing = createDurableStore(root);
+    await backing.put({ subject: 'a' }, rasterOf(MAC));
+    server = await serveRasterStore(backing);
+    const url = server.url;
+    const counted = counting();
+    const store = createRemoteStore({
+      endpoint: url,
+      fetch: (input, init) =>
+        new URL(String(input)).pathname === BASELINE_WORKING_SET_PATH
+          ? Promise.resolve(new Response('{"error":"no route"}', { status: 404 }))
+          : counted.fetch(input, init),
+    });
+
+    store.expect?.([{ subject: 'a' }]);
+
+    expect((await store.describe({ subject: 'a' }, MAC))?.documentDigest).toBe('v1:doc');
+    expect(counted.paths).toEqual([BASELINE_DESCRIBE_PATH]);
+  });
+
+  it('refuses an unreachable endpoint rather than reading it as an empty set', async () => {
+    // The failure this whole file is about, arriving one layer earlier. A
+    // prefetch that answered "no baselines" to an outage would record the entire
+    // suite as `new` and report success.
+    const store = createRemoteStore({ endpoint: await deadEndpoint() });
+    store.expect?.([{ subject: 'a' }]);
+
+    await expect(store.describe({ subject: 'a' }, MAC)).rejects.toThrow(RasterStoreError);
+  });
+
+  it('sends one request however many subjects ask at once', async () => {
+    // The run is concurrent. One in-flight prefetch per identity, or the
+    // optimisation becomes as many requests as there are workers.
+    const backing = createDurableStore(root);
+    await backing.put({ subject: 'a' }, rasterOf(MAC));
+    server = await serveRasterStore(backing);
+    const counted = counting();
+    const store = createRemoteStore({ endpoint: server.url, fetch: counted.fetch });
+
+    store.expect?.([{ subject: 'a' }, { subject: 'b' }]);
+    await Promise.all([
+      store.describe({ subject: 'a' }, MAC),
+      store.describe({ subject: 'b' }, MAC),
+      store.describe({ subject: 'a' }, MAC),
+    ]);
+
+    expect(counted.paths).toEqual([BASELINE_WORKING_SET_PATH]);
   });
 });

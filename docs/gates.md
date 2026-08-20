@@ -55,6 +55,7 @@ visual checks.
 | Interaction/play completion | **yes** — collection waits for Storybook's rendered state |
 | Local or remote render | **conditional** — the Storybook document does not archive resource bytes |
 | Managed change selection | **partial** — source/baseline selection exists, without Chromatic's hosted module-graph service |
+| Changed element resolved to `file:line` | **conditional** — a development Storybook needs nothing; a built, minified one is attributed to the line a component is *declared* on until its build carries `jsx-source`, `esbuild.jsxDev` and `keepNames` |
 | Vendor-hosted branch semantics and reviewer workflow | **no** |
 | Non-engineer hosted review | **no** |
 

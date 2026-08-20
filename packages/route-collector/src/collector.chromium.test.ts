@@ -149,6 +149,43 @@ chromium_('a run over routes', () => {
     expect(collected.document.html).not.toContain('loading…');
   }, 60_000);
 
+  it('keeps a route\'s readiness marker when widths split it into several subjects', async () => {
+    // `widths` renames the subject and not the route, and the marker belongs to
+    // what the route renders. Keyed by the widened id alone, adding one line of
+    // config would drop every wait in the file — and a route that is never
+    // waited for is captured mid-arrival rather than refused, so the loss is a
+    // baseline of a placeholder.
+    const widened = await routeCollector({
+      routes: { 'page/deferred': `${base}/deferred` },
+      roots: ['#app'],
+      widths: [420],
+      ready: { 'page/deferred': '[data-testid="late"]' },
+      readyTimeoutMs: 5000,
+    })({
+      config: {
+        viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' },
+      },
+      plan: {
+        subjects: [{ subject: { id: 'page/deferred', kind: 'route' } }],
+        notObserved: [],
+        warnings: [],
+      },
+    });
+
+    try {
+      const plan = await widened.plan();
+      expect(plan.subjects.map((planned) => planned.subject.id)).toEqual(['page/deferred@420']);
+
+      const collected = await widened.collect(plan.subjects[0]!);
+      expect(collected.ok).toBe(true);
+      if (!collected.ok) return;
+      expect(collected.document.html).toContain('Arrived');
+      expect(collected.document.html).not.toContain('loading…');
+    } finally {
+      await widened.close();
+    }
+  }, 60_000);
+
   it('reports an id with no route rather than dropping it', async () => {
     // A run that observes two of three subjects and says nothing about the third
     // is the silence this project refuses. It travels as a value, not an

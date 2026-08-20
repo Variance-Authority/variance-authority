@@ -227,6 +227,15 @@ async function observeAll(
   // about the next one.
   const selection = selected?.whole === undefined ? [] : [selected.whole];
 
+  // After selection, because the saving is in not asking: a subject ruled out is
+  // a subject nothing looks up. A store on a disk has no such method and this is
+  // a no-op; a store across a hop turns the whole suite into one request.
+  deps.store.expect?.(
+    plan.subjects
+      .filter((planned) => selected?.skipped.get(planned.subject.id) === undefined)
+      .map((planned) => ({ subject: planned.subject.id })),
+  );
+
   await pool(concurrencyOf(config), plan.subjects, async (planned, index) => {
     const id = planned.subject.id;
 

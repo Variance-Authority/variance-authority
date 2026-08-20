@@ -62,6 +62,23 @@ describe('parseConfig', () => {
     expect(error.field).toBe('baselines.rot');
   });
 
+  it('accepts a baseline layout that keeps images beside their subject', () => {
+    // The layout decides where a baseline file lands, and the config is the only
+    // place that decision can be made once for every command that reads the root.
+    const config = parseConfig(withField('baselines', { kind: 'directory', root: 'b', layout: 'beside' }), OPTIONS);
+
+    expect(config.baselines).toEqual({ kind: 'directory', root: '/repo/b', layout: 'beside' });
+  });
+
+  it('refuses a layout it does not implement rather than falling back to flat', () => {
+    // A silently defaulted layout writes every baseline in the other place, and
+    // the run that discovers it reports every subject as new.
+    const error = attempt(withField('baselines', { kind: 'directory', root: 'b', layout: 'nested' }));
+
+    expect(error.field).toBe('baselines.layout');
+    expect(error.message).toContain('"flat" or "beside"');
+  });
+
   it('refuses an unknown observation profile', () => {
     const error = attempt(withField('profile', 'webkit'));
     expect(error.field).toBe('profile');

@@ -144,7 +144,7 @@ so code that reads `matchMedia` during mount makes the correct decision.
 | `directory` | A static build is the application under test. | Requires `subjects.kind: "collector"`; serves `.html` files locally. |
 | `widths` | Routes must be mounted independently at several breakpoints. | The run's configured viewport width. Height remains the run's height. |
 | `roots` | Only a subtree is the subject. | `['body']`, meaning the whole page. |
-| `ready` | A route finishes after ordinary page load. | No additional selector wait. Keys are route ids before any `@width` suffix. |
+| `ready` | A route finishes after ordinary page load. | No additional selector wait. Keyed by route id; a widened id (`home@375`) wins over the route it came from. |
 | `source` | Reports should resolve components to `file:line`. | Omitted; component names can remain without source locations. |
 | `readyTimeoutMs` | A declared readiness marker legitimately needs longer. | `10000`. A timeout is reported, never replaced by a fallback capture. |
 | `loading` | A route's *fallback* is the state you intend to review. | Omitted. Id globs, matched against the subject id. |

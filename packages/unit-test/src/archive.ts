@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   digestBytes,
@@ -8,7 +8,20 @@ import {
 
 export const CAPTURE_SUFFIX = '.va-capture.json';
 
-/** Atomically write one capture; concurrent tests with distinct subjects do not share a file. */
+/**
+ * Atomically write one capture, and refuse to be the second write for a subject.
+ *
+ * The filename is the subject id, so two tests capturing `button/save` address
+ * one file. `rename` would have taken the second one — silently, successfully,
+ * and with half the suite then invisible to the run that reads this directory.
+ * `link` is the same atomic publish with the opposite answer to an occupied
+ * name: it fails with `EEXIST` rather than overwriting, so a collision costs one
+ * failing test instead of a report that is quietly missing a subject.
+ *
+ * *What it costs.* A capture directory reused across runs fails on the second
+ * run. That is the documented usage — one fresh directory per run — and the
+ * alternative reads a previous run's subject as though this one had produced it.
+ */
 export async function writeCapture(
   directory: string,
   artifact: CaptureArtifact,
@@ -17,7 +30,19 @@ export async function writeCapture(
   const path = join(directory, `${encodeURIComponent(artifact.subject.id)}${CAPTURE_SUFFIX}`);
   const temporary = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
   await writeFile(temporary, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8');
-  await rename(temporary, path);
+  try {
+    await link(temporary, path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    throw new Error(
+      `${artifact.subject.id} already has a capture at ${path}. Two subjects with one id ` +
+        'is a name collision, and taking the later write makes the earlier subject invisible ' +
+        'to the run. Give them distinct ids, or capture into a fresh directory.',
+      { cause: error },
+    );
+  } finally {
+    await rm(temporary, { force: true });
+  }
   return path;
 }
 

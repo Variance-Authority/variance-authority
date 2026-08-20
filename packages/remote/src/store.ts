@@ -1,5 +1,4 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import type { Digest, Raster, RenderIdentity } from '@variance-authority/core';
+import { identityDigest, type Digest, type Raster, type RenderIdentity } from '@variance-authority/core';
 import {
   RasterStoreError,
   REFUSAL,
@@ -65,6 +64,7 @@ import { fetchWithin } from './transport.js';
  */
 
 export const BASELINE_FIND_PATH = '/baseline/find';
+export const BASELINE_WORKING_SET_PATH = '/baseline/working-set';
 export const BASELINE_DESCRIBE_PATH = '/baseline/describe';
 export const BASELINE_PUT_PATH = '/baseline/put';
 export const CACHE_FIND_PATH = '/cache/find';
@@ -86,6 +86,20 @@ export interface RemoteStoreOptions {
 }
 
 /**
+ * What is prefetched is a description, never an image.
+ *
+ * `RasterStore.expect` is the contract; this is the store the contract was
+ * written for. `find` still goes to the endpoint for every subject whose
+ * document moved, because that is the subject whose bytes are actually needed
+ * and nothing is saved by fetching the ones that were not.
+ *
+ * *What it costs.* The descriptions are read once, at the start. A store another
+ * job writes to mid-run is therefore answered from before that write — already
+ * true of a run that read a subject before the write landed, and why approval is
+ * a recorded decision rather than a race.
+ */
+
+/**
  * A durable store that is somewhere else.
  *
  * Synchronous construction, unlike `connectRenderer`, and the asymmetry is
@@ -96,14 +110,46 @@ export interface RemoteStoreOptions {
  * earlier without changing what it means.
  */
 export function createRemoteStore(options: RemoteStoreOptions): RasterStore {
+  let declared: readonly BaselineKey[] | undefined;
+  // Keyed by identity digest, because the same key described under two identities
+  // is two answers and the second is `comparable: false`. One in-flight promise
+  // per identity, so the concurrency the run is built on does not turn one
+  // prefetch into as many as there are workers.
+  const fetched = new Map<string, Promise<ReadonlyMap<string, Described | null> | null>>();
+
+  async function prefetched(identity: RenderIdentity): Promise<ReadonlyMap<string, Described | null> | null> {
+    if (declared === undefined) return null;
+    const under = identityDigest(identity);
+    let pending = fetched.get(under);
+    if (pending === undefined) {
+      pending = workingSet(options, declared, identity);
+      fetched.set(under, pending);
+    }
+    return pending;
+  }
+
   return {
     retention: 'durable',
+
+    expect(keys: readonly BaselineKey[]): void {
+      declared = keys;
+      // A second declaration replaces the first and discards what was fetched for
+      // it, rather than answering the new set from the old set's misses.
+      fetched.clear();
+    },
 
     async find(key: BaselineKey, identity: RenderIdentity): Promise<Found | null> {
       return readFound(await call(options, BASELINE_FIND_PATH, { key, identity }), options.endpoint);
     },
 
     async describe(key: BaselineKey, identity: RenderIdentity): Promise<Described | null> {
+      const set = await prefetched(identity);
+      // `has` rather than a truthy check: the prefetch answers `null` for a
+      // subject with no baseline, and that is an answer. Falling through to the
+      // endpoint for it would spend one round trip per new subject, which on a
+      // first run is every subject in the suite.
+      if (set !== null && set.has(keyOf(key))) return set.get(keyOf(key)) ?? null;
+
       return readDescribed(
         await call(options, BASELINE_DESCRIBE_PATH, { key, identity }),
         options.endpoint,
@@ -146,6 +192,59 @@ export function createRemoteStore(options: RemoteStoreOptions): RasterStore {
       },
     }),
   };
+}
+
+/** One string per `(subject, label)`, so a `Map` can answer what a lookup asks. */
+function keyOf(key: BaselineKey): string {
+  return `${key.subject}\u0000${key.label ?? ''}`;
+}
+
+/**
+ * Fetch every declared description in one request, or decide there is no such path.
+ *
+ * `null` means *ask per key from now on*, and it is returned for exactly one
+ * condition: a server that has no route for this path. Every other failure is a
+ * failure — an unreachable endpoint, a 500, a body that will not parse — because
+ * a prefetch that swallowed those would answer `no baseline` for three hundred
+ * subjects and record the entire suite as `new`.
+ *
+ * The 404 case is not a swallow of the same shape. A store served by a version
+ * of `serveRasterStore` from before this path existed still answers every
+ * `describe` correctly one at a time, so degrading to that is slower and not
+ * different — and it is what lets this be added to the protocol without making
+ * every deployed server a broken one.
+ */
+async function workingSet(
+  options: RemoteStoreOptions,
+  keys: readonly BaselineKey[],
+  identity: RenderIdentity,
+): Promise<ReadonlyMap<string, Described | null> | null> {
+  let payload: unknown;
+  try {
+    payload = await call(options, BASELINE_WORKING_SET_PATH, { keys, identity });
+  } catch (error) {
+    if (error instanceof RasterStoreError && /returned 404/.test(error.message)) return null;
+    throw error;
+  }
+
+  const body = recordFrom(payload);
+  if (body === null || !Array.isArray(body.entries)) {
+    throw malformed(options.endpoint, BASELINE_WORKING_SET_PATH, 'no `entries` array');
+  }
+
+  const described = new Map<string, Described | null>();
+  for (const entry of body.entries) {
+    const record = recordFrom(entry);
+    const key = record === null ? null : recordFrom(record.key);
+    if (key === null || typeof key.subject !== 'string') {
+      throw malformed(options.endpoint, BASELINE_WORKING_SET_PATH, 'an entry with no `key`');
+    }
+    described.set(
+      keyOf({ subject: key.subject, ...(typeof key.label === 'string' ? { label: key.label } : {}) }),
+      readDescribed(record, options.endpoint),
+    );
+  }
+  return described;
 }
 
 /**
@@ -345,141 +444,6 @@ function quote(text: string): string {
     : `${trimmed.slice(0, QUOTE_LIMIT)}… (+${trimmed.length - QUOTE_LIMIT} more characters)`;
 }
 
-export interface ServeStoreOptions {
-  /** `0`, the default, binds a free port and reports it on {@link StoreServer.url}. */
-  readonly port?: number;
-  /**
-   * Bearer token required on every request.
-   *
-   * Absent means the socket is the only gate, which is a decision for the
-   * operator's network rather than a default this package can make for them.
-   */
-  readonly token?: string;
-}
-
-export interface StoreServer {
-  readonly url: string;
-  close(): Promise<void>;
-}
-
-/**
- * Expose a store over HTTP.
- *
- * Thin for the same reason `serveRenderer` is: it owns no storage, so the
- * local and remote paths cannot drift into two implementations that disagree
- * about where a baseline lives or which identity wrote it. Wrapping the durable
- * store is what makes "remote" mean the same thing as "durable, further away" —
- * and it is what lets the client be tested against a real socket instead of
- * against a mock that agrees with it by construction.
- */
-export async function serveRasterStore(
-  store: RasterStore,
-  options: ServeStoreOptions = {},
-): Promise<StoreServer> {
-  const server = createServer((request_, response) => {
-    void handle(store, options, request_, response);
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(options.port ?? 0, '127.0.0.1', resolve);
-  });
-
-  const address = server.address();
-  if (address === null || typeof address === 'string') {
-    throw new RasterStoreError('baseline store server did not bind a TCP port');
-  }
-
-  return {
-    url: `http://127.0.0.1:${address.port}`,
-    close: () => closeServer(server),
-  };
-}
-
-async function handle(
-  store: RasterStore,
-  options: ServeStoreOptions,
-  request_: IncomingMessage,
-  response: ServerResponse,
-): Promise<void> {
-  try {
-    if (options.token !== undefined && request_.headers.authorization !== `Bearer ${options.token}`) {
-      send(response, 401, { error: 'missing or wrong bearer token' });
-      return;
-    }
-
-    if (request_.method !== 'POST') {
-      send(response, 405, { error: `only POST is served; got ${request_.method ?? '?'}` });
-      return;
-    }
-
-    const body = recordFrom(JSON.parse(await readBody(request_)));
-    if (body === null) {
-      send(response, 400, { error: 'body is not a JSON object' });
-      return;
-    }
-
-    switch (request_.url) {
-      case BASELINE_FIND_PATH: {
-        const found = await store.find(body.key as BaselineKey, body.identity as RenderIdentity);
-        send(response, 200, { found });
-        return;
-      }
-      case BASELINE_DESCRIBE_PATH: {
-        const described = await store.describe(
-          body.key as BaselineKey,
-          body.identity as RenderIdentity,
-        );
-        send(response, 200, { described });
-        return;
-      }
-      case BASELINE_PUT_PATH: {
-        await store.put(body.key as BaselineKey, body.raster as Raster);
-        send(response, 200, { ok: true });
-        return;
-      }
-      case CACHE_FIND_PATH: {
-        const raster = await store.renderCache.get(
-          body.digest as Digest,
-          body.identity as RenderIdentity,
-        );
-        send(response, 200, { raster });
-        return;
-      }
-      case CACHE_PUT_PATH: {
-        await store.renderCache.put(body.raster as Raster);
-        send(response, 200, { ok: true });
-        return;
-      }
-      default:
-        send(response, 404, { error: `no route for POST ${request_.url ?? '?'}` });
-        return;
-    }
-  } catch (error) {
-    // A failed lookup is a 500 and never `{ found: null }`. The client is built
-    // to treat any non-2xx as an operator error, and that arrangement only works
-    // if the server never dresses a failure up as an answer.
-    send(response, 500, { error: error instanceof Error ? error.message : String(error) });
-  }
-}
-
-async function readBody(request_: IncomingMessage): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of request_) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks).toString('utf8');
-}
-
-function send(response: ServerResponse, status: number, body: unknown): void {
-  const payload = JSON.stringify(body);
-  response.writeHead(status, {
-    'content-type': 'application/json',
-    'content-length': Buffer.byteLength(payload),
-  });
-  response.end(payload);
-}
-
-async function closeServer(server: Server): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
-}
+// The `./store` entrypoint is one protocol, whichever end a caller needs.
+export { serveRasterStore } from './serve-store.js';
+export type { ServeStoreOptions, StoreServer } from './serve-store.js';
