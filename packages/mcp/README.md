@@ -144,6 +144,19 @@ a run with unobserved subjects never reads as clean. `notObserved` distinguishes
 guessing `excluded` turns a coverage hole into a decision somebody made, and
 guessing `failed` turns every deliberate exclusion into a permanently red build.
 
+## Serving it yourself
+
+`serveReportFile(path)` is the whole executable, and `serve(options)` is what it
+composes when the report does not come from a file:
+
+| option | what it decides |
+|---|---|
+| `input` | the `Readable` requests arrive on |
+| `output` | the `Writable` responses leave on |
+| `report` | supplies the current `RunReport`. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot |
+
+Both return a function that detaches the server from its streams.
+
 ## Stability
 
 **The tool names, their argument shapes and the wording of their answers carry no

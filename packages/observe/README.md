@@ -110,13 +110,18 @@ acquired subject size and the painted image.
 
 ## Wire the dependencies
 
-`ObserveOptions` requires a `Renderer` and a `RasterStore`:
+`ObserveOptions` requires a `Renderer` as `renderer` and a `RasterStore` as
+`store`:
 
-- The renderer owns image production and render identity. Keep its lifecycle
+- `renderer` owns image production and render identity. Keep its lifecycle
   outside a per-subject loop; launching a browser for every observation defeats
   the cache and session economy.
-- The store supplies both durable-baseline lookup and a content-addressed render
+- `store` supplies both durable-baseline lookup and a content-addressed render
   cache. Its backend does not change verdict semantics.
+- On `observeCaptureAgainstBaseline` the pair splits: `store` stays required and
+  `renderer` is needed only when the artifact carries a document. A raster
+  artifact is compared and stored without one ever being constructed, which is
+  what lets a unit runner hand over pixels from a machine that has no browser.
 - `snapshot`, `source`, comparison settings, decoder, region limit, sensitivity,
   and difference-shape ignores enrich or narrow the decision. Their exact types
   live in `ObserveOptions` and `CompareInputs`.

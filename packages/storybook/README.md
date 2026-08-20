@@ -53,6 +53,29 @@ const outcomes = await collectStories(harnessPage(harness), plan.subjects.map((s
    stories over Storybook's own channel rather than reloading. One navigation for
    a whole run; a second one is *reported*, not counted internally.
 
+## What the three steps take
+
+`toSubjects(index, options)`:
+
+| option | default | what it decides |
+|---|---|---|
+| `viewport` | none | the run's viewport, which per-story overrides are merged over. Optional, because a fully-specified override needs no base. A *partial* override with no base cannot be completed, and that story is excluded with the reason rather than rendered at some default — a story that asked for 320px and got 1280px is a wrong observation, which is worse than a missing one |
+| `parameters` | none | per-story parameters by id, supplied rather than read: the index does not carry them |
+| `excludeTags` | none | stories carrying any of these tags are excluded. Tags are the one piece of per-story policy the index really does carry, so this is the only opt-out that works without a running preview |
+
+`collectStories(page, storyIds, options)` and the single-story `collectStory`:
+
+| option | default | what it decides |
+|---|---|---|
+| `baseUrl` | required | Storybook's root URL — `http://localhost:6006`, or a `file://` build |
+| `readySelector` | none | see below. The one signal that can end a flake instead of re-running it |
+| `timeoutMs` | `15000` | budget for one story to become ready |
+| `pollMs` | `50` | markup sampling interval, on the fallback path only |
+| `events` | `STORYBOOK_EVENTS` | the channel event names. Configuration rather than a constant because they belong to a package this one does not depend on |
+| `roots` | `#storybook-root`, `#root` | where the story mounts, tried in order |
+| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | how the preview renders a fatal error, consulted only on the channel-less path where there is no event to carry it. Presentation details of somebody else's package, so they are configuration |
+| `observe` | none | `collectStories` only: called after a story became ready and before the next is shown. This is where a capture goes. Sequential by contract, and called only for `rendered` stories — capturing the *previous* story's markup under this story's id is how a suite acquires a baseline that never corresponded to anything |
+
 ## Readiness, and why a declared marker never falls back
 
 `readySelector` is worth the configuration for any component that fetches,

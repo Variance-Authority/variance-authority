@@ -79,6 +79,19 @@ A backend answers with **rows**. Turning rows into churn, journeys and reach is
 `churnFrom`/`journeyFrom`/`reachFrom`, shared by every backend, so two backends
 cannot disagree about what a number means.
 
+`serveHistory` takes:
+
+| option | default | what it decides |
+|---|---|---|
+| `backend` | required | rows in, rows out. The one thing the socket does not implement |
+| `token` | required | the bearer the operator set. There is exactly one, it is shared, and it carries no identity: the service holds no accounts and everything in it was produced by the operator's own runs. Not *who are you* — *is this write attributable to this deployment at all* |
+| `port` | `7788` from the executable, `0` here | `0` binds an ephemeral port, which is what the tests use |
+| `host` | `127.0.0.1` | a history service that binds every interface the moment it starts is one misconfigured firewall away from being a public record of an unreleased product's internals. Making the operator ask for it is one line of configuration against a failure with no symptom |
+| `maxBodyBytes` | 8 MiB | a ceiling on memory held for one socket, not a limit anyone should reach — 300 subjects write a handful of hundred-byte rows. Exceeding it is a 413 that says so, never a truncated body parsed as far as it went |
+
+`createSqliteBackend` takes one: `path`, a file or `':memory:'` for a store that
+ends with the process.
+
 ## Writes are one transaction
 
 A run and its rows travel together and commit or fail together. Recording rows

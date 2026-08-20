@@ -85,6 +85,23 @@ travelled with into failures somebody has to re-run to find innocent. A transpor
 failure is the one thing that belongs to the whole batch, because nothing came
 back to attribute.
 
+## Serving the other half
+
+`serveRenderer(renderer, port)` takes its port positionally, because a renderer
+server has nothing else to decide. `serveRasterStore(store, options)` takes
+`ServeStoreOptions`:
+
+| option | default | what it decides |
+|---|---|---|
+| `port` | `0` | `0` binds a free port and reports it on `StoreServer.url`, which is what a test wants and what a fixed port cannot give it |
+| `token` | none | the bearer required on every request. Absent means the socket is the only gate — a decision for the operator's network, not a default this package can make for them |
+
+`batching(send, options)` is the batcher itself, exported because the renderer
+client is not the only thing that could want it. It takes `maxBatch` and
+`windowMs` — the same two knobs `connectRenderer` surfaces as `maxBatch` and
+`batchWindowMs`, renamed there because at that level "batch" is already implied
+and `windowMs` alone would read as a timeout.
+
 ## Nothing that arrives is believed on different terms
 
 A record off a socket passes the same checks a record off a disk passes, from

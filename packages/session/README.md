@@ -90,6 +90,13 @@ and a `verify` that could not re-render would have to assert the coupling from
 the evidence alone — a finding shaped like proof with no replay behind it, which
 is worse than the silence it replaces.
 
+`probe`, `diffProbes` and `SheetRegistry` are the bracket itself, exported for a
+caller running the detector over a world a session did not create. `probe` takes
+`registry` — the `SheetRegistry` whose identities have to survive across both
+readings, since a stylesheet has no id of its own — and `ownedContainers`, the
+elements whose contents are the subject rather than residue. Without the second
+one every subject appears to pollute the body with its own output.
+
 ## Two sharp edges, both deliberate
 
 **The container is the same element every run.** React notices: calling

@@ -158,10 +158,26 @@ Both modes reach the same baseline comparison and attribution path.
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled. |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
 
-`createVariance` and one-shot `observe` additionally accept `materialization`.
-`{ kind: 'deferred' }` is the default. `{ kind: 'in-place', browser,
-stabilityChecks }` requires the host browser declaration; `stabilityChecks`
-defaults to `2` and cannot lower the check below two captures.
+### `createVariance(page, testInfo, options)`
+
+Everything a session owns for its lifetime, as opposed to what one observation
+decides. A one-shot `observe` accepts `baselines` and `materialization` too, and
+opens and closes the rest itself.
+
+| Option | Use it when | Default and boundary |
+| --- | --- | --- |
+| `baselines` | Baselines belong somewhere other than the default directory. | `.variance/baselines`. Ignored when `store` is supplied. |
+| `store` | Baselines do not live in a directory at all — a remote store, a fixture, a cache. | A durable directory store over `baselines`. |
+| `renderer` | The suite already owns a renderer and its lifetime. | One is created and closed with the session. A supplied renderer is never closed by `close()`. |
+| `bundle` | The suite deliberately builds its own page agent. | The package's bundled agent. A custom bundle must install itself both in the current document and on future navigations. |
+| `materialization` | Pixels should come from the browser the suite already pinned. | `{ kind: 'deferred' }`. |
+
+`materialization` is a union on `kind` rather than a flag, because in-place
+capture is not deferred rendering with a switch flipped — it needs facts deferred
+rendering does not have. `kind: 'in-place'` requires `browser`, the declared launch of the
+suite's own Chromium (`headless` and the ordered `launchArgs`), which is what
+enters renderer identity; `stabilityChecks` defaults to `2` and cannot lower the
+check below two captures.
 
 ### Optional fixture composition
 

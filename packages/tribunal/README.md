@@ -99,6 +99,18 @@ export default {
 };
 ```
 
+`createTribunal` takes:
+
+| option | default | what it decides |
+|---|---|---|
+| `db` | required | the D1 binding |
+| `bucket` | required | the R2 binding |
+| `project` | required | scopes every row and every object key, so one deployment serves several repositories without their `story:card` colliding. There is no default: an invented one puts two projects' baselines in one namespace and the first symptom is a mass `changed` |
+| `ingestToken` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
+| `reviewToken` | required | held by people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
+| `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request rather than on a timer, because a Worker has no timer and this package will not invent a cron the operator did not ask for — wire it to a scheduled trigger, call it from a CI job, or never |
+| `now` | the wall clock | injected so a test can pin every `at`. `createBucketStore` and the review surface take it for the same reason |
+
 `env.DB` and `env.BUCKET` are Cloudflare's own `D1Database` and `R2Bucket` and
 are accepted as-is: this package declares the narrow subset it uses and a wider
 type is assignable to a narrower one. It does **not** depend on
@@ -225,6 +237,21 @@ export const { GET, POST, HEAD } = createTribunalRoutes(worker, {
   tokens: { ingest: env.VARIANCE_INGEST_TOKEN, review: env.VARIANCE_REVIEW_TOKEN },
 });
 ```
+
+`createReviewClient` takes `endpoint` — where the Worker is mounted, relative
+behind this adapter because the page and the API are one deployment — and an
+optional `token` for a caller holding the review token directly. Omit `token`
+behind the adapter: there the server route holds it and the browser never sees
+it, which is the entire reason the adapter exists. A review token shipped to a
+browser is a token in everybody's devtools.
+
+`createTribunalRoutes` takes `basePath`, `authorize` and `tokens`. `basePath` is
+stripped before the request reaches the Worker, which knows only its own paths —
+without it every request arrives as `/variance/review/builds` and 404s against a
+route table that has never heard of the prefix. `tokens` is passed again rather
+than read off the worker, because a `Tribunal` is deliberately a `fetch` handler
+and nothing else: a handler that could be asked for its own secrets is a handler
+that can leak them by being logged.
 
 `authorize` has **no default**, and that is the one decision this package refuses
 to make for you. The review token promotes baselines, so it stays on the server

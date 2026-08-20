@@ -37,6 +37,24 @@ pixels, never images, never coordinates.** So a question like
 is exact and machine-independent, and nobody has to keep a PNG in their history
 to get it.
 
+## When a sum is a finding
+
+`detectDrift(journey, options)` is the arithmetic the 22px story needs, and it
+returns `null` when the token's travel is not worth anybody's attention. Two
+thresholds decide that, and both exist to stop the report crying wolf about an
+ordinary edit:
+
+| option | default | what it decides |
+|---|---|---|
+| `minSteps` | `2` | fewest value changes that can constitute a journey. Below it, this is one edit somebody made on purpose and already reviewed |
+| `minRatio` | `2` | least ratio of total travel to the largest single step. The ratio *is* the finding — it says how thinly the change was spread, which is exactly how it got past eleven correct reviews. A token that moved 8px in one 8px step has a ratio of 1 and nothing to report |
+
+A `null` is an observation rather than an absence: the values were recorded, they
+were read, and they did not add up to a journey. The one case where nothing is
+not an answer is a journey whose limit excluded steps — an incomplete journey is
+always returned and always says so, because a `null` there would claim a
+stability the slice cannot support.
+
 ## Why it cannot be a file in the repository
 
 A committed lock file puts derived state under human merge resolution, and the

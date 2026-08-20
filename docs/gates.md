@@ -17,7 +17,7 @@ gated in CI.
 | Sitemap or crawler discovery | **partial** — `sitemap` reads a list the application publishes about itself, under `subjects.kind: "collector"`; a crawler is refused, because following what a fetched page points at makes the subject list whatever shipped on Tuesday |
 | Several widths | **yes** — each width is a distinct planned subject |
 | Local or remote deferred render | **yes** — `portable: true` closes the collected document over the bytes the wire served |
-| Managed browser/device grid | **no** — renderer engines and capacity are operator-owned |
+| Vendor-hosted device and rendering fleet | **no** — engines and capacity are operator-owned |
 | Hosted review UI | **partial** — `@variance-authority/tribunal` ships a self-hosted review surface with per-subject decisions; nothing posts a build to it, and nothing is vendor-hosted |
 
 **Verdict:** suitable for an explicit route/static suite when operator-owned
@@ -55,7 +55,7 @@ visual checks.
 | Interaction/play completion | **yes** — collection waits for Storybook's rendered state |
 | Local or remote render | **conditional** — the Storybook document does not archive resource bytes |
 | Managed change selection | **partial** — source/baseline selection exists, without Chromatic's hosted module-graph service |
-| Managed branch baselines and reviewer workflow | **no** |
+| Vendor-hosted branch semantics and reviewer workflow | **no** |
 | Non-engineer hosted review | **no** |
 
 **Verdict:** suitable for operator-owned Storybook capture and gating. Choose
