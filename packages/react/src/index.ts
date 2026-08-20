@@ -37,7 +37,6 @@ export {
   currentFiber,
   isOwnerFrame,
   findReactContainers,
-  resetFiberKeyCache,
 } from './fiber.js';
 
 export { componentName, fiberComponentName, debugOwnerName, ANONYMOUS } from './names.js';

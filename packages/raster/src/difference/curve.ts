@@ -104,8 +104,3 @@ function highestLevelMet(levels: readonly number[], value: number): number {
 
   return found;
 }
-
-/** The levels a curve was taken at, in the order the points carry them. */
-export function severityLevelsOf(curve: readonly DifferenceCurvePoint[]): readonly number[] {
-  return curve.map((point) => point.severity);
-}

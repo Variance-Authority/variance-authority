@@ -51,20 +51,6 @@ export function severityOf(verdict: Verdict): number {
   return SEVERITY.indexOf(verdict);
 }
 
-/**
- * Reduce many verdicts to the one a subject reports.
- *
- * Worst-wins: a subject with one `violation` among a hundred `authorized`
- * changes is a violation. An empty set is `unchanged` — nothing to adjudicate.
- */
-export function worstVerdict(verdicts: readonly Verdict[]): Verdict {
-  let worst: Verdict = 'unchanged';
-  for (const verdict of verdicts) {
-    if (severityOf(verdict) > severityOf(worst)) worst = verdict;
-  }
-  return worst;
-}
-
 /** Whether a verdict should fail CI. Policy may promote, never demote. */
 export function blocks(verdict: Verdict): boolean {
   return verdict === 'violation' || verdict === 'unexplained' || verdict === 'needs-review';

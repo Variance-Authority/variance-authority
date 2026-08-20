@@ -385,8 +385,3 @@ export function findReactContainers(scope: ParentNode): Element[] {
   }
   return found;
 }
-
-/** Reset the memoised expando key. Only needed when a page swaps React copies. */
-export function resetFiberKeyCache(): void {
-  cachedFiberKey = null;
-}

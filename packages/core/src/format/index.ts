@@ -22,7 +22,7 @@ export type { ObservationProfile, ProfileId } from './profile.js';
 export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById, tierOfProfile } from './profile.js';
 
 export type { Tier } from './tier.js';
-export { tierRank, tierReaches } from './tier.js';
+export { tierReaches } from './tier.js';
 
 export type {
   EnvironmentInputs,

@@ -22,11 +22,6 @@ const TIER_ORDER: Record<Tier, number> = {
   raster: 3,
 };
 
-/** Position on the ladder. Higher is more expensive and observes more. */
-export function tierRank(tier: Tier): number {
-  return TIER_ORDER[tier];
-}
-
 /** Whether a rung can observe what something declaring `needs` requires. */
 export function tierReaches(available: Tier, needs: Tier): boolean {
   return TIER_ORDER[needs] <= TIER_ORDER[available];

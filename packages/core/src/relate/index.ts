@@ -45,7 +45,6 @@ export {
 } from './merkle.js';
 
 export {
-  contentOf,
   explain,
   movedBy,
   relationsOfFiles,

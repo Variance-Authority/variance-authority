@@ -32,12 +32,10 @@ export {
   canonicalizeValue,
   canonicalizeTokens,
   canonicalizeDimension,
-  isUnresolved,
   canonicalizeColor,
   parseColor,
   formatColor,
   expandDeclaration,
-  isShorthand,
   SHORTHAND_PROPERTIES,
 } from './normalize/index.js';
 

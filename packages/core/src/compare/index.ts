@@ -10,7 +10,7 @@
  * team has a different policy.
  */
 
-export { diffSnapshots, matchTrees, deltaSignature } from './diff/index.js';
+export { diffSnapshots, matchTrees } from './diff/index.js';
 export type {
   SemanticDiff,
   Delta,

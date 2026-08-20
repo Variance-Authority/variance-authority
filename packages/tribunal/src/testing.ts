@@ -52,11 +52,6 @@ export async function createSqliteD1(path = ':memory:'): Promise<SqliteD1> {
   return db;
 }
 
-/** The same double over a database that already has its schema. */
-export function openSqliteD1(path: string): SqliteD1 {
-  return wrap(new Database(path));
-}
-
 function wrap(database: DatabaseSync): SqliteD1 {
   const statement = (sql: string, values: readonly D1Value[]): D1PreparedLike => ({
     bind: (...bound: readonly D1Value[]) => statement(sql, bound),

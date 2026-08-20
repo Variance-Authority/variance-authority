@@ -57,10 +57,6 @@ export function expandDeclaration(property: string, value: string): Expansion {
   return expanded ?? { declarations: [{ property, value }], confident: false };
 }
 
-export function isShorthand(property: string): boolean {
-  return property in EXPANDERS;
-}
-
 type Expander = (value: string) => Expansion | null;
 
 const EXPANDERS: Readonly<Record<string, Expander>> = {

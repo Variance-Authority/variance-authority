@@ -23,7 +23,7 @@
  */
 
 export type { Verdict, BandOutcome } from './verdict.js';
-export { UNOBSERVED, severityOf, worstVerdict, blocks } from './verdict.js';
+export { UNOBSERVED, severityOf, blocks } from './verdict.js';
 
 export { adjudicate, summarizeAdjudication } from './intent.js';
 export type { Intent, IntentClaim, Policy, Adjudication, Adjudicated } from './intent.js';

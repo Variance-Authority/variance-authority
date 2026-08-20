@@ -146,11 +146,6 @@ export function isRelativeUnit(unit: string): boolean {
   return RELATIVE_UNITS.includes(unit.toLowerCase());
 }
 
-/** Whether a value still depends on something only a layout engine can supply. */
-export function isUnresolved(value: string): boolean {
-  return /(?:^|[\s(,])[+-]?(?:\d+\.?\d*|\.\d+)(em|rem|ex|ch|lh|v[whib]|vmin|vmax|%)\b/i.test(value);
-}
-
 function round(value: number): number {
   const factor = 10 ** LENGTH_PRECISION;
   const rounded = Math.round(value * factor) / factor;

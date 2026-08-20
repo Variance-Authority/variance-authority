@@ -69,7 +69,7 @@ export {
 } from './field.js';
 
 export type { DifferenceCurvePoint } from './curve.js';
-export { differenceCurve, normalizeSeverityLevels, severityLevelsOf } from './curve.js';
+export { differenceCurve, normalizeSeverityLevels } from './curve.js';
 
 export type { DifferenceMetric, MetricDescriptor } from './metric.js';
 export {
@@ -93,7 +93,6 @@ export type {
 export {
   DIFFERENCE_FORMAT_VERSION,
   observeDifference,
-  severityLevelsOfObservation,
 } from './observe.js';
 
 export type {

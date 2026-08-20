@@ -172,10 +172,6 @@ export type RootKind =
    */
   | 'unattributed';
 
-export function deltaSignature(delta: Delta): string {
-  return `${delta.kind}:${delta.path}:${delta.property ?? ''}`;
-}
-
 /**
  * How a delta counts towards an aggregate impact.
  *

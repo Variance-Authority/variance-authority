@@ -180,10 +180,3 @@ function hashImage(image: NormalizedImage): string {
   }
   return digestString(`${image.width}x${image.height} ${image.colorSpace} ${parts.join('')}`);
 }
-
-/** Severity levels a stored observation was taken at. */
-export function severityLevelsOfObservation(
-  observation: DifferenceObservation,
-): readonly number[] {
-  return observation.curve.map((point) => point.severity);
-}

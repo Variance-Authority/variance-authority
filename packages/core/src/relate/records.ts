@@ -117,23 +117,6 @@ export function relationsOfFiles(records: Iterable<FileRecord>): Relations {
   return relationsOf({ relations, isolated, unknown });
 }
 
-/**
- * The content digests the records carry, keyed the way a closure wants them.
- *
- * A record with no digest contributes no entry, and `closureOf` marks that file
- * volatile — which is the difference between *this file has not moved* and *this
- * file was never hashed*.
- */
-export function contentOf(records: Iterable<FileRecord>): ReadonlyMap<string, Digest> {
-  const content = new Map<string, Digest>();
-
-  for (const record of records) {
-    if (record.digest !== undefined) content.set(record.file, record.digest);
-  }
-
-  return content;
-}
-
 export interface Hole {
   /** The file whose outgoing edges could not be enumerated. */
   readonly file: string;

@@ -11,7 +11,6 @@ import { componentsOf } from './components.js';
 import { locate } from '../../attribute/locate.js';
 
 export type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
-export { deltaSignature } from './delta.js';
 export { matchTrees } from './match.js';
 export type { Matching } from './match.js';
 

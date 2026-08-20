@@ -21,9 +21,9 @@ export {
   EMPTY_CONTEXT,
 } from './cascade.js';
 export type { InheritContext, ResolvedStyle, DeclarationOrigin } from './cascade.js';
-export { canonicalizeValue, canonicalizeTokens, canonicalizeDimension, isUnresolved } from './value.js';
+export { canonicalizeValue, canonicalizeTokens, canonicalizeDimension } from './value.js';
 export { canonicalizeColor, parseColor, formatColor } from './color.js';
-export { expandDeclaration, isShorthand, SHORTHAND_PROPERTIES } from './shorthand.js';
+export { expandDeclaration, SHORTHAND_PROPERTIES } from './shorthand.js';
 
 /**
  * The normalization pipeline: `RawCapture` in, `SemanticSnapshot` out.
