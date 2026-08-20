@@ -9,6 +9,7 @@ import {
   type Viewport,
 } from '@variance-authority/core';
 import { createEphemeralStore, type Renderer } from '@variance-authority/raster';
+import { declaredIgnores } from './decide.js';
 import { observePair } from './observe.js';
 
 /**
@@ -316,4 +317,42 @@ describe('absorbing by shape rather than by place', () => {
       ignoreShapes,
     });
   }
+});
+
+/**
+ * The ledger on the paths where nothing was compared.
+ *
+ * `new`, `incomparable` and a settlement from a digest all return before a
+ * single pixel is subtracted, and every one of them still carries the operator's
+ * exclusions. The run-level ledger reads a rule's absence as *this rule resolved
+ * nowhere* and tells the operator to delete it, so a fresh checkout with no
+ * baselines is exactly the run that would advise deleting every ignore in the
+ * suite.
+ */
+describe('declaredIgnores', () => {
+  it('keys a resolved rule at zero rather than leaving it out', () => {
+    const ignored = declaredIgnores(snapshotWith(CLOCK_SITE), 1);
+
+    // Present and zero, which is "it resolved and covered nothing changed".
+    // Absent would be "it resolved nowhere", and that is advice to delete it.
+    expect(ignored?.byRule).toEqual({ clock: 0 });
+    expect(ignored?.pixels).toBe(0);
+  });
+
+  it('counts the boxes it excluded and calls none of them inert', () => {
+    const ignored = declaredIgnores(snapshotWith(CLOCK_SITE), 2);
+
+    expect(ignored?.boxes).toBe(1);
+    // A box that was never compared covered no changed pixel because there were
+    // no changed pixels — which is not the claim that the box is useless.
+    expect(ignored?.inert).toBe(0);
+  });
+
+  it('reports nothing at all when the operator declared nothing', () => {
+    // Not an empty ledger: a subject with no ignores and a subject whose ignores
+    // all resolved to nothing are different facts, and only one of them is
+    // something an operator should act on.
+    expect(declaredIgnores(snapshotWith(undefined), 1)).toBeUndefined();
+    expect(declaredIgnores(undefined, 1)).toBeUndefined();
+  });
 });

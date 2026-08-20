@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { collectStories, collectStory, showStory, type StoryOutcome } from './preview.js';
+import {
+  STORYBOOK_ERROR_OVERLAY,
+  STORYBOOK_EVENTS,
+  collectStories,
+  collectStory,
+  harnessPage,
+  showStory,
+  type ShowRequest,
+  type StoryOutcome,
+} from './preview.js';
 import {
   BASE,
   TIMING,
@@ -304,5 +313,55 @@ describe('the page function', () => {
 
     expect(result.status).toBe('rendered');
     expect(result.channel).toBe(true);
+  });
+});
+
+/**
+ * The two ends of the seam: what the driver ships, and what it drives.
+ *
+ * Both are configuration that looks like a constant. The event names and the
+ * overlay selectors belong to a package this one does not depend on, and
+ * `harnessPage` is the whole of the browser dependency — six lines that must
+ * keep matching a `Page` nothing here imports.
+ */
+describe('the protocol defaults, and the page they are shipped to', () => {
+  it('ships the documented event names and overlay in the request, not around it', async () => {
+    preview = fakePreview({});
+    const page = fakePage(preview);
+    let sent: ShowRequest | undefined;
+
+    await collectStory(
+      { ...page, evaluate: (fn, request) => { sent = request; return page.evaluate(fn, request); } },
+      'a--one',
+      { baseUrl: BASE, ...TIMING },
+    );
+
+    // Carried by value because the function that reads them is serialized into
+    // the page: a module constant referenced from page scope is a
+    // `ReferenceError` in a headless browser, where nobody sees it.
+    expect(sent?.events).toEqual(STORYBOOK_EVENTS);
+    expect(sent?.errorOverlay).toEqual(STORYBOOK_ERROR_OVERLAY);
+  });
+
+  it('pins the harness page to the one navigation policy this adapter has', async () => {
+    const calls: { readonly url: string; readonly options: unknown }[] = [];
+    const page = harnessPage({
+      page: {
+        url: () => 'about:blank',
+        goto: async (url, options) => {
+          calls.push({ url, options });
+          return null;
+        },
+        evaluate: async <A, R>(fn: (argument: A) => R | Promise<R>, argument: A) => fn(argument),
+      },
+    });
+
+    await page.goto(`${BASE}/iframe.html`);
+
+    // `load` rather than the caller's choice, and the same one the harness used
+    // for its own navigation — two readiness policies in one page is one of them
+    // being wrong about when a story exists.
+    expect(calls).toEqual([{ url: `${BASE}/iframe.html`, options: { waitUntil: 'load' } }]);
+    expect(page.url()).toBe('about:blank');
   });
 });

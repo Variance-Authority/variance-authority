@@ -122,6 +122,12 @@ deletes the claim** rather than leaving it to be noticed.
 - **Code-unit sorting.** Never `localeCompare` in anything that reaches a
   committed artifact — it makes byte-stability a promise about `LANG`.
 - **500 lines per file**, enforced by `tools/shape.check.ts`.
+- **An export a README names is run by something**, enforced by
+  `tools/docs-exercised.check.ts`. Documented and unexercised is how a second
+  implementation of a shipped behaviour survives — `summarizeObservation` was
+  exported, documented, called by nothing, and drifting from the private copy
+  `playwright-test` had grown for the same job. `EXERCISE_DEBT` is a per-package
+  budget that may only shrink, on the same terms as `OPTION_DEBT`.
 - A limitation is a bug or a position, never an apology. Classify it before
   writing "we cannot".
 - **A status claim is a marker, not a sentence in `docs/`.** `it.todo` for what

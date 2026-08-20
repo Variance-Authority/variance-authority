@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createAbsentStore } from './absent.js';
+import { createAbsentStore, unkept } from './absent.js';
 import { isKept, type Churn, type HistoryStore, type Journey, type Reach } from './store.js';
 
 /**
@@ -143,5 +143,28 @@ describe('the absent store', () => {
         [],
       ),
     ).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The refusal, reachable by anything else that cannot answer.
+ *
+ * Exported for the store whose configuration is incomplete and the run that is
+ * dry — and the reason to hold it here is that a second, differently-worded
+ * refusal is how the empty/absent distinction starts to blur. Two sentences
+ * meaning the same thing get read as two different findings.
+ */
+describe('unkept', () => {
+  it('is the same sentence the store gives, not a second phrasing of it', async () => {
+    const viaStore = await createAbsentStore().churn('Button', {});
+
+    expect(isKept(viaStore)).toBe(false);
+    expect(unkept('how often `Button` changes').because).toBe(
+      isKept(viaStore) ? '' : viaStore.because,
+    );
+  });
+
+  it('is never kept, whatever it was asked', () => {
+    expect(unkept('anything at all').kept).toBe(false);
   });
 });
