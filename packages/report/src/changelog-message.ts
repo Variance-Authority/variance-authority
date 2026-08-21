@@ -84,7 +84,7 @@ export function renderCommitMessage(options: CommitMessageOptions): string {
   return [
     options.message,
     '',
-    ...prose(record),
+    ...changelogBody(record),
     '',
     `${HEAD}: ${VERSION} ${encode(head)}`,
     ...record.entries.map((entry) => `${CHANGE}: ${VERSION} ${encode(entry)}`),
@@ -94,6 +94,12 @@ export function renderCommitMessage(options: CommitMessageOptions): string {
 
 /**
  * The body, as lines somebody scans rather than sentences they read.
+ *
+ * Exported because a commit message is not the only place these lines belong.
+ * An agent asking *what would this update record* before running `accept` has to
+ * be answered in the same words the commit will carry, or the preview becomes a
+ * second description of a baseline update — and the two would then be edited
+ * separately until one of them was wrong.
  *
  * This lands in **every** baseline commit. That is the constraint the shape is
  * chosen for: a paragraph explaining what `--all` means is true, and by the
@@ -106,7 +112,7 @@ export function renderCommitMessage(options: CommitMessageOptions): string {
  * trailers, where the reader that needs it decodes it and the person scrolling
  * past does not pay for it.
  */
-function prose(record: ChangelogRecord): readonly string[] {
+export function changelogBody(record: ChangelogRecord): readonly string[] {
   const lines: string[] = [];
 
   // The operator's own sentence, unlabelled. It is the one line here a person

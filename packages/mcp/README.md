@@ -45,10 +45,10 @@ npx variance-authority-mcp .variance/run.json    # directly
 
 ## What an agent can ask
 
-Eight tools, all answering from the artifact and **never re-running anything**.
+Nine tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
-are asked wherever the agent is. Seven of them hand evidence out; one takes
-evidence in.
+are asked wherever the agent is. Seven of them hand evidence out, one takes
+evidence in, and one answers about a command nobody has run yet.
 
 ```ts
 import { toolByName } from '@variance-authority/mcp/tools';
@@ -59,6 +59,7 @@ toolByName('variance_adjudicate')?.run(report, {
   claims: [{ root: 'component:Button', reason: 'new brand accent', maxSubjects: 3 }],
 });
 toolByName('variance_composition')?.run(report, {});
+toolByName('variance_changelog')?.run(report, { shape: 'v1:9a3f1c2e04' });
 toolByName('variance_describe')?.run(report, { subject: 'story:card--populated' });
 toolByName('variance_findings')?.run(report, {});
 toolByName('variance_trace_component')?.run(report, { component: 'Button' });
@@ -71,6 +72,7 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, moved and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
 | `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each component that moved moved — including *nothing here explains it* | a change has no obvious author, or you are about to call something flaky |
+| `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will carry, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
 | `variance_describe` | what changed inside one subject — regions, components, files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
 | `variance_trace_component` | every subject one component appears in, with pixels and cause-or-displaced | sizing the blast radius of a design-system or token edit |
@@ -108,6 +110,21 @@ dropped. An agent told `delivered` about a band nothing looked at has been told
 something the run never established, so the answer ends `Not checked here:
 bands`. [`examples/agent-claim`](../../examples/agent-claim) runs the whole
 boundary — CLI and this tool, every verdict, one process.
+
+`variance_changelog` is the only one that answers about something that has not
+happened. A baseline update is explained in the commit that carries it or in a
+review database, both written at the moment of acceptance and never again — so
+an agent that runs `accept` to find out what the record says has already written
+it. The preview renders the record's own lines, through the same function that
+renders them into the commit, over the subject set the same rules select. A tool
+that phrased its own summary would be a second account of the update, edited
+separately from the first, and the one the agent read would not be the one that
+survived.
+
+It stops short of the trailers, and that is the point rather than an omission. A
+trailer is a record, and records exist because somebody accepted something; one
+copied out of a preview would attribute a baseline to a promotion that never
+happened.
 
 `variance_composition` is the only one that reads the other axis. Everything
 else compares a subject to its baseline — two revisions, one thing. This

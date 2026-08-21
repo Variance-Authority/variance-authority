@@ -1717,12 +1717,14 @@
         "NotObserved": "interface",
         "NotObservedKind": "type",
         "ObservationRecord": "interface",
+        "Promotion": "type",
         "RegionRecord": "interface",
         "RunAdjudication": "interface",
         "RunReport": "interface",
         "UnclaimedChange": "interface",
         "Unrecordable": "interface",
         "adjudicateRun": "function",
+        "changelogBody": "function",
         "changelogOf": "function",
         "clusterChanges": "function",
         "describeAdjudication": "function",
@@ -1730,7 +1732,10 @@
         "isRecorded": "function",
         "parseCommitMessage": "function",
         "parseRoot": "function",
-        "renderCommitMessage": "function"
+        "promotionOf": "function",
+        "renderCommitMessage": "function",
+        "selectByShape": "function",
+        "whyNotWhole": "function"
       },
       "./file": {
         "readRunReport": "function",

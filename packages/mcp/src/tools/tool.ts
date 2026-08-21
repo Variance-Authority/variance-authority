@@ -10,7 +10,7 @@ import type { RunReport } from '@variance-authority/report';
  *
  * The subject is a type parameter rather than `RunReport`, because a tool is a
  * pure function from *something already read* to text, and nothing in that
- * sentence is about a report. It defaults to `RunReport` so the eight tools this
+ * sentence is about a report. It defaults to `RunReport` so the nine tools this
  * package ships say nothing about it.
  *
  * `stringArg` is here for the same reason it exists at all. A tool is called with
