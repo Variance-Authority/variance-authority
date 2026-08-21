@@ -102,6 +102,32 @@ export function specifiersIn(text: string): readonly string[] {
   return PATTERNS.flatMap((pattern) => [...code.matchAll(pattern)].map((match) => match[1]!));
 }
 
+/**
+ * Directories below a workspace that carry a `package.json` of their own.
+ *
+ * A file under one of these is not this workspace's code. `packages/package`
+ * keeps a miniature workspace under `src/__fixtures__` — root manifest, members,
+ * sources, cross-package imports — because the thing it reads *is* a workspace
+ * and the only honest fixture for that is one. Nothing in there is compiled,
+ * published or run: `export { measure } from 'alpha'` is a string its tests
+ * expect the reader to classify, not an edge in this repository's graph.
+ *
+ * Deciding this by the presence of a manifest rather than by a directory name is
+ * the same rule the reader itself follows. A `package.json` says whose code
+ * something is, and declares its own dependencies — so rule 1 still applies to
+ * that subtree, it is simply not ours to answer for.
+ */
+function nestedManifests(dir: string, out: string[] = []): string[] {
+  if (!existsSync(dir)) return out;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const path = join(dir, entry.name);
+    if (existsSync(join(path, 'package.json'))) out.push(path);
+    else nestedManifests(path, out);
+  }
+  return out;
+}
+
 export function workspaces(): readonly Workspace[] {
   const found: Workspace[] = [];
   for (const group of ['packages', 'examples', 'cases']) {
@@ -123,7 +149,13 @@ export function workspaces(): readonly Workspace[] {
       // `esbuild` and four workspace packages with **nothing checking any of
       // them** — the exact class of failure rule 1 exists to catch, in the one
       // directory this repository points at when asked what adoption costs.
-      for (const file of [...sourceFiles(join(dir, 'src')), ...sourceFiles(join(dir, 'collector'))]) {
+      const roots = [join(dir, 'src'), join(dir, 'collector')];
+      const foreign = roots.flatMap((root) => nestedManifests(root));
+
+      for (const file of roots.flatMap((root) => sourceFiles(root))) {
+        // A fixture workspace answers for its own imports; see `nestedManifests`.
+        if (foreign.some((nested) => file.startsWith(`${nested}/`))) continue;
+
         // `.spec.` counts as well as `.test.`, because the weaker rule is about
         // *when* code runs and not about which runner runs it. A case driving a
         // competitor's assertion library does so from a file that competitor's

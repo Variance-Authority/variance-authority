@@ -24,6 +24,9 @@
       "path": "../packages/cli"
     },
     {
+      "path": "../packages/package"
+    },
+    {
       "path": "../packages/core"
     },
     {

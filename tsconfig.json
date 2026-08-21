@@ -71,6 +71,9 @@
       "path": "./packages/route-collector"
     },
     {
+      "path": "./packages/package"
+    },
+    {
       "path": "./packages/cli"
     },
     {

@@ -1,0 +1,11 @@
+{
+  "name": "alpha",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./widget": { "types": "./dist/widget.d.ts", "default": "./dist/widget.js" },
+    "./direct": { "types": "./src/direct.ts", "default": "./src/direct.ts" },
+    "./raw": { "default": "./raw.js" }
+  },
+  "files": ["dist"]
+}

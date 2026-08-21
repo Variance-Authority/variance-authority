@@ -2640,6 +2640,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/package@workspace:packages/package":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/package@workspace:packages/package"
+  dependencies:
+    oxc-parser: "npm:^0.144.0"
+    oxc-resolver: "npm:^11.24.2"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/playwright-test@workspace:^, @variance-authority/playwright-test@workspace:packages/playwright-test":
   version: 0.0.0-use.local
   resolution: "@variance-authority/playwright-test@workspace:packages/playwright-test"
@@ -5818,8 +5827,6 @@ __metadata:
     "@types/react-dom": "npm:^19"
     esbuild: "npm:^0.25.0"
     jsdom: "npm:^30.0.1"
-    oxc-parser: "npm:^0.144.0"
-    oxc-resolver: "npm:^11.24.2"
     oxlint: "npm:^1.77.0"
     pixelmatch: "npm:^7.2.0"
     pngjs: "npm:^7.0.0"

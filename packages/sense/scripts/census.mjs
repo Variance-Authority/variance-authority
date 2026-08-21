@@ -34,14 +34,21 @@ import { instrument } from '../dist/instrument/index.js';
 
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
 
-/** Product code: what ships, not what checks it and not what builds it. */
+/**
+ * Product code: what ships, not what checks it and not what builds it.
+ *
+ * A fixture is the second kind. `packages/package` keeps a whole miniature
+ * workspace under `src/__fixtures__` — manifests, tsconfigs and barrels for a
+ * reader to read — and none of it is compiled, published or run, so counting it
+ * would inflate a figure whose whole meaning is *real code*.
+ */
 const FILES = execFileSync('git', ['ls-files', 'packages/**/*.ts', 'packages/**/*.tsx'], {
   cwd: ROOT,
   encoding: 'utf8',
 })
   .trim()
   .split('\n')
-  .filter((file) => !/\.test\.tsx?$/.test(file));
+  .filter((file) => !/\.test\.tsx?$/.test(file) && !file.includes('__fixtures__'));
 
 /** `coverStatement` in Istanbul's visitor, node for node. */
 const STATEMENTS = new Set([

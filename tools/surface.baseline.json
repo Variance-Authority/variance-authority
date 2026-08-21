@@ -1110,6 +1110,41 @@
       }
     }
   },
+  "@variance-authority/package": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      },
+      "files": [
+        "dist",
+        "mark.svg"
+      ]
+    },
+    "names": {
+      ".": {
+        "DeclarationKind": "type",
+        "Entrypoint": "interface",
+        "Names": "type",
+        "OFFERED": "const",
+        "Offering": "interface",
+        "OfferingOptions": "interface",
+        "PackageSurface": "type",
+        "PublishedPackage": "interface",
+        "Reader": "interface",
+        "countNames": "function",
+        "createReader": "function",
+        "namesReachedBy": "function",
+        "readOfferings": "function",
+        "readSurface": "function"
+      }
+    }
+  },
   "@variance-authority/playwright": {
     "declared": {
       "type": "module",

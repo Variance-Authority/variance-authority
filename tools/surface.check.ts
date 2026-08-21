@@ -8,9 +8,10 @@ import { BASELINE, countOf } from './surface.mjs';
  * What we publish is a subject, and this is its baseline.
  *
  * Not a new kind of rule — an arrangement of parts that already exist, aimed at
- * an edge that had nothing on it. `tools/surface.mjs` is the **source**: it reads
- * every published manifest and the source each entrypoint points at, and produces
- * one value. `compareValues` is the **diff**, and it is the floor rather than the
+ * an edge that had nothing on it. `@variance-authority/package` is the **source**:
+ * it reads every published manifest and the source each entrypoint points at, and
+ * produces one value, which `tools/surface.mjs` runs against this checkout.
+ * `compareValues` is the **diff**, and it is the floor rather than the
  * point — a general JSON comparison, used here because nobody ships an `oasdiff`
  * for "the shape of a workspace's published exports" the way somebody ships one
  * for OpenAPI. Where a real detector exists, it produces the diff and this layer
