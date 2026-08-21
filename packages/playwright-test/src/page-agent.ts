@@ -7,7 +7,7 @@ import type { Digest, RawCapture, RenderDocument, SubjectRef, Viewport } from '@
 /**
  * The page half, bundled as an IIFE and installed on `window`.
  *
- * Same obligation as `cases/storybook-case/collector/page-agent.js` — acquire a
+ * Same obligation as `packages/storybook-collector/src/page-agent.ts` — acquire a
  * document, collect a capture, from one mount — with one difference that is most
  * of why this surface is cheaper than a collector: **the root arrives as an
  * element, not as a selector.** Playwright resolves a locator and hands the node
