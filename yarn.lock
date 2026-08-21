@@ -2783,6 +2783,7 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/raster": "workspace:^"
+    "@variance-authority/report": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -5817,6 +5818,8 @@ __metadata:
     "@types/react-dom": "npm:^19"
     esbuild: "npm:^0.25.0"
     jsdom: "npm:^30.0.1"
+    oxc-parser: "npm:^0.144.0"
+    oxc-resolver: "npm:^11.24.2"
     oxlint: "npm:^1.77.0"
     pixelmatch: "npm:^7.2.0"
     pngjs: "npm:^7.0.0"

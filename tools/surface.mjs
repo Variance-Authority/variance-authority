@@ -1,16 +1,21 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseSync } from 'oxc-parser';
+import { ResolverFactory } from 'oxc-resolver';
+import { ROOT, offerings } from './manifests.mjs';
 
 /**
  * What this repository offers an adopter, as one value.
  *
- * Every package that is published, every entrypoint its `exports` map opens, and
- * every name reachable through that entrypoint — followed through the barrels,
- * because `core` re-exports seven groups which re-export forty files, and a rule
- * that stopped at the first `export *` would be watching eight lines instead of
- * a thousand names.
+ * Two halves, and the split is the whole design. What a package *offers* comes
+ * from its `package.json` — the subpaths its `exports` map opens, its `bin`, its
+ * peers — because that manifest is the thing npm publishes and the thing another
+ * project reads. What each entrypoint *reaches* comes from the source the
+ * manifest points at, followed through the barrels, because `core` re-exports
+ * eight groups which re-export forty files and a rule that stopped at the first
+ * `export *` would be watching eight lines instead of a thousand names.
  *
  * This is the edge nothing else here watches. `tools/boundaries.check.ts`
  * governs who may depend on whom and `tools/surfaces.check.ts` governs how many
@@ -19,89 +24,156 @@ import { fileURLToPath } from 'node:url';
  * if a subpath stopped resolving, or if a package started shipping a bin. Those
  * are the changes somebody else's build finds out about.
  *
- * *Why it parses rather than asks the compiler.* TypeScript 7 publishes its API
- * under `unstable/`, and this is a producer that has to keep working — the same
- * argument `tools/unrun.mjs` makes for having no build step and no dependency. A
- * `.d.ts` that `tsc` emitted is regular enough to read: the barrels are
- * `export … from`, the leaves are `export declare`, and both are matched below.
- * The cost is real and worth naming: this reads *declarations*, so a name is a
- * name and its type is not compared. A signature that changed while its name
- * stayed put is invisible here, and that is the next rung rather than a bug.
+ * *Nothing derived.* The `types` targets point into `dist`, and `dist` is what a
+ * build produced — so this maps each one back through the package's own
+ * `rootDir`/`outDir` and reads the source. No `yarn build` is a precondition, and
+ * the names recorded are the ones somebody wrote rather than the ones `tsc`
+ * emitted. What that costs is named at `KINDS` and refused rather than guessed:
+ * a declaration form this does not know is an error with a `file:line`, never a
+ * quiet `unknown` that shrinks the surface without saying so.
  *
- * *Where it stops.* A name re-exported from outside the workspace — `JSX` from
- * `react/jsx-dev-runtime` — is recorded with the kind `foreign`, and a wholesale
- * `export * from 'react/jsx-runtime'` is recorded as the forwarding line itself.
- * Both say the same thing: this is an edge we offer and cannot see through. The
- * kind `unknown` means something else entirely — the parser met a form it does
- * not read — and a surface with one in it is a bug here, not a fact about us.
+ * *Nothing hand-rolled.* `oxc-parser` supplies the module record — every export
+ * entry with the name it publishes, the name it imports, and whether it is
+ * type-only — and `oxc-resolver` follows relative specifiers, `.js` to `.ts`
+ * included. Both are already dependencies of `packages/sense`, whose
+ * `src/resolve.ts` is the reference for the options below.
+ *
+ * *What a source read cannot see.* A name and what kind of thing it is, never
+ * its type. An emitted `.d.ts` states what the compiler inferred; source states
+ * what somebody wrote, so `export const jsxDEV = runtime.jsxDEV` records here as
+ * a const and nothing more where the emitted declaration carries its full
+ * signature. A signature that changes under a name that does not is a change
+ * this misses. That is a limitation rather than a reason to read `dist`, which
+ * costs a build as a precondition and pays in stale output: read from source,
+ * this recovers every name the emitted declarations have and one they do not.
  *
  * `node tools/surface.mjs` prints it; `--write` records it as the baseline.
  * `tools/surface.check.ts` is what compares the two.
  */
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const BASELINE = join(ROOT, 'tools/surface.baseline.json');
 
-/** A declaration that introduces a name, and what kind of thing it introduces. */
-const DECLARATIONS = [
-  [/(?:^|\n)\s*(?:export\s+)?declare\s+(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/g, 'class'],
-  [/(?:^|\n)\s*(?:export\s+)?declare\s+function\s+([A-Za-z_$][\w$]*)/g, 'function'],
-  [/(?:^|\n)\s*(?:export\s+)?declare\s+(?:const\s+)?enum\s+([A-Za-z_$][\w$]*)/g, 'enum'],
-  [/(?:^|\n)\s*(?:export\s+)?declare\s+namespace\s+([A-Za-z_$][\w$]*)/g, 'namespace'],
-  [/(?:^|\n)\s*(?:export\s+)?declare\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g, 'const'],
-  [/(?:^|\n)\s*(?:export\s+)?interface\s+([A-Za-z_$][\w$]*)/g, 'interface'],
-  [/(?:^|\n)\s*(?:export\s+)?type\s+([A-Za-z_$][\w$]*)\s*[<=]/g, 'type'],
-];
+/**
+ * What a top-level declaration is, said in one word.
+ *
+ * Total over the forms this repository contains, and fatal outside them. An
+ * `enum`, a `namespace`, an `export =` or a `declare global` would each be a real
+ * addition to what we offer, and the worst possible response is a surface that
+ * omits it without saying so.
+ */
+const KINDS = {
+  FunctionDeclaration: 'function',
+  ClassDeclaration: 'class',
+  TSInterfaceDeclaration: 'interface',
+  TSTypeAliasDeclaration: 'type',
+  TSEnumDeclaration: 'enum',
+  TSModuleDeclaration: 'namespace',
+};
 
-/** The same list, restricted to the ones written `export …` at the top level. */
-const EXPORTED = DECLARATIONS.map(([pattern, kind]) => [
-  new RegExp(pattern.source.replace('(?:export\\s+)?', 'export\\s+'), 'g'),
-  kind,
-]);
+/**
+ * What a default export is, when it is an expression rather than a declaration.
+ *
+ * `export default function f() {}` is a declaration and `KINDS` answers it. The
+ * one default export in this repository is an object literal — a Worker's
+ * `{ fetch }` — and an object is what that entrypoint publishes.
+ */
+const DEFAULTS = {
+  ObjectExpression: 'object',
+  FunctionExpression: 'function',
+  ArrowFunctionExpression: 'function',
+  ClassExpression: 'class',
+};
 
-/** `export { a, b as c }` and `export type { … }`, with or without a source. */
-const CLAUSE = /(?:^|\n)\s*export\s+(type\s+)?\{([^}]*)\}\s*(?:from\s*'([^']+)')?\s*;/g;
-const STAR = /(?:^|\n)\s*export\s+\*\s+from\s*'([^']+)'\s*;/g;
-/** `import { a, type b as c } from '…'` — what a bare `export { … }` can name. */
-const IMPORT = /(?:^|\n)\s*import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'([^']+)'\s*;/g;
+/** Relative specifiers only. A bare one names a package, and packages come from manifests. */
+const resolver = new ResolverFactory({
+  extensions: ['.ts', '.tsx', '.mts', '.cts'],
+  // A file written under `nodenext` imports `./value.js` and means `./value.ts`.
+  // Without this every relative specifier fails and the surface is eight names.
+  extensionAlias: { '.js': ['.ts', '.tsx'], '.mjs': ['.mts'], '.cjs': ['.cts'] },
+  conditionNames: ['types', 'import', 'default'],
+  symlinks: true,
+});
 
-/** Comments go first: this repository's declarations carry more prose than code. */
-function code(text) {
-  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
-}
+/** `<package name> <subpath>` to the source file that entrypoint begins at. */
+const ENTRYPOINTS = new Map();
 
-/** `{ a, type b as c }` as pairs of the name declared and the name bound. */
-function* clause(list) {
-  for (const item of list.split(',')) {
-    const parts = item.trim().replace(/^type\s+/, '').split(/\s+as\s+/);
-    const original = parts[0]?.trim();
-    const bound = (parts[1] ?? parts[0])?.trim();
-    if (original === undefined || bound === undefined || original === '') continue;
-    yield [original, bound];
-  }
+/** `@variance-authority/core/plan` as the pair a manifest can answer. */
+function requested(specifier) {
+  const parts = specifier.split('/');
+  const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+  return `${name} .${specifier.slice(name.length)}`;
 }
 
 /**
- * The declaration file a specifier opens, or `null` when it leaves the workspace.
+ * Where a specifier points, or nothing when it leaves this repository.
  *
- * Relative first, then across packages: `cli` re-exports `settle` from
- * `@variance-authority/raster`, and a resolver that only walked directories
- * would have called one of our own names foreign.
+ * A workspace package is answered from its manifest rather than resolved,
+ * because resolving it would go through the `exports` map into `dist` — the built
+ * thing this producer exists in order not to read.
  */
-function declarationFile(from, specifier) {
-  if (specifier.startsWith('.')) {
-    const base = resolve(dirname(from), specifier.replace(/\.js$/, ''));
-    for (const candidate of [`${base}.d.ts`, join(base, 'index.d.ts')]) {
-      if (existsSync(candidate)) return candidate;
-    }
-    return null;
+function target(from, specifier) {
+  if (!specifier.startsWith('.')) return ENTRYPOINTS.get(requested(specifier));
+
+  try {
+    return resolver.sync(dirname(from), specifier).path;
+  } catch {
+    return undefined;
   }
-  const parts = specifier.split('/');
-  const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
-  const pkg = workspace().get(name);
-  if (pkg === undefined) return null;
-  const rest = specifier.slice(name.length);
-  return entrypoints(pkg).find((entry) => entry.subpath === `.${rest}`)?.file ?? null;
+}
+
+const PARSED = new Map();
+
+function parse(file) {
+  const held = PARSED.get(file);
+  if (held !== undefined) return held;
+
+  const result = parseSync(file, readFileSync(file, 'utf8'));
+  const first = result.errors[0];
+  if (first !== undefined) throw new Error(`${at(file)} does not parse: ${first.message}`);
+
+  PARSED.set(file, result);
+  return result;
+}
+
+/** Every locally declared name in a file, to what kind of declaration it is. */
+function declared(file) {
+  const kinds = new Map();
+
+  for (const node of parse(file).program.body) {
+    if (node.type === 'ExportDefaultDeclaration') {
+      const kind = KINDS[node.declaration.type] ?? DEFAULTS[node.declaration.type];
+      if (kind === undefined) {
+        throw new Error(`${at(file)} default-exports a \`${node.declaration.type}\`, which nothing here names`);
+      }
+      kinds.set('default', kind);
+      continue;
+    }
+
+    const declaration = node.type === 'ExportNamedDeclaration' ? node.declaration : node;
+    if (declaration === null || declaration === undefined) continue;
+
+    if (declaration.type === 'VariableDeclaration') {
+      for (const one of declaration.declarations) bindings(one.id, kinds, declaration.kind);
+      continue;
+    }
+
+    const kind = KINDS[declaration.type];
+    if (kind !== undefined && declaration.id?.name !== undefined) kinds.set(declaration.id.name, kind);
+  }
+
+  return kinds;
+}
+
+/** Every name a declarator introduces, destructuring included. */
+function bindings(pattern, into, kind) {
+  if (pattern.type === 'Identifier') into.set(pattern.name, kind);
+  else if (pattern.type === 'ObjectPattern') {
+    for (const property of pattern.properties) {
+      bindings(property.type === 'RestElement' ? property.argument : property.value, into, kind);
+    }
+  } else if (pattern.type === 'ArrayPattern') {
+    for (const element of pattern.elements) if (element !== null) bindings(element, into, kind);
+  }
 }
 
 function add(into, name, kind) {
@@ -111,158 +183,102 @@ function add(into, name, kind) {
 }
 
 /**
- * Every name a declaration file exports, followed through its re-exports.
+ * Every name a file publishes, followed through its re-exports.
  *
- * Two structures, because they answer different questions and sharing one broke
- * this. `RESOLVED` is a cache: `format/index.d.ts` reaches `value.d.ts` twice on
- * two adjacent lines — once for its types and once for its functions — and a
- * plain visited-set reads the second one as a cycle and returns nothing, which
- * is how `shapeValue` came back as `unknown`. `stack` is the cycle guard, and it
- * unwinds.
+ * Two structures, because they answer different questions. `REACHED` is a cache:
+ * `format/index.ts` reaches `value.ts` twice on two adjacent lines — once for its
+ * types and once for its functions — and a plain visited-set reads the second as
+ * a cycle and returns nothing. `stack` is the cycle guard, and it unwinds.
  */
-const RESOLVED = new Map();
+const REACHED = new Map();
 
-function exportsOf(file, stack = new Set()) {
-  const held = RESOLVED.get(file);
+function reach(file, stack = new Set()) {
+  const held = REACHED.get(file);
   if (held !== undefined) return held;
-  const names = new Map();
-  if (stack.has(file)) return names;
+  const found = new Map();
+  if (stack.has(file)) return found;
   stack.add(file);
 
-  const text = code(readFileSync(file, 'utf8'));
+  const local = declared(file);
 
-  // Local declarations, exported or not: a bare `export { … }` names them.
-  const local = new Map();
-  for (const [pattern, kind] of DECLARATIONS) {
-    for (const match of text.matchAll(pattern)) add(local, match[1], kind);
-  }
-  for (const [pattern, kind] of EXPORTED) {
-    for (const match of text.matchAll(pattern)) add(names, match[1], kind);
-  }
+  for (const statement of parse(file).module.staticExports) {
+    for (const entry of statement.entries) {
+      const specifier = entry.moduleRequest?.value;
+      const to = specifier === undefined ? undefined : target(file, specifier);
 
-  // A name can also arrive imported and leave on the next line: `core/attribute`
-  // imports `StackFrame` from `format/provenance` and then re-exports it bare.
-  const borrowed = new Map();
-  for (const match of text.matchAll(IMPORT)) {
-    for (const [original, bound] of clause(match[1])) {
-      borrowed.set(bound, { original, specifier: match[2] });
-    }
-  }
+      // `export * from './x.js'` republishes a set this file never names.
+      if (entry.exportName.kind === 'None') {
+        if (to === undefined) add(found, `* from '${specifier}'`, 'foreign');
+        else for (const [name, kinds] of reach(to, stack)) for (const k of kinds) add(found, name, k);
+        continue;
+      }
 
-  for (const match of text.matchAll(STAR)) {
-    const target = declarationFile(file, match[1]);
-    if (target === null) {
-      add(names, `* from '${match[1]}'`, 'foreign');
-      continue;
-    }
-    for (const [name, kinds] of exportsOf(target, stack)) {
-      for (const kind of kinds) add(names, name, kind);
-    }
-  }
+      const name = entry.exportName.name ?? 'default';
 
-  for (const match of text.matchAll(CLAUSE)) {
-    const target = match[3] === undefined ? null : declarationFile(file, match[3]);
-    const away = match[3] !== undefined && target === null;
-    const from = target === null ? local : exportsOf(target, stack);
-    for (const [original, exposed] of clause(match[2])) {
-      const kinds = away ? ['foreign'] : (from.get(original) ?? through(file, borrowed, original, stack));
-      for (const kind of kinds) add(names, exposed, kind);
+      // `export * as ns from './x.js'` publishes one object, not a set.
+      if (entry.importName.kind === 'AllButDefault') {
+        add(found, name, 'namespace');
+        continue;
+      }
+
+      if (specifier === undefined) {
+        const kind = local.get(entry.localName.name ?? name);
+        if (kind === undefined) {
+          throw new Error(`${at(file)} exports \`${name}\`, and no declaration here says what it is`);
+        }
+        add(found, name, kind);
+        continue;
+      }
+
+      if (to === undefined) {
+        add(found, name, 'foreign');
+        continue;
+      }
+
+      const kinds = reach(to, stack).get(entry.importName.name ?? 'default');
+      if (kinds === undefined) {
+        throw new Error(`${at(file)} re-exports \`${name}\` from \`${specifier}\`, which does not publish it`);
+      }
+      for (const kind of kinds) add(found, name, kind);
     }
   }
 
   stack.delete(file);
-  RESOLVED.set(file, names);
-  return names;
-}
-
-/** A name this file imported and re-exports: follow it to where it was declared. */
-function through(file, borrowed, name, stack) {
-  const held = borrowed.get(name);
-  if (held === undefined) return ['unknown'];
-  const target = declarationFile(file, held.specifier);
-  if (target === null) return ['foreign'];
-  return exportsOf(target, stack).get(held.original) ?? ['unknown'];
-}
-
-function packages() {
-  const dir = join(ROOT, 'packages');
-  return readdirSync(dir)
-    .filter((name) => statSync(join(dir, name)).isDirectory())
-    .filter((name) => existsSync(join(dir, name, 'package.json')))
-    .map((name) => ({
-      dir: join(dir, name),
-      manifest: JSON.parse(readFileSync(join(dir, name, 'package.json'), 'utf8')),
-    }));
-}
-
-/**
- * Every workspace package by name, private ones included — a published package
- * may re-export from a private one, and the name it forwards is public either way.
- */
-const WORKSPACE = new Map();
-
-function workspace() {
-  if (WORKSPACE.size === 0) {
-    for (const pkg of packages()) WORKSPACE.set(pkg.manifest.name, pkg);
-  }
-  return WORKSPACE;
-}
-
-/** The `types` file each subpath opens, when the map declares one. */
-function entrypoints(pkg) {
-  const found = [];
-  for (const [subpath, condition] of Object.entries(pkg.manifest.exports ?? {})) {
-    const types = typeof condition === 'string' ? null : condition?.types;
-    if (typeof types !== 'string') continue;
-    found.push({ subpath, types, file: resolve(pkg.dir, types) });
-  }
+  REACHED.set(file, found);
   return found;
 }
 
-export function surface() {
-  const found = packages().filter(({ manifest }) => manifest.private !== true);
-  const missing = found
-    .flatMap((pkg) => entrypoints(pkg))
-    .filter((entry) => !existsSync(entry.file))
-    .map((entry) => entry.file.slice(ROOT.length + 1));
+function at(file) {
+  return relative(ROOT, file);
+}
 
-  if (missing.length > 0) {
-    throw new Error(
-      `no built types for ${missing.length} entrypoint(s), starting at ${missing[0]}. ` +
-        'Run `yarn build` first: the published surface is the built one, not the one ' +
-        'the source implies.',
-    );
+export function surface() {
+  const found = offerings();
+
+  ENTRYPOINTS.clear();
+  for (const pkg of found) {
+    for (const entry of pkg.entries) ENTRYPOINTS.set(`${pkg.name} ${entry.subpath}`, entry.source);
   }
 
   const value = {};
   for (const pkg of found) {
-    const opened = {};
-    for (const entry of entrypoints(pkg)) {
-      const names = {};
-      for (const [name, kinds] of [...exportsOf(entry.file)].sort()) {
-        names[name] = [...kinds].sort().join('+');
+    const names = {};
+    for (const entry of pkg.entries) {
+      const reachable = {};
+      for (const [name, kinds] of [...reach(entry.source)].sort()) {
+        reachable[name] = [...kinds].sort().join('+');
       }
-      opened[entry.subpath] = { types: entry.types, exports: names };
+      names[entry.subpath] = reachable;
     }
-    value[pkg.manifest.name] = {
-      entrypoints: opened,
-      ...(pkg.manifest.bin === undefined ? {} : { bin: pkg.manifest.bin }),
-      ...(pkg.manifest.peerDependencies === undefined
-        ? {}
-        : { peerDependencies: pkg.manifest.peerDependencies }),
-    };
+    value[pkg.name] = { declared: pkg.declared, names };
   }
+
   return value;
 }
 
 export function countOf(value) {
   return Object.values(value).reduce(
-    (total, pkg) =>
-      total +
-      Object.values(pkg.entrypoints).reduce(
-        (inner, entry) => inner + Object.keys(entry.exports).length,
-        0,
-      ),
+    (total, pkg) => total + Object.values(pkg.names).reduce((n, entry) => n + Object.keys(entry).length, 0),
     0,
   );
 }
