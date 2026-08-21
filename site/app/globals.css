@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+/* Palette from docs/visual-guidelines.md. The page commits to one dark look;
+   variance orange is the single active path, green is used sparingly. */
+@theme {
+  --color-charcoal: #24282a;
+  --color-deep: #181b1d;
+  --color-panel: #1e2224;
+  --color-hairline: #383e41;
+  --color-ivory: #f3f4f6;
+  --color-warm: #756d67;
+  --color-quiet: #8f8580;
+  --color-orange: #ff4a19;
+  --color-fold: #d83a13;
+  --color-green: #7fa28c;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica,
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+:root {
+  color-scheme: dark;
+  background: #181b1d;
+  color: #f3f4f6;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #ff4a19;
+  color: #181b1d;
+}
