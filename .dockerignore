@@ -2,8 +2,8 @@
 # different machine.
 #
 # `docker/linux-verify.Dockerfile` copies the whole tree, because the suite needs
-# the whole tree — `cases/` is a declared workspace, `tools/` is in the vitest
-# include, and both `tools` suites enumerate files with `git ls-files`, so `.git`
+# the whole tree — `cases/` is a declared workspace, `tools/` is what `yarn check`
+# collects, and the rules in it enumerate files with `git ls-files`, so `.git`
 # comes too. That makes this file load-bearing rather than housekeeping: without
 # it the copy would carry a macOS-built `node_modules` into a Linux container.
 #

@@ -5,9 +5,9 @@ name: check
 #
 # `.github/workflows/variance.yml` is a different thing entirely: an *example* of
 # wiring the tool into somebody's project, which happens to live here. Until this
-# file existed, nothing ran `yarn build` or `yarn test` anywhere but a laptop —
-# so `tools/boundaries.test.ts` and `tools/documentation.test.ts` were enforcing
-# their rules only against whoever happened to type the command.
+# file existed, nothing ran `yarn build`, `yarn check` or `yarn test` anywhere but
+# a laptop — so `tools/boundaries.check.ts` and the `tools/docs-*.check.ts` rules
+# were enforcing themselves only against whoever happened to type the command.
 
 on:
   push:

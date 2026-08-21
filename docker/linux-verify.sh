@@ -42,15 +42,20 @@ docker build -f "${ROOT}/docker/linux-verify.Dockerfile" -t "${IMAGE}" "${ROOT}"
 # from a loaded machine, and the cost ratios this is re-measuring are exactly
 # the numbers a noisy container would misreport.
 #
-# FIXME: `yarn test` is the suite alone. It collects no `tools/*.check.ts` — those
-# run under `yarn check`, from vitest.checks.config.ts — and it runs neither corpus
-# measurement the header above promises: examples/kitchen-sink/scripts/bench.mjs
-# and cases/incumbent-case/scripts/incumbent.mjs. Run `yarn verify` and both
-# scripts, or stop promising them at the top of this file.
+# `yarn check` and not only `yarn test`, because the two collect disjoint sets.
+# The repository's own rules are `tools/**/*.check.ts` and run from
+# `vitest.checks.config.ts`; `yarn test` does not see one of them. Running the
+# suite alone would have carried this image past the guard below while the
+# boundary and documentation rules had never executed on Linux at all — which is
+# the same hollow pass that guard was written to refuse.
+#
+# FIXME: this still runs neither corpus measurement the header above promises:
+# examples/kitchen-sink/scripts/bench.mjs and cases/incumbent-case/scripts/incumbent.mjs.
+# Run both, or stop promising them at the top of this file.
 for run in 1 2 3; do
   echo "--- linux run ${run}"
   docker run --rm --ipc=host "${IMAGE}" \
-    bash -lc 'echo "arch: $(uname -m)"; yarn build && yarn test 2>&1' \
+    bash -lc 'echo "arch: $(uname -m)"; yarn build && yarn check && yarn test 2>&1' \
     | tee "${OUT}/linux-run-${run}.log"
 done
 
@@ -83,12 +88,12 @@ esac
 # the families whose absence is invisible in a summary, named individually so the
 # message says which one went missing.
 #
-# FIXME: neither tools filename is in the tree. The rules are `tools/boundaries.check.ts`
-# and `tools/docs-*.check.ts`, and they run under `yarn check`, which the command above
-# does not invoke — so this guard reports every container run as a partial suite and
-# exits 1 before a single number is read. Name what that command actually collects.
+# The documentation rules are six files rather than one, so that family is named
+# by the prefix they share: `tools/docs-` matches whichever of
+# `tools/docs-claims.check.ts` and its siblings the run collected, and a rename
+# within the family does not quietly empty this list.
 missing=()
-for family in 'tools/documentation.test.ts' 'tools/boundaries.test.ts' 'cases/' 'examples/kitchen-sink'; do
+for family in 'tools/docs-' 'tools/boundaries.check.ts' 'cases/' 'examples/kitchen-sink'; do
   grep -q -- "${family}" "${OUT}/linux-run-1.log" || missing+=("${family}")
 done
 
@@ -113,7 +118,7 @@ fi
 # holds without having executed one cross-platform measurement.
 #
 # So: on Linux, with the right image, nothing may skip.
-# `tools/boundaries.test.ts` keeps the two pins from drifting again.
+# `tools/boundaries.check.ts` keeps the two pins from drifting again.
 if grep -qE '[0-9]+ skipped' "${OUT}/linux-run-1.log"; then
   echo >&2
   echo "suites skipped inside the container:" >&2

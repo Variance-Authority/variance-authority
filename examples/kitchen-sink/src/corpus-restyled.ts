@@ -25,10 +25,12 @@ import type { CorpusCase } from './corpus-case.js';
 /**
  * Named first and exported at the bottom, for a checker rather than for taste.
  *
- * `tools/boundaries.test.ts` finds a package's imports with a line-anchored
- * regex that runs from an `export` keyword to the first `from '…'` it meets
- * without crossing a `;`. `css-matched-media/card` argues, in prose, about what
- * a rule that discarded everything `from "inside an at-rule"` would score — so
+ * `tools/boundaries.check.ts` finds a package's imports through `specifiersIn`
+ * in `tools/workspaces.ts`, a line-anchored regex that runs from an `export`
+ * keyword to the first `from '…'` it meets without crossing a `;`. Comments are
+ * stripped before it runs, so only a string literal can trip it —
+ * `css-matched-media/card` argues, in its `rationale`, about what a rule that
+ * discarded everything `from "inside an at-rule"` would score — so
  * opening the literal with `export const` puts that sentence inside an apparent
  * import statement, and the package is reported as depending on a phrase. It
  * survived in the undivided `corpus.ts` only by accident: a semicolon in an

@@ -101,8 +101,10 @@ export function comparePngs(
  *
  * Split out so that swapping the decoder cannot change a verdict: every path
  * above reaches this same function with the same RGBA, and the only thing a
- * decoder is trusted to do is produce those bytes. `packages/png/src/decoder.test.ts`
- * holds the decoders to exactly that.
+ * decoder is trusted to do is produce those bytes.
+ * `packages/png-sharp/src/decoder.test.ts` holds the decoders to exactly that,
+ * one package over: the parity suite lives with the second decoder, because
+ * that is the package that adds one.
  */
 export function comparePixels(
   left: DecodedImage,

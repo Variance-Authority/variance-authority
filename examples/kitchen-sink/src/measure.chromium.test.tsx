@@ -50,7 +50,7 @@ import {
 /**
  * Checked here rather than beside the collection it guards.
  *
- * `playwright` is a devDependency, and `tools/boundaries.test.ts` holds
+ * `playwright` is a devDependency, and `tools/boundaries.check.ts` holds
  * non-test sources to what the manifest ships. `observation.ts` is a source
  * file, so it reaches a browser only through `@variance-authority/playwright` —
  * the one package that owns the requirement — and the executable check stays in

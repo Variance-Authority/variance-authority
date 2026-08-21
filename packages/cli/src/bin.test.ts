@@ -213,7 +213,7 @@ describe('parseArgs', () => {
 
   it('names every flag each command accepts in its usage line', () => {
     // The middle link of a chain: `PER_COMMAND` decides what is accepted, this
-    // asserts `USAGE` says so, and `tools/documentation.test.ts` asserts the
+    // asserts `USAGE` says so, and `tools/docs-claims.check.ts` asserts the
     // README shows `USAGE`. A renamed flag then fails twice on its way to the
     // documentation, instead of arriving there never.
     const missing: string[] = [];
