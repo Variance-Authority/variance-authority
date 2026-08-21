@@ -122,6 +122,14 @@ Apply the schema yourself, once — `applySchema(db)`, or the statements in
 request: a handler that migrates on first use migrates concurrently under load,
 and D1 has no advisory lock to serialize that with.
 
+A database that is **already deployed** is not upgraded by that call. `SCHEMA` is
+the whole shape and applying it a second time fails on the first `CREATE TABLE`,
+which is the intended behaviour; what an existing database needs is the part it
+is missing. That is `MIGRATIONS` — one entry per version after the shape this
+package first shipped, each ending by writing the version it lands on, so a
+database is never left at a version whose tables it does not have. Applying the
+initial set and then every step in order arrives at exactly the same place.
+
 ### Or deploy the one that ships
 
 The module above is the shape to copy when you want your own. If you do not,
@@ -182,11 +190,11 @@ says has to change before a second tenant exists — the credential should
 establish the project and no route should accept one. Harmless while a deployment
 serves one project, and the whole of the problem at two.
 
-Two properties worth knowing before you run it. The migration in `migrations/` is
-**generated** from `SCHEMA` by `tools/tribunal-migrations.mjs` and asserted
-against it by `migrations.test.ts` — editing the `.sql` by hand deploys a table
-no test in this repository knows about, so change `schema.ts` and rebuild. And
-the secrets are secrets: `wrangler.jsonc` carries the project name and nothing
+Two properties worth knowing before you run it. The migrations in `migrations/`
+are **generated** from `SCHEMA` by `tools/tribunal-migrations.mjs` and asserted
+against it by `migrations.test.ts` — editing a `.sql` by hand deploys a table no
+test in this repository knows about, so change `schema.ts` and rebuild. And the
+secrets are secrets: `wrangler.jsonc` carries the project name and nothing
 else, because a token in a checked-in config is a token in everybody's clone.
 
 ### The review surface
@@ -259,6 +267,54 @@ and the route handler attaches it — which makes the handler, not the token, th
 gate. Defaulting it to `'review'` would publish an approve button to the
 internet; an operator who genuinely wants that writes `() => 'review'` in their
 own file, where the next person reading the repository can see it.
+
+### `GET /review/changelog`: why the baselines are what they are
+
+A build says what changed today. This says what was *approved*, grouped by what
+changed rather than by which screenshot changed — the same unit the docket uses,
+because a token edit across forty stories is one decision and forty entries would
+reproduce exactly the review problem clustering exists to solve.
+
+```ts
+import { createReviewStore } from '@variance-authority/tribunal/review';
+import { createMemoryR2, createSqliteD1 } from '@variance-authority/tribunal/testing';
+
+const review = createReviewStore({
+  db: await createSqliteD1(),
+  bucket: createMemoryR2(),
+  project: 'todomvc',
+});
+
+const { changes, ungrouped } = await review.changelog({ component: 'Card', limit: 50 });
+
+changes[0]?.subjects;  // approved subjects this shape landed in, newest first
+changes[0]?.by;        // everyone who approved part of it
+changes[0]?.builds;    // where the approvals came from
+```
+
+`changelog` takes `component` (substring, case-insensitive), `subject` (exact),
+`since` (ISO 8601) and `limit` (default 500). The route takes the same four as
+query parameters.
+
+**One row is written per approval, and its columns are copies rather than a
+join.** Everything in them is already in `builds` and `build_subjects` at the
+moment of approval, and a view over those two would be shorter — and empty after
+`sweep`. Builds expire; the explanation of a baseline has to last exactly as long
+as the baseline, which is forever. So the regions, the commit, the intent and the
+reviewer are frozen at the moment of approval, the same way
+[the git-LFS half](../store) freezes them into a commit message.
+
+Nothing is written for a **rejection**. It is a decision and it is recorded in
+`decisions`, but no baseline changed, and a changelog carrying rejections would
+answer *why does this baseline look like this* with entries about baselines that
+are not there.
+
+The shapes are grouped **when somebody reads**, not when a row is written.
+Approval here is per subject — a reviewer clicks through a docket rather than
+running one command over a report — so there is no batch at write time to
+cluster, and grouping late means a shape approved across three sessions still
+reads as one change. Approved subjects that no shape could group are returned as
+`ungrouped` rather than dropped, so the total stays a total.
 
 ## What the review surface leads with, and why it is not two screenshots
 
@@ -342,9 +398,9 @@ everything it removed, because a store that discards quietly is a store whose
 "we have never seen this" is a lie.
 
 What it does not remove: **promoted baselines**, which are what the next run
-compares against, and **decisions**, which carry a permanence trigger — a
-promoted baseline whose approval was deleted is a change nobody can attribute to
-anyone.
+compares against; **decisions**, which carry a permanence trigger — a promoted
+baseline whose approval was deleted is a change nobody can attribute to anyone;
+and the **changelog**, for the same reason one rung further out.
 
 It runs on request and never on a timer. A Worker has no timer, and this package
 will not invent a cron the operator did not ask for; wire it to a scheduled

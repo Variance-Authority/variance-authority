@@ -1,4 +1,6 @@
 import { identityDigest } from '@variance-authority/core';
+import type { D1Like } from './bindings.js';
+import { readChangelog, recordApproval } from './changelog.js';
 import { docket, latestDecisions, summarize, toNotObserved, toSubjectView } from './review-read.js';
 import { ReviewError, instant, number, optionalText, text, type Row } from './review-rows.js';
 import type {
@@ -10,6 +12,7 @@ import type {
   SweepReport,
 } from './review-types.js';
 import { promote, store, type StoredKeys } from './review-write.js';
+import type { TribunalChangelog } from './changelog.js';
 import { createBucketStore } from './store.js';
 
 /**
@@ -75,6 +78,12 @@ export type {
   SweepReport,
 } from './review-types.js';
 export { ReviewError } from './review-rows.js';
+export type {
+  ChangelogChange,
+  ChangelogRow,
+  TribunalChangelog,
+  TribunalChangelogQuery,
+} from './changelog.js';
 
 export function createReviewStore(options: ReviewOptions): ReviewStore {
   const { db, bucket, project } = options;
@@ -281,6 +290,18 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       // already against it.
       if (input.decision === 'approved') {
         await promote(bucket, baselines, db, project, input.build, input.subject, row);
+        // Beside the promotion, and only for one: an approval is the moment a
+        // baseline changed, and it is the last moment at which anything still
+        // knows what the change was. `build_subjects` expires; this does not.
+        await recordApproval(db, project, {
+          build: input.build,
+          subject: input.subject,
+          by: input.by,
+          at,
+          regions: text(row, 'regions', 'a build subject'),
+          ...(input.note !== undefined ? { note: input.note } : {}),
+          ...(await buildContext(db, project, input.build)),
+        });
       }
 
       await db
@@ -306,6 +327,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         at,
         ...(input.note !== undefined ? { note: input.note } : {}),
       };
+    },
+
+    async changelog(query): Promise<TribunalChangelog> {
+      return readChangelog(db, project, query ?? {});
     },
 
     async sweep(keepDays): Promise<SweepReport> {
@@ -368,5 +393,38 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
 
       return { builds: ids.length, subjects, objects, decisions };
     },
+  };
+}
+
+/**
+ * The two things a changelog entry needs from the build and cannot invent.
+ *
+ * Read at approval time rather than joined at read time, because the build row
+ * is what `sweep` removes. A build that has already gone is not a failure here —
+ * its subjects would have gone with it, so there would be nothing to approve —
+ * but the read is defended anyway, since an entry attributing a baseline to an
+ * empty commit is worse than one that says nothing.
+ */
+async function buildContext(
+  db: D1Like,
+  project: string,
+  build: string,
+): Promise<{ readonly commit: string; readonly intent?: string }> {
+  const row = await db
+    .prepare('SELECT "commit", intent FROM builds WHERE project = ? AND build = ?')
+    .bind(project, build)
+    .first<Row>();
+
+  if (row === null) {
+    throw new ReviewError(
+      `build "${build}" is no longer in this database, so an approval under it could not be ` +
+        'attributed to a commit. A changelog entry naming no commit explains nothing',
+    );
+  }
+
+  const intent = optionalText(row, 'intent', 'a build');
+  return {
+    commit: text(row, 'commit', 'a build'),
+    ...(intent !== undefined ? { intent } : {}),
   };
 }

@@ -85,6 +85,27 @@ export type Parsed =
       readonly all: boolean;
       /** Difference shapes to accept wherever they are the whole change. */
       readonly shapes: readonly string[];
+      /**
+       * `--message-file <path>`: write the commit message explaining this update.
+       *
+       * A file rather than a commit, because whether these baselines are
+       * committed — and to which branch, as whom — belongs to the workflow that
+       * already decides it, not to the command that promotes images.
+       */
+      readonly messageFile?: string;
+      /** `--message <text>`: the subject line of that message. */
+      readonly message?: string;
+    }
+  | {
+      readonly command: 'changelog';
+      readonly config: string;
+      /** `--component <text>`: substring, case-insensitive. */
+      readonly component?: string;
+      /** `--subject <id>`: exact, because a subject id is exact. */
+      readonly subject?: string;
+      readonly limit?: number;
+      /** `--since <rev>`: read forward from this revision, exclusive. */
+      readonly since?: string;
     }
   | {
       readonly command: 'adjudicate';
@@ -108,7 +129,16 @@ export type Parsed =
     }
   | { readonly command: 'help' };
 
-const COMMANDS = ['run', 'report', 'adjudicate', 'accept', 'serve', 'doctor', 'comment'] as const;
+const COMMANDS = [
+  'run',
+  'report',
+  'adjudicate',
+  'accept',
+  'changelog',
+  'serve',
+  'doctor',
+  'comment',
+] as const;
 
 const DEFAULT_CONFIG = 'variance.config.json';
 
@@ -128,7 +158,8 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
   ],
   report: ['--format', '--subject', '--exit-zero-on-changes'],
   adjudicate: ['--claims', '--exit-zero-on-changes'],
-  accept: ['--all', '--shape'],
+  accept: ['--all', '--shape', '--message-file', '--message'],
+  changelog: ['--component', '--subject', '--limit', '--since'],
   serve: [],
   doctor: [],
   comment: ['--body-file', '--run-url', '--marker'],
@@ -138,7 +169,8 @@ export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--flakes] [--exit-zero-on-changes]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
-  'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]',
+  'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path>] [--message <text>]',
+  'variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]',
   'variance serve   [--config <path>]              # MCP over stdio',
   'variance doctor  [--config <path>]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
@@ -265,7 +297,50 @@ export function parseArgs(argv: readonly string[]): Parsed {
             `${flags.positionals.join(', ')} as well is asking for two different sets`,
         );
       }
-      return { command: 'accept', config, subjects: flags.positionals, all, shapes };
+      const messageFile = flags.values.get('--message-file');
+      const message = flags.values.get('--message');
+      if (message !== undefined && messageFile === undefined) {
+        // Refused rather than ignored. `--message` with nowhere to write it is a
+        // workflow that believes it recorded an explanation and did not, which is
+        // exactly the failure the message exists to prevent.
+        throw new OperatorError(
+          '--message is the subject line of the commit message --message-file writes, and ' +
+            'no --message-file was given; this command never commits anything itself',
+        );
+      }
+
+      return {
+        command: 'accept',
+        config,
+        subjects: flags.positionals,
+        all,
+        shapes,
+        ...(messageFile !== undefined ? { messageFile: resolve(messageFile) } : {}),
+        ...(message !== undefined ? { message } : {}),
+      };
+    }
+
+    case 'changelog': {
+      noPositionals(flags.positionals, 'changelog');
+      const component = flags.values.get('--component');
+      const subject = flags.values.get('--subject');
+      const since = flags.values.get('--since');
+      const limit = flags.values.get('--limit');
+
+      if (limit !== undefined && !/^[1-9][0-9]*$/.test(limit)) {
+        throw new OperatorError(
+          `--limit is how many commits to read and must be a positive whole number, not \`${limit}\``,
+        );
+      }
+
+      return {
+        command: 'changelog',
+        config,
+        ...(component !== undefined ? { component } : {}),
+        ...(subject !== undefined ? { subject } : {}),
+        ...(limit !== undefined ? { limit: Number(limit) } : {}),
+        ...(since !== undefined ? { since } : {}),
+      };
     }
 
     case 'serve':

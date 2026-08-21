@@ -73,7 +73,8 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--flakes] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
-variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...]
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path>] [--message <text>]
+variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
@@ -83,11 +84,76 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 `adjudicate` re-reads it against what you said you were doing;
 `accept` promotes a candidate image to baseline — by subject, by `--all`, or by
 `--shape`, which accepts a difference *shape* wherever it is the whole change and
-refuses by name any subject where something else moved too; `doctor` says what this machine
+refuses by name any subject where something else moved too; `changelog` reads back
+why the baselines are what they are; `doctor` says what this machine
 can observe before a run rather than after one. `serve` exposes the report the
 last run wrote to an MCP client — an agent asks it what changed, which component
 and which file, over stdio, without re-running anything; the tools are
 [`@variance-authority/mcp`](../mcp)'s.
+
+### `changelog`: why a baseline is what it is
+
+A baseline update lands in a run of its own, and the artifact that lands says
+*what* the new baseline is and nothing about **what the change was**. By the time
+anybody asks — a month later, at the twelfth 2px approval — the report that could
+have answered is gone with the CI job that wrote it.
+
+So `accept` can write the explanation into the thing that survives:
+
+```bash
+variance accept --all --message-file .variance/commit-message.txt
+git add -- .variance/baselines
+git commit -F .variance/commit-message.txt
+```
+
+`--message-file` writes a commit message: prose a reviewer reads in `git log`,
+and opaque versioned trailers a parser reads back. `--message` sets the subject
+line and defaults to `chore(variance): regenerate baselines`. Nothing is
+committed here — whether these baselines are committed, to which branch and as
+whom, belongs to the workflow that already decides it, and `accept`'s safety
+argument is that it only ever promotes images the run produced.
+
+Reading it back:
+
+```bash
+variance changelog --component Card --limit 50
+```
+
+```
+a1b2c3d4e5f6  2026-08-21T10:14:02+10:00  run 4242 @ 9f8e7d6c5b4a --shape
+  tighten the card
+  v1:2c4f9a1e0b7d3856a91c4e2f8b06d735 Card src/Card.tsx 11/14
+    (11 of 14 subject(s) this shape reached were promoted here)
+```
+
+A change line leads with the fingerprint because that string is what
+`accept --shape` takes; `11/14` is promoted-of-reached, and a bare number means
+the shape reached exactly those. The header is the same four facts the commit
+message carried, in the same order, so moving between `git log` and this command
+is reading one format rather than two renderings of one record.
+
+`--subject` narrows to one subject id, `--since <rev>` reads forward from a tag
+or a SHA, `--limit` caps how many commits are read.
+
+Three things it will not do, and each of them is the point:
+
+- **It never prints an empty history for a question it could not ask.** git
+  missing, not a repository, a revision that does not resolve — each exits `2`
+  with a sentence. "No baseline has ever been explained" and "nobody could ask"
+  are opposite findings, and confusing them sends an operator hunting a bug in
+  the writer.
+- **It says when a shallow clone bounded the reading.** CI checks out at depth 1,
+  so a reading there sees one commit; the output carries a `note:` saying what it
+  could not see rather than presenting a window as a total.
+- **It refuses stores whose baselines are not commits, by name.** Under
+  `ephemeral` retention there is no baseline to explain; behind a `remote` store
+  the explanation went to that service's record — [the review
+  surface](../tribunal) answers it there — and this command reads the log of a
+  checkout.
+
+`selection` is on its own line because `--all` and a named subject are different
+amounts of review, and a reader auditing a baseline needs to see which one they
+are looking at. A regeneration must not read like a review.
 
 ### `--format html`: the diff as one page, with no service behind it
 

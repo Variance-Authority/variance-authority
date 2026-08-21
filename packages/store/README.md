@@ -25,6 +25,7 @@ Three stores agreeing on a wrong answer is not a pass.
 | `.` | a filesystem, and `git` if you use the LFS store | both backends and the shared layout. Take it when the store is chosen from config at runtime rather than at import. |
 | `./durable` | a filesystem | baselines in a plain directory. The single-machine and self-hosted-runner case: nothing to install, and nothing shares them. |
 | `./lfs` | a filesystem and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
+| `./changelog` | `git` and a repository | reading back **why** a baseline is what it is. Take it when you are building a history view rather than running a comparison; nothing in the render path imports it. |
 
 ## The layout is the rule
 
@@ -103,6 +104,45 @@ subject in the suite.
 | `git` | `runCommand` | the `CommandRunner` git is invoked through |
 
 `git` is injected, so all of this is testable without a git repository.
+
+## Reading a baseline's explanation back
+
+Where baselines are commits, the commit message is where `variance accept` put
+the explanation of the update — prose for the reviewer, opaque versioned trailers
+for a parser (both are
+[`@variance-authority/report`](../report)'s `renderCommitMessage`). This is the
+other direction:
+
+```ts
+import { readChangelog, wasRead } from '@variance-authority/store/changelog';
+
+const answer = await readChangelog({ root: '.variance/baselines', limit: 50 });
+
+if (!wasRead(answer)) console.error(answer.because);
+else for (const commit of answer.commits) console.log(commit.sha, commit.record.entries);
+```
+
+`readChangelog` takes:
+
+| option | default | what it decides |
+|---|---|---|
+| `root` | required | the baseline root. Only commits that touched a path under it are read — a repository's ordinary commits are not baseline updates, and scanning them would spend the whole log to reach the same answer |
+| `cwd` | `root` | where git is run |
+| `limit` | `200` | commits to read. The question this answers is always *recently*, and a reading that filled its cap says so rather than presenting a window as a total |
+| `since` | none | a revision to read forward from, exclusive, passed as `<since>..HEAD`. One that does not resolve is a refusal naming it, never an empty answer |
+| `git` | `runCommand` | the `CommandRunner` git is invoked through, so this is testable without a repository |
+
+**An empty list is a real answer only when git ran, this is a repository, and no
+commit under the root carried a record.** Every other case is a sentence:
+`wasRead` narrows the union, and `because` names what could not be asked. "No
+baseline has ever been explained" and "nobody could ask" are opposite findings,
+and an operator acting on the first goes looking for a bug in the writer.
+
+A **shallow clone** is the case that would otherwise pass silently — CI checks
+out at depth 1, so a reading there sees one commit and would report it as the
+whole history. That is not refused, but the answer carries a `bounded` sentence
+saying what it could not see, alongside one for any commit whose record this
+reader could not decode and one for a limit the log filled.
 
 ## Reading
 

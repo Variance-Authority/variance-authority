@@ -44,9 +44,9 @@ await writeRunReport('.variance/run.json', runReport);
 const report: RunReport = await readRunReport('.variance/run.json');
 ```
 
-## The two derivations that belong to the format
+## The three derivations that belong to the format
 
-Neither has a home in a reader. `clusterChanges` groups a run's changed subjects
+None has a home in a reader. `clusterChanges` groups a run's changed subjects
 by fingerprint, so a token edit across forty stories is **one decision presented
 once** rather than forty. `adjudicateRun` reads those changes back against what
 the author said they were doing:
@@ -76,6 +76,76 @@ this resolution does not read, and the answer ends `Not checked here: bands`
 instead of reporting `delivered` about something nothing looked at. Dropping
 them silently would be the more comfortable default and the worse one: the agent
 would be told its band claim held.
+
+## Why a baseline is what it is
+
+A baseline update lands in a run of its own — `variance accept` promotes what a
+reviewer looked at — and the artifact that lands says *what* the new baseline is
+and nothing about **what the change was**. A month later, at the twelfth 2px
+approval, the report that could have said is gone with the CI job.
+
+`changelogOf` folds a report and the subjects that were actually accepted into
+one record, and `renderCommitMessage` puts it where the baseline is: in the
+commit message, as prose a reviewer reads and trailers a parser reads.
+
+```ts
+import {
+  changelogOf,
+  isRecorded,
+  renderCommitMessage,
+  parseCommitMessage,
+} from '@variance-authority/report';
+
+const record = changelogOf({
+  report,
+  accepted: ['story:card--small', 'story:card--large'],
+  selection: 'shape',
+  at: new Date().toISOString(),
+  project: 'design-system',
+  by: 'marina',
+});
+
+if (isRecorded(record)) {
+  const text = renderCommitMessage({ message: 'chore(variance): regenerate baselines', record });
+  parseCommitMessage(text); // the same record, out of a commit somebody squash-merged
+}
+```
+
+`changelogOf` takes:
+
+| option | what it decides |
+|---|---|
+| `report` | the run the reviewer read. Nothing is re-derived from bytes; the entry is evidence about a decision rather than a second opinion about an image |
+| `accepted` | the subjects actually promoted. The entries are the **intersection** with each cluster, never the cluster's own list — `accept --shape` refuses by name any subject where something else also moved, and an entry that copied the cluster would claim those too |
+| `selection` | `named`, `shape` or `all`. Recorded rather than inferred: a regeneration under `--all` and a reviewed subject are different amounts of review, and a record that flattened them would let one read as the other |
+| `at` | ISO 8601, injected. Nothing written into a record may come from a hidden clock |
+| `project` | optional; the name the run is scoped by |
+| `by` | optional; who accepted |
+| `entries` | optional; entries a caller already formed, appended after the clustered ones. Region clustering is one producer of entries, not the definition of one — a change to an interface is the same kind of fact and has no rectangle, and the alternative was fabricating four numbers into a `RegionRecord` to get through the region path. `ungrouped` is untouched by them, and an entry with no fingerprint, no subjects, or fewer reached than promoted is refused rather than written |
+
+It refuses — with a sentence, not an empty record — when nothing was accepted,
+and when the report cannot name its run. An invented run id would attribute a
+baseline to a build that never happened.
+
+A record is written once and read for as long as the baseline lives, so three
+things are kept out of it deliberately: **no changed-pixel count**, which
+measures displacement rather than magnitude and moves with the machine that took
+it — the regions say where the change was instead; **no rendered prose**, so
+drift is a token and two values rather than a sentence a later release could
+never reword; and **nothing derivable**, so there is no accepted-subject total
+that could disagree with the entries. `changelogVersion` moves only when an
+existing field changes meaning — a reader keeps keys it does not recognise and
+writes them back, so adding one does not need a version.
+
+`renderCommitMessage` takes `message`, the operator's subject line, which is
+emitted unchanged, and `record`. The trailers are versioned and opaque, one per
+change, scanned out of the **whole** message rather than the last paragraph — a
+squash merge stops them being the last paragraph, and a reader that only looked
+there would silently return nothing.
+
+Reading it back where baselines are commits is
+[`@variance-authority/store`](../store)'s `readChangelog`; where they are rows it
+is [`@variance-authority/tribunal`](../tribunal)'s.
 
 ## What it refuses
 

@@ -248,8 +248,16 @@ runs:
           exit 2
         fi
 
+        # `--message-file`, so the commit says what the change *was* rather than
+        # that baselines were regenerated. Prose for whoever scrolls `git log`,
+        # opaque trailers for `variance changelog` a month later. The message is
+        # written here and committed below, because `accept` promotes images and
+        # deliberately owns no branch policy.
+        message="$(mktemp)"
+
         # shellcheck disable=SC2086
-        $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all
+        $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all \
+          --message-file "$message" --message "$VARIANCE_MESSAGE"
 
         git add -- "$VARIANCE_BASELINES"
 
@@ -270,9 +278,21 @@ runs:
           exit 2
         fi
 
-        git -c user.name='github-actions[bot]' \
-            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit -m "$VARIANCE_MESSAGE"
+        # `-F`, and a fallback to `-m`. `accept` writes no message when nothing
+        # was accepted or when the report could not name its run — and there is
+        # still a staged baseline here, since `git diff --cached` said so. A
+        # commit that failed because the explanation was missing would leave the
+        # promoted images uncommitted with nothing saying why.
+        if [ -s "$message" ]; then
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -F "$message"
+        else
+          echo "::warning::no changelog message was written for this update; committing without one"
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "$VARIANCE_MESSAGE"
+        fi
 
         git push origin "HEAD:refs/heads/$VARIANCE_BRANCH"
 

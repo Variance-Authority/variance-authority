@@ -11,6 +11,7 @@
   "exclude": ["src/**/*.test.ts"],
   "references": [
     { "path": "../core" },
-    { "path": "../raster" }
+    { "path": "../raster" },
+    { "path": "../report" }
   ]
 }

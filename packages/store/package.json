@@ -21,6 +21,10 @@
     "./lfs": {
       "types": "./dist/lfs.d.ts",
       "default": "./dist/lfs.js"
+    },
+    "./changelog": {
+      "types": "./dist/changelog.d.ts",
+      "default": "./dist/changelog.js"
     }
   },
   "main": "./dist/index.js",
@@ -34,6 +38,7 @@
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
-    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/raster": "workspace:^",
+    "@variance-authority/report": "workspace:^"
   }
 }

@@ -61,6 +61,8 @@ export interface BuildIngest {
   readonly images?: Readonly<Record<string, SubjectImages>>;
 }
 
+import type { TribunalChangelog, TribunalChangelogQuery } from './changelog.js';
+
 export type Decision = 'approved' | 'rejected';
 
 export interface DecisionRecord {
@@ -170,6 +172,21 @@ export interface ReviewStore {
     readonly by: string;
     readonly note?: string;
   }): Promise<DecisionRecord>;
-  /** Remove builds older than `keepDays`, and everything that hangs off them. */
+  /**
+   * Why the baselines are what they are — every approval, grouped by what changed.
+   *
+   * Deliberately not derived from `builds`: those expire, and a baseline's
+   * explanation has to outlive the build that proposed it by as long as the
+   * baseline lasts. See [`changelog.ts`](./changelog.ts).
+   */
+  changelog(query?: TribunalChangelogQuery): Promise<TribunalChangelog>;
+  /**
+   * Remove builds older than `keepDays`, and everything that hangs off them.
+   *
+   * `decisions` and `changelog` are not among them, and both carry a permanence
+   * trigger saying so: a promoted baseline whose approval was swept is a change
+   * nobody can attribute to anyone, and one whose changelog entry was swept is a
+   * baseline nobody can account for.
+   */
   sweep(keepDays: number): Promise<SweepReport>;
 }

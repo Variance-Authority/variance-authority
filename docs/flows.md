@@ -97,7 +97,9 @@ LFS is the floor rather than the fallback.
 **You get** regression, reviewed on the pull request. The action fails the check
 from the CLI's exit code, posts one comment updated in place that leads with causes
 and counts collateral, and uploads the run directory as a build artifact. Approval
-is `variance accept` and a commit, or `commit-baselines: true` on the action.
+is `variance accept` and a commit, or `commit-baselines: true` on the action —
+and the commit that carries the new baselines also carries why they moved, which
+`variance changelog` reads back a month later ([`changelog.md`](changelog.md)).
 
 **You cannot:**
 

@@ -15,9 +15,11 @@
   "compatibility_date": "2026-08-05",
 
   // Rows: builds, verdicts, decisions, baselines metadata, history observations.
-  // `migrations_dir` holds one file, generated from `schema.ts` by
-  // `tools/tribunal-migrations.mjs` and gated by `migrations.test.ts` — a
-  // hand-edited migration is a table the tests do not know about.
+  // `migrations_dir` holds one file per schema step, generated from `schema.ts`
+  // by `tools/tribunal-migrations.mjs` and gated by `migrations.test.ts` — a
+  // hand-edited migration is a table the tests do not know about. Steps rather
+  // than one file because `wrangler` records what it has applied: a database
+  // deployed before a table existed gets the step that adds it.
   "d1_databases": [
     {
       "binding": "DB",

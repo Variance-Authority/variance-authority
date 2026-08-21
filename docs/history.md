@@ -192,6 +192,8 @@ part exists and each is tested; no real project has produced the whole sequence.
 ---
 
 **Further:** [`flakiness.md`](flakiness.md) for the flake half ·
+[`changelog.md`](changelog.md) for the other half of the same complaint — why one
+baseline is what it is, from evidence kept beside it ·
 [`flows.md`](flows.md#rung-5--history-recurrence-and-drift-across-runs) for where
 this sits in the adoption ladder ·
 [spec 0002](specs/0002-history-store.md) for what a row is allowed to contain and

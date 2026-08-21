@@ -308,6 +308,23 @@ async function route(
     return json(200, { builds: await surfaces.review.builds(limit === undefined ? undefined : count(limit)) });
   }
 
+  if (path === '/review/changelog') {
+    requires(granted, 'review', path);
+    requireMethod(request, 'GET');
+    const limit = optional(url, 'limit');
+    return json(
+      200,
+      await surfaces.review.changelog({
+        ...(optional(url, 'component') !== undefined
+          ? { component: required(url, 'component') }
+          : {}),
+        ...(optional(url, 'subject') !== undefined ? { subject: required(url, 'subject') } : {}),
+        ...(optional(url, 'since') !== undefined ? { since: required(url, 'since') } : {}),
+        ...(limit !== undefined ? { limit: count(limit) } : {}),
+      }),
+    );
+  }
+
   if (path === '/review/sweep') {
     requires(granted, 'review', path);
     requireMethod(request, 'POST');
@@ -371,7 +388,8 @@ async function route(
       `(${BASELINE_FIND_PATH}, ${BASELINE_DESCRIBE_PATH}, ${BASELINE_PUT_PATH}, ` +
       `${CACHE_FIND_PATH}, ${CACHE_PUT_PATH}), the history routes (${OBSERVATIONS_PATH}, ` +
       `${LAST_CHANGED_PATH}, ${CHURN_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}) and ` +
-      '/review/builds. A path from a different API version is a client and a service that ' +
+      '/review/builds and /review/changelog. A path from a different API version is a client ' +
+      'and a service that ' +
       'disagree about a recorded shape',
   });
 }

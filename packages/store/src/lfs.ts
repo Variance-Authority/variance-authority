@@ -447,8 +447,13 @@ async function checkTracking(
  * is git being absent. Node reports the first as a numeric `code` on the error
  * and the second as a string one, which is the only place the distinction is
  * available.
+ *
+ * Exported because the changelog reader beside this file asks git a different
+ * question and must not answer it with a second runner that draws the line
+ * between those two failures somewhere else. A reader that treated "git is not
+ * installed" as an exit code would report it as an empty history.
  */
-const runCommand: CommandRunner = (command, args, options) =>
+export const runCommand: CommandRunner = (command, args, options) =>
   new Promise<CommandResult>((resolve, reject) => {
     execFile(
       command,

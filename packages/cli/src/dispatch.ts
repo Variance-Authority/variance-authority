@@ -40,10 +40,13 @@ import {
 import { liveIgnores } from './commands/ignores.js';
 import { mergeReports } from './commands/merge.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
+import { writeAcceptMessage } from './commands/accept-message.js';
+import { changelog, formatChangelog } from './commands/changelog.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
 import { doctor, machineProbes, rendererOptionsFor } from './commands/doctor.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
+import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './bin.js';
 
 /**
@@ -197,7 +200,45 @@ export async function dispatch(
       });
 
       streams.out(`${formatAcceptance(result)}\n`);
+
+      // After the acceptance is printed, so the operator reads what was promoted
+      // before they read what was written about it — and so a message that could
+      // not be written does not look like an accept that did not happen.
+      if (parsed.messageFile !== undefined) {
+        streams.out(
+          `${await writeAcceptMessage({
+            report,
+            result,
+            selection: selectionOf(parsed),
+            path: parsed.messageFile,
+            message: parsed.message ?? 'chore(variance): regenerate baselines',
+            at: new Date().toISOString(),
+            project: config.project,
+          })}\n`,
+        );
+      }
+
       return result.refused.length > 0 ? EXIT_OPERATOR : EXIT_CLEAN;
+    }
+
+    case 'changelog': {
+      const result = await changelog({
+        config,
+        ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
+        ...(parsed.since !== undefined ? { since: parsed.since } : {}),
+      });
+
+      streams.out(
+        `${formatChangelog(result, {
+          ...(parsed.component !== undefined ? { component: parsed.component } : {}),
+          ...(parsed.subject !== undefined ? { subject: parsed.subject } : {}),
+        })}\n`,
+      );
+
+      // Reading a record is never a verdict about the project. This exits 0 even
+      // when it found nothing, because "no baseline was explained" is an answer
+      // and not a failure — the failures already threw.
+      return EXIT_CLEAN;
     }
 
     case 'serve':
@@ -232,6 +273,19 @@ export async function dispatch(
       return EXIT_CLEAN;
     }
   }
+}
+
+/**
+ * How the operator chose what to accept, which is how much review it had.
+ *
+ * Recorded rather than inferred later, because `--all` and a named subject are
+ * not the same claim and a record that flattened them would let a regeneration
+ * read, a month on, exactly like a review.
+ */
+function selectionOf(parsed: Extract<Parsed, { command: 'accept' }>): ChangelogSelection {
+  if (parsed.all) return 'all';
+  if (parsed.shapes.length > 0) return 'shape';
+  return 'named';
 }
 
 /**

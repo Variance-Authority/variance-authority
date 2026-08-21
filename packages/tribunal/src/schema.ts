@@ -37,19 +37,27 @@
 import type { D1Like } from './bindings.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
+
+/** The version `INITIAL` alone leaves a database at. Frozen: it is deployed. */
+const INITIAL_VERSION = 3;
 
 /**
- * What a run kept, and what a review decided, in order.
+ * What a run kept, and what a review decided, in order — as this database first
+ * shipped.
  *
  * Order matters: tables before their indexes, and both before the triggers that
  * reference them.
+ *
+ * Frozen at {@link INITIAL_VERSION}. Everything since is a step in
+ * {@link MIGRATIONS}, for the reason given there; a new table added here would
+ * reach a fresh deployment and no existing one.
  */
-export const SCHEMA: readonly string[] = [
+export const INITIAL: readonly string[] = [
   `CREATE TABLE schema_version (
      version INTEGER NOT NULL
    ) STRICT`,
-  `INSERT INTO schema_version (version) VALUES (${SCHEMA_VERSION})`,
+  `INSERT INTO schema_version (version) VALUES (${INITIAL_VERSION})`,
 
   // ---------------------------------------------------------------- baselines
 
@@ -288,6 +296,75 @@ export const SCHEMA: readonly string[] = [
      SELECT RAISE(ABORT, 'approvals are append-only: a deleted acceptance turns a reviewed change back into an unreviewed one, and every drift total over it drops');
    END`,
 ];
+
+
+/**
+ * One entry per version after {@link INITIAL_VERSION}, in order.
+ *
+ * A database that is already deployed cannot be given a new table by editing the
+ * statements that created it — `wrangler d1 migrations apply` tracks which files
+ * it has run, and a rewritten `0001` is a file it will never run again. So the
+ * initial set is frozen at the version it shipped at and every later shape is a
+ * step, generated into its own `.sql` beside it.
+ *
+ * Each step ends by writing its own version, so a database is never at a version
+ * whose shape it does not have — and a fresh database applying the initial set
+ * and every step in order arrives at exactly the same place as one that was
+ * deployed three versions ago.
+ *
+ * Additive only. A step that dropped or rewrote a column would be asking an
+ * append-only store to forget something, which is the one thing every trigger in
+ * this file exists to refuse.
+ */
+export const MIGRATIONS: readonly (readonly string[])[] = [
+  // 3 → 4: why a baseline in this database is what it is.
+  [
+    // Why a baseline in this database is what it is. One row per **approval**, and
+    // the columns are copies rather than a join on purpose: `builds` and
+    // `build_subjects` expire under `sweep`, and the explanation of a baseline has
+    // to last exactly as long as the baseline, which is forever. A view over those
+    // tables would answer correctly right up until the retention window passed and
+    // then answer "nothing was ever explained" — the one failure this whole
+    // subsystem exists to refuse. It is the same trade the git-LFS half makes by
+    // writing the explanation into the commit message instead of a sidecar.
+    `CREATE TABLE changelog (
+       seq            INTEGER PRIMARY KEY AUTOINCREMENT,
+       project        TEXT NOT NULL,
+       build          TEXT NOT NULL,
+       subject        TEXT NOT NULL,
+       "commit"       TEXT NOT NULL,
+       intent         TEXT,
+       decided_by     TEXT NOT NULL,
+       note           TEXT,
+       -- The region list the build reported, frozen. Shapes are grouped when
+       -- somebody reads: approval here is per subject, so there is no batch at
+       -- write time to cluster, and a shape approved across three sessions should
+       -- still read as one change.
+       regions        TEXT NOT NULL,
+       at             TEXT NOT NULL,
+       at_ms          INTEGER NOT NULL
+     ) STRICT`,
+    `CREATE INDEX changelog_recent ON changelog (project, at_ms DESC)`,
+    `CREATE INDEX changelog_subject ON changelog (project, subject, at_ms DESC)`,
+
+    `CREATE TRIGGER changelog_is_append_only BEFORE UPDATE ON changelog BEGIN
+       SELECT RAISE(ABORT, 'the changelog is append-only: an edited explanation is an explanation of a baseline that was promoted for a different reason');
+     END`,
+    `CREATE TRIGGER changelog_is_permanent BEFORE DELETE ON changelog BEGIN
+       SELECT RAISE(ABORT, 'the changelog is append-only: a deleted entry leaves a baseline nobody can account for, which is the state this table exists to end');
+     END`,
+    `UPDATE schema_version SET version = 4`,
+  ],
+];
+
+/**
+ * Every statement, in order — the initial set followed by each step.
+ *
+ * This is what a fresh database gets, and what the tests run against. The split
+ * above is about *deployment*; nothing downstream of here needs to know a
+ * database was built in more than one sitting.
+ */
+export const SCHEMA: readonly string[] = [...INITIAL, ...MIGRATIONS.flat()];
 
 /**
  * Create the schema, once, in one batch.
