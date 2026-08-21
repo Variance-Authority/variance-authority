@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # `@variance-authority/unit-test`
 
 Capture a mounted DOM subject in a browserless Jest or Vitest process, then let
