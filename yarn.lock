@@ -2592,6 +2592,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/help@workspace:packages/help":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/help@workspace:packages/help"
+  dependencies:
+    "@variance-authority/mcp": "workspace:^"
+    "@variance-authority/package": "workspace:^"
+  bin:
+    variance-authority-help: ./dist/bin.js
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/history@workspace:^, @variance-authority/history@workspace:packages/history":
   version: 0.0.0-use.local
   resolution: "@variance-authority/history@workspace:packages/history"
@@ -2640,7 +2651,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/package@workspace:packages/package":
+"@variance-authority/package@workspace:^, @variance-authority/package@workspace:packages/package":
   version: 0.0.0-use.local
   resolution: "@variance-authority/package@workspace:packages/package"
   dependencies:
