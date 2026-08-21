@@ -59,8 +59,15 @@ export type {
   Unrecordable,
 } from './changelog.js';
 
-export { parseCommitMessage, renderCommitMessage } from './changelog-message.js';
+export {
+  changelogBody,
+  parseCommitMessage,
+  renderCommitMessage,
+} from './changelog-message.js';
 export type { CommitMessageOptions } from './changelog-message.js';
+
+export { promotionOf, selectByShape, whyNotWhole } from './promotion.js';
+export type { Promotion } from './promotion.js';
 
 export { adjudicateRun, describeAdjudication, parseRoot } from './intent.js';
 export type {

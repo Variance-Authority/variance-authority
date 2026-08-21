@@ -3,7 +3,12 @@ import { resolve } from 'node:path';
 import type { Raster } from '@variance-authority/core';
 import type { HistoryStore } from '@variance-authority/history';
 import type { RasterStore } from '@variance-authority/raster';
-import type { ObservationRecord } from '@variance-authority/report';
+import {
+  promotionOf,
+  selectByShape,
+  whyNotWhole,
+  type ObservationRecord,
+} from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import type { CliRunReport } from './run.js';
 
@@ -171,16 +176,7 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
     // about — the shape is in them — and being told which ones were left behind
     // is the difference between a bulk accept and a bulk surprise.
     for (const observation of selected.partial) {
-      refused.push({
-        subject: observation.subject,
-        because:
-          observation.truncated !== undefined && observation.truncated.regions > 0
-            ? `this shape is present, but the run capped its region list ` +
-              `(${observation.truncated.regions} more, ${observation.truncated.pixels}px), so ` +
-              'there is no evidence it is the whole change; accept this subject by name'
-            : 'this shape is present and something else changed too, so accepting it here ' +
-              'would baseline that as well; accept this subject by name once you have read it',
-      });
+      refused.push({ subject: observation.subject, because: whyNotWhole(observation) });
     }
 
     targets = selected.whole;
@@ -189,49 +185,31 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
   }
 
   for (const observation of targets) {
-    // A verdict of `unchanged` normally means there is nothing to promote. An
-    // unstable unchanged subject is the exception: `--flakes` reached the same
-    // baseline twice and found two readings. Calling it "already the baseline"
-    // hides the diagnostic that made the command refuse it.
-    if (observation.unstable !== undefined && observation.unstable.absorbed === undefined) {
-      refused.push({
-        subject: observation.subject,
-        because:
-          `${observation.unstable.because}. Accepting it would promote one of two readings ` +
-          'as the baseline; fix what moves between them, or re-run once it is fixed',
-      });
-      continue;
-    }
+    // The rules live in `report` because something has to be able to ask them
+    // without promoting anything — an agent proposing this command, a preview of
+    // the commit message it would write. This command applies them; it does not
+    // own them, and a second copy here is how a preview starts describing an
+    // update that never happens.
+    const promotion = promotionOf(observation);
 
-    if (observation.verdict === 'unchanged') {
+    if (promotion.kind === 'already-baseline') {
       // Under `--all` this is the overwhelming majority and is not a finding.
       // Named explicitly, it is worth a sentence: the operator asked for
       // something that would do nothing, and silence would look like success.
       if (options.all) alreadyBaseline += 1;
-      else {
-        refused.push({
-          subject: observation.subject,
-          because: 'it did not change, so it already is the baseline; nothing to accept',
-        });
-      }
+      else refused.push({ subject: observation.subject, because: promotion.because });
       continue;
     }
 
-    if (observation.alone?.reproduced === false) {
-      refused.push({
-        subject: observation.subject,
-        because:
-          `${observation.alone.because}. Accepting it would make the leak the baseline; ` +
-          'fix the subject that writes the shared state, or re-run once it is fixed',
-      });
+    if (promotion.kind === 'refused') {
+      refused.push({ subject: observation.subject, because: promotion.because });
       continue;
     }
 
-    const after = observation.images?.after;
-    if (after === undefined) {
-      refused.push({ subject: observation.subject, because: noImage(observation) });
-      continue;
-    }
+    // The candidate comes off the promotion rather than being re-read here: a
+    // second `images?.after` would be a second place that can disagree about
+    // whether this subject has one.
+    const after = promotion.from;
 
     const path = resolve(options.reportDir, after);
     let raster: Raster;
@@ -313,29 +291,6 @@ async function recordApprovals(
   }
 }
 
-/**
- * Why a subject has no image, phrased around what to do next.
- *
- * The two causes are opposite and a single message would serve neither. A
- * settlement means nothing was rendered *because nothing needed to be*; an
- * incomparable baseline means the comparison was refused, and the fix is a
- * decision about machines rather than about this subject.
- */
-function noImage(observation: ObservationRecord): string {
-  if (observation.verdict === 'incomparable') {
-    return (
-      'its baseline belongs to another machine, so the run refused to compare and produced ' +
-      'no image. Delete that baseline and re-run here to record one for this machine, or ' +
-      'run where the baseline was written — accepting across identities is the failure the ' +
-      'partition exists to prevent'
-    );
-  }
-  return (
-    'the run recorded no image for it. Re-run on this machine so the candidate exists; ' +
-    'this command promotes an image that was already reviewed and never renders one'
-  );
-}
-
 /** The default reader: the PNG, plus the sidecar the run wrote beside it. */
 export async function readCandidate(pngPath: string): Promise<Raster> {
   const jsonPath = `${pngPath.replace(/\.png$/, '')}.json`;
@@ -376,51 +331,6 @@ export function formatAcceptance(result: AcceptResult): string {
         ]),
   ];
   return lines.join('\n');
-}
-
-/**
- * Split the run by what the named shapes explain: all of a subject, or part of it.
- *
- * *All*, not *any*, is the safety property the whole flag rests on. A subject
- * where the accepted shape appears alongside something else is not a subject
- * where the accepted change is what happened, and promoting it would baseline
- * the other thing silently — the failure a bulk accept is most likely to cause
- * and the one nobody would find afterwards.
- *
- * The partial set is returned rather than discarded because those subjects are
- * the ones the operator was thinking about. Being told which were left behind is
- * the difference between a bulk accept and a bulk surprise.
- *
- * A subject with no regions is in neither set: there is no evidence about what
- * changed in it, and `--all` remains the way to accept a change nothing could
- * attribute.
- */
-function selectByShape(
-  observations: readonly ObservationRecord[],
-  shapes: ReadonlySet<string>,
-): { whole: readonly ObservationRecord[]; partial: readonly ObservationRecord[] } {
-  const whole: ObservationRecord[] = [];
-  const partial: ObservationRecord[] = [];
-
-  for (const observation of observations) {
-    if (observation.regions.length === 0) continue;
-
-    const hits = observation.regions.filter(
-      (region) => region.fingerprint !== undefined && shapes.has(region.fingerprint),
-    );
-    if (hits.length === 0) continue;
-
-    // A capped list is not a complete one. Regions the run found and chose not
-    // to record could be anything, so a subject whose evidence was truncated
-    // cannot support "this shape is the entire change" however its recorded
-    // regions look.
-    const capped = observation.truncated !== undefined && observation.truncated.regions > 0;
-
-    if (!capped && hits.length === observation.regions.length) whole.push(observation);
-    else partial.push(observation);
-  }
-
-  return { whole, partial };
 }
 
 function find(report: CliRunReport, subject: string): ObservationRecord {
