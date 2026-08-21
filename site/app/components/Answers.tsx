@@ -67,7 +67,7 @@ export default function Answers() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[5fr_6fr]">
+    <div className="grid gap-4 lg:grid-cols-[5fr_6fr] [&>*]:min-w-0">
       {/* the doubts */}
       <div>
         <p className="mb-3 pl-4 font-mono text-[11px] tracking-[0.18em] text-quiet uppercase">

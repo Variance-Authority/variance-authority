@@ -12,8 +12,16 @@ import { useEffect, useRef, useState } from "react";
 
 const STEPS = [
   { key: "raster", label: "raster", caption: "0.42% of the subject moved" },
-  { key: "document", label: "document", caption: "one node differs, and only its paint" },
-  { key: "component", label: "component", caption: "the node was rendered by Title" },
+  {
+    key: "document",
+    label: "document",
+    caption: "one node differs, and only its paint",
+  },
+  {
+    key: "component",
+    label: "component",
+    caption: "the node was rendered by Title",
+  },
   { key: "file", label: "file", caption: "Title is written here" },
 ] as const;
 
@@ -87,13 +95,17 @@ function RasterPanel({ active }: { active: boolean }) {
               <div className="relative">
                 <div
                   className={`h-2.5 rounded-sm transition-all duration-500 ${
-                    isAfter && active ? "w-4/5 bg-orange/70" : "w-3/5 bg-hairline/40"
+                    isAfter && active
+                      ? "w-4/5 bg-orange/70"
+                      : "w-3/5 bg-hairline/40"
                   }`}
                 />
                 {isAfter && (
                   <div
                     className={`absolute -inset-1 rounded border border-dashed transition-opacity duration-500 ${
-                      active ? "border-orange opacity-100" : "border-transparent opacity-0"
+                      active
+                        ? "border-orange opacity-100"
+                        : "border-transparent opacity-0"
                     }`}
                   />
                 )}
@@ -115,7 +127,7 @@ function DocumentPanel({ active }: { active: boolean }) {
   return (
     <pre className="overflow-hidden font-mono text-[11px] leading-[1.6]">
       <code>
-        <span className="text-quiet">{"<div class=\"card\">"}</span>
+        <span className="text-quiet">{'<div class="card">'}</span>
         {"\n"}
         <span
           className={`-mx-1 block rounded px-1 transition-colors duration-500 ${
@@ -123,7 +135,7 @@ function DocumentPanel({ active }: { active: boolean }) {
           }`}
         >
           <span className="text-fold">- </span>
-          {"  <h2 class=\"title\">"}
+          {'  <h2 class="title">'}
         </span>
         <span
           className={`-mx-1 block rounded px-1 transition-colors duration-500 ${
@@ -131,7 +143,7 @@ function DocumentPanel({ active }: { active: boolean }) {
           }`}
         >
           <span className="text-green">+ </span>
-          {"  <h2 class=\"title lg\">"}
+          {'  <h2 class="title lg">'}
         </span>
         <span className="text-quiet">{"    Modern living"}</span>
         {"\n"}
@@ -210,7 +222,13 @@ function FilePanel({ active }: { active: boolean }) {
           active ? "text-ivory" : "text-quiet"
         }`}
       >
-        <span className={active ? "underline decoration-orange decoration-2 underline-offset-4" : ""}>
+        <span
+          className={
+            active
+              ? "underline decoration-orange decoration-2 underline-offset-4"
+              : ""
+          }
+        >
           src/components/Title.tsx:14
         </span>
       </p>
@@ -225,7 +243,9 @@ export default function Attribution() {
 
   // Only run while on screen, and never for a reader who asked for stillness.
   useEffect(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     if (reduced) {
       setStep(STEPS.length - 1);
       return;
@@ -248,7 +268,10 @@ export default function Attribution() {
   const panels = [RasterPanel, DocumentPanel, ComponentPanel, FilePanel];
 
   return (
-    <div ref={host} className="rounded-2xl border border-hairline bg-deep/60 p-5 sm:p-7">
+    <div
+      ref={host}
+      className="rounded-2xl border border-hairline bg-deep/60 p-5 sm:p-7"
+    >
       {/* the chain, as a control strip */}
       <div className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-3">
         {STEPS.map((s, i) => (
@@ -272,7 +295,7 @@ export default function Attribution() {
         ))}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
         {panels.map((P, i) => (
           <Panel
             key={STEPS[i].key}

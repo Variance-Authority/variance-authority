@@ -15,7 +15,7 @@ const HOPS = [
     note: "A pull request touches one spacing token.",
     subjects: 40,
     rendered: 0,
-    cost: "—",
+    cost: "nothing read yet",
   },
   {
     key: "collect",
@@ -89,9 +89,15 @@ export default function Lifecycle() {
   const painted = hop.rendered;
 
   return (
-    <div ref={host} className="rounded-2xl border border-hairline bg-panel p-5 sm:p-7">
-      {/* the track */}
-      <ol className="flex flex-wrap items-center gap-y-3">
+    <div
+      ref={host}
+      className="rounded-2xl border border-hairline bg-panel p-5 sm:p-7"
+    >
+      {/* The track. All six hops fit on one line from `lg` up; below that it
+          wraps, and a connector belonging to the last hop of a row is left
+          pointing at nothing — so the rule carries the sequence only at the
+          width where the sequence is actually one line. */}
+      <ol className="flex flex-wrap items-center gap-x-5 gap-y-3 lg:gap-x-0">
         {HOPS.map((h, n) => (
           <li key={h.key} className="flex items-center">
             <button
@@ -121,7 +127,7 @@ export default function Lifecycle() {
             </button>
             {n < HOPS.length - 1 && (
               <span
-                className={`mx-3 h-px w-6 transition-colors duration-500 sm:w-10 ${
+                className={`mx-3 hidden h-px w-10 transition-colors duration-500 lg:block ${
                   n < i ? "bg-orange/50" : "bg-hairline"
                 }`}
               />
@@ -130,40 +136,55 @@ export default function Lifecycle() {
         ))}
       </ol>
 
-      {/* the forty subjects, thinning out */}
-      <div className="mt-7 grid grid-cols-10 gap-1.5 sm:gap-2">
+      {/* The forty subjects, thinning out. Twenty across on a wide panel
+          rather than ten: at ten the cells are five times wider than they are
+          tall, and forty grey bars in four rows is the shape of a skeleton
+          loader — which is what this section opens on. */}
+      <div className="mt-7 grid grid-cols-10 gap-1.5 sm:grid-cols-20 sm:gap-2">
         {Array.from({ length: 40 }).map((_, n) => {
-          const isResidue = n === 17;
+          // Interior in both layouts: row 3 of 10, row 2 of 20.
+          const isResidue = n === 26;
           const isSettled = settled > 0 && !isResidue;
           const isRead = i >= 1;
           return (
             <span
               key={n}
-              className={`h-4 rounded-sm transition-all duration-700 ${
+              // Unread subjects are outlined rather than filled: a flat block
+              // of forty identical grey bars reads as a skeleton loader, and
+              // this is the frame the section opens on.
+              className={`h-4 rounded-sm ring-inset transition-all duration-700 sm:h-7 ${
                 isResidue && painted
                   ? "bg-orange shadow-[0_0_12px_rgba(255,74,25,0.55)]"
                   : isSettled
                     ? "bg-green/25"
-                    : isRead
-                      ? "bg-warm/40"
-                      : "bg-hairline/50"
+                    : // The one that did not settle is marked a hop before it is
+                      // painted — that gap is the point, and without the ring the
+                      // residue is indistinguishable until the paint lands.
+                      isResidue && settled > 0
+                      ? "bg-warm/40 ring-1 ring-orange/60"
+                      : isRead
+                        ? "bg-warm/40"
+                        : "bg-charcoal ring-1 ring-hairline"
               }`}
-              style={{ transitionDelay: `${(n % 10) * 18}ms` }}
+              style={{ transitionDelay: `${(n % 20) * 14}ms` }}
             />
           );
         })}
       </div>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px] text-quiet">
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-green/25" /> settled by digest {settled || "—"}
+          <span className="h-2 w-2 rounded-sm bg-green/25" /> settled by digest{" "}
+          {settled}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-orange" /> painted {painted || "—"}
+          <span className="h-2 w-2 rounded-sm bg-orange" /> painted {painted}
         </span>
       </div>
 
-      {/* what this hop costs */}
-      <div className="mt-6 flex flex-col gap-2 border-t border-hairline pt-4 sm:flex-row sm:items-start sm:justify-between">
+      {/* What this hop costs. Held at two lines: the notes run one line to two,
+          and letting the row size itself made the whole panel breathe in and
+          out every 2.4s. */}
+      <div className="mt-6 flex flex-col gap-2 border-t border-hairline pt-4 sm:min-h-12 sm:flex-row sm:items-start sm:justify-between">
         <p className="max-w-xl text-sm leading-6 text-quiet">
           <span className="font-mono text-xs tracking-[0.12em] text-orange uppercase">
             {hop.label}

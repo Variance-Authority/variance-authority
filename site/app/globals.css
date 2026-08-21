@@ -1,5 +1,25 @@
 @import "tailwindcss";
 
+/* Self-hosted so the page has the same metrics everywhere. Left to the system
+   stack it renders SF Pro/SF Mono on a Mac and Segoe UI/Consolas on Windows,
+   which is a different page. Both are variable and latin-subset; the few
+   symbols outside that subset (→, ≠) fall back per glyph, which is fine. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/inter.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono.woff2") format("woff2");
+}
+
 /* Palette from docs/visual-guidelines.md. The page commits to one dark look;
    variance orange is the single active path, green is used sparingly. */
 @theme {
@@ -14,10 +34,10 @@
   --color-fold: #d83a13;
   --color-green: #7fa28c;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica,
-    Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
-    "Liberation Mono", monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo,
+    Consolas, "Liberation Mono", monospace;
 }
 
 :root {
@@ -39,6 +59,29 @@ body {
 
 html {
   scroll-behavior: smooth;
+}
+
+/* One ring for everything focusable, in the one accent the page owns. */
+:where(a, button, summary, [tabindex]):focus-visible {
+  outline: 2px solid #ff4a19;
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Sections arrive rather than being already there. Authored as hidden and
+   revealed by script, so `is-in` is the only thing the observer sets — the
+   <noscript> override in layout.tsx keeps the page readable without JS. */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.75s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.75s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
 }
 
 /* The faint node grid behind the hero — geometry, not decoration. */
@@ -178,6 +221,16 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
   .caret,
   .rise,
   .tl-glow,

@@ -22,19 +22,23 @@ const LEVELS = [
     asserts: ["a11y", "geometry", "token", "content", "texture"],
     blurb:
       "Everything. The default, and how an exception is written back inside a relaxed group.",
-    example: "a component's own test: a colour token moved and that is the change",
+    example:
+      "a component's own test: a colour token moved and that is the change",
   },
   {
     key: "layout",
     asserts: ["a11y", "geometry"],
-    blurb: "A route asserts that the page still assembles, not what it was painted.",
-    example: "a rebrand repaints forty routes and reports nothing; a nav that moved 1px reports",
+    blurb:
+      "A route asserts that the page still assembles, not what it was painted.",
+    example:
+      "a rebrand repaints forty routes and reports nothing; a nav that moved 1px reports",
   },
   {
     key: "content",
     asserts: ["a11y", "content"],
     blurb: "The words are the subject; where they landed is not.",
-    example: "a themed embed you do not control, whose copy still has to be right",
+    example:
+      "a themed embed you do not control, whose copy still has to be right",
   },
 ] as const;
 
@@ -71,7 +75,9 @@ export default function Bands() {
             <li
               key={b.key}
               className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5 transition-all duration-500 ${
-                on ? "border-orange/40 bg-orange/[0.06]" : "border-hairline bg-deep opacity-50"
+                on
+                  ? "border-orange/40 bg-orange/[0.06]"
+                  : "border-hairline bg-deep opacity-50"
               }`}
             >
               <span
@@ -106,9 +112,9 @@ export default function Bands() {
         </p>
       </div>
       <p className="mt-4 text-xs leading-5 text-quiet">
-        <span className="text-ivory">a11y is in every level deliberately.</span> A band
-        absorbs exactly one kind of thing however large it is; a threshold absorbs
-        anything small enough, including a small real change.
+        <span className="text-ivory">a11y is in every level deliberately.</span>{" "}
+        A band absorbs exactly one kind of thing however large it is; a
+        threshold absorbs anything small enough, including a small real change.
       </p>
     </div>
   );

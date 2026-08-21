@@ -18,15 +18,32 @@ const HOPS = [
   },
   { name: "src/button.css", tag: "", edge: "imported by", note: "one hop out" },
   { name: "src/Button.tsx", tag: "", edge: "declares", note: "two hops out" },
-  { name: "Button", tag: "component", edge: "", note: "the component a token file could move" },
+  {
+    name: "Button",
+    tag: "component",
+    edge: "",
+    note: "the component a token file could move",
+  },
 ] as const;
 
 /** 95 ms · 3002 ms · 657 ms · 236 ms — packages/sense bench, 30,500 files, one Mac. */
 const SCAN = [
   { label: "git digests", ms: 95, did: "30,501 digests, no file opened" },
-  { label: "cold", ms: 3002, did: "every file opened, decoded, parsed, resolved" },
-  { label: "parses remembered", ms: 657, did: "nothing parsed — every specifier still resolved" },
-  { label: "after a one-file edit", ms: 236, did: "the diff, and nothing else" },
+  {
+    label: "cold",
+    ms: 3002,
+    did: "every file opened, decoded, parsed, resolved",
+  },
+  {
+    label: "parses remembered",
+    ms: 657,
+    did: "nothing parsed — every specifier still resolved",
+  },
+  {
+    label: "after a one-file edit",
+    ms: 236,
+    did: "the diff, and nothing else",
+  },
 ] as const;
 
 export default function Since() {
@@ -50,12 +67,18 @@ export default function Since() {
 
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => setI((n) => (n + 1) % (HOPS.length + 1)), 1500);
+    const id = setInterval(
+      () => setI((n) => (n + 1) % (HOPS.length + 1)),
+      1500,
+    );
     return () => clearInterval(id);
   }, [running]);
 
   return (
-    <div ref={host} className="rounded-2xl border border-hairline bg-panel p-5 sm:p-7">
+    <div
+      ref={host}
+      className="rounded-2xl border border-hairline bg-panel p-5 sm:p-7"
+    >
       <p className="font-mono text-[11px] tracking-[0.16em] text-quiet uppercase">
         what a change could have moved
       </p>
@@ -145,8 +168,8 @@ export default function Since() {
           ))}
         </ul>
         <p className="mt-3 text-xs leading-5 text-quiet">
-          30,500 files and 40,479 edges, one Mac. A warm scan costs the diff rather
-          than the repository.
+          30,500 files and 40,479 edges, one Mac. A warm scan costs the diff
+          rather than the repository.
         </p>
       </div>
     </div>
