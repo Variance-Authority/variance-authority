@@ -1,10 +1,12 @@
-# Spec 0031 — a published interface is a subject, and direction decides who breaks
+# Spec 0031 — a contract is a subject, and the detector is somebody else's
 
 **Missing:** any subject that is not a rendered document. `SubjectRef.kind` is
-`story`, `route` or `fixture`; `CaptureMaterial` is a document or a raster; every
-band in `BANDS` is a fact about markup, boxes or pixels. An OpenAPI description, a
-GraphQL schema, a route table or a JSON response body has nowhere to enter, and
-the comparison that would decide what such a change *means* does not exist.
+`story`, `route` or `fixture`; `CaptureMaterial` is a document or a raster; the
+collector boundary's success arm promises a `RenderDocument` or a sentence saying
+why there is none. An OpenAPI description, a GraphQL schema, a route table or a
+plain JSON value has nowhere to enter — and the changes they carry are found
+today by tools that find them again from nothing on every run, because none of
+those tools keeps a record.
 **Built on:** [ADR-0044](../context/adr/0044-capture-material-and-rendering-placement-are-independent.md)
 (material and placement are independent, which is what makes a third material a
 seam rather than a fork), [ADR-0015](../context/adr/0015-a-rule-is-what-a-stored-snapshot-can-decide.md)
@@ -13,9 +15,10 @@ seam rather than a fork), [ADR-0015](../context/adr/0015-a-rule-is-what-a-stored
 [ADR-0012](../context/adr/0012-observability-and-the-damage-boundary.md) (what a
 reading could not reach is said, not defaulted),
 [ADR-0041](../context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)
-(a name resolves to the file that declares it, through the re-export chain), and
-[ADR-0011](../context/adr/0011-durable-and-ephemeral-retention.md) (what may
-accumulate).
+(a name resolves to the file that declares it, through the re-export chain),
+[ADR-0019](../context/adr/0019-one-comment-that-leads-with-causes.md) (one
+comment, updated in place), and [ADR-0011](../context/adr/0011-durable-and-ephemeral-retention.md)
+(what may accumulate).
 
 ## Purpose
 
@@ -24,231 +27,237 @@ other is the interface other people's code is written against, and it fails
 harder: a padding token that moved costs a review, and a response field that
 vanished costs everyone who read it, in production, without a screenshot.
 
-The tooling that watches the second one splits into two halves that do not meet.
-A linter reads one revision and knows nothing about the last. A snapshot tool
-compares two serializations:
-[`argosSnapshot`](https://argos-ci.com/docs/quickstart/vitest-quickstart) takes
-any value in a browserless Node test, serializes it, and renders the difference
-according to the file extension it is handed. That produces a picture of a diff
-for a person to read, and leaves the whole question open. Neither half answers
-what a reviewer actually asks: **is this a change my callers survive, which of
-them does it reach, and where is the code that did it.**
+**The detection half is solved, by other people, mostly for free.** `oasdiff`
+carries about 250 breaking-change checks over OpenAPI, each already qualified by
+whether the thing it found sits in a request or a response, and each reported
+with the file, line and column it was found at. `@graphql-inspector/core`
+classifies every schema change as breaking, dangerous or safe.
+[`jsondiffpatch`](https://github.com/benjamine/jsondiffpatch) handles a value
+with no schema at all. An earlier draft of this spec proposed a fourth one — a
+band table qualifying each delta by position, on the argument that *the same edit
+is safe in a request and fatal in a response*. The argument is true. It is also
+the first page of oasdiff's manual, and writing it again is not work worth doing.
 
-That is the same question this project already answers about a document, and the
-same reason it can be answered: the artefact is parseable and the parse holds
-facts the diff does not. A schema knows a *position*, and position is what
-decides compatibility.
+What none of them has is a **record**. A detector answers one question: *what is
+different between these two files, now.* Every question a team asks after the
+first week is about time instead.
 
-> Adding a member to an enum is safe in a request and breaking in a response.
-> Making a field nullable is safe in a request and breaking in a response.
-> Making a field required is breaking in a request and safe in a response.
+- I read this change last Tuesday and said yes. Why is it red again?
+- This response has changed shape in six of the last thirty runs. Is that a
+  migration, or a leak?
+- Which line of which file declares the type that moved — not in the schema, in
+  the application that generates the schema?
+- The checkout button moved and the checkout response changed shape. Is that one
+  edit or two?
 
-Two assumptions hold that blockquote up and are stated rather than implied. The
-repository **publishes** the interface, so *breaking* means breaking somebody
-else's caller — a repository that merely consumes an interface reads the same
-deltas with the directions swapped and has no use for `capability` at all. And a
-widened output breaks a caller that handles its values exhaustively, which is the
-common case in a typed client and not a universal one; the run reports the
-widening and never counts the clients.
+A diff of two files answers none of them, because each needs an identity for one
+change that outlives the run that found it, and a store that outlived it too.
+This repository is already that, in a different medium: it mints an identity for
+a changed shape, carries an approval against that identity across commits, counts
+how often the identity has come back, and resolves it to the binding that
+declares it. None of that ever depended on the medium being pixels.
 
-Each of those pairs is the *same edit to the same line of the same file*. A text
-diff cannot separate them, cannot separate either from a reordered key, and
-therefore has one setting: show a human everything and let them classify it. A
-run that parsed the document classifies it, names the type that moved once
-instead of once per operation that inlines it, and resolves that type to the
-`file:line` that declares it.
+So the position is the one this project already takes with a browser and with
+image comparison. **Neither is reimplemented; both are wrapped; what is added is
+everything that has to be remembered.** Two consequences follow, and they are the
+whole of the argument.
+
+**One docket, one comment, one exit code.** A repository that watches its UI here
+and its API with a detector's own CI action gets two dockets, two comments and
+two exit codes, and no way to ask whether the two findings are one edit. Nothing
+else joins them, because nothing else holds both media. The join is not a feature
+bolted onto the report — the report is keyed on a subject and a shape, and an
+interface change is a shape that happened to a subject.
+
+**An approval that survives a commit.** Per-change approval carried across
+commits is what a detector's paid tier sells, when it is offered at all. Here it
+is not a tier and not new code: `accept` already promotes an identity rather than
+a file, `variance changelog` already records what was approved and against what
+claim, and the recurrence arithmetic already divides by the runs that asked
+([ADR-0032](../context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md)).
+An interface change joins a ledger that exists.
 
 ## What would discharge it
 
-**1. A third material, and a subject kind for it.** The acquisition boundary
-already takes documents and rasters and routes both to one attribution path.
+**1. A material that is not a rendering.** The acquisition boundary already
+routes documents and rasters to one attribution path. A value is the third arm,
+and it carries text rather than a parse tree for the same reason the raster arm
+carries bytes: every reader that understands a dialect is somebody else's
+dependency, `core` carries none, and a stored parse is a parse that reader's next
+version disagrees with.
 
 ```ts
 /** Proposed: the third arm of `CaptureMaterial`. */
-interface ContractMaterial {
-  readonly kind: 'contract';
-  readonly contract: InterfaceDocument;
+interface ValueMaterial {
+  readonly kind: 'value';
+  readonly value: CapturedValue;
 }
 
-/** A parsed, normalized public interface. Dialect-specific readers produce it. */
-interface InterfaceDocument {
-  /** `openapi`, `graphql`, `route-table`, or `value` for the untyped case. */
+interface CapturedValue {
+  /** How to read the text: `json`, `openapi`, `graphql`, `route-table`. */
   readonly dialect: string;
-  /** What emitted it, and its version — the environment key for this material. */
-  readonly generator?: { readonly name: string; readonly version: string };
-  readonly operations: readonly InterfaceOperation[];
-  /** Named types, once each, referenced by operations rather than inlined. */
-  readonly types: Readonly<Record<string, InterfaceType>>;
-  /** Names the reader could not resolve. Absent is not empty (ADR-0002). */
-  readonly unread?: readonly string[];
-}
-
-interface InterfaceOperation {
-  readonly id: string;
-  /** Flattened. `total.amount` is a field of this operation, not of `Money`. */
-  readonly request: readonly InterfaceField[];
-  readonly response: readonly InterfaceField[];
-}
-
-interface InterfaceField {
-  readonly path: string;
-  readonly type: string;
-  readonly required: boolean;
-  readonly nullable: boolean;
-}
-
-interface InterfaceType {
-  readonly shape: 'object' | 'enum' | 'union' | 'scalar' | 'list';
-  readonly members: readonly string[];
+  /** The canonical serialization — byte for byte what the digest was taken over. */
+  readonly text: string;
   readonly digest: Digest;
+  /** The normalization ruleset this text was produced under. Part of the digest. */
+  readonly recipe: string;
+  /** What emitted it. The environment key for this material, when there is one. */
+  readonly generator?: { readonly name: string; readonly version: string };
 }
 ```
 
-Rendering placement stays independent of it, because there is nothing to render:
-a contract subject is decided below the `jsdom` tier and never launches a
-browser. That is not a special case being carved out; it is the existing rule —
-ask each question at the cheapest representation that can answer it — reaching
-its floor.
+The canonical form is not new work: `canonicalize` already sorts keys by code
+unit, formats numbers identically on every machine, omits `undefined` rather than
+nulling it, and refuses a non-finite number instead of hashing a broken
+measurement. What is new is the digest domain — `value/v1` over the text and the
+recipe — so that a normalization rule changing is a new identity rather than a
+silent re-reading of an old one.
 
-**2. A band family, in the same list, with the same ordering claim.** Change
-frequency and change importance are inversely correlated here too, and the
-existing bands are the proof that the axis works: a removal is rare and fatal, a
-description edit is constant and harmless.
+**`SubjectRef.kind` gains `value`, and that is a fourth member rather than a
+reuse.** The word this project would reach for is already taken: `route` means *a
+page rendered at a URL*, produced by the route collector. A
+route **table** — the paths an application publishes, with their methods and
+parameters — is a value about the same thing, and a subject list where one word
+means both is one nobody can filter. So a route table is `kind: 'value'` with
+`dialect: 'route-table'`; the medium lives on the material, where the medium
+already lives.
 
-Every row is qualified by position, because an unqualified one is wrong half the
-time. Direction is recorded on the delta, not encoded in a band of its own.
+The narrowing sites are three, and none of them is a compile error:
+`packages/unit-test/src/archive.ts:83`, `packages/unit-test/src/collector.ts:34`
+and `packages/observe/src/capture.ts:43` all test `=== 'document'`, so a third
+arm passes typechecking and is dropped at runtime by every one of them. That is the shape of this work: not errors to fix, refusals to
+write. The one union whose widening is load-bearing is the collector boundary's
+`ok: true` arm, which promises a `RenderDocument` today.
 
-| Delta | Position | Band |
-|---|---|---|
-| operation removed; input field, enum member or accepted type removed; optional input made required; input type narrowed | request | `contract` |
-| output field removed; output made nullable; output enum or union widened | response | `contract` |
-| operation added; optional input field added; input enum member or accepted type added; input field made nullable; required input made optional | request | `capability` |
-| output field added; output made non-nullable | response | `capability` |
-| description, summary, example, `operationId` spelling, enum member order | either | `annotation` |
+**2. The untyped floor, and the call an adopter makes.** Any value is a subject
+before any dialect is: a config file, a generated manifest, a recorded response,
+a route table. It ships first because every dialect degrades to it, and because
+it is the only part that needs no third-party reader at all.
 
-**A type reachable from both positions takes the loudest band across them, and
-this is the common case, not the corner.** A GraphQL enum or scalar is shared
-between argument and field position by construction; an OpenAPI component under
-one request body and three responses is what `$ref` is for. So the band is not a
-property of the delta alone — it is computed once per position that reaches the
-type, and the loudest wins. A shared enum gaining a member is `contract`, because
-one of its positions breaks, and the report names the positions, because *this
-enum is read as well as sent* is the fact the fix depends on. Reachability per position falls
-out of the model above because an operation's fields are **flattened**: a nested
-`Money` under `total.amount` is a field of the operation that reaches it, named
-by its full path, so the positions of a type are a scan of the operations rather
-than a transitive walk that has to condense cycles. `types` then holds identity
-and digest, and holds no second copy of the tree.
+```ts
+/** Proposed: in `packages/unit-test`, beside `capture`. */
+function snapshotValue(value: unknown, options: SnapshotValueOptions): Promise<string>;
 
-The decision this forces is whether these bands join `Band` or form a union of
-their own — and this repository has already done it both ways.
-`packages/history` deliberately keeps a `Band` of its own, on the argument that
-its axis (*which hash*) is not `core`'s axis (*how loudly*) and that a compile
-error beats a silent mix-up. **These join, and the reason is that the axis is the
-same one.** `contract`/`capability`/`annotation` order by frequency against
-importance exactly as `a11y` through `texture` do, `blocking: ['a11y']` is a
-sentence an operator already writes, and every policy surface — sensitivity,
-ignores, the docket, the report's grouping — is keyed on `Band` today.
+interface SnapshotValueOptions {
+  readonly subject: string | SubjectRef;
+  readonly directory: string;
+  /** Defaults to `json`. */
+  readonly dialect?: string;
+  /** Paths whose values are volatile. Recorded as present, never compared. */
+  readonly drop?: readonly string[];
+  /** Paths whose values become a stable token before the digest is taken. */
+  readonly replace?: Readonly<Record<string, string>>;
+  /** For an array of records, the member that identifies a row. */
+  readonly arrayKey?: Readonly<Record<string, string>>;
+}
+```
 
-Joining costs three things, and none of them is optional:
+`arrayKey` is load-bearing and not a convenience. An array compared by index
+reports a row inserted at the top of a two-thousand-row list as two thousand rows
+having changed, which is the same failure as forty red screenshots for one edit,
+in a medium where nobody can see it at a glance. Keyed, it is one insertion.
 
-- **One ordering across two families that never co-occur in a subject.** Stated
-  rather than inferred: `contract`, `capability`, `a11y`, `geometry`, `token`,
-  `content`, `annotation`, `texture`.
-- **Every profile must answer for the new bands.** `observableBands` returns a
-  `Record<Band, Observability>` precisely so a new member is a compile error, and
-  a Chromium profile's honest answer for `contract` is *none* — which is the
-  permanent-yellow-line problem item 3 exists to solve. So items 2 and 3 are one
-  change, not two.
-- **Sensitivity must not absorb a breaking change.** `bandsOf('layout')` is
-  `['a11y', 'geometry']` and everything else is absorbed and counted, so a
-  `layout` rule would report a removed field as a number. Refusing such a rule is
-  not the fix, because the rules that cause this name nothing: `appliesToSubject`
-  treats an absent `subjects` as *every subject*, `*` matches every id, and a
-  refusal broad enough to catch those turns every existing config into an error
-  the moment an adopter adds a contract subject. **Contract bands are instead not
-  absorbable**: `asIgnore` drops them from the absorbed set it builds, so a
-  `layout` rule goes on absorbing `token`, `content` and `texture` exactly as it
-  does today and cannot silence `contract`. The register keeps counting what it
-  did absorb, so nothing goes dark either way.
+**It writes a capture and returns its path. It does not compare, and it does not
+throw.** That is deliberate and it is the existing contract: `capture` does not
+compare either, because the baseline is not present in a unit-test process and a
+comparison written there would be a second, weaker copy of the run. The loop is
+`variance run`, which the adopter runs locally with the same arguments CI runs —
+a value subject gets exactly the loop a DOM subject has, and inventing a
+different one for this medium would be the drift, not the fix.
 
-  A defect in that path is adjacent and predates this: `SensitivityRule.tags` is
-  documented as a scope and is copied into the translated ignore by nothing, so a
-  rule scoped only by tags absorbs across every subject in the run. It is marked
-  at the line that owns it and is not this spec's to fix.
+**3. An identity that outlives the detector.** Every change gets a
+content-addressed, domain-tagged id, minted here rather than taken from whatever
+found it.
 
-**3. Applicability is not observability.** A profile that could not read a band
-reports `unobserved` and must keep doing so. A band that *cannot apply* to this
-subject kind — `geometry` on a schema — is neither observed nor unobserved, and
+```ts
+/** Proposed: minted from what the change *is*, never from how it was described. */
+interface ChangeRecord {
+  /** `digestCombine('interface-site/v1', [subject, dialect, pointer, positions])`. */
+  readonly site: Digest;
+  /** `digestCombine('interface-change/v1', [site, kind, band])`. */
+  readonly fingerprint: Digest;
+  /** The detector's rule name, reported and never hashed. */
+  readonly rule: string;
+  /** JSON Pointer into the document. Present or absent; never a placeholder. */
+  readonly pointer?: string;
+  readonly band: string;
+  /** Where the declaration lives, when a reader resolved one. */
+  readonly file?: string;
+  readonly line?: number;
+}
+```
+
+What the digest excludes is the point: the detector's rendered sentence, its
+severity spelling, its version, and its own fingerprint. A detector is free to
+change all four and does — so an approval keyed on any of them expires the day
+its dependency is upgraded, which is precisely the failure a durable ledger
+exists to prevent.
+
+**4. One docket, which needs a second join.** `clusterChanges` groups changed
+subjects by the fingerprints of their `regions`, and a subject whose regions
+carry none goes to `ungrouped`. A `RegionRecord` is a rectangle — `x`, `y`,
+`width`, `height`, `pixels`, all required — so a value subject can only join that
+index by filing four lies and a zero. It would report as one docket in the sense
+that it is one file, and in no sense a reviewer would accept.
+
+So `ObservationRecord` gains `changes?: readonly ChangeRecord[]`, and
+`clusterChanges` reads its fingerprints from the regions **or** the changes. The
+`settles` arithmetic is unchanged and stays correct: a subject is settled by a
+fingerprint exactly when every change it carries has that fingerprint, which is
+the same sentence the region path already uses. One optional field and one branch
+buys the sentence the purpose section is built on.
+
+**5. Readers wrap detectors.** The reader is a package per dialect, named for the
+artifact it reads, because `core` carries no third-party dependency and every
+dialect arrives through one.
+
+- **`packages/json`** — the untyped floor over `jsondiffpatch`. HTML
+  and Markdown are values it will accept and will report as a whole-document
+  replacement, not a text diff, until somebody wants the text-diff bundle and
+  says so.
+- **`packages/openapi`** — spawns `oasdiff` and consumes its output,
+  *including the positions it already reports for both revisions*. Rebuilding
+  those from a second YAML parse would be a worse copy of something already in
+  the process's stdout.
+- **`packages/sdl`** — the GraphQL reader. Not `packages/graphql`:
+  `tools/boundaries.check.ts` refuses a package that shares a hyphen-separated
+  word with one of its own third-party dependencies, and a GraphQL reader depends
+  on npm `graphql`. It is the `playwright` situation exactly, and `sdl` names the
+  artifact rather than the library.
+
+**Each side is located against the document that contains it.** A removed field
+exists only in the baseline, so a reader that resolves every position against the
+new revision cannot locate a breaking change at all and will report the first
+line of some file instead. Stated here because it is the one implementation
+detail that decides whether the `file:line` in a report is worth reading.
+
+**6. What a report says when a band does not apply.** A profile that could not
+read a band reports `unobserved`, and must keep doing so. A band that *cannot
+apply* — `geometry` on a schema — is neither observed nor unobserved, and
 printing `unobserved` for it turns a category error into a permanent yellow line
-in every report. So band applicability becomes a property of the subject kind,
+in every report. Band applicability becomes a property of the subject kind,
 intersected with `observableBands` rather than replacing it. The two failures
-this separates: a swagger file that claims a layout regression is unmeasured, and
-a Chromium run that quietly stops reporting `a11y`.
+this keeps apart: a swagger file that claims a layout regression went unmeasured,
+and a Chromium run that quietly stopped reporting `a11y`.
 
-**4. The root is the type, not the operation.** A shared `Money` losing a field
-reaches every operation that returns it, and a report that lists forty subjects
-has recreated the forty-failing-screenshots problem in a new medium. The
-shape for this exists and is the point of the project: one root, its band, the
-subjects it reached, and the `file:line` where the thing is declared — resolved
-through a binding, not a file, because a schema barrel republishes names exactly
-the way a component barrel does (ADR-0041). Three closed unions open to admit it,
-and the list is the work: `DeltaKind` gains the contract deltas, `RootKind` gains
-`type`, and `Root.impact` becomes optional — it means reflow, paint or composite,
-and a schema has none of the three. Attribution degrades in a
-stated direction: a hand-written description file locates directly; a generated
-one locates to its generator's input when the generator records one, and to the
-declaration site of the exported symbol when it does not.
+**Acceptance:** three fixture pairs, each a two-revision run, and one of them is
+the whole spec.
 
-**5. Normalization is a ruleset, and it is versioned.** Serialization key order,
-`$ref` inlining, server URLs, a version field the build stamps, and a generator's
-own formatting all move without the interface moving. The order of an enum's
-*members* is not one of them — it is a fact of the type, some clients index into
-it, and it is reported at `annotation` rather than normalized out of existence. These are the cruft rules of
-this medium, they belong in `rules/` beside the ones that already exist, and the
-ruleset version is part of what a stored digest is stored under. A `$ref` that
-cannot be resolved is `unread` and propagates — never silently inlined as an
-empty object, which reads downstream as *a type with no fields*, which reads as a
-removal.
-
-**6. The wire, which the run is already on.** The network observer routes every
-request the page makes and reads bodies only for images, fonts and media;
-everything else is continued unread. Reading the JSON ones makes the API a
-subject the UI run already visited, and joins two findings that are currently
-found by two people: *this component changed* and *this endpoint's payload
-changed shape*. This is the consumer-side case, so the directions invert: the
-repository reads these responses rather than publishing them, and a field that
-vanished from one breaks *this* code. The band is the same; who it is reported
-to is not.
-
-**Values are never stored, only shape** — the same rule that keeps `useState`'s
-hook shape and refuses its value. A payload carries customer data, a stored
-payload is a data-retention decision this project must not make on an adopter's
-behalf, and a value that moves between two readings of an unchanged system is a
-band that manufactures work.
-
-**Acceptance:** four fixture pairs, each a two-revision run.
-
-- One shared type loses one field. The report names one root, states `contract`,
-  lists the operations reached, and points at the declaration — and states the
-  count of reached operations rather than repeating the finding per operation.
-- The same enum gains the same member in two schemas — one reached only through a
-  request, one reached only through a response. The two revisions differ by one
-  identical line in each; the verdicts differ. This is the case a text diff
-  cannot have an opinion about, and it is the acceptance test for the whole spec.
-- A third enum, reached from both positions, gains the same member again: one
-  finding, banded `contract`, naming both positions. The exclusive fixtures above
-  are the didactic case; this is the one real schemas produce.
-- A JSON response body captured from the wire, with no schema available: a shape
-  change is reported, no direction is claimed, and the band is not `contract`.
+- A JSON value changes in one path. The run reports it beside a DOM subject in
+  one report, with one exit code, and `variance changelog` records the approval
+  against the change's own fingerprint.
+- The same value is presented again, unchanged, in a later run against a later
+  commit. It is `unchanged` — because the approval was keyed on the identity and
+  not on the revision, which is the thing a detector re-run cannot do.
+- A row is inserted at the top of a keyed two-thousand-row array. The docket
+  names one change.
 
 ## The untyped case, and what it may conclude
 
-Any value can be a subject — a config file, a generated manifest, a fixture, a
-recorded response. Without a schema there is no request or response position, so
-there is no direction, so **compatibility cannot be decided**. What remains is
-real and smaller: a canonical form, a digest, a structural delta naming the paths
-that appeared, vanished or changed type, and roots that group by path prefix.
+Without a schema there is no request or response position, so there is no
+direction, so **compatibility cannot be decided**. What remains is real and
+smaller: a canonical form, a digest, a structural delta naming the paths that
+appeared, vanished or changed type, and a grouping by path prefix.
 
 An untyped subject may never be **inferred** into `authorized`: no compatibility
 rule may promote it, and the ceiling policy alone can reach is `needs-review`.
@@ -256,35 +265,29 @@ Inferring one — *a key was added, additions are safe* — is precisely the gue
 that lets a required field appear in a request body and pass. A *declared* intent
 is a different producer and stays legitimate: an agent that says it regenerated
 the manifest is answered against what it claimed, exactly as it is for a
-component. ADR-0015's test settles it: a stored
-snapshot can decide *this path changed type*; it cannot decide *your callers
-survive it*.
+component. ADR-0015's test settles it: a stored snapshot can decide *this path
+changed type*; it cannot decide *your callers survive it*.
 
-## Where it lands
-
-The comparison is arithmetic over a parsed document and belongs in `core`, which
-carries no third-party dependency and is held to that by
-`tools/boundaries.check.ts`. **A dialect reader therefore cannot live there** —
-every one of them is a parser somebody else wrote — so each is its own package,
-named for the format it serves, which ADR-0042 allows a name to come from.
-
-`packages/graphql` is refused by that same check until somebody writes down which
-of the two the name means, because a GraphQL reader depends on npm `graphql` and
-the rule exists to stop a package being named after a library it imports. It is
-the `playwright` situation exactly, and it is named here so the first implementer
-meets it in this file rather than in a red check.
+**Values are never stored beyond the subject's own canonical text**, and the
+adopter chooses that text. A recorded response carries customer data, retention
+is a decision this project must not make on an adopter's behalf, and `drop` and
+`replace` exist so the choice is written down in the test rather than discovered
+in a baseline.
 
 ## What it is not
 
-- **Not contract testing.** Nothing is executed against a provider, no
-  consumer's expectations are recorded, and no mock is generated. This compares
-  two descriptions; Pact-style tools compare a description to a running system.
+- **Not a detector.** No breaking-change rule is written here. A dialect that has
+  no reader degrades to the untyped floor and says so; a dialect that has one
+  reports what the detector found, under identities this project minted.
+- **Not contract testing.** Nothing is executed against a provider, no consumer's
+  expectations are recorded, and no mock is generated. This compares two
+  descriptions; Pact-style tools compare a description to a running system.
 - **Not a linter.** Style, naming and completeness rules belong to the tools that
   already do them well; every rule here needs two revisions.
 - **Not runtime validation.** A response that violates its own schema is a defect
-  in the service, found by asserting against the schema, and it is invisible to a
+  in the service, found by asserting against the schema, and invisible to a
   comparison between two schemas.
 - **Not a client-impact claim.** The system knows which of *this repository's*
   callers a change reaches. It knows nothing about the mobile app shipped six
-  months ago, and an added response enum member is reported at its band rather
-  than adjudicated against clients nobody enumerated.
+  months ago, and a widened response is reported at its band rather than
+  adjudicated against clients nobody enumerated.
