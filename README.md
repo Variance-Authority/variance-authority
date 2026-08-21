@@ -8,7 +8,7 @@
 
 **Visual Regression with Verifiable Results.**
 
-The [visual guidelines](docs/visual-guidelines.md) define the fork mark,
+The [visual guidelines](docs/visual-guidelines.md) define the ribbon mark,
 palette and illustration grammar used across the repository and its packages.
 
 Visual regression is good at telling you that something changed. It is much
