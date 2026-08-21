@@ -10,9 +10,9 @@ import { ROOT, offerings } from './manifests.mjs';
  * What this repository offers an adopter, as one value.
  *
  * Two halves, and the split is the whole design. What a package *offers* comes
- * from its `package.json` — the subpaths its `exports` map opens, its `bin`, its
- * peers — because that manifest is the thing npm publishes and the thing another
- * project reads. What each entrypoint *reaches* comes from the source the
+ * from its `package.json` — the subpaths its `exports` map opens, what lands in
+ * the tarball, what ends up on a `PATH` — because that manifest is the thing npm
+ * publishes and the thing another project reads. What each entrypoint *reaches* comes from the source the
  * manifest points at, followed through the barrels, because `core` re-exports
  * eight groups which re-export forty files and a rule that stopped at the first
  * `export *` would be watching eight lines instead of a thousand names.

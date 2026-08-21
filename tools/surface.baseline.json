@@ -992,10 +992,7 @@
         "dist",
         "jest-resolver.cjs",
         "mark.svg"
-      ],
-      "peerDependencies": {
-        "react": ">=17"
-      }
+      ]
     },
     "names": {
       "./jsx-runtime": {
@@ -1192,10 +1189,7 @@
       "files": [
         "dist",
         "mark.svg"
-      ],
-      "peerDependencies": {
-        "@playwright/test": ">=1.49 <2"
-      }
+      ]
     },
     "names": {
       ".": {

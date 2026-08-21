@@ -14,26 +14,20 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * What a manifest says that an adopter's build can observe.
+ * What a manifest says about the shape of what it publishes.
  *
- * `version` is left out because it moves every release and would drown the
- * signal. `dependencies` is left out because `tools/boundaries.check.ts` already
- * governs who may depend on whom, and one rule per question. Everything here is
- * recorded present-or-absent, so a package that *starts* declaring `engines` or
- * `sideEffects` is a change rather than a silence.
+ * Where the code is, what opens which subpath, what lands in the tarball, what
+ * ends up on a `PATH`. Everything here is recorded present-or-absent, so a
+ * package that *starts* declaring `engines` or `sideEffects` is a change rather
+ * than a silence.
+ *
+ * What is deliberately absent is every kind of dependency, peers included.
+ * `version` moves each release and would drown the signal, and a dependency
+ * graph is a different subject with different questions — which range, which
+ * duplicate, which transitive licence — answered by tools built for it. This
+ * reads what a package *offers*, not what it *needs*.
  */
-export const OFFERED = [
-  'type',
-  'main',
-  'types',
-  'exports',
-  'files',
-  'bin',
-  'peerDependencies',
-  'peerDependenciesMeta',
-  'engines',
-  'sideEffects',
-];
+export const OFFERED = ['type', 'main', 'types', 'exports', 'files', 'bin', 'engines', 'sideEffects'];
 
 function read(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
