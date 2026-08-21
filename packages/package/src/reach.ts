@@ -1,6 +1,16 @@
 import { dirname, relative } from 'node:path';
 import { ResolverFactory } from 'oxc-resolver';
-import { type DeclarationKind, type Parses, declarationsIn, parseFile } from './declare.js';
+import {
+  type Declaration,
+  type DeclarationKind,
+  type Parses,
+  around,
+  declarationOf,
+  declarationsIn,
+  parseFile,
+} from './declare.js';
+import { headOf } from './doc.js';
+import { requested } from './manifest.js';
 
 /**
  * Every name an entrypoint publishes, followed through its re-exports.
@@ -11,8 +21,15 @@ import { type DeclarationKind, type Parses, declarationsIn, parseFile } from './
  * eight lines instead of a thousand names.
  */
 
-/** A name, and every kind of thing it turns out to be. */
-export type Names = Map<string, Set<DeclarationKind>>;
+/**
+ * A name, and every kind of thing it turns out to be.
+ *
+ * Keyed by kind rather than held as a list, because a barrel reaches the same
+ * name twice — once for the interface and once for the `const` of the same name
+ * — and the second arrival of a kind already recorded is the same declaration,
+ * not a second one.
+ */
+export type Names = Map<string, Map<DeclarationKind, Declaration>>;
 
 /**
  * Relative specifiers only. A bare one names a package, and packages are
@@ -47,13 +64,6 @@ export function createReader(root: string, entrypoints: ReadonlyMap<string, stri
   return { root, parses: new Map(), reached: new Map(), entrypoints };
 }
 
-/** `@variance-authority/core/plan` as the pair a manifest can answer. */
-function requested(specifier: string): string {
-  const parts = specifier.split('/');
-  const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier);
-  return `${name} .${specifier.slice(name.length)}`;
-}
-
 /** Where a specifier points, or nothing when it leaves this workspace. */
 function targetOf(reader: Reader, from: string, specifier: string): string | undefined {
   if (!specifier.startsWith('.')) return reader.entrypoints.get(requested(specifier));
@@ -65,10 +75,10 @@ function targetOf(reader: Reader, from: string, specifier: string): string | und
   }
 }
 
-function add(into: Names, name: string, kind: DeclarationKind): void {
+function add(into: Names, name: string, declaration: Declaration): void {
   const held = into.get(name);
-  if (held === undefined) into.set(name, new Set([kind]));
-  else held.add(kind);
+  if (held === undefined) into.set(name, new Map([[declaration.kind, declaration]]));
+  else if (!held.has(declaration.kind)) held.set(declaration.kind, declaration);
 }
 
 /**
@@ -87,18 +97,26 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
   stack.add(file);
 
   const at = relative(reader.root, file);
-  const local = declarationsIn(parseFile(reader.parses, file, at), at);
+  const source = parseFile(reader.parses, file, at);
+  const local = declarationsIn(source);
 
-  for (const statement of parseFile(reader.parses, file, at).module.staticExports) {
+  for (const statement of source.parsed.module.staticExports) {
+    // A name this file does not declare is still written *somewhere*, and the
+    // re-export is that somewhere: the statement carries the place, and a doc
+    // block above it carries whatever the barrel wanted to say about the name.
+    const context = around(source, statement.start);
+    const written = headOf(source.text, statement.start, statement.end);
+
     for (const entry of statement.entries) {
       const specifier = entry.moduleRequest?.value;
       const to = specifier === undefined ? undefined : targetOf(reader, file, specifier);
 
       // `export * from './x.js'` republishes a set this file never names.
       if (entry.exportName.kind === 'None') {
-        if (to === undefined) add(found, `* from '${specifier}'`, 'foreign');
-        else for (const [name, kinds] of namesReachedBy(reader, to, stack)) {
-          for (const kind of kinds) add(found, name, kind);
+        if (to === undefined) {
+          add(found, `* from '${specifier}'`, declarationOf(source, context, 'foreign', written));
+        } else for (const [name, kinds] of namesReachedBy(reader, to, stack)) {
+          for (const declaration of kinds.values()) add(found, name, declaration);
         }
         continue;
       }
@@ -110,21 +128,21 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
       // draws here: a bare `export *` omits the default and is answered above,
       // and a namespace object carries it.
       if (entry.importName.kind === 'All') {
-        add(found, name, 'namespace-object');
+        add(found, name, declarationOf(source, context, 'namespace-object', written));
         continue;
       }
 
       if (specifier === undefined) {
-        const kind = local.get(entry.localName.name ?? name);
-        if (kind === undefined) {
+        const declaration = local.get(entry.localName.name ?? name);
+        if (declaration === undefined) {
           throw new Error(`${at} exports \`${name}\`, and no declaration there says what it is`);
         }
-        add(found, name, kind);
+        add(found, name, declaration);
         continue;
       }
 
       if (to === undefined) {
-        add(found, name, 'foreign');
+        add(found, name, declarationOf(source, context, 'foreign', written));
         continue;
       }
 
@@ -132,7 +150,7 @@ export function namesReachedBy(reader: Reader, file: string, stack: Set<string> 
       if (kinds === undefined) {
         throw new Error(`${at} re-exports \`${name}\` from \`${specifier}\`, which does not publish it`);
       }
-      for (const kind of kinds) add(found, name, kind);
+      for (const declaration of kinds.values()) add(found, name, declaration);
     }
   }
 

@@ -138,6 +138,7 @@ entrypoints.
 | `remote` | a socket | a renderer and a store on the other side of a hop |
 | `server` | a port and a bearer token; `server/sqlite` is the entrypoint that adds a database | the history service the operator runs |
 | `mcp` | a run report that already exists, and a client that speaks MCP over stdio | the observation, exposed to an agent |
+| `help` | a readable workspace, built or not, and a client that speaks MCP over stdio | what a workspace publishes, ranked by what imports it and answered on demand |
 | `observe` | the three it composes | one composition, shipped as an example |
 | `tribunal` | a database, a bucket, and a runtime to deploy into | baselines, history, and the review-and-approve surface, in an account the operator controls |
 | `cli` | all of it | the workflow, which is the one place a workflow belongs |

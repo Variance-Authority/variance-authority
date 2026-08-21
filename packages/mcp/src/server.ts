@@ -1,7 +1,8 @@
 import type { Readable, Writable } from 'node:stream';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { createLineReader, handle, type JsonRpcRequest } from './protocol.js';
+import { REPORTS, createLineReader, handle, type JsonRpcRequest } from './protocol.js';
+import type { Served } from './tools/tool.js';
 
 /**
  * The transport, and nothing else.
@@ -12,11 +13,13 @@ import { createLineReader, handle, type JsonRpcRequest } from './protocol.js';
  * decisions.
  */
 
-export interface ServerOptions {
+export interface ServerOptions<Subject = RunReport> {
   readonly input: Readable;
   readonly output: Writable;
+  /** Which tools answer, and what the server calls itself. */
+  readonly served: Served<Subject>;
   /**
-   * Supplies the current report.
+   * Supplies the current subject.
    *
    * A function rather than a value so a long-lived server picks up a re-run
    * without a restart — an agent that fixes something and asks again should be
@@ -27,10 +30,10 @@ export interface ServerOptions {
    * stale one, which is the request that matters: the agent asking is the agent
    * that just re-ran.
    */
-  readonly report: () => RunReport | Promise<RunReport>;
+  readonly subject: () => Subject | Promise<Subject>;
 }
 
-export function serve(options: ServerOptions): () => void {
+export function serve<Subject>(options: ServerOptions<Subject>): () => void {
   const write = (value: unknown): void => {
     options.output.write(`${JSON.stringify(value)}\n`);
   };
@@ -52,8 +55,8 @@ export function serve(options: ServerOptions): () => void {
     }
 
     queue = queue.then(async () => {
-      const report = await options.report();
-      const response = handle(request, () => report);
+      const subject = await options.subject();
+      const response = handle(request, () => subject, options.served);
       if (response !== null) write(response);
     });
   });
@@ -93,7 +96,8 @@ export async function serveReportFile(
   return serve({
     input: streams.input ?? process.stdin,
     output: streams.output ?? process.stdout,
-    report: async () => {
+    served: REPORTS,
+    subject: async () => {
       try {
         cached = await readRunReport(path);
       } catch {

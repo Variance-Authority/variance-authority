@@ -883,6 +883,68 @@
       }
     }
   },
+  "@variance-authority/help": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./tools": {
+          "types": "./dist/tools.d.ts",
+          "default": "./dist/tools.js"
+        }
+      },
+      "files": [
+        "dist",
+        "mark.svg"
+      ],
+      "bin": {
+        "variance-authority-help": "./dist/bin.js"
+      }
+    },
+    "names": {
+      ".": {
+        "HELP": "const",
+        "HELP_TOOLS": "const",
+        "PagesOptions": "interface",
+        "SERVER_NAME": "const",
+        "SERVER_VERSION": "const",
+        "WorkspaceOptions": "interface",
+        "Written": "interface",
+        "entrypoint": "const",
+        "gaps": "const",
+        "packages": "const",
+        "search": "const",
+        "serveWorkspace": "function",
+        "symbol": "const",
+        "writePages": "function"
+      },
+      "./tools": {
+        "HELP": "const",
+        "HELP_TOOLS": "const",
+        "SERVER_NAME": "const",
+        "SERVER_VERSION": "const",
+        "audience": "function",
+        "block": "function",
+        "entriesNamed": "function",
+        "entrypoint": "const",
+        "gaps": "const",
+        "importing": "function",
+        "line": "function",
+        "openingOf": "function",
+        "packageOf": "function",
+        "packages": "const",
+        "reach": "function",
+        "search": "const",
+        "specifierOf": "function",
+        "symbol": "const"
+      }
+    }
+  },
   "@variance-authority/history": {
     "declared": {
       "type": "module",
@@ -1048,10 +1110,13 @@
       ".": {
         "JsonRpcRequest": "interface",
         "JsonRpcResponse": "interface",
+        "NO_ARGS": "const",
         "PROTOCOL_VERSION": "const",
+        "REPORTS": "const",
         "ReportFileOptions": "interface",
         "SERVER_NAME": "const",
         "SERVER_VERSION": "const",
+        "Served": "interface",
         "ServerOptions": "interface",
         "TOOLS": "const",
         "Tool": "interface",
@@ -1059,17 +1124,22 @@
         "handle": "function",
         "serve": "function",
         "serveReportFile": "function",
+        "stringArg": "function",
         "toolByName": "function"
       },
       "./tools": {
+        "NO_ARGS": "const",
+        "Served": "interface",
         "TOOLS": "const",
         "Tool": "interface",
+        "stringArg": "function",
         "toolByName": "function"
       },
       "./protocol": {
         "JsonRpcRequest": "interface",
         "JsonRpcResponse": "interface",
         "PROTOCOL_VERSION": "const",
+        "REPORTS": "const",
         "SERVER_NAME": "const",
         "SERVER_VERSION": "const",
         "createLineReader": "function",
@@ -1119,6 +1189,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./help": {
+          "types": "./dist/help.d.ts",
+          "default": "./dist/help.js"
         }
       },
       "files": [
@@ -1142,6 +1216,28 @@
         "namesReachedBy": "function",
         "readOfferings": "function",
         "readSurface": "function"
+      },
+      "./help": {
+        "Declaration": "interface",
+        "DeclarationKind": "type",
+        "Deep": "interface",
+        "Documented": "interface",
+        "Entry": "interface",
+        "Help": "interface",
+        "HelpOptions": "interface",
+        "Opening": "interface",
+        "Page": "interface",
+        "Usage": "interface",
+        "UsageOptions": "interface",
+        "Use": "interface",
+        "everyEntry": "function",
+        "opening": "function",
+        "readHelp": "function",
+        "readUsage": "function",
+        "undocumented": "function",
+        "writeGaps": "function",
+        "writeIndex": "function",
+        "writeLlms": "function"
       }
     }
   },

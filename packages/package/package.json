@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./help": {
+      "types": "./dist/help.d.ts",
+      "default": "./dist/help.js"
     }
   },
   "main": "./dist/index.js",

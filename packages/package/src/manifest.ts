@@ -56,6 +56,19 @@ export interface OfferingOptions {
   readonly offered?: readonly string[];
 }
 
+/**
+ * A specifier as the pair a manifest can answer.
+ *
+ * `@variance-authority/core/plan` is a package and a subpath, and only the
+ * package half has a manifest to ask. Written as one string because that is what
+ * a lookup key wants and because the space cannot occur in either half.
+ */
+export function requested(specifier: string): string {
+  const parts = specifier.split('/');
+  const name = specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier);
+  return `${name} .${specifier.slice(name.length)}`;
+}
+
 function read(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
 }

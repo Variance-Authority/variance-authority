@@ -53,7 +53,7 @@ export function readSurface(root: string, options: OfferingOptions = {}): Packag
     for (const entry of offering.entrypoints) {
       const reachable: Record<string, string> = {};
       for (const [name, kinds] of [...namesReachedBy(reader, entry.source)].sort()) {
-        reachable[name] = [...kinds].sort().join('+');
+        reachable[name] = [...kinds.keys()].sort().join('+');
       }
       names[entry.subpath] = reachable;
     }

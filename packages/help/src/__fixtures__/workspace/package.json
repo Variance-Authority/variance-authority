@@ -1,0 +1,6 @@
+{
+  "name": "fixture-help",
+  "description": "Two packages, one of which uses the other.",
+  "private": true,
+  "workspaces": ["packages/*"]
+}

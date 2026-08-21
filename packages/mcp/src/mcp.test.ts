@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { handle, createLineReader, PROTOCOL_VERSION } from './protocol.js';
+import { REPORTS, handle, createLineReader, PROTOCOL_VERSION } from './protocol.js';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 import { serve, serveReportFile } from './server.js';
@@ -79,6 +79,7 @@ function call(name: string, args: Record<string, unknown> = {}): string {
   const response = handle(
     { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
     () => REPORT,
+    REPORTS,
   );
   const result = response!.result as { content: { text: string }[]; isError?: boolean };
   return result.content[0]!.text;
@@ -116,6 +117,7 @@ describe('the summary', () => {
         observations: REPORT.observations.filter((o) => o.verdict === 'unchanged'),
         notObserved: [],
       }),
+      REPORTS,
     );
     const text = (clean!.result as { content: { text: string }[] }).content[0]!.text;
 
@@ -158,6 +160,7 @@ describe('describing a subject', () => {
     const response = handle(
       { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'variance_describe', arguments: {} } },
       () => REPORT,
+      REPORTS,
     );
     const result = response!.result as { isError?: boolean; content: { text: string }[] };
 
@@ -309,10 +312,10 @@ describe('explaining a verdict that is not a code problem', () => {
 
 describe('the protocol', () => {
   it('announces itself and its tools', () => {
-    const initialize = handle({ jsonrpc: '2.0', id: 1, method: 'initialize' }, () => REPORT);
+    const initialize = handle({ jsonrpc: '2.0', id: 1, method: 'initialize' }, () => REPORT, REPORTS);
     expect((initialize!.result as { protocolVersion: string }).protocolVersion).toBe(PROTOCOL_VERSION);
 
-    const list = handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, () => REPORT);
+    const list = handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, () => REPORT, REPORTS);
     const tools = (list!.result as { tools: { name: string }[] }).tools;
     expect(tools.map((tool) => tool.name)).toEqual(TOOLS.map((tool) => tool.name));
   });
@@ -320,15 +323,16 @@ describe('the protocol', () => {
   it('never answers a notification', () => {
     // A notification that gets a response is a protocol violation, and the one
     // every hand-written server commits.
-    expect(handle({ jsonrpc: '2.0', method: 'notifications/initialized' }, () => REPORT)).toBeNull();
+    expect(handle({ jsonrpc: '2.0', method: 'notifications/initialized' }, () => REPORT, REPORTS)).toBeNull();
   });
 
   it('refuses an unknown method and an unknown tool differently', () => {
-    expect(handle({ jsonrpc: '2.0', id: 1, method: 'nope' }, () => REPORT)!.error?.code).toBe(-32601);
+    expect(handle({ jsonrpc: '2.0', id: 1, method: 'nope' }, () => REPORT, REPORTS)!.error?.code).toBe(-32601);
     expect(
       handle(
         { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'nope' } },
         () => REPORT,
+        REPORTS,
       )!.error?.code,
     ).toBe(-32602);
   });
@@ -408,7 +412,7 @@ describe('the server', () => {
     const input = new PassThrough();
     const output = new PassThrough();
 
-    serve({ input, output, report: () => REPORT });
+    serve({ input, output, served: REPORTS, subject: () => REPORT });
     input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })}\n`);
 
     const line = await new Promise<string>((resolve) => output.once('data', resolve));
@@ -419,7 +423,7 @@ describe('the server', () => {
     const input = new PassThrough();
     const output = new PassThrough();
 
-    serve({ input, output, report: () => REPORT });
+    serve({ input, output, served: REPORTS, subject: () => REPORT });
     expect(() => input.write('not json\n')).not.toThrow();
   });
 

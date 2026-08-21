@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core';
-import { handle } from './protocol.js';
+import { REPORTS, handle } from './protocol.js';
 import type {
   NotObserved,
   ObservationRecord,
@@ -81,6 +81,7 @@ function call(report: RunReport, name: string, args: Record<string, unknown> = {
   const response = handle(
     { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
     () => report,
+    REPORTS,
   );
   const result = response!.result as { content: { text: string }[]; isError?: boolean };
   return result.content[0]!.text;

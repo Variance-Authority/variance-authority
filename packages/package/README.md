@@ -10,6 +10,19 @@ compiled from. Nothing has to have been built.
 What a repository publishes, as one value: the subpaths each manifest opens, and
 every name reachable through them.
 
+## Entrypoints
+
+| entrypoint | requires | holds |
+|---|---|---|
+| `.` | nothing | what a workspace offers: manifests, entrypoints, the names behind them |
+| `@variance-authority/package/help` | nothing | the same reading joined with what imports it, and the pages made from it |
+
+The second is the first plus a question the first cannot answer: not *what is
+published* but *what is used*, which is what turns a thousand equally-weighted
+names into a front door and a footnote. It is a separate door because a baseline
+of the published surface does not need to walk every file in the repository, and
+the reading that ranks does.
+
 ## The question
 
 The thing an adopter actually depends on is not a file, it is a name at a
@@ -50,6 +63,32 @@ the first `export *` would be watching eight lines instead of a thousand names.
 Nothing here opens `dist`. A `types` target of `./dist/index.d.ts` is mapped back
 through that package's own `rootDir`/`outDir` to `src/index.ts`, so the names
 recorded are the ones somebody wrote and not the ones a build once emitted.
+
+## Rank it, and see what says nothing
+
+`readHelp` is the same walk with two more questions asked of it: what was written
+above each name, and which packages import it.
+
+```ts
+import { readHelp, undocumented } from '@variance-authority/package/help';
+
+const help = readHelp('.', { skip: ['fixtures'] });
+
+const core = help.packages.find((published) => published.name === '@variance-authority/core');
+core?.openings[0]?.entries[0]; // the name the most packages reach for, first
+
+undocumented(help).length; // 114 — names another package imports and which say nothing
+```
+
+Entries arrive ordered by how many packages import them, because everything
+downstream truncates and what survives should be what somebody was going to ask
+about. `skip` adds directory names the walk never descends into, on top of
+`node_modules`, `coverage`, `build` and `out`; a package's own build output needs
+no entry, since where it lands is read from that package's `tsconfig.json`.
+
+`help.deep` is the other half of the same reading: every specifier that reaches
+into a workspace package past what its `exports` map opens. Those are the imports
+that break on a refactor nobody thought was breaking.
 
 ## Compare two readings
 
@@ -113,13 +152,16 @@ duplicate, which transitive licence — and tools built for it answer them. This
 reads what a package offers, not what it needs. `version` is out for a duller
 reason: it moves every release and would drown the signal.
 
-Each name is recorded as what kind of thing it is and nothing more. An emitted
-`.d.ts` states what a compiler inferred; source states what somebody wrote, so
-`export const jsxDEV = runtime.jsxDEV` records as a `const` where the emitted
-declaration would carry its full signature. **A signature that changes under a
-name that does not is a change this misses.** That is a limitation, not an
-argument for reading `dist` — which costs a build as a precondition and pays in
-stale output.
+Each name in the surface is recorded as what kind of thing it is and nothing
+more, so **a signature that changes under a name that does not is a change the
+surface misses**. The narrowness is the surface's, not the reader's: `readHelp`
+carries the head of each declaration — everything written before the body — and a
+consumer that wants to watch signatures has them there.
+
+What neither reads is `dist`. An emitted `.d.ts` states what a compiler inferred;
+source states what somebody wrote, so `export const jsxDEV = runtime.jsxDEV`
+reads as a `const` where the emitted declaration would carry a full type. Reading
+the other one costs a build as a precondition and pays in stale output.
 
 ## What it refuses
 

@@ -1,0 +1,686 @@
+[
+  {
+    "name": "Viewport",
+    "kind": "interface",
+    "at": "packages/core/src/format/environment.ts",
+    "packages": 15
+  },
+  {
+    "name": "normalize",
+    "kind": "function",
+    "at": "packages/core/src/rules/normalize/index.ts",
+    "packages": 14
+  },
+  {
+    "name": "collect",
+    "kind": "function",
+    "at": "packages/dom/src/collect.ts",
+    "packages": 13
+  },
+  {
+    "name": "createHarness",
+    "kind": "function",
+    "at": "packages/playwright/src/harness.ts",
+    "packages": 10
+  },
+  {
+    "name": "buildDocket",
+    "kind": "function",
+    "at": "packages/core/src/judge/docket.ts",
+    "packages": 8
+  },
+  {
+    "name": "comparePngs",
+    "kind": "function",
+    "at": "packages/png/src/compare.ts",
+    "packages": 8
+  },
+  {
+    "name": "identityDigest",
+    "kind": "function",
+    "at": "packages/core/src/format/document.ts",
+    "packages": 8
+  },
+  {
+    "name": "SubjectRef",
+    "kind": "interface",
+    "at": "packages/core/src/format/capture.ts",
+    "packages": 8
+  },
+  {
+    "name": "Harness",
+    "kind": "interface",
+    "at": "packages/playwright/src/harness.ts",
+    "packages": 7
+  },
+  {
+    "name": "acquireDocument",
+    "kind": "function",
+    "at": "packages/dom/src/document.ts",
+    "packages": 6
+  },
+  {
+    "name": "BaselineKey",
+    "kind": "interface",
+    "at": "packages/raster/src/store.ts",
+    "packages": 6
+  },
+  {
+    "name": "RasterStore",
+    "kind": "interface",
+    "at": "packages/raster/src/store.ts",
+    "packages": 6
+  },
+  {
+    "name": "resolveSource",
+    "kind": "function",
+    "at": "packages/core/src/attribute/source.ts",
+    "packages": 6
+  },
+  {
+    "name": "Found",
+    "kind": "interface",
+    "at": "packages/raster/src/store.ts",
+    "packages": 5
+  },
+  {
+    "name": "ProfileId",
+    "kind": "type",
+    "at": "packages/core/src/format/profile.ts",
+    "packages": 5
+  },
+  {
+    "name": "RankedRegion",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/region.ts",
+    "packages": 5
+  },
+  {
+    "name": "CallSiteResolver",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/call-site.ts",
+    "packages": 4
+  },
+  {
+    "name": "createDurableStore",
+    "kind": "function",
+    "at": "packages/store/src/durable.ts",
+    "packages": 4
+  },
+  {
+    "name": "createPlaywrightRenderer",
+    "kind": "function",
+    "at": "packages/playwright/src/renderer.ts",
+    "packages": 4
+  },
+  {
+    "name": "Diagnostic",
+    "kind": "interface",
+    "at": "packages/core/src/format/capture.ts",
+    "packages": 4
+  },
+  {
+    "name": "profileById",
+    "kind": "function",
+    "at": "packages/core/src/format/profile.ts",
+    "packages": 4
+  },
+  {
+    "name": "decode",
+    "kind": "function",
+    "at": "packages/png/src/compare.ts",
+    "packages": 3
+  },
+  {
+    "name": "Instability",
+    "kind": "interface",
+    "at": "packages/history/src/instability.ts",
+    "packages": 3
+  },
+  {
+    "name": "Observation",
+    "kind": "interface",
+    "at": "packages/history/src/observation.ts",
+    "packages": 3
+  },
+  {
+    "name": "ObservationRecord",
+    "kind": "interface",
+    "at": "packages/report/src/format.ts",
+    "packages": 3
+  },
+  {
+    "name": "Recipe",
+    "kind": "type",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 3
+  },
+  {
+    "name": "RegionRecord",
+    "kind": "interface",
+    "at": "packages/report/src/format.ts",
+    "packages": 3
+  },
+  {
+    "name": "SemanticDiff",
+    "kind": "interface",
+    "at": "packages/core/src/compare/diff/index.ts",
+    "packages": 3
+  },
+  {
+    "name": "SourceLocation",
+    "kind": "interface",
+    "at": "packages/core/src/format/provenance.ts",
+    "packages": 3
+  },
+  {
+    "name": "SuspenseSettlement",
+    "kind": "interface",
+    "at": "packages/react/src/arrival.ts",
+    "packages": 3
+  },
+  {
+    "name": "TokenValue",
+    "kind": "interface",
+    "at": "packages/history/src/observation.ts",
+    "packages": 3
+  },
+  {
+    "name": "Churn",
+    "kind": "interface",
+    "at": "packages/history/src/store.ts",
+    "packages": 2
+  },
+  {
+    "name": "CHURN_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "Claim",
+    "kind": "interface",
+    "at": "packages/report/src/intent.ts",
+    "packages": 2
+  },
+  {
+    "name": "CompareOptions",
+    "kind": "interface",
+    "at": "packages/raster/src/policy.ts",
+    "packages": 2
+  },
+  {
+    "name": "createCallSiteResolver",
+    "kind": "function",
+    "at": "packages/core/src/attribute/call-site.ts",
+    "packages": 2
+  },
+  {
+    "name": "createHttpHistoryStore",
+    "kind": "function",
+    "at": "packages/history/src/client.ts",
+    "packages": 2
+  },
+  {
+    "name": "HistoryStore",
+    "kind": "interface",
+    "at": "packages/history/src/store.ts",
+    "packages": 2
+  },
+  {
+    "name": "inspect",
+    "kind": "function",
+    "at": "packages/core/src/judge/inspect.ts",
+    "packages": 2
+  },
+  {
+    "name": "LAST_CHANGED_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "NetworkObservation",
+    "kind": "interface",
+    "at": "packages/playwright/src/network.ts",
+    "packages": 2
+  },
+  {
+    "name": "NotObserved",
+    "kind": "interface",
+    "at": "packages/report/src/format.ts",
+    "packages": 2
+  },
+  {
+    "name": "Observation",
+    "kind": "interface",
+    "at": "packages/observe/src/observe.ts",
+    "packages": 2
+  },
+  {
+    "name": "OBSERVATIONS_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "OwnerFrame",
+    "kind": "interface",
+    "at": "packages/core/src/format/provenance.ts",
+    "packages": 2
+  },
+  {
+    "name": "RASTER_RECIPE",
+    "kind": "const",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 2
+  },
+  {
+    "name": "RasterComparison",
+    "kind": "interface",
+    "at": "packages/raster/src/policy.ts",
+    "packages": 2
+  },
+  {
+    "name": "REACH_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "recipeCss",
+    "kind": "function",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 2
+  },
+  {
+    "name": "RenderResource",
+    "kind": "interface",
+    "at": "packages/core/src/format/document.ts",
+    "packages": 2
+  },
+  {
+    "name": "SemanticNode",
+    "kind": "interface",
+    "at": "packages/core/src/format/snapshot.ts",
+    "packages": 2
+  },
+  {
+    "name": "settleRecipe",
+    "kind": "function",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 2
+  },
+  {
+    "name": "SubjectComposition",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/composition.ts",
+    "packages": 2
+  },
+  {
+    "name": "toSubjects",
+    "kind": "function",
+    "at": "packages/storybook/src/subjects.ts",
+    "packages": 2
+  },
+  {
+    "name": "VALUE_JOURNEY_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "accumulateChurn",
+    "kind": "function",
+    "at": "packages/history/src/churn.ts",
+    "packages": 1
+  },
+  {
+    "name": "accumulateFlakiness",
+    "kind": "function",
+    "at": "packages/history/src/flakiness.ts",
+    "packages": 1
+  },
+  {
+    "name": "APPROVALS_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 1
+  },
+  {
+    "name": "assemble",
+    "kind": "function",
+    "at": "packages/raster/src/assemble.ts",
+    "packages": 1
+  },
+  {
+    "name": "AssembleOptions",
+    "kind": "interface",
+    "at": "packages/raster/src/assemble.ts",
+    "packages": 1
+  },
+  {
+    "name": "BASELINE_DESCRIBE_PATH",
+    "kind": "const",
+    "at": "packages/remote/src/store.ts",
+    "packages": 1
+  },
+  {
+    "name": "BASELINE_PUT_PATH",
+    "kind": "const",
+    "at": "packages/remote/src/store.ts",
+    "packages": 1
+  },
+  {
+    "name": "CACHE_FIND_PATH",
+    "kind": "const",
+    "at": "packages/remote/src/store.ts",
+    "packages": 1
+  },
+  {
+    "name": "CACHE_PUT_PATH",
+    "kind": "const",
+    "at": "packages/remote/src/store.ts",
+    "packages": 1
+  },
+  {
+    "name": "compareDifferenceObservations",
+    "kind": "function",
+    "at": "packages/raster/src/difference/compare.ts",
+    "packages": 1
+  },
+  {
+    "name": "compareLocales",
+    "kind": "function",
+    "at": "packages/core/src/judge/locale.ts",
+    "packages": 1
+  },
+  {
+    "name": "ComponentWindowQuery",
+    "kind": "interface",
+    "at": "packages/server/src/backend.ts",
+    "packages": 1
+  },
+  {
+    "name": "createAbsentStore",
+    "kind": "function",
+    "at": "packages/history/src/absent.ts",
+    "packages": 1
+  },
+  {
+    "name": "createBucketStore",
+    "kind": "function",
+    "at": "packages/tribunal/src/store.ts",
+    "packages": 1
+  },
+  {
+    "name": "createMemoryR2",
+    "kind": "function",
+    "at": "packages/tribunal/src/testing.ts",
+    "packages": 1
+  },
+  {
+    "name": "CURRENT_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 1
+  },
+  {
+    "name": "Declaration",
+    "kind": "interface",
+    "at": "packages/core/src/format/capture.ts",
+    "packages": 1
+  },
+  {
+    "name": "DifferenceMetric",
+    "kind": "interface",
+    "at": "packages/raster/src/difference/metric.ts",
+    "packages": 1
+  },
+  {
+    "name": "DifferenceObservation",
+    "kind": "interface",
+    "at": "packages/raster/src/difference/observe.ts",
+    "packages": 1
+  },
+  {
+    "name": "DiffRegion",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/mask.ts",
+    "packages": 1
+  },
+  {
+    "name": "EdgeKind",
+    "kind": "type",
+    "at": "packages/core/src/relate/graph.ts",
+    "packages": 1
+  },
+  {
+    "name": "EMPTY_CONTEXT",
+    "kind": "const",
+    "at": "packages/core/src/rules/normalize/cascade.ts",
+    "packages": 1
+  },
+  {
+    "name": "environmentKey",
+    "kind": "function",
+    "at": "packages/core/src/format/environment.ts",
+    "packages": 1
+  },
+  {
+    "name": "fieldStatistics",
+    "kind": "function",
+    "at": "packages/raster/src/difference/field.ts",
+    "packages": 1
+  },
+  {
+    "name": "FileEdge",
+    "kind": "interface",
+    "at": "packages/core/src/relate/records.ts",
+    "packages": 1
+  },
+  {
+    "name": "FileRecord",
+    "kind": "interface",
+    "at": "packages/core/src/relate/records.ts",
+    "packages": 1
+  },
+  {
+    "name": "FLAKINESS_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 1
+  },
+  {
+    "name": "FrameElement",
+    "kind": "interface",
+    "at": "packages/core/src/format/document.ts",
+    "packages": 1
+  },
+  {
+    "name": "HelpOptions",
+    "kind": "interface",
+    "at": "packages/package/src/help.ts",
+    "packages": 1
+  },
+  {
+    "name": "HistoryBackend",
+    "kind": "interface",
+    "at": "packages/server/src/backend.ts",
+    "packages": 1
+  },
+  {
+    "name": "Hole",
+    "kind": "interface",
+    "at": "packages/core/src/relate/records.ts",
+    "packages": 1
+  },
+  {
+    "name": "ImageNormalizationOptions",
+    "kind": "interface",
+    "at": "packages/raster/src/difference/observe.ts",
+    "packages": 1
+  },
+  {
+    "name": "indexStyleSheets",
+    "kind": "function",
+    "at": "packages/dom/src/css-index.ts",
+    "packages": 1
+  },
+  {
+    "name": "Instability",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/instability.ts",
+    "packages": 1
+  },
+  {
+    "name": "Intent",
+    "kind": "interface",
+    "at": "packages/core/src/judge/intent.ts",
+    "packages": 1
+  },
+  {
+    "name": "Isolation",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/mask.ts",
+    "packages": 1
+  },
+  {
+    "name": "journeyFrom",
+    "kind": "function",
+    "at": "packages/server/src/backend.ts",
+    "packages": 1
+  },
+  {
+    "name": "LAYOUT_RECIPE",
+    "kind": "const",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 1
+  },
+  {
+    "name": "MatchedRule",
+    "kind": "interface",
+    "at": "packages/core/src/format/capture.ts",
+    "packages": 1
+  },
+  {
+    "name": "Movement",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/movement.ts",
+    "packages": 1
+  },
+  {
+    "name": "NO_ARGS",
+    "kind": "const",
+    "at": "packages/mcp/src/tools/tool.ts",
+    "packages": 1
+  },
+  {
+    "name": "observeDifference",
+    "kind": "function",
+    "at": "packages/raster/src/difference/observe.ts",
+    "packages": 1
+  },
+  {
+    "name": "Plan",
+    "kind": "type",
+    "at": "packages/core/src/plan/tool.ts",
+    "packages": 1
+  },
+  {
+    "name": "RawAria",
+    "kind": "interface",
+    "at": "packages/core/src/format/capture.ts",
+    "packages": 1
+  },
+  {
+    "name": "reachFrom",
+    "kind": "function",
+    "at": "packages/server/src/backend.ts",
+    "packages": 1
+  },
+  {
+    "name": "recipeScreenshot",
+    "kind": "function",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 1
+  },
+  {
+    "name": "recordFrom",
+    "kind": "function",
+    "at": "packages/raster/src/store.ts",
+    "packages": 1
+  },
+  {
+    "name": "Relations",
+    "kind": "interface",
+    "at": "packages/core/src/relate/graph.ts",
+    "packages": 1
+  },
+  {
+    "name": "RenderServer",
+    "kind": "interface",
+    "at": "packages/remote/src/renderer.ts",
+    "packages": 1
+  },
+  {
+    "name": "resolveStyle",
+    "kind": "function",
+    "at": "packages/core/src/rules/normalize/cascade.ts",
+    "packages": 1
+  },
+  {
+    "name": "RunAdjudication",
+    "kind": "interface",
+    "at": "packages/report/src/intent.ts",
+    "packages": 1
+  },
+  {
+    "name": "serve",
+    "kind": "function",
+    "at": "packages/mcp/src/server.ts",
+    "packages": 1
+  },
+  {
+    "name": "StoreServer",
+    "kind": "interface",
+    "at": "packages/remote/src/serve-store.ts",
+    "packages": 1
+  },
+  {
+    "name": "stringArg",
+    "kind": "function",
+    "at": "packages/mcp/src/tools/tool.ts",
+    "packages": 1
+  },
+  {
+    "name": "SubjectWindowQuery",
+    "kind": "interface",
+    "at": "packages/server/src/backend.ts",
+    "packages": 1
+  },
+  {
+    "name": "TokenDrift",
+    "kind": "interface",
+    "at": "packages/history/src/token-drift.ts",
+    "packages": 1
+  },
+  {
+    "name": "TokenWindowQuery",
+    "kind": "interface",
+    "at": "packages/server/src/backend.ts",
+    "packages": 1
+  },
+  {
+    "name": "toolByName",
+    "kind": "function",
+    "at": "packages/mcp/src/tools.ts",
+    "packages": 1
+  },
+  {
+    "name": "ToolDeclaration",
+    "kind": "interface",
+    "at": "packages/core/src/plan/tool.ts",
+    "packages": 1
+  }
+]

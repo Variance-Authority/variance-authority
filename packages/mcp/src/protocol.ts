@@ -1,5 +1,6 @@
 import type { RunReport } from '@variance-authority/report';
-import { TOOLS, toolByName } from './tools.js';
+import type { Served, Tool } from './tools/tool.js';
+import { TOOLS } from './tools.js';
 
 /**
  * MCP over stdio, written out rather than depended on.
@@ -34,14 +35,30 @@ export interface JsonRpcResponse {
   readonly error?: { readonly code: number; readonly message: string };
 }
 
+/** The eight tools this package ships, as the thing `handle` is handed. */
+export const REPORTS: Served<RunReport> = {
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
+  tools: TOOLS,
+};
+
 const METHOD_NOT_FOUND = -32601;
 const INVALID_PARAMS = -32602;
 
 /**
  * Answer one request. `null` means "no response", which is not the same as an
  * empty one — a notification that gets answered is a protocol violation.
+ *
+ * `served` is required rather than defaulted to {@link REPORTS}. A default would
+ * infer its subject from whatever the second argument returns and then answer it
+ * with report tools, which is the class of mistake this file exists to make
+ * impossible: a server that speaks fluently about the wrong thing.
  */
-export function handle(request: JsonRpcRequest, report: () => RunReport): JsonRpcResponse | null {
+export function handle<Subject>(
+  request: JsonRpcRequest,
+  subject: () => Subject,
+  served: Served<Subject>,
+): JsonRpcResponse | null {
   if (request.id === undefined) return null;
   const id = request.id;
 
@@ -50,7 +67,7 @@ export function handle(request: JsonRpcRequest, report: () => RunReport): JsonRp
       return ok(id, {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        serverInfo: { name: SERVER_NAME, version: SERVER_VERSION },
+        serverInfo: { name: served.name, version: served.version },
       });
 
     case 'ping':
@@ -58,7 +75,7 @@ export function handle(request: JsonRpcRequest, report: () => RunReport): JsonRp
 
     case 'tools/list':
       return ok(id, {
-        tools: TOOLS.map((tool) => ({
+        tools: served.tools.map((tool) => ({
           name: tool.name,
           description: tool.description,
           inputSchema: tool.inputSchema,
@@ -66,26 +83,27 @@ export function handle(request: JsonRpcRequest, report: () => RunReport): JsonRp
       });
 
     case 'tools/call':
-      return callTool(id, request.params ?? {}, report);
+      return callTool(id, request.params ?? {}, subject, served.tools);
 
     default:
       return fail(id, METHOD_NOT_FOUND, `unknown method: ${request.method}`);
   }
 }
 
-function callTool(
+function callTool<Subject>(
   id: string | number,
   params: Readonly<Record<string, unknown>>,
-  report: () => RunReport,
+  subject: () => Subject,
+  tools: readonly Tool<Subject>[],
 ): JsonRpcResponse {
   const name = params['name'];
   if (typeof name !== 'string') return fail(id, INVALID_PARAMS, 'tools/call requires a name');
 
-  const tool = toolByName(name);
+  const tool = tools.find((candidate) => candidate.name === name);
   if (tool === undefined) return fail(id, INVALID_PARAMS, `unknown tool: ${name}`);
 
   try {
-    const text = tool.run(report(), (params['arguments'] ?? {}) as Record<string, unknown>);
+    const text = tool.run(subject(), (params['arguments'] ?? {}) as Record<string, unknown>);
     return ok(id, { content: [{ type: 'text', text }] });
   } catch (error) {
     // A tool failure is a *result* with `isError`, not a JSON-RPC error. The

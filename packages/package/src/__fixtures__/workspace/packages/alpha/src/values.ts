@@ -4,10 +4,16 @@ declare module 'somewhere' {
   export const anything: unknown;
 }
 
+/**
+ * Measures the thing, and says how much of it there was.
+ *
+ * @returns how much of it there was
+ */
 export function measure(): number {
   return 1;
 }
 
+/** One measurement, kept. */
 export class Reading {}
 
 export interface Frame {

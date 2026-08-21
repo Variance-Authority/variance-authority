@@ -18,7 +18,7 @@ import {
   type SemanticSnapshot,
 } from '@variance-authority/core';
 import { comparePngs } from '@variance-authority/png';
-import { handle } from '@variance-authority/mcp/protocol';
+import { REPORTS, handle } from '@variance-authority/mcp/protocol';
 import type { RunReport } from '@variance-authority/report';
 import { writeRunReport } from '@variance-authority/report/file';
 import { createHarness, type Harness } from '@variance-authority/playwright';
@@ -359,6 +359,7 @@ chromium_('reading a pixel diff further than a number', () => {
           params: { name: 'variance_describe', arguments: { subject: STORY } },
         },
         () => report,
+        REPORTS,
       );
       const text = (answer!.result as { content: { text: string }[] }).content[0]!.text;
 

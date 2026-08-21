@@ -1,0 +1,9 @@
+{
+  "name": "alpha",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./deep": { "types": "./dist/deep.d.ts", "default": "./dist/deep.js" }
+  },
+  "files": ["dist"]
+}

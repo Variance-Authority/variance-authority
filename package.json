@@ -1,5 +1,6 @@
 {
   "name": "variance-authority",
+  "description": "Visual regression with verifiable results.",
   "license": "MIT",
   "private": true,
   "packageManager": "yarn@4.18.0",
@@ -21,6 +22,7 @@
     "test:watch": "vitest",
     "unrun": "node tools/unrun.mjs",
     "surface": "node tools/surface.mjs",
+    "documented": "node tools/documented.mjs",
     "typecheck": "node tools/doc-examples.mjs && tsc --build --force",
     "verify": "yarn lint && yarn check && yarn test"
   },

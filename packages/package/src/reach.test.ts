@@ -30,7 +30,7 @@ function reachIn(files: Readonly<Record<string, string>>, from: string): Names {
 
 /** A name to the one word it turned out to be. */
 function words(names: Names): Record<string, string> {
-  return Object.fromEntries([...names].map(([name, kinds]) => [name, [...kinds].sort().join('+')]));
+  return Object.fromEntries([...names].map(([name, kinds]) => [name, [...kinds.keys()].sort().join('+')]));
 }
 
 describe('a barrel', () => {

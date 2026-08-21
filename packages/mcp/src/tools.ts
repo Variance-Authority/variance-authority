@@ -5,7 +5,7 @@ import { describe } from './tools/describe.js';
 import { explain } from './tools/explain-verdict.js';
 import { findings } from './tools/findings.js';
 import { summarize } from './tools/summary.js';
-import type { Tool } from './tools/tool.js';
+import { NO_ARGS, stringArg, type Served, type Tool } from './tools/tool.js';
 import { trace } from './tools/trace-component.js';
 
 /**
@@ -51,7 +51,12 @@ import { trace } from './tools/trace-component.js';
  * run*.
  */
 
-export type { Tool };
+export type { Served, Tool };
+
+// The tool-authoring contract, not an implementation detail of these eight. A
+// server over another subject writes tools against the same interface, and the
+// first thing any tool does with a model's argument is refuse it or narrow it.
+export { NO_ARGS, stringArg };
 
 export const TOOLS: readonly Tool[] = [
   summarize,
