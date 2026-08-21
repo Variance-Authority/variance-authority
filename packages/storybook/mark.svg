@@ -1,6 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="178 148 156 216" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 320" role="img" aria-labelledby="title desc">
   <title id="title">Variance Authority mark</title>
-  <desc id="description">A bottom-rooted fork with the route into the upper-right branch selected.</desc>
-  <path d="M256 256 H196 V166" fill="none" stroke="#756d67" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
-  <path d="M256 346 V256 H316 V166" fill="none" stroke="#ff8a3d" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  <desc id="desc">Folded ribbon VA mark in charcoal and orange.</desc>
+
+  <defs>
+    <style>
+      .ribbon-dark {
+        fill: #24282A;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .ribbon-dark {
+          fill: #F3F4F6;
+        }
+      }
+    </style>
+  </defs>
+
+  <!-- Left descending ribbon -->
+  <path class="ribbon-dark" d="M64 54H159L256 266H160Z"/>
+
+  <!-- Right descending ribbon -->
+  <path class="ribbon-dark" d="M331 28H419L494 266H397Z"/>
+
+  <!-- Chosen / variant ribbon -->
+  <path d="M256 266L202 152L283 28H376L301 165Z" fill="#FF4A19"/>
+
+  <!-- Fold shadow -->
+  <path d="M202 152L256 266L301 165L264 103Z" fill="#D83A13" opacity="0.72"/>
 </svg>

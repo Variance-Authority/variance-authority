@@ -1,27 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 110 1600 330" role="img" aria-labelledby="title description">
-  <title id="title">Variance Authority logo</title>
-  <desc id="description">A bottom-rooted fork with one upward branch selected, paired with the Variance Authority wordmark.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 280" role="img" aria-labelledby="title desc">
+  <title id="title">Variance Authority README heading</title>
+  <desc id="desc">A horizontal heading lockup for GitHub README with the Variance Authority mark and product name.</desc>
 
   <defs>
-    <radialGradient id="backgroundGlow" cx="29%" cy="48%" r="58%">
-      <stop offset="0" stop-color="#18120f"/>
-      <stop offset="0.48" stop-color="#0c0b0a"/>
-      <stop offset="1" stop-color="#080909"/>
-    </radialGradient>
+    <style>
+      .ribbon-dark {
+        fill: #24282A;
+      }
+
+      .ribbon-orange {
+        fill: #FF4A19;
+      }
+
+      .ribbon-orange-shadow {
+        fill: #D83A13;
+        opacity: 0.82;
+      }
+
+      .headline-main {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+        font-size: 92px;
+        font-weight: 300;
+        letter-spacing: 16px;
+        fill: #24282A;
+      }
+
+      .headline-accent {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+        font-size: 92px;
+        font-weight: 500;
+        letter-spacing: 16px;
+        fill: #FF4A19;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .ribbon-dark {
+          fill: #F3F4F6;
+        }
+
+        .headline-main {
+          fill: #F3F4F6;
+        }
+      }
+    </style>
   </defs>
 
-  <rect width="1600" height="640" fill="url(#backgroundGlow)"/>
-
-  <g id="mark" transform="translate(236 157)">
-    <!-- Literal fork: a compact head over a longer bottom root. -->
-    <path d="M80 132 H20 V48" fill="none" stroke="#756d67" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter"/>
-
-    <!-- One continuous route: bottom root → junction → chosen branch. -->
-    <path d="M80 216 V132 H140 V48" fill="none" stroke="#ff8a3d" stroke-width="12" stroke-linecap="square" stroke-linejoin="miter"/>
+  <g transform="translate(32 18) scale(0.68)">
+    <path class="ribbon-dark" d="M64 54H159L256 266H160Z"/>
+    <path class="ribbon-dark" d="M331 28H419L494 266H397Z"/>
+    <path class="ribbon-orange" d="M256 266L202 152L283 28H376L301 165Z"/>
+    <path class="ribbon-orange-shadow" d="M202 152L256 266L301 165L264 103Z"/>
   </g>
 
-  <g id="wordmark" transform="translate(500 208)">
-    <text x="0" y="0" fill="#d7cec7" font-family="'Nimbus Sans Narrow', 'Arial Narrow', sans-serif" font-size="74" font-weight="400" letter-spacing="17">VARIANCE</text>
-    <text x="0" y="96" fill="#ff8a3d" font-family="'Nimbus Sans Narrow', 'Arial Narrow', sans-serif" font-size="74" font-weight="400" letter-spacing="17">AUTHORITY</text>
+  <g transform="translate(430 48)">
+    <text class="headline-main" x="0" y="78">VARIANCE</text>
+    <text class="headline-accent" x="0" y="188">AUTHORITY</text>
   </g>
 </svg>
