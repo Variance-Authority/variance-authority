@@ -4,7 +4,8 @@
 to a registry, so no consumer outside this workspace can resolve
 `@variance-authority/*`.
 **Built on:** MIT licensing and non-private manifests at `0.0.0-beta.1`,
-[`tools/release-version.mjs`](../../tools/release-version.mjs), and
+changesets in pre mode under the `beta` tag
+([`.changeset/config.json`](../../.changeset/config.json)), and
 [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
 
 ## Purpose
@@ -21,13 +22,16 @@ The machinery to end that is written and has never been triggered.
 **One release, and one install that proves it.** Publishing is the cheap half;
 the expensive half is demonstrating that what landed on the registry is usable.
 
-1. Stamp every manifest in lockstep, commit, push. The 21 packages are one
-   product and release together.
-2. Tag `v<version>` and push the tag. The workflow refuses a tag whose version
-   the manifests do not already carry, so the commit is the record and the tag is
-   only the wire.
-3. A prerelease publishes under the `beta` dist-tag, never `latest`. Any install
-   line written before a non-prerelease version exists must say so.
+1. Land a changeset with the change it describes. The packages are one product
+   and one `fixed` group, so a bump on any of them stamps every manifest in
+   lockstep.
+2. Merge the version pull request the workflow opens. Its diff — every manifest
+   and every changelog — is the record, and merging it publishes nothing.
+   Publishing is a separate, hand-run job: no merge can reach a registry, which
+   is the only property that survives a repository having contributors.
+3. A prerelease publishes under the `beta` dist-tag, never `latest`. Pre mode is
+   what keeps a `minor` bump from quietly becoming one. Any install line written
+   before a non-prerelease version exists must say so.
 
 **The install is the acceptance test, and it belongs outside this repository.**
 In a directory that is not a clone: add the CLI and one surface package, write a
@@ -39,7 +43,9 @@ the operator's setup.
 
 - **`yarn npm publish` is not `npm publish`.** Internal dependencies are declared
   `workspace:^`, which Yarn rewrites to a real range at publish time. Plain `npm
-  publish` ships the protocol verbatim and breaks every install.
+  publish` ships the protocol verbatim and breaks every install. `changeset
+  publish` reads the package manager from the workspace and uses Yarn; a publish
+  by hand has to remember to.
 - **`dist` is gitignored and no package declares `prepack`.** Tarballs are
   non-empty only because the workflow builds before it publishes. A manual
   publish from a clean checkout ships nothing, and a git-URL dependency on this
@@ -58,6 +64,6 @@ version is the only place to say how much of it to expect.
 
 ## Leaves behind
 
-An ADR on what a release is: lockstep versioning, the tag as trigger rather than
-as source of truth, and the dist-tag derived from the version. None of that is
-obvious enough to survive as workflow comments alone.
+An ADR on what a release is: lockstep versioning, the merged version commit
+rather than a typed command as the trigger, and the dist-tag derived from the
+version. None of that is obvious enough to survive as workflow comments alone.

@@ -1,35 +1,62 @@
-# Publish every package to npm when a release tag is pushed.
+# Versioning happens on merge. Publishing happens when somebody says so.
 #
-# The flow is deliberately two-step so a release is a commit before it is a
-# side effect:
+# These are two jobs with two triggers, and the separation is the whole point:
 #
-#   node tools/release-version.mjs 0.0.0-beta.2   # stamp, commit, push
-#   git tag v0.0.0-beta.2 && git push origin v0.0.0-beta.2
+#   a merge          → open or update one "Version packages" pull request
+#   that PR merged   → the manifests and changelogs move. Nothing is published.
+#   Run workflow ▸   → publish what `main` currently carries, and tag it
 #
-# The workflow then refuses a tag whose version the manifests do not already
-# carry — versioning happens in the repository, publishing happens here, and
-# the tag is the wire between them.
+# No merge reaches npm. Not a contributor's, not the version pull request's, not
+# one landed by auto-merge at three in the morning. The registry is reached by a
+# person opening this workflow and pressing the button, and by nothing else.
 #
-# `yarn npm publish` is load-bearing: internal dependencies are declared as
-# `workspace:^`, which Yarn rewrites to the real version at publish time and
-# plain `npm publish` would ship verbatim, breaking every install.
+# That costs one click per release and buys the thing a click cannot be given
+# back: a published version is unpublishable, an npm dist-tag is what every
+# `yarn add` in the world resolves, and "who merged that" is not a recovery plan.
 #
-# The dist-tag is derived from the version: a prerelease publishes as `beta`,
-# anything else as `latest`.
+# The version itself is derived — `.changeset/config.json` holds all packages in
+# one `fixed` group, because they are one product with `workspace:^` between
+# them. `changeset publish` reads the package manager from the workspace and
+# runs `yarn npm publish`, which matters: npm would ship that protocol verbatim
+# and break every install. It publishes in dependency order, skips versions the
+# registry already has — so a second press is a no-op, not a disaster — and takes
+# the dist-tag from pre mode rather than from anything typed here.
+#
+# The repository is in pre mode under the `beta` tag, so that is the dist-tag.
+# `yarn changeset pre exit`, merged like anything else, is what ends that.
 
 name: release
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    # An ordinary merge changes neither of these and does not start anything. A
+    # merge carrying a changeset adds a file under `.changeset/`; the version
+    # pull request removes those and raises every manifest.
+    paths:
+      - '.changeset/**'
+      - 'packages/*/package.json'
+  workflow_dispatch:
+
+concurrency: release
 
 jobs:
-  publish:
+  # ---------------------------------------------------------------------------
+  # On merge: collect the changesets into one reviewable version commit.
+  # Publishes nothing, holds no npm token, and could not publish if it wanted to.
+  # ---------------------------------------------------------------------------
+  version:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: `changelog-git` names the commit each changeset arrived
+          # in, and a shallow checkout does not have them.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -39,27 +66,71 @@ jobs:
 
       - run: yarn install --immutable
 
-      - name: The tag names the version the manifests already carry
+      # No build, no `yarn verify`. This job writes version numbers and
+      # changelogs; `check.yml` already runs lint, checks and tests on this same
+      # commit across two Node versions.
+      - uses: changesets/action@v1
+        with:
+          version: yarn release:version
+          commit: 'Version packages'
+          title: 'Version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # On the button: publish what the manifests already carry.
+  # ---------------------------------------------------------------------------
+  publish:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Point this at a GitHub environment with required reviewers to put a second
+    # person between the button and the registry. Nothing here assumes one.
+    environment: npm
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: corepack enable
+
+      - run: yarn install --immutable
+
+      # A changeset still sitting in `.changeset/` means `main` carries changes
+      # the version it would publish does not account for — the changelog would
+      # be missing them and the version would understate what shipped. The fix is
+      # to merge the version pull request, not to publish anyway.
+      - name: Nothing is waiting to be versioned
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          MANIFEST_VERSION="$(node -p "require('./packages/core/package.json').version")"
-          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
-            echo "tag v$TAG_VERSION does not match manifest $MANIFEST_VERSION"
-            echo "run: node tools/release-version.mjs $TAG_VERSION — then commit, and re-tag"
+          shopt -s nullglob
+          waiting=()
+          for file in .changeset/*.md; do
+            [ "$(basename "$file")" = README.md ] || waiting+=("$file")
+          done
+          if [ ${#waiting[@]} -gt 0 ]; then
+            printf '%s\n' "unversioned changesets on main:" "${waiting[@]}"
+            echo "merge the version pull request first — its diff is what this would publish"
             exit 1
           fi
 
+      # `dist` is gitignored and no package declares `prepack`, so this is what
+      # makes the tarballs non-empty. A publish from a clean checkout without it
+      # ships empty packages.
       - run: yarn build
 
       - run: yarn verify
 
-      - name: Publish, dependencies first
+      - name: Publish, and tag what was published
         env:
           YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          case "$GITHUB_REF_NAME" in
-            *-*) DIST_TAG=beta ;;
-            *)   DIST_TAG=latest ;;
-          esac
-          yarn workspaces foreach --all --no-private --topological \
-            npm publish --access public --tag "$DIST_TAG"
+          yarn release:publish
+          # Tags come from `changeset publish` and name versions the registry has
+          # already accepted, so pushing them cannot describe a release that did
+          # not happen.
+          git push --tags

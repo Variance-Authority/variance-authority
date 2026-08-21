@@ -36,6 +36,28 @@ yarn vitest run examples/kitchen-sink/src/measure.test.tsx
 yarn vitest run examples/kitchen-sink/src/measure.chromium.test.tsx
 ```
 
+## Releasing
+
+A change that reaches the registry arrives carrying a changeset:
+
+```bash
+yarn changeset
+```
+
+Pick the bump the *product* deserves. The packages are one `fixed` group — every
+`@variance-authority/*` package shares a version, because internal dependencies
+are `workspace:^` and a release ships all of them — so marking one marks them
+all. [`.changeset/README.md`](.changeset/README.md) says what else is unusual
+here.
+
+**No merge publishes anything.** [`release.yml`](.github/workflows/release.yml)
+collects the changesets on `main` into one "Version packages" pull request;
+merging that moves the version numbers and writes the changelogs, and still
+sends nothing to a registry. Publishing is the `release` workflow run by hand,
+from the Actions tab, on whatever `main` carries at that moment — it refuses to
+run while a changeset is still waiting to be versioned. The repository is in pre mode under the
+`beta` tag, so versions stay prereleases and the dist-tag follows them.
+
 Unfinished product work lives in [`docs/specs`](docs/specs/README.md); the
 current implementation checkpoint lives in
 [`docs/context/checkpoint.md`](docs/context/checkpoint.md). The standards a
