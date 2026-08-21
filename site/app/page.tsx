@@ -1,3 +1,4 @@
+import Answers from "./components/Answers";
 import Attribution from "./components/Attribution";
 import Bands from "./components/Bands";
 import Lifecycle from "./components/Lifecycle";
@@ -6,7 +7,13 @@ import Timelines from "./components/Timelines";
 
 const GITHUB = "https://github.com/Variance-Authority/variance-authority";
 
-function Mark({ size = 28, className = "" }: { size?: number; className?: string }) {
+function Mark({
+  size = 28,
+  className = "",
+}: {
+  size?: number;
+  className?: string;
+}) {
   return (
     <svg
       viewBox="0 0 512 320"
@@ -18,7 +25,11 @@ function Mark({ size = 28, className = "" }: { size?: number; className?: string
       <path fill="#f3f4f6" d="M64 54H159L256 266H160Z" />
       <path fill="#f3f4f6" d="M331 28H419L494 266H397Z" />
       <path fill="#ff4a19" d="M256 266L202 152L283 28H376L301 165Z" />
-      <path fill="#d83a13" opacity="0.72" d="M202 152L256 266L301 165L264 103Z" />
+      <path
+        fill="#d83a13"
+        opacity="0.72"
+        d="M202 152L256 266L301 165L264 103Z"
+      />
     </svg>
   );
 }
@@ -53,20 +64,27 @@ function Verdict() {
           <code>
             <span className="text-quiet">$ variance run</span>
             {"\n"}
-            <span className="text-ivory">1 root(s): 0 authorized, 1 to review, 0 violation(s).</span>
+            <span className="text-ivory">
+              1 root(s): 0 authorized, 1 to review, 0 violation(s).
+            </span>
             {"\n  "}
-            <span className="rounded bg-orange/15 px-1 py-0.5 text-orange">[needs-review]</span>
+            <span className="rounded bg-orange/15 px-1 py-0.5 text-orange">
+              [needs-review]
+            </span>
             <span className="text-ivory"> Button — Button</span>
             {"\n      "}
             <span className="text-quiet">
-              undeclared component change: `Button` (token/paint) reached 1 subject(s)
+              undeclared component change: `Button` (token/paint) reached 1
+              subject(s)
             </span>
             {"\n      "}
             <span className="text-ivory underline decoration-orange decoration-2 underline-offset-4">
               src/Button.js:9
             </span>
             {"\n\n"}
-            <span className="text-quiet">$ variance accept story:button--primary</span>
+            <span className="text-quiet">
+              $ variance accept story:button--primary
+            </span>
             {"\n"}
             <span className="text-green">accepted · next run exits 0</span>
             {"\n"}
@@ -78,33 +96,6 @@ function Verdict() {
     </div>
   );
 }
-
-const REFUSALS = [
-  {
-    title: "No vendor account. No hosted dashboard.",
-    body: "It runs in infrastructure you control, against UI states your Storybook, application, Playwright tests, or browserless unit tests already reach. Capture material stays local or travels only to a renderer and store you choose.",
-  },
-  {
-    title: "Missing evidence is not a pass.",
-    body: "When a profile cannot observe a band, the report says unobserved. It does not turn what it failed to see into a green check.",
-  },
-  {
-    title: "Retries are not an answer.",
-    body: "A changed subject is read again (same world, time advanced) and alone (world rebuilt). Both outcomes are reported, nothing is cleared, and accept refuses to promote a reading chosen by a race.",
-  },
-  {
-    title: "No pixels are ever stored.",
-    body: "A 1px edit to a spacing token produces 4949 changed pixels: a pixel count measures displacement, not magnitude. What accumulates instead is the record — so a button that gained 2px eleven times reports the 22px nobody ever saw.",
-  },
-  {
-    title: "The exit code is the whole interface.",
-    body: "0: nothing to review. 1: changes to review. 2: operator error. A verdict and a crash never share a code, so any CI that can run a command already has the gate.",
-  },
-  {
-    title: "“No per-shot bill” is not the same claim as “free.”",
-    body: "There is no vendor meter. You pay in compute and storage you already own — and the run is engineered so a green subject costs a hash comparison, not a render.",
-  },
-];
 
 const RECIPES = [
   {
@@ -134,7 +125,10 @@ const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
   {
     group: "what you install",
     items: [
-      { name: "cli", role: "the workflow, which is the one place a workflow belongs" },
+      {
+        name: "cli",
+        role: "the workflow, which is the one place a workflow belongs",
+      },
       {
         name: "playwright-test",
         role: "additive observation and assertion helpers for a suite you already have",
@@ -169,13 +163,22 @@ const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
         name: "jsx-source",
         role: "the file and line that wrote an element, carried as far as the DOM node",
       },
-      { name: "raster", role: "the pixel tier as data — contracts, policies, the gate" },
+      {
+        name: "raster",
+        role: "the pixel tier as data — contracts, policies, the gate",
+      },
       { name: "png", role: "decoding, comparison, the diff image" },
       { name: "session", role: "many subjects in one standing world" },
       { name: "playwright", role: "the persistent harness, and a renderer" },
       { name: "store", role: "baselines on disk, and in git-LFS" },
-      { name: "report", role: "what a run leaves behind, so several readers share one shape" },
-      { name: "history", role: "what a row may contain, and what the numbers mean" },
+      {
+        name: "report",
+        role: "what a run leaves behind, so several readers share one shape",
+      },
+      {
+        name: "history",
+        role: "what a row may contain, and what the numbers mean",
+      },
       {
         name: "package",
         role: "what a package offers an adopter: every entrypoint a manifest opens",
@@ -186,7 +189,10 @@ const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
     group: "what an operator deploys",
     items: [
       { name: "server", role: "the history service the operator runs" },
-      { name: "remote", role: "a renderer and a store on the other side of a hop" },
+      {
+        name: "remote",
+        role: "a renderer and a store on the other side of a hop",
+      },
     ],
   },
 ];
@@ -195,7 +201,10 @@ export default function Page() {
   return (
     <div className="relative overflow-x-clip">
       {/* Hero backdrop: node grid + one warm glow, top of page only */}
-      <div aria-hidden="true" className="dot-grid absolute inset-x-0 top-0 h-[42rem]" />
+      <div
+        aria-hidden="true"
+        className="dot-grid absolute inset-x-0 top-0 h-[42rem]"
+      />
       <div
         aria-hidden="true"
         className="absolute -top-40 right-[-10rem] h-[34rem] w-[34rem] rounded-full bg-orange/[0.07] blur-3xl"
@@ -211,10 +220,16 @@ export default function Page() {
             </span>
           </a>
           <nav className="flex items-center gap-6 text-sm text-quiet">
-            <a href="#run" className="hidden transition-colors hover:text-ivory sm:inline">
+            <a
+              href="#run"
+              className="hidden transition-colors hover:text-ivory sm:inline"
+            >
               How it runs
             </a>
-            <a href="#integrate" className="hidden transition-colors hover:text-ivory sm:inline">
+            <a
+              href="#integrate"
+              className="hidden transition-colors hover:text-ivory sm:inline"
+            >
               Integrate
             </a>
             <a
@@ -246,13 +261,15 @@ export default function Page() {
               </span>
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-quiet">
-              A padding token moves. Forty screenshots fail. The tool has found the visual
-              change, but the next hour belongs to a reviewer. Variance Authority makes
-              that investigation part of the run: it connects a changed region to the
-              component that caused it and the{" "}
-              <span className="font-mono text-[0.95em] text-ivory">file:line</span> where
-              that component lives. The screenshot remains evidence; it stops being the
-              whole answer.
+              A padding token moves. Forty screenshots fail. The tool has found
+              the visual change, but the next hour belongs to a reviewer.
+              Variance Authority makes that investigation part of the run: it
+              connects a changed region to the component that caused it and the{" "}
+              <span className="font-mono text-[0.95em] text-ivory">
+                file:line
+              </span>{" "}
+              where that component lives. The screenshot remains evidence; it
+              stops being the whole answer.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <a
@@ -281,10 +298,12 @@ export default function Page() {
             A pixel is a poor witness. Follow it to the line that wrote it.
           </h2>
           <p className="mt-4 max-w-2xl leading-7 text-quiet">
-            A PNG knows colours and coordinates. It does not know that the changed pixels
-            came from <span className="font-mono text-[0.95em] text-ivory">Title</span>, or
-            that only its paint changed while its structure held. So the run compares the
-            rendered document, and every hop below is an artifact it already produced.
+            A PNG knows colours and coordinates. It does not know that the
+            changed pixels came from{" "}
+            <span className="font-mono text-[0.95em] text-ivory">Title</span>,
+            or that only its paint changed while its structure held. So the run
+            compares the rendered document, and every hop below is an artifact
+            it already produced.
           </p>
           <div className="mt-10">
             <Attribution />
@@ -292,27 +311,31 @@ export default function Page() {
         </section>
 
         {/* The run */}
-        <section id="run" className="scroll-mt-8 border-t border-hairline py-20">
+        <section
+          id="run"
+          className="scroll-mt-8 border-t border-hairline py-20"
+        >
           <Eyebrow n="02">the run</Eyebrow>
           <h2 className="max-w-2xl text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
             Forty subjects. One paint.
           </h2>
           <p className="mt-4 max-w-2xl leading-7 text-quiet">
-            Detection is the easy third of the job, and it is the third that should cost
-            nothing. Each question is asked at the cheapest representation that can
-            answer it — structure and authored CSS before a browser, semantics under
-            jsdom or Chromium, pixels only for differences that genuinely require one. A
-            semantic snapshot is text, and painting the same page in the same process
-            costs{" "}
-            <span className="text-ivory">roughly eighteen times as much</span>. The
-            milliseconds are machine-bound; the ratio is what makes “read it again” a
-            design option rather than a budget line.
+            Detection is the easy third of the job, and it is the third that
+            should cost nothing. Each question is asked at the cheapest
+            representation that can answer it — structure and authored CSS
+            before a browser, semantics under jsdom or Chromium, pixels only for
+            differences that genuinely require one. A semantic snapshot is text,
+            and painting the same page in the same process costs{" "}
+            <span className="text-ivory">roughly eighteen times as much</span>.
+            The milliseconds are machine-bound; the ratio is what makes “read it
+            again” a design option rather than a budget line.
           </p>
           <div className="mt-10">
             <Lifecycle />
           </div>
           <p className="mt-6 font-mono text-xs text-warm">
-            a green run pays nothing, so the budget goes to the subjects that moved
+            a green run pays nothing, so the budget goes to the subjects that
+            moved
           </p>
         </section>
 
@@ -325,17 +348,19 @@ export default function Page() {
                 Assert on less, instead of ignoring more.
               </h2>
               <p className="mt-4 leading-7 text-quiet">
-                A route-level test and a component-level test want opposite things from
-                the same machinery. A component asserts on everything: a colour token
-                moved and that <em>is</em> the change. A route asserts the page still
-                assembles — and a design-system token landing in forty routes is noise it
-                should never have been shown.
+                A route-level test and a component-level test want opposite
+                things from the same machinery. A component asserts on
+                everything: a colour token moved and that <em>is</em> the
+                change. A route asserts the page still assembles — and a
+                design-system token landing in forty routes is noise it should
+                never have been shown.
               </p>
               <p className="mt-4 leading-7 text-quiet">
-                Change frequency and change importance are inversely correlated. An
-                accessible name almost never moves and is a defect when it does;
-                anti-aliasing moves constantly and never matters. So the unit here is a
-                band, and a level is two band names rather than a tolerance.
+                Change frequency and change importance are inversely correlated.
+                An accessible name almost never moves and is a defect when it
+                does; anti-aliasing moves constantly and never matters. So the
+                unit here is a band, and a level is two band names rather than a
+                tolerance.
               </p>
             </div>
             <Bands />
@@ -348,21 +373,25 @@ export default function Page() {
             <div>
               <Eyebrow n="04">sense</Eyebrow>
               <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
-                A suite that runs everything on every commit is a suite people turn off.
+                A suite that runs everything on every commit is a suite people
+                turn off.
               </h2>
               <p className="mt-4 leading-7 text-quiet">
-                <span className="font-mono text-[0.95em] text-ivory">--since</span>{" "}
-                narrows a run to the subjects whose components a diff touched — and it
-                gives up the moment a changed file declares no component. Which is
-                exactly the file every design system is most afraid of:{" "}
-                <span className="font-mono text-[0.95em]">tokens.css</span>, the theme
-                provider, the shared helper, the icon nobody thinks about.
+                <span className="font-mono text-[0.95em] text-ivory">
+                  --since
+                </span>{" "}
+                narrows a run to the subjects whose components a diff touched —
+                and it gives up the moment a changed file declares no component.
+                Which is exactly the file every design system is most afraid of:{" "}
+                <span className="font-mono text-[0.95em]">tokens.css</span>, the
+                theme provider, the shared helper, the icon nobody thinks about.
               </p>
               <p className="mt-4 leading-7 text-quiet">
-                Naming the components a file <em>declares</em> cannot answer for any of
-                them, because the answer is two hops away. So this half of the project
-                reads the source rather than running it, and walks those hops: what a
-                change could have moved, and what a run actually crossed.
+                Naming the components a file <em>declares</em> cannot answer for
+                any of them, because the answer is two hops away. So this half
+                of the project reads the source rather than running it, and
+                walks those hops: what a change could have moved, and what a run
+                actually crossed.
               </p>
               <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
                 A missed edge is not a smaller answer. It is a wrong one.
@@ -374,42 +403,30 @@ export default function Page() {
 
         {/* Straight answers */}
         <section className="border-t border-hairline py-20">
-          <div className="grid gap-10 lg:grid-cols-[2fr_3fr]">
-            <div className="lg:sticky lg:top-10 lg:self-start">
-              <Eyebrow n="05">position</Eyebrow>
-              <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
-                Straight answers
-              </h2>
-              <p className="mt-4 leading-7 text-quiet">
-                Yes, visual regression is flaky. Anyone who says otherwise has either not
-                run it at scale or has quietly set a threshold large enough to hide it.
-                The design answer is to absorb each cause of variance by construction —
-                and to say so plainly when a cause is absorbed by nothing.
-              </p>
-            </div>
-            <ul className="divide-y divide-hairline border-y border-hairline">
-              {REFUSALS.map((r) => (
-                <li key={r.title} className="group flex gap-4 py-5">
-                  <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-hairline transition-colors group-hover:bg-orange" />
-                  <div>
-                    <p className="font-semibold text-ivory">{r.title}</p>
-                    <p className="mt-2 text-sm leading-6 text-quiet">{r.body}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <Eyebrow n="05">position</Eyebrow>
+          <h2 className="max-w-xl text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
+            Six things you are right to be suspicious about.
+          </h2>
+          <p className="mt-4 mb-10 max-w-2xl leading-7 text-quiet">
+            Every one of these is a way visual regression has failed somebody
+            before. The design answer is to absorb each cause by construction —
+            and to say so plainly where a cause is absorbed by nothing.
+          </p>
+          <Answers />
         </section>
 
         {/* Integration */}
-        <section id="integrate" className="scroll-mt-8 border-t border-hairline py-20">
+        <section
+          id="integrate"
+          className="scroll-mt-8 border-t border-hairline py-20"
+        >
           <Eyebrow n="06">integrate</Eyebrow>
           <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
             One package where your UI is already ready
           </h2>
           <p className="mt-4 max-w-2xl leading-7 text-quiet">
-            No new way to write tests, no hosted setup. Pick the recipe that matches
-            where your UI states already live.
+            No new way to write tests, no hosted setup. Pick the recipe that
+            matches where your UI states already live.
           </p>
           <div className="mt-12 grid gap-4 sm:grid-cols-2">
             {RECIPES.map((r) => (
@@ -430,37 +447,48 @@ export default function Page() {
           <div className="mt-10 grid gap-4 lg:grid-cols-[3fr_2fr]">
             <div className="rounded-2xl border border-hairline bg-panel">
               <p className="border-b border-hairline px-5 py-2.5 font-mono text-xs text-quiet">
-                cart.spec.ts — a Playwright suite, unchanged apart from the observation
+                cart.spec.ts — a Playwright suite, unchanged apart from the
+                observation
               </p>
               <pre className="overflow-x-auto px-5 py-4 font-mono text-[13px] leading-6 text-ivory">
                 <code>
                   <span className="text-warm">import</span> {"{ test, expect }"}{" "}
                   <span className="text-warm">from</span>{" "}
                   <span className="text-green">'@playwright/test'</span>;{"\n"}
-                  <span className="text-warm">import</span> {"{ assertUnchanged, observe }"}
+                  <span className="text-warm">import</span>{" "}
+                  {"{ assertUnchanged, observe }"}
                   {"\n  "}
                   <span className="text-warm">from</span>{" "}
-                  <span className="text-green">'@variance-authority/playwright-test'</span>;
-                  {"\n\n"}
+                  <span className="text-green">
+                    '@variance-authority/playwright-test'
+                  </span>
+                  ;{"\n\n"}
                   <span className="text-ivory">test(</span>
-                  <span className="text-green">'the cart survives an empty basket'</span>
+                  <span className="text-green">
+                    'the cart survives an empty basket'
+                  </span>
                   <span className="text-ivory">
                     , async ({"{ page }"}, testInfo) {"=> {"}
                   </span>
                   {"\n  "}await page.goto(
-                  <span className="text-green">'https://example.test/cart'</span>);{"\n  "}
-                  await page.getByRole(<span className="text-green">'button'</span>,{" "}
-                  {"{ name: "}
+                  <span className="text-green">
+                    'https://example.test/cart'
+                  </span>
+                  );{"\n  "}
+                  await page.getByRole(
+                  <span className="text-green">'button'</span>, {"{ name: "}
                   <span className="text-green">'Clear'</span>
                   {" }"}).click();{"\n\n  "}
                   <span className="text-warm">const</span> observation ={" "}
                   <span className="text-warm">await</span>{" "}
                   <span className="text-orange">observe</span>(page,
-                  page.getByTestId(<span className="text-green">'cart'</span>),{"\n    "}
+                  page.getByTestId(<span className="text-green">'cart'</span>),
+                  {"\n    "}
                   testInfo, {"{ subjectId: "}
                   <span className="text-green">'cart/empty'</span>
                   {" }"});{"\n\n  "}
-                  <span className="text-orange">assertUnchanged</span>(observation);{"\n"}
+                  <span className="text-orange">assertUnchanged</span>
+                  (observation);{"\n"}
                   {"}"});
                 </code>
               </pre>
@@ -472,7 +500,8 @@ export default function Page() {
               <pre className="overflow-x-auto px-5 py-4 font-mono text-[13px] leading-7 text-ivory">
                 <code>
                   <span className="text-quiet">$</span> variance run{"\n"}
-                  <span className="text-quiet">$</span> variance report --format html
+                  <span className="text-quiet">$</span> variance report --format
+                  html
                   {"\n"}
                   <span className="text-quiet">$</span> variance accept
                   story:checkout--empty{"\n"}
@@ -482,11 +511,12 @@ export default function Page() {
               </pre>
               <p className="border-t border-hairline px-5 py-4 text-sm leading-6 text-quiet">
                 The first run reports every subject as{" "}
-                <span className="font-mono text-[0.95em]">new</span> and exits 1 — a
-                baseline nobody approved is not a pass. The report is one HTML file
-                beside the JSON: no account, no upload step, nothing to keep running.
-                Stabilization is on by default; animations are pinned, fonts and images
-                waited for, scrollbars hidden, before anything is read.
+                <span className="font-mono text-[0.95em]">new</span> and exits 1
+                — a baseline nobody approved is not a pass. The report is one
+                HTML file beside the JSON: no account, no upload step, nothing
+                to keep running. Stabilization is on by default; animations are
+                pinned, fonts and images waited for, scrollbars hidden, before
+                anything is read.
               </p>
             </div>
           </div>
@@ -499,12 +529,12 @@ export default function Page() {
             There is no pipeline. There are tools.
           </h2>
           <p className="mt-4 max-w-2xl leading-7 text-quiet">
-            A fixed sequence encodes one team&rsquo;s workflow and fails the next. What
-            ships instead is a set of kinds — acquire, prepare, render, hash, compare,
-            isolate, map, judge, record — and a pipeline is something you assemble from
-            them. Two of those kinds need a host: a DOM to acquire from, a browser to
-            render in. Three need nothing at all, and that distribution is the whole
-            economic argument.
+            A fixed sequence encodes one team&rsquo;s workflow and fails the
+            next. What ships instead is a set of kinds — acquire, prepare,
+            render, hash, compare, isolate, map, judge, record — and a pipeline
+            is something you assemble from them. Two of those kinds need a host:
+            a DOM to acquire from, a browser to render in. Three need nothing at
+            all, and that distribution is the whole economic argument.
           </p>
           <div className="mt-10 space-y-8">
             {PACKAGES.map((g) => (
@@ -525,7 +555,9 @@ export default function Page() {
                         <span className="text-quiet">@variance-authority/</span>
                         {p.name}
                       </p>
-                      <p className="mt-2 text-xs leading-5 text-quiet">{p.role}</p>
+                      <p className="mt-2 text-xs leading-5 text-quiet">
+                        {p.role}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -533,9 +565,9 @@ export default function Page() {
             ))}
           </div>
           <p className="mt-6 max-w-2xl font-mono text-xs leading-5 text-warm">
-            <span className="text-orange">{"//"}</span> a consumer knows one package:
-            adopter-facing code names its immediate neighbour, never its
-            neighbour&rsquo;s collaborators
+            <span className="text-orange">{"//"}</span> a consumer knows one
+            package: adopter-facing code names its immediate neighbour, never
+            its neighbour&rsquo;s collaborators
           </p>
         </section>
 
@@ -546,18 +578,22 @@ export default function Page() {
               aria-hidden="true"
               className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-orange/10 blur-3xl"
             />
-            <Mark size={64} className="absolute right-8 top-8 hidden opacity-20 sm:block" />
+            <Mark
+              size={64}
+              className="absolute right-8 top-8 hidden opacity-20 sm:block"
+            />
             <h2 className="max-w-xl text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
               Point it at UI you already have.
             </h2>
             <p className="mt-4 max-w-xl text-sm leading-7 text-quiet">
-              A Storybook, a route list, a Playwright suite — the first verdict is four
-              commands away, and the first thing it hands you is a{" "}
+              A Storybook, a route list, a Playwright suite — the first verdict
+              is four commands away, and the first thing it hands you is a{" "}
               <span className="font-mono text-ivory">file:line</span>.
             </p>
             <div className="mt-6 inline-flex max-w-full items-center gap-3 overflow-x-auto rounded-lg border border-hairline bg-deep px-4 py-3 font-mono text-[13px] text-ivory">
               <span className="select-none text-quiet">$</span>
-              npm i -D @variance-authority/cli @variance-authority/storybook-collector
+              npm i -D @variance-authority/cli
+              @variance-authority/storybook-collector
             </div>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <a
@@ -583,7 +619,10 @@ export default function Page() {
             <span>MIT · Copyright © 2026 Mechanic Garden</span>
           </div>
           <div className="flex items-center gap-6">
-            <a href={`${GITHUB}/tree/main/docs`} className="transition-colors hover:text-ivory">
+            <a
+              href={`${GITHUB}/tree/main/docs`}
+              className="transition-colors hover:text-ivory"
+            >
               Docs
             </a>
             <a href={GITHUB} className="transition-colors hover:text-ivory">
