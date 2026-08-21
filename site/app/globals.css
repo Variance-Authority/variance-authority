@@ -78,9 +78,123 @@ html {
   animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
+/* --- The hero's timelines ------------------------------------------------ */
+
+/* Each path draws itself in, then holds. `pathLength` is normalised to 1 by
+   the dash values below, so one rule covers curves of any real length. */
+@keyframes tl-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+.tl-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: tl-draw 2.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes tl-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px rgba(255, 74, 25, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(255, 74, 25, 0.85));
+  }
+}
+
+.tl-glow {
+  animation:
+    tl-draw 2.6s cubic-bezier(0.4, 0, 0.2, 1) both,
+    tl-glow 3.4s ease-in-out 2.6s infinite;
+}
+
+@keyframes tl-pulse {
+  0%,
+  100% {
+    r: 4;
+    opacity: 1;
+  }
+  50% {
+    r: 5.5;
+    opacity: 0.7;
+  }
+}
+
+.tl-pulse {
+  animation: tl-pulse 2.2s ease-in-out infinite;
+}
+
+/* The junction announces itself once per cycle and fades — a reading, not a siren. */
+@keyframes tl-ring {
+  0% {
+    r: 4;
+    opacity: 0.9;
+    stroke-width: 2;
+  }
+  100% {
+    r: 26;
+    opacity: 0;
+    stroke-width: 0.5;
+  }
+}
+
+.tl-ring {
+  animation: tl-ring 3.2s ease-out infinite;
+}
+
+@keyframes tl-blink {
+  0%,
+  88%,
+  100% {
+    opacity: 0.35;
+  }
+  92% {
+    opacity: 1;
+  }
+}
+
+.tl-blink {
+  animation: tl-blink 4s steps(1, end) infinite;
+}
+
+@keyframes tl-scan {
+  from {
+    transform: translateX(-140px);
+  }
+  to {
+    transform: translateX(820px);
+  }
+}
+
+.tl-scan {
+  animation: tl-scan 7s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .caret,
-  .rise {
+  .rise,
+  .tl-glow,
+  .tl-pulse,
+  .tl-ring,
+  .tl-blink,
+  .tl-scan {
     animation: none;
+  }
+
+  /* Still drawn — just already finished. */
+  .tl-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .tl-scan {
+    opacity: 0;
   }
 }
