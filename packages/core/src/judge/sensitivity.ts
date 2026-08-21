@@ -109,7 +109,14 @@ export interface SensitivityRule {
   /** Subjects this applies to. `*` matches any run of characters. */
   readonly subjects?: readonly string[];
 
-  /** Tags the subject must carry, as its own artifact declared them. */
+  /**
+   * Tags the subject must carry, as its own artifact declared them.
+   *
+   * FIXME: read by nothing. `asIgnore` copies `subjects` and drops this, so a
+   * rule scoped only by tags translates to an unscoped ignore and absorbs across
+   * every subject in the run — the widest possible reading of the narrowest
+   * scope an operator can write.
+   */
   readonly tags?: readonly string[];
 }
 
