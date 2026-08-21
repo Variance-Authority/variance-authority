@@ -124,6 +124,7 @@ entrypoints.
 | `storybook-collector` | a browser, and a Storybook built or already served | the browser half: each story opened, made ready, and collected |
 | `route-collector` | a browser, and an application to reach or a directory to serve | pages an application already serves, opened and collected |
 | `sense` | a readable checkout | the source read rather than run: a row per request, per binding and per export, and the probes that mark which regions a run entered |
+| `package` | a readable workspace, built or not | what a package offers an adopter: every entrypoint a manifest opens, and the names behind it, read from manifests and the source they point at |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |
 | `react` | React internals | fibers → owner chains, props digests, portals |
 | `jsx-source` | a JSX transform you control, and a React runtime | the file and line that wrote an element, carried as far as the DOM node |

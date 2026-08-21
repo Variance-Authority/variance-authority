@@ -342,6 +342,51 @@ describe('every package this repository names exists', () => {
 });
 
 /**
+ * The inventory in `docs/architecture.md` is the package list, not a sample of it.
+ *
+ * That table answers *what does this cost me* — one row per box, with what a
+ * consumer must supply — and a reader who finds a list stops looking. It has gone
+ * stale once already: 331c6fa repaired seventeen rows against twenty-three
+ * directories, on the argument that a table omitting a quarter of the answer is
+ * worse than no table at all. It went stale again the moment a twenty-fifth
+ * package landed, in a commit whose build, lint, checks and suite were all green,
+ * because nothing read it.
+ *
+ * Both directions, because they fail differently. A missing row hides a box from
+ * the only place that enumerates them; a row with no directory sells something
+ * that is not there.
+ */
+describe('the architecture inventory lists every package', () => {
+  const PACKAGES = execFileSync('git', ['ls-files', 'packages/*/package.json'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n')
+    // `*` matches `/` in a git pathspec, so this glob also reaches the miniature
+    // workspace `packages/package` keeps under `src/__fixtures__`. A box is a
+    // directory directly under `packages/`; nothing deeper is one.
+    .filter((file) => file.split('/').length === 3)
+    .map((file) => file.split('/')[1]!);
+
+  const INVENTORY =
+    readFileSync(join(ROOT, 'docs/architecture.md'), 'utf8')
+      .split('\n## ')
+      .find((section) => section.startsWith('Packages\n')) ?? '';
+
+  const LISTED = [...INVENTORY.matchAll(/^\| `([a-z0-9-]+)` \|/gm)].map((match) => match[1]!);
+
+  it('finds a table to check, so this rule cannot pass by reading nothing', () => {
+    expect(PACKAGES.length).toBeGreaterThan(20);
+    expect(LISTED.length).toBeGreaterThan(20);
+  });
+
+  it('lists every package there is, and nothing that is not one', () => {
+    expect([...LISTED].sort()).toEqual([...PACKAGES].sort());
+  });
+});
+
+/**
  * Every relative link goes somewhere.
  *
  * The cheapest rule here and the one with the widest reach: documentation that
