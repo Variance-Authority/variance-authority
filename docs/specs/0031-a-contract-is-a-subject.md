@@ -172,15 +172,16 @@ found it.
 ```ts
 /** Proposed: minted from what the change *is*, never from how it was described. */
 interface ChangeRecord {
-  /** `digestCombine('interface-site/v1', [subject, dialect, pointer, positions])`. */
+  /** `digestCombine('value-site/v1', [dialect, wildcarded pointer])`. */
   readonly site: Digest;
-  /** `digestCombine('interface-change/v1', [site, kind, band])`. */
+  /** `digestCombine('value-change/v1', [site, change])`. */
   readonly fingerprint: Digest;
   /** The detector's rule name, reported and never hashed. */
-  readonly rule: string;
-  /** JSON Pointer into the document. Present or absent; never a placeholder. */
+  readonly rule?: string;
+  /** JSON Pointer into the value. Present or absent; never a placeholder. */
   readonly pointer?: string;
-  readonly band: string;
+  /** `added`, `removed`, `type-changed`, `value-changed`, or a reader's own. */
+  readonly change: string;
   /** Where the declaration lives, when a reader resolved one. */
   readonly file?: string;
   readonly line?: number;
@@ -192,6 +193,21 @@ severity spelling, its version, and its own fingerprint. A detector is free to
 change all four and does — so an approval keyed on any of them expires the day
 its dependency is upgraded, which is precisely the failure a durable ledger
 exists to prevent.
+
+Two exclusions are less obvious and matter as much. **The subject is not in the
+site**, so the same edit made to the staging response and the production one
+carries one fingerprint and is counted once — the recurrence question is about
+the shape of the change, not about which file it landed in. And **the array
+index is not in the site**: the pointer is wildcarded, `/rows/7/label` and
+`/rows/9/label` reaching one identity, because a rename applied to two rows is
+one thing that happened. `arrayKey` is what makes the second one honest, which is
+why the shaping is captured with the value rather than passed to the comparison.
+
+**Positions are reported and never hashed**, for the same reason the sentence is
+not. oasdiff's file, line and column are the most useful thing it produces for a
+reader and the least stable thing about a document: reformatting an OpenAPI file
+moves every one of them without changing a single guarantee, and an approval
+keyed on them would expire on a whitespace commit.
 
 **4. One docket, which needs a second join.** `clusterChanges` groups changed
 subjects by the fingerprints of their `regions`, and a subject whose regions

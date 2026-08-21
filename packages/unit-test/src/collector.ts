@@ -47,7 +47,15 @@ export function captureCollector(options: CaptureCollectorOptions): SubjectSourc
           return { ok: false, because: `no capture artifact for ${subject.subject.id}` };
         }
         if (artifact.material.kind !== 'document') {
-          return { ok: false, because: `${subject.subject.id} is not a document capture` };
+          // FIXME: `Collected` carries a render document, so a value capture has
+          // nowhere to land. Spec 0031 gives it a value arm and an observation
+          // that files changes rather than regions; until then the run says so.
+          return {
+            ok: false,
+            because:
+              `${subject.subject.id} is a ${artifact.material.kind} capture, and this run ` +
+              'compares rendered documents',
+          };
         }
         return {
           ok: true,

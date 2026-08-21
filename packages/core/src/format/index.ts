@@ -15,6 +15,9 @@
 export type { CanonicalValue } from './canonical.js';
 export { canonicalize, canonicalNumber } from './canonical.js';
 
+export type { CapturedValue, ShapeValueOptions, ValueShaping } from './value.js';
+export { shapeValue, pointerShape, pointerToken, DROPPED, VALUE_RECIPE } from './value.js';
+
 export type { Digest } from './hash.js';
 export { digestString, digestBytes, digestValue, digestCombine } from './hash.js';
 

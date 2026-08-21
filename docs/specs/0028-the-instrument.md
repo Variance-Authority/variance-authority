@@ -49,7 +49,7 @@ file is added. The table below is one such reading, at 320 product files.
 
 The function count matching Istanbul's exactly is not a coincidence and not a
 result: both give every function one entry site. The saving is entirely in the
-other two columns — 14,223 statements collapse to 2,219 continuations, because a
+other two columns — 14,246 statements collapse to 2,222 continuations, because a
 run of statements with no decision in it is one region.
 
 **A decision carries no probe of its own.** Its outcomes do. A bare

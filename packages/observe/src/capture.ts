@@ -52,6 +52,17 @@ export async function observeCaptureAgainstBaseline(
     });
   }
 
+  if (artifact.material.kind === 'value') {
+    // FIXME: a value capture is compared against a value baseline, and this
+    // store holds rasters — spec 0031 needs the store surface before the
+    // comparison can run here. Refused by name rather than narrowed away,
+    // because a caller that reads a missing verdict as `unchanged` would report
+    // a green run for a subject nothing looked at.
+    throw new Error(
+      `\`${artifact.subject.id}\` is a value capture, and this observation compares rasters`,
+    );
+  }
+
   const snapshot = inputs.snapshot;
   const { components: _stale, ...pixels } = artifact.material.raster;
   const candidate: Raster =

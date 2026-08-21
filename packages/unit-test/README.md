@@ -59,6 +59,60 @@ costs a report nobody can act on.
 `readCapture` and `captureFiles` are the read half, and `CAPTURE_SUFFIX` is what
 they match on.
 
+## Snapshot a value that was never rendered
+
+Not every public surface is a page. An API response, a generated OpenAPI
+document, a GraphQL schema, a route table and a build manifest are all things a
+change can break, and none of them needs a DOM.
+
+```ts
+import { test } from 'vitest';
+import { snapshotValue } from '@variance-authority/unit-test';
+
+test('the health endpoint', async () => {
+  const response = await fetch('http://localhost:3000/health');
+
+  await snapshotValue(await response.json(), {
+    subject: 'api/health',
+    directory: '.variance/captures',
+    drop: ['/uptimeSeconds'],
+  });
+});
+```
+
+`snapshotValue(value, options)` takes:
+
+| option | default | what it decides |
+|---|---|---|
+| `subject` | required | `'api/health'`, or a full `SubjectRef`. A bare string becomes `kind: 'value'` |
+| `directory` | required | where the capture is written; one fresh directory per run, as above |
+| `dialect` | `'json'` | how the text is read later. A reader for a dialect it does not know still compares the value |
+| `drop` | none | JSON Pointers whose value is volatile. Recorded as present, never compared |
+| `replace` | none | JSON Pointers whose value becomes a token you choose, so the shape stays readable |
+| `arrayKey` | none | for an array of records, the member that identifies a row: `{ '/rows': 'id' }` |
+| `generator` | none | what emitted the value, when something did |
+
+`arrayKey` is the option that decides whether the report is worth reading. An
+array compared by index says two thousand rows changed when one row was
+inserted at the top; compared by what identifies a row it says one row was
+added, and the same edit made to two different rows carries one identity — so a
+recurring change is countable rather than two thousand fresh ones.
+
+The value is serialized here, in the unit process, into canonical text: keys
+sorted, numbers written portably, `undefined` members omitted. That text is what
+is addressed and what a later run compares, so two processes that built the same
+response in a different order produce the same record.
+
+Like `capture`, `snapshotValue` writes and does not compare — the baseline is
+not in this process, and the verdict belongs to `variance run`. It throws only
+on a value that cannot be one: a function, a `Date`, a `bigint` or a non-finite
+number, naming the JSON Pointer where it was found. Dropping it silently would
+put a key in the baseline that a later run reads as removed.
+
+See [spec 0031](../../docs/specs/0031-a-contract-is-a-subject.md) for how a
+value subject reaches one docket, one comment and one exit code alongside the
+rendered ones.
+
 ## Render later
 
 Point the normal CLI collector setting at a module exporting the artifact

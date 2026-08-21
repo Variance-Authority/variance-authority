@@ -1,15 +1,25 @@
 import type { SourceIndex } from './attribute/source.js';
 import type {
+  CapturedValue,
   Raster,
   RenderDocument,
   SemanticSnapshot,
   SubjectRef,
 } from './format/index.js';
 
-/** Material already captured from a host, before retention or reporting. */
+/**
+ * Material already captured from a host, before retention or reporting.
+ *
+ * Three arms, and the third is the one that is not a rendering at all: a value
+ * has no viewport, no placement and nothing to paint, and it reaches the same
+ * attribution path as the other two (ADR-0044). Every existing reader narrows
+ * with `=== 'document'`, so a value arm is not a compile error anywhere — which
+ * means each of those readers owes an explicit refusal rather than a silent drop.
+ */
 export type CaptureMaterial =
   | { readonly kind: 'document'; readonly document: RenderDocument }
-  | { readonly kind: 'raster'; readonly raster: Raster };
+  | { readonly kind: 'raster'; readonly raster: Raster }
+  | { readonly kind: 'value'; readonly value: CapturedValue };
 
 /**
  * The acquisition boundary shared by host adapters.

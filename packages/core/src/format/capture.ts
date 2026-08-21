@@ -74,7 +74,17 @@ export interface RawCapture {
 export interface SubjectRef {
   /** Stable across renames of the file, e.g. `story:components-button--primary`. */
   readonly id: string;
-  readonly kind: 'story' | 'route' | 'fixture';
+
+  /**
+   * What kind of thing this is, which is not the same question as what produced
+   * it.
+   *
+   * `value` is the one that is not a rendering: a JSON body, a schema, a route
+   * table. It is a fourth member rather than a reuse of `route`, which already
+   * means *a page rendered at a URL* — a route table is a value about the same
+   * paths, and a subject list where one word meant both is one nobody can filter.
+   */
+  readonly kind: 'story' | 'route' | 'fixture' | 'value';
   readonly title?: string;
 }
 

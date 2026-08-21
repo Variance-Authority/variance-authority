@@ -2,6 +2,8 @@ import { link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path';
 import {
   digestBytes,
+  digestCombine,
+  digestString,
   type CaptureArtifact,
   type RenderResource,
 } from '@variance-authority/core';
@@ -77,11 +79,15 @@ function captureArtifactFrom(value: unknown, path: string): CaptureArtifact {
   }
   const subject = subjectFrom(artifact.subject);
   const material = record(artifact.material);
-  if (
-    subject === null ||
-    material === null ||
-    material.kind !== 'document'
-  ) {
+  if (subject === null || material === null) {
+    throw new Error(`${path} is not a unit-test capture`);
+  }
+  if (material.kind === 'value') {
+    checkValue(material.value, path);
+    checkTail(artifact, subject.id, path);
+    return value as CaptureArtifact;
+  }
+  if (material.kind !== 'document') {
     throw new Error(`${path} is not a unit-test document capture`);
   }
   const document = record(material.document);
@@ -117,7 +123,13 @@ function captureArtifactFrom(value: unknown, path: string): CaptureArtifact {
     }
   }
 
-  if (artifact.snapshot !== undefined && !snapshotShape(artifact.snapshot, subject.id)) {
+  checkTail(artifact, subject.id, path);
+
+  return value as CaptureArtifact;
+}
+
+function checkTail(artifact: Record<string, unknown>, subjectId: string, path: string): void {
+  if (artifact.snapshot !== undefined && !snapshotShape(artifact.snapshot, subjectId)) {
     throw new Error(`${path} contains an invalid semantic snapshot`);
   }
   if (artifact.source !== undefined && !sourceShape(artifact.source)) {
@@ -129,8 +141,44 @@ function captureArtifactFrom(value: unknown, path: string): CaptureArtifact {
   if (artifact.attempt !== undefined && !attemptShape(artifact.attempt)) {
     throw new Error(`${path} contains an invalid capture attempt`);
   }
+}
 
-  return value as CaptureArtifact;
+/**
+ * A value capture, re-derived rather than believed.
+ *
+ * The digest is recomputed from the text on the way in, exactly as a resource's
+ * bytes are. A baseline edited by hand between runs would otherwise pass its own
+ * identity check and compare as though the edit had been captured.
+ */
+function checkValue(value: unknown, path: string): void {
+  const captured = record(value);
+  if (
+    captured === null ||
+    typeof captured.dialect !== 'string' ||
+    typeof captured.text !== 'string' ||
+    typeof captured.digest !== 'string' ||
+    typeof captured.recipe !== 'string' ||
+    (captured.keyed !== undefined && !stringArray(captured.keyed)) ||
+    (captured.generator !== undefined && !generatorShape(captured.generator))
+  ) {
+    throw new Error(`${path} does not contain a captured value`);
+  }
+  const actual = digestCombine('value/v1', [
+    digestString(captured.text),
+    digestString(captured.recipe),
+  ]);
+  if (actual !== captured.digest) {
+    throw new Error(`${path} contains value text that does not match its digest`);
+  }
+}
+
+function generatorShape(value: unknown): boolean {
+  const generator = record(value);
+  return (
+    generator !== null &&
+    typeof generator.name === 'string' &&
+    typeof generator.version === 'string'
+  );
 }
 
 function resourceFrom(value: unknown): RenderResource | null {
@@ -155,7 +203,7 @@ function subjectFrom(value: unknown): { id: string; kind: string } | null {
   if (
     subject === null ||
     typeof subject.id !== 'string' ||
-    !['story', 'route', 'fixture'].includes(String(subject.kind)) ||
+    !['story', 'route', 'fixture', 'value'].includes(String(subject.kind)) ||
     (subject.title !== undefined && typeof subject.title !== 'string')
   ) return null;
   return { id: subject.id, kind: String(subject.kind) };

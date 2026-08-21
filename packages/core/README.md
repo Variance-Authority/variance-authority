@@ -63,6 +63,35 @@ on purpose: a 2x screenshot attributed at 1x lands every region in the top-left
 quadrant and names the wrong component for each — a full, plausible, entirely
 wrong report. That last step is where regions become components and files.
 
+### A subject that was never rendered
+
+`shapeValue(value, options)` is the same treatment for a value — an API
+response, a generated schema, a route table. It canonicalizes (keys sorted,
+numbers written portably, `undefined` omitted), addresses the text by content,
+and returns a `CapturedValue`; `compareValues` turns two of them into deltas
+carrying a JSON Pointer and a fingerprint, and — like everything else here — no
+verdict.
+
+```ts
+import { shapeValue, compareValues } from '@variance-authority/core';
+
+const baseline = shapeValue(before, { arrayKey: { '/rows': 'id' } });
+const deltas = compareValues(baseline, shapeValue(after, { arrayKey: { '/rows': 'id' } }));
+```
+
+`drop` records a pointer's value as present without comparing it, `replace` puts
+a token you choose in its place, and `arrayKey` says which member identifies a
+row — the difference between *one row was added* and *two thousand rows moved*.
+Two more options describe the value rather than shape it: `dialect` is how a
+reader will interpret the text later (`'json'` by default, `'openapi'` and
+`'graphql'` being the ones with detectors), and `generator` names what emitted
+it. Neither reaches the digest, so declaring a dialect does not orphan a
+baseline.
+
+Non-data throws, naming the pointer. A function, a `Date`, a `bigint` or a
+non-finite number cannot be canonical text, and dropping one silently puts a key
+in the record that the next run reads as removed.
+
 ## What it refuses
 
 **Absent is not empty.** Not measured, measured as zero, and unobservable are

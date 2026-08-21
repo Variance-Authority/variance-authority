@@ -28,3 +28,6 @@ export { BANDS, bandOf, loudestBand } from './band.js';
 
 export { observableBands, decidesBand } from './observability.js';
 export type { Observability } from './observability.js';
+
+export { compareValues, fingerprintOfValueDelta } from './value.js';
+export type { ValueChange, ValueDelta } from './value.js';
