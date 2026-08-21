@@ -12,6 +12,6 @@ npm run deploy   # wrangler login first; deploys to Cloudflare
 ```
 
 Copy quotes the repository's own docs; the palette and mark follow
-[docs/visual-guidelines.md](../docs/visual-guidelines.md). The page carries no
-install line because no package is on a registry yet — when the first release
-lands under the `beta` dist-tag, add one.
+[docs/visual-guidelines.md](../docs/visual-guidelines.md). Like every page
+here, it is written from one second after release: install lines are plain and
+nothing hedges on publication status.
