@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "unrun": "node tools/unrun.mjs",
+    "surface": "node tools/surface.mjs",
     "typecheck": "node tools/doc-examples.mjs && tsc --build --force",
     "verify": "yarn lint && yarn check && yarn test"
   },

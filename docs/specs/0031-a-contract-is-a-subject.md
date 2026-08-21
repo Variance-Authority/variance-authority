@@ -241,6 +241,17 @@ dialect arrives through one.
   on npm `graphql`. It is the `playwright` situation exactly, and `sdl` names the
   artifact rather than the library.
 
+**A dialect can have no reader and still be worth watching.** `tools/surface.mjs`
+produces what this repository publishes — every package, every entrypoint its
+`exports` map opens, every name reachable through it — as one value in the
+`package-surface` dialect, and `tools/surface.check.ts` compares it against a
+recorded baseline using the untyped floor. Nobody ships a detector for the shape
+of a workspace's exports, so here the floor *is* the reader, and what earns its
+place is the third layer: a delta's fingerprint is the same finding across
+commits, so `removed …/exports/digestValue` can be approved once rather than
+re-argued. Source, comparison, identity — the same three parts, arranged against
+us, on the one edge where a reader would have had nothing to wrap.
+
 **Each side is located against the document that contains it.** A removed field
 exists only in the baseline, so a reader that resolves every position against the
 new revision cannot locate a breaking change at all and will report the first
