@@ -7,9 +7,9 @@
  * than a CI job because it needs a browser, and CI has none until the Playwright
  * collector lands.
  *
- *   node packages/provenance-react/browser-check/build.mjs
- *   python3 -m http.server 5599 --directory packages/provenance-react/browser-check/www
- *   # open http://localhost:5599; results are in the <pre> and on the console
+ *   node packages/react/browser-check/build.mjs
+ *   python3 -m http.server 5600 --directory packages/react/browser-check/www
+ *   # open http://localhost:5600; results are in the <pre> and on the console
  *
  * The `node:crypto` alias is not a convenience — see `crypto-stub.js`.
  */

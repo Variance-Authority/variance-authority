@@ -28,7 +28,7 @@ packages/sense/.overhead-*
 # Test + capture artifacts
 .variance/
 coverage/
-packages/provenance-react/browser-check/www/bundle.js
+packages/react/browser-check/www/bundle.js
 
 # Agent worktrees
 .claude/worktrees/
