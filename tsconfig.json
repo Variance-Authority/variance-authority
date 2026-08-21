@@ -74,6 +74,9 @@
       "path": "./packages/package"
     },
     {
+      "path": "./packages/help"
+    },
+    {
       "path": "./packages/cli"
     },
     {
