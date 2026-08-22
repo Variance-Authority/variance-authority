@@ -1,6 +1,12 @@
-import type { ObservationRecord } from '@variance-authority/report';
-import type { CliRunReport } from './run.js';
-import { docketOf, type CauseEntry, type Docket } from './docket.js';
+import { clusterChanges, type Change, type ObservationRecord } from '@variance-authority/report';
+import type { CliObservationRecord, CliRunReport } from './run-report.js';
+import { docketOf, type Docket } from './docket.js';
+import { chip, cmd, copy, markers, px, qualifier, section, slug, text } from './report-html-elements.js';
+import { MARK, STYLE } from './report-html-style.js';
+import { SCRIPT } from './report-html-script.js';
+import { subjects } from './report-html-subjects.js';
+import { accumulated, composition } from './report-html-composition.js';
+import { coverage } from './report-html-coverage.js';
 
 /**
  * The run as one HTML page: the third angle on the same docket.
@@ -14,297 +20,337 @@ import { docketOf, type CauseEntry, type Docket } from './docket.js';
  *
  * ## Why it is not a second opinion about the run
  *
- * Everything decided here is decided in `docket.ts` — one cause entry per
- * component, collateral counted rather than listed, `namedIn` recording whether
- * the semantic tier actually named the cause or whether the largest region was
- * taken instead. Adding a fourth renderer must never add a fourth answer, so this
- * file folds nothing: it receives a `Docket` and turns it into elements. That is
- * the property that lets a hosted review surface later render *the same docket*
- * server-side and be unable to disagree with the artifact in CI.
+ * Everything decided here is decided elsewhere — `docket.ts` for causes and
+ * collateral, `clusterChanges` for what a single decision would settle. Adding a
+ * fourth renderer must never add a fourth answer, so this file folds nothing it
+ * can be handed: it receives values and turns them into elements. That is the
+ * property that lets a hosted review surface render *the same docket* server-side
+ * and be unable to disagree with the artifact in CI.
  *
- * ## The one constraint a reader has to know
+ * ## Written for the tenth time it is opened, not the first
+ *
+ * A reviewer opens this most days, and prose they have already read is friction
+ * every time after the first. So a qualification that used to be a sentence is a
+ * **marker**: `by area` rather than "largest region, not a named cause", a red
+ * `2 failed` segment in the coverage bar rather than "this is not a pass". None
+ * of the information is dropped — dropping it is how a page starts lying about
+ * coverage — it is compressed into something scannable, with the long form on the
+ * `title` where a first-time reader can still find it.
+ *
+ * ## The two constraints a reader has to know
  *
  * **Image paths are relative to the report**, exactly as `ObservationRecord.images`
  * declares them, so this page belongs beside `report.json` rather than anywhere
  * else. The alternative — base64 data URIs, one genuinely portable file — would
  * make this function read the filesystem, and a formatter that can fail on ENOENT
- * is a formatter that cannot be tested by handing it a value. Portability is
- * worth a flag later; it is not worth that.
+ * is a formatter that cannot be tested by handing it a value.
  *
- * No script, no network, no font. A page that fetches anything is a page that
- * renders differently in the reviewer's browser than it did in CI, which is a
- * peculiar failure for this project of all projects to ship.
+ * **No network, of any kind.** No stylesheet, no font file, no analytics, no
+ * image host. A page that fetches anything renders differently in the reviewer's
+ * browser than it did in CI, which is a peculiar failure for this project of all
+ * projects to ship. The script is inline and is the comparison itself — a wipe, a
+ * blend, a region overlay — which is the part of reviewing a change that a static
+ * arrangement of three pictures cannot do.
  */
 
 export function reportHtml(report: CliRunReport): string {
   const docket = docketOf(report);
-  const changed = report.observations.filter((entry) => entry.verdict !== 'unchanged');
+  const reviewable = report.observations.filter((entry) => needsReview(entry.verdict));
+  const clustering = clusterChanges(report.observations);
 
   return [
     '<!doctype html>',
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width,initial-scale=1">',
-    `<title>${text(headline(docket))} — variance</title>`,
+    `<title>${text(title(docket))}</title>`,
     `<style>${STYLE}</style>`,
-    '</head><body>',
-    `<h1>${text(headline(docket))}</h1>`,
-    provenance(report),
-    causes(docket),
-    collateral(docket),
-    subjects(changed),
-    coverage(docket),
+    `</head><body data-status="${text(statusOf(docket))}">`,
+    masthead(report, docket),
+    '<main>',
+    rail(docket, reviewable),
+    '<div class="pane">',
+    clusters(clustering.changes, clustering.ungrouped),
+    subjects(reviewable),
+    composition(report),
+    accumulated(report),
+    coverage(report, docket),
+    '</div>',
+    '</main>',
+    `<script>${SCRIPT}</script>`,
     '</body></html>',
   ]
     .filter((part) => part !== '')
     .join('\n');
 }
 
-/**
- * The sentence at the top, and it leads with causes rather than with a count.
- *
- * Same rule as the pull-request body (ADR-0019): "1530 pixels changed" is a
- * number nobody can act on, and "Toggle changed" is a sentence somebody owns.
- */
-function headline(docket: Docket): string {
-  if (docket.failed.length > 0 && docket.reviewable === 0) {
-    return `${docket.failed.length} subject(s) could not be observed`;
-  }
-  if (docket.reviewable === 0) return 'Nothing needs review';
+/** Both green verdicts are excluded, for the reason `Docket.reviewable` gives. */
+function needsReview(verdict: ObservationRecord['verdict']): boolean {
+  return verdict !== 'unchanged' && verdict !== 'ignored';
+}
 
-  const [first] = docket.causes;
-  if (first === undefined) return `${docket.reviewable} subject(s) need review`;
-
-  const rest = docket.causes.length - 1;
-  return (
-    `${first.label} changed in ${count(first.subjects.length, 'subject')}` +
-    (rest > 0 ? `, and ${count(rest, 'other component')}` : '')
-  );
+function statusOf(docket: Docket): 'incomplete' | 'review' | 'clean' {
+  if (docket.failed.length > 0) return 'incomplete';
+  return docket.reviewable > 0 ? 'review' : 'clean';
 }
 
 /**
- * What produced this, above the findings rather than in a footer.
+ * The browser tab, which is the part read in a strip 20 characters wide.
+ *
+ * Counts first and the leading cause after, because a tab is scanned rather than
+ * read and the number is what decides whether to switch to it.
+ */
+function title(docket: Docket): string {
+  const parts: string[] = [];
+  if (docket.reviewable > 0) parts.push(`${docket.reviewable} to review`);
+  if (docket.failed.length > 0) parts.push(`${docket.failed.length} failed`);
+  if (parts.length === 0) parts.push('clean');
+  const [first] = docket.causes;
+  return `${parts.join(' · ')}${first === undefined ? '' : ` · ${first.label}`} — variance`;
+}
+
+/* --- the masthead --------------------------------------------------------- */
+
+/**
+ * Identity above the findings rather than in a footer.
  *
  * A visual report read on a different machine from the one that painted it is the
  * normal case, and the identity is what says whether the two are even comparable.
  * Putting it where a reader has already scrolled past would make it a detail; it
- * is the precondition for every image below being meaningful.
+ * is the precondition for every image below being meaningful. It is a row of
+ * chips rather than a definition list because after the first read it is checked,
+ * not read — the eye goes to one field.
  */
-function provenance(report: CliRunReport): string {
+function masthead(report: CliRunReport, docket: Docket): string {
   const { identity } = report;
-  const rows: [string, string][] = [
-    ['run', report.at],
-    ['renderer', `${identity.renderer} · ${identity.engine} · ${identity.platform} · ${identity.deviceScaleFactor}x`],
-    ['retention', report.retention],
+  const chips: string[] = [];
+
+  if (report.run !== undefined) {
+    chips.push(chip('run', report.run.id));
+    chips.push(chip('commit', report.run.commit.slice(0, 10), report.run.commit));
+  }
+  chips.push(chip('at', report.at));
+  chips.push(
+    chip(
+      'renderer',
+      `${identity.renderer} ${identity.engine} ${identity.platform} @${identity.deviceScaleFactor}x`,
+    ),
+  );
+  chips.push(chip('baselines', report.retention));
+  if (identity.fonts.length > 0) {
+    chips.push(chip('fonts', String(identity.fonts.length), identity.fonts.join('\n')));
+  }
+  if (report.stabilization !== undefined && report.stabilization.length > 0) {
+    chips.push(
+      chip('held still', String(report.stabilization.length), report.stabilization.join('\n')),
+    );
+  }
+
+  return (
+    '<header>' +
+    `<div class="brand">${MARK}<span>variance</span></div>` +
+    headline(docket) +
+    (report.intent === undefined ? '' : `<p class="intent">${text(report.intent)}</p>`) +
+    `<div class="chips">${chips.join('')}</div>` +
+    census(report, docket) +
+    '</header>'
+  );
+}
+
+/**
+ * The one line, and it names the thing rather than counting it.
+ *
+ * The counts are in the bar directly below and would be duplicated here; what a
+ * bar cannot say is *what happened*, and after the tenth read that is the only
+ * word being looked for. `incomplete` outranks a cause because a run that failed
+ * to observe subjects has no standing to lead with a finding.
+ */
+function headline(docket: Docket): string {
+  const status = statusOf(docket);
+  if (status === 'incomplete' && docket.reviewable === 0) {
+    return '<h1 class="bad">incomplete</h1>';
+  }
+  if (status === 'clean') return '<h1 class="ok">clean</h1>';
+  const [first, ...rest] = docket.causes;
+  const lead =
+    first === undefined
+      ? `${docket.reviewable} to review`
+      : `${text(first.label)}${first.named ? '' : '<span class="mark area">by area</span>'}`;
+  return (
+    `<h1>${lead}` +
+    (rest.length === 0 ? '' : `<span class="more">+${rest.length} more</span>`) +
+    (status === 'incomplete' ? `<span class="mark warn">${docket.failed.length} failed</span>` : '') +
+    '</h1>'
+  );
+}
+
+/**
+ * Every subject the run planned, as one bar, in proportion.
+ *
+ * This is where a coverage hole is refused, and it is refused by arithmetic
+ * rather than by a sentence: the segments are the run's whole plan, so a red
+ * `failed` segment is *visibly* part of the same bar as the green one and cannot
+ * be read past. A page that listed only findings would look complete on a run
+ * that failed to observe half the suite.
+ */
+function census(report: CliRunReport, docket: Docket): string {
+  const counted = new Map<string, number>();
+  for (const observation of report.observations) {
+    counted.set(observation.verdict, (counted.get(observation.verdict) ?? 0) + 1);
+  }
+
+  const segments: [string, number][] = [
+    ['changed', counted.get('changed') ?? 0],
+    ['new', counted.get('new') ?? 0],
+    ['incomparable', counted.get('incomparable') ?? 0],
+    ['failed', docket.failed.length],
+    ['ignored', counted.get('ignored') ?? 0],
+    ['excluded', docket.excluded],
+    ['unchanged', counted.get('unchanged') ?? 0],
   ];
-  if (report.intent !== undefined) rows.push(['intent', report.intent]);
-  if (identity.fonts.length > 0) rows.push(['fonts in the identity', identity.fonts.join(', ')]);
+  const total = segments.reduce((sum, [, n]) => sum + n, 0);
+  if (total === 0) return '';
 
-  return (
-    '<dl class="provenance">' +
-    rows.map(([term, value]) => `<dt>${text(term)}</dt><dd>${text(value)}</dd>`).join('') +
-    '</dl>'
-  );
-}
-
-function causes(docket: Docket): string {
-  if (docket.causes.length === 0) return '';
-
-  return section(
-    'Causes',
-    '<ol class="causes">' + docket.causes.map((entry) => cause(entry)).join('') + '</ol>',
-  );
-}
-
-function cause(entry: CauseEntry): string {
-  // `namedIn` is the whole reason this is not just a sorted list. Zero means the
-  // semantic tier named nothing and the entry is the largest region by area —
-  // which `rankRegions` documents as getting the ordering *wrong* — so the page
-  // says which claim it is making rather than making the confident one twice.
-  const named =
-    entry.namedIn === 0
-      ? '<span class="caveat">largest region, not a named cause</span>'
-      : entry.namedIn < entry.subjects.length
-        ? `<span class="caveat">named the cause in ${entry.namedIn} of ${entry.subjects.length}</span>`
-        : '';
-
-  return (
-    '<li>' +
-    `<div class="label">${
-      entry.named ? `<code><strong>${text(entry.label)}</strong></code>` : text(entry.label)
-    } ${named}</div>` +
-    (entry.files.length > 0
-      ? `<div class="files">${entry.files.map((file) => `<code>${text(file)}</code>`).join(' ')}</div>`
-      : '') +
-    (entry.wheres.length > 0 ? `<div class="where">${text(entry.wheres.join(' · '))}</div>` : '') +
-    `<div class="meta">${count(entry.pixels, 'pixel')} across ` +
-    `${count(entry.subjects.length, 'subject')}</div>` +
-    `<details><summary>subjects</summary><ul>${entry.subjects
-      .map((subject) => `<li><code>${text(subject)}</code></li>`)
-      .join('')}</ul></details>` +
-    '</li>'
-  );
-}
-
-/** Counted, never listed — the rule the whole docket exists to enforce. */
-function collateral(docket: Docket): string {
-  const { regions, pixels, components, subjects: seen, unrecorded, unrecordedPixels } = docket.collateral;
-  if (regions === 0 && unrecorded === 0) return '';
-
-  return section(
-    'Collateral',
-    '<p>' +
-      `${count(regions, 'region')} across ${count(components, 'component')} in ` +
-      `${count(seen, 'subject')} moved without being edited — ${count(pixels, 'pixel')}.` +
-      (unrecorded > 0
-        ? ` A further ${count(unrecorded, 'region')} (${count(unrecordedPixels, 'pixel')}) ` +
-          'were found and not recorded.'
-        : '') +
-      '</p>',
-  );
-}
-
-function subjects(changed: readonly ObservationRecord[]): string {
-  if (changed.length === 0) return '';
-  return section('Subjects', changed.map((entry) => subject(entry)).join(''));
-}
-
-function subject(entry: ObservationRecord): string {
-  const images = entry.images ?? {};
-  const panes: string[] = [];
-  if (images.before !== undefined) panes.push(pane('before', images.before));
-  if (images.after !== undefined) panes.push(pane('after', images.after));
-  if (images.diff !== undefined) panes.push(pane('diff', images.diff));
-
-  const rows = entry.regions
+  const bar = segments
+    .filter(([, n]) => n > 0)
     .map(
-      (region) =>
-        '<tr>' +
-        `<td>${region.cause ? 'cause' : 'collateral'}</td>` +
-        `<td>${text(region.component ?? '—')}</td>` +
-        `<td><code>${text(region.file ?? '—')}</code></td>` +
-        `<td>${text(region.where ?? '')}</td>` +
-        `<td class="num">${region.pixels}</td>` +
-        '</tr>',
+      ([name, n]) =>
+        `<i class="seg ${name}" style="flex:${n}" title="${n} ${text(name)}"></i>`,
+    )
+    .join('');
+
+  const keys = segments
+    .filter(([, n]) => n > 0)
+    .map(
+      ([name, n]) =>
+        `<button type="button" class="key ${name}" data-filter="${text(name)}">` +
+        `<i></i><b>${n}</b> ${text(name)}</button>`,
+    )
+    .join('');
+
+  return `<div class="census"><div class="bar">${bar}</div><div class="keys">${keys}</div></div>`;
+}
+
+/* --- the rail ------------------------------------------------------------- */
+
+/**
+ * What is worth looking at, in the order a reviewer should look at it.
+ *
+ * Causes above subjects because the decision is nearly always about a component
+ * and only incidentally about a subject: forty stories moved, one thing changed.
+ * It is a filter rather than a table of contents — clicking a cause narrows the
+ * pane to the subjects it reached, which is the motion the docket exists to make
+ * possible.
+ */
+function rail(docket: Docket, reviewable: readonly CliObservationRecord[]): string {
+  const causes = docket.causes
+    .map((entry) => {
+      const marker = qualifier(entry);
+      return (
+        `<button type="button" class="cause" data-subjects="${text(entry.subjects.join(' '))}">` +
+        `<span class="name">${entry.named ? `<code>${text(entry.label)}</code>` : text(entry.label)}</span>` +
+        marker +
+        `<span class="n">${entry.subjects.length}</span>` +
+        (entry.files.length === 0
+          ? ''
+          : `<span class="file">${text(entry.files[0] ?? '')}</span>`) +
+        `<span class="px">${px(entry.pixels)}</span>` +
+        '</button>'
+      );
+    })
+    .join('');
+
+  const list = reviewable
+    .map(
+      (entry) =>
+        `<a class="row" href="#s-${text(slug(entry.subject))}" data-verdict="${text(entry.verdict)}" ` +
+        `data-subject="${text(entry.subject)}">` +
+        `<i class="dot ${text(entry.verdict)}"></i>` +
+        `<code>${text(entry.subject)}</code>` +
+        markers(entry) +
+        `<span class="px">${px(entry.changedPixels)}</span>` +
+        '</a>',
     )
     .join('');
 
   return (
-    '<section class="subject">' +
-    `<h3><code>${text(entry.subject)}</code> <span class="verdict ${text(entry.verdict)}">${text(
-      entry.verdict,
-    )}</span></h3>` +
-    `<p class="because">${text(entry.because)}</p>` +
-    (panes.length > 0 ? `<div class="panes">${panes.join('')}</div>` : '') +
-    (rows === ''
+    '<nav class="rail">' +
+    '<input type="search" id="filter" placeholder="filter  /" autocomplete="off" spellcheck="false">' +
+    (causes === '' ? '' : `<h2>Causes</h2><div class="causes">${causes}</div>`) +
+    (list === '' ? '' : `<h2>Subjects</h2><div class="rows">${list}</div>`) +
+    '</nav>'
+  );
+}
+/* --- clusters ------------------------------------------------------------- */
+
+/**
+ * The distinct things that happened, above the subjects they happened to.
+ *
+ * A token edit across forty stories is one decision, and the fingerprint is what
+ * makes that a fact rather than an impression: same shape, position removed. The
+ * number that matters is `settles` — how much of the review one command would
+ * finish — and it is separate from `subjects` because everywhere else something
+ * the shape does not name also moved, and accepting there would promote an
+ * unreviewed difference alongside a reviewed one.
+ */
+function clusters(changes: readonly Change[], ungrouped: readonly string[]): string {
+  if (changes.length === 0 && ungrouped.length === 0) return '';
+
+  const rows = changes
+    .map((change) => {
+      const settles = change.settles.length;
+      const touches = change.subjects.length;
+      return (
+        '<li>' +
+        '<div class="head">' +
+        (change.component === undefined
+          ? '<span class="mark area" title="Grouped by silhouette alone — no component was attributed, so a bulk decision here is the weaker claim.">shape only</span>'
+          : `<code class="comp">${text(change.component)}</code>`) +
+        (change.file === undefined ? '' : `<span class="file">${text(change.file)}</span>`) +
+        `<span class="grow"></span>` +
+        `<span class="settles${settles === 0 ? ' none' : ''}" title="Subjects where this shape is the whole change, and a single decision settles them.">${settles}<em>/${touches}</em></span>` +
+        '</div>' +
+        `<div class="fp">${copy(change.fingerprint)}</div>` +
+        '<div class="cmds">' +
+        cmd(`variance accept --shape ${change.fingerprint}`) +
+        cmd(ignoreSnippet(change), 'ignore rule') +
+        '</div>' +
+        `<div class="subs">${change.subjects
+          .map(
+            (subject) =>
+              `<a href="#s-${text(slug(subject))}"${
+                change.settles.includes(subject) ? '' : ' class="partial" title="Something this shape does not name also moved here, so --shape will not settle it."'
+              }><code>${text(subject)}</code></a>`,
+          )
+          .join('')}</div>` +
+        '</li>'
+      );
+    })
+    .join('');
+
+  const orphans =
+    ungrouped.length === 0
       ? ''
-      : '<table><thead><tr><th>role</th><th>component</th><th>file</th><th>where</th>' +
-        '<th class="num">pixels</th></tr></thead><tbody>' +
-        rows +
-        '</tbody></table>') +
-    '</section>'
+      : `<p class="ungrouped"><span class="mark warn" title="These subjects changed and produced no fingerprint — nothing to group them by, and never folded into a catch-all.">${ungrouped.length} ungrouped</span>` +
+        ungrouped.map((subject) => `<code>${text(subject)}</code>`).join('') +
+        '</p>';
+
+  return section('Changes', 'distinct shapes, most settling first', `<ol class="clusters">${rows}</ol>${orphans}`);
+}
+
+/** The rule as it would be pasted, from `docs/ignores.md`. Never invented here. */
+function ignoreSnippet(change: Change): string {
+  return JSON.stringify(
+    {
+      ignore: [
+        {
+          id: change.component === undefined ? 'name-me' : change.component.toLowerCase(),
+          reason: 'why this is not the subject',
+          fingerprints: [change.fingerprint],
+        },
+      ],
+    },
+    null,
+    2,
   );
 }
 
-function pane(label: string, source: string): string {
-  return (
-    `<figure><figcaption>${text(label)}</figcaption>` +
-    `<img src="${text(source)}" alt="${text(label)}" loading="lazy"></figure>`
-  );
-}
-
-/**
- * What was not looked at, and it is not optional.
- *
- * A page that showed only findings would read as complete on a run that failed to
- * observe half the suite — the exact green-check-over-an-unwatched-surface this
- * project refuses everywhere else. So a failure is rendered before the reader can
- * conclude anything, and an absent coverage list says so rather than showing zero.
- */
-function coverage(docket: Docket): string {
-  const parts: string[] = [];
-
-  if (docket.failed.length > 0) {
-    parts.push(
-      `<p class="alert">${count(docket.failed.length, 'subject')} the run meant to observe and ` +
-        'could not. This is not a pass.</p><ul>' +
-        docket.failed
-          .map((entry) => `<li><code>${text(entry.subject)}</code> — ${text(entry.because)}</li>`)
-          .join('') +
-        '</ul>',
-    );
-  }
-  if (docket.excluded > 0) {
-    parts.push(`<p>${count(docket.excluded, 'subject')} excluded by configuration.</p>`);
-  }
-  if (docket.missingFonts.size > 0) {
-    parts.push(
-      '<p>Rendered without: ' +
-        [...docket.missingFonts]
-          .map(([family, subjectCount]) => `${text(family)} (${subjectCount})`)
-          .join(', ') +
-        '</p>',
-    );
-  }
-
-  return parts.length === 0 ? '' : section('Coverage', parts.join(''));
-}
-
-function section(title: string, body: string): string {
-  return `<section><h2>${text(title)}</h2>${body}</section>`;
-}
-
-function count(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? '' : 's'}`;
-}
-
-/**
- * Every interpolation goes through this, including values this repository wrote.
- *
- * A subject id, a component name and a `where` phrase all come from the page
- * under test, which is to say from somebody else's HTML. Escaping only the fields
- * that look risky is how the one that did not look risky ends up executing.
- */
-function text(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/** Inline, because a stylesheet over the network is a page that renders twice. */
-const STYLE = `
-:root{color-scheme:light dark;--line:#8884;--dim:#8888;--alert:#c0392b}
-body{font:14px/1.5 ui-sans-serif,system-ui,sans-serif;margin:0 auto;padding:2rem;max-width:60rem}
-h1{font-size:1.5rem;margin:0 0 1rem}
-h2{font-size:1rem;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);
-margin:2.5rem 0 .75rem;border-bottom:1px solid var(--line);padding-bottom:.25rem}
-h3{font-size:1rem;margin:0 0 .25rem;font-weight:600}
-code{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
-dl.provenance{display:grid;grid-template-columns:max-content 1fr;gap:.15rem 1rem;margin:0;
-color:var(--dim);font-size:12px}
-dl.provenance dt{text-align:right}
-dl.provenance dd{margin:0}
-ol.causes{list-style:decimal;padding-left:1.5rem}
-ol.causes li{margin-bottom:1rem}
-.caveat{color:var(--alert);font-size:12px;font-weight:400}
-.files code{margin-right:.5rem}
-.where,.meta{color:var(--dim);font-size:12px}
-details summary{cursor:pointer;color:var(--dim);font-size:12px}
-details ul{margin:.25rem 0;padding-left:1.25rem}
-.subject{margin:1.5rem 0;padding-top:1rem;border-top:1px solid var(--line)}
-.verdict{font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:.1rem .4rem;
-border:1px solid var(--line);border-radius:3px;color:var(--dim)}
-.because{color:var(--dim);margin:.25rem 0 .75rem}
-.panes{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:1rem}
-figure{margin:0}
-figcaption{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);
-margin-bottom:.25rem}
-img{max-width:100%;height:auto;border:1px solid var(--line);display:block}
-table{border-collapse:collapse;width:100%;margin-top:1rem;font-size:12px}
-th,td{text-align:left;padding:.3rem .5rem;border-bottom:1px solid var(--line)}
-th{color:var(--dim);font-weight:500}
-.num{text-align:right;font-variant-numeric:tabular-nums}
-.alert{color:var(--alert);font-weight:600}
-`;

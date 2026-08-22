@@ -266,7 +266,7 @@ visitor rules, counted on the same trees, put **2.5× as many** counters in the
 same code; this is **0.40×** of every counter it inserts. The saving is not in
 functions — both give every function one entry site — it is that a run of
 statements with no decision in it is *one region*: on this repository's own
-source, 15,056 statements collapse to 2,344 continuations. A decision carries no
+source, 15,065 statements collapse to 2,342 continuations. A decision carries no
 probe of its own; its outcomes do, including the synthesized `else` of a bare
 `if`, because a change to the condition must reach every test that ever evaluated
 it.

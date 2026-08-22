@@ -39,17 +39,17 @@ file is added. The table below is one such reading, at 346 product files.
 | Probe | Count | What it means |
 |---|---|---|
 | module | 346 | the module's top level evaluated |
-| function entry | 2,798 | entered, and owns every statement before the first decision |
-| branch outcome | 4,242 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
-| continuation | 2,344 | the region *after* a decision, up to the next one |
+| function entry | 2,797 | entered, and owns every statement before the first decision |
+| branch outcome | 4,236 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
+| continuation | 2,342 | the region *after* a decision, up to the next one |
 | `await` resume | 556 | execution came back — the stack after is not the stack before |
-| loop body | 629 | the body was entered at least once |
+| loop body | 630 | the body was entered at least once |
 | `switch` case | 156 | per clause, plus a synthesized `default` where none is written |
 | handler | 150 | `catch` and `finally` |
 
 The function count matching Istanbul's exactly is not a coincidence and not a
 result: both give every function one entry site. The saving is entirely in the
-other two columns — 15,056 statements collapse to 2,344 continuations, because a
+other two columns — 15,065 statements collapse to 2,342 continuations, because a
 run of statements with no decision in it is one region.
 
 **A decision carries no probe of its own.** Its outcomes do. A bare
