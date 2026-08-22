@@ -11,13 +11,42 @@ baseline written, an empty diff, nothing said. From then on it is green until
 somebody edits it. What the flag *does to the page* is visible by opening two
 pictures and using your eyes, and is recorded nowhere.
 
-**A subject can declare which subject it is a variation of.** The two are then
-compared to each other, in the same run, and the difference between them is
-reported with an identity of its own.
+**A subject is compared to the subject it is a variation of.** The two are read
+in the same run, and the difference between them is reported with an identity of
+its own. Which subject that is, this tool would rather work out than be told.
 
-## Declaring it
+## The name already says it: the great green dragon
 
-One tag, on the subject that is the variation:
+Most suites have already written the link down. `checkout`, `checkout-dark`,
+`checkout-dark-narrow` — the name carries the axes, in order, and a declaration
+beside it would only repeat what the name says and then drift from it.
+
+So a subject is asked its own name first. Its parent is the longest other
+subject in the run whose id this one **extends at a separator**:
+`checkout-dark-narrow` varies `checkout-dark`, which varies `checkout`. Longest
+wins, so each link is one axis, which is the only reason the difference across it
+is worth reading. A separator is required, so `checkout` is not the parent of
+`checkouts`.
+
+This works exactly as well as your names do, and the constraint has a name.
+English will not let you say *green great dragon*: adjective order is fixed, so
+one dragon has one name. Fix your axis order the same way — scheme before
+viewport before flag, or whatever order you like, as long as it is the same one
+every time — and every subject has exactly one name and exactly one parent, found
+by dropping what was added last.
+
+Break the order and nothing errors, which is the thing to watch for.
+`checkout-dark-narrow` and `checkout-narrow-dark` are one render under two names:
+two baselines, two chains, and each reporting a two-axis difference where a
+one-axis difference was meant. It shows up as two subjects with one rendering in
+[`composition.md`](composition.md), which is a true report of the wrong problem.
+
+## Declaring it, where a name will not carry it
+
+A name carries an axis somebody chose to spell out. When there is no such name —
+an id from a route list, a subject whose parent lives under another namespace, a
+convention this suite is not going to change — the link is stated outright, with
+one tag on the subject that is the variation:
 
 ```text
 variance-parent:<subject id>
@@ -47,32 +76,6 @@ confidence, is worse than one not printed at all.
 Nothing else changes. The tag is read when the run is planned and used when the
 two are compared; it reaches no hash, no baseline and no store, so adding one
 invalidates nothing.
-
-## Or not declaring it: the great green dragon
-
-Most suites have already written the link down. `checkout`, `checkout-dark`,
-`checkout-dark-narrow` — the name carries the axes, in order, and a tag beside it
-would only repeat what the name says and then drift from it.
-
-So a subject with no tag is asked its own name. Its parent is the longest other
-subject in the run whose id this one **extends at a separator**:
-`checkout-dark-narrow` varies `checkout-dark`, which varies `checkout`. Longest
-wins, so each link is one axis, which is the only reason the difference across it
-is worth reading. A separator is required, so `checkout` is not the parent of
-`checkouts`.
-
-This works exactly as well as your names do, and the constraint has a name.
-English will not let you say *green great dragon*: adjective order is fixed, so
-one dragon has one name. Fix your axis order the same way — scheme before
-viewport before flag, or whatever order you like, as long as it is the same one
-every time — and every subject has exactly one name and exactly one parent, found
-by dropping what was added last.
-
-Break the order and nothing errors, which is the thing to watch for.
-`checkout-dark-narrow` and `checkout-narrow-dark` are one render under two names:
-two baselines, two chains, and each reporting a two-axis difference where a
-one-axis difference was meant. It shows up as two subjects with one rendering in
-[`composition.md`](composition.md), which is a true report of the wrong problem.
 
 **A tag always wins, and a name never covers for a tag that failed.** A
 `variance-parent:` that resolved to nothing is reported as the mistake it is,

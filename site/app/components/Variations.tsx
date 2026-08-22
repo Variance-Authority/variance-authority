@@ -39,7 +39,7 @@ const VARIATIONS = [
 ] as const;
 
 export default function Variations() {
-  const [i, setI] = useState(1);
+  const [i, setI] = useState(0);
   const v = VARIATIONS[i];
 
   return (

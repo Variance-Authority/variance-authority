@@ -180,21 +180,23 @@ export default function Page() {
                   the flag does to the page is recorded nowhere.
                 </p>
                 <p className="mt-4 leading-7 text-quiet">
-                  One tag —{" "}
-                  <span className="font-mono text-[0.95em]">
-                    variance-parent:
-                  </span>{" "}
-                  — links the two, and they are compared to each other in the
-                  same run. Most suites have already written the link down in
-                  the name, so a subject with no tag is asked its own:{" "}
+                  Nothing is configured to link them. A subject is asked its own
+                  name:{" "}
                   <span className="font-mono text-[0.95em]">
                     checkout-dark-narrow
                   </span>{" "}
                   varies{" "}
                   <span className="font-mono text-[0.95em]">checkout-dark</span>
                   , which varies{" "}
-                  <span className="font-mono text-[0.95em]">checkout</span>.
-                  Longest match wins, so each link is one axis.
+                  <span className="font-mono text-[0.95em]">checkout</span> —
+                  longest match wins, so each link is one axis, and the whole
+                  convention your suite already keeps is the declaration. Where
+                  a name will not carry it, one tag —{" "}
+                  <span className="font-mono text-[0.95em]">
+                    variance-parent:
+                  </span>{" "}
+                  — states the link outright, and the record says which of the
+                  two answered.
                 </p>
                 <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
                   English will not let you say <em>green great dragon</em>. Fix
