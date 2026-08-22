@@ -2,6 +2,7 @@ import Answers from "./components/Answers";
 import Attribution from "./components/Attribution";
 import Bands from "./components/Bands";
 import ClosingCall from "./components/ClosingCall";
+import DiffReport from "./components/DiffReport";
 import Eyebrow from "./components/Eyebrow";
 import Hero from "./components/Hero";
 import Integration from "./components/Integration";
@@ -12,6 +13,7 @@ import SectionHead from "./components/SectionHead";
 import Since from "./components/Since";
 import SiteFooter from "./components/SiteFooter";
 import SiteHeader from "./components/SiteHeader";
+import Variations from "./components/Variations";
 
 export default function Page() {
   return (
@@ -154,6 +156,85 @@ export default function Page() {
           </section>
         </Reveal>
 
+        {/* Variations — the variation compared to the subject it varies */}
+        <Reveal>
+          <section
+            id="variations"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
+            <div className="grid gap-10 lg:grid-cols-[2fr_3fr] [&>*]:min-w-0">
+              <div>
+                <Eyebrow n="05">variations</Eyebrow>
+                <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
+                  A flag&rsquo;s second version is compared to everything except
+                  the version it varies.
+                </h2>
+                <p className="mt-4 leading-7 text-quiet">
+                  The dark scheme, the narrow viewport, the story behind{" "}
+                  <span className="font-mono text-[0.95em] text-ivory">
+                    checkout-v2
+                  </span>{" "}
+                  — each is an ordinary subject with its own baseline, green
+                  from its first run. So the difference the variation exists{" "}
+                  <em>for</em> is the one difference nothing measures, and what
+                  the flag does to the page is recorded nowhere.
+                </p>
+                <p className="mt-4 leading-7 text-quiet">
+                  One tag —{" "}
+                  <span className="font-mono text-[0.95em]">
+                    variance-parent:
+                  </span>{" "}
+                  — links the two, and they are compared to each other in the
+                  same run. Most suites have already written the link down in
+                  the name, so a subject with no tag is asked its own:{" "}
+                  <span className="font-mono text-[0.95em]">
+                    checkout-dark-narrow
+                  </span>{" "}
+                  varies{" "}
+                  <span className="font-mono text-[0.95em]">checkout-dark</span>
+                  , which varies{" "}
+                  <span className="font-mono text-[0.95em]">checkout</span>.
+                  Longest match wins, so each link is one axis.
+                </p>
+                <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
+                  English will not let you say <em>green great dragon</em>. Fix
+                  your axis order the same way and every subject has exactly one
+                  parent, found by dropping what was added last.
+                </p>
+              </div>
+              <Variations />
+            </div>
+          </section>
+        </Reveal>
+
+        {/* The report — what a reviewer actually opens */}
+        <Reveal>
+          <section
+            id="report"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
+            <SectionHead
+              n="06"
+              label="the report"
+              title="Before, after and diff, side by side, is where a four-pixel shift goes invisible."
+            >
+              Three pictures in a row also make the reader&rsquo;s eye travel
+              past both things they are comparing to reach the reason the page
+              is open. So the report is the comparison rather than an
+              arrangement of it: a wipe whose seam follows the pointer, a blend,
+              a blink, and a region overlay that lights the table row for the
+              box under the cursor. Regions leads, because which boxes moved and
+              who owns them is what a screenshot cannot answer.
+            </SectionHead>
+            <div className="mt-12">
+              <DiffReport />
+            </div>
+            <p className="mt-6 font-mono text-xs text-warm">
+              written for the tenth time it is opened rather than the first
+            </p>
+          </section>
+        </Reveal>
+
         {/* Straight answers */}
         <Reveal>
           <section
@@ -161,7 +242,7 @@ export default function Page() {
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
-              n="05"
+              n="07"
               label="position"
               title="Six things you are right to be suspicious about."
             >

@@ -31,7 +31,7 @@ export default function Integration() {
       className="scroll-mt-24 border-t border-hairline py-20"
     >
       <SectionHead
-        n="06"
+        n="08"
         label="integrate"
         title="One package where your UI is already ready"
       >

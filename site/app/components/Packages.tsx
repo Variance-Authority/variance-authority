@@ -96,7 +96,7 @@ export default function Packages() {
       className="scroll-mt-24 border-t border-hairline py-20"
     >
       <SectionHead
-        n="07"
+        n="09"
         label="packages"
         title="There is no pipeline. There are tools."
       >
