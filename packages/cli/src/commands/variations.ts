@@ -1,6 +1,8 @@
 import { deriveVariation, type SemanticSnapshot, type Variation } from '@variance-authority/core';
 import type { VariationRecord } from '@variance-authority/report';
+import type { NamesConfig } from '../config-names.js';
 import type { Plan, PlannedSubject } from './collector.js';
+import { BOUNDARY, nameIndex, structuralParent, type Step } from './names.js';
 
 /**
  * Subjects that are variations of other subjects, and what the variation is.
@@ -74,18 +76,21 @@ export type Declaration =
 
 /** A declaration, resolved against the plan it was declared in. */
 export type ParentLink =
-  | { readonly ok: true; readonly parent: string; readonly how: Declaration }
+  | {
+      readonly ok: true;
+      readonly parent: string;
+      readonly how: Declaration;
+      /**
+       * The axis the name crossed, when a grammar read it.
+       *
+       * Present only for a `named` link resolved through `names` in the config.
+       * It is what turns "these two differ" into "these two differ in `scheme`,
+       * which is `dark` here and `light` there" — the question a coordinate can
+       * be asked and a pair of strings cannot.
+       */
+      readonly step?: Step;
+    }
   | { readonly ok: false; readonly because: string };
-
-/**
- * The characters a name may be extended at.
- *
- * A parent's id has to end where the child's id continues, or `checkout` would
- * be the parent of `checkout-service` — two unrelated subjects whose names share
- * a stem. What makes a name a *variation* of another name is that it is that
- * name plus something, and "plus something" has a separator in it.
- */
-const BOUNDARY = new Set(['-', '_', '.', ':', '/', '+', ' ', '~']);
 
 /**
  * The parent a subject's own name names, if any: the longest other subject in
@@ -141,9 +146,13 @@ function namedParent(id: string, ids: ReadonlySet<string>): string | undefined {
  * would attach a difference to the wrong parent and print it with full
  * confidence.
  */
-export function resolveParents(plan: Plan): ReadonlyMap<string, ParentLink> {
+export function resolveParents(plan: Plan, names?: NamesConfig): ReadonlyMap<string, ParentLink> {
   const ids = new Set(plan.subjects.map((planned) => planned.subject.id));
   const links = new Map<string, ParentLink>();
+  // Built once for the run, and only when a grammar was configured. Without one
+  // the prefix rule stands, which is the reading for a suite nobody has told
+  // what its own words mean.
+  const index = names === undefined ? undefined : nameIndex(ids, names);
 
   for (const planned of plan.subjects) {
     const id = planned.subject.id;
@@ -154,6 +163,27 @@ export function resolveParents(plan: Plan): ReadonlyMap<string, ParentLink> {
       // name: a written declaration that failed to resolve is a mistake to
       // report, and quietly answering it with a guess would hide the mistake
       // behind an answer that looks like the one that was asked for.
+      // A grammar replaces the prefix rule rather than backing it up. It is a
+      // statement about how this suite's names are written, so a name it finds
+      // nothing in is a name with nothing in it — falling through to a longest
+      // common prefix would answer a configured question with an unconfigured
+      // guess, and print both the same way.
+      if (index !== undefined) {
+        const structural = structuralParent(id, index);
+        if (structural === undefined) continue;
+        if (structural.ok) {
+          links.set(id, {
+            ok: true,
+            parent: structural.parent,
+            how: 'named',
+            step: structural.step,
+          });
+        } else {
+          links.set(id, { ok: false, because: structural.because });
+        }
+        continue;
+      }
+
       const named = namedParent(id, ids);
       if (named !== undefined) links.set(id, { ok: true, parent: named, how: 'named' });
       continue;
@@ -196,9 +226,9 @@ export function resolveParents(plan: Plan): ReadonlyMap<string, ParentLink> {
  * need and no others. A run of three hundred subjects holds three hundred
  * normalized trees otherwise, to compare four of them.
  */
-export function parentsWanted(plan: Plan): ReadonlySet<string> {
+export function parentsWanted(plan: Plan, names?: NamesConfig): ReadonlySet<string> {
   const wanted = new Set<string>();
-  for (const link of resolveParents(plan).values()) {
+  for (const link of resolveParents(plan, names).values()) {
     if (link.ok) wanted.add(link.parent);
   }
   return wanted;
@@ -208,6 +238,9 @@ export interface VariationsInput {
   readonly plan: Plan;
   /** Snapshots kept for this run, by subject id. Parents, and the variations. */
   readonly snapshots: ReadonlyMap<string, SemanticSnapshot>;
+
+  /** The name grammar, when the config has one. See `config-names.ts`. */
+  readonly names?: NamesConfig;
 }
 
 /**
@@ -219,7 +252,7 @@ export interface VariationsInput {
  * distinction `notObserved` exists to hold for the run as a whole.
  */
 export function variationsOf(input: VariationsInput): readonly VariationRecord[] | undefined {
-  const links = resolveParents(input.plan);
+  const links = resolveParents(input.plan, input.names);
   if (links.size === 0) return undefined;
 
   const records: VariationRecord[] = [];
@@ -248,13 +281,13 @@ export function variationsOf(input: VariationsInput): readonly VariationRecord[]
       continue;
     }
 
-    records.push(recordOf(deriveVariation(parent, variant), link.how));
+    records.push(recordOf(deriveVariation(parent, variant), link.how, link.step));
   }
 
   return records;
 }
 
-function recordOf(variation: Variation, how: Declaration): VariationRecord {
+function recordOf(variation: Variation, how: Declaration, step?: Step): VariationRecord {
   // Roots first, collateral after. A variation's report is read top-down and the
   // first name in it is the one somebody will go look at, so it has to be the
   // component the difference originates in rather than whichever component the
@@ -273,11 +306,16 @@ function recordOf(variation: Variation, how: Declaration): VariationRecord {
     ...(named.length > 0 ? { components: named } : {}),
     digest: variation.digest,
     how,
-    because: because(variation, named, how),
+    because: because(variation, named, how, step),
   };
 }
 
-function because(variation: Variation, named: readonly string[], how: Declaration): string {
+function because(
+  variation: Variation,
+  named: readonly string[],
+  how: Declaration,
+  step?: Step,
+): string {
   // Said on every line rather than once at the top of the section, because a
   // record is read one at a time — through `variance_variations`, through the
   // report, through whatever reads the artifact — and a caveat that lives in the
@@ -285,8 +323,13 @@ function because(variation: Variation, named: readonly string[], how: Declaratio
   const source =
     how === 'declared'
       ? ''
-      : ` Nothing declared this pair: \`${variation.subject}\` is \`${variation.parent}\` ` +
-        'plus a name, which is a convention being read rather than a statement being kept.';
+      : step !== undefined
+        ? ` Nothing declared this pair. The configured name format reads the two as one ` +
+          `subject at two coordinates: \`${step.axis}\` is \`${step.to}\` here and ` +
+          `\`${step.from}\` there, and every other axis is the same word in both — so what ` +
+          'is measured above is that axis and nothing else.'
+        : ` Nothing declared this pair: \`${variation.subject}\` is \`${variation.parent}\` ` +
+          'plus a name, which is a convention being read rather than a statement being kept.';
 
   const blind =
     variation.unobserved.length === 0

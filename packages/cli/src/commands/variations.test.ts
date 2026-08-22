@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { environmentKey, profileById, type SemanticSnapshot } from '@variance-authority/core';
 import type { Plan, PlannedSubject } from './collector.js';
+import type { NamesConfig } from '../config-names.js';
 import { parentsWanted, resolveParents, variationsOf } from './variations.js';
 
 /**
@@ -168,6 +169,63 @@ describe('the parent a name names', () => {
     );
 
     expect(resolveParents(plan).get('story:checkout-dark')).toMatchObject({ ok: false });
+  });
+});
+
+describe('a name read through the configured grammar', () => {
+  const names: NamesConfig = {
+    axes: [
+      { axis: 'state', values: ['default', 'empty'] },
+      { axis: 'colour', values: ['green', 'glass'] },
+    ],
+  };
+
+  it('links two names of the same length, which a prefix cannot', () => {
+    const plan = planOf(planned('fixture:dragon-green'), planned('fixture:dragon-glass'));
+
+    expect(resolveParents(plan, names).get('fixture:dragon-glass')).toEqual({
+      ok: true,
+      parent: 'fixture:dragon-green',
+      how: 'named',
+      step: { axis: 'colour', from: 'green', to: 'glass' },
+    });
+  });
+
+  it('takes a spelled baseline for the baseline it is', () => {
+    // Without the grammar `dragon--default` and `dragon--empty` are two names
+    // neither of which extends the other, so nothing is compared at all.
+    const plan = planOf(planned('fixture:dragon--default'), planned('fixture:dragon--empty'));
+
+    expect(resolveParents(plan, names).get('fixture:dragon--empty')).toMatchObject({
+      parent: 'fixture:dragon--default',
+    });
+    expect(resolveParents(plan).get('fixture:dragon--empty')).toBe(undefined);
+  });
+
+  it('replaces the prefix rule rather than backing it up', () => {
+    // `dragon-tail` is a name the grammar found nothing in. Answering it by
+    // prefix would print an unconfigured guess in the shape of a configured
+    // reading, which is the one failure a format is written down to prevent.
+    const plan = planOf(planned('fixture:dragon'), planned('fixture:dragon-tail'));
+
+    expect(resolveParents(plan, names).get('fixture:dragon-tail')).toBe(undefined);
+    expect(resolveParents(plan).get('fixture:dragon-tail')).toMatchObject({
+      parent: 'fixture:dragon',
+    });
+  });
+
+  it('names the axis in the sentence, so the difference is a question somebody asked', () => {
+    const records = variationsOf({
+      plan: planOf(planned('fixture:dragon-green'), planned('fixture:dragon-glass')),
+      names,
+      snapshots: new Map([
+        ['fixture:dragon-green', snapshotOf('fixture:dragon-green', 'buy')],
+        ['fixture:dragon-glass', snapshotOf('fixture:dragon-glass', 'buy now')],
+      ]),
+    });
+
+    expect(records?.[0]?.parent).toBe('fixture:dragon-green');
+    expect(records?.[0]?.because).toContain('`colour` is `glass` here and `green` there');
   });
 });
 

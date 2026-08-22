@@ -221,7 +221,7 @@ async function observeAll(
   // a suite of three hundred subjects holds three hundred normalized trees to
   // compare four of them otherwise, and the tree is the largest thing this loop
   // touches.
-  const parents = parentsWanted(plan);
+  const parents = parentsWanted(plan, config.names);
   const retained = new Map<string, SemanticSnapshot>();
 
   // The collector is a single standing world (ADR-0009), so exactly one call may
@@ -419,7 +419,11 @@ async function observeAll(
   // somebody built on purpose — a flag's other arm, a second viewport, the dark
   // scheme — so it is described and never adjudicated: nothing here reaches the
   // exit code, the store, or a baseline.
-  const variations = variationsOf({ plan, snapshots: retained });
+  const variations = variationsOf({
+    plan,
+    snapshots: retained,
+    ...(config.names !== undefined ? { names: config.names } : {}),
+  });
 
   const report: CliRunReport = {
     runVersion: 1,
