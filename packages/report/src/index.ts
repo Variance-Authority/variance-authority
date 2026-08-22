@@ -36,6 +36,7 @@ export type {
   FlakinessRecord,
   ChurnRecord,
   DriftRecord,
+  VariationRecord,
 } from './format.js';
 
 export type {

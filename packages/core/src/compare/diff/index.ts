@@ -76,8 +76,37 @@ export function diffSnapshots(
     );
   }
 
-  const observability = observableBands(candidate.profile);
-  const unobserved: Band[] = BANDS.filter((band) => !decidesBand(band, observability[band]));
+  return { subjectId: candidate.subject.id, ...compareTrees(baseline, candidate) };
+}
+
+/** Everything a {@link SemanticDiff} is except the subject it is about. */
+export type TreeComparison = Omit<SemanticDiff, 'subjectId'>;
+
+/**
+ * The comparison itself, after whatever refusals the caller owes.
+ *
+ * Split out because two callers owe different refusals over the same arithmetic.
+ * `diffSnapshots` produces a **verdict** and must refuse two subjects, because a
+ * verdict that crossed them would let one subject's baseline stand in for
+ * another's. `deriveVariation` produces an **explanation** of a difference
+ * somebody declared on purpose — a dark story against its light parent — where
+ * two subject ids are the entire point and a refusal would be the bug.
+ *
+ * What is not negotiable either way is the observability rule: a band is
+ * `unobserved` unless **both** sides could decide it, so a difference that only
+ * one profile could have seen is never reported as no difference (ADR-0002).
+ * Under `diffSnapshots` the two profiles are already identical, so the union
+ * costs it nothing and changes none of its answers.
+ */
+export function compareTrees(
+  baseline: SemanticSnapshot,
+  candidate: SemanticSnapshot,
+): TreeComparison {
+  const here = observableBands(candidate.profile);
+  const there = observableBands(baseline.profile);
+  const unobserved: Band[] = BANDS.filter(
+    (band) => !decidesBand(band, here[band]) || !decidesBand(band, there[band]),
+  );
 
   const environmentDeltas = diffEnvironments(
     baseline.environment.inputs,
@@ -86,7 +115,6 @@ export function diffSnapshots(
 
   if (baseline.renderHash === candidate.renderHash) {
     return {
-      subjectId: candidate.subject.id,
       identical: true,
       environmentDeltas,
       deltas: [],
@@ -111,7 +139,7 @@ export function diffSnapshots(
     if (matching.moved.has(before)) {
       deltas.push(wholeNode('node-moved', after));
     }
-    compareNodes(before, after, deltas, candidate.profile.layout);
+    compareNodes(before, after, deltas, candidate.profile.layout && baseline.profile.layout);
   }
 
   // Orientation is attached after the deltas exist, in one pass over the
@@ -134,7 +162,6 @@ export function diffSnapshots(
   const roots = attribute(located, matching, environmentDeltas);
 
   return {
-    subjectId: candidate.subject.id,
     identical: false,
     environmentDeltas,
     deltas: located,

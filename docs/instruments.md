@@ -34,6 +34,7 @@ budget line.
 | **[`again`](flakiness.md#what-still-gets-through-and-how-it-is-found)** | time | the world | `unstable`, with the component and band that moved | yes |
 | **[`alone`](flakiness.md#test-order-and-shared-state)** | the world | time | `order-dependent`, and `accept` refuses it | yes |
 | **[composition](composition.md)** | the subject | the revision | echoes, divergences, and why each component moved | yes |
+| **[variation](variations.md)** | the subject, on purpose | the revision | what a declared arm changes, and whether that changed | yes |
 | **[history](history.md)** | the run | the subject | recurrence, sweeps-since, and [drift](history.md#how-far-a-token-has-drifted) | when configured |
 | **[the session probe](../packages/session)** | subject order | the world | the *writer*, by subject and by what it wrote | **no** |
 | **[`trail`](../packages/core)** | the edit step | the subject | since-start, put-back, and going in circles | **no** |

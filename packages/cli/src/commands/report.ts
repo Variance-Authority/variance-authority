@@ -135,6 +135,7 @@ function asText(options: ReportOptions): string {
     tool('variance_summary', report, {}),
     stabilization(report),
     composition(report),
+    variations(report),
     ignores(report),
     sensitivities(report),
     warnings(report),
@@ -219,6 +220,20 @@ function stabilization(report: CliRunReport): string {
 function composition(report: CliRunReport): string {
   if (report.composition === undefined) return '';
   return tool('variance_composition', report, {});
+}
+
+/**
+ * What the run's declared variations turned out to be.
+ *
+ * Through `tool()`, and gated on the same terms as `composition`: absent means
+ * no subject declared a parent, and `variance_variations` answers that absence
+ * with a paragraph about the declaration — the right answer to somebody who
+ * asked, and a paragraph about a tag at the bottom of every run for everybody
+ * who did not.
+ */
+function variations(report: CliRunReport): string {
+  if (report.variations === undefined || report.variations.length === 0) return '';
+  return tool('variance_variations', report, {});
 }
 
 function warnings(report: CliRunReport): string {

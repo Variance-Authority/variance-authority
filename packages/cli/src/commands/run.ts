@@ -1,4 +1,9 @@
-import { componentInstances, profileById, type SubjectComposition } from '@variance-authority/core';
+import {
+  componentInstances,
+  profileById,
+  type SemanticSnapshot,
+  type SubjectComposition,
+} from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
@@ -8,6 +13,7 @@ import type { SubjectHistory } from './history.js';
 import { customProperties } from './history-rows.js';
 import { recordIfConfigured } from './history-report.js';
 import { compositionOf } from './compose.js';
+import { declaredParent, parentsWanted, variationsOf } from './variations.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
@@ -210,6 +216,14 @@ async function observeAll(
     () => null,
   );
 
+  // Subjects some other subject declared itself a variation of, plus the
+  // variations themselves. Both halves are needed and neither is the whole run:
+  // a suite of three hundred subjects holds three hundred normalized trees to
+  // compare four of them otherwise, and the tree is the largest thing this loop
+  // touches.
+  const parents = parentsWanted(plan);
+  const retained = new Map<string, SemanticSnapshot>();
+
   // The collector is a single standing world (ADR-0009), so exactly one call may
   // be in flight — collecting two subjects at once would render them into one
   // document and let each decide the other's verdict. The raster tier has no
@@ -279,6 +293,16 @@ async function observeAll(
     // is not retained past this scope on the path that keeps no history.
     if (collected.snapshot !== undefined) {
       compositions[index] = { subject: id, instances: componentInstances(collected.snapshot) };
+    }
+
+    // Retained here for the same reason the composition is taken here: the
+    // snapshot does not outlive this scope on the path that keeps no history,
+    // and a variation is a comparison between two of them.
+    if (
+      collected.snapshot !== undefined &&
+      (parents.has(id) || declaredParent(planned) !== undefined)
+    ) {
+      retained.set(id, collected.snapshot);
     }
 
     // Kept per subject, in plan order, and only when there is a record to write
@@ -391,6 +415,12 @@ async function observeAll(
     ...(recorded.movedTokens !== undefined ? { tokens: recorded.movedTokens } : {}),
   });
 
+  // Last, and outside every verdict above it. A variation is a difference
+  // somebody built on purpose — a flag's other arm, a second viewport, the dark
+  // scheme — so it is described and never adjudicated: nothing here reaches the
+  // exit code, the store, or a baseline.
+  const variations = variationsOf({ plan, snapshots: retained });
+
   const report: CliRunReport = {
     runVersion: 1,
     at,
@@ -409,6 +439,7 @@ async function observeAll(
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),
     ...(composition !== undefined ? { composition } : {}),
+    ...(variations !== undefined ? { variations } : {}),
     ...(warnings.length + selection.length + recorded.warnings.length > 0
       ? { warnings: [...warnings, ...selection, ...recorded.warnings] }
       : {}),

@@ -8,6 +8,7 @@ import { findings } from './tools/findings.js';
 import { summarize } from './tools/summary.js';
 import { NO_ARGS, stringArg, type Served, type Tool } from './tools/tool.js';
 import { trace } from './tools/trace-component.js';
+import { variations } from './tools/variations.js';
 
 /**
  * The tools, as pure functions over a run report.
@@ -24,7 +25,7 @@ import { trace } from './tools/trace-component.js';
  *
  * `variance_adjudicate` is the one tool that takes evidence *in*. It sits third
  * because it needs nothing the first two printed and everything they cannot
- * supply: an agent's own account of what it was doing. The other eight answer
+ * supply: an agent's own account of what it was doing. The other nine answer
  * *what changed*; this one answers *what changed against what you claimed*, and
  * its third arm — declared, and did not happen — is the only thing here that can
  * catch an edit which never landed. An agent that has just edited something
@@ -35,7 +36,7 @@ import { trace } from './tools/trace-component.js';
  * a paragraph somebody argued about, and the arguments do not compose — the
  * reason the summary refuses to say "nothing to review" has nothing to do with
  * the reason findings are grouped by rule — so they are read, and edited, one at
- * a time. What stays here is the only thing that is genuinely about all nine:
+ * a time. What stays here is the only thing that is genuinely about all ten:
  * the order, which is the order `tools/list` announces them in and therefore the
  * order an agent meets them in. `variance_summary` is first because every other
  * tool takes an argument it printed, and `variance_changes` is second because it
@@ -44,15 +45,23 @@ import { trace } from './tools/trace-component.js';
  * says, which is *three things happened and one of them explains thirty-one*.
  *
  * `variance_composition` is fourth, and the boundary it sits on is the one worth
- * seeing: the first five answer about the *suite* and the last four narrow to a
+ * seeing: the first six answer about the *suite* and the last four narrow to a
  * subject. It goes after `changes` rather than before because the two reshape
  * the same run along different axes and only one of them is about this run's
  * diff — `changes` says which decisions there are, and this says which component
  * and which caller is behind one, including when the answer is *nothing in this
  * run*.
  *
+ * `variance_variations` follows it, on the same axis and one step further out. Both
+ * compare this run to itself; `composition` compares subjects that were never
+ * meant to differ, and this compares the ones that were. It is the only tool here
+ * whose answer is not, in any reading, a finding — which is why it is neither
+ * earlier (an agent triaging a diff would spend a call learning that a dark story
+ * is dark) nor omitted (when a change *is* to a flagged component, what the flag
+ * does is the first thing the reviewer does not know).
+ *
  * `variance_changelog` closes the suite-level group because it is the only tool
- * here that is not about the run. The other eight describe what a run observed;
+ * here that is not about the run. The other nine describe what a run observed;
  * this one describes what *accepting* it would write down, and that answer is
  * the last thing an agent needs before it proposes a command. Its position is
  * also a claim about when it stops being useful: after acceptance there is
@@ -67,7 +76,7 @@ import { trace } from './tools/trace-component.js';
 
 export type { Served, Tool };
 
-// The tool-authoring contract, not an implementation detail of these nine. A
+// The tool-authoring contract, not an implementation detail of these ten. A
 // server over another subject writes tools against the same interface, and the
 // first thing any tool does with a model's argument is refuse it or narrow it.
 export { NO_ARGS, stringArg };
@@ -77,6 +86,7 @@ export const TOOLS: readonly Tool[] = [
   changes,
   adjudicate,
   composition,
+  variations,
   changelog,
   describe,
   findings,
