@@ -67,6 +67,9 @@ export default function Lifecycle() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setI(HOPS.length - 1);
+      // The timer below keys on `running` alone, so pinning the hop is not
+      // enough — without this the run cycles on from the hop it was pinned to.
+      setRunning(false);
       return;
     }
     const el = host.current;

@@ -54,6 +54,9 @@ export default function Since() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setI(HOPS.length);
+      // The timer below keys on `running` alone, so pinning the hop is not
+      // enough — without this the walk cycles on from the hop it was pinned to.
+      setRunning(false);
       return;
     }
     const el = host.current;

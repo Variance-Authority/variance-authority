@@ -248,6 +248,9 @@ export default function Attribution() {
     ).matches;
     if (reduced) {
       setStep(STEPS.length - 1);
+      // The timer below keys on `running` alone, so pinning the frame is not
+      // enough — without this the panel cycles on from the frame it was pinned to.
+      setRunning(false);
       return;
     }
     const el = host.current;
