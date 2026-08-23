@@ -207,4 +207,6 @@ code — there is no second formatter.
 **Further:** [`composition.md`](composition.md) for the other comparison with no
 baseline in it,
 [ADR-0045](context/adr/0045-a-subject-may-be-a-variation-of-another-subject.md)
-for why the link is a tag and why the difference is never a verdict.
+for why the link is a tag and why the difference is never a verdict, and
+[ADR-0046](context/adr/0046-a-name-may-be-told-what-its-words-mean.md) for why
+the format is a grammar rather than a function you write.

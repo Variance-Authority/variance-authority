@@ -156,3 +156,13 @@ against the arm it varies; what still has no record is which arm a render was
 still share one baseline they disagree about, and `again` still reports that as
 an unstable component. The link makes a *declared* variation legible; the
 assignment problem is untouched.
+
+## Amended 2026-08-23 — there is a config key after all
+
+The consequence above says "there is no command, no config key and no flag: the
+declaration is on the subject". That is still true of the *link* and is no longer
+true of the *reading*. [ADR-0046](0046-a-name-may-be-told-what-its-words-mean.md)
+adds `names`, which declares what the words in this repository's subject ids mean
+— once, run-wide, saying nothing about any pair — because the longest-prefix rule
+above can only walk outwards and therefore cannot see a spelled baseline, an axis
+with a vocabulary, or two names of the same length.
