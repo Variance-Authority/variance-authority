@@ -41,6 +41,67 @@ two baselines, two chains, and each reporting a two-axis difference where a
 one-axis difference was meant. It shows up as two subjects with one rendering in
 [`composition.md`](composition.md), which is a true report of the wrong problem.
 
+## Telling it what the words mean
+
+That rule reads a name with no help, so it can only walk outwards: a parent has
+to be a shorter name this one extends. Plenty of suites are not shaped like that.
+The baseline is spelled out — `checkout--default`, not `checkout` — the axes have
+vocabularies, and the question worth asking is between two names of the same
+length: what is the difference between the green one and the glass one. Neither
+of those extends the other, so the rule above sees two unrelated subjects.
+
+`names` says what the words are:
+
+```json
+{
+  "names": {
+    "axes": [
+      { "axis": "state", "values": ["default", "empty", "new-flow"] },
+      { "axis": "colour", "values": ["green", "glass"] },
+      { "axis": "flag", "values": ["ff-off", "ff-on"] }
+    ]
+  }
+}
+```
+
+Axes in the order your names write them — the same fixed adjective order as
+above, now somewhere a reader can check it. Values are a closed list rather than
+a pattern, so `ff-on` is one word and not `ff` plus `on`, and so a name can be
+walked *toward* its base: **the first value is the base**, and a name carrying it
+means what a name omitting it means. That is what makes `checkout--default` the
+subject `checkout--empty` is measured against, and it is how a suite that spells
+its baseline out loud reads the same as one that leaves it implied.
+
+A parent is then this subject's own name with its last axis moved one step toward
+the base — the nearest coordinate the run actually planned:
+
+```text
+story:checkout--glass-ff-on  →  story:checkout--glass
+story:checkout--glass        →  story:checkout--green
+story:checkout--green        →  story:checkout--default
+```
+
+One axis per link, still, and now the link knows which axis it was:
+
+```text
+Nothing declared this pair. The configured name format reads the two as one
+subject at two coordinates: `colour` is `glass` here and `green` there, and
+every other axis is the same word in both — so what is measured above is that
+axis and nothing else.
+```
+
+A grammar **replaces** the unconfigured rule rather than backing it up. A name it
+finds nothing in gets no parent, because falling through to longest-prefix would
+answer a configured question with an unconfigured guess and print the two the
+same way. Two subjects sitting at one coordinate are refused by name rather than
+resolved by order, as an ambiguous tag is.
+
+It is a grammar and not a function you write. The config is JSON and stays JSON —
+a `.js` config means executing code found on disk in order to decide what to
+observe — and the trade is smaller than it looks: a function mapping a name to
+its axes could not be asked which *other* name sits one step away, and that is
+the half this needed.
+
 ## Declaring it, where a name will not carry it
 
 A name carries an axis somebody chose to spell out. When there is no such name —
