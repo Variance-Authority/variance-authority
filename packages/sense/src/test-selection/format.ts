@@ -1,6 +1,6 @@
 import type { CoverageBlock, CoverageModule, TestCoverage } from './index.js';
 
-const VERSION = 2;
+const VERSION = 1;
 const ALIGNMENT = 8;
 
 interface Section {
@@ -132,7 +132,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
     modules.push({ file: view.string(view.modulePath[module]!), blocks });
   }
   const testFiles = Array.from(view.testPath, (path) => view.string(path));
-  return { version: 2, testFiles, modules };
+  return { version: 1, testFiles, modules };
 }
 
 export interface TestCoverageView {

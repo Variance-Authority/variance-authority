@@ -130,7 +130,7 @@ function selectionReporter(
       }
 
       const current: TestCoverage = {
-        version: 2,
+        version: 1,
         testFiles: [...passed].sort(codeUnitOrder),
         modules: [...modules.values()]
           .map((module): CoverageModule => ({
@@ -180,7 +180,7 @@ export function mergeCoverage(
   }
   modules.sort((left, right) => codeUnitOrder(left.file, right.file));
   return {
-    version: 2,
+    version: 1,
     testFiles: [...new Set([...previous.testFiles, ...current.testFiles])].sort(codeUnitOrder),
     modules,
   };

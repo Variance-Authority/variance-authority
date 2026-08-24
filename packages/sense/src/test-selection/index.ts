@@ -24,7 +24,7 @@ export interface CoverageModule {
 }
 
 export interface TestCoverage {
-  readonly version: 2;
+  readonly version: 1;
   readonly testFiles: readonly string[];
   readonly modules: readonly CoverageModule[];
 }

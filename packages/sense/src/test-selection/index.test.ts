@@ -4,7 +4,7 @@ import { testCoverageFile, type TestCoverage } from './index.js';
 import { selectTestFilesFromView } from './select.js';
 
 const coverage: TestCoverage = {
-  version: 2,
+  version: 1,
   testFiles: ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'],
   modules: [
     {

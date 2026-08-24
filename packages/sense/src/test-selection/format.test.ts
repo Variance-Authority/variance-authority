@@ -24,7 +24,7 @@ function representativeCoverage(): TestCoverage {
     `packages/application/src/feature-${index}/feature-${index}.test.ts`,
   ).sort();
   return {
-    version: 2,
+    version: 1,
     testFiles,
     modules: Array.from({ length: 50 }, (_, module) => ({
       file: `packages/application/src/feature-${module}/implementation.ts`,
