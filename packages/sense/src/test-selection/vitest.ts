@@ -1,15 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, type Block } from '../instrument/index.js';
-import type { CoverageBlock, CoverageModule, TestCoverage } from './index.js';
+import { decodeTestCoverage, encodeTestCoverage } from './format.js';
+import { testCoverageFile, type CoverageBlock, type CoverageModule, type TestCoverage } from './index.js';
 
 export interface TestSelectionOptions {
   /** Repository root. Defaults to the Vitest config root, then the current directory. */
   readonly root?: string;
-  /** Persisted coverage index. Defaults to `.variance-authority/test-coverage.json`. */
+  /** Persisted coverage index. Defaults to the repository-keyed user cache. */
   readonly coverageFile?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
@@ -48,7 +49,9 @@ export function withTestSelection(
   options: TestSelectionOptions = {},
 ): UserConfig {
   const root = resolve(options.root ?? config.root ?? process.cwd());
-  const coverageFile = resolve(root, options.coverageFile ?? '.variance-authority/test-coverage.json');
+  const coverageFile = options.coverageFile === undefined
+    ? testCoverageFile(root)
+    : resolve(root, options.coverageFile);
   const runDirectory = resolve(dirname(coverageFile), `.run-${process.pid}-${randomUUID()}`);
   const setupId = resolve(root, '.variance-authority/test-selection-setup.js');
   const modules = new Map<string, CapturedModule>();
@@ -140,7 +143,9 @@ function selectionReporter(
       };
       const previous = await existingCoverage(coverageFile);
       await mkdir(dirname(coverageFile), { recursive: true });
-      await writeFile(coverageFile, `${JSON.stringify(mergeCoverage(previous, current), null, 2)}\n`);
+      const temporary = `${coverageFile}.${process.pid}-${randomUUID()}.tmp`;
+      await writeFile(temporary, encodeTestCoverage(mergeCoverage(previous, current)));
+      await rename(temporary, coverageFile);
       await rm(runDirectory, { recursive: true, force: true });
     },
   };
@@ -238,7 +243,7 @@ async function readJournals(directory: string): Promise<readonly Journal[]> {
 
 async function existingCoverage(file: string): Promise<TestCoverage | undefined> {
   try {
-    return JSON.parse(await readFile(file, 'utf8')) as TestCoverage;
+    return decodeTestCoverage(await readFile(file));
   } catch (error) {
     if (isMissing(error)) return undefined;
     throw error;

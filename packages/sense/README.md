@@ -136,8 +136,11 @@ declarations and throws at its first probe.
 ## Select Vitest files from a change
 
 Wrap the existing configuration once. `withTestSelection` preserves configured
-plugins, setup files, and reporters; its default coverage path is
-`.variance-authority/test-coverage.json` under the configured root.
+plugins, setup files, and reporters. Its default coverage path is under
+`XDG_CACHE_HOME`, keyed by the configured repository root, rather than inside the
+checkout. The artifact stores paths once and represents blocks and crossings as
+aligned typed-array sections with CSR offsets. Only its small versioned section
+index is JSON.
 
 ```ts
 import { defineConfig } from 'vitest/config';
@@ -152,7 +155,8 @@ export default withTestSelection(
 
 The optional second argument accepts `root`, `coverageFile`, and `include`.
 `root` defaults to the configuration root, then the current directory.
-`coverageFile` overrides the index path. `include` receives each absolute module
+`coverageFile` overrides the cache path, including when CI needs a named artifact.
+`include` receives each absolute module
 path after Vitest transforms it; use it to restrict instrumentation to product
 source. By default, JavaScript and TypeScript modules are included while test,
 spec, dependency, and built-output files are excluded.
@@ -163,13 +167,15 @@ diff to the selector and give the returned paths to Vitest:
 ```ts
 import { readFile } from 'node:fs/promises';
 import {
-  readTestCoverage,
   selectTestFiles,
+  testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 
-const coverage = await readTestCoverage('.variance-authority/test-coverage.json');
 const diff = await readFile('change.diff', 'utf8');
-const testFiles = selectTestFiles(coverage, diff);
+const testFiles = await selectTestFiles(
+  testCoverageFile(process.cwd()),
+  diff,
+);
 ```
 
 The result is a code-unit-sorted list of test-file paths relative to the Vitest

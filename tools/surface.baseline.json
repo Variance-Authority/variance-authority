@@ -1869,8 +1869,8 @@
         "CoverageBlock": "interface",
         "CoverageModule": "interface",
         "TestCoverage": "interface",
-        "readTestCoverage": "function",
-        "selectTestFiles": "function"
+        "selectTestFiles": "function",
+        "testCoverageFile": "function"
       },
       "./vitest": {
         "TestSelectionOptions": "interface",

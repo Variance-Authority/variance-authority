@@ -5,7 +5,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
-import { readTestCoverage, selectTestFiles } from './index.js';
+import { selectTestFiles } from './index.js';
+import { withTestSelection } from './vitest.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -19,10 +20,18 @@ afterEach(async () => {
 });
 
 describe('the Vitest integration', () => {
+  it('adds one product plugin, setup file, and reporter to an ordinary configuration', () => {
+    const configured = withTestSelection({}, { coverageFile: '/tmp/coverage.bin' });
+
+    expect(configured.plugins).toHaveLength(1);
+    expect(configured.test?.setupFiles).toHaveLength(1);
+    expect(configured.test?.reporters).toHaveLength(2);
+  });
+
   it('records external tests and selects only the test file that covered a changed path', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
     temporary.push(directory);
-    const coverageFile = resolve(directory, 'coverage.json');
+    const coverageFile = resolve(directory, 'coverage.bin');
 
     for (const testFile of ['test/alpha.case.ts', 'test/beta.case.ts']) {
       await execute(
@@ -42,8 +51,6 @@ describe('the Vitest integration', () => {
 @@ -${line},1 +${line},1 @@
 -    return 'A';
 +    return 'Alpha';`;
-    const coverage = await readTestCoverage(coverageFile);
-
-    expect(selectTestFiles(coverage, diff)).toEqual(['test/alpha.case.ts']);
+    await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual(['test/alpha.case.ts']);
   }, 20_000);
 });

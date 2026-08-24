@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { selectTestFiles, type TestCoverage } from './index.js';
+import { encodeTestCoverage, openTestCoverage } from './format.js';
+import { testCoverageFile, type TestCoverage } from './index.js';
+import { selectTestFilesFromView } from './select.js';
 
 const coverage: TestCoverage = {
   version: 1,
   modules: [
+    {
+      file: 'src/aaa.ts',
+      blocks: [
+        {
+          ordinal: 0,
+          kind: 'module',
+          name: '',
+          path: 'module',
+          startLine: 1,
+          endLine: 1,
+          testFiles: ['test/aaa.test.ts'],
+        },
+      ],
+    },
     {
       file: 'src/decide.ts',
       blocks: [
@@ -31,6 +47,15 @@ const coverage: TestCoverage = {
 };
 
 describe('selectTestFiles', () => {
+  it('keeps the default snapshot outside the repository and keys it by root', () => {
+    expect(testCoverageFile('/work/one', '/cache')).toMatch(
+      /^\/cache\/variance-authority\/test-selection\/[a-f0-9]+\/coverage\.bin$/,
+    );
+    expect(testCoverageFile('/work/one', '/cache')).not.toBe(
+      testCoverageFile('/work/two', '/cache'),
+    );
+  });
+
   it('returns test files from the innermost region changed by a unified diff', () => {
     const diff = `diff --git a/src/decide.ts b/src/decide.ts
 --- a/src/decide.ts
@@ -39,7 +64,9 @@ describe('selectTestFiles', () => {
 -    return 'A';
 +    return 'Alpha';`;
 
-    expect(selectTestFiles(coverage, diff)).toEqual(['test/alpha.test.ts']);
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
+      'test/alpha.test.ts',
+    ]);
   });
 
   it('widens to the module when a changed line has no recorded region', () => {
@@ -48,7 +75,7 @@ describe('selectTestFiles', () => {
 @@ -20,0 +21,1 @@
 +export const added = true;`;
 
-    expect(selectTestFiles(coverage, diff)).toEqual([
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
       'test/alpha.test.ts',
       'test/beta.test.ts',
     ]);

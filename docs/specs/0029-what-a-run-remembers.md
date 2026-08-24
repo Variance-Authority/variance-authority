@@ -1,8 +1,9 @@
 # Spec 0029 — the index is a cache that can only widen
 
-**Missing:** the journal, the index, and the identity a block is stored under.
-Nothing records a crossing, and the rule that decides when a recorded row may be
-*trusted* — as opposed to merely read — does not exist anywhere.
+**Missing:** the generation and completeness state that decides when a recorded
+row may be *trusted* rather than merely read. Vitest writes crossings and merges
+them into a queryable index; that index cannot yet prove that it represents a
+complete current suite.
 **Built on:** [0028](0028-the-instrument.md) (which emits what this stores),
 [ADR-0040](../context/adr/0040-git-already-named-every-files-content.md) (a
 cache keyed by what git already named, and the claim that no cache can change an
@@ -79,9 +80,16 @@ one revision twenty times and counting the blocks that disagree.
 **5. Three layers, and no collector process.** A per-worker typed array during
 execution; an append-only per-worker journal, framed and checksummed so a torn
 tail is detected rather than inherited; a merged index keyed by the blob oid of
-the file each block came from. Derived for this repository — 2,233 runtime
-tests, a few hundred crossings each — the whole index is **about 2.6 MiB**,
-which is small enough that the encoding is not where the effort belongs.
+the file each block came from.
+
+The merged index uses the storage shape already measured for `sense` in
+[journal 0026](../context/journal/0026-what-a-graph-costs-to-keep.md): one interned
+UTF-8 string blob, aligned typed-array columns, and CSR offsets over the sparse
+block-to-test relation. The dominant term is exact: **four bytes per recorded
+crossing**. Block metadata is stored once in dense columns; paths are stored once;
+opening the snapshot parses only its small versioned section index, and a query
+decodes only module paths and selected test paths. JSON objects are not the
+persistence model.
 
 The brief floats a bundled Rust collector process. It is refused for v1 on the
 same gate as
