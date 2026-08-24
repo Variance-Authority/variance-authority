@@ -130,7 +130,8 @@ function selectionReporter(
       }
 
       const current: TestCoverage = {
-        version: 1,
+        version: 2,
+        testFiles: [...passed].sort(codeUnitOrder),
         modules: [...modules.values()]
           .map((module): CoverageModule => ({
             file: module.file,
@@ -178,7 +179,11 @@ export function mergeCoverage(
     if (!currentFiles.has(module.file)) modules.push(module);
   }
   modules.sort((left, right) => codeUnitOrder(left.file, right.file));
-  return { version: 1, modules };
+  return {
+    version: 2,
+    testFiles: [...new Set([...previous.testFiles, ...current.testFiles])].sort(codeUnitOrder),
+    modules,
+  };
 }
 
 function setupSource(runDirectory: string): string {
@@ -211,7 +216,8 @@ function coverageBlock(source: string, block: Block): CoverageBlock {
     name: block.name,
     path: block.path,
     startLine: lineAt(source, block.start),
-    endLine: lineAt(source, block.end),
+    endLine: lineAt(source, block.end > block.start ? block.end - 1 : block.end),
+    source: block.end > block.start,
     testFiles: [],
   };
 }

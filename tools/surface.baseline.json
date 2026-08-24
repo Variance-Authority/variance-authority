@@ -1866,9 +1866,14 @@
         "instrument": "function"
       },
       "./test-selection": {
+        "CodeExtent": "interface",
         "CoverageBlock": "interface",
         "CoverageModule": "interface",
+        "DeviationOptions": "interface",
         "TestCoverage": "interface",
+        "TestDeviation": "interface",
+        "VariationDeviation": "interface",
+        "deviationOfTests": "function",
         "selectTestFiles": "function",
         "testCoverageFile": "function"
       },

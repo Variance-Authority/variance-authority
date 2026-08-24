@@ -5,7 +5,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
-import { selectTestFiles } from './index.js';
+import { scanRelations } from '../scan.js';
+import { deviationOfTests, selectTestFiles } from './index.js';
 import { withTestSelection } from './vitest.js';
 
 const execute = promisify(execFile);
@@ -52,5 +53,30 @@ describe('the Vitest integration', () => {
 -    return 'A';
 +    return 'Alpha';`;
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual(['test/alpha.case.ts']);
+
+    const records = await scanRelations({ root: fixture, dirs: ['src', 'test'], digests: false });
+    const deviation = await deviationOfTests(coverageFile, { root: fixture, records });
+    expect(deviation).toEqual({
+      baseline: { files: 1, loc: 9 },
+      coverage: { files: 1, loc: 6 },
+      coverageRatio: 6 / 9,
+      sensitivity: ((5 / 9) + (3 / 9)) / 2,
+      tests: [
+        {
+          testFile: 'test/alpha.case.ts',
+          baseline: { files: 1, loc: 9 },
+          slice: { files: 1, loc: 5 },
+          sensitivity: 5 / 9,
+          deviation: 1 - (5 / 9),
+        },
+        {
+          testFile: 'test/beta.case.ts',
+          baseline: { files: 1, loc: 9 },
+          slice: { files: 1, loc: 3 },
+          sensitivity: 3 / 9,
+          deviation: 1 - (3 / 9),
+        },
+      ],
+    });
   }, 20_000);
 });

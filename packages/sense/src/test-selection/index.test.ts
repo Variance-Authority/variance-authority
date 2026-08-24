@@ -4,7 +4,8 @@ import { testCoverageFile, type TestCoverage } from './index.js';
 import { selectTestFilesFromView } from './select.js';
 
 const coverage: TestCoverage = {
-  version: 1,
+  version: 2,
+  testFiles: ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'],
   modules: [
     {
       file: 'src/aaa.ts',
@@ -16,6 +17,7 @@ const coverage: TestCoverage = {
           path: 'module',
           startLine: 1,
           endLine: 1,
+          source: true,
           testFiles: ['test/aaa.test.ts'],
         },
       ],
@@ -30,6 +32,7 @@ const coverage: TestCoverage = {
           path: 'module',
           startLine: 1,
           endLine: 8,
+          source: true,
           testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'],
         },
         {
@@ -39,6 +42,7 @@ const coverage: TestCoverage = {
           path: 'if#0/then',
           startLine: 3,
           endLine: 5,
+          source: true,
           testFiles: ['test/alpha.test.ts'],
         },
       ],

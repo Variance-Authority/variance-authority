@@ -1,6 +1,6 @@
 import type { CoverageBlock, CoverageModule, TestCoverage } from './index.js';
 
-const VERSION = 1;
+const VERSION = 2;
 const ALIGNMENT = 8;
 
 interface Section {
@@ -34,9 +34,10 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   const strings = dictionary(coverage);
   const stringIds = new Map(strings.map((value, index) => [value, index]));
   const stringId = (value: string): number => stringIds.get(value)!;
-  const tests = [...new Set(coverage.modules.flatMap((module) =>
-    module.blocks.flatMap((block) => block.testFiles),
-  ))].sort(codeUnitOrder);
+  const tests = [...new Set([
+    ...coverage.testFiles,
+    ...coverage.modules.flatMap((module) => module.blocks.flatMap((block) => block.testFiles)),
+  ])].sort(codeUnitOrder);
   const testIds = new Map(tests.map((value, index) => [value, index]));
   const blockCount = coverage.modules.reduce((total, module) => total + module.blocks.length, 0);
   const crossingCount = coverage.modules.reduce(
@@ -62,6 +63,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   const blockPath = new Uint32Array(blockCount);
   const blockStart = new Uint32Array(blockCount);
   const blockEnd = new Uint32Array(blockCount);
+  const blockSource = new Uint8Array(blockCount);
   const blockTests = new Uint32Array(blockCount + 1);
   const crossingTest = new Uint32Array(crossingCount);
   const testPaths = Uint32Array.from(tests, stringId);
@@ -78,6 +80,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
       blockPath[blockIndex] = stringId(block.path);
       blockStart[blockIndex] = block.startLine;
       blockEnd[blockIndex] = block.endLine;
+      blockSource[blockIndex] = block.source ? 1 : 0;
       blockTests[blockIndex] = crossingIndex;
       for (const testFile of block.testFiles) crossingTest[crossingIndex++] = testIds.get(testFile)!;
       blockIndex += 1;
@@ -98,6 +101,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     'blocks.path': bytes(blockPath),
     'blocks.start': bytes(blockStart),
     'blocks.end': bytes(blockEnd),
+    'blocks.source': bytes(blockSource),
     'blocks.tests': bytes(blockTests),
     'crossings.test': bytes(crossingTest),
   });
@@ -121,12 +125,14 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
         path: view.string(view.blockPath[block]!),
         startLine: view.blockStart[block]!,
         endLine: view.blockEnd[block]!,
+        source: view.blockSource[block] === 1,
         testFiles,
       });
     }
     modules.push({ file: view.string(view.modulePath[module]!), blocks });
   }
-  return { version: 1, modules };
+  const testFiles = Array.from(view.testPath, (path) => view.string(path));
+  return { version: 2, testFiles, modules };
 }
 
 export interface TestCoverageView {
@@ -139,6 +145,7 @@ export interface TestCoverageView {
   readonly blockPath: Uint32Array;
   readonly blockStart: Uint32Array;
   readonly blockEnd: Uint32Array;
+  readonly blockSource: Uint8Array;
   readonly blockTests: Uint32Array;
   readonly crossingTest: Uint32Array;
   string(id: number): string;
@@ -182,6 +189,7 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
     blockPath: u32('blocks.path'),
     blockStart: u32('blocks.start'),
     blockEnd: u32('blocks.end'),
+    blockSource: u8('blocks.source'),
     blockTests: u32('blocks.tests'),
     crossingTest: u32('crossings.test'),
     string(id) {
@@ -198,7 +206,12 @@ function sections(input: Readonly<Record<string, Buffer>>): Buffer {
   const index: Section[] = [];
   let offset = 0;
   for (const [name, value] of Object.entries(input)) {
-    index.push({ name, offset, length: value.length, width: name.endsWith('.kind') || name.endsWith('.blob') ? 1 : 4 });
+    index.push({
+      name,
+      offset,
+      length: value.length,
+      width: name.endsWith('.kind') || name.endsWith('.source') || name.endsWith('.blob') ? 1 : 4,
+    });
     chunks.push(value);
     offset += value.length;
     const padding = aligned(offset) - offset;
@@ -214,6 +227,7 @@ function sections(input: Readonly<Record<string, Buffer>>): Buffer {
 
 function dictionary(coverage: TestCoverage): readonly string[] {
   const values = new Set<string>();
+  for (const testFile of coverage.testFiles) values.add(testFile);
   for (const module of coverage.modules) {
     values.add(module.file);
     for (const block of module.blocks) {

@@ -22,9 +22,10 @@ describe('the persisted coverage format', () => {
 function representativeCoverage(): TestCoverage {
   const testFiles = Array.from({ length: 200 }, (_, index) =>
     `packages/application/src/feature-${index}/feature-${index}.test.ts`,
-  );
+  ).sort();
   return {
-    version: 1,
+    version: 2,
+    testFiles,
     modules: Array.from({ length: 50 }, (_, module) => ({
       file: `packages/application/src/feature-${module}/implementation.ts`,
       blocks: Array.from({ length: 20 }, (_, ordinal) => ({
@@ -34,6 +35,7 @@ function representativeCoverage(): TestCoverage {
         path: ordinal === 0 ? 'module' : `if#${ordinal}/then`,
         startLine: ordinal * 3 + 1,
         endLine: ordinal * 3 + 3,
+        source: true,
         testFiles: Array.from(
           { length: 20 },
           (_, offset) => testFiles[(module * 7 + ordinal * 3 + offset) % testFiles.length]!,

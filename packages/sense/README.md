@@ -75,7 +75,7 @@ reported as a smaller, confident selection.
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
-| `@variance-authority/sense/test-selection` | reading coverage and mapping a unified diff to test files | a coverage file produced by the Vitest integration |
+| `@variance-authority/sense/test-selection` | reading coverage, measuring test-file deviation, and mapping a unified diff to test files | a coverage file produced by the Vitest integration |
 
 ## Keep repeated scans cheap
 
@@ -182,6 +182,45 @@ The result is a code-unit-sorted list of test-file paths relative to the Vitest
 root. It never names individual Vitest cases and does not replace the runner.
 Storybook is the exception: because the product owns that execution surface, it
 can select one story.
+
+## Measure test-file deviation
+
+Deviation compares what a test file can statically reach with what it enters in
+a complete instrumented run. Scan both product and test directories, then join
+those records to the coverage snapshot:
+
+```ts
+import { scanRelations } from '@variance-authority/sense';
+import {
+  deviationOfTests,
+  testCoverageFile,
+} from '@variance-authority/sense/test-selection';
+
+const root = process.cwd();
+const records = await scanRelations({ root, dirs: ['src', 'test'] });
+const variation = await deviationOfTests(testCoverageFile(root), { root, records });
+
+console.log(variation.coverage);
+console.log(variation.sensitivity);
+console.log(variation.tests);
+```
+
+`root` resolves the repository-relative paths in the snapshot. `records` is the
+base Sense scan and must include each test file whose deviation is measured.
+
+Each `tests` row is one test file, not one `it` block. `baseline` counts the
+non-blank lines in JavaScript and TypeScript modules reachable from that test
+file; the test file itself is not part of its baseline. `slice` counts lines
+owned by the narrowest entered source regions. The row's `sensitivity` is
+`slice.loc / baseline.loc`, and `deviation` is `1 - sensitivity`.
+
+`coverage` is the union of every slice, and `coverageRatio` compares that union
+with the union of every baseline. Shared modules and lines count once.
+Suite-level `sensitivity` is the arithmetic mean of the per-test ratios, so a
+large test file does not outweigh a small one. A missing test-file node or an
+opaque dependency makes that row's `baseline`, `sensitivity`, and `deviation`
+absent; it is never reported as zero. If any row is indeterminate, the suite
+baseline, coverage ratio, and sensitivity are absent too.
 
 ## Related contracts
 
