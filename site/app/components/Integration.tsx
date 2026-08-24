@@ -19,7 +19,7 @@ const RECIPES = [
   {
     pkg: "@variance-authority/unit-test",
     when: "Jest or Vitest under jsdom",
-    how: "Capture the document in jsdom, then render it later in a local or remote browser.",
+    how: "Capture the document during the test. Afterward, Variance Authority renders it in a local or remote browser and runs the visual regression.",
   },
 ];
 

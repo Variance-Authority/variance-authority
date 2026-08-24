@@ -24,9 +24,9 @@ const ANSWERS = [
   },
   {
     ask: "What happens when it cannot see something?",
-    verdict: "Missing evidence is not a pass.",
-    body: "When a capture cannot provide a category of evidence, the report says unobserved. jsdom cannot provide pixels, for example, but it can still compare accessibility, text, and document structure.",
-    chip: "unobserved ≠ unchanged",
+    verdict: "jsdom captures the document. A browser renders it next.",
+    body: "The unit test writes the document it already has. After the test, Variance Authority picks it up, renders it in a separate local or remote browser, and runs the visual regression. Any evidence a step cannot provide is reported as unobserved—not unchanged.",
+    chip: "unit test → document → pixels",
   },
   {
     ask: "Can I just get a percentage and move on?",
