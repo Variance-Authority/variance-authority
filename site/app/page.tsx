@@ -91,9 +91,11 @@ export default function Page() {
                 </p>
                 <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
                   English fixes adjective order: a great green dragon cannot be
-                  called a green great dragon, so one dragon has one name. Fix
-                  variation axes the same way—scheme before viewport before flag,
-                  or any order used everywhere—and every state has one name and
+                  called a green great dragon, so one dragon has one name. You
+                  choose the attributes, their values, and their order—scheme
+                  before viewport before flag, or any grammar that fits your
+                  suite. Variance Authority uses that grammar to take each state
+                  name apart. Keep it consistent and every state has one name and
                   one parent. That is the great green dragon rule.
                 </p>
               </div>
