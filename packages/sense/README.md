@@ -225,13 +225,15 @@ baseline, coverage ratio, and sensitivity are absent too.
 
 ## Find tests that cover source
 
-`coveringTests` is the runner-independent query for editor and navigation
+`coveringTests` is the runner-independent point query for editor and navigation
 integrations. Given an execution index and a source line or function, it returns
-individual test identities ordered by their shortest observed call-stack depth:
+individual test identities ordered by their shortest observed call-stack depth.
+`coveringTestsInFile` answers the whole indexed file in one operation:
 
 ```ts
 import {
   coveringTests,
+  coveringTestsInFile,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 
@@ -255,14 +257,19 @@ const nearest = coveringTests(index, {
   file: 'src/cart/total.ts',
   function: 'priceOf',
 });
+
+const decorations = coveringTestsInFile(index, 'src/cart/total.ts');
 ```
 
 A line resolves to the innermost real source region containing it, so tests that
 only entered an enclosing function do not leak into a branch-line answer. A
 function lookup matches its exact indexed name. Repeated observations of one
 test collapse to the minimum distance. `id` distinguishes tests with the same
-file and name. Missing source returns no claim; an invalid test reference or
-distance throws.
+file and name. The bulk result groups adjacent lines with identical tests and
+distances into inclusive ranges; an indexed but unreached range has an empty
+`tests` list, while lines absent from the instrumented source regions have no
+range. Missing source returns no claim; an invalid test reference or distance
+throws.
 
 ## Related contracts
 

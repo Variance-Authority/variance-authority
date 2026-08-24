@@ -1876,11 +1876,13 @@
         "ExecutionIndex": "interface",
         "ExecutionModule": "interface",
         "ExecutionTest": "interface",
+        "SourceTestRange": "interface",
         "SourceTestTarget": "type",
         "TestCoverage": "interface",
         "TestDeviation": "interface",
         "VariationDeviation": "interface",
         "coveringTests": "function",
+        "coveringTestsInFile": "function",
         "deviationOfTests": "function",
         "selectTestFiles": "function",
         "testCoverageFile": "function"

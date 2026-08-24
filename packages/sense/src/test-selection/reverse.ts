@@ -43,6 +43,13 @@ export interface CoveringTest extends ExecutionTest {
   readonly distance: number;
 }
 
+export interface SourceTestRange {
+  readonly startLine: number;
+  readonly endLine: number;
+  /** Named tests shared by every line in this inclusive range. */
+  readonly tests: readonly CoveringTest[];
+}
+
 /** Find named tests that reached a source line or function, nearest first. */
 export function coveringTests(
   index: ExecutionIndex,
@@ -56,6 +63,46 @@ export function coveringTests(
     : module.blocks.filter((block) =>
       block.source && block.kind === 'function' && block.name === target.function,
     );
+  return testsForBlocks(index, blocks);
+}
+
+/** Find named tests for every indexed source line, grouped into equal adjacent ranges. */
+export function coveringTestsInFile(
+  index: ExecutionIndex,
+  file: string,
+): readonly SourceTestRange[] {
+  const module = index.modules.find((candidate) => candidate.file === file);
+  if (module === undefined) return [];
+
+  const boundaries = new Set<number>();
+  for (const block of module.blocks) {
+    if (!block.source) continue;
+    boundaries.add(block.startLine);
+    boundaries.add(block.endLine + 1);
+  }
+
+  const lines = [...boundaries].sort((left, right) => left - right);
+  const ranges: SourceTestRange[] = [];
+  for (let at = 0; at < lines.length - 1; at += 1) {
+    const startLine = lines[at]!;
+    const endLine = lines[at + 1]! - 1;
+    const blocks = innermostAt(module.blocks, startLine);
+    if (blocks.length === 0) continue;
+    const tests = testsForBlocks(index, blocks);
+    const previous = ranges.at(-1);
+    if (previous !== undefined && previous.endLine + 1 === startLine && sameTests(previous.tests, tests)) {
+      ranges[ranges.length - 1] = { ...previous, endLine };
+    } else {
+      ranges.push({ startLine, endLine, tests });
+    }
+  }
+  return ranges;
+}
+
+function testsForBlocks(
+  index: ExecutionIndex,
+  blocks: readonly ExecutionBlock[],
+): readonly CoveringTest[] {
   const distance = new Map<number, number>();
   for (const block of blocks) {
     for (const crossing of block.crossings) {
@@ -76,6 +123,12 @@ export function coveringTests(
       codeUnitOrder(left.name, right.name) ||
       codeUnitOrder(left.id, right.id),
     );
+}
+
+function sameTests(left: readonly CoveringTest[], right: readonly CoveringTest[]): boolean {
+  return left.length === right.length && left.every((test, at) =>
+    test.id === right[at]!.id && test.distance === right[at]!.distance,
+  );
 }
 
 function innermostAt(

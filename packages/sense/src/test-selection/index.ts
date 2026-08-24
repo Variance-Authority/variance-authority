@@ -8,6 +8,7 @@ import { selectTestFilesFromView } from './select.js';
 
 export {
   coveringTests,
+  coveringTestsInFile,
   type CoveringTest,
   type ExecutionBlock,
   type ExecutionCrossing,
@@ -15,6 +16,7 @@ export {
   type ExecutionModule,
   type ExecutionTest,
   type SourceTestTarget,
+  type SourceTestRange,
 } from './reverse.js';
 
 export interface CoverageBlock {
