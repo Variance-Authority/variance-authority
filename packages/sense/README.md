@@ -225,9 +225,10 @@ baseline, coverage ratio, and sensitivity are absent too.
 
 ## Find tests that cover source
 
-`coveringTests` is the runner-independent point query for editor and navigation
-integrations. Given an execution index and a source line or function, it returns
-individual test identities ordered by their shortest observed call-stack depth.
+`coveringTests` is the runner-independent point query for coding agents,
+editors, and navigation integrations. Given an execution index and a source
+line or function, it returns individual test identities ordered by their
+shortest observed call-stack depth.
 `coveringTestsInFile` answers the whole indexed file in one operation:
 
 ```ts

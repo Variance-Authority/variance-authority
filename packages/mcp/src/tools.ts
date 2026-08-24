@@ -1,3 +1,4 @@
+import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { adjudicate } from './tools/adjudicate.js';
 import { changelog } from './tools/changelog.js';
 import { changes } from './tools/changes.js';
@@ -6,6 +7,7 @@ import { describe } from './tools/describe.js';
 import { explain } from './tools/explain-verdict.js';
 import { findings } from './tools/findings.js';
 import { summarize } from './tools/summary.js';
+import { sourceTests } from './tools/source-tests.js';
 import { NO_ARGS, stringArg, type Served, type Tool } from './tools/tool.js';
 import { trace } from './tools/trace-component.js';
 import { variations } from './tools/variations.js';
@@ -80,6 +82,14 @@ export type { Served, Tool };
 // server over another subject writes tools against the same interface, and the
 // first thing any tool does with a model's argument is refuse it or narrow it.
 export { NO_ARGS, stringArg };
+
+/** The source-to-named-test tool set for an MCP server over an execution index. */
+export const SOURCE_TEST_TOOLS = [sourceTests] as const;
+
+/** Look up one source-test tool without widening it to the visual-report subject. */
+export function sourceTestToolByName(name: string): Tool<ExecutionIndex> | undefined {
+  return SOURCE_TEST_TOOLS.find((tool) => tool.name === name);
+}
 
 export const TOOLS: readonly Tool[] = [
   summarize,

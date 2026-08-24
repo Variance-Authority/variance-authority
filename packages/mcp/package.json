@@ -36,7 +36,8 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@variance-authority/report": "workspace:^"
+    "@variance-authority/report": "workspace:^",
+    "@variance-authority/sense": "workspace:^"
   },
   "devDependencies": {
     "@variance-authority/core": "workspace:^"

@@ -1,6 +1,7 @@
 import type { RunReport } from '@variance-authority/report';
+import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { Served, Tool } from './tools/tool.js';
-import { TOOLS } from './tools.js';
+import { SOURCE_TEST_TOOLS, TOOLS } from './tools.js';
 
 /**
  * MCP over stdio, written out rather than depended on.
@@ -35,11 +36,18 @@ export interface JsonRpcResponse {
   readonly error?: { readonly code: number; readonly message: string };
 }
 
-/** The eight tools this package ships, as the thing `handle` is handed. */
+/** The visual-report tools this package ships, as the thing `handle` is handed. */
 export const REPORTS: Served<RunReport> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
   tools: TOOLS,
+};
+
+/** The MCP surface for agents asking which named tests exercise source. */
+export const SOURCE_TESTS: Served<ExecutionIndex> = {
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
+  tools: SOURCE_TEST_TOOLS,
 };
 
 const METHOD_NOT_FOUND = -32601;

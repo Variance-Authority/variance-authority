@@ -10,6 +10,7 @@
   "include": ["src/**/*"],
   "exclude": ["src/**/*.test.ts"],
   "references": [
-    { "path": "../report" }
+    { "path": "../report" },
+    { "path": "../sense" }
   ]
 }

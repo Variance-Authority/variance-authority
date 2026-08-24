@@ -2,22 +2,24 @@
 
 # @variance-authority/mcp
 
-Use this package when a run report already exists and an MCP client needs to
-inspect it. The server reads the report and returns text; it never runs tests,
-rerenders a subject, changes a baseline, or infers a report that is not there.
+Use this package when an MCP client needs to inspect a completed visual run or
+ask which named tests exercise source. The server reads supplied evidence and
+returns text; it never runs tests, rerenders a subject, changes a baseline, or
+infers evidence that is not there.
 
-**Requires:** a run report and an MCP client that speaks over stdio.
+**Requires:** an MCP client that speaks over stdio, plus a run report for the
+visual tools or an execution index for the source-test tool.
 
-The report remains the canonical artifact. This package makes its causes,
-regions, verdicts, findings, composition, variation, and acceptance preview
-available from another process after the run has finished.
+The supplied evidence remains canonical. This package makes visual causes,
+regions, verdicts, findings, composition, variation, acceptance preview, and
+source-to-test reach available from another process after collection finishes.
 
 ## Entrypoints
 
 | entrypoint | requires | holds |
 |---|---|---|
 | `.` | stdio | everything, plus `serve` and `serveReportFile` |
-| `./tools` | nothing | the answers, as pure functions from a report to text |
+| `./tools` | nothing | visual-report and source-test answers as pure functions over their evidence |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 
 Two of the three halves are pure, and that is deliberate. The question that
@@ -25,9 +27,42 @@ matters — *does this actually help an agent fix it?* — has to stay cheap to 
 and it stops being asked the moment answering it requires speaking a protocol
 over a pipe.
 
-What a run *wrote* is not here either. The report format is
-[`@variance-authority/report`](../report), because it has several readers and a
-format owned by one of them bends towards that one.
+What a producer *wrote* is not here either. The visual report format belongs to
+[`@variance-authority/report`](../report), and the execution index belongs to
+[`@variance-authority/sense`](../sense). MCP reads both contracts; it owns
+neither.
+
+## Give an agent the tests for source
+
+`variance_source_tests` answers the question a coding agent needs before and
+after an edit: which named tests reached this source, and how directly? A line
+or function query returns tests ordered by minimum observed call-stack depth. A
+file query returns every indexed line as compact ranges, including ranges no
+test reached.
+
+An integration that owns the current `ExecutionIndex` serves it directly; the
+supplier is called for every request so a rerun is visible without restarting
+the agent's MCP connection:
+
+```ts
+import { SOURCE_TESTS, serve } from '@variance-authority/mcp';
+import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
+
+export function serveSourceTests(current: () => ExecutionIndex | Promise<ExecutionIndex>) {
+  return serve({
+    input: process.stdin,
+    output: process.stdout,
+    served: SOURCE_TESTS,
+    subject: current,
+  });
+}
+```
+
+The tool takes `file` and optionally one of `line` or `function`. With neither,
+it answers the whole file. It distinguishes an indexed range reached by no test
+from a line absent from the execution index. The index is supplied by the test
+collector or editor integration; MCP does not manufacture coverage or control
+the test runner.
 
 ## Run the report server
 
@@ -45,7 +80,7 @@ npx variance-authority-mcp .variance/run.json    # directly
 }
 ```
 
-## Tool contract
+## Visual report tool contract
 
 Ten tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions

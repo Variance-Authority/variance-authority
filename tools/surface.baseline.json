@@ -1120,6 +1120,8 @@
         "ReportFileOptions": "interface",
         "SERVER_NAME": "const",
         "SERVER_VERSION": "const",
+        "SOURCE_TESTS": "const",
+        "SOURCE_TEST_TOOLS": "const",
         "Served": "interface",
         "ServerOptions": "interface",
         "TOOLS": "const",
@@ -1128,14 +1130,17 @@
         "handle": "function",
         "serve": "function",
         "serveReportFile": "function",
+        "sourceTestToolByName": "function",
         "stringArg": "function",
         "toolByName": "function"
       },
       "./tools": {
         "NO_ARGS": "const",
+        "SOURCE_TEST_TOOLS": "const",
         "Served": "interface",
         "TOOLS": "const",
         "Tool": "interface",
+        "sourceTestToolByName": "function",
         "stringArg": "function",
         "toolByName": "function"
       },
@@ -1146,6 +1151,7 @@
         "REPORTS": "const",
         "SERVER_NAME": "const",
         "SERVER_VERSION": "const",
+        "SOURCE_TESTS": "const",
         "createLineReader": "function",
         "handle": "function"
       }

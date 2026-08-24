@@ -2872,6 +2872,7 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/report": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
   bin:
     variance-authority-mcp: ./dist/bin.js
   languageName: unknown
