@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  * What the probes cost, measured on a real subsystem rather than a loop.
  *
@@ -32,9 +34,8 @@
  * It also reports how many increments each arm actually recorded. A benchmark of
  * probes that never fired would report a very good ratio and mean nothing.
  *
- * Run:  yarn workspace @variance-authority/sense build
- *       yarn workspace @variance-authority/sense overhead
- *       yarn workspace @variance-authority/sense overhead 4000 7
+ * Run:  variance-authority-sense-overhead
+ *       variance-authority-sense-overhead 4000 7
  */
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

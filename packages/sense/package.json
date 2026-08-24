@@ -25,9 +25,17 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "variance-authority-sense-bench": "./scripts/bench.mjs",
+    "variance-authority-sense-census": "./scripts/census.mjs",
+    "variance-authority-sense-overhead": "./scripts/overhead.mjs"
+  },
   "files": [
     "dist",
-    "mark.svg"
+    "mark.svg",
+    "scripts/bench.mjs",
+    "scripts/census.mjs",
+    "scripts/overhead.mjs"
   ],
   "scripts": {
     "build": "tsc --build",

@@ -1,13 +1,13 @@
 // Regenerates the two tables in ../README.md.
 //
-//   node packages/png-sharp/scripts/bench.mjs
-//   UV_THREADPOOL_SIZE=12 node packages/png-sharp/scripts/bench.mjs
+//   node node_modules/@variance-authority/png-sharp/scripts/bench.mjs
+//   UV_THREADPOOL_SIZE=12 node node_modules/@variance-authority/png-sharp/scripts/bench.mjs
 //
 // The concurrency arm is why the pool size matters: libvips decodes on libuv's
 // threadpool, and libuv reads UV_THREADPOOL_SIZE once, before the pool is first
 // used. It cannot be set from inside the package, so it is set on the command
 // line and reported beside the result.
-import { PNG } from 'pngjs';
+import { pngjsDecoder } from '@variance-authority/png';
 import sharp from 'sharp';
 
 const WIDTH = 1280;
@@ -43,7 +43,7 @@ const images = await Promise.all(
 );
 
 const decodeSharp = (png) => sharp(png).raw().toBuffer();
-const decodePngjs = async (png) => PNG.sync.read(png).data;
+const decodePngjs = async (png) => Buffer.from((await pngjsDecoder.decode(png)).data);
 
 // Every candidate must agree with pngjs's RGBA before it is timed.
 {
@@ -82,4 +82,7 @@ const [fastest] = [...rows].sort((a, b) => a.perImage - b.perImage);
 const [slowest] = [...rows].sort((a, b) => b.perImage - a.perImage);
 console.log();
 console.log(`spread: ${(slowest.perImage / fastest.perImage).toFixed(1)}×`);
-console.log(`reproduce: UV_THREADPOOL_SIZE=12 node packages/png-sharp/scripts/bench.mjs`);
+console.log(
+  'reproduce: UV_THREADPOOL_SIZE=12 ' +
+    'node node_modules/@variance-authority/png-sharp/scripts/bench.mjs',
+);

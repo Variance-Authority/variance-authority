@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  * How many probes an execution index costs, counted over real code.
  *
@@ -24,7 +26,7 @@
  * hundred files of real TypeScript, against fixtures that only cover what somebody
  * thought to write down.
  *
- * Run:  yarn workspace @variance-authority/sense census
+ * Run:  variance-authority-sense-census
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';

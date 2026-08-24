@@ -42,7 +42,7 @@ Measure the trade on the deployment machine; native-addon loading, image shape,
 concurrency, and `UV_THREADPOOL_SIZE` all affect the result:
 
 ```bash
-node packages/png-sharp/scripts/bench.mjs
+node node_modules/@variance-authority/png-sharp/scripts/bench.mjs
 ```
 
 The benchmark generates its inputs and checks every decoded RGBA buffer against

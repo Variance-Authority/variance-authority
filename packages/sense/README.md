@@ -154,8 +154,8 @@ Run the package-local measurements before adopting the transform. They do not
 provide a runner integration:
 
 ```bash
-yarn workspace @variance-authority/sense census
-yarn workspace @variance-authority/sense overhead
+npx variance-authority-sense-census
+npx variance-authority-sense-overhead
 ```
 
 `census` counts the regions the transform would add and compares them with
@@ -166,7 +166,7 @@ budget.
 To measure source-graph cache behavior on the target checkout, run:
 
 ```bash
-yarn workspace @variance-authority/sense bench
+npx variance-authority-sense-bench
 ```
 
 ## Related contracts

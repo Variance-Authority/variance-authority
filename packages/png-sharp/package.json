@@ -19,7 +19,8 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "mark.svg"
+    "mark.svg",
+    "scripts/bench.mjs"
   ],
   "scripts": {
     "build": "tsc --build"

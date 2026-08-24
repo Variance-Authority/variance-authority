@@ -1410,7 +1410,8 @@
       },
       "files": [
         "dist",
-        "mark.svg"
+        "mark.svg",
+        "scripts/bench.mjs"
       ]
     },
     "names": {
@@ -1804,8 +1805,16 @@
       },
       "files": [
         "dist",
-        "mark.svg"
-      ]
+        "mark.svg",
+        "scripts/bench.mjs",
+        "scripts/census.mjs",
+        "scripts/overhead.mjs"
+      ],
+      "bin": {
+        "variance-authority-sense-bench": "./scripts/bench.mjs",
+        "variance-authority-sense-census": "./scripts/census.mjs",
+        "variance-authority-sense-overhead": "./scripts/overhead.mjs"
+      }
     },
     "names": {
       ".": {
