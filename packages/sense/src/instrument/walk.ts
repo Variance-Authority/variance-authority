@@ -23,6 +23,8 @@
 
 import type { Block, BlockKind, Edit, Node, Probes } from './blocks.js';
 
+type UndigestedBlock = Omit<Block, 'digest'>;
+
 /** A scope for names, carried down so a nested function knows what contains it. */
 export interface Scope {
   /** The declaration name path built so far. */
@@ -65,70 +67,85 @@ export const scope = (name: string): Scope => ({ name, counts: new Map(), anon: 
  * is called, and neither can work it out alone.
  */
 export class Walker {
-  readonly blocks: Block[] = [];
+  readonly blocks: UndigestedBlock[] = [];
   readonly edits: Edit[] = [];
 
   constructor(private readonly probes: Probes) {}
 
-  open(kind: BlockKind, at: Scope, path: string, start: number, end: number): number {
+  open(
+    kind: BlockKind,
+    at: Scope,
+    path: string,
+    start: number,
+    end: number,
+    owner?: number,
+  ): number {
     const ordinal = this.blocks.length;
-    this.blocks.push({ ordinal, kind, name: at.name, path, start, end });
+    this.blocks.push({ ordinal, kind, ...(owner === undefined ? {} : { owner }), name: at.name, path, start, end });
     return ordinal;
   }
 
-  list(statements: readonly Node[], at: Scope, path = ''): void {
+  list(statements: readonly Node[], at: Scope, path: string, owner: number): void {
     const last = statements.at(-1);
+    let currentOwner = owner;
 
     for (const [index, statement] of statements.entries()) {
-      const decision = this.visit(statement, at, path);
+      const decision = this.visit(statement, at, path, currentOwner);
       const next = statements[index + 1];
       if (decision === undefined || next === undefined || last === undefined) continue;
 
       // The region after a decision. Reaching it does not follow from reaching the
       // code above, because a branch may have returned, thrown or broken out.
-      const ordinal = this.open('continuation', at, `${decision}/after`, next.start, last.end);
+      const ordinal = this.open(
+        'continuation',
+        at,
+        `${decision}/after`,
+        next.start,
+        last.end,
+        currentOwner,
+      );
       this.edits.push({ at: next.start, text: `${this.probes.hit(ordinal)};` });
+      currentOwner = ordinal;
     }
   }
 
-  visit(node: Node, at: Scope, path: string, hint?: string): string | undefined {
+  visit(node: Node, at: Scope, path: string, owner: number, hint?: string): string | undefined {
     switch (node.type) {
       case 'IfStatement':
-        return this.branch(node, at, path);
+        return this.branch(node, at, path, owner);
       case 'SwitchStatement':
-        return this.switched(node, at, path);
+        return this.switched(node, at, path, owner);
       case 'TryStatement':
-        return this.guarded(node, at, path);
+        return this.guarded(node, at, path, owner);
       case 'AwaitExpression':
-        this.resume(node, at, path);
+        this.resume(node, at, path, owner);
         return undefined;
       case 'LabeledStatement':
         // The label is not a region; whatever it labels may be.
-        return this.visit(node.body as Node, at, path);
+        return this.visit(node.body as Node, at, path, owner);
       case 'BlockStatement':
       case 'StaticBlock':
-        this.list(node.body as readonly Node[], at, path);
+        this.list(node.body as readonly Node[], at, path, owner);
         return undefined;
       case 'ClassDeclaration':
       case 'ClassExpression':
-        this.descend(node, this.named(node, at, hint), path);
+        this.descend(node, this.named(node, at, hint), path, owner);
         return undefined;
-      // TODO: `ConditionalExpression` and `LogicalExpression` fall through to
-      // `descend`, so `a ? b : c` and `x ?? y` belong to the region containing
-      // them and no run can say which side was taken — needs an outcome region in
-      // expression position.
+      // v1 deliberately leaves `ConditionalExpression` and `LogicalExpression`
+      // in their containing region. A later probe recipe may add expression
+      // outcomes, but it must mint a new instrumentation identity when it does.
       default:
         break;
     }
 
-    if (LOOPS.has(node.type)) return this.loop(node, at, path);
+    if (LOOPS.has(node.type)) return this.loop(node, at, path, owner);
 
     if (FUNCTIONS.has(node.type)) {
-      this.entered(node, at, hint);
+      this.entered(node, at, owner, hint);
       return undefined;
     }
 
-    this.descend(node, at, path);
+    this.descend(node, at, path, owner);
     return undefined;
   }
 
@@ -140,40 +157,46 @@ export class Walker {
    * body has nowhere to put a statement at all. The returned closer is called after
    * the subtree is walked, which is what nests the braces.
    */
-  private enter(body: Node, kind: BlockKind, at: Scope, path: string): () => void {
-    const ordinal = this.open(kind, at, path, body.start, body.end);
+  private enter(
+    body: Node,
+    kind: BlockKind,
+    at: Scope,
+    path: string,
+    owner: number,
+  ): readonly [number, () => void] {
+    const ordinal = this.open(kind, at, path, body.start, body.end, owner);
 
     if (body.type === 'BlockStatement') {
       this.edits.push({ at: body.start + 1, text: `${this.probes.hit(ordinal)};` });
-      return () => {};
+      return [ordinal, () => {}];
     }
 
     this.edits.push({ at: body.start, text: `{${this.probes.hit(ordinal)};` });
-    return () => this.edits.push({ at: body.end, text: '}' });
+    return [ordinal, () => this.edits.push({ at: body.end, text: '}' })];
   }
 
   /** `if`/`else`, and the `else` nobody wrote is still an outcome. */
-  private branch(node: Node, at: Scope, path: string): string {
+  private branch(node: Node, at: Scope, path: string, owner: number): string {
     const label = this.step(at, path, 'if');
     const consequent = node.consequent as Node;
     const alternate = node.alternate as Node | null;
 
-    this.visit(node.test as Node, at, path);
+    this.visit(node.test as Node, at, path, owner);
 
-    const closeThen = this.enter(consequent, 'branch', at, `${label}/then`);
-    this.visit(consequent, at, `${label}/then`);
+    const [then, closeThen] = this.enter(consequent, 'branch', at, `${label}/then`, owner);
+    this.visit(consequent, at, `${label}/then`, then);
     closeThen();
 
     if (alternate === null) {
       // Zero-width, because it has no source. A change to the condition still
       // reaches every test that fell through here.
-      const ordinal = this.open('branch', at, `${label}/else`, consequent.end, consequent.end);
+      const ordinal = this.open('branch', at, `${label}/else`, consequent.end, consequent.end, owner);
       this.edits.push({ at: consequent.end, text: ` else{${this.probes.hit(ordinal)};}` });
       return label;
     }
 
-    const closeElse = this.enter(alternate, 'branch', at, `${label}/else`);
-    this.visit(alternate, at, `${label}/else`);
+    const [otherwise, closeElse] = this.enter(alternate, 'branch', at, `${label}/else`, owner);
+    this.visit(alternate, at, `${label}/else`, otherwise);
     closeElse();
 
     return label;
@@ -186,12 +209,12 @@ export class Walker {
    * clause falling through into it records a region control genuinely reached, and
    * a switch that matches nothing still runs no statement it did not run before.
    */
-  private switched(node: Node, at: Scope, path: string): string {
+  private switched(node: Node, at: Scope, path: string, owner: number): string {
     const label = this.step(at, path, 'switch');
     const cases = node.cases as readonly Node[];
     let written = false;
 
-    this.visit(node.discriminant as Node, at, path);
+    this.visit(node.discriminant as Node, at, path, owner);
 
     for (const [index, clause] of cases.entries()) {
       const body = clause.consequent as readonly Node[];
@@ -200,15 +223,15 @@ export class Walker {
 
       // An empty clause is pure fallthrough, and its colon is where the probe goes.
       const head = body[0]?.start ?? clause.end;
-      const ordinal = this.open('case', at, step, head, clause.end);
+      const ordinal = this.open('case', at, step, head, clause.end, owner);
       this.edits.push({ at: head, text: `${this.probes.hit(ordinal)};` });
 
-      if (clause.test !== null) this.visit(clause.test as Node, at, path);
-      this.list(body, at, step);
+      if (clause.test !== null) this.visit(clause.test as Node, at, path, owner);
+      this.list(body, at, step, ordinal);
     }
 
     if (!written) {
-      const ordinal = this.open('case', at, `${label}/default`, node.end - 1, node.end - 1);
+      const ordinal = this.open('case', at, `${label}/default`, node.end - 1, node.end - 1, owner);
       this.edits.push({ at: node.end - 1, text: `default:${this.probes.hit(ordinal)};` });
     }
 
@@ -221,26 +244,26 @@ export class Walker {
    * Entering `try` follows from entering the code above it, so its test set is the
    * enclosing region's and a probe there would record a fact already held.
    */
-  private guarded(node: Node, at: Scope, path: string): string {
+  private guarded(node: Node, at: Scope, path: string, owner: number): string {
     const label = this.step(at, path, 'try');
     const handler = node.handler as Node | null;
     const finalizer = node.finalizer as Node | null;
 
-    this.visit(node.block as Node, at, `${label}/try`);
+    this.visit(node.block as Node, at, `${label}/try`, owner);
 
     if (handler !== null) {
       const body = handler.body as Node;
       const bound = handler.param as Node | null;
-      if (bound !== null) this.visit(bound, at, path);
+      if (bound !== null) this.visit(bound, at, path, owner);
 
-      const close = this.enter(body, 'handler', at, `${label}/catch`);
-      this.visit(body, at, `${label}/catch`);
+      const [caught, close] = this.enter(body, 'handler', at, `${label}/catch`, owner);
+      this.visit(body, at, `${label}/catch`, caught);
       close();
     }
 
     if (finalizer !== null) {
-      const close = this.enter(finalizer, 'handler', at, `${label}/finally`);
-      this.visit(finalizer, at, `${label}/finally`);
+      const [finished, close] = this.enter(finalizer, 'handler', at, `${label}/finally`, owner);
+      this.visit(finalizer, at, `${label}/finally`, finished);
       close();
     }
 
@@ -248,17 +271,17 @@ export class Walker {
   }
 
   /** A loop body may run zero times, which is the only reason it needs a probe. */
-  private loop(node: Node, at: Scope, path: string): string {
+  private loop(node: Node, at: Scope, path: string, owner: number): string {
     const label = this.step(at, path, node.type.startsWith('For') ? 'for' : 'while');
     const body = node.body as Node;
 
     for (const key of ['init', 'test', 'update', 'left', 'right'] as const) {
       const part = node[key] as Node | null | undefined;
-      if (part !== null && part !== undefined) this.visit(part, at, path);
+      if (part !== null && part !== undefined) this.visit(part, at, path, owner);
     }
 
-    const close = this.enter(body, 'loop', at, `${label}/body`);
-    this.visit(body, at, `${label}/body`);
+    const [loop, close] = this.enter(body, 'loop', at, `${label}/body`, owner);
+    this.visit(body, at, `${label}/body`, loop);
     close();
 
     return label;
@@ -272,13 +295,13 @@ export class Walker {
    * The open text is pushed before the descent and the close after it, so
    * `await await f()` closes inner-before-outer at offsets that are otherwise equal.
    */
-  private resume(node: Node, at: Scope, path: string): void {
+  private resume(node: Node, at: Scope, path: string, owner: number): void {
     const label = this.step(at, path, 'await');
-    const ordinal = this.open('resume', at, label, node.start, node.end);
+    const ordinal = this.open('resume', at, label, node.start, node.end, owner);
     const [open, close] = this.probes.around(ordinal);
 
     this.edits.push({ at: node.start, text: open });
-    this.descend(node, at, path);
+    this.descend(node, at, path, owner);
     this.edits.push({ at: node.end, text: close });
   }
 
@@ -289,30 +312,30 @@ export class Walker {
    * change to `normalize(input)` on the first line reaches every test that ever
    * called the function.
    */
-  private entered(node: Node, at: Scope, hint?: string): void {
+  private entered(node: Node, at: Scope, owner: number, hint?: string): void {
     const inner = this.named(node, at, hint);
     const body = node.body as Node | null;
 
-    for (const parameter of node.params as readonly Node[]) this.visit(parameter, inner, '');
+    for (const parameter of node.params as readonly Node[]) this.visit(parameter, inner, '', owner);
 
     // A TypeScript overload signature or an `abstract` method has no body at all.
     if (body === null) return;
 
     if (body.type !== 'BlockStatement') {
       // An expression body: `(n) => n * 2` becomes `(n) => (probe, n * 2)`.
-      const ordinal = this.open('function', inner, 'entry', body.start, body.end);
+      const ordinal = this.open('function', inner, 'entry', body.start, body.end, owner);
       this.edits.push({ at: body.start, text: `(${this.probes.hit(ordinal)},` });
-      this.visit(body, inner, '');
+      this.visit(body, inner, '', ordinal);
       this.edits.push({ at: body.end, text: ')' });
       return;
     }
 
-    this.enter(body, 'function', inner, 'entry');
-    this.list(body.body as readonly Node[], inner, '');
+    const [entry] = this.enter(body, 'function', inner, 'entry', owner);
+    this.list(body.body as readonly Node[], inner, '', entry);
   }
 
   /** Everything with no region of its own, with the naming hints its children need. */
-  private descend(node: Node, at: Scope, path: string): void {
+  private descend(node: Node, at: Scope, path: string, owner: number): void {
     const hints = hintsFor(node);
 
     for (const key of Object.keys(node)) {
@@ -323,7 +346,7 @@ export class Walker {
 
       const children = Array.isArray(value) ? value : [value];
       for (const [index, child] of children.entries()) {
-        if (isNode(child)) this.visit(child, at, path, hints?.(key, index));
+        if (isNode(child)) this.visit(child, at, path, owner, hints?.(key, index));
       }
     }
   }

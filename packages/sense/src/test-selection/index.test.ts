@@ -3,16 +3,25 @@ import { encodeTestCoverage, openTestCoverage } from './format.js';
 import { testCoverageFile, type TestCoverage } from './index.js';
 import { selectTestFilesFromView } from './select.js';
 
+const testFiles = ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'];
 const coverage: TestCoverage = {
-  version: 1,
-  testFiles: ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'],
+  version: 2,
+  instrumentation: 'fixture-instrumentation',
+  tests: testFiles.map((file) => ({
+    file,
+    complete: true,
+    preconditions: [{ name: file, digest: `source:${file}` }],
+  })),
   modules: [
     {
       file: 'src/aaa.ts',
+      sourceDigest: 'source:aaa',
+      instrumented: true,
       blocks: [
         {
           ordinal: 0,
           kind: 'module',
+          digest: 'block:aaa',
           name: '',
           path: 'module',
           startLine: 1,
@@ -24,10 +33,13 @@ const coverage: TestCoverage = {
     },
     {
       file: 'src/decide.ts',
+      sourceDigest: 'source:decide',
+      instrumented: true,
       blocks: [
         {
           ordinal: 0,
           kind: 'module',
+          digest: 'block:decide',
           name: '',
           path: 'module',
           startLine: 1,
@@ -38,6 +50,8 @@ const coverage: TestCoverage = {
         {
           ordinal: 2,
           kind: 'branch',
+          owner: 0,
+          digest: 'block:decide:then',
           name: 'decide',
           path: 'if#0/then',
           startLine: 3,

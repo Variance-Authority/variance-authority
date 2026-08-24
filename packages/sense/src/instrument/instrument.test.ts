@@ -269,6 +269,48 @@ describe('the probes record what was entered', () => {
     expect(instrumented.blocks[0]).toMatchObject({ ordinal: 0, kind: 'module', path: 'module' });
     expect((await hits(`out.push(1);`))[0]).toBe(1);
   });
+
+  it('makes each outcome and later decision name the arrival region that governs it', () => {
+    const source = `function decide(n) {
+      if (n > 0) out.push('positive');
+      out.push('between');
+      if (n > 10) out.push('large');
+    }`;
+    const blocks = instrument(source, 'fixture.js')!.blocks;
+    const at = (path: string) => blocks.find((block) => block.path === path)!;
+
+    expect(at('module').owner).toBeUndefined();
+    expect(at('entry').owner).toBe(at('module').ordinal);
+    expect(at('if#0/then').owner).toBe(at('entry').ordinal);
+    expect(at('if#0/else').owner).toBe(at('entry').ordinal);
+    expect(at('if#0/after').owner).toBe(at('entry').ordinal);
+    expect(at('if#1/then').owner).toBe(at('if#0/after').ordinal);
+    expect(at('if#1/else').owner).toBe(at('if#0/after').ordinal);
+  });
+
+  it('digests a precondition independently of the outcome bodies it governs', () => {
+    const first = instrument(
+      `function decide(n) { const ready = n > 0; if (ready) out.push('yes'); else out.push('no'); }`,
+      'fixture.js',
+    )!;
+    const changedOutcome = instrument(
+      `function decide(n) { const ready = n > 0; if (ready) out.push('YES'); else out.push('no'); }`,
+      'fixture.js',
+    )!;
+    const changedPrecondition = instrument(
+      `function decide(n) { const ready = n >= 0; if (ready) out.push('yes'); else out.push('no'); }`,
+      'fixture.js',
+    )!;
+    const digest = (result: typeof first, path: string) =>
+      result.blocks.find((block) => block.path === path)!.digest;
+
+    expect(digest(changedOutcome, 'entry')).toBe(digest(first, 'entry'));
+    expect(digest(changedOutcome, 'if#0/then')).not.toBe(digest(first, 'if#0/then'));
+    expect(digest(changedPrecondition, 'entry')).not.toBe(digest(first, 'entry'));
+    expect(digest(changedPrecondition, 'if#0/then')).toBe(digest(first, 'if#0/then'));
+    expect(changedPrecondition.sourceDigest).not.toBe(first.sourceDigest);
+    expect(changedPrecondition.instrumentation).toBe(first.instrumentation);
+  });
 });
 
 describe('a source it cannot read is not a source with no blocks', () => {

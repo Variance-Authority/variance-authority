@@ -31,12 +31,20 @@
 
 // TODO: add maintained Jest and Playwright integrations; browser execution also needs transport.
 
+import { digestString } from '@variance-authority/core';
 import { parseSync } from 'oxc-parser';
 import { walkBlocks, type Block, type BlockKind, type Edit } from './blocks.js';
 
 export type { Block, BlockKind, Edit };
 
+/** Changes whenever two instrumented block universes must not share observations. */
+export const INSTRUMENTATION_ID = 'sense:instrument/presence-v2';
+
 export interface Instrumented {
+  /** Identity of the exact source string whose offsets and blocks follow. */
+  readonly sourceDigest: string;
+  /** Identity of the probe recipe; unequal recipes never share observations. */
+  readonly instrumentation: string;
   /** The source with probes spliced in. Same line count, same line breaks. */
   readonly code: string;
   /** Every region, in ordinal order. `blocks[0]` is always the module itself. */
@@ -59,7 +67,7 @@ export function instrument(source: string, id: string): Instrumented | undefined
   // a file that no longer compiles. Refusing costs one uninstrumented module.
   if (parsed.errors.length > 0) return undefined;
 
-  const walked = walkBlocks(parsed.program, PROBES);
+  const walked = walkBlocks(parsed.program, source, PROBES);
   const header = runtime(id, walked.blocks.length);
 
   const edits = [...walked.edits, { at: walked.prologue, text: header }];
@@ -68,7 +76,12 @@ export function instrument(source: string, id: string): Instrumented | undefined
   // inner `}` lands in front of an outer one at the same offset.
   const ordered = edits.sort((left, right) => left.at - right.at);
 
-  return { code: splice(source, ordered), blocks: walked.blocks };
+  return {
+    code: splice(source, ordered),
+    sourceDigest: digestString(source),
+    instrumentation: INSTRUMENTATION_ID,
+    blocks: walked.blocks,
+  };
 }
 
 /**

@@ -22,6 +22,10 @@ export {
 export interface CoverageBlock {
   readonly ordinal: number;
   readonly kind: string;
+  /** Ordinal of the enclosing arrival region; absent only on the module root. */
+  readonly owner?: number;
+  /** Identity of this region's source after child-region bodies are excluded. */
+  readonly digest: string;
   readonly name: string;
   readonly path: string;
   readonly startLine: number;
@@ -33,12 +37,34 @@ export interface CoverageBlock {
 
 export interface CoverageModule {
   readonly file: string;
+  /** Identity of the exact source string whose blocks were instrumented. */
+  readonly sourceDigest: string;
+  /** False records module-level unknown evidence; consumers widen without consulting its blocks. */
+  readonly instrumented: boolean;
   readonly blocks: readonly CoverageBlock[];
 }
 
+/** One named input whose identity is a precondition of a test observation. */
+export interface CoveragePrecondition {
+  /** A repository path or caller-owned domain name. */
+  readonly name: string;
+  readonly digest: string;
+}
+
+/** What one whole test-file observation can honestly claim. */
+export interface CoverageTest {
+  readonly file: string;
+  /** False means this generation is an upper-bound contribution and cannot justify exclusion. */
+  readonly complete: boolean;
+  /** Test source, mocks, hooks, setup, configuration, and supplied knowledge. */
+  readonly preconditions: readonly CoveragePrecondition[];
+}
+
 export interface TestCoverage {
-  readonly version: 1;
-  readonly testFiles: readonly string[];
+  readonly version: 2;
+  /** Probe recipe that produced every block and crossing in this snapshot. */
+  readonly instrumentation: string;
+  readonly tests: readonly CoverageTest[];
   readonly modules: readonly CoverageModule[];
 }
 

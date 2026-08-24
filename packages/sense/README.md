@@ -119,8 +119,12 @@ if (result === undefined) {
 
 The transform inserts one-line probes at module, function, branch, continuation,
 loop, `switch`, handler, and `await` boundaries. `result.blocks` gives each
-probe's ordinal and source range. The original line count is preserved; columns
-shift because the transform does not print or source-map the file.
+probe's ordinal, source range, own-source digest, and enclosing arrival-region
+owner. A condition belongs to the region before its outcomes, so changing that
+precondition changes the owner's digest while an edit inside one outcome does
+not. `sourceDigest` names the exact input and `instrumentation` names the probe
+recipe. The original line count is preserved; columns shift because the
+transform does not print or source-map the file.
 
 Test selection is added to a runner configuration or CI job; adopters do not
 write an adapter or collector. It instruments modules after the runner’s
@@ -154,16 +158,30 @@ export default withTestSelection(
 );
 ```
 
-The optional second argument accepts `root`, `coverageFile`, and `include`.
+The optional second argument accepts `root`, `coverageFile`, `include`, and
+`preconditions`.
 `root` defaults to the configuration root, then the current directory.
 `coverageFile` overrides the cache path, including when CI needs a named artifact.
 `include` receives each absolute module
 path after Vitest transforms it; use it to restrict instrumentation to product
 source. By default, JavaScript and TypeScript modules are included while test,
-spec, dependency, and built-output files are excluded.
+spec, dependency, and built-output files are excluded. `preconditions` names
+additional files whose contents govern every test, such as runner configuration.
+Configured setup files are included automatically.
 
-A complete test run writes the coverage data. A CI job can then pass its unified
-diff to the selector and give the returned paths to Vitest:
+Every run contributes coverage data. An observation is complete only when every
+leaf task in its file passes; focused, skipped, or failed execution remains
+partial and cannot erase an earlier crossing from the same generation. Each
+test-file observation records the identities of its own source, configured setup,
+additional preconditions, and the instrumented modules it entered. A precondition
+change starts a new generation: inherited crossings are retired, and a partial
+new generation cannot justify excluding the file. A CI job can then pass its
+unified diff to the selector and give the returned paths to Vitest:
+
+A transformed module that the instrument cannot parse is recorded with
+`instrumented: false`; its missing blocks are unavailable evidence, not an empty
+execution result. It cannot attribute reach to individual tests, so selection
+must widen at the module boundary without consulting crossings.
 
 ```ts
 import { readFile } from 'node:fs/promises';

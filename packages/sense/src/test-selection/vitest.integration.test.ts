@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { scanRelations } from '../scan.js';
+import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import { decodeTestCoverage } from './format.js';
 import { deviationOfTests, selectTestFiles } from './index.js';
 import { withTestSelection } from './vitest.js';
 
@@ -53,6 +55,37 @@ describe('the Vitest integration', () => {
 -    return 'A';
 +    return 'Alpha';`;
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual(['test/alpha.case.ts']);
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.instrumentation).toBe(INSTRUMENTATION_ID);
+    expect(coverage.tests.map((test) => ({
+      file: test.file,
+      complete: test.complete,
+      preconditions: test.preconditions.map((precondition) => precondition.name),
+    }))).toEqual([
+      {
+        file: 'test/alpha.case.ts',
+        complete: false,
+        preconditions: ['src/decide.ts', 'test/alpha.case.ts', 'vitest.config.ts'],
+      },
+      {
+        file: 'test/beta.case.ts',
+        complete: true,
+        preconditions: ['src/decide.ts', 'test/beta.case.ts', 'vitest.config.ts'],
+      },
+    ]);
+    expect(coverage.modules[0]).toMatchObject({
+      file: 'src/decide.ts',
+      sourceDigest: expect.stringMatching(/^v1:/),
+      instrumented: true,
+    });
+    expect(coverage.modules[0]?.blocks[0]).toMatchObject({
+      ordinal: 0,
+      digest: expect.stringMatching(/^v1:/),
+    });
+    expect(coverage.modules[0]?.blocks[0]?.owner).toBeUndefined();
+    expect(coverage.modules[0]?.blocks.slice(1).every((block) => block.owner !== undefined))
+      .toBe(true);
 
     const records = await scanRelations({ root: fixture, dirs: ['src', 'test'], digests: false });
     const deviation = await deviationOfTests(coverageFile, { root: fixture, records });

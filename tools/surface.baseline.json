@@ -1868,6 +1868,7 @@
         "Block": "interface",
         "BlockKind": "type",
         "Edit": "interface",
+        "INSTRUMENTATION_ID": "const",
         "Instrumented": "interface",
         "instrument": "function"
       },
@@ -1875,6 +1876,8 @@
         "CodeExtent": "interface",
         "CoverageBlock": "interface",
         "CoverageModule": "interface",
+        "CoveragePrecondition": "interface",
+        "CoverageTest": "interface",
         "CoveringTest": "interface",
         "DeviationOptions": "interface",
         "ExecutionBlock": "interface",

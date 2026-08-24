@@ -35,10 +35,13 @@ describe('test-file deviation', () => {
       { file: 'helper.ts' },
     ];
     const coverage: TestCoverage = {
-      version: 1,
-      testFiles: ['alpha.test.ts', 'beta.test.ts', 'type-only.test.ts'],
+      version: 2,
+      instrumentation: 'fixture-instrumentation',
+      tests: observations(['alpha.test.ts', 'beta.test.ts', 'type-only.test.ts']),
       modules: [{
         file: 'decide.ts',
+        sourceDigest: 'source:decide',
+        instrumented: true,
         blocks: [
           block(0, 'module', 1, 6, ['alpha.test.ts', 'beta.test.ts']),
           block(1, 'function', 1, 6, ['alpha.test.ts', 'beta.test.ts']),
@@ -90,10 +93,13 @@ describe('test-file deviation', () => {
     roots.push(root);
     await writeFile(resolve(root, 'opaque.ts'), 'export const opaque = true;\n');
     const coverage: TestCoverage = {
-      version: 1,
-      testFiles: ['opaque.test.ts'],
+      version: 2,
+      instrumentation: 'fixture-instrumentation',
+      tests: observations(['opaque.test.ts']),
       modules: [{
         file: 'opaque.ts',
+        sourceDigest: 'source:opaque',
+        instrumented: true,
         blocks: [block(0, 'module', 1, 1, ['opaque.test.ts'])],
       }],
     };
@@ -128,6 +134,8 @@ function block(
   return {
     ordinal,
     kind,
+    ...(ordinal === 0 ? {} : { owner: 0 }),
+    digest: `block:${ordinal}`,
     name: kind === 'module' ? '' : 'decide',
     path: kind,
     startLine,
@@ -135,4 +143,12 @@ function block(
     source: true,
     testFiles,
   };
+}
+
+function observations(testFiles: readonly string[]) {
+  return testFiles.map((file) => ({
+    file,
+    complete: true,
+    preconditions: [{ name: file, digest: `source:${file}` }],
+  }));
 }

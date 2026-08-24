@@ -1,11 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { digestString } from '@variance-authority/core';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
-import { instrument, type Block } from '../instrument/index.js';
+import { INSTRUMENTATION_ID, instrument, type Block } from '../instrument/index.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { testCoverageFile, type CoverageBlock, type CoverageModule, type TestCoverage } from './index.js';
+import {
+  testCoverageFile,
+  type CoverageBlock,
+  type CoverageModule,
+  type CoveragePrecondition,
+  type CoverageTest,
+  type TestCoverage,
+} from './index.js';
 
 export interface TestSelectionOptions {
   /** Repository root. Defaults to the Vitest config root, then the current directory. */
@@ -14,6 +22,8 @@ export interface TestSelectionOptions {
   readonly coverageFile?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
+  /** Additional files whose contents are preconditions of every test observation. */
+  readonly preconditions?: readonly string[];
 }
 
 interface VitePlugin {
@@ -26,6 +36,8 @@ interface VitePlugin {
 
 interface CapturedModule {
   readonly file: string;
+  readonly sourceDigest: string;
+  readonly instrumented: boolean;
   readonly blocks: readonly CoverageBlock[];
 }
 
@@ -57,8 +69,11 @@ export function withTestSelection(
   const modules = new Map<string, CapturedModule>();
   const include = options.include ?? defaultInclude;
   const plugin = selectionPlugin(root, runDirectory, setupId, modules, include);
-  const reporter = selectionReporter(coverageFile, runDirectory, modules, root);
   const setupFiles = array(config.test?.setupFiles);
+  const preconditions = [...setupFiles, ...(options.preconditions ?? [])]
+    .filter((file): file is string => typeof file === 'string')
+    .map((file) => resolve(root, file));
+  const reporter = selectionReporter(coverageFile, runDirectory, modules, root, preconditions);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
 
   return {
@@ -91,10 +106,20 @@ function selectionPlugin(
       if (!include(file)) return null;
 
       const done = instrument(code, file);
-      if (done === undefined) return null;
+      if (done === undefined) {
+        modules.set(file, {
+          file: projectPath(root, file),
+          sourceDigest: digestString(code),
+          instrumented: false,
+          blocks: [],
+        });
+        return null;
+      }
 
       modules.set(file, {
         file: projectPath(root, file),
+        sourceDigest: done.sourceDigest,
+        instrumented: true,
         blocks: done.blocks.map((block) => coverageBlock(code, block)),
       });
       return { code: done.code, map: null };
@@ -107,16 +132,15 @@ function selectionReporter(
   runDirectory: string,
   modules: ReadonlyMap<string, CapturedModule>,
   root: string,
+  preconditionFiles: readonly string[],
 ): Reporter {
   return {
     async onFinished(files) {
-      const passed = new Set(files.filter(filePassed).map((file) => projectPath(root, file.filepath)));
       const journals = await readJournals(runDirectory);
       const observed = new Map<string, Map<number, Set<string>>>();
 
       for (const journal of journals) {
         const testFile = projectPath(root, journal.testFile);
-        if (!passed.has(testFile)) continue;
         for (const module of journal.modules) {
           const moduleFile = projectPath(root, module.file);
           const byOrdinal = observed.get(moduleFile) ?? new Map<number, Set<string>>();
@@ -129,12 +153,20 @@ function selectionReporter(
         }
       }
 
+      const tests = await Promise.all(
+        files.flatMap((file) => file.filepath === undefined
+          ? []
+          : [coverageTest(file, root, preconditionFiles, journals, modules)]),
+      );
       const current: TestCoverage = {
-        version: 1,
-        testFiles: [...passed].sort(codeUnitOrder),
+        version: 2,
+        instrumentation: INSTRUMENTATION_ID,
+        tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
         modules: [...modules.values()]
           .map((module): CoverageModule => ({
             file: module.file,
+            sourceDigest: module.sourceDigest,
+            instrumented: module.instrumented,
             blocks: module.blocks.map((block) => ({
               ...block,
               testFiles: [...(observed.get(module.file)?.get(block.ordinal) ?? [])].sort(codeUnitOrder),
@@ -152,38 +184,93 @@ function selectionReporter(
   };
 }
 
-/** Merge independent runs and shards without discarding earlier observations. */
+/** Merge independent runs and shards without transferring evidence across generations. */
 export function mergeCoverage(
   previous: TestCoverage | undefined,
   current: TestCoverage,
 ): TestCoverage {
   if (previous === undefined) return current;
+  if (previous.instrumentation !== current.instrumentation) return current;
 
+  const currentTests = new Map(current.tests.map((test) => [test.file, test]));
+  const previousTests = new Map(previous.tests.map((test) => [test.file, test]));
+  const retired = new Set(current.tests.flatMap((test) => {
+    const before = previousTests.get(test.file);
+    return test.complete || (before !== undefined && !samePreconditions(before, test))
+      ? [test.file]
+      : [];
+  }));
+  const tests = [
+    ...previous.tests.filter((test) => !currentTests.has(test.file)),
+    ...current.tests,
+  ].sort((left, right) => codeUnitOrder(left.file, right.file));
   const currentFiles = new Map(current.modules.map((module) => [module.file, module]));
   const modules = current.modules.map((module): CoverageModule => {
     const old = previous.modules.find((candidate) => candidate.file === module.file);
     return {
       file: module.file,
+      sourceDigest: module.sourceDigest,
+      instrumented: module.instrumented,
       blocks: module.blocks.map((block) => {
         const before = old?.blocks.find(
           (candidate) => candidate.name === block.name && candidate.path === block.path,
         );
+        const reusable = module.instrumented && old?.instrumented === true &&
+          before !== undefined &&
+          reusableBlock(block, before, module, old);
         return {
           ...block,
-          testFiles: [...new Set([...(before?.testFiles ?? []), ...block.testFiles])].sort(codeUnitOrder),
+          testFiles: [...new Set([
+            ...(reusable ? before.testFiles.filter((test) => !retired.has(test)) : []),
+            ...block.testFiles,
+          ])].sort(codeUnitOrder),
         };
       }),
     };
   });
   for (const module of previous.modules) {
-    if (!currentFiles.has(module.file)) modules.push(module);
+    if (!currentFiles.has(module.file)) {
+      modules.push({
+        ...module,
+        blocks: module.blocks.map((block) => ({
+          ...block,
+          testFiles: block.testFiles.filter((test) => !retired.has(test)),
+        })),
+      });
+    }
   }
   modules.sort((left, right) => codeUnitOrder(left.file, right.file));
   return {
-    version: 1,
-    testFiles: [...new Set([...previous.testFiles, ...current.testFiles])].sort(codeUnitOrder),
+    version: 2,
+    instrumentation: current.instrumentation,
+    tests,
     modules,
   };
+}
+
+function samePreconditions(left: CoverageTest, right: CoverageTest): boolean {
+  const keys = (test: CoverageTest): ReadonlySet<string> =>
+    new Set(test.preconditions.map((input) => `${input.name}\0${input.digest}`));
+  const leftKeys = keys(left);
+  const rightKeys = keys(right);
+  return leftKeys.size === rightKeys.size && [...leftKeys].every((key) => rightKeys.has(key));
+}
+
+function reusableBlock(
+  current: CoverageBlock,
+  previous: CoverageBlock,
+  currentModule: CoverageModule,
+  previousModule: CoverageModule,
+): boolean {
+  if (current.digest !== previous.digest || current.kind !== previous.kind) return false;
+  if (current.owner === undefined || previous.owner === undefined) {
+    return current.owner === previous.owner;
+  }
+  const currentOwner = currentModule.blocks.find((block) => block.ordinal === current.owner);
+  const previousOwner = previousModule.blocks.find((block) => block.ordinal === previous.owner);
+  if (currentOwner === undefined || previousOwner === undefined) return false;
+  if (currentOwner.name !== previousOwner.name || currentOwner.path !== previousOwner.path) return false;
+  return reusableBlock(currentOwner, previousOwner, currentModule, previousModule);
 }
 
 function setupSource(runDirectory: string): string {
@@ -213,6 +300,8 @@ function coverageBlock(source: string, block: Block): CoverageBlock {
   return {
     ordinal: block.ordinal,
     kind: block.kind,
+    ...(block.owner === undefined ? {} : { owner: block.owner }),
+    digest: block.digest,
     name: block.name,
     path: block.path,
     startLine: lineAt(source, block.start),
@@ -230,10 +319,39 @@ function lineAt(source: string, offset: number): number {
   return line;
 }
 
-function filePassed(file: RunnerTask): boolean {
-  const failed = (task: RunnerTask): boolean =>
-    task.result?.state === 'fail' || task.tasks?.some(failed) === true;
-  return !failed(file);
+function fileComplete(file: RunnerTask): boolean {
+  const leaves = (task: RunnerTask): readonly RunnerTask[] =>
+    task.tasks === undefined || task.tasks.length === 0 ? [task] : task.tasks.flatMap(leaves);
+  const tests = leaves(file);
+  return tests.length > 0 && tests.every((task) => task.result?.state === 'pass');
+}
+
+async function coverageTest(
+  task: RunnerTask & { readonly filepath: string },
+  root: string,
+  preconditionFiles: readonly string[],
+  journals: readonly Journal[],
+  modules: ReadonlyMap<string, CapturedModule>,
+): Promise<CoverageTest> {
+  const file = projectPath(root, task.filepath);
+  const preconditions: CoveragePrecondition[] = [];
+  for (const input of [task.filepath, ...preconditionFiles]) {
+    preconditions.push({
+      name: projectPath(root, input),
+      digest: digestString(await readFile(input, 'utf8')),
+    });
+  }
+  for (const journal of journals) {
+    if (projectPath(root, journal.testFile) !== file) continue;
+    for (const entered of journal.modules) {
+      const module = modules.get(entered.file);
+      if (module === undefined) {
+        throw new Error(`variance-authority lost the source identity for ${entered.file}`);
+      }
+      preconditions.push({ name: module.file, digest: module.sourceDigest });
+    }
+  }
+  return { file, complete: fileComplete(task), preconditions };
 }
 
 async function readJournals(directory: string): Promise<readonly Journal[]> {

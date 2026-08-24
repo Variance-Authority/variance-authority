@@ -27,6 +27,7 @@
  * condition sits in. They are deliberately not taken first.
  */
 
+import { digestString } from '@variance-authority/core';
 import { Walker, scope } from './walk.js';
 
 /** What kind of region a probe stands in front of. */
@@ -46,11 +47,18 @@ export type BlockKind =
  * `name` and `path` are the two halves of identity that survive an edit above them;
  * `start` and `end` are offsets into the *original* source, which is what a diff
  * hunk lands on. A synthesized region — the `else` of a bare `if`, a `default`
- * nobody wrote — has no source, so its two offsets are equal.
+ * nobody wrote — has no source, so its two offsets are equal. `owner` is the
+ * nearest arrival region containing this one. It is absent only for the module
+ * root, so widening from a changed decision to the precondition that governed it
+ * never has to reconstruct containment from overlapping source spans.
  */
 export interface Block {
   readonly ordinal: number;
   readonly kind: BlockKind;
+  /** Ordinal of the enclosing arrival region; absent only on the module root. */
+  readonly owner?: number;
+  /** Identity of this region's own source, excluding the bodies its child regions own. */
+  readonly digest: string;
   /** Declaration name path: `Cart/render/anon#0`, `applyTier/reduce.arg0`. */
   readonly name: string;
   /** Structural path inside that declaration: `if#0/else`, `switch#1/case#2`. */
@@ -105,7 +113,7 @@ const HOISTED = new Set(['mock', 'doMock', 'unmock', 'hoisted']);
  * so this stays a pure function of the tree and can be exercised with a counter
  * array and nothing else.
  */
-export function walkBlocks(tree: unknown, probes: Probes): Walked {
+export function walkBlocks(tree: unknown, source: string, probes: Probes): Walked {
   // One cast, at the boundary. `oxc`'s `Program` is a closed type per node kind and
   // this walk reads by name across every kind, so a union of two hundred interfaces
   // would be narrowed back to `unknown` at the first property access anyway.
@@ -113,10 +121,47 @@ export function walkBlocks(tree: unknown, probes: Probes): Walked {
   const walker = new Walker(probes);
 
   /** The module's own initialization region. Ordinal 0, always, in every file. */
-  walker.open('module', scope(''), 'module', program.start, program.end);
-  walker.list(program.body as readonly Node[], scope(''));
+  const module = walker.open('module', scope(''), 'module', program.start, program.end);
+  walker.list(program.body as readonly Node[], scope(''), '', module);
 
-  return { blocks: walker.blocks, edits: walker.edits, prologue: prologueEnd(program) };
+  return {
+    blocks: ownDigests(source, walker.blocks),
+    edits: walker.edits,
+    prologue: prologueEnd(program),
+  };
+}
+
+/**
+ * Hash the source one region owns, not the source nested regions own.
+ *
+ * A condition remains in its enclosing region while the outcome bodies become
+ * stable markers. Editing the condition therefore changes the precondition and
+ * invalidates its owned outcomes; editing one outcome changes only that path.
+ */
+function ownDigests(source: string, blocks: readonly Omit<Block, 'digest'>[]): readonly Block[] {
+  const children = new Map<number, Array<Omit<Block, 'digest'>>>();
+  for (const block of blocks) {
+    if (block.owner === undefined) continue;
+    const held = children.get(block.owner) ?? [];
+    held.push(block);
+    children.set(block.owner, held);
+  }
+
+  return blocks.map((block): Block => {
+    let at = block.start;
+    let owned = `${block.kind}\0`;
+    const nested = (children.get(block.ordinal) ?? []).sort(
+      (left, right) => left.start - right.start || right.end - left.end,
+    );
+    for (const child of nested) {
+      if (child.start < at || child.start < block.start || child.end > block.end) continue;
+      owned += source.slice(at, child.start);
+      owned += `\0${child.kind}:${child.name}:${child.path}\0`;
+      at = child.end;
+    }
+    owned += source.slice(at, block.end);
+    return { ...block, digest: digestString(owned) };
+  });
 }
 
 /**
