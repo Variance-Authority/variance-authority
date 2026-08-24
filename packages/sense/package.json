@@ -21,32 +21,42 @@
     "./instrument": {
       "types": "./dist/instrument/index.d.ts",
       "default": "./dist/instrument/index.js"
+    },
+    "./test-selection": {
+      "types": "./dist/test-selection/index.d.ts",
+      "default": "./dist/test-selection/index.js"
+    },
+    "./vitest": {
+      "types": "./dist/test-selection/vitest.d.ts",
+      "default": "./dist/test-selection/vitest.js"
     }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "variance-authority-sense-bench": "./scripts/bench.mjs",
-    "variance-authority-sense-census": "./scripts/census.mjs",
     "variance-authority-sense-overhead": "./scripts/overhead.mjs"
   },
   "files": [
     "dist",
     "mark.svg",
-    "scripts/bench.mjs",
-    "scripts/census.mjs",
     "scripts/overhead.mjs"
   ],
   "scripts": {
     "build": "tsc --build",
-    "bench": "node scripts/bench.mjs",
     "storage": "node scripts/storage.mjs",
-    "census": "node scripts/census.mjs",
     "overhead": "node scripts/overhead.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "oxc-parser": "^0.144.0",
     "oxc-resolver": "^11.24.2"
+  },
+  "peerDependencies": {
+    "vitest": "^2.1.9"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   }
 }

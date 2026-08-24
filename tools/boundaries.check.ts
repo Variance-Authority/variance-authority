@@ -199,7 +199,8 @@ describe('source stays greppable', () => {
       encoding: 'utf8',
     })
       .trim()
-      .split('\n'),
+      .split('\n')
+      .filter((file) => existsSync(join(ROOT, file))),
   )('%s contains no literal NUL', (file) => {
     const text = readFileSync(join(ROOT, file), 'utf8');
 

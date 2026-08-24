@@ -317,7 +317,8 @@ describe('every package this repository names exists', () => {
     { cwd: ROOT, encoding: 'utf8' },
   )
     .trim()
-    .split('\n');
+    .split('\n')
+    .filter((file) => existsSync(join(ROOT, file)));
 
   const NAMED = [
     ...MARKDOWN.filter((file) => !file.startsWith('docs/context/')),

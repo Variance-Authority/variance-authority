@@ -43,13 +43,12 @@ recorded against them would be unreachable, and a condition edit would select
 nothing. That is the unsafe direction, reached by a construction that reads as
 rigour.
 
-**2. A test's identity needs no reconciliation at all**, which removes a
-subsystem the shape of this problem implies. The key is the origin file plus the
-path of `describe`/`test` names; a story is its file plus its export name;
-`.each` carries the **unformatted** template plus a row key, so a case is stable
-across runs and a genuinely different row mints a genuinely different test. A
-renamed or moved test has no row, and no row means *run it* — the fallback is
-already the safe direction.
+**2. A test file's identity needs no reconciliation at all.** The key is its
+origin path. The selector runs that file whole; nested `describe`, `test`, and
+`.each` cases are not selection units. Storybook is the exception: its identity
+is the story file plus export name because the tool owns that execution surface.
+A renamed or moved test file has no row, and no row means *run it* — the fallback
+is already the safe direction.
 
 **3. The completeness rule, and it is the one that is easy to get wrong.**
 

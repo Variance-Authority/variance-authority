@@ -3010,9 +3010,12 @@ __metadata:
     "@variance-authority/core": "workspace:^"
     oxc-parser: "npm:^0.144.0"
     oxc-resolver: "npm:^11.24.2"
+  peerDependencies:
+    vitest: ^2.1.9
+  peerDependenciesMeta:
+    vitest:
+      optional: true
   bin:
-    variance-authority-sense-bench: ./scripts/bench.mjs
-    variance-authority-sense-census: ./scripts/census.mjs
     variance-authority-sense-overhead: ./scripts/overhead.mjs
   languageName: unknown
   linkType: soft

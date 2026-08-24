@@ -1801,18 +1801,22 @@
         "./instrument": {
           "types": "./dist/instrument/index.d.ts",
           "default": "./dist/instrument/index.js"
+        },
+        "./test-selection": {
+          "types": "./dist/test-selection/index.d.ts",
+          "default": "./dist/test-selection/index.js"
+        },
+        "./vitest": {
+          "types": "./dist/test-selection/vitest.d.ts",
+          "default": "./dist/test-selection/vitest.js"
         }
       },
       "files": [
         "dist",
         "mark.svg",
-        "scripts/bench.mjs",
-        "scripts/census.mjs",
         "scripts/overhead.mjs"
       ],
       "bin": {
-        "variance-authority-sense-bench": "./scripts/bench.mjs",
-        "variance-authority-sense-census": "./scripts/census.mjs",
         "variance-authority-sense-overhead": "./scripts/overhead.mjs"
       }
     },
@@ -1860,6 +1864,18 @@
         "Edit": "interface",
         "Instrumented": "interface",
         "instrument": "function"
+      },
+      "./test-selection": {
+        "CoverageBlock": "interface",
+        "CoverageModule": "interface",
+        "TestCoverage": "interface",
+        "readTestCoverage": "function",
+        "selectTestFiles": "function"
+      },
+      "./vitest": {
+        "TestSelectionOptions": "interface",
+        "mergeCoverage": "function",
+        "withTestSelection": "function"
       }
     }
   },

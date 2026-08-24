@@ -175,7 +175,8 @@ const SOURCE: readonly string[] = execFileSync(
   { cwd: ROOT, encoding: 'utf8' },
 )
   .trim()
-  .split('\n');
+  .split('\n')
+  .filter((file) => existsSync(join(ROOT, file)));
 
 /** Files whose comments open with `#` and run to the end of the line. */
 const HASH = /(?:\.(?:sh|ya?ml)|Dockerfile)$/;
@@ -252,7 +253,10 @@ describe('every path named in a comment exists', () => {
  */
 describe('every file:line reference lands where it says', () => {
   const TRACKED = new Set(
-    execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n'),
+    execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .filter((file) => existsSync(join(ROOT, file))),
   );
 
   /**

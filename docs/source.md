@@ -256,52 +256,32 @@ rendering is a series of choices, and a file graph sees both sides of every fork
 function of a string, `instrument(source, id)`, which parses, decides where the
 execution boundaries are, and splices a recording call in front of each one. No
 disk, no runner, no index, so it is testable against a fixture — and **no
-command instruments anything.** Its callers are two benchmark scripts and a
-vitest config; there is no flag, no config key, and nothing that reads
-`globalThis.__VA__` back. What follows is a measurement of the transform, not a
-description of what a run does.
+command instruments anything.** There is no flag, no config key, and nothing
+that reads `globalThis.__VA__` back. It is not a test-selection result: that needs a run
+over source and tests, followed by selection against a diff.
 
-Its probe set is smaller than statement coverage by design. Istanbul's own
-visitor rules, counted on the same trees, put **2.5× as many** counters in the
-same code; this is **0.40×** of every counter it inserts. The saving is not in
-functions — both give every function one entry site — it is that a run of
-statements with no decision in it is *one region*: on this repository's own
-source, 15,452 statements collapse to 2,420 continuations. A decision carries no
-probe of its own; its outcomes do, including the synthesized `else` of a bare
-`if`, because a change to the condition must reach every test that ever evaluated
-it.
-
-Three properties make the emitted code safe to run everywhere:
+Two properties make the emitted code explicit about its runtime:
 
 - **Lines are preserved exactly.** Every insertion is single-line, so a stack
   trace, a `sourceMappingURL` and a coverage tool reading the same file all still
   agree about line numbers. Probes are spliced at UTF-16 offsets rather than
   re-printed, so the output stays diffable.
-- **The runtime is a global, and its absence is not a crash.** The header
-  resolves `globalThis.__VA__` on first use and falls back to a private array,
-  so the same file produces the same results with and without a runtime — which
-  is what differential execution needs.
-- **A probe survives leaving its realm.** Every call site is guarded by `typeof`:
-  `page.evaluate(fn)`, `new Function(fn.toString())` and a worker built from a
-  stringified closure all lose this module's scope, and unguarded that is a
-  `ReferenceError` in instrumented builds only. Guarded, it records nothing —
-  which is the correct answer, since that execution happened somewhere this index
-  does not reach.
+- **The runtime is a required global.** The header resolves `globalThis.__VA__`
+  on first use. An instrumented module without a collector throws at its first
+  probe, so a runner cannot silently omit collection.
 
 A source it cannot parse returns nothing rather than throwing, because a file
 whose blocks are unknown is *not instrumented*, never *not executed*
 ([ADR-0008](context/adr/0008-per-profile-expectations.md)).
 
-The counters half is measured: `yarn workspace @variance-authority/sense
-overhead` instruments a copy of this package's own build, runs its scan against a
-generated tree, and measures a third, uninstrumented copy the same way, so every
-ratio is reported beside the noise floor of the machine it was taken on. At
-545,000 increments per run, the probed copy lands inside the band a second
-identical build produces against the first. `yarn workspace
-@variance-authority/sense census` prints the probe density beside the absolute
-counts. What the transform feeds, and what a runner would have to hold, is
-[spec 0027](specs/0027-a-test-is-selected-by-what-it-executed.md) and
-[spec 0028](specs/0028-the-instrument.md).
+The transform alone does not select tests. Test selection needs two operations:
+an instrumented run over source and tests that produces coverage data, then a
+diff joined to that coverage data that produces tests to execute. The runner,
+coverage index, and diff-to-block mapping are specified in
+[spec 0027](specs/0027-a-test-is-selected-by-what-it-executed.md),
+[spec 0028](specs/0028-the-instrument.md),
+[spec 0029](specs/0029-what-a-run-remembers.md), and
+[spec 0030](specs/0030-a-diff-lands-on-blocks.md).
 
 ## What this refuses to conclude
 

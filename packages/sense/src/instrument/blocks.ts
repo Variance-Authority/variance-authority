@@ -24,8 +24,7 @@
  * `if (order.isPremium && order.total > 100)` the fact worth recording is which
  * branch ran, not which operand short-circuited, and a change to either operand
  * still reaches every test that evaluated the condition — through the region the
- * condition sits in. They are priced in the census and deliberately not taken
- * first.
+ * condition sits in. They are deliberately not taken first.
  */
 
 import { Walker, scope } from './walk.js';

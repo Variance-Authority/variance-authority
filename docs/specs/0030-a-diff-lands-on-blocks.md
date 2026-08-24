@@ -72,9 +72,9 @@ zero probes and replaces an enumeration with one lookup.
 
 | The change resolves to | Selected |
 |---|---|
-| a block with a current, complete history | its recorded tests |
-| a block minted this run | the nearest surviving ancestor scope's recorded tests |
-| no surviving ancestor | the module — **the union over its blocks**, not the tests of its init probe |
+| a block with a current, complete history | its recorded test files |
+| a block minted this run | the nearest surviving ancestor scope's recorded test files |
+| no surviving ancestor | the module — **the union over its blocks**, not the test files of its init probe |
 | a module with no history at all | the static graph: `movedBy`, as it ships today |
 | no graph either | the whole suite |
 
@@ -108,7 +108,7 @@ loaded the file — which is close to what the static selector already answers.
 That stratum must be reported as a near-tie rather than folded into a headline.
 
 **A `git mv` costs the file's history.** The path is part of a block's identity,
-so a moved file's blocks retire and their recorded tests run once. Carrying
+so a moved file's blocks retire and their recorded test files run once. Carrying
 identity through `git`'s rename detection is refused: rename similarity is a
 heuristic over line similarity, so a partially-rewritten "rename" would transfer
 a test set onto code whose body changed — the false-match failure with a `git`

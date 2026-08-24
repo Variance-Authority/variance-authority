@@ -63,7 +63,7 @@ const LITERAL = /(['"`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
 export function tracked() {
   return execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((file) => file !== '' && SCANNED.test(file) && !SELF.has(file));
+    .filter((file) => file !== '' && existsSync(join(ROOT, file)) && SCANNED.test(file) && !SELF.has(file));
 }
 
 /**

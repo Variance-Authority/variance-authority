@@ -8,14 +8,16 @@ also requires the checkout's installed dependencies and any `tsconfig.json` path
 mapping they use.
 
 Use this package when a Node process can read a checkout and you need to answer
-either of these questions:
+any of these questions:
 
 - Which files and components can a changed file reach?
 - Which execution regions did an instrumented module enter?
+- Which Vitest files entered the source regions touched by a diff?
 
-The package reads source and returns data. It does not run a test suite, select
-tests, collect a test-to-block index, or provide a Vitest, Jest, or Playwright
-adapter.
+The package reads source and returns data. Its Vitest integration instruments
+product source, attributes entered regions to completed test files, and writes
+the coverage index used for selection. Vitest still collects and executes every
+test inside each selected file.
 
 ## Start with source selection
 
@@ -72,6 +74,8 @@ reported as a smaller, confident selection.
 | `@variance-authority/sense` | `scanRelations`, parse caches, record reuse, and Git content digests | a readable checkout for the scan; caches are optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
+| `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
+| `@variance-authority/sense/test-selection` | reading coverage and mapping a unified diff to test files | a coverage file produced by the Vitest integration |
 
 ## Keep repeated scans cheap
 
@@ -117,57 +121,61 @@ loop, `switch`, handler, and `await` boundaries. `result.blocks` gives each
 probe's ordinal and source range. The original line count is preserved; columns
 shift because the transform does not print or source-map the file.
 
-To use the transform in a bundler, own the adapter in that bundler and call the
-function from its post-transform hook. The smallest adapter shape is:
-
-```ts
-import { instrument } from '@variance-authority/sense/instrument';
-
-export function transform(code: string, id: string) {
-  if (!/\.[cm]?[jt]sx?$/.test(id)) return null;
-  const result = instrument(code, id);
-  return result === undefined ? null : { code: result.code, map: null };
-}
-```
-
-This snippet shows the transform boundary, not a complete runner plugin. The
-runner adapter owns file policy and installs a collector before those modules
-evaluate. Instrumented code looks up `globalThis.__VA__` with the module id and
-block count; the collector returns a `Uint32Array` for that module and associates
-the counters with the current attempt. A module transformed without a collector
-still runs and keeps counters privately, which is useful for differential
-execution but does not identify a test.
-
-The transform provides presence evidence — whether a region was entered. A
-Vitest, Jest, or Playwright adapter supplies the runner lifecycle, attempt
-identity, flush, and any path index. The runner seams and path-index contract are in
+Test selection is added to a runner configuration or CI job; adopters do not
+write an adapter or collector. It instruments modules after the runner’s
+transform and records coverage at test-file granularity. Its selector returns
+test files to run, never individual test cases or a replacement runner. The
+runner seams and path-index contract are in
 [`spec 0028`](../../docs/specs/0028-the-instrument.md).
 
 If a module cannot be parsed, `instrument` returns `undefined`; treating that as
-an empty block list would turn “not instrumented” into “not executed”. Probes
-guard their runtime lookup, so a function stringified into a browser, worker, or
-other realm still runs without recording there.
+an empty block list would turn “not instrumented” into “not executed”. A function
+stringified into a browser, worker, or other realm loses the generated runtime
+declarations and throws at its first probe.
 
-## Measure the transform
+## Select Vitest files from a change
 
-Run the package-local measurements before adopting the transform. They do not
-provide a runner integration:
+Wrap the existing configuration once. `withTestSelection` preserves configured
+plugins, setup files, and reporters; its default coverage path is
+`.variance-authority/test-coverage.json` under the configured root.
 
-```bash
-npx variance-authority-sense-census
-npx variance-authority-sense-overhead
+```ts
+import { defineConfig } from 'vitest/config';
+import { withTestSelection } from '@variance-authority/sense/vitest';
+
+export default withTestSelection(
+  defineConfig({
+    test: { include: ['src/**/*.test.ts'] },
+  }),
+);
 ```
 
-`census` counts the regions the transform would add and compares them with
-Istanbul's counter sites. `overhead` compares instrumented and uninstrumented
-workloads so an adopter can decide whether the transform fits its execution
-budget.
+The optional second argument accepts `root`, `coverageFile`, and `include`.
+`root` defaults to the configuration root, then the current directory.
+`coverageFile` overrides the index path. `include` receives each absolute module
+path after Vitest transforms it; use it to restrict instrumentation to product
+source. By default, JavaScript and TypeScript modules are included while test,
+spec, dependency, and built-output files are excluded.
 
-To measure source-graph cache behavior on the target checkout, run:
+A complete test run writes the coverage data. A CI job can then pass its unified
+diff to the selector and give the returned paths to Vitest:
 
-```bash
-npx variance-authority-sense-bench
+```ts
+import { readFile } from 'node:fs/promises';
+import {
+  readTestCoverage,
+  selectTestFiles,
+} from '@variance-authority/sense/test-selection';
+
+const coverage = await readTestCoverage('.variance-authority/test-coverage.json');
+const diff = await readFile('change.diff', 'utf8');
+const testFiles = selectTestFiles(coverage, diff);
 ```
+
+The result is a code-unit-sorted list of test-file paths relative to the Vitest
+root. It never names individual Vitest cases and does not replace the runner.
+Storybook is the exception: because the product owns that execution surface, it
+can select one story.
 
 ## Related contracts
 

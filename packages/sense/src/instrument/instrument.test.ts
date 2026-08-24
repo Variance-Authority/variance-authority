@@ -12,9 +12,12 @@ import { instrument } from './index.js';
  * rebound `else`, a wrapped expression body that dropped its value, a synthesized
  * `default` that swallowed a fallthrough — shows up here as a difference in `out`.
  */
-async function trace(source: string): Promise<readonly unknown[]> {
+async function trace(source: string, withRuntime = false): Promise<readonly unknown[]> {
   const out: unknown[] = [];
-  const context = realm(out);
+  const context = realm(
+    out,
+    withRuntime ? { __VA__: (_id: string, count: number) => new Uint32Array(count) } : {},
+  );
 
   runInContext(source, context, { filename: 'fixture.js' });
   await (context as { done?: unknown }).done;
@@ -67,7 +70,7 @@ async function both(source: string): Promise<readonly [readonly unknown[], reado
   const instrumented = instrument(source, 'fixture.js');
   expect(instrumented).toBeDefined();
 
-  return [await trace(source), await trace(instrumented!.code)];
+  return [await trace(source), await trace(instrumented!.code, true)];
 }
 
 const FIXTURES: ReadonlyArray<readonly [string, string]> = [
@@ -172,24 +175,6 @@ const FIXTURES: ReadonlyArray<readonly [string, string]> = [
      const g = () => {};
      out.push(typeof f(), typeof g());`,
   ],
-  [
-    'a function rebuilt from its own source runs in a realm that has no runtime',
-    // What `page.evaluate(fn)` does, and what `preview-fake.ts` does to prove it:
-    // the *text* of a closure crosses into somewhere this module's scope does not
-    // exist. Differential execution over this repository found this, in twelve
-    // files, as `ReferenceError: __va is not defined`.
-    `function decide(n) { if (n > 1) { return 'big'; } return 'small'; }
-     const rebuilt = foreign('(' + decide.toString() + ')');
-     out.push(rebuilt(3), rebuilt(0));`,
-  ],
-  [
-    'so does an async one, whose awaits were wrapped',
-    `const load = async (n) => { const got = await Promise.resolve(n); return got + 1; };
-     done = (async () => {
-       const rebuilt = foreign('(' + load.toString() + ')');
-       out.push(await rebuilt(41));
-     })();`,
-  ],
 ];
 
 describe('instrumented code does what the original did', () => {
@@ -208,13 +193,36 @@ describe('instrumented code does what the original did', () => {
     expect(instrumented?.code.split('\n')).toHaveLength(source.split('\n').length);
   });
 
-  it('runs correctly with no runtime installed at all', async () => {
-    // The fallback is what makes differential execution possible: the same file,
-    // twice, one of the two with nothing listening.
+  it('throws when no collector is installed', () => {
     const source = `function f(n) { if (n) out.push('y'); } f(1); f(0);`;
     const instrumented = instrument(source, 'fixture.js');
 
-    expect(await trace(instrumented!.code)).toEqual(['y']);
+    expect(() => runInContext(instrumented!.code, realm([]), { filename: 'fixture.js' })).toThrow(
+      /__VA__ is not a function/,
+    );
+  });
+
+  it('calls its generated runtime without a guard', () => {
+    const code = instrument(`async function f() { await Promise.resolve(1); }`, 'fixture.js')!.code;
+
+    expect(code).toContain('__va(');
+    expect(code).toContain('__vaR(');
+    expect(code).not.toContain('typeof __va');
+  });
+
+  it('throws when a reconstructed function loses its injected runtime', () => {
+    const source = `function decide(n) { if (n > 1) { return 'big'; } return 'small'; }
+      const rebuilt = foreign('(' + decide.toString() + ')');
+      rebuilt(3);`;
+    const instrumented = instrument(source, 'fixture.js');
+
+    expect(() =>
+      runInContext(
+        instrumented!.code,
+        realm([], { __VA__: (_id: string, count: number) => new Uint32Array(count) }),
+        { filename: 'fixture.js' },
+      ),
+    ).toThrow(/__va is not defined/);
   });
 });
 

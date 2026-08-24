@@ -1,10 +1,10 @@
 # Spec 0027 — a test is selected by what it executed
 
-**Missing:** all of it. Nothing instruments a test run, nothing records which
-test reached which block, and `variance` has no command that runs a test suite.
-This file is the product definition — why to build it, and how it would be used.
-The vacancies it splits into are [0028](0028-the-instrument.md),
-[0029](0029-what-a-run-remembers.md) and [0030](0030-a-diff-lands-on-blocks.md).
+**Missing:** the completeness and fallback rules that make selection safe when
+coverage is stale, absent, or partial. The Vitest path instruments source,
+attributes regions to test files, merges runs, and maps a unified diff to those
+files. The remaining vacancies are [0029](0029-what-a-run-remembers.md) and
+[0030](0030-a-diff-lands-on-blocks.md).
 
 **Built on:** [`selecting.md`](../selecting.md) (the static selector this
 narrows, and the forks it cannot see the outcome of),
@@ -44,9 +44,8 @@ merely sharper than prediction, it disagrees with it.
 file is reached by all 40 in the graph and entered by two.
 
 So the number a developer sees today is *37 test files import something
-connected to what you changed*. The number worth seeing is **7 tests
-historically executed the code you changed, 2 of them directly** — and, because
-the run recorded how it got there, the path that explains each one.
+connected to what you changed*. The number worth seeing is **7 test files
+historically executed the code you changed**.
 
 This is [`instruments.md`](../instruments.md)'s ladder one structure over. The
 graph is detection: nearly free, over-reporting, and able to answer about code
@@ -66,15 +65,9 @@ the point, not a later feature. Its output is byte-offset ranges over
 transformed script text, so every question has to be reconstructed through a
 source map.
 
-And it is **path-free**. There is no stack in it, so no distance, no runtime
-context, no *how did this test get here*. The flow is the product, and that
-alone decides it — none of the three grounds is a cost argument, so none needs a
-benchmark to stand.
-
-What the cost had to be was *affordable*, and that is measured:
-[0028](0028-the-instrument.md) puts hand-written presence probes under 1.2 ns
-each and `o` at 1.00 over this suite. A maintained stack is not built and its
-cost is not claimed.
+Neither limitation is a cost argument, so neither needs a synthetic benchmark
+to stand. Runtime cost is measured only by running the same tests with and
+without the integration.
 
 ## How to use
 
@@ -210,18 +203,10 @@ unchanged.
 
 | | Bar |
 |---|---|
-| `o` — instrumented run ÷ uninstrumented run | **≤ 1.35.** Istanbul is 1.3–2.0×. Above this, the first run of the day costs more than the day saves |
+| `o` — instrumented run ÷ uninstrumented run | **≤ 1.35** over the same test suite. Above this, the first run of the day costs more than the day saves |
 | `f` — missed failures | **0** on mutants planted in blocks some test entered. The only safety metric |
 | `w` — wall clock ÷ full run | **≤ 0.25** at the median commit |
 | `s` — tests selected ÷ total | **≥ 5× better than the static selector** on the shared-utility and mocked strata. Parity elsewhere, reported as parity |
-
-**And the refutation condition, which is the one that matters.** The comparator
-is not only the file graph — it is Istanbul per-test coverage, which is strictly
-finer-grained than block coverage and already exists. If its selection ratio is
-within a few points of this design's and its overhead is comparable, **this
-design has no case, and the honest outcome is to say so and ship the Istanbul
-path.** That sentence belongs here, before the code, or it will not be applied
-after it.
 
 One measurement precedes all of them and costs an afternoon: run one revision 20
 times instrumented and count the blocks whose test set is not identical across

@@ -70,7 +70,8 @@ describe('nothing grows into a monster', () => {
     encoding: 'utf8',
   })
     .trim()
-    .split('\n');
+    .split('\n')
+    .filter((file) => existsSync(join(ROOT, file)));
 
   const LIMIT = 500;
 

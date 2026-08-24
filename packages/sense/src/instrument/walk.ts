@@ -116,9 +116,7 @@ export class Walker {
       // TODO: `ConditionalExpression` and `LogicalExpression` fall through to
       // `descend`, so `a ? b : c` and `x ?? y` belong to the region containing
       // them and no run can say which side was taken — needs an outcome region in
-      // expression position. The `census` script prices it against Istanbul's
-      // counters, and the price is not repeated here because it is a figure over
-      // this repository's own source and moves every time a file is added.
+      // expression position.
       default:
         break;
     }

@@ -1,4 +1,4 @@
-# 0027 — what instrumentation costs
+  # 0027 — what instrumentation costs
 
 [Spec 0027](../../specs/0027-a-test-is-selected-by-what-it-executed.md) is worth
 building only if two numbers hold: the probe set has to be *smaller* than statement
@@ -156,10 +156,10 @@ defined` inside `page.evaluate`, and inside `preview-fake.ts` rebuilding a funct
 from `fn.toString()`. A function's *source* crosses into a realm where the module
 scope that holds its probes does not exist.
 
-Every probe call site is now guarded with `typeof` — the one operator in the
-language that names an identifier without requiring it to resolve. In the page the
-guard is false, nothing is recorded, and nothing throws; that is also the correct
-semantics, because the execution happened somewhere this index does not reach.
+Guarding every probe call site with `typeof` made the page continue while silently
+discarding its evidence. That hid a runner configuration error behind a passing
+suite. The maintained runtime instead requires `globalThis.__VA__`; losing the
+generated runtime or omitting the collector fails at the first probe.
 
 This is the whole argument for differential execution as the acceptance test. The
 hazard was written into the spec as a prediction before the code existed, and it

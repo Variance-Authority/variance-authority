@@ -16,28 +16,20 @@
  * reading the same file all still agree about line numbers. Columns shift, which
  * is what a source map would exist to fix, and which nothing yet needs.
  *
- * ## The runtime is a global, and its absence is not a crash
+ * ## The runtime is a required global
  *
- * The emitted header resolves `globalThis.__VA__` on first use and falls back to a
- * private array when nothing installed it. Instrumented code therefore runs
- * correctly with no runtime at all, which is exactly what differential execution
- * needs: the same file, the same results, with and without.
+ * The emitted header resolves `globalThis.__VA__` on first use. An instrumented
+ * module with no collector throws at its first probe, making an incomplete runner
+ * configuration visible rather than silently dropping evidence.
  *
- * ## A probe survives leaving its realm
+ * ## A probe stays in its instrumented realm
  *
- * Every call site is guarded by `typeof`, and that is not defensive padding —
- * differential execution over this repository found it. `page.evaluate(fn)`,
- * `new Function(fn.toString())` and a worker built from a stringified closure all
- * ship a function's *source* into a realm where this module's scope does not
- * exist, and an unguarded `__va(7)` there is a `ReferenceError` that appears only
- * in instrumented builds. Guarded, it evaluates to `false` and records nothing,
- * which is also the correct answer: that execution happened somewhere this index
- * does not reach, and [spec 0028](../../../../docs/specs/0028-the-instrument.md)
- * already says a browser needs a different transport rather than a different
- * instrument.
+ * Every inserted site calls the declarations in the generated module directly.
+ * Re-evaluating an instrumented function's source in another realm loses those
+ * declarations and throws, exposing that configuration error at its first probe.
  */
 
-// TODO: add maintained Vitest, Jest, and Playwright adapters that bind probe sets to attempts, flush them, and hand them to the test-to-region index; browser execution also needs transport.
+// TODO: add maintained Jest and Playwright integrations; browser execution also needs transport.
 
 import { parseSync } from 'oxc-parser';
 import { walkBlocks, type Block, type BlockKind, type Edit } from './blocks.js';
@@ -80,23 +72,11 @@ export function instrument(source: string, id: string): Instrumented | undefined
 }
 
 /**
- * Every call site tests for its own runtime first.
- *
- * `typeof` is the operator that does it, and it is the only one that can: it is
- * the sole expression in the language that names an identifier without requiring
- * it to resolve. In this module `__va` is a hoisted declaration, so the guard is
- * a context-slot load and a comparison against an interned string. In a page that
- * received this function as *text*, it is the difference between recording nothing
- * and throwing `ReferenceError`.
- *
- * `around` falls back to an identity arrow rather than a second global, because a
- * second global would need a guard of its own. The arrow is only ever constructed
- * in the realm that has no runtime.
+ * Every call site invokes the generated runtime directly.
  */
 const PROBES = {
-  hit: (ordinal: number) => `typeof __va==="function"&&__va(${ordinal})`,
-  around: (ordinal: number) =>
-    [`(typeof __vaR==="function"?__vaR:(v)=>v)(`, `,${ordinal})`] as const,
+  hit: (ordinal: number) => `__va(${ordinal})`,
+  around: (ordinal: number) => [`__vaR(`, `,${ordinal})`] as const,
 };
 
 /**
@@ -114,7 +94,7 @@ function runtime(id: string, count: number): string {
   const module = JSON.stringify(id);
 
   return (
-    `function __va(i){(__va.c??=globalThis.__VA__?.(${module},${count})??new Uint32Array(${count}))[i]++}` +
+    `function __va(i){const r=globalThis.__VA__;if(__va.c===undefined||__va.r!==r){__va.r=r;__va.c=globalThis.__VA__(${module},${count})}__va.c[i]++}` +
     `function __vaR(v,i){__va(i);return v}` +
     `__va(0);`
   );
