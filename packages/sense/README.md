@@ -13,6 +13,7 @@ any of these questions:
 - Which files and components can a changed file reach?
 - Which execution regions did an instrumented module enter?
 - Which Vitest files entered the source regions touched by a diff?
+- Which named tests reached a function or line, and at what stack depth?
 
 The package reads source and returns data. Its Vitest integration instruments
 product source, attributes entered regions to completed test files, and writes
@@ -75,7 +76,7 @@ reported as a smaller, confident selection.
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
-| `@variance-authority/sense/test-selection` | reading coverage, measuring test-file deviation, and mapping a unified diff to test files | a coverage file produced by the Vitest integration |
+| `@variance-authority/sense/test-selection` | querying named-test reach, measuring test-file deviation, and mapping a unified diff to test files | execution data from a collector; persisted selection queries use the Vitest coverage file |
 
 ## Keep repeated scans cheap
 
@@ -221,6 +222,47 @@ large test file does not outweigh a small one. A missing test-file node or an
 opaque dependency makes that row's `baseline`, `sensitivity`, and `deviation`
 absent; it is never reported as zero. If any row is indeterminate, the suite
 baseline, coverage ratio, and sensitivity are absent too.
+
+## Find tests that cover source
+
+`coveringTests` is the runner-independent query for editor and navigation
+integrations. Given an execution index and a source line or function, it returns
+individual test identities ordered by their shortest observed call-stack depth:
+
+```ts
+import {
+  coveringTests,
+  type ExecutionIndex,
+} from '@variance-authority/sense/test-selection';
+
+const index: ExecutionIndex = {
+  tests: [{ id: 'cart/staff', file: 'test/cart.test.ts', name: 'applies the staff discount' }],
+  modules: [{
+    file: 'src/cart/total.ts',
+    blocks: [{
+      kind: 'function',
+      name: 'priceOf',
+      path: 'entry',
+      startLine: 10,
+      endLine: 18,
+      source: true,
+      crossings: [{ test: 0, distance: 2 }],
+    }],
+  }],
+};
+
+const nearest = coveringTests(index, {
+  file: 'src/cart/total.ts',
+  function: 'priceOf',
+});
+```
+
+A line resolves to the innermost real source region containing it, so tests that
+only entered an enclosing function do not leak into a branch-line answer. A
+function lookup matches its exact indexed name. Repeated observations of one
+test collapse to the minimum distance. `id` distinguishes tests with the same
+file and name. Missing source returns no claim; an invalid test reference or
+distance throws.
 
 ## Related contracts
 

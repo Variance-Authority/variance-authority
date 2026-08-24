@@ -6,6 +6,17 @@ import { deviationFromView } from './deviation.js';
 import { openTestCoverage } from './format.js';
 import { selectTestFilesFromView } from './select.js';
 
+export {
+  coveringTests,
+  type CoveringTest,
+  type ExecutionBlock,
+  type ExecutionCrossing,
+  type ExecutionIndex,
+  type ExecutionModule,
+  type ExecutionTest,
+  type SourceTestTarget,
+} from './reverse.js';
+
 export interface CoverageBlock {
   readonly ordinal: number;
   readonly kind: string;
