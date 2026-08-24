@@ -313,4 +313,34 @@ describe('the tokens a run resolved', () => {
     expect(recorded.warnings[0]).toContain('--brand');
     expect(recorded.warnings[0]).toContain('no value was picked');
   });
+
+  it('orders token names by code unit, independent of the process locale', async () => {
+    const written: Written[] = [];
+    const store_ = {
+      ...store([], []),
+      async record(run: RunRecord, _o: unknown, tokens: unknown) {
+        written.push({ run, observations: [], instabilities: [], tokens } as never);
+      },
+    } as unknown as HistoryStore;
+
+    await recordRun({
+      config: CONFIG,
+      store: store_,
+      identity: { run: 'r1', commit: 'c1' },
+      at: '2026-03-01T10:00:00.000Z',
+      swept: false,
+      subjects: [
+        {
+          subject: 'story:card',
+          tokens: { '--a': 'lower', '--A': 'upper', '--ä': 'umlaut' },
+        },
+      ],
+    });
+
+    expect(
+      (written[0] as unknown as { tokens: readonly { token: string }[] }).tokens.map(
+        ({ token }) => token,
+      ),
+    ).toEqual(['--A', '--a', '--ä']);
+  });
 });

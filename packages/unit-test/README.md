@@ -10,9 +10,20 @@ does not export `test`, `expect`, a reporter, or a browser.
 must be supplied as immutable bytes; capture refuses a document it cannot close
 over rather than calling a hash-only payload portable.
 
+Install the package and the DOM environment used by the test runner:
+
+```bash
+npm install --save-dev @variance-authority/unit-test jsdom
+```
+
+Vitest needs `// @vitest-environment jsdom` (or an equivalent project setting).
+Jest needs its normal `jsdom` test environment. This package does not configure
+either runner.
+
 ## Capture in the existing unit test
 
 ```ts
+// @vitest-environment jsdom
 import { test, expect } from 'vitest';
 import { capture, writeCapture } from '@variance-authority/unit-test';
 
@@ -61,7 +72,7 @@ costs a report nobody can act on.
 `readCapture` and `captureFiles` are the read half, and `CAPTURE_SUFFIX` is what
 they match on.
 
-## Snapshot a value that was never rendered
+## Snapshot a value
 
 Not every public surface is a page. An API response, a generated OpenAPI
 document, a GraphQL schema, a route table and a build manifest are all things a
@@ -111,9 +122,13 @@ on a value that cannot be one: a function, a `Date`, a `bigint` or a non-finite
 number, naming the JSON Pointer where it was found. Dropping it silently would
 put a key in the baseline that a later run reads as removed.
 
-See [spec 0031](../../docs/specs/0031-a-contract-is-a-subject.md) for how a
-value subject reaches one docket, one comment and one exit code alongside the
-rendered ones.
+`captureCollector` accepts document captures for the normal `variance run` path.
+If its directory contains a value capture, collection
+reports that the material is a value capture while the run compares rendered
+documents; it does not turn that refusal into an unchanged result. The
+value-writing API is therefore usable independently, but the CLI/raster path
+does not compare value artifacts. See [spec 0031](../../docs/specs/0031-a-contract-is-a-subject.md)
+for the value material contract and its required comparison surface.
 
 ## Render later
 
@@ -130,7 +145,7 @@ export default captureCollector({ directory: '.variance/captures' });
 rather than a last-write-wins: two tests writing `button/save` is a name
 collision, and picking one silently makes half the suite invisible.
 
-`variance run` reads those captures and uses its configured local or remote
+`variance run` reads document captures and uses its configured local or remote
 renderer, baseline store, comparison policy, and report. Use a fresh capture
 directory per run; the runner still owns test selection and retry lifecycle.
 

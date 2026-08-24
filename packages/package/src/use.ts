@@ -128,7 +128,9 @@ function walk(
     if (out !== undefined) ignore.add(out);
   }
 
-  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+  )) {
     if (entry.name.startsWith('.') || ignore.has(entry.name)) continue;
     const path = join(dir, entry.name);
     if (entry.isDirectory()) walk(path, here, ignore, found);

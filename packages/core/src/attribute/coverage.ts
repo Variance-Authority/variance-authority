@@ -119,7 +119,11 @@ export function coverageOf(subjects: readonly SubjectCoverage[]): Coverage {
       instances: entry.instances,
       sole: entry.subjects.length === 1,
     }))
-    .sort((a, b) => b.subjects.length - a.subjects.length || a.component.localeCompare(b.component));
+    .sort(
+      (a, b) =>
+        b.subjects.length - a.subjects.length ||
+        (a.component < b.component ? -1 : a.component > b.component ? 1 : 0),
+    );
 
   const soleOwner = new Map<string, string>();
   for (const component of components) {

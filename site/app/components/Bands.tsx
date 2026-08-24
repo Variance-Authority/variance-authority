@@ -9,11 +9,19 @@ import { useState } from "react";
  */
 
 const BANDS = [
-  { key: "a11y", what: "role, accessible name, ARIA state" },
-  { key: "geometry", what: "structure, rects and computed layout" },
-  { key: "token", what: "declared values and custom properties" },
-  { key: "content", what: "text" },
-  { key: "texture", what: "raster residue — pixels and nothing else" },
+  {
+    key: "a11y",
+    label: "accessibility",
+    what: "role, accessible name, ARIA state",
+  },
+  { key: "geometry", label: "layout", what: "structure and computed layout" },
+  {
+    key: "token",
+    label: "styles",
+    what: "authored values and CSS custom properties",
+  },
+  { key: "content", label: "text", what: "visible text" },
+  { key: "texture", label: "pixels", what: "remaining image differences" },
 ] as const;
 
 const LEVELS = [
@@ -21,24 +29,24 @@ const LEVELS = [
     key: "strict",
     asserts: ["a11y", "geometry", "token", "content", "texture"],
     blurb:
-      "Everything. The default, and how an exception is written back inside a relaxed group.",
+      "Check every category. This is the default for a component's own test.",
     example:
-      "a component's own test: a colour token moved and that is the change",
+      "a colour token changed, so the component test reports it",
   },
   {
     key: "layout",
     asserts: ["a11y", "geometry"],
     blurb:
-      "A route asserts that the page still assembles, not what it was painted.",
+      "Check that the route still assembles and remains accessible, without reviewing every repaint.",
     example:
-      "a rebrand repaints forty routes and reports nothing; a nav that moved 1px reports",
+      "a rebrand is excluded; a navigation bar moving 1px is reported",
   },
   {
     key: "content",
     asserts: ["a11y", "content"],
-    blurb: "The words are the subject; where they landed is not.",
+    blurb: "Check the words and accessibility, without comparing their layout.",
     example:
-      "a themed embed you do not control, whose copy still has to be right",
+      "a themed embed can change appearance while its copy stays checked",
   },
 ] as const;
 
@@ -90,7 +98,7 @@ export default function Bands() {
                   on ? "text-ivory" : "text-quiet"
                 }`}
               >
-                {b.key}
+                {b.label}
               </span>
               <span className="text-xs text-quiet">{b.what}</span>
               <span
@@ -98,7 +106,7 @@ export default function Bands() {
                   on ? "text-orange" : "text-warm"
                 }`}
               >
-                {on ? "asserted" : "absorbed"}
+                {on ? "checked" : "excluded"}
               </span>
             </li>
           );
@@ -112,9 +120,9 @@ export default function Bands() {
         </p>
       </div>
       <p className="mt-4 text-xs leading-5 text-quiet">
-        <span className="text-ivory">a11y is in every level deliberately.</span>{" "}
-        A band absorbs exactly one kind of thing however large it is; a
-        threshold absorbs anything small enough, including a small real change.
+        <span className="text-ivory">Accessibility stays on at every level.</span>{" "}
+        Categories are included or excluded as a whole, so a tolerance cannot
+        hide a small but real layout change.
       </p>
     </div>
   );

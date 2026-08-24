@@ -14,6 +14,7 @@ This is the Storybook adapter, not the `variance` binary. Pair it with
 [`@variance-authority/cli`](../cli).
 
 ```bash
+npm install --save-dev @variance-authority/cli @variance-authority/storybook-collector
 npx playwright install chromium
 ```
 
@@ -127,7 +128,7 @@ Storybook's own preview channel, so a suite pays for one navigation rather than
 one navigation per story. Addon chrome remains outside the selected story root
 and does not enter the subject document.
 
-## A story still arriving is refused
+## Readiness and loading
 
 Before each story is read, the collector waits for every React Suspense boundary
 under the story root to settle. This runs first, ahead of stabilization, because

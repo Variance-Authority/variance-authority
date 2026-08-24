@@ -19,7 +19,7 @@
  * | `core/judge` | policy: verdicts, intent, the docket a reader is handed |
  * | `core/plan` | a composition as a value, and the identity derived from it |
  *
- * This entrypoint is all six, and is what most callers want. The groups exist for
+ * This entrypoint is all seven, and is what most callers want. The groups exist for
  * the callers who genuinely want one: somebody implementing the format for a
  * renderer this project has never met needs `core/format` and would be misled by
  * everything else.

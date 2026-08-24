@@ -34,22 +34,22 @@ counters in the same code: this is **0.40× every counter it inserts**, and 0.75
 its statements alone. The ratio is the claim, and it is what holds still —
 `yarn workspace @variance-authority/sense census` prints it beside the absolute
 counts, which are a figure over this repository's own source and move whenever a
-file is added. The table below is one such reading, at 357 product files.
+file is added. The table below is one such reading, at 359 product files.
 
 | Probe | Count | What it means |
 |---|---|---|
-| module | 357 | the module's top level evaluated |
-| function entry | 2,867 | entered, and owns every statement before the first decision |
-| branch outcome | 4,336 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
-| continuation | 2,397 | the region *after* a decision, up to the next one |
+| module | 359 | the module's top level evaluated |
+| function entry | 2,885 | entered, and owns every statement before the first decision |
+| branch outcome | 4,388 | `if`/`else`, including the **synthesized** `else` of a bare `if` |
+| continuation | 2,420 | the region *after* a decision, up to the next one |
 | `await` resume | 556 | execution came back — the stack after is not the stack before |
-| loop body | 633 | the body was entered at least once |
+| loop body | 640 | the body was entered at least once |
 | `switch` case | 156 | per clause, plus a synthesized `default` where none is written |
 | handler | 150 | `catch` and `finally` |
 
 The function count matching Istanbul's exactly is not a coincidence and not a
 result: both give every function one entry site. The saving is entirely in the
-other two columns — 15,332 statements collapse to 2,397 continuations, because a
+other two columns — 15,452 statements collapse to 2,420 continuations, because a
 run of statements with no decision in it is one region.
 
 **A decision carries no probe of its own.** Its outcomes do. A bare

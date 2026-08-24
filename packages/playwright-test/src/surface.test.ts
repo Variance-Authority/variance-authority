@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Observation } from '@variance-authority/observe';
+import {
+  AGENT,
+  AGENT_VERSION,
+  bundlePageAgent,
+} from '@variance-authority/playwright-test';
 import * as surface from './index.js';
 
 function observation(verdict: Observation['verdict']): Observation {
@@ -31,5 +36,14 @@ describe('the Playwright integration is additive', () => {
     expect(() => surface.assertUnchanged(observation('new'))).toThrow(
       'cart/empty: new — no baseline',
     );
+  });
+
+  it('publishes the page-agent identity and a bundle that installs it', async () => {
+    expect(AGENT).toBe('__variance_authority_playwright_test__');
+    expect(AGENT_VERSION).toBe('playwright-test@0');
+
+    const bundle = await bundlePageAgent();
+    expect(bundle).toContain(JSON.stringify(AGENT));
+    expect(bundle).toContain(JSON.stringify(AGENT_VERSION));
   });
 });

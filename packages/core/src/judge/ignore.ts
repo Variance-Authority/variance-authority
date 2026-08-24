@@ -333,7 +333,9 @@ export function applyIgnores(
 
   const absorbed = [...tallies.values()]
     .map(finalizeTally)
-    .sort((a, b) => b.deltas - a.deltas || a.rule.localeCompare(b.rule));
+    .sort(
+      (a, b) => b.deltas - a.deltas || (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : 0),
+    );
 
   const dead = rules
     .filter((rule) => !tallies.has(rule.id) && !expired.includes(rule.id))

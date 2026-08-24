@@ -15,28 +15,28 @@ const HOPS = [
     note: "A pull request touches one spacing token.",
     subjects: 40,
     rendered: 0,
-    cost: "nothing read yet",
+    cost: "not started",
   },
   {
     key: "collect",
     label: "collect",
-    note: "Each subject is read once: markup, applicable CSS, semantics, resources. Never a paint.",
+    note: "Read markup, applicable CSS, accessibility, and resources without producing a screenshot.",
     subjects: 40,
     rendered: 0,
-    cost: "40 collections",
+    cost: "40 documents read",
   },
   {
     key: "settle",
-    label: "settle",
-    note: "A subject whose document digest equals its baseline's is finished here — 32 hex characters rather than an image.",
+    label: "match",
+    note: "Thirty-nine document digests match their baselines, so those UI states stop here.",
     subjects: 40,
     rendered: 0,
-    cost: "39 settled · 0 rendered",
+    cost: "39 matched · 0 rendered",
   },
   {
     key: "render",
     label: "render",
-    note: "Only the residue is painted. One subject reaches a browser.",
+    note: "The remaining UI state is painted into a screenshot.",
     subjects: 40,
     rendered: 1,
     cost: "1 paint",
@@ -44,15 +44,15 @@ const HOPS = [
   {
     key: "attribute",
     label: "attribute",
-    note: "A fold over digests the run already produced: the changed region, the component that owns it, the line that wrote it.",
+    note: "Connect the changed region to its React component and source location.",
     subjects: 40,
     rendered: 1,
-    cost: "no new work",
+    cost: "uses existing evidence",
   },
   {
     key: "verdict",
     label: "verdict",
-    note: "One root to review, with a file:line — and an exit code CI already understands.",
+    note: "Report one item to review, with screenshot evidence, a file:line, and a CI exit code.",
     subjects: 40,
     rendered: 1,
     cost: "exit 1",
@@ -139,10 +139,8 @@ export default function Lifecycle() {
         ))}
       </ol>
 
-      {/* The forty subjects, thinning out. Twenty across on a wide panel
-          rather than ten: at ten the cells are five times wider than they are
-          tall, and forty grey bars in four rows is the shape of a skeleton
-          loader — which is what this section opens on. */}
+      {/* Twenty columns keep subjects cell-shaped rather than resembling a
+          four-row skeleton loader. */}
       <div className="mt-7 grid grid-cols-10 gap-1.5 sm:grid-cols-20 sm:gap-2">
         {Array.from({ length: 40 }).map((_, n) => {
           // Interior in both layouts: row 3 of 10, row 2 of 20.
@@ -176,7 +174,7 @@ export default function Lifecycle() {
       </div>
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[11px] text-quiet">
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-green/25" /> settled by digest{" "}
+          <span className="h-2 w-2 rounded-sm bg-green/25" /> matched by document{" "}
           {settled}
         </span>
         <span className="flex items-center gap-1.5">
@@ -184,9 +182,7 @@ export default function Lifecycle() {
         </span>
       </div>
 
-      {/* What this hop costs. Held at two lines: the notes run one line to two,
-          and letting the row size itself made the whole panel breathe in and
-          out every 2.4s. */}
+      {/* A two-line floor keeps the panel still as notes wrap. */}
       <div className="mt-6 flex flex-col gap-2 border-t border-hairline pt-4 sm:min-h-12 sm:flex-row sm:items-start sm:justify-between">
         <p className="max-w-xl text-sm leading-6 text-quiet">
           <span className="font-mono text-xs tracking-[0.12em] text-orange uppercase">

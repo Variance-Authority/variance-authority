@@ -5,6 +5,7 @@ import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   documentDigest,
+  shapeValue,
   type CaptureArtifact,
   type Raster,
   type RenderDocument,
@@ -184,6 +185,20 @@ describe('a durable observation above 1x', () => {
     expect(
       await store.renderCache.get(raster.documentDigest, raster.identity),
     ).not.toHaveProperty('components');
+  });
+
+  it('refuses value material instead of treating it as an unchanged raster', async () => {
+    const artifact: CaptureArtifact = {
+      artifactVersion: 1,
+      subject: { id: 'value/config', kind: 'value' },
+      material: { kind: 'value', value: shapeValue({ enabled: true }) },
+    };
+
+    await expect(
+      observeCaptureAgainstBaseline(artifact, { subject: 'value/config' }, {
+        store: createDurableStore(root),
+      }),
+    ).rejects.toThrow('value capture, and this observation compares rasters');
   });
 
   it('renders document material through the supplied renderer', async () => {

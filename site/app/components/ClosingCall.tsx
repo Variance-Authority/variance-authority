@@ -5,9 +5,7 @@ import Mark from "./Mark";
 export default function ClosingCall() {
   return (
     <section className="border-t border-hairline py-20">
-      {/* Centred. Left-aligned at this width the copy ran to half the
-          panel and the other half was a glow, which read as an unfinished
-          row rather than a closing ask. */}
+      {/* Centering binds the copy and glow into one closing ask. */}
       <div className="relative overflow-hidden rounded-2xl border border-hairline bg-panel px-6 py-14 text-center sm:px-12 sm:py-16">
         <div
           aria-hidden="true"
@@ -16,13 +14,13 @@ export default function ClosingCall() {
         <div className="relative mx-auto max-w-2xl">
           <Mark size={44} className="mx-auto" />
           <h2 className="mt-6 text-2xl font-bold tracking-tight text-balance text-ivory sm:text-4xl">
-            Point it at UI you already have.
+            Start with the UI you already have.
           </h2>
           <p className="mx-auto mt-4 max-w-xl leading-7 text-quiet">
-            A Storybook, a route list, a Playwright suite — the first verdict is
-            four commands away, and the first thing it hands you is a{" "}
+            Choose Storybook, a route list, or an existing Playwright suite. The
+            first review is four commands away and, for React, can include the{" "}
             <span className="font-mono text-[0.95em] text-ivory">file:line</span>
-            .
+            {" "}behind a changed region.
           </p>
           <div className="mt-8 flex justify-center">
             <div className="inline-flex max-w-full items-center gap-3 overflow-x-auto rounded-lg border border-hairline bg-deep px-4 py-3 text-left font-mono text-[13px] text-ivory">

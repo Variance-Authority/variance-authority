@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readCapture } from './archive.js';
+import { captureCollector } from './collector.js';
 import { snapshotValue } from './value.js';
 
 /**
@@ -110,6 +111,20 @@ describe('snapshotValue', () => {
     await expect(snapshotValue(2, { subject: 'api/health', directory: into })).rejects.toThrow(
       'already has a capture',
     );
+  });
+
+  it('reports value material as outside the rendered-document collector path', async () => {
+    const into = await directory();
+    await snapshotValue({ ok: true }, { subject: 'api/health', directory: into });
+
+    const collector = await captureCollector({ directory: into })();
+    const plan = await collector.plan();
+    const result = await collector.collect(plan.subjects[0]!);
+
+    expect(result).toEqual({
+      ok: false,
+      because: 'api/health is a value capture, and this run compares rendered documents',
+    });
   });
 });
 

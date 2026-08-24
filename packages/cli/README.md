@@ -14,6 +14,16 @@ Use this package when you want an executable integration rather than a custom
 library composition. `variance doctor` checks the selected prerequisites before
 the first expensive run.
 
+Install the executable together with the collector adapter your project uses:
+
+```bash
+npm install --save-dev @variance-authority/cli
+```
+
+The `config` path passed to `variance` defaults to `variance.config.json` and is
+resolved before the file is read. The CLI does not mount application pages
+itself; the selected collector owns that boundary.
+
 ## Integrate the CLI
 
 ### 1. Choose how subjects enter
@@ -63,7 +73,7 @@ Review the generated candidates, accept the intended subject ids explicitly,
 then rerun. An unchanged run exits `0`; a configuration, browser, collector, or
 store failure exits `2`.
 
-Keep `accept --all` out of unattended workflows. It currently cannot
+Keep `accept --all` out of unattended workflows. It cannot
 distinguish a never-reviewed baseline from a changed one, so explicit subject
 ids are the safe default after initial setup.
 
@@ -91,7 +101,7 @@ last run wrote to an MCP client — an agent asks it what changed, which compone
 and which file, over stdio, without re-running anything; the tools are
 [`@variance-authority/mcp`](../mcp)'s.
 
-### `changelog`: why a baseline is what it is
+### Changelog: explain a baseline update
 
 A baseline update lands in a run of its own, and the artifact that lands says
 *what* the new baseline is and nothing about **what the change was**. By the time
@@ -155,7 +165,7 @@ Three things it will not do, and each of them is the point:
 amounts of review, and a reader auditing a baseline needs to see which one they
 are looking at. A regeneration must not read like a review.
 
-### `--format html`: the diff as one page, with no service behind it
+### HTML report
 
 ```bash
 variance report --format html > out/report.html
@@ -179,7 +189,7 @@ because a page that loads anything renders differently for the reviewer than it
 did in CI. `--subject` is refused here rather than honoured: a page narrowed to
 one subject says nothing about coverage while looking like a whole run.
 
-### Finding a flake before it costs a build: `run --flakes`
+### Detect instability with `run --flakes`
 
 Every run reads a *changed* subject a second time before believing its verdict.
 `--flakes` reads **every** subject twice, whatever the verdict, which is a
@@ -319,7 +329,7 @@ Those seven are the whole surface. **No command posts anything anywhere.**
 operator's own token, and the exit code and the report remain what a CI job
 actually gates on.
 
-## Exit codes, and why they are the interface
+## Exit codes
 
 ```
 0  nothing needs review
@@ -333,13 +343,12 @@ investigates, and the second case is the one where continuing destroys a
 baseline. `variance doctor` exists so the second is diagnosable before a run
 rather than after one.
 
-## The library half is deliberate
+## Use as a library
 
-Everything the `bin` does is exported as an ordinary function. A CLI whose logic
-is reachable only by spawning a process can be tested only by spawning one, so
-the questions that actually matter — *does this exit code mean what CI thinks it
-means*, *is this skip reported* — become integration tests with a browser in
-them, which is to say they stop being asked.
+Everything the `bin` does is exported as an ordinary function. A custom host can
+therefore load configuration, select its own collector, renderer and store,
+write the same report, and use the same exit-code contract without spawning the
+executable.
 
 ```ts
 import {
@@ -378,14 +387,40 @@ if (code === EXIT_REVIEW) console.log('changes need review');
 process.exitCode = code;
 ```
 
-**`deps` is the whole argument, and it is why the example is this long.** The
-injection seams are types on it — `Collector`, `RunDeps`, `CandidateReader`,
-`DoctorProbes` — so a test supplies a fake renderer and a real store, or the
-reverse, and neither needs a browser. `now` is in there for the same reason: a
-report carries a timestamp, and a test that cannot fix the clock cannot assert
-the artifact it produced.
+`deps` owns every integration seam: `Collector`, `RunDeps`, `CandidateReader`,
+`DoctorProbes`, and the `now` clock used for report timestamps. Supply only the hosts
+the integration owns; the workflow remains independent of a global browser,
+store, or wall clock.
 
-## The order it runs in, and why
+### Library option boundaries
+
+The executable assembles these objects for you. Import them when an integration
+owns its own collector, renderer, storage, or review surface:
+
+- `run` receives a `config` plus injected dependencies. Its `flakes` flag asks
+  for the whole-suite stability sweep; `identity` records a run in the optional
+  history store; and library `since` is the already-computed `{ changed, ref }`
+  selection that the executable's `--since` flag derives from Git. A missing
+  `identity` or `since` means that concern is not requested, not that the run
+  guessed one.
+- `formatReport` takes a `format` of `text`, `json`, or `html`. `subject` narrows
+  text or JSON to one id and is refused for HTML because a narrowed page would
+  hide coverage. Use the CLI's `report` command when the report must be loaded
+  from disk first.
+- `accept` receives the report directory as `reportDir`, the baseline `store`,
+  and a candidate `read` function. `all` promotes every changed candidate;
+  explicit subjects are safer. `shapes` selects a fingerprint only when it is
+  the whole change. `project` scopes optional history rows; omit it when no
+  history store is supplied.
+- `renderComment` accepts `runUrl` when the published artifact has a reviewable
+  location and `limits` when a caller needs smaller docket bounds. Limits merge
+  over `DEFAULT_LIMITS`; the renderer still states what it omitted.
+- The executable's `config` path selects the source; `parseConfig` takes that
+  value and `baseDir` through `ParseOptions`. Relative paths resolve against
+  `baseDir`, not the process working directory, so a library caller can load
+  the same file from any invocation directory.
+
+## Run order
 
 1. **Collect** — subjects from a list or from a Storybook index.
 2. **Settle what the cheap tiers can settle.** A subject whose document digests
@@ -399,7 +434,7 @@ That last one is the failure this whole system exists to make impossible. A
 summary that says "nothing to review" because eleven subjects failed to render is
 worse than no summary at all.
 
-## `accept` never produces an image
+## Acceptance does not produce an image
 
 It promotes one the run already produced. A command that could re-render on
 acceptance is a command that can record something nobody looked at.
@@ -559,19 +594,18 @@ the marker in `content.raw`, and a `PUT` to the one that has it or a `POST` if
 none does. `.github/actions/variance/post-comment.mjs` is the same three steps
 against GitHub's API and is the file to read while writing the other.
 
-**Never run.** Neither this nor the GitHub workflow has executed on a real pull
-request, and this section does not change that — see
-[ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md),
-which decides what a comment does and records that none has ever been posted.
-Treat the YAML as a starting point somebody still has to prove.
+The YAML is a platform example. Its `script` invokes the same `variance` binary
+used locally, while `after-script` owns the platform-specific API call that
+publishes the body. This package renders the body and marker but does not post
+anything; see [ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md)
+for the comment contract.
 
-## Known gap
+## Acceptance mode boundary
 
-**`accept --all` does not distinguish a new baseline from a changed one.** In
-that mode the CI gate becomes a recorder, which is the one thing the exit codes
-above are built to prevent. Name the subjects explicitly — `variance accept
-story:card--populated …` — anywhere the difference matters, and keep `--all` out
-of anything that runs unattended.
+`accept --all` does not distinguish a new baseline from a changed one. In that
+mode the CI gate becomes a recorder, so name subjects explicitly — `variance
+accept story:card--populated …` — anywhere the difference matters. Keep `--all`
+out of unattended workflows.
 
 ## Integration troubleshooting
 

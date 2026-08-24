@@ -8,26 +8,32 @@ page.
 
 Run many subjects in one standing world.
 
-A session is the **runner**, not an instrument bolted onto one: it creates the
-container, subjects arrive through `session.run`, and taking it means writing your
-collection around it rather than adding a probe to a loop you already have. The
-detector below is a passenger on that: it brackets the mount, so it can only see
-the subjects that went through here.
+A session owns one reusable container and brackets each subject's mount with a
+shared-state probe. The caller supplies the mount function, so the same runner
+can host DOM-only subjects or a framework integration without importing that
+framework.
 
-## The saving, and what it buys with
+## Use this package when
+
+Install `@variance-authority/session` when one live DOM can host many subjects
+and the caller can provide the mount function. It is a library runner, not an
+automatic Playwright, Vitest, or Jest integration: those runners must call
+`createSession` and `session.run` themselves. Use [`@variance-authority/dom`](../dom)
+when you only need one capture, or use [`@variance-authority/react`](../react)
+to supply React provenance and readiness to the mount callback.
+
+## Cost and trade-off
 
 Nothing is torn down between subjects: no fresh jsdom per file, no browser per
 story, no Storybook reload, no re-parsing the design system's stylesheet.
-**Measured at 3–4× faster, with probe overhead around 2% of session time.**
-`src/cost.test.ts` takes both readings on every run and asserts a floor rather
-than the figure — the multiple moves with the machine, and a bound that pinned it
-would fail on a loaded CI box and teach everyone to ignore it.
+Choose a session when that repeated setup dominates the cost of the lightweight
+shared-state probe.
 
 The risk that buys is cross-pollution — one subject leaving state another one
 reads. The industry answer is to rinse between subjects, and rinsing is exactly
 the cost we just removed.
 
-## So it detects instead of preventing
+## How findings are produced
 
 Every subject is bracketed by a cheap shared-state probe, and its reads are
 derived from its own capture. Which turns *"these tests are flaky in CI"* into:
@@ -52,23 +58,38 @@ fraction of the ways one subject reaches another.
 
 See [ADR-0009](../../docs/context/adr/0009-sessions-detect-instead-of-rinse.md).
 
-## Usage
+## Smallest working path
 
 ```ts
 import { createSession } from '@variance-authority/session';
 
-const session = createSession({ document, viewport, engine: 'jsdom@30' });
-const root = createRoot(session.container);        // one root per session — see below
+const session = createSession({
+  document,
+  viewport: { width: 1280, height: 720, deviceScaleFactor: 1, colorScheme: 'light' },
+  engine: 'jsdom@30',
+});
 
-// One function, used twice: once to collect, and once to replay.
-const render = (ref: { readonly id: string }): void => {
-  root.render(subjects.find((subject) => subject.ref.id === ref.id)?.element);
-};
+const subjects = [
+  { id: 'story:button', kind: 'story' as const, text: 'Save' },
+  { id: 'story:card', kind: 'story' as const, text: 'Card' },
+];
 
-for (const subject of subjects) session.run(subject.ref, () => render(subject.ref));
+for (const subject of subjects) {
+  session.run(subject, (container) => {
+    container.textContent = subject.text;
+  });
+}
 
-const findings = session.verify(render);           // confirmed | suspected, with a cause and a fix
+const findings = session.findings();
+console.log(findings); // [] when neither subject wrote state the other read
+session.dispose();
 ```
+
+The example runs synchronously because its mount callback returns `void`. A
+callback that waits for a render may return a promise; `run` then returns a
+promise for the same `SubjectRun`. `findings()` reports suspected
+cross-pollution. Call `verify(replay, sample?)` when a replay is affordable and
+you need confirmation of order dependence.
 
 `createSession` takes:
 
@@ -89,9 +110,8 @@ the second pass.
 
 **`verify` takes the renderer back, and that is not a convenience.** Confirming a
 suspicion means rendering the subject again and seeing whether its hash moves,
-and a `verify` that could not re-render would have to assert the coupling from
-the evidence alone — a finding shaped like proof with no replay behind it, which
-is worse than the silence it replaces.
+so a verification without the renderer could report only the original
+suspicion, not confirm it.
 
 `probe`, `diffProbes` and `SheetRegistry` are the bracket itself, exported for a
 caller running the detector over a world a session did not create. `probe` takes
@@ -99,6 +119,12 @@ caller running the detector over a world a session did not create. `probe` takes
 readings, since a stylesheet has no id of its own — and `ownedContainers`, the
 elements whose contents are the subject rather than residue. Without the second
 one every subject appears to pollute the body with its own output.
+
+The low-level path is for a collector that already owns its bracket: create one
+`SheetRegistry`, call `probe(document, { registry, ownedContainers })` before
+and after a mount, and pass the two results to `diffProbes`. The returned
+`written` keys identify shared state that changed; the session path is the
+supported starting point for a new runner.
 
 ## Two sharp edges, both deliberate
 
@@ -115,6 +141,11 @@ A subject that is not finished when `mount` returns says so by returning a
 promise; `run` awaits it and stays entirely synchronous when it does not, because
 the synchronous path is the overwhelming majority and the package exists to be
 cheap.
+
+The session does not launch a browser, create a React root, or discover a test
+runner. The document, viewport, engine identity, and renderer are caller-owned;
+an empty mount throws, and overlapping asynchronous mounts are refused because
+the session has one reusable container.
 
 ## Honest limits
 

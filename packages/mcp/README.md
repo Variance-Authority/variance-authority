@@ -2,13 +2,15 @@
 
 # @variance-authority/mcp
 
-**Requires:** a run report that already exists, and a client that speaks MCP over
-stdio. It never runs anything itself.
+Use this package when a run report already exists and an MCP client needs to
+inspect it. The server reads the report and returns text; it never runs tests,
+rerenders a subject, changes a baseline, or infers a report that is not there.
 
-The chain the rest of this repository builds ends at a sentence: a cause, a
-place, and a file. This package puts that sentence somewhere an agent can reach
-it **after the fact** — from a different process, without access to whatever was
-in scope when the change was sensed.
+**Requires:** a run report and an MCP client that speaks over stdio.
+
+The report remains the canonical artifact. This package makes its causes,
+regions, verdicts, findings, composition, variation, and acceptance preview
+available from another process after the run has finished.
 
 ## Entrypoints
 
@@ -27,7 +29,7 @@ What a run *wrote* is not here either. The report format is
 [`@variance-authority/report`](../report), because it has several readers and a
 format owned by one of them bends towards that one.
 
-## Running it
+## Run the report server
 
 ```bash
 npx variance serve            # via the CLI, reading .variance/run.json
@@ -43,11 +45,11 @@ npx variance-authority-mcp .variance/run.json    # directly
 }
 ```
 
-## What an agent can ask
+## Tool contract
 
-Nine tools, all answering from the artifact and **never re-running anything**.
+Ten tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
-are asked wherever the agent is. Seven of them hand evidence out, one takes
+are asked wherever the agent is. Eight of them hand evidence out, one takes
 evidence in, and one answers about a command nobody has run yet.
 
 ```ts
@@ -59,6 +61,7 @@ toolByName('variance_adjudicate')?.run(report, {
   claims: [{ root: 'component:Button', reason: 'new brand accent', maxSubjects: 3 }],
 });
 toolByName('variance_composition')?.run(report, {});
+toolByName('variance_variations')?.run(report, { subject: 'story:card--dark' });
 toolByName('variance_changelog')?.run(report, { shape: 'v1:9a3f1c2e04' });
 toolByName('variance_describe')?.run(report, { subject: 'story:card--populated' });
 toolByName('variance_findings')?.run(report, {});
@@ -72,6 +75,7 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, moved and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
 | `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each component that moved moved — including *nothing here explains it* | a change has no obvious author, or you are about to call something flaky |
+| `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature arm, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
 | `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will carry, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
 | `variance_describe` | what changed inside one subject — regions, components, files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
@@ -178,7 +182,7 @@ findings do not affect the verdict, and an empty answer distinguishes *inspected
 and clean* from *nobody looked* — the same distinction `variance_summary` keeps
 when it accounts for the subjects nobody observed.
 
-## The failure it is built to refuse
+## Coverage boundary
 
 An agent told **"no changes"** concludes the product is fine. If what actually
 happened is that eleven subjects failed to render, that sentence is a lie the
@@ -191,7 +195,7 @@ a run with unobserved subjects never reads as clean. `notObserved` distinguishes
 guessing `excluded` turns a coverage hole into a decision somebody made, and
 guessing `failed` turns every deliberate exclusion into a permanently red build.
 
-## Serving it yourself
+## Serve a custom subject
 
 `serveReportFile(path)` is the whole executable, and `serve(options)` is what it
 composes when the report does not come from a file:
@@ -200,7 +204,8 @@ composes when the report does not come from a file:
 |---|---|
 | `input` | the `Readable` requests arrive on |
 | `output` | the `Writable` responses leave on |
-| `report` | supplies the current `RunReport`. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot. It may be async, and the request waits for it: a supplier that started a refresh and answered from the previous value would make *this* request the stale one, and this request is the agent that just re-ran |
+| `served` | the `Served<Subject>` name and tools for the subject; use `REPORTS` for a `RunReport` or supply a set for another serializable subject |
+| `subject` | supplies the current subject. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot. It may be async, and the request waits for it: a supplier that started a refresh and answered from the previous value would make *this* request the stale one, and this request is the agent that just re-ran |
 
 Both return a function that detaches the server from its streams.
 

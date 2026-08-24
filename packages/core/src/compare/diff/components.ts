@@ -84,5 +84,8 @@ export function componentsOf(
       impact: aggregateImpact(entry.impacts),
       renderedIn: [...entry.within],
     }))
-    .sort((a, b) => b.deltaCount - a.deltaCount || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        b.deltaCount - a.deltaCount || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    );
 }

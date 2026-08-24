@@ -11,28 +11,44 @@ isolation and attribution and renders nothing; a team whose images arrive from
 elsewhere takes only the reading end. Neither should have to launch Chromium to
 do it, and with the codec boxed on its own neither does.
 
-## It stops at a mask
+## Use this package when
+
+Install `@variance-authority/png` in a Node process when the inputs are PNG
+bytes. Use [`@variance-authority/raster`](../raster) instead when a renderer
+already gives you RGBA pixels or when you need the policy and storage contracts
+without a codec. This package does not launch a browser, store a baseline, or
+decide a pass/fail verdict.
+
+## Smallest working path
 
 ```ts
-import { compareRasters, decode, diffImage } from '@variance-authority/png';
+import { readFileSync } from 'node:fs';
+import { comparePngs, diffImage } from '@variance-authority/png';
 import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
 
-const comparison = await compareRasters(before, after, {
+const before = readFileSync('artifacts/before.png');
+const after = readFileSync('artifacts/after.png');
+const comparison = comparePngs(before, after, {
   policies: [DEFAULT_POLICY, STRICT_POLICY],
   isolateWith: DEFAULT_POLICY,
 });
 
-comparison.changed;   // { default: 86, strict: 1530 }
-comparison.mask;      // positions — what isolation and attribution need
+console.log(comparison.changed, comparison.mask.changed);
 
 // The picture, for when somebody does have to look. On request, never by default.
-const picture = diffImage(decode(before.bytes), decode(after.bytes), DEFAULT_POLICY);
+const picture = diffImage(before, after, DEFAULT_POLICY);
 ```
 
 Not a number, and not a picture. The number is what makes a pixel differ
 unactionable — *"5482 pixels changed"* cannot be assigned to anyone — and the
 picture is what makes it expensive, because somebody has to look. Both are
 derivable from a mask; neither can produce one.
+
+`comparison.changed` contains one count per requested policy and `mask` keeps
+the changed positions for region isolation. `diffImage` is an optional encoded
+PNG for a human review; it is derived from the same bytes and is not the
+comparison result. If the caller already has decoded RGBA, `comparePixels`
+avoids a second decode.
 
 So this phase stops at the last artifact that still has **positions** in it, and
 the phases that turn positions into places and places into files come after, in
@@ -69,10 +85,11 @@ differs in that row rather than in its entire area.
 ```ts
 import { observePngDifference } from '@variance-authority/png/difference';
 import { YIQ_DISTANCE } from '@variance-authority/raster/difference';
+import { readFileSync } from 'node:fs';
 
 const observation = await observePngDifference({
-  firstImage: chromiumPng,
-  secondImage: webkitPng,
+  firstImage: readFileSync('artifacts/chromium.png'),
+  secondImage: readFileSync('artifacts/webkit.png'),
   metric: YIQ_DISTANCE,
   severityLevels: [0, 0.01, 0.04, 0.16, 0.64],
 });
@@ -99,3 +116,9 @@ difference across the whole added region and then report it as drift.
 
 Both are right for their question. Neither should be quietly given the other's
 behaviour.
+
+The first example pads different dimensions onto a white union canvas and sets
+`dimensionsChanged`. The difference entrypoint refuses different dimensions,
+because its per-pixel correspondence would otherwise be fabricated. Neither
+path can recover component ownership from PNG bytes; supply that through the
+capture or attribution tiers when a mask needs an owner.

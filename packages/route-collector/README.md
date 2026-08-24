@@ -3,7 +3,7 @@
 # @variance-authority/route-collector
 
 **Requires:** a browser binary and a reachable application, unless a static
-directory is supplied. Authenticated routes are currently unsupported.
+directory is supplied. Authenticated routes are unsupported.
 
 Turn pages your application already serves into `variance` subjects. Use this
 package when the real application has already solved bundling, providers,
@@ -15,6 +15,7 @@ web server for your application. Authentication has no cookie, header, or
 storage-state escape hatch.
 
 ```bash
+npm install --save-dev @variance-authority/cli @variance-authority/route-collector
 npx playwright install chromium
 ```
 
@@ -81,7 +82,7 @@ The first successful run reports the routes as `new` and exits `1`. After the
 intended candidates are accepted, an unchanged run exits `0`; later changes are
 reported against the specific route and viewport that moved.
 
-## Let another artifact define the routes
+## Sitemap and directory route sources
 
 Use exactly one of `routes`, `sitemap`, or `directory`.
 
@@ -154,7 +155,7 @@ so code that reads `matchMedia` during mount makes the correct decision.
 | `portable` | The pixels will be made on a machine with no route to your asset origin. | `false`. Requires `network`; a resource that cannot be closed fails its route and names itself. |
 | `stabilize` | The application has its own determinism strategy. | The standard collection recipe; `[]` records an untouched page. |
 
-## A route still arriving is refused
+## Readiness and loading
 
 Before each route is read, the collector waits for every React Suspense boundary
 under the selected roots to settle. This runs first, ahead of stabilization,

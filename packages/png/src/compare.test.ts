@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { isolateRegions } from '@variance-authority/core';
 import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
 import { comparePngs } from './compare.js';
+import { comparePixels } from './index.js';
 
 /**
  * Comparison, on images built pixel by pixel rather than rendered.
@@ -34,6 +35,16 @@ function png(
 const WHITE = () => [255, 255, 255] as const;
 
 describe('comparing two rasters', () => {
+  it('compares decoded pixels through the public entrypoint', () => {
+    const comparison = comparePixels(
+      { width: 1, height: 1, data: Buffer.from([255, 255, 255, 255]) },
+      { width: 1, height: 1, data: Buffer.from([0, 0, 0, 255]) },
+    );
+
+    expect(comparison.changed[DEFAULT_POLICY.id]).toBe(1);
+    expect(comparison.mask.changed).toBe(1);
+  });
+
   it('reports nothing for two identical images', () => {
     const image = png(20, 20, WHITE);
     const comparison = comparePngs(image, image);

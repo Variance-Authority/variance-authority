@@ -11,7 +11,15 @@ promises, which policy a comparison ran under, which tricks a subject was held
 still with, whether it held still at all, and what the composition that produced
 an answer was.
 
-## Why this is separate from the things it describes
+## Use this package when
+
+Install `@variance-authority/raster` when a caller already has decoded pixels or
+needs the contracts around rendering, storage, plans, and stability. It does not
+decode PNGs, launch a browser, write a baseline, or choose a test runner. Use
+[`@variance-authority/png`](../png) for PNG bytes and pass a `ChangeMask` here
+when the next step is region isolation or attribution.
+
+## Package boundary
 
 | package | requires |
 |---|---|
@@ -63,14 +71,31 @@ What is still here is the plan that names one:
 `defaultPlan({ stabilization })` folds `recipeDigest` into the plan identity, so
 retuning the tricks moves the address of everything they produced.
 
-## The gate refuses rather than retries
+## Stability gate
 
 ```ts
 import { gateStability } from '@variance-authority/raster';
 
-const verdict = gateStability([first, second]);
-// { state: 'unstable', render: false, because: 'Spinner will not hold still at `transform`' }
+const verdict = gateStability([
+  { documentDigest: 'v1:before' },
+  { documentDigest: 'v1:after' },
+]);
+console.log(verdict.state, verdict.render); // unstable false
 ```
+
+Two different document digests return `unstable` with `render: false`; equal
+digests return `stable` with `render: true`. With no sample, or only one, the
+gate returns `unknown` rather than treating an unchecked subject as stable.
+The gate does not retry or render an image.
+
+The other controls stay at the seams where they affect identity or measurement:
+
+| call | useful controls |
+|---|---|
+| `defaultPlan` | `policy` selects the `DiffPolicy`, `cell` chooses the region grid, and `stabilization` folds the applied recipe into the plan identity |
+| `assemble` | `extraCss` adds caller-owned CSS to a render document; it is part of the assembled bytes and therefore its digest |
+| raster comparison | `policies` chooses which `DiffPolicy` values to count and `isolateWith` chooses the policy whose mask is returned |
+| `observeDifference` | `flattenOnto` is the explicit background for straight-alpha images; no colour conversion, resize, or alignment is implied |
 
 The usual instability check shoots, waits, shoots again, and keeps going until
 two frames agree. It is slow by construction and destroys the finding when it
@@ -89,8 +114,20 @@ import {
   YIQ_DISTANCE,
   observeDifference,
   compareDifferenceObservations,
+  type NormalizedImage,
 } from '@variance-authority/raster/difference';
 
+const chromiumPixels: NormalizedImage = {
+  width: 1,
+  height: 1,
+  data: new Uint8Array([255, 0, 0, 255]),
+  colorSpace: 'srgb',
+  alphaMode: 'opaque',
+};
+const webkitPixels: NormalizedImage = {
+  ...chromiumPixels,
+  data: new Uint8Array([0, 0, 255, 255]),
+};
 const baseline = await observeDifference({
   firstImage: chromiumPixels,
   secondImage: webkitPixels,
@@ -98,10 +135,22 @@ const baseline = await observeDifference({
   severityLevels: [0, 0.01, 0.04, 0.16, 0.64],
 });
 
+const current = await observeDifference({
+  firstImage: chromiumPixels,
+  secondImage: chromiumPixels,
+  metric: YIQ_DISTANCE,
+  severityLevels: [0, 0.01, 0.04, 0.16, 0.64],
+});
 const comparison = compareDifferenceObservations(baseline, current);
 comparison.curveDelta;  // how much more of the image differs, at each severity
 comparison.fieldDelta;  // and where, per pixel
 ```
+
+The result is a difference field and severity curve; `compareDifferenceObservations`
+returns their movement between the two observations. The images must already
+share dimensions, colour space, and alpha mode. This entrypoint does not resize,
+decode, align, or decide whether a movement is acceptable; those choices belong
+to the caller and to the PNG or policy packages.
 
 Two renderers that never agreed, a font stack that was always slightly off, a
 compression pass that always softened an edge — none has to be eliminated before
@@ -122,10 +171,9 @@ generations of the policy reading it.
 **Its severities are readable against a threshold you already run.**
 `YIQ_DISTANCE` is the arithmetic `pixelmatch` performs divided by its own
 maximum, so `severity === threshold²`: `DEFAULT_POLICY` is severity `0.01` and
-`STRICT_POLICY` is anything above `0`. The equivalence is asserted against
-`pixelmatch` itself, not claimed.
+`STRICT_POLICY` is anything above `0`.
 
-Two things that surprise people, both pinned by tests:
+Two boundaries matter when reading the field:
 
 - `C(0)` is `1.0` for every field, including one from two identical images —
   every pixel differs by at least nothing. `fieldStatistics().changedPixels`
@@ -139,8 +187,7 @@ and antialiasing forgiveness is not the one on the severity axis: `pixelmatch`
 decides it from a neighbourhood of *both* images, so it can treat two pixels
 carrying an identical difference value oppositely. No threshold on any per-pixel
 field reproduces that, and
-[`png/src/difference.test.ts`](../png/src/difference.test.ts) constructs the case
-that proves it.
+field reproduces that.
 
 ## Reading
 

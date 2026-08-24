@@ -175,7 +175,11 @@ export function docket(subjects: readonly SubjectView[]): readonly Cause[] {
       collateralPixels: collateral,
       ...(entry.file !== undefined ? { file: entry.file } : {}),
     }))
-    .sort((left, right) => right.pixels - left.pixels || left.component.localeCompare(right.component));
+    .sort((left, right) => {
+      const byPixels = right.pixels - left.pixels;
+      if (byPixels !== 0) return byPixels;
+      return left.component < right.component ? -1 : left.component > right.component ? 1 : 0;
+    });
 }
 
 export function toSubjectView(row: Row, decision: DecisionRecord | null): SubjectView {

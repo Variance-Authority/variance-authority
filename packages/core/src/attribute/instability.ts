@@ -254,7 +254,11 @@ function group(deltas: readonly Delta[]): readonly UnstableLocation[] {
           : {}),
       };
     })
-    .sort((a, b) => b.deltas - a.deltas || a.component.localeCompare(b.component));
+    .sort(
+      (a, b) =>
+        b.deltas - a.deltas ||
+        (a.component < b.component ? -1 : a.component > b.component ? 1 : 0),
+    );
 }
 
 /**

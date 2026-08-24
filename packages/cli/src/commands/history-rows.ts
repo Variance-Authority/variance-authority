@@ -105,7 +105,7 @@ export function tokensOf(
   const contested: string[] = [];
 
   for (const [token, values] of [...seen.entries()].sort(([left], [right]) =>
-    left.localeCompare(right),
+    left < right ? -1 : left > right ? 1 : 0,
   )) {
     const [only] = [...values];
     if (values.size > 1 || only === undefined) {

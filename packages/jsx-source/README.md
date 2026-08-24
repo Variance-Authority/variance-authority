@@ -9,7 +9,15 @@ because a setting told it to.
 Keep the source location of every JSX element as far as the rendered DOM node, so
 a difference in a screenshot can name the file and line that wrote it.
 
-## Why this exists
+## Use this package when
+
+Install `@variance-authority/jsx-source` for a production React bundle, or for
+React 18 using the classic JSX transform, when the source location is not present
+on the fiber. A bundler plugin or Jest resolver is required; application code does
+not import this package directly. React development builds should first use the
+metadata path described below, because it needs no build change.
+
+## Package boundary
 
 Every JSX transform in ordinary use already computes the location. The automatic
 transform in development mode passes `{fileName, lineNumber, columnNumber}` to
@@ -52,7 +60,7 @@ what this package is mainly for, and it is the case where the transform's own
 location is worth the most, because locations survive minification untouched
 while component names do not.
 
-## Turn it on
+## Install it in the build
 
 There are two ways in, and which one you want depends on a single question:
 **does your project already point `jsxImportSource` somewhere?**
@@ -127,6 +135,11 @@ minified**, so turning it on in a production build is a supported and useful
 thing to do here — locations are data the compiler emitted, and unlike component
 names they survive minification untouched.
 
+After that build runs, render an element and inspect it through
+`@variance-authority/react`'s `provenanceOf`. A resolved source location is the
+expected result; if the location is absent, check the emitted bundle's runtime
+request and `jsxDev` setting before changing application code.
+
 ## Entrypoints
 
 - `@variance-authority/jsx-source/vite` — the plugin. Exports `jsxSource()`.
@@ -146,7 +159,12 @@ names they survive minification untouched.
 There is no default entrypoint. Importing this package in application code is not
 a thing to do; the only correct callers are a compiler and a bundler.
 
-## What it costs
+This package does not render components, collect a DOM, or resolve source maps.
+It only supplies the JSX runtime module that the build already requests; the
+React package reads the resulting metadata and the collector decides how to use
+it.
+
+## Runtime cost
 
 A symbol-keyed property on each props object, and one function call per element
 in front of React's.

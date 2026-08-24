@@ -14,28 +14,38 @@ const HOPS = [
     name: "src/tokens.css",
     tag: "changed",
     edge: "imported by",
-    note: "the diff — and it declares no component, so --since gives up here",
+    note: "the file changed, but it does not declare a component",
   },
-  { name: "src/button.css", tag: "", edge: "imported by", note: "one hop out" },
-  { name: "src/Button.tsx", tag: "", edge: "declares", note: "two hops out" },
+  {
+    name: "src/button.css",
+    tag: "",
+    edge: "imported by",
+    note: "the stylesheet imports the changed token",
+  },
+  {
+    name: "src/Button.tsx",
+    tag: "",
+    edge: "declares",
+    note: "Button.tsx imports the stylesheet",
+  },
   {
     name: "Button",
     tag: "component",
     edge: "",
-    note: "the component a token file could move",
+    note: "Button is the component this token can affect",
   },
 ] as const;
 
 /** 95 ms · 3002 ms · 657 ms · 236 ms — packages/sense bench, 30,500 files, one Mac. */
 const SCAN = [
-  { label: "git digests", ms: 95, did: "30,501 digests, no file opened" },
+  { label: "git digests", ms: 95, did: "content digests, no file opened" },
   {
-    label: "cold",
+    label: "first scan",
     ms: 3002,
     did: "every file opened, decoded, parsed, resolved",
   },
   {
-    label: "parses remembered",
+    label: "cached parses",
     ms: 657,
     did: "nothing parsed — every specifier still resolved",
   },
@@ -83,7 +93,7 @@ export default function Since() {
       className="rounded-2xl border border-hairline bg-panel p-5 sm:p-7"
     >
       <p className="font-mono text-[11px] tracking-[0.16em] text-quiet uppercase">
-        what a change could have moved
+        how tokens.css reaches Button
       </p>
 
       <ol className="mt-5 space-y-0">
@@ -142,13 +152,13 @@ export default function Since() {
       <p className="mt-4 min-h-[2.5rem] font-mono text-xs leading-5 text-quiet">
         <span className="text-orange">{"//"}</span>{" "}
         {i >= HOPS.length
-          ? "so the run selects Button's subjects, and skips the rest"
+          ? "Button's UI states are selected; unrelated ones are skipped"
           : HOPS[i].note}
       </p>
 
       <div className="mt-5 border-t border-hairline pt-4">
         <p className="font-mono text-[11px] tracking-[0.16em] text-quiet uppercase">
-          what a second scan costs
+          source scan, measured
         </p>
         <ul className="mt-3 space-y-1.5">
           {SCAN.map((s) => (
@@ -171,8 +181,8 @@ export default function Since() {
           ))}
         </ul>
         <p className="mt-3 text-xs leading-5 text-quiet">
-          30,500 files and 40,479 edges, one Mac. A warm scan costs the diff
-          rather than the repository.
+          Measured on one Mac with 30,500 files and 40,479 source relationships. After a
+          one-file edit, the cached scan took 236 ms.
         </p>
       </div>
     </div>

@@ -2,10 +2,17 @@
 
 # @variance-authority/playwright
 
+Use this package when your integration owns a browser harness or needs to turn a
+`RenderDocument` into a raster. For an existing Playwright Test suite, start
+with [`@variance-authority/playwright-test`](../playwright-test); for CLI route or
+Storybook collection, use the corresponding collector. This lower-level package
+does not choose subjects, mount application state, or build a page agent.
+
 **Requires:** a browser **binary** on the machine, which an install does not give
 you:
 
 ```bash
+npm install --save-dev @variance-authority/playwright
 npx playwright install chromium
 ```
 
@@ -43,6 +50,8 @@ affordable at all.
 ```ts
 import { createHarness } from '@variance-authority/playwright';
 
+// This is an application-owned classic-script bundle that installs a PageAgent
+// at AGENT_GLOBAL. The package has no framework-specific agent to substitute.
 const harness = await createHarness({
   url: 'file:///…/fixture.html',
   bundle: iifeBundleInstallingYourAgent,
@@ -52,6 +61,12 @@ const harness = await createHarness({
 const capture = await harness.capture('story:button--primary', 'after');
 await harness.close();
 ```
+
+The harness example is an adapter contract: `iifeBundleInstallingYourAgent`
+must be a real IIFE string produced by your page integration. It is not an
+export of this package. The bundle must install a `PageAgent` at `AGENT_GLOBAL`
+and tear down the previous subject before each capture; if you do not own that
+page-side code, use `@variance-authority/playwright-test` instead.
 
 The harness carries **no knowledge of subjects, stories or frameworks**. The page
 bundle supplies all of that through `PageAgent`, so the same harness serves a
@@ -149,15 +164,8 @@ observation.
 **And no cross-engine rule was needed.** The engine was already in
 `RenderIdentity`, which already keys the store, so a WebKit baseline lands in its
 own directory and a Chromium run that finds it reports `incomparable` naming both.
-Measured in `engines.chromium.test.ts`, which discovers whichever engines are
-installed and compares every pair. On one wrapped paragraph: **827** differing
-pixels chromium/firefox, **630** chromium/webkit, **1288** firefox/webkit — and
-**352×77 in all three**. The engines agreed on the box to the pixel and disagreed
-only on what they painted in it, which is the tier ladder's premise arriving as a
-measurement.
-
-Every trick in the stabilization recipe was written against Chromium and none has
-been asked to hold another engine still.
+The supplied stabilization recipe targets Chromium. Use `prepare` for any
+engine-specific controls required by Firefox or WebKit.
 
 ## The renderer: a document in, a raster out
 
@@ -205,7 +213,7 @@ the top rather than a rewrite.
 It applies the stabilization recipe it is given, and reports conflicts rather
 than resolving them.
 
-## A page error is a finding, not a mystery
+## Page errors
 
 A bundle that throws leaves the agent global undefined, and the failure would
 otherwise surface as a timeout with no cause. Page-side errors are recorded and
@@ -214,4 +222,3 @@ reported, so `React is not defined` reads as `React is not defined`.
 ## Reading
 
 - [ADR-0002](../../docs/context/adr/0002-observation-profiles.md) — the two rendering surfaces
-- [journal 0007](../../docs/context/journal/0007-persistent-harness-and-p4.md) — the 27×, and how to reproduce it

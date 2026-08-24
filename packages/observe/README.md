@@ -21,6 +21,13 @@ with [`@variance-authority/cli`](../cli),
 [`@variance-authority/route-collector`](../route-collector), or
 [`@variance-authority/playwright-test`](../playwright-test).
 
+Install this package when your integration can supply the renderer, raster
+store, and acceptance boundary:
+
+```bash
+npm install --save-dev @variance-authority/observe
+```
+
 ## Choose the entrypoint
 
 | Entrypoint | Use it when | What you must provide |
@@ -38,7 +45,9 @@ code that handles verdicts does not need a branch for retention mode.
 `observeCaptureAgainstBaseline` is the adapter seam. A document artifact
 delegates to the ordinary render path. A raster artifact compares and stores the
 provided bytes without constructing or calling a renderer. Both preserve the
-artifact's snapshot and source evidence.
+artifact's snapshot and source evidence. A value artifact is rejected by name:
+this entrypoint compares documents and rasters, while value baselines require a
+value store and comparison contract outside this package.
 
 ## Compare two revisions from one run
 
@@ -93,7 +102,7 @@ The lookup asks under `renderer.identityFor(document)`. A baseline found under
 another identity returns `incomparable`; it is never diffed and blamed on the
 subject.
 
-## Compare two images this process never painted
+## Compare externally produced rasters
 
 Use `observeRasters` when the pixels arrive from somewhere else entirely — a
 device farm, a native simulator, a design-tool export — and there is no document
@@ -159,8 +168,8 @@ acquired subject size and the painted image.
   live in `ObserveOptions` and `CompareInputs`.
 
 Moving from a directory store to git-LFS, a remote store, or another conforming
-backend must not change the answer. The package's parity test pins the same
-verdicts through the available backends.
+backend does not change the answer; each backend supplies the same `RasterStore`
+contract.
 
 ## When integration fails
 

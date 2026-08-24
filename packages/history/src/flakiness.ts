@@ -146,7 +146,13 @@ export function accumulateFlakiness(input: FlakinessInput): Flakiness {
     sweepsSince,
     causes: [...causes.values()]
       .map((entry) => ({ ...entry.cause, runs: entry.runs.size }))
-      .sort((left, right) => right.runs - left.runs || label(left).localeCompare(label(right))),
+      .sort((left, right) => {
+        const byRuns = right.runs - left.runs;
+        if (byRuns !== 0) return byRuns;
+        const leftLabel = label(left);
+        const rightLabel = label(right);
+        return leftLabel < rightLabel ? -1 : leftLabel > rightLabel ? 1 : 0;
+      }),
     ...(firstAt !== undefined ? { firstAt } : {}),
     ...(lastAt !== undefined ? { lastAt } : {}),
     ...(lastRun !== undefined ? { lastRun } : {}),

@@ -208,7 +208,10 @@ function finalize(entry: Accumulator, sampleSize: number): DocketEntry {
         impact: aggregateImpact(component.impacts),
         renderedIn: [...component.renderedIn],
       }))
-      .sort((a, b) => b.deltaCount - a.deltaCount || a.name.localeCompare(b.name)),
+      .sort(
+        (a, b) =>
+          b.deltaCount - a.deltaCount || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+      ),
     sample: subjects.slice(0, sampleSize),
     places: rankedPlaces(entry.deltas),
     structureIntact: !entry.deltas.some(isStructural),

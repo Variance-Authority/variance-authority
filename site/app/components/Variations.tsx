@@ -14,27 +14,27 @@ const PARENT = "story:checkout--default";
 const VARIATIONS = [
   {
     id: "story:checkout--dark",
-    evidence: "by name",
-    how: "no tag — `checkout--dark` extends `checkout--default`’s stem at a separator, so the run reads the link off the name and says that it did.",
+    evidence: "name format",
+    how: "the configured name format treats `default` as the base and `dark` as another value on the same axis",
     line: "story:checkout--dark ← story:checkout--default (paint)",
     digest: "v1:41c0d7b2a8e5",
-    says: "differs in paint alone, led by Checkout — the scheme reached colour and nothing else.",
+    says: "Only colour differs. Checkout is the first affected component.",
   },
   {
     id: "story:checkout--new-flow",
     evidence: "tagged",
-    how: "tags: ['variance-parent:checkout--default'] — whatever produces the variation stays the collector’s business; the only thing this needs is the link.",
+    how: "tags: ['variance-parent:checkout--default'] links this arm to the state it varies from",
     line: "story:checkout--new-flow ← story:checkout--default (content, structure)",
     digest: "v1:9f2a11c4e77b",
-    says: "differs in content and structure, led by Checkout. The digest is taken over the difference, so a token edit that turns the whole suite red leaves it exactly where it was.",
+    says: "Content and structure differ. Checkout is the first affected component. A shared change to both arms leaves this fingerprint unchanged.",
   },
   {
     id: "story:checkout--empty",
     evidence: "tagged",
-    how: "the same page with a backend that answers empty. A variation that renders identically to its parent says so — which is a finding when the flag was supposed to change something.",
+    how: "the backend returns an empty state, but this capture matches the default state",
     line: "story:checkout--empty ← story:checkout--default (identical)",
     digest: "no difference",
-    says: "renders identically to its parent this run: the flag reached nothing the run could read.",
+    says: "This variant matches its parent. If it was meant to differ, the flag did not affect anything the run could observe.",
   },
 ] as const;
 
@@ -45,7 +45,7 @@ export default function Variations() {
   return (
     <div className="rounded-2xl border border-hairline bg-panel p-5 sm:p-7">
       <p className="font-mono text-[11px] tracking-[0.16em] text-quiet uppercase">
-        one parent, three variations
+        one parent, three related variants
       </p>
 
       <p className="mt-4 rounded-lg border border-hairline bg-deep px-3 py-2.5 font-mono text-sm text-ivory">
@@ -110,9 +110,9 @@ export default function Variations() {
       </div>
 
       <p className="mt-5 border-t border-hairline pt-4 text-xs leading-5 text-quiet">
-        Nothing on this axis reaches the exit code, acceptance, or the store. A
-        dark story is darker than its light parent; reporting that as a
-        regression would be reporting a subject for existing.
+        Each variant keeps its own baseline and verdict. The comparison between
+        variants does not fail the run by itself; it tells reviewers whether the
+        intended difference changed.
       </p>
     </div>
   );

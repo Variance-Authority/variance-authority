@@ -10,7 +10,16 @@ then the process ends; this is the shape those answers take so they can be read
 afterwards, from a different process, on a different machine, by whoever or
 whatever is asking.
 
-## Why it is its own package
+## Use this package when
+
+Install `@variance-authority/report` when a producer and its readers need a
+versioned run artifact without sharing a runner, browser, or transport. Use the
+root entrypoint for in-memory report types and derivations. Use
+`@variance-authority/report/file` only when this process should read or write a
+local path; an object store, PR comment, or socket should carry the same
+`RunReport` value without importing the file entrypoint.
+
+## Package boundary
 
 It has several readers. The CLI writes it, a PR comment renders it, the MCP tools
 read it, and none of those is the format's home — a format owned by one reader
@@ -32,19 +41,25 @@ questions being asked on a laptop is exactly why this artifact exists — and a
 consumer who moves it some other way (an object store, a PR comment, a socket)
 wants the shapes and not the disk.
 
-## Usage
+## Smallest working path
 
 ```ts
-import type { RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 
-await writeRunReport('.variance/run.json', runReport);
+// Throws on an unknown runVersion or malformed notObserved entry.
+const report = await readRunReport('.variance/run.json');
+console.log(report.runVersion, report.observations.length);
 
-// Throws on anything that is not one, so the type is earned rather than asserted.
-const report: RunReport = await readRunReport('.variance/run.json');
+// A producer can write the same validated shape to a new path.
+await writeRunReport('.variance/checked.json', report);
 ```
 
-## The three derivations that belong to the format
+The read returns a validated `RunReport`; the file entrypoint does not rerun a
+browser or recompute observations. A report from a future format is refused,
+and an absent `notObserved` field remains absent rather than being treated as an
+empty coverage list.
+
+## Format derivations
 
 None has a home in a reader. `clusterChanges` groups a run's changed subjects
 by fingerprint, so a token edit across forty stories is **one decision presented
@@ -52,8 +67,10 @@ once** rather than forty. `adjudicateRun` reads those changes back against what
 the author said they were doing:
 
 ```ts
+import { readRunReport } from '@variance-authority/report/file';
 import { adjudicateRun, describeAdjudication } from '@variance-authority/report';
 
+const report = await readRunReport('.variance/run.json');
 const answer = adjudicateRun(
   report,
   [{ root: 'component:Button', reason: 'new brand accent', maxSubjects: 3 }],
@@ -77,7 +94,7 @@ instead of reporting `delivered` about something nothing looked at. Dropping
 them silently would be the more comfortable default and the worse one: the agent
 would be told its band claim held.
 
-## Why a baseline is what it is
+## Changelog derivation
 
 A baseline update lands in a run of its own — `variance accept` promotes what a
 reviewer looked at — and the artifact that lands says *what* the new baseline is
@@ -89,6 +106,7 @@ one record, and `renderCommitMessage` puts it where the baseline is: in the
 commit message, as prose a reviewer reads and trailers a parser reads.
 
 ```ts
+import { readRunReport } from '@variance-authority/report/file';
 import {
   changelogOf,
   isRecorded,
@@ -96,9 +114,16 @@ import {
   parseCommitMessage,
 } from '@variance-authority/report';
 
+const report = await readRunReport('.variance/run.json');
+const accepted = report.observations
+  .filter((observation) => observation.verdict === 'changed')
+  .slice(0, 2)
+  .map((observation) => observation.subject);
+if (accepted.length === 0) throw new Error('the report has no changed subject to promote');
+
 const record = changelogOf({
   report,
-  accepted: ['story:card--small', 'story:card--large'],
+  accepted,
   selection: 'shape',
   at: new Date().toISOString(),
   project: 'design-system',
@@ -147,7 +172,7 @@ Reading it back where baselines are commits is
 [`@variance-authority/store`](../store)'s `readChangelog`; where they are rows it
 is [`@variance-authority/tribunal`](../tribunal)'s.
 
-## What it refuses
+## Validation boundaries
 
 `readRunReport` checks `runVersion` and validates `notObserved` rather than
 casting. Both refusals earn their cost:

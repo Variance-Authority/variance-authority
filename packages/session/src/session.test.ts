@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SubjectRef, Viewport } from '@variance-authority/core';
-import { createSession, type Session } from './session.js';
+import {
+  createSession,
+  diffProbes,
+  probe,
+  SheetRegistry,
+  type Session,
+} from './index.js';
 
 /**
  * These tests are the argument for the corner being cut, and the check that it
@@ -50,6 +56,20 @@ function mountButton(container: HTMLElement): void {
 function mountCard(container: HTMLElement): void {
   container.innerHTML = '<div class="card"><p class="card-body">Hello</p></div>';
 }
+
+describe('the low-level probe bracket', () => {
+  it('names a stylesheet write without treating the owned container as residue', () => {
+    const registry = new SheetRegistry();
+    const before = probe(document, { registry, ownedContainers: [session.container] });
+
+    inject('.probe-only { color: rebeccapurple }');
+
+    const after = probe(document, { registry, ownedContainers: [session.container] });
+    const delta = diffProbes(before, after);
+
+    expect(delta.written).toContain('sheet:<style:0>');
+  });
+});
 
 // ===========================================================================
 // The saving: benign accumulation must be free

@@ -4,22 +4,22 @@ const RECIPES = [
   {
     pkg: "@variance-authority/playwright-test",
     when: "A Playwright suite",
-    how: "One package. Existing test and expect imports stay in place; add an observation.",
+    how: "Add one observation to an existing test. Keep the test and expect imports you already use.",
   },
   {
     pkg: "@variance-authority/storybook-collector",
     when: "A built or served Storybook",
-    how: "The collector owns how a story becomes ready; the CLI owns baselines, reports, acceptance, and exit codes.",
+    how: "Collect stories from an existing build or dev server. The CLI handles baselines, reports, acceptance, and CI.",
   },
   {
     pkg: "@variance-authority/route-collector",
     when: "A running app or static build",
-    how: "A route list or a sitemap. Each width becomes its own subject with its own baseline and verdict.",
+    how: "Provide a route list or sitemap. Each viewport gets its own baseline and result.",
   },
   {
     pkg: "@variance-authority/unit-test",
     when: "Jest or Vitest under jsdom",
-    how: "Capture now, render later: the unit process writes a resource-closed archive; variance run paints it elsewhere.",
+    how: "Capture the document in jsdom, then render it later in a local or remote browser.",
   },
 ];
 
@@ -33,10 +33,10 @@ export default function Integration() {
       <SectionHead
         n="08"
         label="integrate"
-        title="One package where your UI is already ready"
+        title="Start where your UI already runs."
       >
-        No new way to write tests, no hosted setup. Pick the recipe that matches
-        where your UI states already live.
+        Keep your existing tests and rendering setup. Choose the collector that
+        meets your UI where it already runs.
       </SectionHead>
       <div className="mt-12 grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
         {RECIPES.map((r) => (
@@ -57,8 +57,7 @@ export default function Integration() {
       <div className="mt-10 grid gap-4 lg:grid-cols-[3fr_2fr] [&>*]:min-w-0">
         <div className="rounded-2xl border border-hairline bg-panel">
           <p className="border-b border-hairline px-5 py-2.5 font-mono text-xs text-quiet">
-            cart.spec.ts — a Playwright suite, unchanged apart from the
-            observation
+            cart.spec.ts — an existing Playwright test with one observation
           </p>
           {/* This one is code, so it scrolls where the terminal above
               wraps. Narrow enough and the lines simply stop at the
@@ -115,7 +114,7 @@ export default function Integration() {
         </div>
         <div className="flex flex-col rounded-2xl border border-hairline bg-panel">
           <p className="border-b border-hairline px-5 py-2.5 font-mono text-xs text-quiet">
-            the whole loop, for Storybook and route suites
+            the review loop for Storybook and route suites
           </p>
           <pre className="overflow-x-auto px-5 py-4 font-mono text-[13px] leading-7 text-ivory">
             <code>
@@ -131,10 +130,9 @@ export default function Integration() {
           <p className="border-t border-hairline px-5 py-4 text-sm leading-6 text-quiet">
             The first run reports every subject as{" "}
             <span className="font-mono text-[0.95em]">new</span> and exits 1 — a
-            baseline nobody approved is not a pass. The report is one HTML file
-            beside the JSON: no account, no upload step, nothing to keep running.
-            Stabilization is on by default; animations are pinned, fonts and
-            images waited for, scrollbars hidden, before anything is read.
+            new baseline still needs review. The report is one HTML file beside
+            the JSON, with no account or upload step. Before capture, animations
+            are pinned, fonts and images are loaded, and scrollbars are hidden.
           </p>
         </div>
       </div>

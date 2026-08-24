@@ -2,7 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { INITIAL, MIGRATIONS, SCHEMA, SCHEMA_VERSION } from './schema.js';
+import type { D1Like, D1PreparedLike } from './bindings.js';
+import { INITIAL, MIGRATIONS, SCHEMA, SCHEMA_VERSION, applySchema } from './schema.js';
 
 /**
  * The migrations `wrangler` applies and the arrays the tests run against are one
@@ -97,5 +98,30 @@ describe('the D1 migrations are the schema', () => {
     // The comment is the only thing standing between these files and somebody
     // fixing production in one, which would pass every test in the repository.
     for (const file of FILES) expect(text(file)).toContain('Do not edit');
+  });
+
+  it('applies the complete schema as one batch', async () => {
+    const prepared: D1PreparedLike = {
+      bind: () => prepared,
+      first: async () => null,
+      all: async () => ({ results: [] }),
+      run: async () => undefined,
+    };
+    const preparedSql: string[] = [];
+    let batch: readonly D1PreparedLike[] | undefined;
+    const db: D1Like = {
+      prepare(sql) {
+        preparedSql.push(sql);
+        return prepared;
+      },
+      async batch(statements) {
+        batch = statements;
+      },
+    };
+
+    await applySchema(db);
+
+    expect(preparedSql).toEqual(SCHEMA);
+    expect(batch).toHaveLength(SCHEMA.length);
   });
 });

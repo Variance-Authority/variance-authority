@@ -2,23 +2,21 @@
 
 # @variance-authority/remote
 
-**Requires:** a port to bind, or a peer to reach. Nothing else: what is served is
-whatever you hand the serving half.
+Use this package when rendering or baseline storage must happen in another
+process or on another machine. The client and server share one HTTP protocol;
+the server wraps a renderer or store you provide.
 
-The same tools, on the other side of a wire: a renderer reached over HTTP, and a
-baseline store reached over HTTP.
+**Requires:** a port to bind for a server, or an endpoint to reach for a client.
+The package does not provide a renderer, a database, or a baseline policy.
 
-## Why this package can exist at all
+## What crosses the wire
 
-Every tool in this project takes and returns something **serializable**, and this
-package is what that property is for. A document acquired in a jsdom unit test on
-one machine can be painted by a pinned machine two networks away, and nothing
-above or below the hop is written differently.
+Render documents, rasters, baseline descriptions, and cache entries are already
+serializable. A document acquired in a jsdom unit test can therefore be painted
+by a pinned renderer elsewhere without changing the interfaces above or below
+the hop.
 
-Proven byte-identically, in-process and over an HTTP hop, in
-[`examples/todomvc/src/offload.chromium.test.tsx`](../../examples/todomvc).
-
-## Both halves live together
+## Client and server entrypoints
 
 The client and the server are **one protocol**. Split across two packages they
 drift, and a client and a server disagreeing about a wire format is the class of
@@ -48,7 +46,7 @@ what is behind it, which is why the local and remote sides cannot answer
 `identityFor` differently — they share the derivation rather than each having
 one.
 
-## Renders that overlap travel together
+## Batch overlapping renders
 
 `render(document)` is unchanged and takes one document. Underneath, calls that
 overlap in time leave as **one request** to `/render/batch`, because a run's
@@ -65,7 +63,7 @@ interchangeable.
 | `maxBatch` | 16 | A farm with a request-size limit, or one whose per-request timeout is tighter than a batch of paints |
 | `batchWindowMs` | `0` | Raise it only against a farm billed **per invocation**. Zero sends what is already waiting on the next turn of the loop, so a serial caller pays nothing; a window taxes that caller on every item and cannot help them |
 | `timeoutMs` | `30000` | A render that hangs must fail rather than stall the run |
-| `fetch` | `globalThis.fetch` | Substituted to route through a proxy, add headers, or test the transport without a socket |
+| `fetch` | `globalThis.fetch` | Substitute it to route through a proxy or add headers |
 
 `createRemoteStore` takes the same `endpoint`, `timeoutMs` and `fetch`, plus
 `token` — the bearer the operator set on the service. It constructs
@@ -93,7 +91,7 @@ server has nothing else to decide. `serveRasterStore(store, options)` takes
 
 | option | default | what it decides |
 |---|---|---|
-| `port` | `0` | `0` binds a free port and reports it on `StoreServer.url`, which is what a test wants and what a fixed port cannot give it |
+| `port` | `0` | `0` binds a free port and reports it on `StoreServer.url`; choose a fixed port for a stable service endpoint |
 | `token` | none | the bearer required on every request. Absent means the socket is the only gate — a decision for the operator's network, not a default this package can make for them |
 
 `batching(send, options)` is the batcher itself, exported because the renderer
@@ -102,7 +100,7 @@ client is not the only thing that could want it. It takes `maxBatch` and
 `batchWindowMs`, renamed there because at that level "batch" is already implied
 and `windowMs` alone would read as a timeout.
 
-## A suite is one request when the store is asked in advance
+## Prefetch store metadata
 
 Most subjects settle from the sidecar — 32 hex characters, no image moved — and
 over a socket that saving is spent again as one request per subject. `expect(keys)`
@@ -119,16 +117,16 @@ back as an *answer* rather than as a miss, so a first run costs one request too.
 Nothing about it can move a verdict, which is the property that lets it be added
 to a deployed protocol at all.
 
-## Nothing that arrives is believed on different terms
+## Validate remote records
 
 A record off a socket passes the same checks a record off a disk passes, from
 [`@variance-authority/raster`](../raster). Two copies of those checks would be two
 ideas of what a baseline is, and the one that drifts is the one that accepts a
 record the other refuses.
 
-## A store that cannot answer is never heard as answering
+## Failure behavior
 
-Every failure mode is tested and every one of them **throws**:
+Every failure mode **throws**; none is translated into a missing baseline:
 
 | failure | what it must not be |
 |---|---|
@@ -140,6 +138,6 @@ Every failure mode is tested and every one of them **throws**:
 | a bare `null` body | a miss |
 | a baseline with no stated comparability | a comparable baseline |
 
-They are all the same test. `new` re-records what is on screen, so a network blip
+They share one safety boundary. `new` re-records what is on screen, so a network blip
 read as a miss does not skip a check — it **destroys the thing the check was
 against, and reports success while doing it.**

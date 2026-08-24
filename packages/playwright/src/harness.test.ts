@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { captureOnce, fetchModules } from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from './agent.js';
 import { createHarness, type Harness, type HarnessOptions } from './harness.js';
 
@@ -73,6 +74,22 @@ const OPTIONS: HarnessOptions = {
   fonts: ['Stub/400/normal/0'],
 };
 
+describe('fetchModules', () => {
+  it('uses the page for module bytes and treats a closed page as absent', async () => {
+    const evaluate = vi
+      .fn()
+      .mockResolvedValueOnce('export function Button() {}')
+      .mockRejectedValueOnce(new Error('page closed'));
+    const fetch = fetchModules({ evaluate } as never);
+
+    await expect(fetch('http://localhost:6006/src/Button.tsx')).resolves.toBe(
+      'export function Button() {}',
+    );
+    await expect(fetch('http://localhost:6006/src/Missing.tsx')).resolves.toBeNull();
+    expect(evaluate).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness', () => {
   let harness: Harness;
 
@@ -112,6 +129,13 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness', () => {
     expect(JSON.parse(JSON.stringify(capture))).toEqual(capture);
     expect(capture.profile.id).toBe('chromium');
   });
+
+  it('closes the browser after one capture', async () => {
+    const capture = await captureOnce(OPTIONS, 'one-shot', 'base');
+
+    expect(capture.subject.id).toBe('fixture:one-shot');
+    expect(capture.profile.id).toBe('chromium');
+  }, 60_000);
 
   it('observes real geometry, which is the whole reason this profile exists', async () => {
     const capture = await harness.capture('alpha', 'base');

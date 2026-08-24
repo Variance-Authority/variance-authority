@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { normalize, diffSnapshots, type Viewport } from '@variance-authority/core';
+import { normalize, diffSnapshots, JSDOM_PROFILE, type Viewport } from '@variance-authority/core';
 import { collect } from './collect.js';
 import { indexStyleSheets } from './css-index.js';
+import { stabilizeForObservation } from './index.js';
 
 /**
  * The claim under test is ADR-0003's headline, and it is the one M0 could not
@@ -274,6 +275,17 @@ describe('ARIA extraction', () => {
 });
 
 describe('profile detection', () => {
+  it('accepts an explicit empty stabilization recipe through the public entrypoint', async () => {
+    const stabilized = await stabilizeForObservation(document, {
+      recipe: [],
+      profile: JSDOM_PROFILE,
+    });
+
+    expect(stabilized.ids).toEqual([]);
+    expect(stabilized.digest).toBeUndefined();
+    stabilized.release();
+  });
+
   it('declares jsdom, because this host has no layout engine', () => {
     const capture = collect(render(SUBJECT_HTML, SUBJECT_CSS), options);
 

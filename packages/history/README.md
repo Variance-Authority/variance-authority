@@ -2,15 +2,19 @@
 
 # @variance-authority/history
 
-**Requires:** nothing. `history/client` requires a service already running at an
-endpoint you control, and the bearer token it was started with.
+Use this package when a visual-regression pipeline needs to retain observations
+across runs and turn them into churn, flakiness, reach, or token-drift answers.
+The root entrypoint is pure contract and arithmetic; `history/client` is the
+optional HTTP client for a service you run.
 
-The question a single run cannot answer: a button gains 2px, eleven times, each
-approved correctly, and nobody ever sees the 22px change. No threshold catches
-it, because the quantity that would is a **sum**, and a one-run-at-a-time tool
-keeps none.
+**Requires:** nothing for the root entrypoint. `history/client` requires a
+running service endpoint and its bearer token.
 
-## What it holds, and what it deliberately does not
+A single run cannot describe accumulation: a button can gain 2px across eleven
+approved runs without any one review seeing the 22px travel. History keeps the
+rows and the arithmetic that makes that sum observable.
+
+## Contract and storage boundary
 
 This package holds **no storage**. That is a boundary, not an omission — storage
 is [`@variance-authority/server`](../server), run by the operator in their own
@@ -37,7 +41,7 @@ pixels, never images, never coordinates.** So a question like
 is exact and machine-independent, and nobody has to keep a PNG in their history
 to get it.
 
-## When a sum is a finding
+## Detect accumulated drift
 
 `detectDrift(journey, options)` is the arithmetic the 22px story needs, and it
 returns `null` when the token's travel is not worth anybody's attention. Two
@@ -55,18 +59,14 @@ not an answer is a journey whose limit excluded steps — an incomplete journey 
 always returned and always says so, because a `null` there would claim a
 stability the slice cannot support.
 
-## Why it cannot be a file in the repository
+## Why history is external
 
 A committed lock file puts derived state under human merge resolution, and the
 hashes of a merge commit are neither branch's. A database has no merge conflicts
 because it stores **observations**, not state — two branches observing different
 hashes for one key are two rows.
 
-See [spec 0002](../../docs/specs/0002-history-store.md) and
-[`epitaphs.md`](../../docs/context/epitaphs.md), which records the local-file
-design that was built and killed by this argument.
-
-## Absence is said out loud
+## Represent missing history
 
 ```ts
 import { createAbsentStore } from '@variance-authority/history';
@@ -80,7 +80,7 @@ has drifted", which is a confident answer to a question nobody asked. The HTTP
 client throws on every transport failure for the same reason, and
 `createAbsentStore` says *no record is kept* rather than answering.
 
-## Who writes a row
+## Writers and client options
 
 **A configured `variance run` does, and so does `variance accept`.** The CLI
 parses a `history` config block; `variance run` records the run and its

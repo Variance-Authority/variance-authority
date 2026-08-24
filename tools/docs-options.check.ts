@@ -82,29 +82,6 @@ function publicOptionKeys(dir: string): readonly string[] {
   return [...keys];
 }
 
-/**
- * How many undocumented keys each package is still carrying.
- *
- * A budget rather than a suppression: a package absent from this map must
- * document every key it publishes, and a package in it may only ever get closer
- * to zero. Adding an undocumented option to `core` fails this rule today.
- *
- * These six are last on purpose. Four of them — `core`, `dom`, `raster`, `sense`
- * — are not surfaces (`tools/workspaces.ts`), so nobody is told to import them;
- * `react` is reached through the collectors, and `cli`'s option types are
- * per-command argument bags whose adopter-facing form is the flags and the
- * config file, both of which are already checked above. That is a reason to do
- * them last, not a reason they are exempt.
- */
-const OPTION_DEBT: Readonly<Record<string, number>> = {
-  'packages/cli': 15,
-  'packages/core': 17,
-  'packages/dom': 15,
-  'packages/react': 10,
-  'packages/raster': 7,
-  'packages/sense': 5,
-};
-
 const PACKAGE_OPTIONS = execFileSync('git', ['ls-files', 'packages/*/package.json'], {
   cwd: ROOT,
   encoding: 'utf8',
@@ -118,7 +95,7 @@ const PACKAGE_OPTIONS = execFileSync('git', ['ls-files', 'packages/*/package.jso
   .filter(({ keys }) => keys.length > 0);
 
 const DOCUMENTED_OPTIONS = PACKAGE_OPTIONS.flatMap(({ dir, keys }) =>
-  dir in OPTION_DEBT ? [] : keys.map((key) => [`${dir}/README.md`, key] as const),
+  keys.map((key) => [`${dir}/README.md`, key] as const),
 );
 
 describe('every option a package publishes is named in its README', () => {
@@ -130,19 +107,6 @@ describe('every option a package publishes is named in its README', () => {
   it.each(DOCUMENTED_OPTIONS)('%s names `%s`', (readme, option) => {
     expect(readFileSync(join(ROOT, readme), 'utf8'), `\`${option}\` ships and the README is silent`)
       .toContain(`\`${option}\``);
-  });
-
-  it.each(Object.keys(OPTION_DEBT))('%s is closer to documenting every option, never further', (dir) => {
-    const entry = PACKAGE_OPTIONS.find((candidate) => candidate.dir === dir);
-    expect(entry, `${dir} is budgeted for undocumented options and publishes none`).toBeDefined();
-
-    const readme = readFileSync(join(ROOT, dir, 'README.md'), 'utf8');
-    const undocumented = entry!.keys.filter((key) => !readme.includes(`\`${key}\``));
-    expect(
-      undocumented.length,
-      `${undocumented.join(', ')} — lower the budget in OPTION_DEBT when this shrinks, ` +
-        'and delete the entry when it reaches zero',
-    ).toBeLessThanOrEqual(OPTION_DEBT[dir]!);
   });
 });
 

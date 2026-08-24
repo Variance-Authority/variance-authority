@@ -165,7 +165,7 @@ export function clusterChanges(observations: readonly ObservationRecord[]): Clus
         b.settles.length - a.settles.length ||
         b.subjects.length - a.subjects.length ||
         b.pixels - a.pixels ||
-        a.fingerprint.localeCompare(b.fingerprint),
+        (a.fingerprint < b.fingerprint ? -1 : a.fingerprint > b.fingerprint ? 1 : 0),
     );
 
   return { changes, ungrouped };

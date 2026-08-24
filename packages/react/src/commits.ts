@@ -334,7 +334,9 @@ function seenSince(
   const restless = [...counts]
     .map(([name, commits]) => ({ name, commits }))
     // Ties broken by name so two runs of one page print the same line.
-    .sort((a, b) => b.commits - a.commits || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) => b.commits - a.commits || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    );
 
   return { commits: since.length, restless };
 }

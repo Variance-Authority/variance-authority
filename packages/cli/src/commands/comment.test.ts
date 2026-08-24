@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core';
 import type { ObservationRecord } from '@variance-authority/report';
+import { DEFAULT_LIMITS as PUBLIC_DEFAULT_LIMITS } from '@variance-authority/cli';
 import { COMMENT_MARKER, renderComment } from './comment.js';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
 import type { CliRunReport } from './run.js';
@@ -75,6 +76,16 @@ function tokenChange(subjects: number): CliRunReport {
 }
 
 describe('renderComment', () => {
+  it('publishes the default bounds used when no limits are supplied', () => {
+    expect(PUBLIC_DEFAULT_LIMITS).toEqual({
+      causes: 20,
+      subjects: 3,
+      notObserved: 20,
+      drift: 10,
+      characters: 65_536,
+    });
+  });
+
   it('puts the cause above the collateral count, so the review starts at the edit', () => {
     // Area measures displacement, not cause: `Text` and `Stack` moved far more
     // pixels than `Toggle`, which is the edit. A body that led with them would

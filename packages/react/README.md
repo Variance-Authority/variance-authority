@@ -2,33 +2,50 @@
 
 # @variance-authority/react
 
-**Requires:** that `react-dom` rendered the tree you are pointing at. Not the
-React package — no shipped module imports `react`, and `react` is a
-devDependency the tests use to build trees to read, so this cannot pin, duplicate
-or conflict with the application's own copy.
+**Requires:** that `react-dom` rendered the tree you are pointing at. This
+package reads metadata attached to DOM nodes and does not import the
+application's React package, so it cannot pin, duplicate, or replace that copy.
 
 That distinction is the whole reason this is a package instead of a folder in
 [`@variance-authority/dom`](../dom). The requirement is real and a consumer is
 buying it; the npm dependency is not.
 
-## What it produces
+## Use this package when
 
-Given an element, the `Provenance` value `core` defines: the composite components
-enclosing it, a props digest at each boundary, and the component that authored
-it.
+Install `@variance-authority/react` when `react-dom` has already mounted the
+element you want to inspect. It reads React's fiber metadata; it does not render
+components, install a test runner, or replace the application's React copy. For
+the DOM capture that consumes the callback, use [`@variance-authority/dom`](../dom).
+
+## Smallest working path
+
+Given a mounted element, `provenanceOf` returns the `Provenance` value defined by
+`core`: composite owners, a props digest at each boundary, and the component that
+authored the element.
 
 ```ts
 import { provenanceOf } from '@variance-authority/react';
-import { collect } from '@variance-authority/dom';
 
-const capture = collect(container, { subject, viewport, engine: 'jsdom@30', provenanceOf });
+const element = document.querySelector('[data-test="subject"]');
+if (element === null) throw new Error('React subject is not mounted');
+
+const provenance = provenanceOf(element);
+if (provenance === undefined) {
+  console.log('React did not render this node');
+} else {
+  console.log(provenance.owners.map((owner) => owner.name));
+}
 ```
+
+To include the same data in a semantic capture, pass `provenanceOf` to
+`collect(root, { subject, viewport, engine, provenanceOf })`. The callback is
+optional: without it, the DOM package still captures the node but cannot name a
+component.
 
 ## What else it reads off the same fiber
 
-Provenance was the first question asked of it and is no longer the only one.
-Each of these is a different question of the same object graph, and none of them
-needs a hook, a build plugin or an annotation.
+The same fiber answers four distinct questions, and none of them needs a hook,
+a build plugin or an annotation.
 
 | | |
 |---|---|
@@ -44,6 +61,20 @@ states, so a page with no React under it can never claim to have arrived — and
 `suspenseRefusal` turns that into `string | undefined`, which is the shape a
 caller cannot accidentally downgrade to a warning.
 
+The commit tap is different: it is not installed automatically. Call
+`tapCommits()` before `react-dom` is imported, then pass the returned tap to
+`awaitQuiet` when a runner needs a component-level readiness signal. If React was
+already loaded, the tap reports `attached: false` rather than pretending the page
+was quiet.
+
+The readiness options are caller policy, not hidden defaults:
+
+| call | useful controls |
+|---|---|
+| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds traversal per commit, `keep` bounds retained commits, and `refuseIfLoaded` keeps a late tap from claiming coverage |
+| `awaitQuiet` | `quietFor` is the required silence, `timeout` bounds the wait, and `interval` controls polling; a timeout returns `settled: false` with restless component names |
+| `awaitSuspense` | `timeoutMs`, `pollMs`, and `confirmations` bound the boundary check; a pending or unobserved result is returned for the page agent to rule on |
+
 ## Two constraints shape everything here
 
 **1. Engine independence.** Traversal reads plain JavaScript objects React
@@ -58,12 +89,12 @@ consulted only for the exact React version, and only if it happens to exist.
 
 ## Why provenance is load-bearing, not decoration
 
-It started as attribution — "which component produced this pixel". Since
-[ADR-0007](../../docs/context/adr/0007-subject-boundary-is-the-component-tree.md)
-it is also **correctness**: the component tree is what defines a subject's
-boundary, so owner chains drive differ matching as well as reporting. A tree
-matched without them matches by position, and a list that reordered looks like
-every item changed.
+Provenance does two jobs. It attributes a region to the component that produced
+it, and it supplies the component-tree boundary required by
+[ADR-0007](../../docs/context/adr/0007-subject-boundary-is-the-component-tree.md).
+Owner chains therefore drive differ matching as well as reporting. A tree
+matched without them matches by position, and a reordered list looks like every
+item changed.
 
 ## Honest limits
 
@@ -99,6 +130,12 @@ every item changed.
   declaration rather than the call site.
 - **A node React never rendered has no chain**, and says so — `NO_FIBER` with a
   reason, never an empty chain that reads like "no components involved".
+
+If the element has no React fiber, or the application uses a production build
+without source metadata, the result is intentionally incomplete. `provenanceOf`
+does not guess a component from the DOM; use the name scan in `core/attribute` or
+install [`@variance-authority/jsx-source`](../jsx-source) for production call-site
+locations.
 
 ## Reading
 

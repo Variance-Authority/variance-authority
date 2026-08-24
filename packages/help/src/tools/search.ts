@@ -39,7 +39,12 @@ export const search: Tool<Help> = {
 
     const found = [...everyEntry(help)]
       .filter(([, , entry]) => matches(entry, query))
-      .sort(([, , a], [, , b]) => b.usedBy.length - a.usedBy.length || b.uses - a.uses || a.name.localeCompare(b.name));
+      .sort(
+        ([, , a], [, , b]) =>
+          b.usedBy.length - a.usedBy.length ||
+          b.uses - a.uses ||
+          (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+      );
 
     if (found.length === 0) {
       return `Nothing published contains \`${query}\`. docs_packages lists every entrypoint; docs_entrypoint lists what one opens.`;

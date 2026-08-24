@@ -144,7 +144,12 @@ export function readHelp(root: string, options: HelpOptions = {}): Help {
       const key = `${offering.name} ${entry.subpath}`;
       const entries = [...namesReachedBy(reader, entry.source)]
         .map(([name, kinds]) => entryOf(name, kinds, reachedFrom(usage, key, name, offering.name)))
-        .sort((a, b) => b.usedBy.length - a.usedBy.length || b.uses - a.uses || a.name.localeCompare(b.name));
+        .sort(
+          (a, b) =>
+            b.usedBy.length - a.usedBy.length ||
+            b.uses - a.uses ||
+            (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+        );
       return { subpath: entry.subpath, source: relative(where, entry.source), entries };
     }),
   }));
@@ -173,7 +178,10 @@ export function undocumented(help: Help): readonly Entry[] {
   return [...everyEntry(help)]
     .map(([, , entry]) => entry)
     .filter((entry) => entry.doc === undefined && entry.usedBy.length > 0)
-    .sort((a, b) => b.usedBy.length - a.usedBy.length || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        b.usedBy.length - a.usedBy.length || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    );
 }
 
 /**

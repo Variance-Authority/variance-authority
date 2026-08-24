@@ -2,9 +2,9 @@
 
 # @variance-authority/server
 
-The history service. The half of [spec 0002](../../docs/specs/0002-history-store.md)
-that has state: a socket that accepts observations and answers drift questions
-about them, backed by a store you choose.
+Run this package when a pipeline needs a self-hosted HTTP history service. It
+accepts observations and approvals, stores them in a backend, and answers the
+history queries defined by [`@variance-authority/history`](../history).
 
 **Requires:** a port and a bearer token of at least 16 characters — it refuses to
 start without the token. The shipped backend adds a Node with `node:sqlite` (22+,
@@ -12,7 +12,10 @@ where it is still experimental and warns on import) and a writable database path
 a backend you write yourself requires neither, and the entrypoint table below says
 which is which.
 
-## First-party and self-hosted, and both words are load-bearing
+This is an operator-run service, not a hosted endpoint. Nothing in this package
+starts it for another project or provisions a database.
+
+## Deployment model
 
 **You run it.** A process, a port, and a token you set. Nothing in this
 repository runs it for anyone, no instance is shared between operators, and every
@@ -85,14 +88,14 @@ cannot disagree about what a number means.
 |---|---|---|
 | `backend` | required | rows in, rows out. The one thing the socket does not implement |
 | `token` | required | the bearer the operator set. There is exactly one, it is shared, and it carries no identity: the service holds no accounts and everything in it was produced by the operator's own runs. Not *who are you* — *is this write attributable to this deployment at all* |
-| `port` | `7788` from the executable, `0` here | `0` binds an ephemeral port, which is what the tests use |
+| `port` | `7788` from the executable, `0` here | `0` binds an ephemeral port and returns its selected address |
 | `host` | `127.0.0.1` | a history service that binds every interface the moment it starts is one misconfigured firewall away from being a public record of an unreleased product's internals. Making the operator ask for it is one line of configuration against a failure with no symptom |
 | `maxBodyBytes` | 8 MiB | a ceiling on memory held for one socket, not a limit anyone should reach — 300 subjects write a handful of hundred-byte rows. Exceeding it is a 413 that says so, never a truncated body parsed as far as it went |
 
 `createSqliteBackend` takes one: `path`, a file or `':memory:'` for a store that
 ends with the process.
 
-## Writes are one transaction
+## Atomic writes
 
 A run and its rows travel together and commit or fail together. Recording rows
 whose run never landed leaves a change with no denominator; recording the run

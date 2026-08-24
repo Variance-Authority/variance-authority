@@ -14,10 +14,16 @@ export default function SiteHeader() {
         </a>
         <nav className="flex items-center gap-6 text-sm text-quiet">
           <a
-            href="#run"
+            href="#react"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
-            How it runs
+            React
+          </a>
+          <a
+            href="#variations"
+            className="hidden transition-colors hover:text-ivory sm:inline"
+          >
+            Variants
           </a>
           <a
             href="#integrate"

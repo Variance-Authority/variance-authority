@@ -11,18 +11,18 @@ import { useEffect, useRef, useState } from "react";
  */
 
 const STEPS = [
-  { key: "raster", label: "raster", caption: "0.42% of the subject moved" },
+  { key: "raster", label: "image", caption: "0.42% of the pixels changed" },
   {
     key: "document",
     label: "document",
-    caption: "one node differs, and only its paint",
+    caption: "one element changed in appearance",
   },
   {
     key: "component",
-    label: "component",
-    caption: "the node was rendered by Title",
+    label: "react",
+    caption: "React says Title rendered the element",
   },
-  { key: "file", label: "file", caption: "Title is written here" },
+  { key: "file", label: "source", caption: "Title was rendered here" },
 ] as const;
 
 function Chevron({ lit }: { lit: boolean }) {
@@ -185,7 +185,7 @@ function ComponentPanel({ active }: { active: boolean }) {
                 active ? "opacity-100" : "opacity-0"
               }`}
             >
-              TOKEN
+              STYLE
             </span>
           )}
         </li>
@@ -316,7 +316,7 @@ export default function Attribution() {
           <span className="text-orange">{"//"}</span> {STEPS[step].caption}
         </p>
         <p className="font-mono text-[11px] tracking-[0.14em] text-warm uppercase">
-          one change · connected end to end
+          one change · connected to React and source
         </p>
       </div>
     </div>

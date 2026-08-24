@@ -9,6 +9,14 @@ convention ([ADR-0006](../../docs/context/adr/0006-host-free-core.md)).
 
 Pure data in, pure data out. Collectors extract; core normalizes and adjudicates.
 
+## Use this package when
+
+Install `@variance-authority/core` when the input is already a capture, snapshot,
+render document, raster mask, or value. The package does not collect a DOM, read
+PNG bytes, launch a renderer, or select a test runner. Add [`@variance-authority/dom`](../dom)
+for a live DOM, [`@variance-authority/react`](../react) for React provenance, and
+[`@variance-authority/png`](../png) when the input is a PNG.
+
 ## Entrypoints
 
 Seven groups. Five of them are the order an answer travels through; `core/plan`
@@ -34,34 +42,66 @@ or whether two runs may be compared at all, needs `core/plan` and nothing else:
 the digest it derives is the address, so changing any part of the plan changes
 which baselines the run can see.
 
-## The split that carries weight
+## Comparison and policy
 
 `compare` says **what moved**. `judge` says **whether anyone should mind**. A
 comparison that also decided severity could not be reused by a team with a
 different policy, and every team has a different policy.
 
-## Usage
+## Smallest working path: compare a value
+
+Value comparison needs no host setup and returns paths and fingerprints, not a
+pass/fail verdict:
 
 ```ts
-import { normalize, diffSnapshots, isolateRegions, attributeRegions } from '@variance-authority/core';
+import { compareValues, shapeValue } from '@variance-authority/core';
 
-const before = normalize(capture);                  // the profile arrived with the capture;
-const after = normalize(recapture);                 // normalization does not choose one
+const before = shapeValue({ rows: [{ id: 'a', total: 10 }] }, {
+  arrayKey: { '/rows': 'id' },
+});
+const after = shapeValue({ rows: [{ id: 'a', total: 12 }] }, {
+  arrayKey: { '/rows': 'id' },
+});
 
-const diff = diffSnapshots(before, after);          // deltas, roots, matching — no verdict
-                                                    // hand `diff` to core/judge for one
+const deltas = compareValues(before, after);
+console.log(deltas[0]?.pointer);                     // /rows/a/total
+```
 
-// The pixel path, for the subjects a digest could not settle. `mask` is a
-// ChangeMask from the raster tier (`@variance-authority/png` decodes and
-// compares); core never opens an image, which is why it requires nothing.
-const places = isolateRegions(mask, { cell: 8 });   // pixels → regions
+For a rendered subject, the same package receives captures from a collector:
+
+```ts
+import { attributeRegions, diffSnapshots, isolateRegions, normalize } from '@variance-authority/core';
+
+const before = normalize(capture);                   // supplied by a collector
+const after = normalize(recapture);
+const diff = diffSnapshots(before, after);           // deltas, roots, no verdict
+
+// `mask` is a ChangeMask from the raster tier. Core never opens an image.
+const places = isolateRegions(mask, { cell: 8 });    // pixels → regions
 const named = attributeRegions(places.regions, after, { scale: 2 });
 ```
+
+The value example prints a JSON Pointer for the changed field. The rendered path
+returns semantic roots and, when a raster mask is supplied, regions attributed to
+the candidate snapshot. A caller still chooses policy and a verdict in
+`core/judge` or in its own runner.
 
 `scale` is device pixels per CSS pixel, it is **required**, and it has no default
 on purpose: a 2x screenshot attributed at 1x lands every region in the top-left
 quadrant and names the wrong component for each — a full, plausible, entirely
 wrong report. That last step is where regions become components and files.
+
+The options that change scope are explicit at the call site:
+
+| call | useful controls |
+|---|---|
+| `normalize` | `collapseWrappers` removes layout-only wrapper boundaries, `digestText` includes text content, and `sourceRoot` relativizes source locations |
+| `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region |
+| `fingerprintOfMask` | `grid` controls the shape sample and `coverage` controls the minimum occupied share |
+| `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
+| `buildDocket` / dependency reach | `sampleSize` limits review examples and `through` selects graph edge kinds |
+| report summaries | `source` maps component names to files when `summarizeAdjudication` or `summarizeFindings` needs an actionable path |
+| screenshot stabilization | `animations` and `caret` are explicit intervention settings; omitted means the caller did not assert either intervention |
 
 ### A subject that was never rendered
 
@@ -91,6 +131,9 @@ baseline.
 Non-data throws, naming the pointer. A function, a `Date`, a `bigint` or a
 non-finite number cannot be canonical text, and dropping one silently puts a key
 in the record that the next run reads as removed.
+
+Rendered comparisons also throw when the subjects or observation profiles differ;
+crossing those boundaries would turn an engine limitation into a product change.
 
 ## What it refuses
 

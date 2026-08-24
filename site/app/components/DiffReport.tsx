@@ -241,20 +241,19 @@ export default function DiffReport() {
 
       <div className="mt-5 border-t border-hairline pt-4">
         <p className="font-mono text-[11px] tracking-[0.16em] text-quiet uppercase">
-          the shapes that happened
+          accept matching changes
         </p>
         <p className="mt-3 rounded-lg border border-hairline bg-deep px-3 py-2.5 font-mono text-[11px] leading-5 text-ivory">
           variance accept --shape v1:9f2a11c4e77b
           <span className="mt-1 block text-warm">
-            settles 8 subjects · touches 11, because three of them also moved
-            somewhere this shape does not name
+            accepts this change in 8 UI states · leaves 3 with additional
+            changes for review
           </span>
         </p>
         <p className="mt-3 text-xs leading-5 text-quiet">
-          Every fingerprint, path and command on the page is a copy button —
-          including a pasteable ignore rule. The report carries a script and no
-          network: it opens from a file, on a laptop, from an artifact
-          directory, ten days after the run.
+          Paths, commands, fingerprints, and ignore rules can be copied. The
+          report is one self-contained HTML file with no network dependency, so
+          it opens directly from a CI artifact.
         </p>
       </div>
     </div>

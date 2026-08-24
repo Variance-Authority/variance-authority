@@ -6,11 +6,11 @@ const FOOTER = [
   {
     title: "on this page",
     links: [
+      { href: "#react", label: "React attribution" },
+      { href: "#variations", label: "Variants" },
       { href: "#run", label: "The run" },
-      { href: "#sensitivity", label: "Sensitivity" },
-      { href: "#position", label: "Straight answers" },
+      { href: "#report", label: "The report" },
       { href: "#integrate", label: "Integrate" },
-      { href: "#packages", label: "Packages" },
     ],
   },
   {
@@ -37,8 +37,8 @@ export default function SiteFooter() {
             </span>
           </div>
           <p className="mt-4 max-w-xs text-sm leading-6 text-quiet">
-            Visual regression that answers which component changed, and where
-            that component is written.
+            Visual Regression with Verifiable Results, React attribution,
+            variant-aware reports, and infrastructure you control.
           </p>
         </div>
         {FOOTER.map((col) => (

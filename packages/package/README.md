@@ -7,8 +7,10 @@ whose `workspaces` field names the members, and, for any package that publishes
 compiled declarations, a `tsconfig.json` saying which directory they were
 compiled from. Nothing has to have been built.
 
-What a repository publishes, as one value: the subpaths each manifest opens, and
-every name reachable through them.
+Use this package when a release or API check needs the package surface as data:
+the subpaths each manifest opens and every name reachable through them. It reads
+source and manifests directly; it does not need a build or compare two readings
+for you.
 
 ## Entrypoints
 
@@ -23,23 +25,21 @@ names into a front door and a footnote. It is a separate door because a baseline
 of the published surface does not need to walk every file in the repository, and
 the reading that ranks does.
 
-## The question
+## What it checks
 
-The thing an adopter actually depends on is not a file, it is a name at a
-subpath. `@variance-authority/core` exports `digestValue` from `.`; something out
-there imports it. Rename it, move it behind a subpath, stop re-exporting it from
-the barrel, and every rule a repository normally has stays green — lint reads
-syntax, types read a compilation, a boundary rule reads who may import whom. None
-of them is watching the edge that breaks somebody else's build.
+A consumer depends on a name at an exported subpath, not on a source file.
+`@variance-authority/core` exports `digestValue` from `.`; moving it behind a
+different subpath or removing the re-export changes a consumer's import even if
+lint, typechecking, and dependency-boundary checks still pass.
 
-That edge is a value, so it can have a baseline:
+`readSurface` records that edge as a value that can have a baseline:
 
 ```
 removed  /@variance-authority~1core/names/./digestValue
 ```
 
-This package produces the value. What compares two of them is your business —
-that is the whole point of it returning plain JSON.
+This package produces plain JSON. Snapshot storage, comparison, and approval
+remain caller-owned so the surface can be used with an existing release check.
 
 ## Read a workspace
 
@@ -51,7 +51,7 @@ const surface = readSurface('.');
 surface['@variance-authority/core']?.declared['files']; // ['dist', 'mark.svg']
 surface['@variance-authority/core']?.names['.']?.['digestValue']; // 'function'
 
-countNames(surface); // 1436 — the number that goes to zero when the reading breaks
+countNames(surface); // number of published names in this workspace
 ```
 
 Two halves, and the split is the design. What a package **offers** comes from its
@@ -64,7 +64,7 @@ Nothing here opens `dist`. A `types` target of `./dist/index.d.ts` is mapped bac
 through that package's own `rootDir`/`outDir` to `src/index.ts`, so the names
 recorded are the ones somebody wrote and not the ones a build once emitted.
 
-## Rank it, and see what says nothing
+## Rank names and find undocumented exports
 
 `readHelp` is the same walk with two more questions asked of it: what was written
 above each name, and which packages import it.
@@ -77,7 +77,7 @@ const help = readHelp('.', { skip: ['fixtures'] });
 const core = help.packages.find((published) => published.name === '@variance-authority/core');
 core?.openings[0]?.entries[0]; // the name the most packages reach for, first
 
-undocumented(help).length; // 114 — names another package imports and which say nothing
+undocumented(help).length; // names another package imports and which say nothing
 ```
 
 Entries arrive ordered by how many packages import them, because everything
@@ -112,8 +112,8 @@ for (const delta of compareValues(recorded, now)) {
 }
 ```
 
-Read the removals twice. Those are the ones somebody else's build finds out
-about.
+Treat removals as release-breaking until the consumer that owned the import has
+been updated.
 
 ## Read one file
 

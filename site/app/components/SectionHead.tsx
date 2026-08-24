@@ -24,10 +24,7 @@ export default function SectionHead({
           {title}
         </h2>
       </div>
-      {/* Padded past the eyebrow so the paragraph starts on the heading's
-          first line. Aligning the two columns at the bottom instead put the
-          heading below the fold of its own paragraph wherever the paragraph
-          ran longer. */}
+      {/* Padding aligns the paragraph with the heading rather than the eyebrow. */}
       <p className="leading-7 text-quiet lg:pt-8">{children}</p>
     </div>
   );

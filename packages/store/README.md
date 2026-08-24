@@ -2,23 +2,23 @@
 
 # @variance-authority/store
 
-**Requires:** a directory this process can write. `store/lfs` additionally
-requires `git` on the path, with LFS installed **and smudging on checkout** — see
-below for what happens when it is not.
+Use this package when a comparison needs baselines on a filesystem. Choose the
+plain durable backend for a directory owned by one runner, or the LFS backend
+when the baseline images must travel with a branch.
 
-Baselines on disk. Two backends, one requirement.
+**Requires:** a writable directory. `store/lfs` additionally uses `git` and
+expects Git LFS smudging on checkout; the tracking diagnostic reports when that
+assumption could not be checked.
 
-## What is here, and what is next door
+Both backends implement the same `RasterStore` contract.
+
+## Choose a backend
 
 Everything about what a baseline *means* — the contract, the refusal, the checks
 a stored record passes before it is believed — is in
 [`@variance-authority/raster`](../raster), which requires nothing. That split is
-the reason a verdict cannot depend on where the bytes were kept, and it is
-tested: [`observe/parity.test.ts`](../observe) runs the same four scenarios
-through the durable store, the git-LFS store and a store across a socket, and
-pins the expected answer as well as comparing them.
-
-Three stores agreeing on a wrong answer is not a pass.
+the reason a verdict cannot depend on where the bytes were kept. Each backend
+supplies bytes and metadata to the same validation and comparison contract.
 
 | entrypoint | requires | holds, and when you want it |
 |---|---|---|
@@ -27,7 +27,7 @@ Three stores agreeing on a wrong answer is not a pass.
 | `./lfs` | a filesystem and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
 | `./changelog` | `git` and a repository | reading back **why** a baseline is what it is. Take it when you are building a history view rather than running a comparison; nothing in the render path imports it. |
 
-## The layout is the rule
+## Baseline layout
 
 ```
 <root>/<identityDigest>/<subject>[__label].png
@@ -60,7 +60,7 @@ placement a project wants — and the one rule neither layout can enforce, that 
 committed root has to actually be committed — is
 [`placement.md`](../../docs/placement.md).
 
-## `null` is earned by exactly one outcome
+## Missing and corrupt baselines
 
 Both halves of the pair absent. Everything else throws — one file without the
 other, a sidecar that will not parse, EACCES after a permissions change, EMFILE
@@ -74,7 +74,7 @@ image it overwrites was the only evidence of what the subject looked like before
 A CI cache restore that ran out of space and a `put` killed between its two
 writes both produce exactly a half-written pair.
 
-## git-LFS
+## Git LFS backend
 
 ```ts
 import { createLfsStore } from '@variance-authority/store/lfs';
@@ -105,7 +105,7 @@ subject in the suite.
 
 `git` is injected, so all of this is testable without a git repository.
 
-## Reading a baseline's explanation back
+## Read the baseline changelog
 
 Where baselines are commits, the commit message is where `variance accept` put
 the explanation of the update — prose for the reviewer, opaque versioned trailers

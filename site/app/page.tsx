@@ -7,7 +7,6 @@ import Eyebrow from "./components/Eyebrow";
 import Hero from "./components/Hero";
 import Integration from "./components/Integration";
 import Lifecycle from "./components/Lifecycle";
-import Packages from "./components/Packages";
 import Reveal from "./components/Reveal";
 import SectionHead from "./components/SectionHead";
 import Since from "./components/Since";
@@ -33,23 +32,71 @@ export default function Page() {
       <main className="relative mx-auto max-w-6xl px-6">
         <Hero />
 
-        {/* The chain — the magic */}
+        {/* React attribution */}
         <Reveal>
-          <section className="border-t border-hairline py-20">
+          <section
+            id="react"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
             <SectionHead
               n="01"
-              label="attribution"
-              title="A pixel is a poor witness. Follow it to the line that wrote it."
+              label="react"
+              title="React was always a witness. Variance Authority asks it."
             >
-              A PNG knows colours and coordinates. It does not know that the
-              changed pixels came from{" "}
+              A screenshot shows where pixels changed. React already knows which
+              component rendered the element. Variance Authority brings those two
+              accounts together: the report connects the region to{" "}
               <span className="font-mono text-[0.95em] text-ivory">Title</span>,
-              or that only its paint changed while its structure held. So the
-              run compares the rendered document, and every hop below is an
-              artifact it already produced.
+              identifies what changed in the rendered document, and points to the
+              source location that produced the element.
             </SectionHead>
             <div className="mt-12">
               <Attribution />
+            </div>
+          </section>
+        </Reveal>
+
+        {/* A/B arms and other related variants */}
+        <Reveal>
+          <section
+            id="variations"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
+            <div className="grid gap-10 lg:grid-cols-[2fr_3fr] [&>*]:min-w-0">
+              <div>
+                <Eyebrow n="02">A/B + variants</Eyebrow>
+                <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
+                  Track regressions inside each variant—and the difference
+                  between them.
+                </h2>
+                <p className="mt-4 leading-7 text-quiet">
+                  Your Storybook, route, or Playwright setup still creates the A
+                  and B states. Each state keeps its own baseline, so regressions
+                  are tracked over time. Variance Authority also compares related
+                  states in the same run, so the report can tell whether both arms
+                  moved together or the difference between them changed.
+                </p>
+                <p className="mt-4 leading-7 text-quiet">
+                  The relationship can come from a consistent name or an explicit
+                  tag. With a fixed axis order,{" "}
+                  <span className="font-mono text-[0.95em] text-ivory">
+                    checkout-dark-narrow
+                  </span>{" "}
+                  varies{" "}
+                  <span className="font-mono text-[0.95em]">checkout-dark</span>,
+                  which varies{" "}
+                  <span className="font-mono text-[0.95em]">checkout</span>.
+                  Each comparison covers one axis.
+                </p>
+                <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
+                  English fixes adjective order: a great green dragon cannot be
+                  called a green great dragon, so one dragon has one name. Fix
+                  variation axes the same way—scheme before viewport before flag,
+                  or any order used everywhere—and every state has one name and
+                  one parent. That is the great green dragon rule.
+                </p>
+              </div>
+              <Variations />
             </div>
           </section>
         </Reveal>
@@ -61,26 +108,24 @@ export default function Page() {
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
-              n="02"
+              n="03"
               label="the run"
-              title="Forty subjects. One paint."
+              title="Render only the UI states that still differ."
             >
-              Detection is the easy third of the job, and it is the third that
-              should cost nothing. Each question is asked at the cheapest
-              representation that can answer it — structure and authored CSS
-              before a browser, semantics under jsdom or Chromium, pixels only
-              for differences that genuinely require one. A semantic snapshot is
-              text, and painting the same page in the same process costs{" "}
+              Variance Authority compares the document before it asks a renderer
+              for another screenshot. Markup, authored CSS, text, accessibility,
+              and layout can confirm that most UI states still match. Only
+              differences that still need pixels are rendered. In the measured
+              example, rendering costs{" "}
               <span className="text-ivory">roughly eighteen times as much</span>
-              . The milliseconds are machine-bound; the ratio is what makes
-              “read it again” a design option rather than a budget line.
+              . The exact time depends on the machine; the useful result is that
+              most of the suite can stop before that cost.
             </SectionHead>
             <div className="mt-12">
               <Lifecycle />
             </div>
             <p className="mt-6 font-mono text-xs text-warm">
-              a green run pays nothing, so the budget goes to the subjects that
-              moved
+              39 of 40 UI states match without another browser render
             </p>
           </section>
         </Reveal>
@@ -93,24 +138,21 @@ export default function Page() {
           >
             <div className="grid gap-10 lg:grid-cols-[2fr_3fr] [&>*]:min-w-0">
               <div>
-                <Eyebrow n="03">sensitivity</Eyebrow>
+                <Eyebrow n="04">sensitivity</Eyebrow>
                 <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
-                  Assert on less, instead of ignoring more.
+                  Decide what each test should care about.
                 </h2>
                 <p className="mt-4 leading-7 text-quiet">
-                  A route-level test and a component-level test want opposite
-                  things from the same machinery. A component asserts on
-                  everything: a colour token moved and that <em>is</em> the
-                  change. A route asserts the page still assembles — and a
-                  design-system token landing in forty routes is noise it should
-                  never have been shown.
+                  A component test should catch a colour-token change. A route
+                  test usually needs to know that the page still assembles and
+                  remains accessible. Sensitivity levels let the same comparison
+                  serve both without a global pixel threshold.
                 </p>
                 <p className="mt-4 leading-7 text-quiet">
-                  Change frequency and change importance are inversely
-                  correlated. An accessible name almost never moves and is a
-                  defect when it does; anti-aliasing moves constantly and never
-                  matters. So the unit here is a band, and a level is two band
-                  names rather than a tolerance.
+                  Accessibility stays checked at every level. Layout, authored
+                  styles, text, and pixels can be included or excluded by
+                  category, so ignoring antialiasing does not hide a small but
+                  real layout change.
                 </p>
               </div>
               <Bands />
@@ -123,88 +165,34 @@ export default function Page() {
           <section className="border-t border-hairline py-20">
             <div className="grid gap-10 lg:grid-cols-[3fr_2fr] [&>*]:min-w-0">
               <div>
-                <Eyebrow n="04">sense</Eyebrow>
+                <Eyebrow n="05">selection</Eyebrow>
                 <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
-                  A suite that runs everything on every commit is a suite people
-                  turn off.
+                  Run only the UI a change can reach.
                 </h2>
                 <p className="mt-4 leading-7 text-quiet">
                   <span className="font-mono text-[0.95em] text-ivory">
                     --since
                   </span>{" "}
-                  narrows a run to the subjects whose components a diff touched
-                  — and it gives up the moment a changed file declares no
-                  component. Which is exactly the file every design system is
-                  most afraid of:{" "}
-                  <span className="font-mono text-[0.95em]">tokens.css</span>,
-                  the theme provider, the shared helper, the icon nobody thinks
-                  about.
+                  follows source imports from a changed file to the React
+                  components that depend on it, then selects the UI states that
+                  rendered those components. A token file may not declare a
+                  component itself, and neither may a theme provider, shared
+                  helper, or icon.
                 </p>
                 <p className="mt-4 leading-7 text-quiet">
-                  Naming the components a file <em>declares</em> cannot answer
-                  for any of them, because the answer is two hops away. So this
-                  half of the project reads the source rather than running it,
-                  and walks those hops: what a change could have moved, and what
-                  a run actually crossed.
+                  For example,{" "}
+                  <span className="font-mono text-[0.95em]">tokens.css</span>{" "}
+                  reaches{" "}
+                  <span className="font-mono text-[0.95em]">Button.tsx</span>{" "}
+                  through its stylesheet. If the source cannot be read, selection
+                  widens instead of guessing.
                 </p>
                 <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
-                  A missed edge is not a smaller answer. It is a wrong one.
+                  Missing a dependency would skip a test that should have run.
+                  Uncertainty therefore selects more, never less.
                 </p>
               </div>
               <Since />
-            </div>
-          </section>
-        </Reveal>
-
-        {/* Variations — the variation compared to the subject it varies */}
-        <Reveal>
-          <section
-            id="variations"
-            className="scroll-mt-24 border-t border-hairline py-20"
-          >
-            <div className="grid gap-10 lg:grid-cols-[2fr_3fr] [&>*]:min-w-0">
-              <div>
-                <Eyebrow n="05">variations</Eyebrow>
-                <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
-                  A flag&rsquo;s second version is compared to everything except
-                  the version it varies.
-                </h2>
-                <p className="mt-4 leading-7 text-quiet">
-                  The dark scheme, the narrow viewport, the story behind{" "}
-                  <span className="font-mono text-[0.95em] text-ivory">
-                    checkout-v2
-                  </span>{" "}
-                  — each is an ordinary subject with its own baseline, green
-                  from its first run. So the difference the variation exists{" "}
-                  <em>for</em> is the one difference nothing measures, and what
-                  the flag does to the page is recorded nowhere.
-                </p>
-                <p className="mt-4 leading-7 text-quiet">
-                  Nothing is configured to link them. A subject is asked its own
-                  name:{" "}
-                  <span className="font-mono text-[0.95em]">
-                    checkout-dark-narrow
-                  </span>{" "}
-                  varies{" "}
-                  <span className="font-mono text-[0.95em]">checkout-dark</span>
-                  , which varies{" "}
-                  <span className="font-mono text-[0.95em]">checkout</span> —
-                  longest match wins, so each link is one axis, and the whole
-                  convention your suite already keeps is the declaration. Where
-                  a name will not carry it, one tag —{" "}
-                  <span className="font-mono text-[0.95em]">
-                    variance-parent:
-                  </span>{" "}
-                  — states the link outright, and the record says which of the
-                  two answered.
-                </p>
-                <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
-                  English will not let you say <em>green great dragon</em>. Fix
-                  your axis order the same way and every subject has exactly one
-                  parent, found by dropping what was added last.
-                </p>
-              </div>
-              <Variations />
             </div>
           </section>
         </Reveal>
@@ -218,21 +206,19 @@ export default function Page() {
             <SectionHead
               n="06"
               label="the report"
-              title="Before, after and diff, side by side, is where a four-pixel shift goes invisible."
+              title="Compare the images without losing the cause."
             >
-              Three pictures in a row also make the reader&rsquo;s eye travel
-              past both things they are comparing to reach the reason the page
-              is open. So the report is the comparison rather than an
-              arrangement of it: a wipe whose seam follows the pointer, a blend,
-              a blink, and a region overlay that lights the table row for the
-              box under the cursor. Regions leads, because which boxes moved and
-              who owns them is what a screenshot cannot answer.
+              A small shift is easy to miss in three images placed side by side.
+              The HTML report starts with changed regions and the component that
+              owns each one, then offers wipe, blend, blink, and region views.
+              For React captures with source information, the same row also
+              points to the line that produced the element.
             </SectionHead>
             <div className="mt-12">
               <DiffReport />
             </div>
             <p className="mt-6 font-mono text-xs text-warm">
-              written for the tenth time it is opened rather than the first
+              one self-contained report, ready to open from a CI artifact
             </p>
           </section>
         </Reveal>
@@ -245,12 +231,12 @@ export default function Page() {
           >
             <SectionHead
               n="07"
-              label="position"
-              title="Six things you are right to be suspicious about."
+              label="questions"
+              title="What to ask before adopting it."
             >
-              Every one of these is a way visual regression has failed somebody
-              before. The design answer is to absorb each cause by construction
-              — and to say so plainly where a cause is absorbed by nothing.
+              Visual testing tends to fail in familiar ways. Here is how
+              Variance Authority handles hosting, instability, missing evidence,
+              pixel thresholds, CI, and operating cost.
             </SectionHead>
             <div className="mt-12">
               <Answers />
@@ -260,10 +246,6 @@ export default function Page() {
 
         <Reveal>
           <Integration />
-        </Reveal>
-
-        <Reveal>
-          <Packages />
         </Reveal>
 
         <Reveal>

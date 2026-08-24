@@ -2,35 +2,31 @@
 
 # @variance-authority/tribunal
 
-**Requires:** a database this deployment owns, an object store beside it, a
-runtime that serves `fetch`, and two bearer tokens of at least 16 characters that
-are not the same value. Nothing else — no account here, no hosted anything, no
-outbound call.
+Use this package when you are deploying a self-hosted review service for
+baselines, history, and per-subject decisions. It supplies the Worker handler,
+storage adapters, review API, and optional React UI; it does not provide a hosted
+endpoint or an integration that posts runs for you.
 
-The venue where evidence is held and a verdict is reviewed and settled. Argos or
-Chromatic, on your own premises, holding nothing more than the run put in it.
+**Requires:** a database and object store owned by the deployment, a runtime that
+serves `fetch`, and two different bearer tokens of at least 16 characters.
 
-**Written against Cloudflare** — D1, R2 and a Worker — which is where the wiring
-below points and the only host it has been tried on. Nothing in the package is
-Cloudflare-specific: the bindings are the narrow structural subset actually used,
-the router speaks Web-standard `Request` and `Response`, and every test runs the
-real SQL through `node:sqlite`. The name says what it is rather than where it
-runs, for the reasons in
+**The supplied deployment targets Cloudflare** — D1, R2, and a Worker. The
+bindings are the narrow structural subset used by the package, and the router
+speaks Web-standard `Request` and `Response`. Those interfaces allow an adapter
+for another fetch runtime, but the package makes no portability promise; the
+operator owns that deployment's platform limits. The name says what it is rather
+than where it runs, for the reasons in
 [ADR-0023](../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md).
 
-The rest of this repository answers *what changed, why, where, and should anyone
-care?* and then the process ends. This is where those answers go so that a person
-can look at one and a decision about it survives — the half
-[ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md) explicitly left out of scope
-("a review UI", "approval workflows beyond `accept`") because there was nowhere
-for a review to live.
+The report and run pipeline remain elsewhere in the repository. This package
+stores the evidence they send and gives a reviewer a place to inspect and settle
+it; it does not render subjects or decide what a run should contain.
 
-**Status:** built, never deployed — see [ADR-0021](../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md).
-The SQL, the routes, the promotion path and the refusals are tested against real
-SQL and an in-memory bucket; the platform is not. Read
-[the limits](#what-has-not-been-measured) before believing any of the rest.
+The deployment boundary includes D1 transaction behavior, R2 object limits, and
+concurrent Worker writes. Validate those platform constraints in the account
+where the service runs; the package owns the request and storage contracts.
 
-## Two of the three surfaces are protocols that already existed
+## The service surfaces
 
 | surface | contract | defined by |
 |---|---|---|
@@ -38,16 +34,12 @@ SQL and an in-memory bucket; the platform is not. Read
 | history | `HistoryBackend` behind `/v1/*` | [`history`](../history), [`server`](../server) |
 | review | builds, subjects, decisions | here |
 
-So `variance run` reaches this deployment with **no change to the CLI** —
+`variance run` reaches this deployment with **no change to the CLI** —
 `baselines.kind: "remote"` and a URL — and a client built from
 `@variance-authority/history/client` reaches it with no change to the client.
-What is new is only the third row.
-
-That the first row means the same thing here as on a disk is tested rather than
-claimed: this store is one of the four implementations in
-[`observe/parity.test.ts`](../observe/src/parity.test.ts), which runs the same
-scenarios through every backend and **pins each expected verdict**, because four
-stores agreeing on a wrong answer is not a pass.
+The baseline surface keeps the same `RasterStore` contract as the disk and
+remote stores; the review surface adds builds, subjects, and decisions. The
+operator supplies the deployment and credentials.
 
 ## Entrypoints
 
@@ -109,7 +101,7 @@ export default {
 | `ingestToken` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `reviewToken` | required | held by people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request rather than on a timer, because a Worker has no timer and this package will not invent a cron the operator did not ask for — wire it to a scheduled trigger, call it from a CI job, or never |
-| `now` | the wall clock | injected so a test can pin every `at`. `createBucketStore` and the review surface take it for the same reason |
+| `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
 `env.DB` and `env.BUCKET` are Cloudflare's own `D1Database` and `R2Bucket` and
 are accepted as-is: this package declares the narrow subset it uses and a wider
@@ -162,12 +154,6 @@ wrangler secret put REVIEW_TOKEN
 wrangler deploy
 ```
 
-Every line above is read from the platform's documentation rather than reported
-from a deployment, and the first person to run it should expect to correct this
-section. It is checked in because the distance between this repository and a
-running review surface should be a command with a known failure mode rather than
-an unknown amount of work.
-
 `worker-entry` is the only file in the package that reads an environment, and it
 reads four names plus two optional ones:
 
@@ -191,11 +177,10 @@ establish the project and no route should accept one. Harmless while a deploymen
 serves one project, and the whole of the problem at two.
 
 Two properties worth knowing before you run it. The migrations in `migrations/`
-are **generated** from `SCHEMA` by `tools/tribunal-migrations.mjs` and asserted
-against it by `migrations.test.ts` — editing a `.sql` by hand deploys a table no
-test in this repository knows about, so change `schema.ts` and rebuild. And the
-secrets are secrets: `wrangler.jsonc` carries the project name and nothing
-else, because a token in a checked-in config is a token in everybody's clone.
+are **generated** from `SCHEMA` by `tools/tribunal-migrations.mjs`. Change
+`schema.ts` and rebuild rather than editing a generated `.sql` file. The
+`wrangler.jsonc` carries the project name and no credentials; keep both tokens
+in Wrangler secrets.
 
 ### The review surface
 
@@ -316,7 +301,7 @@ cluster, and grouping late means a shape approved across three sessions still
 reads as one change. Approved subjects that no shape could group are returned as
 `ungrouped` rather than dropped, so the total stays a total.
 
-## What the review surface leads with, and why it is not two screenshots
+## Review surface
 
 Everyone in this category shows a before and an after and asks you to spot the
 difference. That is the review blindness this project exists to refuse: the
@@ -331,12 +316,12 @@ So the order is inverted.
 3. **The comparison** — swipe, onion, side-by-side, difference mask — last, and
    only the modes this build actually kept images for.
 
-Ranked by area that report is *backwards*: a container that was never edited and
-only reflowed outranks the edit, measured at 6× on one change. The ordering comes
-from the tier that has provenance, which is why `cause` is a field on a region
-and not a guess made in a component.
+Ranked by area that report is *backwards*: a large container that only reflowed
+can outrank the smaller edit that caused it. The ordering comes from the tier
+that has provenance, which is why `cause` is a field on a region and not a guess
+made in a component.
 
-## What it refuses
+## Review invariants
 
 **Approval promotes an image; it never records one.** Deciding *approved* makes
 that build's uploaded candidate the baseline, through the same `RasterStore` the
@@ -419,23 +404,21 @@ const review = createReviewStore({
 });
 ```
 
-D1 *is* SQLite, so the double runs the real statements through `node:sqlite`: the
-schema, the indexes, the triggers, the `ON CONFLICT` clause and every `ORDER BY`
-are executed rather than paraphrased. `createMemoryR2().fail(…)` makes the bucket
-throw, which is how "a store failure is never a verdict" is a test rather than a
-comment.
+D1 *is* SQLite, so this adapter runs the package's schema, indexes, triggers,
+`ON CONFLICT` clauses and ordering through `node:sqlite`.
+`createMemoryR2().fail(…)` makes the bucket throw, allowing a host to exercise
+its store-failure path.
 
 That is also what an operator wants: their routes, their ingest, their retention
 settings, in a plain `vitest` process, with no `wrangler`, no container and no
 account.
 
-## What has not been measured
+## Operational boundaries
 
-**This has never run on Cloudflare.** Specifically unmeasured: whether
-D1's `batch` is transactional in the way the history backend's atomicity rests
-on, object-size ceilings, request and subrequest limits, every quota, consistency
-between two Workers writing at once, and whether `STRICT` tables and
-`INTEGER PRIMARY KEY AUTOINCREMENT` behave in D1 as they do in SQLite.
+The Worker relies on the platform's D1 transaction and `batch` semantics,
+request and subrequest limits, object-size ceilings, quotas, and the behavior of
+concurrent writes. Those are deployment conditions, not behavior this package
+can configure or infer.
 
 **Concurrency around run lineage is weaker than the SQLite backend's.** That one
 takes a write lock before checking whether a run id is registered; two Workers

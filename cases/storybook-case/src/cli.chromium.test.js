@@ -203,7 +203,10 @@ live('the durable workflow, end to end', () => {
     const observation = report.observations.find((entry) => entry.subject === subject);
 
     expect(observation?.verdict).toBe('unchanged');
-    expect(observation?.unstable?.because).toContain('read differently');
+    // A continuously changing story can yield either of the two valid
+    // non-repeatability readings: two completed collections that disagree, or
+    // one completed collection followed by a collection that never settles.
+    expect(observation?.unstable?.because).toMatch(/read differently|cannot be taken twice/);
 
     const refused = variance('accept', subject);
     // `accept` has no safe action to take, so refusal is an operator outcome

@@ -9,7 +9,16 @@ Extract a `RawCapture` from a mounted element. One implementation for both
 observation profiles: jsdom in a unit test, Chromium in a page, same code, same
 ruleset.
 
-## Why it cannot live in core
+## Use this package when
+
+Install `@variance-authority/dom` when a collector owns a live `Element`. The
+host supplies `document`, the mounted subject, viewport conditions, and any font
+or asset hashes it can verify. This package does not mount React, launch a
+browser, decode images, or normalize the capture; pass its result to
+[`@variance-authority/core`](../core). React attribution is optional and is
+injected by [`@variance-authority/react`](../react).
+
+## Package boundary
 
 Deciding whether a CSS rule *applies* requires a live document. You cannot know
 whether `.card:hover .title` matches without something to match against, and
@@ -21,37 +30,47 @@ normalization rule must be versioned by the ruleset rather than by the collector
 or two collectors become two rulesets and the profiles stop agreeing by
 construction.
 
-## The pruning is the moat
+## Applicability pruning
 
-**1010 CSS rules parsed → 1 reached the normalizer — 99.90% pruned.** Measured
-in `src/collect.test.ts`, on a page carrying Storybook's chrome, a preview reset,
-dead utility classes and 500 generations of CSS-in-JS accretion against a
-single-button subject. The test asserts the ratio rather than the count, because
-the count moves with the fixture and the ratio is the claim.
+On a single-button subject mounted under Storybook chrome, a preview reset, dead
+utility classes and CSS-in-JS accretion, applicability pruning reduced 1,010
+parsed rules to the one rule that could reach the subject.
 A design system's stylesheet is almost entirely irrelevant to any one subject,
 and a comparison that carries it is comparing the document a subject happened to
 be mounted in.
 
 See [ADR-0003](../../docs/context/adr/0003-cruft-removal-and-css-applicability.md).
 
-## Usage
+## Smallest working path
 
 ```ts
-import { collect, acquireDocument } from '@variance-authority/dom';
-import { provenanceOf } from '@variance-authority/react';
+import { acquireDocument, collect } from '@variance-authority/dom';
 
-// For the semantic tiers: a capture the normalizer turns into a snapshot.
-const capture = collect(container, {
-  subject: { id: 'story:button--primary', kind: 'story' },
+const root = document.querySelector('[data-variance-subject]');
+if (root === null) throw new Error('subject is not mounted');
+
+const subject = { id: 'story:button--primary', kind: 'story' as const };
+const viewport = {
+  width: 1280,
+  height: 720,
+  deviceScaleFactor: 1,
+  colorScheme: 'light' as const,
+};
+
+const capture = collect(root, {
+  subject,
   viewport,
-  engine: 'chromium@131.0.6778.33',   // goes into the environment key, unread by the rules
-  fonts,                              // `family/weight/style/contentHash`, and see below
-  provenanceOf,                       // optional; owner chains if you have React
+  engine: 'chromium@131.0.6778.33',
 });
 
-// For the raster tier: markup plus only the CSS that applies to it.
-const document = acquireDocument(container, { subject, viewport, fonts });
+const renderDocument = acquireDocument(root, { subject, viewport });
+console.log(capture.root.tag, renderDocument.html.length);
 ```
+
+The mounted element is the same value for both paths. `collect` is synchronous and returns serializable data
+for `normalize`. `acquireDocument` returns serializable markup, frame context, and
+only the CSS that applies to the subject, ready for a renderer owned by another
+package or process.
 
 The profile is not an argument here. It is **detected** from the document —
 jsdom has no layout engine and a browser does — and passing one is the override,
@@ -65,6 +84,21 @@ the environment key.
 next hop be a network hop: a document acquired in a jsdom unit test can be
 painted by a pinned machine two networks away, and nothing above or below has to
 know that happened.
+
+The example prints the captured root tag and the acquired document size. A
+consumer that needs component names adds `provenanceOf` to `collect`; a consumer
+that needs pixels sends `renderDocument` to a renderer. Neither operation is
+implicit.
+
+The options that make a capture applicable are supplied by the host:
+
+| call | useful controls |
+|---|---|
+| `collect` / `acquireDocument` | `subject`, `viewport`, and `engine` identify the reading; `features` supplies media conditions, `inherited` supplies declarations from ancestors outside the root, and `index` reuses a stylesheet index for a standing document |
+| `collect` | `wiringOf` adds framework wiring, while `stabilization` records the intervention recipe already applied; neither is inferred from markup |
+| `stabilizeForObservation` | `recipe` selects the intervention list; the default is profile-specific `COLLECT_RECIPE`, and the returned digest records what was applied |
+| `attributeProvenance` | `component`, `createdBy`, and `props` are caller-declared metadata written to a node, not guesses from a tag name |
+| `resolveIgnores` | `selectors` names the excluded places and `markers` controls `data-variance-ignore` handling |
 
 ## What is in here
 
@@ -90,3 +124,8 @@ caller.
 `provenanceOf` is a parameter, not an import. This package knows nothing about
 React, and a project using something else supplies its own — or none, and gets
 attribution down to the node rather than the component.
+
+`collect` cannot infer fonts, external asset contents, or portal ownership. Omit
+one only when the missing fact is genuinely outside the assertion; otherwise pass
+`fonts`, `assets`, or `portalsOf` so the resulting identity does not claim more
+than the page established.

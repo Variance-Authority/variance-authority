@@ -11,7 +11,7 @@ function fill(n: number, cols: number): number {
   return rest === 0 ? 1 : cols - rest + 1;
 }
 
-/** Roles are the `holds` column of docs/architecture.md, kept verbatim. */
+/** Package roles grouped by an adopter's next action. */
 const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
   {
     group: "what you install",
@@ -36,7 +36,10 @@ const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
         name: "unit-test",
         role: "resource-closed capture archives, for a later render process",
       },
-      { name: "observe", role: "one composition, shipped as an example" },
+      {
+        name: "observe",
+        role: "document and raster observation for custom integrations",
+      },
       { name: "mcp", role: "the observation, exposed to an agent" },
     ],
   },
@@ -47,7 +50,10 @@ const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
         name: "core",
         role: "the format, the rules, comparison, attribution, verdicts, plans",
       },
-      { name: "sense", role: "the source read rather than run" },
+      {
+        name: "sense",
+        role: "source relations and execution-presence transforms",
+      },
       { name: "dom", role: "extraction, and CSS applicability pruning" },
       { name: "react", role: "fibers → owner chains, props digests, portals" },
       {

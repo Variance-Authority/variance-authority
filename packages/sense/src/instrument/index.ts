@@ -37,6 +37,8 @@
  * instrument.
  */
 
+// TODO: add a maintained adapter that maps block probes to runner attempts and flushes evidence; this module owns only the source transform.
+
 import { parseSync } from 'oxc-parser';
 import { walkBlocks, type Block, type BlockKind, type Edit } from './blocks.js';
 

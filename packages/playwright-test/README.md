@@ -15,6 +15,7 @@ Use this integration when the state you need is already easiest to reach in a
 Playwright test:
 
 ```bash
+npm install --save-dev @variance-authority/playwright-test @playwright/test
 npx playwright install chromium
 ```
 
@@ -195,14 +196,14 @@ check below two captures.
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 
-### The matcher, for a suite that owns its `expect`
+### Matcher integration
 
 `toBeUnchanged` is the same verdict read as a matcher rather than an assertion,
 and it takes an `Observation` rather than a `Locator`. That is the whole design:
 every third-party matcher that takes a page ends up owning a browser, a store and
 a bundle in module-level state, because `expect.extend` cannot reach a fixture.
-Both it and `assertUnchanged` accept `UnchangedOptions` — today one field,
-`source`, a `SourceIndex` resolving components to `file:line` when the
+Both it and `assertUnchanged` accept `UnchangedOptions`. Its `source` field is a
+`SourceIndex` resolving components to `file:line` when the
 observation was made without one.
 
 ```ts
@@ -229,7 +230,7 @@ The package also exports `bundlePageAgent`, `acquire`, `AGENT`, and
 suites should use `observe` or `createVariance`; the low-level exports do not
 create a renderer, store, or acceptance lifecycle on their own.
 
-## A subject still arriving throws
+## Loading and Suspense boundaries
 
 Before the subtree is acquired, the integration waits for every React Suspense
 boundary under the locator to settle. This runs first, ahead of stabilization,

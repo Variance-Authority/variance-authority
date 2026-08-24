@@ -38,10 +38,13 @@ const SOURCES = TRACKED.filter(
   (file) => /^packages\/[^/]+\/src\/.+\.tsx?$/.test(file) && !isExercise(file) && !isBarrel(file),
 );
 
-const EXERCISES = TRACKED.filter(isExercise).map((file) => readFileSync(join(ROOT, file), 'utf8'));
+// Do not let this check satisfy itself. Its debt commentary necessarily names
+// the exports it is accounting for, and this rule is intentionally shallow.
+const EXERCISES = TRACKED.filter(
+  (file) => isExercise(file) && file !== 'tools/docs-exercised.check.ts',
+).map((file) => readFileSync(join(ROOT, file), 'utf8'));
 
 interface Documented {
-  readonly dir: string;
   readonly file: string;
   readonly name: string;
 }
@@ -66,48 +69,11 @@ const DOCUMENTED: readonly Documented[] = SOURCES.flatMap((file) => {
 
   return names
     .filter((name) => prose.includes(`\`${name}\``))
-    .map((name) => ({ dir, file, name }));
+    .map((name) => ({ file, name }));
 });
 
 function exercised(name: string): boolean {
   return EXERCISES.some((text) => new RegExp(`\\b${name}\\b`).test(text));
-}
-
-/**
- * How many documented-but-unexercised exports each package is still carrying.
- *
- * A budget rather than a suppression, on the same terms as `OPTION_DEBT`: a
- * package absent from this map must exercise every export its README names, and
- * a package in it may only ever get closer to zero.
- *
- * All four entries are the same shape of debt — an export whose only honest test
- * needs something the unit suite does not have.
- *
- * - `playwright-test` — `bundlePageAgent` reads build output, and `AGENT` and
- *   `AGENT_VERSION` are page scope. All three are exercised by
- *   `direct.chromium.test.ts` through the fixture, which is a browser suite and
- *   names none of them.
- * - `playwright` — `captureOnce` and `fetchModules` both open a browser.
- * - `session` — the instrument no package depends on yet.
- * - `tribunal` — `applySchema` migrates a D1 database, and nothing here has one.
- *
- * A browser is not an excuse: `network.chromium.test.ts` and
- * `engines.chromium.test.ts` are both in this repository and both run. What is
- * true is that a browser test naming these by name is a longer job than the
- * afternoon that added this rule, and a budget records that without pretending
- * the work is done.
- */
-const EXERCISE_DEBT: Readonly<Record<string, number>> = {
-  'packages/playwright': 2,
-  'packages/playwright-test': 3,
-  'packages/session': 2,
-  'packages/tribunal': 1,
-};
-
-const OWED = new Map<string, number>();
-for (const entry of DOCUMENTED) {
-  if (exercised(entry.name)) continue;
-  OWED.set(entry.dir, (OWED.get(entry.dir) ?? 0) + 1);
 }
 
 describe('every export a README names is exercised somewhere', () => {
@@ -117,17 +83,10 @@ describe('every export a README names is exercised somewhere', () => {
     expect(DOCUMENTED.length).toBeGreaterThan(80);
   });
 
-  it.each(DOCUMENTED.filter((entry) => !(entry.dir in EXERCISE_DEBT)).map((entry) => [entry.file, entry.name] as const))(
+  it.each(DOCUMENTED.map((entry) => [entry.file, entry.name] as const))(
     '%s exports `%s`, and something runs it',
     (_file, name) => {
       expect(exercised(name), `\`${name}\` is documented and no test names it`).toBe(true);
     },
   );
-
-  it.each(Object.keys(EXERCISE_DEBT))('%s exercises more of what it documents, never less', (dir) => {
-    expect(
-      OWED.get(dir) ?? 0,
-      'lower the budget in EXERCISE_DEBT when this shrinks, and delete the entry when it reaches zero',
-    ).toBeLessThanOrEqual(EXERCISE_DEBT[dir]!);
-  });
 });

@@ -6,27 +6,26 @@
 client that speaks MCP over stdio. Nothing has to have been built, and nothing is
 generated ahead of time.
 
-What a workspace publishes, ranked by what imports it, answered while an agent is
-working.
+Use this package when a person or coding agent needs to find the public name,
+signature, documentation, or consumer of an exported workspace symbol. It
+re-reads the checkout on every MCP request, ranks names by package consumers,
+and reports undocumented names separately.
 
-## The question
+## What it answers
 
-A library is used by somebody who has not read it, and increasingly by something
-that cannot. What both need is not the README. It is which names exist, which of
-them anybody actually reaches for, what each signature is, and what was written
-above it — and all four are readable off the same disk the code is on.
+A reader does not need every export with equal weight. The useful first answer is
+which names exist, which packages reach them, what their signatures are, and what
+the source says above each declaration. All four are read from the same checkout
+without a build or generated documentation site.
 
-The ranking is the part a documentation generator does not have. A generator
-renders every export equally, so a thousand exports arrive as a thousand
-equally-weighted facts and the one that was wanted is as likely to be last as
-first. This counts how many packages in the repository import each name, which
-turns the same thousand into a front door and a footnote.
+The ranking counts how many packages in the repository import each name. A
+frequently imported symbol becomes a front door; a symbol with no external use
+stays available without taking space from the first answer.
 
-That count also turns a statistic nobody acts on — *61% of names are documented* —
-into a morning's work:
+The same ranking turns undocumented names into a concrete work queue:
 
 ```
-114 names cross a package boundary with nothing written above the declaration:
+Names that cross a package boundary with nothing written above the declaration:
 
 Viewport [interface] packages/core/src/format/environment.ts:73 — used by 15 packages: …
 normalize [function] packages/core/src/rules/normalize/index.ts:58 — used by 14 packages: …
@@ -127,10 +126,8 @@ const stop = serveWorkspace('.', { input: process.stdin, output: process.stdout 
 ```
 
 `input` and `output` are the two streams the protocol is spoken over, and they
-default to this process's own. They are options rather than an assumption because
-a server whose transport is hard-wired to `process.stdin` can only be tested by
-starting a process, and the tests that matter here are about what the answers
-say.
+default to this process's own. Override them when embedding the server in a host
+that owns the transport or process streams.
 
 ## What it is made of
 
