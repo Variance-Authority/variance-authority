@@ -26,6 +26,12 @@ export default function SiteHeader() {
             Variants
           </a>
           <a
+            href="#runtime"
+            className="hidden transition-colors hover:text-ivory sm:inline"
+          >
+            Runtime
+          </a>
+          <a
             href="#integrate"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >

@@ -78,6 +78,13 @@ cost is not claimed.
 
 ## How to use
 
+The landing page states the acceptance surface in one sentence: **each test
+leaves a trail for the next run.** That promise is discharged only when a change
+to an entered region selects the tests that entered it, an unrelated observed
+path stays out, and the static graph widens around anything the run did not see.
+The three linked vacancies divide that result by owner; none of them can claim
+the sentence alone.
+
 The surface below is the proposed one. `tests` is not in the binary's command
 table, so nothing here is runnable yet, and the fences are sketches rather than
 commands.

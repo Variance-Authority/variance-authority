@@ -37,7 +37,7 @@
  * instrument.
  */
 
-// TODO: add a maintained adapter that maps block probes to runner attempts and flushes evidence; this module owns only the source transform.
+// TODO: add maintained Vitest, Jest, and Playwright adapters that bind probe sets to attempts, flush them, and hand them to the test-to-region index; browser execution also needs transport.
 
 import { parseSync } from 'oxc-parser';
 import { walkBlocks, type Block, type BlockKind, type Edit } from './blocks.js';

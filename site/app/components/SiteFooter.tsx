@@ -9,6 +9,7 @@ const FOOTER = [
       { href: "#react", label: "React attribution" },
       { href: "#variations", label: "Variants" },
       { href: "#run", label: "The run" },
+      { href: "#runtime", label: "Runtime evidence" },
       { href: "#report", label: "The report" },
       { href: "#integrate", label: "Integrate" },
     ],

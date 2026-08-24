@@ -8,6 +8,7 @@ import Hero from "./components/Hero";
 import Integration from "./components/Integration";
 import Lifecycle from "./components/Lifecycle";
 import Reveal from "./components/Reveal";
+import RuntimeEvidence from "./components/RuntimeEvidence";
 import SectionHead from "./components/SectionHead";
 import Since from "./components/Since";
 import SiteFooter from "./components/SiteFooter";
@@ -162,7 +163,10 @@ export default function Page() {
 
         {/* Sense */}
         <Reveal>
-          <section className="border-t border-hairline py-20">
+          <section
+            id="selection"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
             <div className="grid gap-10 lg:grid-cols-[3fr_2fr] [&>*]:min-w-0">
               <div>
                 <Eyebrow n="05">selection</Eyebrow>
@@ -197,6 +201,41 @@ export default function Page() {
           </section>
         </Reveal>
 
+        {/* Runtime evidence */}
+        <Reveal>
+          <section
+            id="runtime"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
+            <div className="grid gap-10 lg:grid-cols-[2fr_3fr] [&>*]:min-w-0">
+              <div>
+                <Eyebrow n="06">runtime evidence</Eyebrow>
+                <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
+                  Let each test leave a trail for the next run.
+                </h2>
+                <p className="mt-4 leading-7 text-quiet">
+                  Source reach tells you which UI a change could affect. A run
+                  can answer the other half: which tests actually entered the
+                  changed path. Variance Authority keeps that evidence with the
+                  test, so the next edit starts from observed behaviour instead
+                  of every import.
+                </p>
+                <p className="mt-4 leading-7 text-quiet">
+                  Change the empty-cart path and the tests that used it come
+                  back. Tests that stayed on the priced-cart path do not. Static
+                  reach remains the safety net for new paths and anything the
+                  run could not observe.
+                </p>
+                <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
+                  This is coverage used as a question, not a score: which test
+                  has been here before?
+                </p>
+              </div>
+              <RuntimeEvidence />
+            </div>
+          </section>
+        </Reveal>
+
         {/* The report — what a reviewer actually opens */}
         <Reveal>
           <section
@@ -204,7 +243,7 @@ export default function Page() {
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
-              n="06"
+              n="07"
               label="the report"
               title="Compare the images without losing the cause."
             >
@@ -230,7 +269,7 @@ export default function Page() {
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
-              n="07"
+              n="08"
               label="questions"
               title="What to ask before adopting it."
             >

@@ -61,8 +61,8 @@ brief's own rule: for `if (order.isPremium && order.total > 100)` the fact worth
 recording is which branch ran, not which operand short-circuited. They belong to
 their containing region. The census prices them: **roughly half as many probes
 again**, moving the density from 0.40× to 0.61× — a real option, priced, and
-deliberately not taken first.
-Mark the site with `// TODO:` rather than a paragraph.
+deliberately not taken first. The landing page depends on the trail being honest,
+not on every expression becoming its own region.
 
 **2. Span-based insertion, not a re-print.** `oxc-parser` gives a full AST with
 UTF-16 code-unit spans, so probes are spliced at offsets and the rest of the
@@ -100,6 +100,12 @@ budget is not already spent.
 | bound module init | the custom runner's `importFile(filepath, source)` — `source` separates a setup import from a collect import |
 | which test is running | `onBeforeTryTask(test, { retry })`, which carries the attempt |
 | flush | `onTestFinished`, which fires **per attempt**, after `afterEach` |
+
+Those are Vitest seams, not a generic runner abstraction. Jest and Playwright
+each need a named adapter over the same collector protocol. A Playwright test
+can execute in Node and in the page, so page crossings cross a transport before
+they are attributed to the current attempt. Every adapter must prove concurrent
+attempt identity and per-retry flush against its runner's own lifecycle.
 
 Do **not** use `getCurrentTest()`. It reads a module global that, under
 `test.concurrent`, is whichever test started last — and this repository has
