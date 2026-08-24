@@ -36,12 +36,11 @@ export default function Hero() {
       <div className="mt-10 grid items-start gap-10 lg:mt-12 lg:grid-cols-[1fr_1.06fr] lg:gap-12 [&>*]:min-w-0">
         <div className="rise" style={{ animationDelay: "0.1s" }}>
           <p className="leading-7 text-quiet sm:text-lg sm:leading-8">
-            A padding token moves and forty screenshots fail. Variance Authority
-            shows what changed in the rendered document. For React apps, it also
-            connects the changed region to the component and the{" "}
-            <span className="font-mono text-[0.95em] text-ivory">file:line</span>{" "}
-            that produced it. The screenshot stays in the report, but it is no
-            longer the only evidence.
+            Every UI change has more than one witness. Pixels show where. HTML
+            says what. React says who—and points to the source. Variance
+            Authority brings those accounts together, reuses every answer that
+            still holds, and gives people and agents the tools to finish the
+            review.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a

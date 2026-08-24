@@ -1,4 +1,5 @@
 import Answers from "./components/Answers";
+import AgentFlow from "./components/AgentFlow";
 import Attribution from "./components/Attribution";
 import Bands from "./components/Bands";
 import ClosingCall from "./components/ClosingCall";
@@ -67,8 +68,8 @@ export default function Page() {
               <div>
                 <Eyebrow n="02">A/B + variants</Eyebrow>
                 <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
-                  Track regressions inside each variant—and the difference
-                  between them.
+                  Each variant has a history. The difference between them has
+                  one too.
                 </h2>
                 <p className="mt-4 leading-7 text-quiet">
                   Your Storybook, route, or Playwright setup still creates the A
@@ -112,23 +113,21 @@ export default function Page() {
           >
             <SectionHead
               n="03"
-              label="the run"
-              title="Render only the UI states that still differ."
+              label="performance"
+              title="Repeat only the work that changed."
             >
-              Variance Authority compares the document before it asks a renderer
-              for another screenshot. Markup, authored CSS, text, accessibility,
-              and layout can confirm that most UI states still match. Only
-              differences that still need pixels are rendered. In the measured
-              example, rendering costs{" "}
-              <span className="text-ivory">roughly eighteen times as much</span>
-              . The exact time depends on the machine; the useful result is that
-              most of the suite can stop before that cost.
+              A run is a chain of answers, not one indivisible job. The source
+              scan, captured document, and painted result can be reused
+              independently. When an answer is still true, the run picks it up
+              and continues from the first question that changed. A matching
+              document can settle without paint, and the same document under
+              the same renderer can reuse the exact image.
             </SectionHead>
             <div className="mt-12">
               <Lifecycle />
             </div>
             <p className="mt-6 font-mono text-xs text-warm">
-              39 of 40 UI states match without another browser render
+              example run · 39 of 40 UI states stop before another browser render
             </p>
           </section>
         </Reveal>
@@ -264,6 +263,39 @@ export default function Page() {
           </section>
         </Reveal>
 
+        {/* The report-backed agent review loop. */}
+        <Reveal>
+          <section
+            id="agents"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
+            <div className="grid gap-10 lg:grid-cols-[2fr_3fr] [&>*]:min-w-0">
+              <div>
+                <Eyebrow n="08">agentic review</Eyebrow>
+                <h2 className="text-2xl font-bold tracking-tight text-ivory sm:text-4xl">
+                  Give the agent evidence—and the tools to finish.
+                </h2>
+                <p className="mt-4 leading-7 text-quiet">
+                  The agent declares what it intends to change before it reads
+                  the result. After the run, it can group repeated movement into
+                  one decision, trace the cause through HTML and React to source,
+                  and check what was delivered, exceeded, or never happened.
+                </p>
+                <p className="mt-4 leading-7 text-quiet">
+                  Before any baseline changes, the same evidence previews the
+                  exact safe acceptance and names what must stay in review. The
+                  agent edits and reruns; the reviewer sees the same account.
+                </p>
+                <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
+                  Agent-ready is not a report the agent can read. It is a review
+                  loop the agent can complete.
+                </p>
+              </div>
+              <AgentFlow />
+            </div>
+          </section>
+        </Reveal>
+
         {/* Straight answers */}
         <Reveal>
           <section
@@ -271,7 +303,7 @@ export default function Page() {
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
-              n="08"
+              n="09"
               label="questions"
               title="What to ask before adopting it."
             >

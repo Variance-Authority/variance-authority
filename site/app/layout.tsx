@@ -10,7 +10,7 @@ const SITE = process.env.SITE_URL ?? "https://variance-authority.dev";
 
 const TITLE = "Variance Authority — Visual Regression. Verifiable Results.";
 const DESCRIPTION =
-  "Visual Regression with Verifiable Results, React component-to-source attribution, tracked differences between variants, and infrastructure you control.";
+  "Visual Regression and Verifiable Results with reusable work, HTML and React evidence, A/B comparisons, and review tools for people and agents.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

@@ -7,10 +7,11 @@ const FOOTER = [
     title: "on this page",
     links: [
       { href: "#react", label: "React attribution" },
-      { href: "#variations", label: "Variants" },
-      { href: "#run", label: "The run" },
+      { href: "#variations", label: "A/B + variants" },
+      { href: "#run", label: "Performance" },
       { href: "#runtime", label: "Runtime evidence" },
       { href: "#report", label: "The report" },
+      { href: "#agents", label: "Agentic review" },
       { href: "#integrate", label: "Integrate" },
     ],
   },
@@ -38,7 +39,7 @@ export default function SiteFooter() {
             </span>
           </div>
           <p className="mt-4 max-w-xs text-sm leading-6 text-quiet">
-            Visual Regression with Verifiable Results, React attribution,
+            Visual Regression and Verifiable Results, with React attribution,
             variant-aware reports, and infrastructure you control.
           </p>
         </div>

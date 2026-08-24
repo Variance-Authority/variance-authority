@@ -31,13 +31,37 @@ export default function Integration() {
       className="scroll-mt-24 border-t border-hairline py-20"
     >
       <SectionHead
-        n="09"
+        n="10"
         label="integrate"
-        title="Start where your UI already runs."
+        title="Start with a golden path. Keep the building blocks."
       >
-        Keep your existing tests and rendering setup. Choose the collector that
-        meets your UI where it already runs.
+        Choose the path that meets your UI where it already runs: Playwright,
+        Storybook, routes, or a document captured under jsdom. Each job remains
+        separate underneath, so you can keep the path, replace one part, or
+        assemble your own.
       </SectionHead>
+
+      <div className="mt-10 rounded-2xl border border-hairline bg-panel px-5 py-5 sm:px-6">
+        <p className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">
+          the building blocks
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {["collect", "hold still", "render", "compare", "explain", "record"].map(
+            (step, i) => (
+              <div
+                key={step}
+                className="flex items-center gap-2 rounded-lg border border-hairline bg-deep px-3 py-2.5"
+              >
+                <span className="font-mono text-[10px] text-warm">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="text-sm text-ivory">{step}</span>
+              </div>
+            ),
+          )}
+        </div>
+      </div>
+
       <div className="mt-12 grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
         {RECIPES.map((r) => (
           <div

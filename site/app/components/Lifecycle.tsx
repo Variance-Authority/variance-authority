@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * What a run does to forty subjects, in order and with the cost of each hop.
+ * One run over forty subjects, in order and with the cost of each hop.
  * The point the animation carries: almost everything is settled before a
  * browser paints anything, so the expensive stage only ever sees the residue.
  */
