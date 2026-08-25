@@ -33,10 +33,10 @@
  * bounded by `git add`, and `digests: false` turns the whole mechanism off.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { basename, dirname } from 'node:path';
+import { basename } from 'node:path';
 import { digestString, type Digest, type FileRecord } from '@variance-authority/core';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
+import { readSourceIndex, writeSourceIndex } from './source-index-file.js';
 
 export interface RecordCache {
   /**
@@ -64,7 +64,7 @@ export interface PersistentRecordCache extends RecordCache {
   save(): Promise<void>;
 }
 
-/** Bumped when `FileRecord` or the layout inputs change, so an old file is discarded. */
+/** Bumped when `FileRecord` or the layout inputs change, so record keys move. */
 const VERSION = 1;
 
 /**
@@ -149,7 +149,8 @@ export function memoryRecordCache(): RecordCache {
  * scan, which is what would have happened without a cache at all.
  */
 export async function openRecordCache(path: string): Promise<PersistentRecordCache> {
-  const stored = await load(path);
+  const generation = await readSourceIndex(path);
+  const stored: Stored = { layout: generation.layout, entries: new Map(generation.records) };
   let adopted: Digest | undefined;
   const used = new Map<string, FileRecord>();
 
@@ -172,15 +173,7 @@ export async function openRecordCache(path: string): Promise<PersistentRecordCac
     async save() {
       if (adopted === undefined) return;
 
-      const entries: Record<string, FileRecord> = {};
-      for (const [file, record] of used) entries[file] = record;
-
-      try {
-        await mkdir(dirname(path), { recursive: true });
-        await writeFile(path, JSON.stringify({ version: VERSION, layout: adopted, entries }), 'utf8');
-      } catch {
-        // Nothing to recover. The next scan resolves rather than remembers.
-      }
+      await writeSourceIndex(path, { parses: generation.parses, layout: adopted, records: used });
     },
   };
 }
@@ -193,34 +186,4 @@ function matching(record: FileRecord | undefined, digest: Digest): FileRecord | 
 interface Stored {
   readonly layout: Digest | undefined;
   readonly entries: Map<string, FileRecord>;
-}
-
-async function load(path: string): Promise<Stored> {
-  try {
-    const value: unknown = JSON.parse(await readFile(path, 'utf8'));
-    if (!isStored(value) || value.version !== VERSION) return empty();
-
-    return { layout: value.layout, entries: new Map(Object.entries(value.entries)) };
-  } catch {
-    return empty();
-  }
-}
-
-function empty(): Stored {
-  return { layout: undefined, entries: new Map() };
-}
-
-function isStored(
-  value: unknown,
-): value is { version: number; layout: Digest; entries: Record<string, FileRecord> } {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const stored = value as { version?: unknown; layout?: unknown; entries?: unknown };
-
-  return (
-    typeof stored.version === 'number' &&
-    typeof stored.layout === 'string' &&
-    typeof stored.entries === 'object' &&
-    stored.entries !== null
-  );
 }

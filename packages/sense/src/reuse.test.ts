@@ -130,7 +130,7 @@ describe('the record cache on disk', () => {
   async function path(): Promise<string> {
     const dir = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
     made.push(dir);
-    return join(dir, 'nested', 'records.json');
+    return join(dir, 'nested', 'records.bin');
   }
 
   it('round-trips a record, and prunes one nothing touched', async () => {
@@ -189,7 +189,7 @@ describe('the record cache on disk', () => {
   it('starts empty on a file that is not what it expects', async () => {
     const file = await path();
     await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, 'half a json fi', 'utf8');
+    await writeFile(file, 'half an index', 'utf8');
 
     const cache = await openRecordCache(file);
     cache.under(A);
@@ -204,7 +204,7 @@ describe('the record cache on disk', () => {
     const blocked = join(dir, 'file');
     await writeFile(blocked, 'not a directory', 'utf8');
 
-    const cache = await openRecordCache(join(blocked, 'records.json'));
+    const cache = await openRecordCache(join(blocked, 'records.bin'));
     cache.under(A);
     cache.set(RECORD);
 

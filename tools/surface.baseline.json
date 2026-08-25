@@ -1837,6 +1837,7 @@
         "Parsed": "interface",
         "PersistentParseCache": "interface",
         "PersistentRecordCache": "interface",
+        "PersistentSourceIndex": "interface",
         "Read": "interface",
         "RecordCache": "interface",
         "Request": "interface",
@@ -1848,6 +1849,7 @@
         "memoryRecordCache": "function",
         "openParseCache": "function",
         "openRecordCache": "function",
+        "openSourceIndex": "function",
         "readModule": "function",
         "readStyle": "function",
         "scanRelations": "function"

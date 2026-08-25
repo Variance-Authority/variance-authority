@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { movedBy, relationsOfFiles } from '@variance-authority/core';
-import { openParseCache, openRecordCache, scanRelations } from '@variance-authority/sense';
+import { openSourceIndex, scanRelations } from '@variance-authority/sense';
 
 const NOISE_FILES = 300;
 
@@ -51,12 +51,13 @@ function decision(records) {
 }
 
 async function scan(root, cacheRoot) {
-  const parsed = meter(await openParseCache(join(cacheRoot, 'parse.json')));
-  const records = meter(await openRecordCache(join(cacheRoot, 'records.json')));
+  const source = await openSourceIndex(join(cacheRoot, 'source-index.bin'));
+  const parsed = meter(source.cache);
+  const records = meter(source.reuse);
   const started = performance.now();
   const graph = await scanRelations({ root, dirs: ['src'], cache: parsed.cache, reuse: records.cache });
   const elapsedMs = performance.now() - started;
-  await Promise.all([parsed.cache.save(), records.cache.save()]);
+  await source.save();
   return { elapsedMs, decision: decision(graph), parsed: parsed.stats, records: records.stats };
 }
 
@@ -78,7 +79,6 @@ function meter(cache) {
         return cache.set(...args);
       },
       ...(cache.under === undefined ? {} : { under: (...args) => cache.under(...args) }),
-      save: () => cache.save(),
     },
   };
 }
@@ -92,7 +92,7 @@ export async function runDemo() {
   try {
     await fixture(root);
     const cold = await scan(root, cacheRoot);
-    await Promise.all([access(join(cacheRoot, 'parse.json')), access(join(cacheRoot, 'records.json'))]);
+    await access(join(cacheRoot, 'source-index.bin'));
     const cacheAfterCold = true;
     const warm = await scan(root, cacheRoot);
 
@@ -112,10 +112,7 @@ export async function runDemo() {
         afterEdit: { parsed: afterEdit.parsed, records: afterEdit.records },
       },
       cacheAfterCold,
-      cacheFiles: {
-        parse: await readFile(join(cacheRoot, 'parse.json'), 'utf8'),
-        records: await readFile(join(cacheRoot, 'records.json'), 'utf8'),
-      },
+      cacheFile: await readFile(join(cacheRoot, 'source-index.bin'), 'utf8'),
     };
   } finally {
     await Promise.all([

@@ -72,7 +72,7 @@ reported as a smaller, confident selection.
 
 | import | Use it for | Requires |
 |---|---|---|
-| `@variance-authority/sense` | `scanRelations`, parse caches, record reuse, and Git content digests | a readable checkout for the scan; caches are optional |
+| `@variance-authority/sense` | `scanRelations`, the binary source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
@@ -80,20 +80,20 @@ reported as a smaller, confident selection.
 
 ## Keep repeated scans cheap
 
-Both caches are optional. Put them outside the checkout; they are operational
-state, not source.
+The source index is optional. Put it outside the checkout; it is operational
+state, not source. It stores parses and resolved records in one versioned binary
+generation so their shared paths and names are interned once.
 
 ```ts
-import { openParseCache, openRecordCache, scanRelations } from '@variance-authority/sense';
+import { openSourceIndex, scanRelations } from '@variance-authority/sense';
 
-const parse = await openParseCache('/var/cache/variance/parse.json');
-const records = await openRecordCache('/var/cache/variance/records.json');
+const source = await openSourceIndex('/var/cache/variance/source-index.bin');
 
-await scanRelations({ root: '.', dirs: ['src'], cache: parse, reuse: records });
-await Promise.all([parse.save(), records.save()]);
+await scanRelations({ root: '.', dirs: ['src'], cache: source.cache, reuse: source.reuse });
+await source.save();
 ```
 
-The parse cache is keyed by content digest. The record cache is additionally
+The parse section is keyed by content digest. The record section is additionally
 keyed by the repository path layout and resolution settings, because resolution
 can change while file bytes stay the same. `gitDigests` supplies the content
 digests from Git when available; `scanRelations` calls it unless `digests: false`

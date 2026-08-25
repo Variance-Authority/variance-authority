@@ -22,10 +22,9 @@
  * be wrong the first time a package moved. Specifiers go in; edges do not.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import type { Digest } from '@variance-authority/core';
 import type { Export, Request } from './read.js';
+import { readSourceIndex, writeSourceIndex } from './source-index-file.js';
 
 /** Everything reading one file produced that does not depend on where it sits. */
 export interface Parsed {
@@ -59,9 +58,6 @@ export interface PersistentParseCache extends ParseCache {
   save(): Promise<void>;
 }
 
-/** Bumped when `Parsed` changes shape, so an old file is discarded, not misread. */
-const VERSION = 2;
-
 /** A cache that keeps everything and remembers nothing between processes. */
 export function memoryParseCache(): ParseCache {
   const entries = new Map<Digest, Parsed>();
@@ -81,7 +77,8 @@ export function memoryParseCache(): ParseCache {
  * for a saving.
  */
 export async function openParseCache(path: string): Promise<PersistentParseCache> {
-  const stored = await load(path);
+  const generation = await readSourceIndex(path);
+  const stored = generation.parses;
   const used = new Map<Digest, Parsed>();
 
   return {
@@ -97,34 +94,7 @@ export async function openParseCache(path: string): Promise<PersistentParseCache
       used.set(digest, parsed);
     },
     async save() {
-      const entries: Record<string, Parsed> = {};
-      for (const [digest, parsed] of used) entries[digest] = parsed;
-
-      try {
-        await mkdir(dirname(path), { recursive: true });
-        await writeFile(path, JSON.stringify({ version: VERSION, entries }), 'utf8');
-      } catch {
-        // Nothing to recover. The next scan reads the file rather than the cache.
-      }
+      await writeSourceIndex(path, { ...generation, parses: used });
     },
   };
-}
-
-async function load(path: string): Promise<ReadonlyMap<Digest, Parsed>> {
-  try {
-    const value: unknown = JSON.parse(await readFile(path, 'utf8'));
-    if (!isStored(value) || value.version !== VERSION) return new Map();
-
-    return new Map(Object.entries(value.entries));
-  } catch {
-    return new Map();
-  }
-}
-
-function isStored(value: unknown): value is { version: number; entries: Record<string, Parsed> } {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const stored = value as { version?: unknown; entries?: unknown };
-
-  return typeof stored.version === 'number' && typeof stored.entries === 'object' && stored.entries !== null;
 }

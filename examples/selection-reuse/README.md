@@ -4,15 +4,15 @@
 regression.
 
 One token file reaches `Button` through `button.css` and not `Badge`. The
-example scans the same small repository cold, then warm from persistent parse
-and relation caches, then after editing the token. All three scans choose the
+example scans the same small repository cold, then warm from its persistent
+binary source index, then after editing the token. All three scans choose the
 same affected story. It prints cold and warm duration as a measurement and
 counts the records reused rather than rebuilt.
 
 **What it proves:** the warm scan reuses every unchanged record and rebuilds
 none, while choosing the same story as the cold scan. A token edit still collects
-`story:catalog` and skips `story:account`; `parse.json` and `records.json` are
-present only after the first scan. The printed duration compares the resulting
+`story:catalog` and skips `story:account`; `source-index.bin` is present only
+after the first scan. The printed duration compares the resulting
 cold and warm decision on the machine that ran it; the invariant is reused work,
 not a timing threshold that would vary with machine load.
 

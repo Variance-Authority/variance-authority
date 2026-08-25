@@ -50,4 +50,6 @@ export {
   type PersistentRecordCache,
 } from './reuse.js';
 
+export { openSourceIndex, type PersistentSourceIndex } from './source-index.js';
+
 export { gitDigests } from './tree.js';

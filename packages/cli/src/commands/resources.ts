@@ -217,11 +217,15 @@ export async function relationsFor(root: string, dirs: readonly string[]): Promi
   }
 
   const at = scanCacheRoot(root);
-  const cache = await scanner.openParseCache(join(at, 'parse.json'));
-  const reuse = await scanner.openRecordCache(join(at, 'records.json'));
+  const source = await scanner.openSourceIndex(join(at, 'source-index.bin'));
 
-  const records = await scanner.scanRelations({ root, dirs, cache, reuse });
-  await Promise.all([cache.save(), reuse.save()]);
+  const records = await scanner.scanRelations({
+    root,
+    dirs,
+    cache: source.cache,
+    reuse: source.reuse,
+  });
+  await source.save();
 
   return relationsOfFiles(records);
 }

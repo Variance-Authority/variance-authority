@@ -18,11 +18,11 @@ import { memoryParseCache, openParseCache, type Parsed } from './cache.js';
  */
 
 const BUTTON: Parsed = {
-  specifiers: [{ value: './button.css', kind: 'imports' }],
+  requests: [{ value: './button.css', kind: 'imports', bindings: [] }],
   declares: ['Button'],
 };
 
-const TOKENS: Parsed = { specifiers: [] };
+const TOKENS: Parsed = { requests: [] };
 
 const a: Digest = 'git:1111111111111111111111111111111111111111';
 const b: Digest = 'git:2222222222222222222222222222222222222222';
@@ -47,7 +47,7 @@ describe('the cache on disk', () => {
   async function path(): Promise<string> {
     const dir = await mkdtemp(join(tmpdir(), 'variance-cache-'));
     made.push(dir);
-    return join(dir, 'nested', 'parse.json');
+    return join(dir, 'nested', 'parse.bin');
   }
 
   it('starts empty where no file exists, and creates the directory to save into', async () => {
@@ -88,8 +88,15 @@ describe('the cache on disk', () => {
     cache.set(a, BUTTON);
     await cache.save();
 
-    const stored = JSON.parse(await readFile(file, 'utf8')) as { version: number };
-    await writeFile(file, JSON.stringify({ ...stored, version: stored.version - 1 }), 'utf8');
+    const stored = await readFile(file);
+    const length = stored.readUInt32LE(0);
+    const header = JSON.parse(stored.toString('utf8', 4, 4 + length).replace(/\0+$/, '')) as {
+      version: number;
+    };
+    const changed = Buffer.from(JSON.stringify({ ...header, version: header.version - 1 }), 'utf8');
+    stored.fill(0, 4, 4 + length);
+    changed.copy(stored, 4);
+    await writeFile(file, stored);
 
     // The alternative is reading last year's field names into this year's code,
     // which produces edges nobody can trace back to a file.
@@ -99,7 +106,7 @@ describe('the cache on disk', () => {
   it('starts empty on a file that is not what it expects', async () => {
     const file = await path();
     await openParseCache(file).then((cache) => cache.save());
-    await writeFile(file, 'half a json fi', 'utf8');
+    await writeFile(file, 'half an index', 'utf8');
 
     expect((await openParseCache(file)).get(a)).toBeUndefined();
   });
@@ -111,7 +118,7 @@ describe('the cache on disk', () => {
     const blocked = join(dir, 'file');
     await writeFile(blocked, 'not a directory', 'utf8');
 
-    const cache = await openParseCache(join(blocked, 'parse.json'));
+    const cache = await openParseCache(join(blocked, 'parse.bin'));
     cache.set(a, BUTTON);
 
     // A cache that could break a build would be a new failure mode bought with a
