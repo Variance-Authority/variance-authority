@@ -26,6 +26,9 @@
       "path": "./packages/session"
     },
     {
+      "path": "./packages/scenario"
+    },
+    {
       "path": "./packages/png"
     },
     {

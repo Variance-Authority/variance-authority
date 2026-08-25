@@ -1,0 +1,33 @@
+{
+  "name": "@variance-authority/scenario",
+  "version": "0.0.0-beta.1",
+  "license": "MIT",
+  "author": "Mechanic Garden",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "directory": "packages/scenario"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./archive": {
+      "types": "./dist/archive.d.ts",
+      "default": "./dist/archive.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^"
+  }
+}

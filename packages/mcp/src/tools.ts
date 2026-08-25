@@ -4,11 +4,12 @@ import { changelog } from './tools/changelog.js';
 import { changes } from './tools/changes.js';
 import { composition } from './tools/composition.js';
 import { describe } from './tools/describe.js';
+import { diff, diffState, type StateDifference } from './tools/diff.js';
 import { explain } from './tools/explain-verdict.js';
 import { findings } from './tools/findings.js';
 import { summarize } from './tools/summary.js';
 import { sourceTests } from './tools/source-tests.js';
-import { NO_ARGS, stringArg, type Served, type Tool } from './tools/tool.js';
+import { NO_ARGS, stringArg, type Tool } from './tools/tool.js';
 import { trace } from './tools/trace-component.js';
 import { variations } from './tools/variations.js';
 
@@ -25,10 +26,10 @@ import { variations } from './tools/variations.js';
  * sentence a person would want, with a file path on the end. So these read like
  * the report does: cause first, collateral counted, and a path an editor opens.
  *
- * `variance_adjudicate` is the one tool that takes evidence *in*. It sits third
- * because it needs nothing the first two printed and everything they cannot
- * supply: an agent's own account of what it was doing. The other nine answer
- * *what changed*; this one answers *what changed against what you claimed*, and
+ * `variance_adjudicate` is the one tool that takes evidence *in*. It follows
+ * `summary` and `changes` because it needs nothing they printed and everything
+ * they cannot supply: an agent's own account of what it was doing. The other report tools
+ * answer *what changed*; this one answers *what changed against what you claimed*, and
  * its third arm — declared, and did not happen — is the only thing here that can
  * catch an edit which never landed. An agent that has just edited something
  * should call it before `describe`, and an agent reviewing somebody else's run
@@ -38,16 +39,17 @@ import { variations } from './tools/variations.js';
  * a paragraph somebody argued about, and the arguments do not compose — the
  * reason the summary refuses to say "nothing to review" has nothing to do with
  * the reason findings are grouped by rule — so they are read, and edited, one at
- * a time. What stays here is the only thing that is genuinely about all ten:
+ * a time. What stays here is the only thing that is genuinely about the set:
  * the order, which is the order `tools/list` announces them in and therefore the
- * order an agent meets them in. `variance_summary` is first because every other
- * tool takes an argument it printed, and `variance_changes` is second because it
+ * order an agent meets them in. `variance_summary` is first because every report
+ * tool takes an argument it printed. `variance_diff` sits beside it as the session
+ * question, and `variance_changes` follows because it
  * is the one that decides how many of the rest get called: an agent that walks
  * forty changed subjects one at a time spends forty calls learning what one call
  * says, which is *three things happened and one of them explains thirty-one*.
  *
- * `variance_composition` is fourth, and the boundary it sits on is the one worth
- * seeing: the first six answer about the *suite* and the last four narrow to a
+ * `variance_composition` follows `adjudicate`, and the boundary it sits on is
+ * the one worth seeing: the first seven answer about the *suite* and the last four narrow to a
  * subject. It goes after `changes` rather than before because the two reshape
  * the same run along different axes and only one of them is about this run's
  * diff — `changes` says which decisions there are, and this says which component
@@ -58,12 +60,12 @@ import { variations } from './tools/variations.js';
  * compare this run to itself; `composition` compares subjects that were never
  * meant to differ, and this compares the ones that were. It is the only tool here
  * whose answer is not, in any reading, a finding — which is why it is neither
- * earlier (an agent triaging a diff would spend a call learning that a dark story
+ * earlier (an agent triaging a visual diff would spend a call learning that a dark story
  * is dark) nor omitted (when a change *is* to a flagged component, what the flag
  * does is the first thing the reviewer does not know).
  *
  * `variance_changelog` closes the suite-level group because it is the only tool
- * here that is not about the run. The other nine describe what a run observed;
+ * here that is not about the run. The other report tools describe what a run observed;
  * this one describes what *accepting* it would write down, and that answer is
  * the last thing an agent needs before it proposes a command. Its position is
  * also a claim about when it stops being useful: after acceptance there is
@@ -76,15 +78,17 @@ import { variations } from './tools/variations.js';
  * records before knowing whether `--all` is what it wants.
  */
 
-export type { Served, Tool };
+export type { Served, Tool, ToolInvocation } from './tools/tool.js';
+export type { StateDifference };
 
-// The tool-authoring contract, not an implementation detail of these ten. A
+// The tool-authoring contract, not an implementation detail of this set. A
 // server over another subject writes tools against the same interface, and the
 // first thing any tool does with a model's argument is refuse it or narrow it.
 export { NO_ARGS, stringArg };
+export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */
-export const SOURCE_TEST_TOOLS = [sourceTests] as const;
+export const SOURCE_TEST_TOOLS = [sourceTests, diff as Tool<ExecutionIndex>] as const;
 
 /** Look up one source-test tool without widening it to the visual-report subject. */
 export function sourceTestToolByName(name: string): Tool<ExecutionIndex> | undefined {
@@ -93,6 +97,7 @@ export function sourceTestToolByName(name: string): Tool<ExecutionIndex> | undef
 
 export const TOOLS: readonly Tool[] = [
   summarize,
+  diff,
   changes,
   adjudicate,
   composition,

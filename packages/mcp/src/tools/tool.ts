@@ -10,8 +10,8 @@ import type { RunReport } from '@variance-authority/report';
  *
  * The subject is a type parameter rather than `RunReport`, because a tool is a
  * pure function from *something already read* to text, and nothing in that
- * sentence is about a report. It defaults to `RunReport` so the ten tools this
- * package ships say nothing about it.
+ * sentence is about a report. It defaults to `RunReport` so the report tools
+ * this package ships say nothing about it.
  *
  * `stringArg` is here for the same reason it exists at all. A tool is called with
  * whatever JSON a model produced, so `input` is `unknown` all the way down, and
@@ -23,7 +23,16 @@ export interface Tool<Subject = RunReport> {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Readonly<Record<string, unknown>>;
-  run(subject: Subject, input: Readonly<Record<string, unknown>>): string;
+  run(
+    subject: Subject,
+    input: Readonly<Record<string, unknown>>,
+    invocation?: ToolInvocation<Subject>,
+  ): string;
+}
+
+/** State held for exactly one previous MCP tool invocation. */
+export interface ToolInvocation<Subject> {
+  readonly previous?: Subject;
 }
 
 /**

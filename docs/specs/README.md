@@ -52,6 +52,7 @@ lifecycle, not that one was skipped.
 
 | Was | Lifted into |
 |---|---|
+| Runtime scenarios over named preconditions | [ADR-0047 — a runtime scenario is a witnessed path](../context/adr/0047-a-runtime-scenario-is-a-witnessed-path.md), [ADR-0048 — a scenario archive holds semantic objects](../context/adr/0048-a-scenario-archive-holds-semantic-objects.md), and [`scenarios.md`](../scenarios.md) |
 | Cause-first ranking on every path | [ADR-0027 — a baseline carries what its document said](../context/adr/0027-a-baseline-carries-what-its-document-said.md) |
 | An ignore is a declaration, not a blind spot | [ADR-0025 — an ignore names a place or a shape](../context/adr/0025-an-ignore-names-a-place-or-a-shape.md), [ADR-0026 — `ignored` is not `unchanged`](../context/adr/0026-ignored-is-not-unchanged.md) |
 | Per-component band hashing | [ADR-0018 — a component's hash covers its own nodes](../context/adr/0018-a-component-hash-covers-its-own-nodes.md) |

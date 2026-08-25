@@ -1,6 +1,6 @@
 import type { RunReport } from '@variance-authority/report';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
-import type { Served, Tool } from './tools/tool.js';
+import type { Served, Tool, ToolInvocation } from './tools/tool.js';
 import { SOURCE_TEST_TOOLS, TOOLS } from './tools.js';
 
 /**
@@ -66,6 +66,7 @@ export function handle<Subject>(
   request: JsonRpcRequest,
   subject: () => Subject,
   served: Served<Subject>,
+  invocation?: ToolInvocation<Subject>,
 ): JsonRpcResponse | null {
   if (request.id === undefined) return null;
   const id = request.id;
@@ -91,7 +92,7 @@ export function handle<Subject>(
       });
 
     case 'tools/call':
-      return callTool(id, request.params ?? {}, subject, served.tools);
+      return callTool(id, request.params ?? {}, subject, served.tools, invocation);
 
     default:
       return fail(id, METHOD_NOT_FOUND, `unknown method: ${request.method}`);
@@ -103,6 +104,7 @@ function callTool<Subject>(
   params: Readonly<Record<string, unknown>>,
   subject: () => Subject,
   tools: readonly Tool<Subject>[],
+  invocation?: ToolInvocation<Subject>,
 ): JsonRpcResponse {
   const name = params['name'];
   if (typeof name !== 'string') return fail(id, INVALID_PARAMS, 'tools/call requires a name');
@@ -111,7 +113,11 @@ function callTool<Subject>(
   if (tool === undefined) return fail(id, INVALID_PARAMS, `unknown tool: ${name}`);
 
   try {
-    const text = tool.run(subject(), (params['arguments'] ?? {}) as Record<string, unknown>);
+    const text = tool.run(
+      subject(),
+      (params['arguments'] ?? {}) as Record<string, unknown>,
+      invocation,
+    );
     return ok(id, { content: [{ type: 'text', text }] });
   } catch (error) {
     // A tool failure is a *result* with `isError`, not a JSON-RPC error. The

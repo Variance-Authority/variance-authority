@@ -13,6 +13,8 @@ visual tools or an execution index for the source-test tool.
 The supplied evidence remains canonical. This package makes visual causes,
 regions, verdicts, findings, composition, variation, acceptance preview, and
 source-to-test reach available from another process after collection finishes.
+It also holds one previous invocation state in memory so an agent can compare
+the evidence it sees now with the evidence it saw one call ago.
 
 ## Entrypoints
 
@@ -64,6 +66,19 @@ from a line absent from the execution index. The index is supplied by the test
 collector or editor integration; MCP does not manufacture coverage or control
 the test runner.
 
+## Diff the current state
+
+`variance_diff` compares the current supplied subject with the subject from the
+previous successful tool call. The first call records the current state and says
+there is nothing to compare. Each successful call then replaces that one value.
+
+The value lives only in the MCP process. It is not written to disk, does not move
+or replace a baseline, and disappears when the process exits. Initialization,
+tool discovery, invalid calls, and failed calls do not replace it.
+
+`diffState(before, after)` exposes the same JSON-compatible state comparison
+without MCP framing.
+
 ## Run the report server
 
 ```bash
@@ -82,15 +97,17 @@ npx variance-authority-mcp .variance/run.json    # directly
 
 ## Visual report tool contract
 
-Ten tools, all answering from the artifact and **never re-running anything**.
+Eleven tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
-are asked wherever the agent is. Eight of them hand evidence out, one takes
-evidence in, and one answers about a command nobody has run yet.
+are asked wherever the agent is. One compares invocations; the other ten inspect
+the current artifact.
 
 ```ts
 import { toolByName } from '@variance-authority/mcp/tools';
 
+const priorReport = report;
 toolByName('variance_summary')?.run(report, {});
+toolByName('variance_diff')?.run(report, {}, { previous: priorReport });
 toolByName('variance_changes')?.run(report, {});
 toolByName('variance_adjudicate')?.run(report, {
   claims: [{ root: 'component:Button', reason: 'new brand accent', maxSubjects: 3 }],
@@ -107,6 +124,7 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 | tool | answers | ask it when |
 |---|---|---|
 | `variance_summary` | how the run came out across every subject, including the ones nobody observed | starting from nothing: *did anything change, and was anything missed?* |
+| `variance_diff` | how the current supplied state differs from the previous successful MCP tool invocation | after rerunning or replacing the supplied evidence |
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, moved and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
 | `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each component that moved moved — including *nothing here explains it* | a change has no obvious author, or you are about to call something flaky |

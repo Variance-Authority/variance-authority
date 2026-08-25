@@ -78,6 +78,12 @@ be JSON, a single HTML file, or an MCP response, and the process exits with a
 verdict: `0` for nothing to review, `1` for changes to review, and `2` for an
 operator error.
 
+[`docs/information.md`](docs/information.md) defines how visual, semantic,
+source, runtime, scenario, review, and history records align; which artifacts
+cross process and service boundaries; where each storage form belongs; and how
+full and partial evidence is created, updated, merged, deleted, or wiped and
+redefined.
+
 ## A real change, a flake, and a neighbour look identical
 
 Three subjects can all report *the pixels moved*, and need three different

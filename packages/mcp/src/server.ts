@@ -43,6 +43,7 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
   // ordering depend on how long each read took, and an interleaving that only
   // shows up under a slow disk is not a thing to debug later.
   let queue: Promise<void> = Promise.resolve();
+  let previous: Subject | undefined;
 
   const read = createLineReader((line) => {
     let request: JsonRpcRequest;
@@ -56,7 +57,10 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
 
     queue = queue.then(async () => {
       const subject = await options.subject();
-      const response = handle(request, () => subject, options.served);
+      const response = handle(request, () => subject, options.served, { previous });
+      if (request.method === 'tools/call' && succeeded(response)) {
+        previous = structuredClone(subject);
+      }
       if (response !== null) write(response);
     });
   });
@@ -65,6 +69,11 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
   options.input.on('data', onData);
 
   return () => options.input.off('data', onData);
+}
+
+function succeeded(response: ReturnType<typeof handle>): boolean {
+  if (response === null || response.error !== undefined) return false;
+  return (response.result as { readonly isError?: boolean } | undefined)?.isError !== true;
 }
 
 /**

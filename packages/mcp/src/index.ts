@@ -33,8 +33,9 @@ export {
   sourceTestToolByName,
   stringArg,
   toolByName,
+  diffState,
 } from './tools.js';
-export type { Served, Tool } from './tools.js';
+export type { Served, StateDifference, Tool, ToolInvocation } from './tools.js';
 
 export {
   REPORTS,

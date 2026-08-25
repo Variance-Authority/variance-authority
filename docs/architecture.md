@@ -50,7 +50,9 @@ document → identity → raster → difference → places → components → ve
 
 The last three hops of that line are one chain and it is written out in
 [`attribution.md`](attribution.md); the graph the first question is asked of is
-in [`source.md`](source.md).
+in [`source.md`](source.md). [`information.md`](information.md) defines how the
+visual, semantic, source, runtime, scenario, review, and history domains exchange
+records, align identities, retain evidence, and combine full or partial runs.
 
 ## The contracts
 
@@ -129,6 +131,7 @@ entrypoints.
 | `react` | React internals | fibers → owner chains, props digests, portals |
 | `jsx-source` | a JSX transform you control, and a React runtime | the file and line that wrote an element, carried as far as the DOM node |
 | `session` | a live DOM | many subjects in one standing world |
+| `scenario` | semantic snapshots; its archive entrypoint additionally needs a filesystem | witnessed AAA paths, transition-effect assessment, a partial state machine, and opt-in semantic retention |
 | `playwright` | a browser | the persistent harness, and a renderer |
 | `playwright-test` | a browser, and a Playwright test run | additive observation and assertion helpers; optional unbound fixture and matcher parts |
 | `unit-test` | a live DOM, and a writable artifact directory | resource-closed capture archives and a CLI collector for a later render process |

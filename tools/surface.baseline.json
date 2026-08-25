@@ -1124,9 +1124,12 @@
         "SOURCE_TEST_TOOLS": "const",
         "Served": "interface",
         "ServerOptions": "interface",
+        "StateDifference": "type",
         "TOOLS": "const",
         "Tool": "interface",
+        "ToolInvocation": "interface",
         "createLineReader": "function",
+        "diffState": "function",
         "handle": "function",
         "serve": "function",
         "serveReportFile": "function",
@@ -1138,8 +1141,11 @@
         "NO_ARGS": "const",
         "SOURCE_TEST_TOOLS": "const",
         "Served": "interface",
+        "StateDifference": "type",
         "TOOLS": "const",
         "Tool": "interface",
+        "ToolInvocation": "interface",
+        "diffState": "function",
         "sourceTestToolByName": "function",
         "stringArg": "function",
         "toolByName": "function"
@@ -1787,6 +1793,73 @@
         "routeCollector": "function",
         "routesFrom": "function",
         "subjectIdFor": "function"
+      }
+    }
+  },
+  "@variance-authority/scenario": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./archive": {
+          "types": "./dist/archive.d.ts",
+          "default": "./dist/archive.js"
+        }
+      },
+      "files": [
+        "dist"
+      ]
+    },
+    "names": {
+      ".": {
+        "PreconditionAxisStep": "interface",
+        "PreconditionLink": "type",
+        "ScenarioAct": "interface",
+        "ScenarioActRef": "interface",
+        "ScenarioAssessment": "interface",
+        "ScenarioBlindSide": "interface",
+        "ScenarioComparison": "type",
+        "ScenarioDefinition": "class",
+        "ScenarioDivergence": "type",
+        "ScenarioEffectDivergence": "type",
+        "ScenarioExecution": "class",
+        "ScenarioFrame": "interface",
+        "ScenarioMachine": "interface",
+        "ScenarioMachineDivergence": "interface",
+        "ScenarioMachineNode": "interface",
+        "ScenarioMachineTransition": "interface",
+        "ScenarioObservation": "type",
+        "ScenarioOutcome": "type",
+        "ScenarioRun": "class",
+        "ScenarioTransitionAssessment": "interface",
+        "ScenarioUnknownTransition": "interface",
+        "ScenarioUnmatchedAct": "interface",
+        "ScenarioVariance": "interface",
+        "StartScenarioOptions": "interface",
+        "UnobservedScenarioOutcome": "interface",
+        "assessScenarios": "function",
+        "defineScenario": "function",
+        "foldScenarios": "function",
+        "recordAct": "function",
+        "semanticSnapshotDigest": "function",
+        "startScenario": "function",
+        "unobserved": "function"
+      },
+      "./archive": {
+        "ArchivedScenario": "type",
+        "ScenarioArchive": "interface",
+        "ScenarioArchiveAddress": "interface",
+        "ScenarioArchiveAdmission": "type",
+        "ScenarioArchiveCollection": "interface",
+        "ScenarioArchiveManifest": "interface",
+        "ScenarioArchiveOptions": "interface",
+        "ScenarioArchivePolicy": "interface",
+        "createScenarioArchive": "function"
       }
     }
   },
