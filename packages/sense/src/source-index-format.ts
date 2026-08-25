@@ -21,8 +21,10 @@ interface Header {
 
 export interface StoredSourceIndex {
   readonly parses: ReadonlyMap<Digest, Parsed>;
+  readonly deletedParses?: ReadonlySet<Digest>;
   readonly layout?: Digest;
   readonly records: ReadonlyMap<string, FileRecord>;
+  readonly deletedRecords?: ReadonlySet<string>;
 }
 
 /** Encode source facts once: interned strings, dense columns, and offset lists. */
@@ -128,6 +130,8 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'strings.off': bytes(stringOff),
     'index.layout': bytes(Uint32Array.of(optionalId(stored.layout, id))),
     'parses.digest': bytes(parseDigest),
+    'parses.deleted': bytes(Uint32Array.from(
+      [...stored.deletedParses ?? []].sort(order), (digest) => id(digest))),
     'parses.requests': bytes(parseRequests),
     'parses.exports': bytes(parseExports),
     'parses.exports-present': bytes(parseExportPresent),
@@ -147,6 +151,8 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'exports.type': bytes(Uint8Array.from(exportType)),
     'declares.name': bytes(Uint32Array.from(declareName)),
     'records.file': bytes(recordFile),
+    'records.deleted': bytes(Uint32Array.from(
+      [...stored.deletedRecords ?? []].sort(order), (file) => id(file))),
     'records.digest': bytes(recordDigest),
     'records.edges': bytes(recordEdges),
     'records.edges-present': bytes(recordEdgePresent),
@@ -173,6 +179,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const optional = (value: number): string | undefined => value === NONE ? undefined : text(value);
 
   const parseDigest = opened.u32('parses.digest');
+  const deletedParseIds = opened.maybeU32('parses.deleted');
   const parseRequests = opened.u32('parses.requests');
   const parseExports = opened.u32('parses.exports');
   const parseExportPresent = opened.u8('parses.exports-present');
@@ -235,8 +242,15 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       ...(unknown === undefined ? {} : { unknown }),
     });
   }
+  const deletedParses = new Set<Digest>();
+  for (const value of deletedParseIds) {
+    const digest = text(value) as Digest;
+    if (parses.has(digest) || deletedParses.has(digest)) throw invalid();
+    deletedParses.add(digest);
+  }
 
   const recordFile = opened.u32('records.file');
+  const deletedRecordIds = opened.maybeU32('records.deleted');
   const recordDigest = opened.u32('records.digest');
   const recordEdges = opened.u32('records.edges');
   const recordEdgePresent = opened.u8('records.edges-present');
@@ -277,8 +291,20 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       ...(unknown === undefined ? {} : { unknown }),
     });
   }
+  const deletedRecords = new Set<string>();
+  for (const value of deletedRecordIds) {
+    const file = text(value);
+    if (records.has(file) || deletedRecords.has(file)) throw invalid();
+    deletedRecords.add(file);
+  }
   const layout = optional(opened.u32('index.layout')[0]!);
-  return { parses, ...(layout === undefined ? {} : { layout: layout as Digest }), records };
+  return {
+    parses,
+    ...(deletedParses.size === 0 ? {} : { deletedParses }),
+    ...(layout === undefined ? {} : { layout: layout as Digest }),
+    records,
+    ...(deletedRecords.size === 0 ? {} : { deletedRecords }),
+  };
 }
 
 function dictionary(
@@ -288,6 +314,8 @@ function dictionary(
 ): readonly string[] {
   const values = new Set<string>();
   if (stored.layout !== undefined) values.add(stored.layout);
+  for (const digest of stored.deletedParses ?? []) values.add(digest);
+  for (const file of stored.deletedRecords ?? []) values.add(file);
   for (const [digest, parsed] of parses) {
     values.add(digest);
     for (const request of parsed.requests) {
@@ -334,6 +362,7 @@ function sections(input: Readonly<Record<string, Buffer>>): Buffer {
 function openSections(input: Uint8Array): {
   u8(name: string): Uint8Array;
   u32(name: string): Uint32Array;
+  maybeU32(name: string): Uint32Array;
 } {
   const raw = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
   if (raw.length < 4) throw invalid();
@@ -360,6 +389,12 @@ function openSections(input: Uint8Array): {
     u32(name) {
       const value = section(name, 4);
       if (value.length % 4 !== 0) throw invalid();
+      return new Uint32Array(raw.buffer, raw.byteOffset + base + value.offset, value.length / 4);
+    },
+    maybeU32(name) {
+      const value = found.get(name);
+      if (value === undefined) return new Uint32Array();
+      if (value.width !== 4 || value.length % 4 !== 0) throw invalid();
       return new Uint32Array(raw.buffer, raw.byteOffset + base + value.offset, value.length / 4);
     },
   };

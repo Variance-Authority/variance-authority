@@ -18,7 +18,7 @@ describe('cached source selection', () => {
     expect(result.work.warm.parsed.lookups).toBe(0);
     expect(result.work.afterEdit.records.hits).toBeGreaterThan(0);
     expect(result.cacheAfterCold).toBe(true);
-    expect(result.cacheFile.startsWith('{')).toBe(false);
-    expect(result.cacheFile).toContain('variance-authority-source-index');
+    expect(result.cacheMagic).toBe('VAIDXLSM');
+    expect(result.cacheSegments).toBeGreaterThan(0);
   }, 120_000);
 });

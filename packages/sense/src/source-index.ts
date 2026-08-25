@@ -1,10 +1,10 @@
 /**
  * One durable generation for everything the source scan can reuse.
  *
- * Parses and resolved records share the dictionary because paths, specifiers,
- * names and digests are repeated across both. Keeping them behind one save also
- * prevents a run from publishing a parse generation and a record generation
- * that never existed together.
+ * Parses and resolved records share each segment's dictionary because paths,
+ * specifiers, names and digests are repeated across both. Keeping them behind
+ * one save also prevents a run from publishing parse and record states that
+ * never existed together.
  */
 
 import type { Digest, FileRecord } from '@variance-authority/core';
@@ -22,14 +22,14 @@ export interface PersistentSourceIndex {
 }
 
 /**
- * Open one versioned binary source-index generation.
+ * Open one versioned binary source-index generation from its immutable segments.
  *
- * A missing, incompatible, incomplete, or corrupt file behaves as an empty
+ * A missing, incompatible, incomplete, or corrupt chain behaves as an empty
  * cache. It can make this scan slower and cannot change the resulting graph.
  */
 export async function openSourceIndex(path: string): Promise<PersistentSourceIndex> {
   const stored = await readSourceIndex(path);
-  const availableRecords = new Map(stored.records);
+  let availableRecords = stored.records;
   const parses = new Map<Digest, Parsed>();
   const records = new Map<string, FileRecord>();
   let adopted: Digest | undefined;
@@ -49,7 +49,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     under(layout) {
       adopted = layout;
       if (stored.layout !== layout) {
-        availableRecords.clear();
+        availableRecords = new Map();
         records.clear();
       }
     },

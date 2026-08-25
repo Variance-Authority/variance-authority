@@ -7,7 +7,8 @@ One token file reaches `Button` through `button.css` and not `Badge`. The
 example scans the same small repository cold, then warm from its persistent
 binary source index, then after editing the token. All three scans choose the
 same affected story. It prints cold and warm duration as a measurement and
-counts the records reused rather than rebuilt.
+counts the records reused rather than rebuilt. `source-index.bin` is the atomic
+manifest and its `.segments` directory holds the immutable binary changes.
 
 **What it proves:** the warm scan reuses every unchanged record and rebuilds
 none, while choosing the same story as the cold scan. A token edit still collects

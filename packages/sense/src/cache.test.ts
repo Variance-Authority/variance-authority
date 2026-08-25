@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core';
 import { memoryParseCache, openParseCache, type Parsed } from './cache.js';
+import { encodeSourceIndex } from './source-index-format.js';
 
 /**
  * A cache keyed by content cannot go stale, so the tests are about the other two
@@ -84,11 +85,7 @@ describe('the cache on disk', () => {
 
   it('discards a file an older shape wrote rather than reading it as this one', async () => {
     const file = await path();
-    const cache = await openParseCache(file);
-    cache.set(a, BUTTON);
-    await cache.save();
-
-    const stored = await readFile(file);
+    const stored = encodeSourceIndex({ parses: new Map([[a, BUTTON]]), records: new Map() });
     const length = stored.readUInt32LE(0);
     const header = JSON.parse(stored.toString('utf8', 4, 4 + length).replace(/\0+$/, '')) as {
       version: number;
@@ -96,6 +93,7 @@ describe('the cache on disk', () => {
     const changed = Buffer.from(JSON.stringify({ ...header, version: header.version - 1 }), 'utf8');
     stored.fill(0, 4, 4 + length);
     changed.copy(stored, 4);
+    await mkdir(dirname(file), { recursive: true });
     await writeFile(file, stored);
 
     // The alternative is reading last year's field names into this year's code,

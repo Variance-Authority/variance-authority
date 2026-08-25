@@ -82,7 +82,8 @@ reported as a smaller, confident selection.
 
 The source index is optional. Put it outside the checkout; it is operational
 state, not source. It stores parses and resolved records in one versioned binary
-generation so their shared paths and names are interned once.
+generation assembled from immutable segments. Each save appends only changed
+rows and tombstones; periodic compaction restores one globally interned segment.
 
 ```ts
 import { openSourceIndex, scanRelations } from '@variance-authority/sense';

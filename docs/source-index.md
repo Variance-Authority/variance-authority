@@ -1,16 +1,32 @@
 # The source index format
 
-The Sense source index is one versioned binary generation containing the two
-facts a repeated source scan can reuse: parses keyed by content digest, and
-resolved file records keyed by file path, content digest and resolution layout.
-They share one string dictionary and one publication boundary.
+The Sense source index is one versioned binary generation assembled as a small
+log-structured merge tree: an ordered log of immutable segments with periodic
+compaction. It contains the two facts a repeated source scan can reuse: parses
+keyed by content digest, and resolved file records keyed by file path, content
+digest and resolution layout. Both maps share one publication boundary.
 
 The index is operational cache state. A reader accepts the complete generation
 or treats it as absent; no result or evidence depends on the file surviving.
 
-## Container
+## Manifest and segments
 
-The file starts with a padded JSON section table followed by aligned binary
+The path passed to `openSourceIndex` is the atomic pointer to the committed
+segment chain:
+
+```text
+magic            8 bytes   "VAIDXLSM"
+manifest length  4 bytes   unsigned 32-bit little-endian
+manifest          n bytes   UTF-8 JSON
+```
+
+The manifest has format `variance-authority-immutable-log`, version `1`, and an
+oldest-to-newest `segments` array. Each entry records a `v1:` content digest and
+byte length. Segment files live under `<index path>.segments/`, named by that
+digest. Readers load every named segment, verify its length and digest, and
+reject the complete chain when any member is missing or corrupt.
+
+A segment starts with a padded JSON section table followed by aligned binary
 sections:
 
 ```text
@@ -19,8 +35,8 @@ header         n bytes   UTF-8 JSON followed by NUL padding
 payload        m bytes   sections, each starting at an 8-byte boundary
 ```
 
-The header length includes its padding and makes the payload start on an
-8-byte boundary. The header has this shape:
+The segment header length includes its padding and makes the payload start on
+an 8-byte boundary. The header has this shape:
 
 ```json
 {
@@ -38,17 +54,18 @@ unsigned 32-bit integers in the runtime's `Uint32Array` byte order. Version 1
 does not claim portability between machines with different endianness. Padding
 between sections is not part of either section.
 
-The reader requires the exact format name and version. It rejects duplicate
+The segment reader requires the exact format name and version. It rejects duplicate
 section names, overlapping or out-of-bounds sections, invalid widths, unaligned
 offsets, malformed column lengths and invalid references. A missing,
-incompatible or rejected file is an empty cache and causes a normal scan.
+incompatible or rejected chain is an empty cache and causes a normal scan. A
+standalone version-1 segment remains readable as a legacy one-layer generation.
 
 ## Strings and nullable values
 
-Every string in both layers is interned once. `strings.blob` concatenates its
-UTF-8 bytes without delimiters; `strings.off` contains one unsigned 32-bit
-offset per string plus a terminal offset. String id `i` therefore occupies
-`blob[off[i]..off[i + 1]]`.
+Every string within one segment is interned once across its parse and record
+changes. `strings.blob` concatenates its UTF-8 bytes without delimiters;
+`strings.off` contains one unsigned 32-bit offset per string plus a terminal
+offset. String id `i` therefore occupies `blob[off[i]..off[i + 1]]`.
 
 String ids are assigned after code-unit sorting. `0xffffffff` is the sentinel
 for a missing scalar string and is never a string id.
@@ -72,6 +89,7 @@ row per logical object unless an offset column connects it to a child group.
 | `strings.off` | 4 | dictionary byte offsets |
 | `index.layout` | 4 | one nullable resolution-layout digest id |
 | `parses.digest` | 4 | parse content-digest ids |
+| `parses.deleted` | 4 | content-digest tombstones |
 | `parses.requests` | 4 | parse-to-request offsets |
 | `parses.exports` | 4 | parse-to-export offsets |
 | `parses.exports-present` | 1 | whether each export list is known |
@@ -91,6 +109,7 @@ row per logical object unless an offset column connects it to a child group.
 | `exports.type` | 1 | type-only flags |
 | `declares.name` | 4 | parsed declaration-name ids |
 | `records.file` | 4 | repository-relative path ids |
+| `records.deleted` | 4 | repository-relative path tombstones |
 | `records.digest` | 4 | nullable content-digest ids |
 | `records.edges` | 4 | record-to-edge offsets |
 | `records.edges-present` | 1 | whether each edge list is known |
@@ -104,9 +123,10 @@ row per logical object unless an offset column connects it to a child group.
 | `record-declares.name` | 4 | resolved declaration-name ids |
 | `unresolved.value` | 4 | unresolved-specifier string ids |
 
-Parse rows are sorted by digest and record rows by path, both by code unit.
-Nested arrays retain their semantic order. With the sorted dictionary and a
-fixed schema, equal logical generations encode to equal bytes.
+Parse rows and parse tombstones are sorted by digest; record rows and record
+tombstones are sorted by path. All use code-unit ordering. Nested arrays retain
+their semantic order. With the sorted dictionary and a fixed schema, equal
+logical segments encode to equal bytes.
 
 ## Reuse and publication
 
@@ -115,12 +135,24 @@ layout changes. Record rows also depend on resolution: the adopted layout digest
 covers the path set and the configuration inputs that control resolution. A
 layout mismatch discards the record layer as a unit while retaining parse rows;
 an individual record is reused only when its content digest also matches.
+The newest segment's layout applies to the materialized record map. A layout
+change is published only after the scan has produced the complete next map, so
+unchanged record values may be inherited physically without being reused during
+that validating scan.
 
 One `openSourceIndex` call returns the parse cache, record cache and `save`
-operation together. `save` retains only rows used or written by that scan,
-encodes one complete generation to a scratch file, then renames it over the
-destination. Write failures leave scanning correct and preserve the previous
-generation when one exists; without one, later work is cold.
+operation together. Opening creates one ordered lookup for each map. Point
+reads ask segments newest to oldest, stopping at the first put or tombstone;
+iteration materializes them oldest to newest. `save` retains only rows used or
+written by that scan, compares that complete state with the committed one, and
+writes the smallest segment that connects them. The segment is published before
+a scratch manifest is renamed over the destination.
+
+The ninth pending segment compacts the chain into one complete segment. The
+compacted segment restores generation-wide string interning and obsolete
+segments from the prior manifest are removed after publication. Write failures
+leave scanning correct and preserve the previous manifest when one exists;
+without one, later work is cold.
 
 The measured 200,000-file synthetic shape occupies 67.3 MB as shared binary
 sections versus 598 MB as JSON. The ratio comes chiefly from interning names

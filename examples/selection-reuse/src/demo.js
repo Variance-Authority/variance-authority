@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { movedBy, relationsOfFiles } from '@variance-authority/core';
@@ -112,7 +112,8 @@ export async function runDemo() {
         afterEdit: { parsed: afterEdit.parsed, records: afterEdit.records },
       },
       cacheAfterCold,
-      cacheFile: await readFile(join(cacheRoot, 'source-index.bin'), 'utf8'),
+      cacheMagic: (await readFile(join(cacheRoot, 'source-index.bin'))).subarray(0, 8).toString('utf8'),
+      cacheSegments: (await readdir(join(cacheRoot, 'source-index.bin.segments'))).length,
     };
   } finally {
     await Promise.all([
