@@ -7,8 +7,8 @@ files, resolves what they point at, and hands back one record per file.
 
 It is a *reader*, not a builder. Nothing here executes the code it reads, loads a
 config that a bundler would load, or asks a package manager anything. The whole
-mechanism is a parse, a resolver and two caches — which is why a cold scan of a
-thirty-thousand-file repository is three seconds, every scan after it is a
+mechanism is a parse, a resolver and one source index — which is why a cold scan
+of a thirty-thousand-file repository is three seconds, every scan after it is a
 fraction of that, and neither is the minutes a build costs.
 
 The package is [`packages/sense`](../packages/sense), and it is named for what it
@@ -206,6 +206,10 @@ Reuse is off without digests, and that is not a policy: a record that names no
 bytes cannot be checked against the bytes on disk, so there is nothing to reuse it
 against.
 
+The two layers are stored as one versioned binary generation. Its exact
+container, columns and invalidation rules are described in
+[`source-index.md`](source-index.md).
+
 ## From records to a graph
 
 The records are I/O; the graph is not, and it lives in
@@ -308,6 +312,7 @@ can, in principle, shadow a resolution. That is the one gap, it is bounded by
 ---
 
 **Further:** [`selecting.md`](selecting.md) for what a run does with this graph ·
+[`source-index.md`](source-index.md) for the persisted binary format ·
 [`packages/sense`](../packages/sense) for the API ·
 [ADR-0038](context/adr/0038-a-change-reaches-a-component-through-files.md) for
 why a change reaches a component through files ·

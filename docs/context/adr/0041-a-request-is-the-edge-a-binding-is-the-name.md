@@ -95,7 +95,8 @@ misread. Measured at 200,000 files, the same records as JSON go from 298 MB to
 598 MB — past the 512 MB ceiling that `readFile(…, 'utf8')` throws at
 ([journal 0026](../journal/0026-what-a-graph-costs-to-keep.md)). Reading names is
 what makes the JSON cache unviable rather than merely large, and the binary
-encoding that replaces it is not yet built.
+source index stores the expanded records as shared interned strings and dense
+columns ([format](../../source-index.md)).
 
 **Function-to-function is now a join rather than a research project.** A local
 name resolves to a declaring file through the import row, the target's export

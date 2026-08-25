@@ -97,7 +97,9 @@ The parse section is keyed by content digest. The record section is additionally
 keyed by the repository path layout and resolution settings, because resolution
 can change while file bytes stay the same. `gitDigests` supplies the content
 digests from Git when available; `scanRelations` calls it unless `digests: false`
-or a caller-provided map is used.
+or a caller-provided map is used. The
+[binary format](../../docs/source-index.md) documents the container, columns and
+rejection rules.
 
 ## Instrument one module
 
