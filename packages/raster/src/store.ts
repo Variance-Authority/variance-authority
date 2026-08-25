@@ -1,10 +1,4 @@
-import {
-  identityDigest,
-  type ComponentHash,
-  type Digest,
-  type Raster,
-  type RenderIdentity,
-} from '@variance-authority/core';
+import { identityDigest, type AccessibilitySnapshot, type Digest, type Raster, type RenderIdentity } from '@variance-authority/core';
 
 /**
  * Retention — the two modes, and the honest difference between them.
@@ -118,6 +112,9 @@ export interface Described {
    * is how `stabilization` once made every subject `incomparable` forever.
    */
   readonly missingFonts: readonly string[];
+
+  /** Browser accessibility evidence retained beside the image, when observed. */
+  readonly accessibility?: AccessibilitySnapshot;
 
   /**
    * Component names the document that painted this baseline rendered (ADR-0018).
@@ -317,105 +314,6 @@ export function createEphemeralStore(): RasterStore {
       },
     }),
   };
-}
-
-/**
- * Reading a stored raster, shared by the disk and the wire.
- *
- * The two arrive by different routes and are the same value, so they are checked
- * by the same code. Two copies of this would be two ideas of what a baseline is,
- * and the one that drifts is the one that accepts a record the other refuses —
- * which acceptance 4 forbids, since where a baseline is kept must decide nothing
- * about what it means. That is the whole reason these checks sit in the package
- * neither backend owns.
- */
-export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
-  const sidecar = recordFrom(value);
-  if (sidecar === null) return null;
-
-  const identity = identityFrom(sidecar.identity);
-  const missingFonts = stringsFrom(sidecar.missingFonts);
-
-  if (
-    identity === null ||
-    missingFonts === null ||
-    typeof sidecar.documentDigest !== 'string' ||
-    typeof sidecar.width !== 'number' ||
-    typeof sidecar.height !== 'number'
-  ) {
-    return null;
-  }
-
-  const components = componentsFrom(sidecar.components);
-
-  return {
-    documentDigest: sidecar.documentDigest,
-    identity,
-    width: sidecar.width,
-    height: sidecar.height,
-    missingFonts,
-    ...(components !== undefined ? { components } : {}),
-  };
-}
-
-/**
- * Component hashes off a wire, or `undefined`.
- *
- * The one field on a sidecar that is dropped rather than refused when it will not
- * parse, and the asymmetry is deliberate. Every other field decides a *verdict* —
- * a missing identity cannot be partitioned, a missing digest can never settle —
- * so a malformed one has to be loud. These decide an *ordering*: without them a
- * run ranks regions by area, which is what every run did before they existed.
- * Failing a build over the field that makes a correct report better-ordered would
- * trade a working comparison for a tidy one.
- *
- * Absent means *unknown*, never *no components*, and nothing downstream may read
- * an empty array out of a missing field.
- */
-function componentsFrom(value: unknown): readonly ComponentHash[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-
-  const parsed: ComponentHash[] = [];
-  for (const entry of value) {
-    const row = recordFrom(entry);
-    if (
-      row === null ||
-      typeof row['component'] !== 'string' ||
-      typeof row['instances'] !== 'number' ||
-      typeof row['structure'] !== 'string' ||
-      typeof row['semantics'] !== 'string' ||
-      typeof row['text'] !== 'string' ||
-      typeof row['style'] !== 'string'
-    ) {
-      // A sidecar written before the band split carries `structure` and no
-      // `semantics` — and the whole array is refused rather than back-filled,
-      // because the old `structure` digest covered the accessible name and the
-      // text too. Reading it as the new, narrower `structure` would report a
-      // renamed heading as a shape change and a reworded paragraph as one, both
-      // of which are the bands a sensitivity level exists to tell apart.
-      return undefined;
-    }
-
-    parsed.push({
-      component: row['component'],
-      instances: row['instances'],
-      structure: row['structure'],
-      semantics: row['semantics'],
-      text: row['text'],
-      style: row['style'],
-      ...(typeof row['geometry'] === 'string' ? { geometry: row['geometry'] } : {}),
-    });
-  }
-
-  return parsed;
-}
-
-/** As {@link sidecarFrom}, for a record that is expected to carry its bytes. */
-export function rasterFrom(value: unknown): Raster | null {
-  const sidecar = sidecarFrom(value);
-  const bytes = recordFrom(value)?.bytes;
-
-  return sidecar === null || typeof bytes !== 'string' ? null : { ...sidecar, bytes };
 }
 
 /**

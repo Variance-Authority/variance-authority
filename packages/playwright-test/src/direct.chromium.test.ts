@@ -56,7 +56,34 @@ if (!BROWSER_AVAILABLE) {
 }
 
 chromium_('the additive Playwright path', () => {
+  it('reports a browser ARIA change whose pixels remain identical', async () => {
+    await page!.setContent('<button id="pay" aria-label="Pay now">$12</button>');
+    const locator = page!.locator('#pay');
+
+    await observe(page!, locator, info('all'), {
+      baselines,
+      subjectId: 'button/aria-only',
+    });
+    await locator.evaluate((element) => element.setAttribute('aria-label', 'Submit payment'));
+
+    const changed = await observe(page!, locator, info('none'), {
+      baselines,
+      subjectId: 'button/aria-only',
+    });
+
+    expect(changed).toMatchObject({
+      verdict: 'changed',
+      signals: {
+        pixels: 'unchanged',
+        accessibility: { verdict: 'changed' },
+      },
+    });
+    expect(changed.signals?.accessibility?.before?.roots[0]).toContain('Pay now');
+    expect(changed.signals?.accessibility?.after?.roots[0]).toContain('Submit payment');
+  }, 60_000);
+
   it('observes through the Page and TestInfo the suite already owns', async () => {
+    await page!.setContent('<main><section id="cart"><h1>Cart</h1><p>Empty</p></section></main>');
     const locator = page!.locator('#cart');
     const accepted = await observe(page!, locator, info('all'), {
       baselines,

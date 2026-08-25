@@ -76,6 +76,34 @@ export async function decide(
   // keeps the number and the pixels it was subtracted from provably the same.
   const subtraction = subtractRegions(comparison.mask, boxes);
   const remaining = subtraction.mask.changed;
+  const documentMoved = before.documentDigest !== after.documentDigest;
+  const accessibility = accessibilityBetween(before, after);
+  const pixelsMoved = remaining > 0 || comparison.dimensionsChanged;
+  const signals = {
+    document: documentMoved ? ('changed' as const) : ('unchanged' as const),
+    pixels: pixelsMoved ? ('changed' as const) : ('unchanged' as const),
+    ...(accessibility === undefined ? {} : { accessibility }),
+  };
+
+  if (accessibility?.verdict === 'incomparable') {
+    return {
+      subject,
+      verdict: 'incomparable',
+      because:
+        accessibility.before === undefined
+          ? 'the baseline has no browser accessibility snapshot, so this run cannot call the accessibility boundary unchanged'
+          : accessibility.after === undefined
+            ? 'this run did not capture a browser accessibility snapshot, so it cannot compare the baseline accessibility boundary'
+            : 'the two browser accessibility snapshots were produced by different engines or formats',
+      comparison,
+      regions: [],
+      rendered,
+      missingFonts,
+      signals,
+      ...causesField,
+      ...diagnosticsField,
+    };
+  }
 
   const byRule: Record<string, number> = {};
   for (const [index, box] of boxes.entries()) {
@@ -116,7 +144,12 @@ export async function decide(
   // there. It runs after, so both accounts are complete.
   const relaxed = relaxedVerdict(options, before, after);
 
-  if (relaxed !== null && remaining > 0 && !comparison.dimensionsChanged) {
+  if (
+    relaxed !== null &&
+    remaining > 0 &&
+    !comparison.dimensionsChanged &&
+    accessibility?.verdict !== 'changed'
+  ) {
     return {
       subject,
       verdict: 'ignored',
@@ -126,6 +159,7 @@ export async function decide(
       regions: [],
       rendered,
       missingFonts,
+      signals,
       ...ignoredField,
       ...causesField,
       ...diagnosticsField,
@@ -135,7 +169,11 @@ export async function decide(
   // The cheap exit, and it must come before isolation: a run where nothing moved
   // outside an exclusion should not pay to cluster a mask that is already empty.
   // Shape ignores cannot apply here, because there is no region to fingerprint.
-  if (remaining === 0 && !comparison.dimensionsChanged) {
+  if (
+    remaining === 0 &&
+    !comparison.dimensionsChanged &&
+    accessibility?.verdict !== 'changed'
+  ) {
     // Two green verdicts, never one. `unchanged` is a fact about the render;
     // `ignored` is a fact about what somebody decided not to look at, and folding
     // the second into the first is the failure the whole mechanism is written
@@ -156,6 +194,28 @@ export async function decide(
       regions: [],
       rendered,
       missingFonts,
+      signals,
+      ...ignoredField,
+      ...causesField,
+      ...diagnosticsField,
+    };
+  }
+
+  // A browser accessibility change is reviewable even when the screenshot is
+  // byte-for-byte quiet. There is no rectangle to invent: the retained
+  // before/after ARIA snapshots are the evidence. Document movement remains a
+  // named signal, but is not itself a raster verdict: reconstruction inputs can
+  // differ while both independently observed outputs agree.
+  if (remaining === 0 && !comparison.dimensionsChanged) {
+    return {
+      subject,
+      verdict: 'changed',
+      because: 'the browser accessibility tree changed while no pixels changed',
+      comparison,
+      regions: [],
+      rendered,
+      missingFonts,
+      signals,
       ...ignoredField,
       ...causesField,
       ...diagnosticsField,
@@ -200,7 +260,11 @@ export async function decide(
           },
         };
 
-  if (outstanding === 0 && !comparison.dimensionsChanged) {
+  if (
+    outstanding === 0 &&
+    !comparison.dimensionsChanged &&
+    accessibility?.verdict !== 'changed'
+  ) {
     return {
       subject,
       verdict: 'ignored',
@@ -211,6 +275,7 @@ export async function decide(
       regions: [],
       rendered,
       missingFonts,
+      signals,
       ...ignoredHere,
       ...causesField,
       ...diagnosticsField,
@@ -241,9 +306,34 @@ export async function decide(
     regions,
     rendered,
     missingFonts,
+    signals,
     ...ignoredHere,
     ...causesField,
     ...diagnosticsField,
+  };
+}
+
+function accessibilityBetween(
+  before: Raster,
+  after: Raster,
+): NonNullable<NonNullable<Observation['signals']>['accessibility']> | undefined {
+  const left = before.accessibility;
+  const right = after.accessibility;
+  if (left === undefined && right === undefined) return undefined;
+  if (left === undefined || right === undefined) {
+    return {
+      verdict: 'incomparable',
+      ...(left === undefined ? {} : { before: left }),
+      ...(right === undefined ? {} : { after: right }),
+    };
+  }
+  if (left.producer !== right.producer || left.engine !== right.engine) {
+    return { verdict: 'incomparable', before: left, after: right };
+  }
+  return {
+    verdict: left.digest === right.digest ? 'unchanged' : 'changed',
+    before: left,
+    after: right,
   };
 }
 

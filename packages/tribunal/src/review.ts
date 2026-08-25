@@ -152,10 +152,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
             .prepare(
               `INSERT OR REPLACE INTO build_subjects
                  (project, build, subject, verdict, because, changed_pixels, regions, truncated,
-                  missing_fonts, findings, before_key, after_key, diff_key,
+                  missing_fonts, findings, signals, before_key, after_key, diff_key,
                   candidate_document_digest, candidate_width, candidate_height,
-                  candidate_missing_fonts)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  candidate_missing_fonts, candidate_accessibility)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             )
             .bind(
               project,
@@ -173,6 +173,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
               // different values: nothing inspected this render, versus this
               // render was inspected and was clean.
               observation.findings === undefined ? null : JSON.stringify(observation.findings),
+              observation.signals === undefined ? null : JSON.stringify(observation.signals),
               keys.before ?? null,
               keys.after ?? null,
               keys.diff ?? null,
@@ -180,6 +181,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
               after?.width ?? null,
               after?.height ?? null,
               after === undefined ? null : JSON.stringify(after.missingFonts),
+              after?.accessibility === undefined ? null : JSON.stringify(after.accessibility),
             ),
         );
       }

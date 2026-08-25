@@ -6,9 +6,15 @@ import type {
   PlaywrightWorkerArgs,
   TestInfo,
 } from '@playwright/test';
-import { digestValue, documentDigest, hashComponents, normalize } from '@variance-authority/core';
+import {
+  digestValue,
+  documentDigest,
+  hashComponents,
+  normalize,
+} from '@variance-authority/core';
 import type {
   CaptureArtifact,
+  AccessibilitySnapshot,
   Raster,
   RenderIdentity,
   SemanticSnapshot,
@@ -26,8 +32,10 @@ import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
 import { createDurableStore } from '@variance-authority/store';
+import { accepted } from './accept.js';
 import { bundlePageAgent } from './bundle.js';
-import { AGENT, type Acquired, type AcquireRequest, type InstalledAgent } from './page-agent.js';
+import { acquireFrom } from './acquire.js';
+import type { AcquireRequest } from './page-agent.js';
 
 /**
  * The optional Playwright fixture parts, for a suite that already owns a shared
@@ -252,8 +260,8 @@ export async function observeLocator(
         : {}),
   };
 
-  const acquired = await acquireFrom(locator, request);
-  const { document, capture, suspense, stabilization } = acquired;
+  const acquired = await acquireFrom(page, locator, request);
+  const { document, capture, suspense, stabilization, accessibility } = acquired;
   const unsettled = suspenseRefusal(suspense, {
     subjectId: subject.id,
     declaredLoading: options.loading === true,
@@ -273,7 +281,7 @@ export async function observeLocator(
       materialization,
       snapshot,
     );
-    const confirmed = await acquireFrom(locator, request);
+    const confirmed = await acquireFrom(page, locator, request);
     const confirmedUnsettled = suspenseRefusal(confirmed.suspense, {
       subjectId: subject.id,
       declaredLoading: options.loading === true,
@@ -283,6 +291,7 @@ export async function observeLocator(
     if (
       documentDigest(confirmed.document) !== documentDigest(document) ||
       digestValue(JSON.stringify(confirmedSnapshot)) !== digestValue(JSON.stringify(snapshot)) ||
+      confirmed.accessibility.digest !== accessibility.digest ||
       confirmed.stabilization.digest !== stabilization.digest
     ) {
       throw new Error(
@@ -294,12 +303,17 @@ export async function observeLocator(
       subject,
       material: { kind: 'raster', raster: candidate },
       snapshot,
+      accessibility,
       ...(options.source === undefined ? {} : { source: options.source }),
       stabilization: stabilization.ids,
     };
     const observation = await observeCaptureAgainstBaseline(artifact, key, { store });
     if (accepting(testInfo) && observation.verdict !== 'unchanged') {
-      await store.put(key, { ...candidate, components: hashComponents(snapshot) });
+      await store.put(key, {
+        ...candidate,
+        components: hashComponents(snapshot),
+        accessibility,
+      });
       return accepted(observation);
     }
     return observation;
@@ -307,7 +321,13 @@ export async function observeLocator(
 
   if (renderer === undefined) throw new Error('deferred capture needs a renderer');
   const identity = renderer.identityFor(document);
-  const settlement = settle(documentDigest(document), await store.describe(key, identity), identity);
+  const described = await store.describe(key, identity);
+  const settlement = settle(
+    documentDigest(document),
+    described,
+    identity,
+    accessibility,
+  );
 
   if (settlement.kind === 'settled') {
     return {
@@ -317,6 +337,19 @@ export async function observeLocator(
       regions: [],
       rendered: false,
       missingFonts: settlement.missingFonts ?? [],
+      ...(settlement.verdict === 'unchanged' && described?.accessibility !== undefined
+        ? {
+            signals: {
+              document: 'unchanged' as const,
+              pixels: 'unchanged' as const,
+              accessibility: {
+                verdict: 'unchanged' as const,
+                before: described.accessibility,
+                after: accessibility,
+              },
+            },
+          }
+        : {}),
     };
   }
 
@@ -324,57 +357,16 @@ export async function observeLocator(
     renderer,
     store,
     snapshot,
+    accessibility,
     ...(options.source !== undefined ? { source: options.source } : {}),
   });
 
   if (accepting(testInfo) && observation.verdict !== 'unchanged') {
-    await promote(store, renderer, document, key, snapshot);
+    await promote(store, renderer, document, key, snapshot, accessibility);
     return accepted(observation);
   }
 
   return observation;
-}
-
-/**
- * What a promoted subject reports, once it has been promoted.
- *
- * `--update-snapshots` is Playwright's word for *I have decided*, and a run under
- * it that still reports `new` fails its own assertion — so the documented way to
- * establish a first baseline exits 1, and every suite that follows the
- * instruction has to grow a branch around `assertUnchanged` to survive the one
- * command that is supposed to be routine.
- *
- * The verdict is the run's answer at the end of the step, and at the end of this
- * one the stored baseline is this image. `because` carries what actually
- * happened, because "unchanged" with no history is the sentence an operator would
- * be right to distrust. The comparison and the regions go: both describe the
- * baseline this run replaced, and a docket entry against an image nobody can
- * fetch any more is a region ranking over a ghost.
- */
-function accepted(observation: Observation): Observation {
-  const { comparison, ...rest } = observation;
-  void comparison;
-
-  return {
-    ...rest,
-    verdict: 'unchanged',
-    because: `accepted under --update-snapshots (${observation.because}); this run's image is the baseline`,
-    regions: [],
-  };
-}
-
-async function acquireFrom(locator: Locator, request: AcquireRequest): Promise<Acquired> {
-  const raw = await locator.evaluate(
-    (element, [global, sent]: readonly [string, AcquireRequest]) => {
-      const agent = (globalThis as unknown as Record<string, InstalledAgent | undefined>)[global];
-      if (agent === undefined) {
-        throw new Error(`the variance page agent is not installed at ${global}`);
-      }
-      return agent.acquire(element, sent);
-    },
-    [AGENT, request] as const,
-  );
-  return JSON.parse(raw) as Acquired;
 }
 
 function engineOf(page: Page): string {
@@ -464,6 +456,7 @@ async function promote(
   key: BaselineKey,
   /** This run's snapshot of the same render. See below. */
   snapshot: SemanticSnapshot,
+  accessibility: AccessibilitySnapshot,
 ): Promise<void> {
   const identity = renderer.identityFor(document);
   const candidate = await store.renderCache.get(documentDigest(document), identity);
@@ -481,5 +474,9 @@ async function promote(
   // raster as-is would record a baseline with no hashes at all, so every later run
   // against it would rank regions by area — the ordering journal 0013 measured as
   // backwards — on the one surface where both documents were in hand.
-  await store.put(key, { ...candidate, components: hashComponents(snapshot) });
+  await store.put(key, {
+    ...candidate,
+    components: hashComponents(snapshot),
+    accessibility,
+  });
 }

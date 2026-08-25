@@ -177,7 +177,7 @@ They have opposite loss semantics, and one interface can only encode one of them
 - **Losing a baseline is fatal.** `null` means "looked, nothing there", which
   becomes `new`, which re-records whatever is on screen, which destroys the
   baseline this run existed to compare against. So every failure must throw —
-  `RasterStoreError packages/raster/src/store.ts:55` and the `REFUSAL` beside it.
+  `RasterStoreError packages/raster/src/store.ts:49` and the `REFUSAL` beside it.
 - **Losing a cache costs a render.** `null` is the correct answer to every
   failure, including a failure to reach the network.
 

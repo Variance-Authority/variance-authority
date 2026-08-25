@@ -111,6 +111,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
           comparable: true,
           storedUnder: own.identity,
           missingFonts: own.missingFonts,
+          ...(own.accessibility === undefined ? {} : { accessibility: own.accessibility }),
           // Names only. The sidecar carries hashes; a describe that handed them
           // on would invite a caller to settle from them, which is the document
           // digest's job — this list can only answer membership.
@@ -129,6 +130,9 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
             comparable: false,
             storedUnder: sidecar.identity,
             missingFonts: sidecar.missingFonts,
+            ...(sidecar.accessibility === undefined
+              ? {}
+              : { accessibility: sidecar.accessibility }),
             ...(sidecar.components === undefined
               ? {}
               : { components: sidecar.components.map((hash) => hash.component) }),

@@ -289,6 +289,13 @@ export interface Raster {
   readonly missingFonts: readonly string[];
 
   /**
+   * The browser-computed accessibility tree from the acquisition that produced
+   * this candidate. It is independent evidence: pixel equality cannot settle it.
+   * Absent means the acquisition host did not observe this boundary.
+   */
+  readonly accessibility?: import('./accessibility.js').AccessibilitySnapshot;
+
+  /**
    * What the document that painted this said about its own components (ADR-0018).
    *
    * The field that makes a baseline self-describing, and the reason it is here

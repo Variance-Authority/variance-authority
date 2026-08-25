@@ -151,6 +151,7 @@
         "ALLOWLIST_VERSION": "const",
         "ATTRIBUTE_ALLOWLIST": "const",
         "AbsorbedByRule": "interface",
+        "AccessibilitySnapshot": "interface",
         "Adjacency": "interface",
         "Adjudicated": "interface",
         "Adjudication": "interface",
@@ -334,6 +335,7 @@
         "Viewport": "interface",
         "Wiring": "interface",
         "absorbsEntirely": "function",
+        "accessibilitySnapshot": "function",
         "adjudicate": "function",
         "admits": "function",
         "admitsAttribute": "function",
@@ -479,6 +481,7 @@
         "writerLocationOf": "function"
       },
       "./format": {
+        "AccessibilitySnapshot": "interface",
         "CHROMIUM_PROFILE": "const",
         "COLLECT_RECIPE": "const",
         "CanonicalValue": "type",
@@ -532,6 +535,7 @@
         "ValueShaping": "interface",
         "Viewport": "interface",
         "Wiring": "interface",
+        "accessibilitySnapshot": "function",
         "canonicalNumber": "function",
         "canonicalize": "function",
         "conflicts": "function",

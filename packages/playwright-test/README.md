@@ -45,7 +45,10 @@ test('the cart survives an empty basket', async ({ page }, testInfo) => {
 `observe` creates and closes its renderer around one observation. It returns an
 `Observation`; `assertUnchanged` is a plain assertion helper, not a replacement
 for Playwright's `expect`. A test may also inspect `verdict`, `regions`,
-`missingFonts`, or diagnostics before deciding what to do.
+`missingFonts`, `signals`, or diagnostics before deciding what to do. `signals`
+keeps document, pixel, and browser accessibility results separate; an invisible
+ARIA change therefore returns `changed` with zero changed pixels and retained
+before/after Playwright ARIA snapshots.
 
 For several observations in one test, keep one renderer alive explicitly:
 
@@ -152,6 +155,13 @@ The helper always acquires the live subtree and semantic evidence. Deferred mode
 then paints the document through a renderer. In-place mode screenshots the live
 locator and stamps the raster with the browser identity declared by the suite.
 Both modes reach the same baseline comparison and attribution path.
+
+The helper also calls Playwright's native `locator.ariaSnapshot()` on the
+subject and on React portal content belonging to it. This is separate from the
+collector's portable role/name approximation: browser CSS visibility and the
+engine's accessible-name computation are the evidence. The trees are retained
+beside the image, so the document-digest shortcut cannot report `unchanged`
+while the accessibility tree moved.
 
 ## Options and composition
 

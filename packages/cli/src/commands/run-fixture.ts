@@ -148,6 +148,9 @@ export function storeAnswering(found: Found | null | (() => never)): RasterStore
         comparable: baseline.comparable,
         storedUnder: baseline.storedUnder,
         missingFonts: baseline.raster.missingFonts,
+        ...(baseline.raster.accessibility === undefined
+          ? {}
+          : { accessibility: baseline.raster.accessibility }),
         // Names only, as a real backend reads them out of the sidecar. Absent
         // when the baseline records none, which is what `--since` reads as
         // *unknown* and therefore observes.

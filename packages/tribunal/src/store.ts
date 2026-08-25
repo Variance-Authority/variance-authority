@@ -77,6 +77,7 @@ interface SidecarRow {
   readonly height: number;
   readonly missing_fonts: string;
   readonly object_key: string;
+  readonly accessibility?: string | null;
 }
 
 export function createBucketStore(options: BucketStoreOptions): RasterStore {
@@ -123,6 +124,9 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
         ...(sidecar.components === undefined
           ? {}
           : { components: sidecar.components.map((hash) => hash.component) }),
+        ...(sidecar.accessibility === undefined
+          ? {}
+          : { accessibility: sidecar.accessibility }),
       };
     },
 
@@ -140,14 +144,15 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
             .prepare(
               `INSERT INTO baselines
                  (project, identity_digest, subject, label, identity, document_digest,
-                  width, height, missing_fonts, object_key, at, at_ms)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  width, height, missing_fonts, accessibility, object_key, at, at_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT (project, identity_digest, subject, label) DO UPDATE SET
                  identity = excluded.identity,
                  document_digest = excluded.document_digest,
                  width = excluded.width,
                  height = excluded.height,
                  missing_fonts = excluded.missing_fonts,
+                 accessibility = excluded.accessibility,
                  object_key = excluded.object_key,
                  at = excluded.at,
                  at_ms = excluded.at_ms`,
@@ -162,6 +167,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               raster.width,
               raster.height,
               JSON.stringify(raster.missingFonts),
+              raster.accessibility === undefined ? null : JSON.stringify(raster.accessibility),
               objectKey,
               at,
               Date.parse(at),
@@ -261,7 +267,7 @@ async function locate(
     () =>
       db
         .prepare(
-          `SELECT identity, document_digest, width, height, missing_fonts, object_key,
+          `SELECT identity, document_digest, width, height, missing_fonts, accessibility, object_key,
                   identity_digest
              FROM baselines
             WHERE project = ? AND subject = ? AND label = ?
@@ -303,9 +309,11 @@ async function fetchBytes(bucket: R2Like, objectKey: string): Promise<string> {
 function parse(row: SidecarRow, where: string): Omit<Raster, 'bytes'> {
   let identity: unknown;
   let missingFonts: unknown;
+  let accessibility: unknown;
   try {
     identity = JSON.parse(row.identity) as unknown;
     missingFonts = JSON.parse(row.missing_fonts) as unknown;
+    accessibility = row.accessibility == null ? undefined : (JSON.parse(row.accessibility) as unknown);
   } catch (error) {
     throw new RasterStoreError(
       `${where} holds JSON columns that will not parse: ${messageOf(error)}. ${REFUSAL}.`,
@@ -319,6 +327,7 @@ function parse(row: SidecarRow, where: string): Omit<Raster, 'bytes'> {
     documentDigest: row.document_digest,
     width: row.width,
     height: row.height,
+    ...(accessibility === undefined ? {} : { accessibility }),
   });
 
   if (sidecar === null) {

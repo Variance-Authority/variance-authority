@@ -1,5 +1,10 @@
 import type { Raster } from '@variance-authority/core';
-import { RasterStoreError, identityFrom, type RasterStore } from '@variance-authority/raster';
+import {
+  RasterStoreError,
+  identityFrom,
+  sidecarFrom,
+  type RasterStore,
+} from '@variance-authority/raster';
 import { base64Of, bytesOf, type D1Like, type R2Like } from './bindings.js';
 import { ReviewError, number, optionalText, text, type Row } from './review-rows.js';
 import type { SubjectImages } from './review-types.js';
@@ -106,9 +111,29 @@ export async function promote(
     height: number(row, 'candidate_height', 'a build subject'),
     bytes: base64Of(await object.arrayBuffer()),
     missingFonts: strings(optionalText(row, 'candidate_missing_fonts', 'a build subject')),
+    ...accessibilityField(optionalText(row, 'candidate_accessibility', 'a build subject'), identity),
   };
 
   await baselines.put({ subject }, raster);
+}
+
+function accessibilityField(
+  json: string | undefined,
+  identity: Raster['identity'],
+): Pick<Raster, 'accessibility'> {
+  if (json === undefined) return {};
+  const parsed = sidecarFrom({
+    documentDigest: 'candidate',
+    identity,
+    width: 0,
+    height: 0,
+    missingFonts: [],
+    accessibility: JSON.parse(json) as unknown,
+  });
+  if (parsed?.accessibility === undefined) {
+    throw new ReviewError('the candidate browser accessibility snapshot is malformed');
+  }
+  return { accessibility: parsed.accessibility };
 }
 
 function strings(json: string | undefined): readonly string[] {

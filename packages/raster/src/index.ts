@@ -45,12 +45,11 @@ export {
   createEphemeralStore,
   neverFails,
   identityFrom,
-  rasterFrom,
   recordFrom,
-  sidecarFrom,
   messageOf,
 } from './store.js';
 export type { RasterStore, RenderCache, Retention, BaselineKey, Found, Described } from './store.js';
+export { rasterFrom, sidecarFrom } from './codec.js';
 
 export { settle } from './settle.js';
 export type { Settlement } from './settle.js';

@@ -1,5 +1,6 @@
 import {
   hashComponents,
+  type AccessibilitySnapshot,
   type AttributedRegion,
   type ComponentHash,
   type Diagnostic,
@@ -80,6 +81,17 @@ export interface Observation {
   readonly rendered: boolean;
   /** Fonts the document declared and the renderer did not have. */
   readonly missingFonts: readonly string[];
+
+  /** The three independently observed boundaries and the retained ARIA diff. */
+  readonly signals?: {
+    readonly document: 'unchanged' | 'changed';
+    readonly pixels: 'unchanged' | 'changed';
+    readonly accessibility?: {
+      readonly verdict: 'unchanged' | 'changed' | 'incomparable';
+      readonly before?: AccessibilitySnapshot;
+      readonly after?: AccessibilitySnapshot;
+    };
+  };
 
   /**
    * What the operator's ignores took out of this comparison.
@@ -178,6 +190,8 @@ export interface CompareInputs {
    * that node, and the landmark path someone would use to describe where it is.
    */
   readonly snapshot?: SemanticSnapshot;
+  /** Browser-native accessibility evidence from this acquisition. */
+  readonly accessibility?: AccessibilitySnapshot;
   readonly source?: SourceIndex;
 
   readonly compare?: CompareOptions;
@@ -327,7 +341,13 @@ export async function observeAgainstBaseline(
 
   const components = componentsOf(options);
   const found = await options.store.find(key, identity);
-  const fresh = await renderOnce(options.renderer, options.store, document, components);
+  const fresh = await renderOnce(
+    options.renderer,
+    options.store,
+    document,
+    components,
+    options.accessibility,
+  );
 
   // Carried on the paths that never reach a comparison. What the operator
   // excluded is a fact about this subject whether or not anything was compared,
@@ -399,6 +419,7 @@ async function renderOnce(
   document: RenderDocument,
   /** This document's component hashes, folded into the raster it produces. */
   components?: readonly ComponentHash[],
+  accessibility?: AccessibilitySnapshot,
 ): Promise<{ raster: Raster; rendered: boolean }> {
   const identity = renderer.identityFor(document);
   const hit = await store.renderCache.get(documentDigest(document), identity);
@@ -406,7 +427,9 @@ async function renderOnce(
   // A cache hit is an image of exactly this document, so the hashes computed
   // *here* describe it as well as the ones written with it did. What the cache
   // kept is discarded either way — see `withComponents`.
-  if (hit !== null) return { raster: withComponents(hit, components), rendered: false };
+  if (hit !== null) {
+    return { raster: withEvidence(hit, components, accessibility), rendered: false };
+  }
 
   const painted = await renderer.render(document);
   // Pixels only. A render cache is addressed by document digest and holds
@@ -417,7 +440,7 @@ async function renderOnce(
   // would have let `accept` promote a baseline whose hashes belong to a document
   // it is not an image of.
   await store.renderCache.put(painted);
-  return { raster: withComponents(painted, components), rendered: true };
+  return { raster: withEvidence(painted, components, accessibility), rendered: true };
 }
 
 /**
@@ -439,12 +462,17 @@ async function renderOnce(
  * So the rule is unconditional: the hashes on a raster are the ones this run
  * computed, or there are none.
  */
-function withComponents(
+function withEvidence(
   raster: Raster,
   components: readonly ComponentHash[] | undefined,
+  accessibility: AccessibilitySnapshot | undefined,
 ): Raster {
-  const { components: stale, ...pixels } = raster;
-  void stale;
-  return components === undefined ? pixels : { ...pixels, components };
+  const { components: staleComponents, accessibility: staleAccessibility, ...pixels } = raster;
+  void staleComponents;
+  void staleAccessibility;
+  return {
+    ...pixels,
+    ...(components === undefined ? {} : { components }),
+    ...(accessibility === undefined ? {} : { accessibility }),
+  };
 }
-

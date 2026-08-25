@@ -21,6 +21,9 @@ export { shapeValue, pointerShape, pointerToken, DROPPED, VALUE_RECIPE } from '.
 export type { Digest } from './hash.js';
 export { digestString, digestBytes, digestValue, digestCombine } from './hash.js';
 
+export type { AccessibilitySnapshot } from './accessibility.js';
+export { accessibilitySnapshot } from './accessibility.js';
+
 export type { ObservationProfile, ProfileId } from './profile.js';
 export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById, tierOfProfile } from './profile.js';
 

@@ -1,4 +1,4 @@
-import type { Digest, RenderIdentity } from '@variance-authority/core';
+import type { AccessibilitySnapshot, Digest, RenderIdentity } from '@variance-authority/core';
 import { describeIdentity } from './renderer.js';
 import type { Described } from './store.js';
 
@@ -107,6 +107,7 @@ export function settle(
    * identically. See `describeIdentity`.
    */
   mine?: RenderIdentity,
+  accessibility?: AccessibilitySnapshot,
 ): Settlement {
   if (found === null) {
     return {
@@ -126,7 +127,15 @@ export function settle(
     };
   }
 
-  if (found.documentDigest === digest) {
+  if (
+    found.documentDigest === digest &&
+    ((found.accessibility === undefined && accessibility === undefined) ||
+      (found.accessibility !== undefined &&
+        accessibility !== undefined &&
+        found.accessibility.producer === accessibility.producer &&
+        found.accessibility.engine === accessibility.engine &&
+        found.accessibility.digest === accessibility.digest))
+  ) {
     // The digest is a statement about pixels and about nothing else. A baseline
     // painted while the renderer lacked a declared font is an image of a
     // substituted font, and repainting the same document would substitute it
@@ -152,6 +161,9 @@ export function settle(
 
   return {
     kind: 'render',
-    because: 'the document differs from the one the baseline was painted from',
+    because:
+      found.documentDigest !== digest
+        ? 'the document differs from the one the baseline was painted from'
+        : 'the browser accessibility evidence differs or is absent on one side',
   };
 }

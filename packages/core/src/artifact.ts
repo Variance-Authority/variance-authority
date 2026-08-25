@@ -1,5 +1,6 @@
 import type { SourceIndex } from './attribute/source.js';
 import type {
+  AccessibilitySnapshot,
   CapturedValue,
   Raster,
   RenderDocument,
@@ -33,6 +34,8 @@ export interface CaptureArtifact {
   readonly subject: SubjectRef;
   readonly material: CaptureMaterial;
   readonly snapshot?: SemanticSnapshot;
+  /** Browser-native accessibility evidence from the same stabilized mount. */
+  readonly accessibility?: AccessibilitySnapshot;
   readonly source?: SourceIndex;
   readonly stabilization?: readonly string[];
   readonly attempt?: {

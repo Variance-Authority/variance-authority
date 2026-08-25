@@ -1,4 +1,4 @@
-import type { RenderIdentity } from '@variance-authority/core';
+import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core';
 import type { CompositionReport } from './composition.js';
 import type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 import type { VariationRecord } from './variation.js';
@@ -191,6 +191,17 @@ export interface ObservationRecord {
    * mask over half of it does not read as a subject that barely moved.
    */
   readonly changedPixels: number;
+
+  /** Independently observed boundaries; ARIA keeps both machine-readable trees. */
+  readonly signals?: {
+    readonly document: 'unchanged' | 'changed';
+    readonly pixels: 'unchanged' | 'changed';
+    readonly accessibility?: {
+      readonly verdict: 'unchanged' | 'changed' | 'incomparable';
+      readonly before?: AccessibilitySnapshot;
+      readonly after?: AccessibilitySnapshot;
+    };
+  };
 
   /**
    * What the operator's ignores took out of this comparison.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core';
-import { createEphemeralStore, identityFrom, neverFails, rasterFrom } from './store.js';
+import { createEphemeralStore, identityFrom, neverFails } from './store.js';
+import { rasterFrom } from './codec.js';
 
 /**
  * The ephemeral mode — and the fact that it needs nothing.

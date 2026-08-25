@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
-import { documentDigest, identityDigest } from '@variance-authority/core';
+import { accessibilitySnapshot, documentDigest, identityDigest } from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 
@@ -79,6 +79,19 @@ describe('the durable mode', () => {
 
     expect(found?.comparable).toBe(true);
     expect(found?.raster.bytes).toBe('QUJD');
+  });
+
+  it('round-trips browser accessibility evidence in both lookup tiers', async () => {
+    const accessibility = accessibilitySnapshot(MAC.engine, ['- button "Save"']);
+    const store = createDurableStore(root);
+    await store.put({ subject: 'button' }, { ...rasterOf(MAC), accessibility });
+
+    expect((await store.find({ subject: 'button' }, MAC))?.raster.accessibility).toEqual(
+      accessibility,
+    );
+    expect((await store.describe({ subject: 'button' }, MAC))?.accessibility).toEqual(
+      accessibility,
+    );
   });
 
   it('finds another machine`s baseline and refuses to call it comparable', async () => {

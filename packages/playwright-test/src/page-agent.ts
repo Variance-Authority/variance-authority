@@ -26,6 +26,8 @@ import type { Digest, RawCapture, RenderDocument, SubjectRef, Viewport } from '@
  * would be discovered as a confusing capture rather than as an error.
  */
 export const AGENT = '__variance_authority_playwright_test__';
+export const ACCESSIBILITY_ROOT_ATTRIBUTE = 'data-variance-authority-accessibility-root';
+let accessibilitySequence = 0;
 
 export interface AcquireRequest {
   readonly subject: SubjectRef;
@@ -77,6 +79,11 @@ export interface Acquired {
    * test knows whether this subject is one somebody meant to capture mid-flight.
    */
   readonly suspense: SuspenseSettlement;
+  /** Temporary portal locators used by the Node half, then removed or restored. */
+  readonly accessibilityPortals: readonly {
+    readonly marker: string;
+    readonly previous?: string;
+  }[];
 }
 
 export async function acquire(root: Element, request: AcquireRequest): Promise<string> {
@@ -104,13 +111,25 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   // One mount, two products, deliberately. Two mounts would be two renders, and
   // any disagreement between the image and the names attached to it would be a
   // story about which of them was looking at what.
+  const portals = portalContentOf(root);
   const document = { ...acquireDocument(root, shared), baseUrl: root.ownerDocument.baseURI };
   const capture = collect(root, {
     ...shared,
     engine: request.engine,
-    portalsOf: portalContentOf,
+    portalsOf: () => portals,
     provenanceOf,
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
+  });
+
+  // Mark only after both semantic products exist. The Node half needs locators
+  // for portalled accessibility roots, while neither the document nor capture
+  // may contain the transport marker. Existing values are restored in `finally`.
+  const sequence = ++accessibilitySequence;
+  const accessibilityPortals = portals.map((portal, index) => {
+    const previous = portal.getAttribute(ACCESSIBILITY_ROOT_ATTRIBUTE);
+    const marker = `${sequence}-${index}`;
+    portal.setAttribute(ACCESSIBILITY_ROOT_ATTRIBUTE, marker);
+    return { marker, ...(previous === null ? {} : { previous }) };
   });
 
   return JSON.stringify({
@@ -121,6 +140,7 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
       ids: held.ids,
       ...(held.digest === undefined ? {} : { digest: held.digest }),
     },
+    accessibilityPortals,
   });
 }
 

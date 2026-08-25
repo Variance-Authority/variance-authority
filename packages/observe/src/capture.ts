@@ -38,6 +38,9 @@ export async function observeCaptureAgainstBaseline(
     ...(options.source === undefined && artifact.source !== undefined
       ? { source: artifact.source }
       : {}),
+    ...(options.accessibility === undefined && artifact.accessibility !== undefined
+      ? { accessibility: artifact.accessibility }
+      : {}),
   };
 
   if (artifact.material.kind === 'document') {
@@ -64,9 +67,16 @@ export async function observeCaptureAgainstBaseline(
   }
 
   const snapshot = inputs.snapshot;
-  const { components: _stale, ...pixels } = artifact.material.raster;
+  const { components: _staleComponents, accessibility: _staleAccessibility, ...pixels } =
+    artifact.material.raster;
+  void _staleComponents;
+  void _staleAccessibility;
   const candidate: Raster =
-    snapshot === undefined ? pixels : { ...pixels, components: hashComponents(snapshot) };
+    {
+      ...pixels,
+      ...(snapshot === undefined ? {} : { components: hashComponents(snapshot) }),
+      ...(inputs.accessibility === undefined ? {} : { accessibility: inputs.accessibility }),
+    };
   const found = await options.store.find(key, candidate.identity);
   // The render cache owns pixels. Component hashes describe the semantic
   // snapshot of this observation and must not leak into a later cache hit.

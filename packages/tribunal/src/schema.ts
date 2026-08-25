@@ -37,7 +37,7 @@
 import type { D1Like } from './bindings.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** The version `INITIAL` alone leaves a database at. Frozen: it is deployed. */
 const INITIAL_VERSION = 3;
@@ -354,6 +354,13 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
        SELECT RAISE(ABORT, 'the changelog is append-only: a deleted entry leaves a baseline nobody can account for, which is the state this table exists to end');
      END`,
     `UPDATE schema_version SET version = 4`,
+  ],
+  // 4 → 5: browser accessibility evidence is verdict-bearing baseline state.
+  [
+    `ALTER TABLE baselines ADD COLUMN accessibility TEXT`,
+    `ALTER TABLE build_subjects ADD COLUMN signals TEXT`,
+    `ALTER TABLE build_subjects ADD COLUMN candidate_accessibility TEXT`,
+    `UPDATE schema_version SET version = 5`,
   ],
 ];
 

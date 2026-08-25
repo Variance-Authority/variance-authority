@@ -6,6 +6,7 @@ import {
   neverFails,
   rasterFrom,
   recordFrom,
+  sidecarFrom,
   type BaselineKey,
   type Described,
   type Found,
@@ -388,6 +389,20 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
   // *collecting*, and the fallback of a missing list is to collect it — the safe
   // direction, and the one every run took before selection existed.
   const components = stringsFrom(described.components);
+  const accessibilitySidecar =
+    described.accessibility === undefined
+      ? undefined
+      : sidecarFrom({
+          documentDigest: described.documentDigest,
+          identity: storedUnder,
+          width: 0,
+          height: 0,
+          missingFonts,
+          accessibility: described.accessibility,
+        });
+  if (described.accessibility !== undefined && accessibilitySidecar === null) {
+    throw malformed(endpoint, BASELINE_DESCRIBE_PATH, 'a malformed `accessibility` snapshot');
+  }
 
   return {
     ...(components !== null ? { components } : {}),
@@ -395,6 +410,9 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     comparable: described.comparable,
     storedUnder,
     missingFonts,
+    ...(accessibilitySidecar?.accessibility === undefined
+      ? {}
+      : { accessibility: accessibilitySidecar.accessibility }),
   };
 }
 

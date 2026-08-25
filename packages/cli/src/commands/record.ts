@@ -84,6 +84,7 @@ export function recordOf(
     verdict: observation.verdict,
     because: because(observation, changed, strict) + qualification(diagnostics),
     changedPixels: changed,
+    ...(observation.signals === undefined ? {} : { signals: observation.signals }),
     regions: regions.map((region) => regionRecordOf(region, options.source)),
     ...(truncated !== undefined && truncated.truncated > 0
       ? { truncated: { regions: truncated.truncated, pixels: truncated.truncatedPixels } }

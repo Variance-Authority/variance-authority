@@ -1,6 +1,12 @@
 import { PNG } from 'pngjs';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { documentDigest, identityDigest, type Raster, type RenderIdentity } from '@variance-authority/core';
+import {
+  accessibilitySnapshot,
+  documentDigest,
+  identityDigest,
+  type Raster,
+  type RenderIdentity,
+} from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createBucketStore } from './store.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
@@ -85,6 +91,18 @@ describe('a baseline split across D1 and R2', () => {
     expect(found?.raster.bytes).toBe(WHITE);
     expect(found?.comparable).toBe(true);
     expect(found?.raster.identity).toEqual(MAC);
+  });
+
+  it('keeps browser accessibility evidence beside the R2 image', async () => {
+    const accessibility = accessibilitySnapshot(MAC.engine, ['- heading "Cart" [level=1]']);
+    await store().put({ subject: 's' }, { ...raster(MAC), accessibility });
+
+    expect((await store().find({ subject: 's' }, MAC))?.raster.accessibility).toEqual(
+      accessibility,
+    );
+    expect((await store().describe({ subject: 's' }, MAC))?.accessibility).toEqual(
+      accessibility,
+    );
   });
 
   it('keeps one project out of another', async () => {

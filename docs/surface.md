@@ -149,6 +149,11 @@ same-run pixel disagreement, and sends the agreeing raster directly to baseline
 observation. It requires the suite to declare the browser launch recipe used by
 its Playwright configuration; the declaration enters renderer identity.
 
+Both placements acquire Playwright-native ARIA snapshots from the locator and
+its React portal content. The report keeps document, pixel, and browser
+accessibility results separately; a browser accessibility change is reviewable
+even when the image has no changed pixels.
+
 ```ts
 import { CHROMIUM_RASTER_ARGS, createVariance } from '@variance-authority/playwright-test';
 

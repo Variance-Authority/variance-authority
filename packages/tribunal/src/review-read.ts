@@ -187,6 +187,7 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
   const truncated = optionalText(row, 'truncated', what);
   const missingFonts = optionalText(row, 'missing_fonts', what);
   const findings = optionalText(row, 'findings', what);
+  const signals = optionalText(row, 'signals', what);
   const after = optionalText(row, 'after_key', what);
   const width = row['candidate_width'];
   const height = row['candidate_height'];
@@ -210,6 +211,9 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
       : {}),
     ...(missingFonts !== undefined ? { missingFonts: JSON.parse(missingFonts) as string[] } : {}),
     ...(findings !== undefined ? { findings: JSON.parse(findings) as FindingRecord[] } : {}),
+    ...(signals !== undefined
+      ? { signals: JSON.parse(signals) as ObservationRecord['signals'] }
+      : {}),
     ...(typeof width === 'number' && typeof height === 'number' ? { size: { width, height } } : {}),
   };
 }

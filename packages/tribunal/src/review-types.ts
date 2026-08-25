@@ -1,4 +1,4 @@
-import type { RenderIdentity } from '@variance-authority/core';
+import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core';
 import type {
   FindingRecord,
   NotObserved,
@@ -46,6 +46,7 @@ export interface SubjectImages {
     readonly width: number;
     readonly height: number;
     readonly missingFonts: readonly string[];
+    readonly accessibility?: AccessibilitySnapshot;
   };
   readonly before?: CandidateImage;
   readonly diff?: CandidateImage;
@@ -111,6 +112,7 @@ export interface SubjectView {
   readonly truncated?: { readonly regions: number; readonly pixels: number };
   readonly missingFonts?: readonly string[];
   readonly findings?: readonly FindingRecord[];
+  readonly signals?: ObservationRecord['signals'];
   /** Which images this build kept. Absent means the run did not save one. */
   readonly has: { readonly before: boolean; readonly after: boolean; readonly diff: boolean };
   /**
