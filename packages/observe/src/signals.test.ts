@@ -47,6 +47,7 @@ describe('independent document, pixel and browser accessibility signals', () => 
   const moved = image(255);
   const namedSave = accessibilitySnapshot(IDENTITY.engine, ['- button "Save"']);
   const namedSubmit = accessibilitySnapshot(IDENTITY.engine, ['- button "Submit"']);
+  const noExposedAria = accessibilitySnapshot(IDENTITY.engine, ['']);
 
   it('records a document-only change without inventing a pixel or ARIA verdict', async () => {
     const result = await observeRasters(
@@ -126,5 +127,25 @@ describe('independent document, pixel and browser accessibility signals', () => 
       },
     });
     expect(result.signals?.accessibility?.before).toBeUndefined();
+  });
+
+  it('treats an observed empty ARIA tree as a signal rather than missing evidence', async () => {
+    const result = await observeRasters(
+      'button',
+      raster('v1:before', quiet, noExposedAria),
+      raster('v1:after', quiet, namedSave),
+    );
+
+    expect(result).toMatchObject({
+      verdict: 'changed',
+      signals: {
+        pixels: 'unchanged',
+        accessibility: {
+          verdict: 'changed',
+          before: { roots: [''] },
+          after: { roots: ['- button "Save"'] },
+        },
+      },
+    });
   });
 });

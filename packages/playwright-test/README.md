@@ -163,6 +163,11 @@ engine's accessible-name computation are the evidence. The trees are retained
 beside the image, so the document-digest shortcut cannot report `unchanged`
 while the accessibility tree moved.
 
+ARIA evidence is boundary-relative. An empty snapshot means the browser exposed
+no accessibility nodes for that root; a snapshot need not include a parent or
+children. Those are observed states and compare normally. Only an absent
+accessibility field means the boundary was not observed.
+
 ## Options and composition
 
 ### `observe(page, locator, testInfo, options)` and `session.observe(locator, options)`

@@ -32,7 +32,7 @@ import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
 import { createDurableStore } from '@variance-authority/store';
-import { accepted } from './accept.js';
+import { accepted } from './accepted.js';
 import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
 import type { AcquireRequest } from './page-agent.js';

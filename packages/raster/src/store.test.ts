@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Raster, RenderIdentity } from '@variance-authority/core';
+import { accessibilitySnapshot, type Raster, type RenderIdentity } from '@variance-authority/core';
 import { createEphemeralStore, identityFrom, neverFails } from './store.js';
 import { rasterFrom } from './codec.js';
 
@@ -93,6 +93,16 @@ describe('a record that claims to be a raster', () => {
 
   it('is accepted whole, or not at all', () => {
     expect(rasterFrom(rasterOf(MAC))).toEqual(rasterOf(MAC));
+  });
+
+  it('accepts empty and boundary-partial ARIA trees as observed evidence', () => {
+    const empty = accessibilitySnapshot(MAC.engine, ['']);
+    const childless = accessibilitySnapshot(MAC.engine, ['- button "Save"']);
+
+    expect(rasterFrom({ ...rasterOf(MAC), accessibility: empty })?.accessibility).toEqual(empty);
+    expect(rasterFrom({ ...rasterOf(MAC), accessibility: childless })?.accessibility).toEqual(
+      childless,
+    );
   });
 
   it('carries every field the identity digest covers, including the optional ones', () => {

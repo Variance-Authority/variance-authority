@@ -40,6 +40,12 @@ remote, and tribunal stores preserve it; the render cache strips it because a
 cache owns pixels, not acquisition evidence. Baseline descriptions expose the
 snapshot so document-digest settlement requires accessibility equality too.
 
+The snapshot is boundary-relative evidence, not a claim to be a complete
+platform accessibility tree. No exposed ARIA nodes is an observed empty snapshot,
+and a snapshot with no parent or no children is an observed partial snapshot.
+Both are hashed and compared as readings. Only absence of the accessibility
+field means the boundary was not observed.
+
 An observation records three named results: document, pixels, and browser
 accessibility. The document result states whether reconstruction input moved; it
 selects whether pixels must be produced and is not itself a raster verdict.

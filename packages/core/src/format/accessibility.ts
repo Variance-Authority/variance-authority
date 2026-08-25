@@ -13,6 +13,13 @@ export interface AccessibilitySnapshot {
   readonly snapshotVersion: 1;
   readonly producer: 'playwright-aria@1';
   readonly engine: string;
+  /**
+   * One boundary-relative Playwright snapshot per requested root.
+   *
+   * An empty string is an observed root with no exposed accessibility nodes,
+   * not missing evidence. A root also need not name a parent or any children:
+   * boundary truncation is part of the reading and is hashed without repair.
+   */
   readonly roots: readonly string[];
   readonly digest: Digest;
 }
