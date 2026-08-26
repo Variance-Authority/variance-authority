@@ -87,6 +87,7 @@ export async function observeOne(
       record: recordOf(observation, {
         ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
         ...(collected.source !== undefined ? { source: collected.source } : {}),
+        ...(collected.presentation !== undefined ? { presentation: collected.presentation } : {}),
         ...(await images(id, observation, collected.document, renderer, config, deps, null, collected.snapshot)),
         diagnostics,
         ...(await findingsField(collected, deps.collector.callSites)),
@@ -156,6 +157,9 @@ export async function observeOne(
         changedPixels: 0,
         regions: [],
         ...swept,
+        ...(collected.presentation === undefined
+          ? {}
+          : { signals: { presentation: collected.presentation } }),
         ...(findings !== undefined ? { findings } : {}),
         ...(declared !== undefined ? { ignored: declared } : {}),
         ...(missingFonts.length > 0 ? { missingFonts } : {}),
@@ -176,6 +180,7 @@ export async function observeOne(
     record: recordOf(observation, {
       ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
       ...(collected.source !== undefined ? { source: collected.source } : {}),
+      ...(collected.presentation !== undefined ? { presentation: collected.presentation } : {}),
       ...(await images(id, observation, collected.document, renderer, config, deps, key, collected.snapshot)),
       diagnostics,
       ...(await findingsField(collected, deps.collector.callSites)),

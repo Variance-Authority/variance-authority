@@ -15,6 +15,7 @@ import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
 import type {
   FindingRecord,
   ObservationRecord,
+  PresentationSignalRecord,
   RegionRecord,
 } from '@variance-authority/report';
 import type { Collected } from './collector.js';
@@ -55,6 +56,8 @@ export function recordOf(
     readonly alone?: ObservationRecord['alone'];
     /** What a second reading of the same world said. See `again`. */
     readonly unstable?: ObservationRecord['unstable'];
+    /** Rendered relationship consequence supplied by a product-aware collector. */
+    readonly presentation?: PresentationSignalRecord;
   } = {},
 ): CliObservationRecord {
   // Net of exclusions, on both policies. The comparison counts every differing
@@ -84,7 +87,7 @@ export function recordOf(
     verdict: observation.verdict,
     because: because(observation, changed, strict) + qualification(diagnostics),
     changedPixels: changed,
-    ...(observation.signals === undefined ? {} : { signals: observation.signals }),
+    ...signalsField(observation.signals, options.presentation),
     regions: regions.map((region) => regionRecordOf(region, options.source)),
     ...(truncated !== undefined && truncated.truncated > 0
       ? { truncated: { regions: truncated.truncated, pixels: truncated.truncatedPixels } }
@@ -104,6 +107,19 @@ export function recordOf(
     ...(options.alone !== undefined ? { alone: options.alone } : {}),
     ...(options.unstable !== undefined ? { unstable: options.unstable } : {}),
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
+  };
+}
+
+function signalsField(
+  signals: Observation['signals'],
+  presentation: PresentationSignalRecord | undefined,
+): {} | { readonly signals: NonNullable<ObservationRecord['signals']> } {
+  if (signals === undefined && presentation === undefined) return {};
+  return {
+    signals: {
+      ...signals,
+      ...(presentation === undefined ? {} : { presentation }),
+    },
   };
 }
 

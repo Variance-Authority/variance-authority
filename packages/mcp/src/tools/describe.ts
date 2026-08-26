@@ -1,4 +1,5 @@
 import type { FlakinessRecord, RegionRecord, RunReport } from '@variance-authority/report';
+import { describePresentation } from '../presentation.js';
 import { subjectOf, unobserved } from './subject.js';
 import type { Tool } from './tool.js';
 
@@ -136,6 +137,10 @@ export const describe: Tool = {
             (finding.file !== undefined ? `\n    ${finding.file}` : ''),
         ),
       );
+    }
+
+    if (observation.signals?.presentation !== undefined) {
+      lines.push('', ...describePresentation(observation.signals.presentation));
     }
 
     if (observation.regions.length === 0) return lines.join('\n');

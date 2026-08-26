@@ -65,6 +65,32 @@ describe('recordOf', () => {
     expect(recordOf(base).missingFonts).toEqual(['Inter']);
   });
 
+  it('adds a presentation consequence without inventing document or pixel signals', () => {
+    const presentation = {
+      verdict: 'changed' as const,
+      before: 'sha256:before' as never,
+      after: 'sha256:after' as never,
+      information: {
+        contentPreserved: true,
+        characters: { before: 20, after: 20, delta: 0 },
+        elements: { before: 4, after: 4, delta: 0 },
+        repeatedObjects: { before: 2, after: 2, delta: 0 },
+      },
+      effects: [{
+        rule: 'SPACING_HIERARCHY_COLLISION',
+        transition: 'introduced' as const,
+        owner: 'r0:0',
+        nodes: ['r0:0/0', 'r0:0/1'],
+        contract: 'demand-record',
+        after: { finding: 'H1', measurements: { outerMedianPx: 4, innerMedianPx: 3.99 } },
+      }],
+    };
+
+    expect(recordOf({ ...base, signals: undefined }, { presentation }).signals).toEqual({
+      presentation,
+    });
+  });
+
   it('carries the collector’s diagnostics onto the record and into its sentence', () => {
     // A diagnostic that stops at `RenderDocument` is a fact nobody can act on. The
     // record is the whole contract with the report, the MCP tools and the exit

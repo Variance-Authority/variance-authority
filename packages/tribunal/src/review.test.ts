@@ -161,6 +161,38 @@ describe('a build is the report a run already wrote', () => {
     );
   });
 
+  it('round-trips the complete presentation signal through the existing signals column', async () => {
+    const presentation = {
+      verdict: 'changed' as const,
+      before: 'sha256:before' as never,
+      after: 'sha256:after' as never,
+      information: {
+        contentPreserved: true,
+        characters: { before: 80, after: 80, delta: 0 },
+        elements: { before: 12, after: 12, delta: 0 },
+        repeatedObjects: { before: 3, after: 3, delta: 0 },
+      },
+      effects: [{
+        rule: 'SPACING_HIERARCHY_COLLISION',
+        transition: 'introduced' as const,
+        owner: 'r0:0/4/1',
+        nodes: ['r0:0/4/1/0', 'r0:0/4/1/1'],
+        contract: 'underwriter-demand-record',
+        after: { finding: 'H1', measurements: { outerMedianPx: 4, innerMedianPx: 3.99 } },
+      }],
+    };
+    const base = report();
+    await review.ingest(ingest({
+      report: {
+        ...base,
+        observations: base.observations.map((entry, index) =>
+          index === 0 ? { ...entry, signals: { presentation } } : entry),
+      },
+    }));
+
+    expect((await review.build('ci-1001'))?.subjects[0]?.signals?.presentation).toEqual(presentation);
+  });
+
   it('refuses a report from a writer this deployment does not understand', async () => {
     await expect(
       review.ingest({

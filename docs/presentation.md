@@ -138,7 +138,7 @@ reading can therefore paint one owner or one finding from an existing report;
 an explicit alignment reading can paint its selected members and median axis.
 Neither requires re-sensing the page.
 
-## Re-sense without turning the result into regression
+## Re-sense and retain the consequence without owning the verdict
 
 `comparePresentation` reports finding counts before and after beside a
 presentation-independent content identity and element, character, and
@@ -149,6 +149,16 @@ not claim improvement from a density change. The comparison is optional edit
 feedback between two sensed reports. The offering owns no baseline, approval
 lifecycle, regression verdict, or threshold that decides whether a build may
 pass.
+
+`presentationSignal` projects that before/after evidence into the general run
+report. Automatic findings and supplied product-owned hierarchy readings become
+introduced, resolved, or measurement-changing persisted effects under
+`ObservationRecord.signals.presentation`. The signal also retains content
+identity and information-count deltas. Missing reports or layout findings are
+`incomparable`; a present empty effect list means both sides were measured and no
+relationship consequence changed. The stored signal remains independent of the
+renderer's layout/paint/composite impact and never changes the observation
+verdict.
 
 The engine supplies objective evidence. The coding agent remains responsible for
 product meaning and for choosing whether the appropriate response is a table,

@@ -9,6 +9,7 @@ import {
 } from '@variance-authority/core';
 import { analyzePresentation } from './analyze.js';
 import { comparePresentation } from './compare.js';
+import { presentationSignal } from './report.js';
 
 describe('presentation intelligence', () => {
   it('keeps unobserved layout distinct from observed empty ARIA', () => {
@@ -208,6 +209,35 @@ describe('presentation intelligence', () => {
 
     expect(comparison.information.characters.before).toBe(comparison.information.characters.after);
     expect(comparison.information.content.preserved).toBe(false);
+  });
+
+  it('records introduced and resolved presentation consequences independently of a verdict', () => {
+    const clean = analyzePresentation(rawCapture(records({ between: 12, internal: 4, count: 6 })));
+    const collapsed = analyzePresentation(rawCapture(records({ between: 4, internal: 4, count: 6, flat: true })));
+
+    const introduced = presentationSignal(clean, collapsed);
+    const resolved = presentationSignal(collapsed, clean);
+
+    expect(introduced.verdict).toBe('changed');
+    expect(introduced.verdict === 'changed' && introduced.effects).toEqual(
+      expect.arrayContaining([expect.objectContaining({ transition: 'introduced' })]),
+    );
+    expect(resolved.verdict === 'changed' && resolved.effects).toEqual(
+      expect.arrayContaining([expect.objectContaining({ transition: 'resolved' })]),
+    );
+  });
+
+  it('keeps unobserved layout incomparable instead of reporting an empty effect list', () => {
+    const withoutLayout = analyzePresentation(rawCapture(
+      node('main', undefined, [text('Reading')], { role: 'main', name: 'Reading' }),
+      false,
+    ));
+    const withLayout = analyzePresentation(rawCapture(records({ between: 12, internal: 4, count: 6 })));
+
+    expect(presentationSignal(withoutLayout, withLayout)).toEqual(expect.objectContaining({
+      verdict: 'incomparable',
+      because: expect.stringContaining('baseline'),
+    }));
   });
 });
 

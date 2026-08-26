@@ -63,6 +63,26 @@ const CHANGED = {
   },
 };
 
+const PRESENTATION = {
+  verdict: 'changed' as const,
+  before: 'sha256:before' as never,
+  after: 'sha256:after' as never,
+  information: {
+    contentPreserved: true,
+    characters: { before: 80, after: 80, delta: 0 },
+    elements: { before: 12, after: 12, delta: 0 },
+    repeatedObjects: { before: 3, after: 3, delta: 0 },
+  },
+  effects: [{
+    rule: 'SPACING_HIERARCHY_COLLISION',
+    transition: 'introduced' as const,
+    owner: 'r0:0/4/1',
+    nodes: ['r0:0/4/1/0', 'r0:0/4/1/1'],
+    contract: 'underwriter-demand-record',
+    after: { finding: 'H1', measurements: { outerMedianPx: 4, innerMedianPx: 3.99 } },
+  }],
+};
+
 describe('the page leads with the cause', () => {
   it('heads itself with the component, never with a pixel count', () => {
     const html = reportHtml(reportOf({ observations: [CHANGED] }));
@@ -132,6 +152,26 @@ describe('the page leads with the cause', () => {
 
     expect(html).toContain('chromium@131');
     expect(html).toContain('restyle the toggle');
+  });
+});
+
+describe('the page retains presentation impact without rewriting the verdict', () => {
+  it('shows a presentation-only consequence on an unchanged subject', () => {
+    const html = reportHtml(reportOf({
+      observations: [{
+        subject: 'story:underwriter',
+        verdict: 'unchanged',
+        because: 'no pixels differ',
+        changedPixels: 0,
+        signals: { presentation: PRESENTATION },
+        regions: [],
+      }],
+    }));
+
+    expect(html).toContain('Presentation impact');
+    expect(html).toContain('underwriter-demand-record');
+    expect(html).toContain('innerMedianPx=3.99');
+    expect(html).toContain('<h1 class="ok">clean</h1>');
   });
 });
 

@@ -47,7 +47,7 @@ and the user decide the response to that evidence.
 | Product-known visual peers across wrappers | `inspectPresentationAlignment` plus `paintPresentationAlignment` | Explicit coordinates, spread, member deviations, and matching paint without a verdict or another acquisition |
 | Consecutive regions arranged by one box or composition | `inspectPresentationSpacing` plus `paintPresentationSpacing` | Every adjacent gap and boundary at that owner, even when the regions have different semantic shapes |
 | Product-known hierarchy roles across nested owners | `inspectPresentationHierarchy` plus `paintPresentationHierarchy` | Typed outside-in relationship levels, adjacent collisions, findings, and role-labelled paint |
-| Two presentation reports | `comparePresentation` from `@variance-authority/presentation` | Optional edit feedback with finding counts and information identity kept separate |
+| Two presentation reports | `comparePresentation`, or `presentationSignal` when the evidence must travel with a general run report | Optional edit feedback, or introduced/resolved/persisted consequences with information identity retained separately from the verdict |
 
 Prefer a page the caller already owns. Launch a browser only when the user asks
 for a new live or headed session.
@@ -101,6 +101,10 @@ Then choose one path:
    do not manufacture intent to force a finding.
 7. Isolate one finding id before paint. Add a pattern or measurement layer only
    when it answers the same question.
+8. When the work is part of a regression run, call `presentationSignal` with the
+   before and after reports plus their product-owned hierarchy readings. Return
+   it through the collector's `presentation` field. Do not translate it into a
+   render impact or change the observation verdict.
 
 After sensing, the report becomes a structural map, then one owned relationship,
 then evidence for a product decision. A finding can legitimately produce no edit

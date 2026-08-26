@@ -1479,6 +1479,7 @@
         "PresentationNode": "interface",
         "PresentationRelation": "interface",
         "PresentationReport": "interface",
+        "PresentationSignalOptions": "interface",
         "PresentationSignature": "interface",
         "PresentationSpacingAxis": "type",
         "PresentationSpacingReading": "interface",
@@ -1492,7 +1493,8 @@
         "focusPresentation": "function",
         "inspectPresentationAlignment": "function",
         "inspectPresentationHierarchy": "function",
-        "inspectPresentationSpacing": "function"
+        "inspectPresentationSpacing": "function",
+        "presentationSignal": "function"
       },
       "./playwright": {
         "SensePresentationOptions": "interface",
@@ -1807,6 +1809,11 @@
         "NotObserved": "interface",
         "NotObservedKind": "type",
         "ObservationRecord": "interface",
+        "PresentationEffectEvidence": "interface",
+        "PresentationEffectRecord": "interface",
+        "PresentationEffectTransition": "type",
+        "PresentationInformationRecord": "interface",
+        "PresentationSignalRecord": "type",
         "Promotion": "type",
         "RegionRecord": "interface",
         "RunAdjudication": "interface",

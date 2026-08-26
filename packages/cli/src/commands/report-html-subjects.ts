@@ -1,4 +1,8 @@
-import type { ObservationRecord } from '@variance-authority/report';
+import type {
+  ObservationRecord,
+  PresentationEffectEvidence,
+  PresentationEffectRecord,
+} from '@variance-authority/report';
 import type { CliObservationRecord } from './run-report.js';
 import { cmd, copy, markers, px, section, slug, text } from './report-html-elements.js';
 
@@ -20,6 +24,53 @@ export function subjects(reviewable: readonly CliObservationRecord[]): string {
     `${reviewable.length} to look at`,
     reviewable.map((entry) => subject(entry)).join(''),
   );
+}
+
+/** Relationship consequences stay visible without changing which verdicts need review. */
+export function presentationImpact(observations: readonly ObservationRecord[]): string {
+  const entries = observations.flatMap((entry) => {
+    const signal = entry.signals?.presentation;
+    if (signal === undefined || signal.verdict === 'unchanged') return [];
+    if (signal.verdict === 'incomparable') {
+      return [
+        `<li><code>${text(entry.subject)}</code> ` +
+          `<span class="mark warn">incomparable</span>${text(signal.because)}</li>`,
+      ];
+    }
+    const information = signal.information.contentPreserved
+      ? '<span class="mark ok">content preserved</span>'
+      : '<span class="mark warn">content changed</span>';
+    return [
+      `<li><code>${text(entry.subject)}</code>${information}<ul>` +
+        signal.effects.map(effectHtml).join('') +
+        '</ul></li>',
+    ];
+  });
+  if (entries.length === 0) return '';
+  return section(
+    'Presentation impact',
+    `${entries.length} subject${entries.length === 1 ? '' : 's'}`,
+    `<ul class="findings presentation">${entries.join('')}</ul>`,
+  );
+}
+
+function effectHtml(effect: PresentationEffectRecord): string {
+  const identity =
+    `<span class="mark warn">${text(effect.transition)}</span>` +
+    `<code>${text(effect.rule)}</code>` +
+    (effect.contract === undefined ? '' : `<code>${text(effect.contract)}</code>`) +
+    `<span>${text(effect.owner)}</span>`;
+  if (effect.transition === 'introduced') return `<li>${identity}${evidenceHtml('after', effect.after!)}</li>`;
+  if (effect.transition === 'resolved') return `<li>${identity}${evidenceHtml('before', effect.before!)}</li>`;
+  return `<li>${identity}${evidenceHtml('before', effect.before!)}${evidenceHtml('after', effect.after!)}</li>`;
+}
+
+function evidenceHtml(side: string, evidence: PresentationEffectEvidence): string {
+  const measurements = Object.entries(evidence.measurements)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([name, value]) => `${name}=${value}`)
+    .join(', ');
+  return `<span class="where">${text(`${side} ${evidence.finding}: ${measurements}`)}</span>`;
 }
 
 /**
@@ -200,4 +251,3 @@ function commands(entry: CliObservationRecord): string {
   ];
   return `<div class="cmds">${out.join('')}</div>`;
 }
-

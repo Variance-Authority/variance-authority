@@ -32,6 +32,7 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
+    "@variance-authority/report": "workspace:^",
     "@variance-authority/react": "workspace:^"
   },
   "peerDependencies": {

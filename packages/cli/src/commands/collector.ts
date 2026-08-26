@@ -9,6 +9,7 @@ import type {
 } from '@variance-authority/core';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
+import type { PresentationSignalRecord } from '@variance-authority/report';
 import type { Config, SubjectsConfig } from '../config.js';
 import { OperatorError } from '../exit.js';
 import type { NotObserved } from './run-report.js';
@@ -111,6 +112,8 @@ export type Collected =
        */
       readonly causes?: readonly string[];
       readonly source?: SourceIndex;
+      /** Product-owned presentation consequence, already compared by the collector. */
+      readonly presentation?: PresentationSignalRecord;
     }
   | { readonly ok: false; readonly because: string };
 

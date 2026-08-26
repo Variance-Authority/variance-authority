@@ -1,4 +1,5 @@
 import type { NotObserved, RunReport } from '@variance-authority/report';
+import { presentationSummary } from '../presentation.js';
 import { NO_ARGS, type Tool } from './tool.js';
 
 /**
@@ -117,6 +118,7 @@ export const summarize: Tool = {
       ...instability(report),
       ...orderDependence(report),
       ...findingsLine(report),
+      ...presentationSummary(report),
       ...(notable.length === 0 ? ['', settlement(report)] : []),
     ].join('\n');
   },

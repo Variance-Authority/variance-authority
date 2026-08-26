@@ -4,7 +4,7 @@ import { docketOf, type Docket } from './docket.js';
 import { chip, cmd, copy, markers, px, qualifier, section, slug, text } from './report-html-elements.js';
 import { MARK, STYLE } from './report-html-style.js';
 import { SCRIPT } from './report-html-script.js';
-import { subjects } from './report-html-subjects.js';
+import { presentationImpact, subjects } from './report-html-subjects.js';
 import { accumulated, composition } from './report-html-composition.js';
 import { coverage } from './report-html-coverage.js';
 
@@ -71,6 +71,7 @@ export function reportHtml(report: CliRunReport): string {
     '<div class="pane">',
     clusters(clustering.changes, clustering.ungrouped),
     subjects(reviewable),
+    presentationImpact(report.observations),
     composition(report),
     accumulated(report),
     coverage(report, docket),
@@ -353,4 +354,3 @@ function ignoreSnippet(change: Change): string {
     2,
   );
 }
-

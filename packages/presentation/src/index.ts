@@ -3,6 +3,8 @@ export type { AnalyzePresentationOptions } from './analyze.js';
 export { inspectPresentationAlignment } from './alignment.js';
 export { inspectPresentationSpacing } from './spacing.js';
 export { inspectPresentationHierarchy } from './hierarchy.js';
+export { presentationSignal } from './report.js';
+export type { PresentationSignalOptions } from './report.js';
 export { comparePresentation } from './compare.js';
 export { focusPresentation } from './focus.js';
 export type { FocusPresentationOptions } from './focus.js';

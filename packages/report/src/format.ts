@@ -1,4 +1,4 @@
-import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core';
+import type { AccessibilitySnapshot, Digest, RenderIdentity } from '@variance-authority/core';
 import type { CompositionReport } from './composition.js';
 import type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 import type { VariationRecord } from './variation.js';
@@ -192,15 +192,17 @@ export interface ObservationRecord {
    */
   readonly changedPixels: number;
 
-  /** Independently observed boundaries; ARIA keeps both machine-readable trees. */
+  /** Independently observed boundaries. A missing member was not measured. */
   readonly signals?: {
-    readonly document: 'unchanged' | 'changed';
-    readonly pixels: 'unchanged' | 'changed';
+    readonly document?: 'unchanged' | 'changed';
+    readonly pixels?: 'unchanged' | 'changed';
     readonly accessibility?: {
       readonly verdict: 'unchanged' | 'changed' | 'incomparable';
       readonly before?: AccessibilitySnapshot;
       readonly after?: AccessibilitySnapshot;
     };
+    /** Rendered relationship consequences, independent of render impact and verdict. */
+    readonly presentation?: PresentationSignalRecord;
   };
 
   /**
@@ -357,6 +359,58 @@ export interface ObservationRecord {
     readonly diff?: string;
   };
 }
+
+/** How one relationship condition changed between comparable presentation readings. */
+export type PresentationEffectTransition = 'introduced' | 'resolved' | 'persisted';
+
+/** The finding-local measurement retained on one side of a presentation effect. */
+export interface PresentationEffectEvidence {
+  /** Finding id in the corresponding presentation report or hierarchy reading. */
+  readonly finding: string;
+  readonly measurements: Readonly<Record<string, number | string>>;
+}
+
+/** One relationship consequence attributable to the difference between two readings. */
+export interface PresentationEffectRecord {
+  readonly rule: string;
+  readonly transition: PresentationEffectTransition;
+  readonly owner: string;
+  readonly nodes: readonly string[];
+  readonly pattern?: string;
+  readonly contract?: string;
+  readonly before?: PresentationEffectEvidence;
+  readonly after?: PresentationEffectEvidence;
+}
+
+/** Information-volume evidence kept beside relationship effects. */
+export interface PresentationInformationRecord {
+  readonly contentPreserved: boolean;
+  readonly characters: { readonly before: number; readonly after: number; readonly delta: number };
+  readonly elements: { readonly before: number; readonly after: number; readonly delta: number };
+  readonly repeatedObjects: { readonly before: number; readonly after: number; readonly delta: number };
+}
+
+/**
+ * Presentation evidence carried by a general regression report.
+ *
+ * `incomparable` has no effects: inventing a transition from one reading would
+ * turn absence into evidence. Comparable readings always carry `effects`, where
+ * an empty array means the presentation consequence was measured and unchanged.
+ */
+export type PresentationSignalRecord =
+  | {
+      readonly verdict: 'incomparable';
+      readonly because: string;
+      readonly before?: Digest;
+      readonly after?: Digest;
+    }
+  | {
+      readonly verdict: 'unchanged' | 'changed';
+      readonly before: Digest;
+      readonly after: Digest;
+      readonly information: PresentationInformationRecord;
+      readonly effects: readonly PresentationEffectRecord[];
+    };
 
 /**
  * One defect in a render, flattened for the report.

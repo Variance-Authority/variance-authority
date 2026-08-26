@@ -33,7 +33,7 @@ own output.
 
 | entrypoint | requires | holds |
 |---|---|---|
-| `.` | nothing | `RunReport`, `ObservationRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun` |
+| `.` | nothing | `RunReport`, `ObservationRecord`, `PresentationSignalRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun` |
 | `./file` | a filesystem | `readRunReport`, `writeRunReport` |
 
 The split exists because a run happening on a pinned machine in CI and the
@@ -58,6 +58,26 @@ The read returns a validated `RunReport`; the file entrypoint does not rerun a
 browser or recompute observations. A report from a future format is refused,
 and an absent `notObserved` field remains absent rather than being treated as an
 empty coverage list.
+
+## Presentation consequence is a signal, not a verdict
+
+`ObservationRecord.signals.presentation` retains what changed in rendered
+relationships beside the document, pixel, and accessibility boundaries. It is
+orthogonal to the renderer's `layout`/`paint`/`composite` impact and does not
+change the observation verdict.
+
+A comparable signal carries the two presentation-report digests, information
+counts, and `introduced`, `resolved`, or `persisted` relationship effects. An
+empty `effects` list means both sides were measured and no relationship
+consequence changed. An `incomparable` signal carries a reason and no effects;
+an absent `presentation` member means nothing measured that boundary.
+
+Product-aware collectors return the signal with their collected subject. The
+CLI carries it through both compared and digest-settled paths, and the JSON file,
+HTML report, text report, MCP description, and Tribunal record read the same
+stored value without re-running presentation analysis. The producing API and a
+complete example live with
+[`@variance-authority/presentation`](../presentation#carry-presentation-impact-into-a-run-report).
 
 ## Format derivations
 
@@ -174,14 +194,17 @@ is [`@variance-authority/tribunal`](../tribunal)'s.
 
 ## Validation boundaries
 
-`readRunReport` checks `runVersion` and validates `notObserved` rather than
-casting. Both refusals earn their cost:
+`readRunReport` checks `runVersion` and validates `notObserved` and presentation
+transitions rather than casting. These refusals earn their cost:
 
 - These tools answer questions an agent then **edits code on**. A silently
   misparsed report produces confident answers about fields that were never there.
 - `notObserved` is the field a summary claims a clean run *from*. A malformed
   entry that survived parsing would be counted as neither a failure nor an
   exclusion, and would quietly stop holding the run open.
+- A presentation transition without the required before or after evidence would
+  let a reader attribute an introduced or resolved relationship to a side that
+  was never measured.
 
 The price is that a report from a future writer with a third `kind` is refused
 outright rather than partly understood. That is the intended trade: partly

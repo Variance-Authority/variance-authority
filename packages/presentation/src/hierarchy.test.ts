@@ -3,6 +3,7 @@ import { CHROMIUM_PROFILE, type RawCapture, type RawNode, type Rect } from '@var
 import {
   analyzePresentation,
   inspectPresentationHierarchy,
+  presentationSignal,
   type PresentationHierarchyContract,
 } from './index.js';
 
@@ -63,6 +64,43 @@ describe('product-owned presentation hierarchy', () => {
 
     expect(() => inspectPresentationHierarchy(report, reversed)).toThrow('must be ordered outside-in');
     expect(() => inspectPresentationHierarchy(report, outside)).toThrow('is outside owner r0:0/1');
+  });
+
+  it('carries a product-owned contract into the durable presentation effect', () => {
+    const before = analyzePresentation(capture(structure({ leading: 4, peer: 4 })));
+    const after = analyzePresentation(capture(structure({ leading: 8, peer: 4 })));
+    const signal = presentationSignal(before, after, {
+      beforeHierarchy: [inspectPresentationHierarchy(before, contract())],
+      afterHierarchy: [inspectPresentationHierarchy(after, contract())],
+    });
+
+    expect(signal.verdict).toBe('changed');
+    expect(signal.verdict === 'changed' && signal.effects).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        transition: 'resolved',
+        rule: 'SPACING_HIERARCHY_COLLISION',
+        contract: 'record-hierarchy',
+      }),
+    ]));
+  });
+
+  it('records a measurement-changing collision as persisted rather than introduced again', () => {
+    const before = analyzePresentation(capture(structure({ leading: 4, peer: 4 })));
+    const after = analyzePresentation(capture(structure({ leading: 4.2, peer: 4 })));
+    const signal = presentationSignal(before, after, {
+      beforeHierarchy: [inspectPresentationHierarchy(before, contract())],
+      afterHierarchy: [inspectPresentationHierarchy(after, contract())],
+    });
+
+    expect(signal.verdict).toBe('changed');
+    expect(signal.verdict === 'changed' && signal.effects).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        transition: 'persisted',
+        contract: 'record-hierarchy',
+        before: expect.objectContaining({ measurements: expect.objectContaining({ outerMedianPx: 4 }) }),
+        after: expect.objectContaining({ measurements: expect.objectContaining({ outerMedianPx: 4.2 }) }),
+      }),
+    ]));
   });
 });
 

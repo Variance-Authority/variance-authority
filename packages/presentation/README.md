@@ -252,5 +252,54 @@ before layout analysis, so the same boundary holds for a capture whose layout is
 unobserved. Neither side is folded into a global score or verdict, and no stored
 baseline is required.
 
+## Carry presentation impact into a run report
+
+Use `presentationSignal` when the same consequence must survive the browser
+session and travel with a general regression report:
+
+```ts
+import type { ObservationRecord } from '@variance-authority/report';
+import {
+  presentationSignal,
+  type PresentationHierarchyReading,
+  type PresentationReport,
+} from '@variance-authority/presentation';
+
+declare const before: PresentationReport;
+declare const after: PresentationReport;
+declare const beforeHierarchy: PresentationHierarchyReading;
+declare const afterHierarchy: PresentationHierarchyReading;
+
+const presentation = presentationSignal(before, after, {
+  beforeHierarchy: [beforeHierarchy],
+  afterHierarchy: [afterHierarchy],
+});
+
+const observation: ObservationRecord = {
+  subject: 'underwriting:demands',
+  verdict: 'changed',
+  because: 'the candidate differs from its baseline',
+  changedPixels: 320,
+  regions: [],
+  signals: { presentation },
+};
+
+console.log(observation.signals?.presentation);
+```
+
+The function combines automatic findings with the supplied product-owned
+hierarchy readings. It matches relationship identities across the two reports
+and records introduced, resolved, and measurement-changing persisted effects.
+`beforeHierarchy` and `afterHierarchy` are optional; omit both when automatic
+findings are the complete evidence for the subject.
+Missing reports or layout findings produce `incomparable`, never an empty clean
+list. Content identity and information counts travel beside the effects so
+removing information cannot masquerade as a presentation repair.
+
+The stored signal reports consequence only. Renderer impact still answers how
+far a changed property can reach, and project policy still decides whether any
+finding blocks a run. A collector that participates in the general regression
+pipeline returns this value as its optional `presentation` field.
+
 See [Presentation intelligence](../../docs/presentation.md) for the report model,
 finding boundaries, and paint layers.
