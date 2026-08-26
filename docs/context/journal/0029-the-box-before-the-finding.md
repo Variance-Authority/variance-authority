@@ -19,7 +19,9 @@ was 36px while five menu controls shared 34px. On the public GitHub page for
 `paper-design/agent-plugins`, the brand and global controls shared 36px. On
 `paper.design`, the brand and navigation links shared 30.5px. The peers crossed
 wrapper boxes in all three pages, so direct-child inference could not express
-the question. An explicit alignment reading could.
+the question. An explicit alignment reading could. Its final paint kept the same
+selection visible as one median axis and one deviation-labelled box per member,
+without reading the page again.
 
 Paper's homepage also supplied the positive composition control. The hero is a
 text and action flow above a large product illustration. Treating the

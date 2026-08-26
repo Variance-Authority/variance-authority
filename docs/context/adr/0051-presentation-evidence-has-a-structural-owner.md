@@ -39,7 +39,9 @@ reading. Finding ids can narrow the projection to one question.
 inside one owner. It returns the selected alignment coordinate, spread and
 per-member deviations. The API refuses missing members, fewer than two distinct
 members and members outside the owner. It does not decide whether the measured
-spread is acceptable or create a finding.
+spread is acceptable or create a finding. The reading carries paint for its
+median axis and selected members; `paintPresentationAlignment` reuses it without
+acquisition.
 
 Painting a focused result reuses its existing instructions and does not acquire
 the browser again.

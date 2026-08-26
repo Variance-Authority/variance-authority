@@ -38,7 +38,9 @@ console.log(ownerReading.owner, ownerReading.findings, ownerReading.nested);
 
 Playwright supplies the live layout and its ARIA snapshot. The browser agent
 can paint from the same report it returns, but acquisition is normally left
-unpainted. `focusPresentation` reads one owner from that report without touching
+unpainted. Its default settlement waits for images inside the subject and its
+React portals, not unrelated images elsewhere in the document.
+`focusPresentation` reads one owner from that report without touching
 the page again. Its default `owner` depth includes the owner and its immediate
 children; evidence owned by nested boxes is counted in `nested` rather than
 folded into the current reading. Use `depth: 'subtree'` only when the product
@@ -80,6 +82,10 @@ acquisition error.
 either `true` for every diagnostic layer or a list of named layers; omitting it
 leaves the page unpainted.
 
+`stabilize` replaces the default collection recipe by intervention id. Pass an
+empty list only for a caller-owned static document such as an MHTML archive whose
+page clock cannot advance; a live page normally needs the default recipe.
+
 Use the pure entry point below when another collector already supplies a
 `RawCapture`.
 
@@ -90,11 +96,14 @@ visual flow. When peers such as a brand mark and navigation controls live in
 different nested boxes, select those concrete graph nodes explicitly:
 
 ```ts
+import type { Page } from '@playwright/test';
 import {
   inspectPresentationAlignment,
   type PresentationReport,
 } from '@variance-authority/presentation';
+import { paintPresentationAlignment } from '@variance-authority/presentation/playwright';
 
+declare const page: Page;
 declare const report: PresentationReport;
 
 const reading = inspectPresentationAlignment(
@@ -105,12 +114,17 @@ const reading = inspectPresentationAlignment(
 );
 
 console.log(reading.coordinatePx, reading.spreadPx, reading.members);
+await paintPresentationAlignment(page, reading);
 ```
 
 The owner must contain every selected member and at least two distinct members
 are required. The result reports coordinates and deviations; it does not turn
 their spread into a finding or a design target. The caller remains responsible
-for saying that those nodes belong to one visual flow.
+for saying that those nodes belong to one visual flow. Select one structural
+level: a semantic role on both a wrapper and its nested control does not make
+both of them peers. Its `paint` marks the
+median axis and every selected member with its signed deviation; painting reuses
+the report and does not acquire the page.
 
 ## Analyze one capture
 

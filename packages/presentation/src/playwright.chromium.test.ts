@@ -4,7 +4,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from '@playwright/test';
 import { comparePresentation } from './compare.js';
 import { focusPresentation } from './focus.js';
-import { clearPresentationPaint, paintPresentationFocus, sensePresentation } from './playwright.js';
+import { inspectPresentationAlignment } from './index.js';
+import {
+  clearPresentationPaint,
+  paintPresentationAlignment,
+  paintPresentationFocus,
+  sensePresentation,
+} from './playwright.js';
 
 const READY = existsSync(chromium.executablePath());
 const live = READY ? describe : describe.skip;
@@ -68,6 +74,52 @@ live('live presentation sensing', () => {
     expect(feedback.information.characters.before).toBe(feedback.information.characters.after);
     await page.close();
   });
+
+  it('paints an explicit visual flow whose members cross wrapper boxes', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    await page.setContent(navigation());
+
+    const report = await sensePresentation(page, page.getByRole('navigation', { name: 'Primary' }));
+    const owner = report.graph.nodes.find((node) => node.parent === undefined)!;
+    const members = ['Brand', 'Products', 'Solutions', 'Resources'].map((name) =>
+      report.graph.nodes.find((node) => node.name === name && node.tag === 'a')!.id);
+    const reading = inspectPresentationAlignment(report, owner.id, members, 'vertical-center');
+
+    expect(reading.coordinatePx).toBe(36);
+    expect(reading.spreadPx).toBe(2);
+    expect(await paintPresentationAlignment(page, reading)).toBe(5);
+    expect(await page.locator('[data-variance-authority-presentation-overlay] [data-layer="axes"]').count()).toBe(5);
+    await page.close();
+  });
+
+  it('does not wait for an image outside the presentation subject', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    await page.route('**/never.png', () => new Promise(() => undefined));
+    await page.setContent(`
+      <nav aria-label="Primary"><a href="#home">Home</a></nav>
+      <img src="https://presentation.invalid/never.png" alt="Outside subject">
+    `, { waitUntil: 'domcontentloaded' });
+
+    const report = await sensePresentation(page, page.getByRole('navigation', { name: 'Primary' }));
+
+    expect(report.graph.nodes.some((node) => node.name === 'Home')).toBe(true);
+    await page.close();
+  });
+
+  it('accepts caller-owned static documents whose page clock cannot settle', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    await page.setContent('<nav aria-label="Archived"><a href="#home">Home</a></nav>');
+    await page.evaluate(() => {
+      window.requestAnimationFrame = () => 0;
+    });
+
+    const report = await sensePresentation(page, page.getByRole('navigation', { name: 'Archived' }), {
+      stabilize: [],
+    });
+
+    expect(report.graph.nodes.some((node) => node.name === 'Home')).toBe(true);
+    await page.close();
+  });
 });
 
 function collapsedRecords(count: number): string {
@@ -105,5 +157,29 @@ function statefulRecords(): string {
       article.failed { background: rgb(255, 230, 230); }
     </style>
     <main aria-label="Runs">${records}</main>
+  `;
+}
+
+function navigation(): string {
+  return `
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 16px/24px Arial; }
+      nav { display: flex; width: 900px; height: 72px; }
+      .brand-box, .controls { display: flex; height: 72px; align-items: center; }
+      .brand-box { width: 180px; }
+      .controls { width: 520px; }
+      a { display: flex; align-items: center; color: black; text-decoration: none; }
+      .brand { position: relative; top: 2px; width: 120px; height: 30px; margin-left: 16px; }
+      .controls a { width: 120px; height: 40px; }
+    </style>
+    <nav aria-label="Primary">
+      <div class="brand-box"><a class="brand" href="#brand">Brand</a></div>
+      <div class="controls">
+        <a href="#products">Products</a>
+        <a href="#solutions">Solutions</a>
+        <a href="#resources">Resources</a>
+      </div>
+    </nav>
   `;
 }

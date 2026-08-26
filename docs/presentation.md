@@ -27,6 +27,14 @@ or unused horizontal area cannot create a finding independently. Those values
 may help an agent interpret a measured relationship failure, but the failure
 names the relationship rather than a preferred density or layout.
 
+The acquisition boundary also governs default image settlement. Images inside
+the locator and its React portals settle before geometry is read; an unrelated
+incomplete image elsewhere in the document does not hold the reading open. The
+collector omits React provenance because no presentation report field consumes
+it. Font settlement remains document-wide because it can change geometry inside
+the boundary. A caller-owned static document whose page clock cannot advance can
+replace the recipe with `stabilize: []`; live pages retain the default.
+
 ## Presentation graph
 
 A graph node is a rendered element with a stable boundary-relative reference,
@@ -64,7 +72,10 @@ This supports three distinct readings from one report:
 - A visual flow may cross implementation wrappers. A caller that knows the
   product relationship selects those nodes with `inspectPresentationAlignment`;
   the returned coordinate, spread, and member deviations remain evidence, not
-  an automatic design verdict.
+  an automatic design verdict. The selection stays at one structural level: a
+  matching role on a container and on its nested control does not make both
+  peers. Its paint marks that exact peer selection and median axis without
+  acquiring the page again.
 
 `depth: 'subtree'` is an explicit request to fold nested ownership into a
 holistic reading. It is not the default.
@@ -115,7 +126,8 @@ with conspicuous colors so a human can challenge the analyzer's grouping.
 Paint instructions carry their owner and touched nodes. Pattern and finding
 instructions also carry the corresponding stable report-local id. A focused
 reading can therefore paint one owner or one finding from an existing report;
-painting does not require re-sensing the page.
+an explicit alignment reading can paint its selected members and median axis.
+Neither requires re-sensing the page.
 
 ## Re-sense without turning the result into regression
 

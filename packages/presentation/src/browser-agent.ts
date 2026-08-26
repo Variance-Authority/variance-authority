@@ -1,7 +1,15 @@
-import { recipeOf } from '@variance-authority/core';
-import type { Digest, RawCapture, SubjectRef, Viewport } from '@variance-authority/core';
+import {
+  COLLECT_RECIPE,
+  recipeOf,
+} from '@variance-authority/core';
+import type {
+  Digest,
+  RawCapture,
+  SubjectRef,
+  Viewport,
+} from '@variance-authority/core';
 import { collect, stabilizeForObservation } from '@variance-authority/dom';
-import { awaitSuspense, portalContentOf, provenanceOf } from '@variance-authority/react';
+import { awaitSuspense, portalContentOf } from '@variance-authority/react';
 import type { PaintInstruction, PaintLayer } from './model.js';
 
 export const PRESENTATION_AGENT = '__variance_authority_presentation__';
@@ -38,17 +46,20 @@ export async function acquirePresentation(
 ): Promise<string> {
   clearPresentationPaint();
   await awaitSuspense(root, request.suspense ?? {});
+  const portalRoots = portalContentOf(root);
   const held = await stabilizeForObservation(
     root.ownerDocument,
-    request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) },
+    {
+      recipe: request.stabilize === undefined
+        ? presentationRecipe([root, ...portalRoots])
+        : recipeOf(request.stabilize),
+    },
   );
-  const portalRoots = portalContentOf(root);
   const capture = collect(root, {
     subject: request.subject,
     viewport: request.viewport,
     engine: request.engine,
     portalsOf: () => portalRoots,
-    provenanceOf,
     ...(request.fonts === undefined ? {} : { fonts: request.fonts }),
     ...(held.digest === undefined ? {} : { stabilization: held.digest }),
   });
@@ -67,6 +78,30 @@ export async function acquirePresentation(
     },
     portals,
   });
+}
+
+function presentationRecipe(roots: readonly Element[]) {
+  const waitForSubjectImages = {
+    id: 'wait-for-subject-images',
+    trick: 'wait',
+    needs: 'layout',
+    governs: 'images',
+    because: 'waited only for images inside the presentation subject and its portals',
+    settle: async () => {
+      const images = roots.flatMap((root) => [
+        ...(root.tagName.toLowerCase() === 'img' ? [root as HTMLImageElement] : []),
+        ...Array.from(root.querySelectorAll('img')),
+      ]);
+      await Promise.all(images.filter((image) => !image.complete).map((image) => new Promise<void>((resolve) => {
+        image.addEventListener('load', () => resolve(), { once: true });
+        image.addEventListener('error', () => resolve(), { once: true });
+      })));
+    },
+  } as const;
+  return [
+    ...COLLECT_RECIPE.filter((intervention) => intervention.id !== 'wait-for-images'),
+    waitForSubjectImages,
+  ];
 }
 
 export function paintPresentation(

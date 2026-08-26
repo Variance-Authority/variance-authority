@@ -112,6 +112,8 @@ export interface PresentationAlignmentReading {
     readonly coordinatePx: number;
     readonly deviationPx: number;
   }[];
+  /** Axis and member marks derived from this reading; painting does not acquire the page. */
+  readonly paint: readonly PaintInstruction[];
 }
 
 export interface BaselineCluster {

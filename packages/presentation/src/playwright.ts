@@ -1,6 +1,12 @@
 import type { Locator, Page } from '@playwright/test';
 import { accessibilitySnapshot } from '@variance-authority/core';
-import type { PaintLayer, PresentationFocus, PresentationReport } from './model.js';
+import type {
+  PaintInstruction,
+  PaintLayer,
+  PresentationAlignmentReading,
+  PresentationFocus,
+  PresentationReport,
+} from './model.js';
 import { analyzePresentation } from './analyze.js';
 import {
   PRESENTATION_AGENT,
@@ -16,6 +22,8 @@ export interface SensePresentationOptions {
   readonly title?: string;
   readonly fonts?: readonly string[];
   readonly suspense?: { readonly timeoutMs?: number };
+  /** Override stabilization ids; use `[]` only when the caller owns a static document. */
+  readonly stabilize?: readonly string[];
   /** `true` paints every layer; a layer list paints only those measurements. */
   readonly paint?: boolean | readonly PaintLayer[];
 }
@@ -43,6 +51,7 @@ export async function sensePresentation(
     engine: browser === null ? 'browser@unknown' : `${browser.browserType().name()}@${browser.version()}`,
     ...(options.fonts === undefined ? {} : { fonts: options.fonts }),
     ...(options.suspense === undefined ? {} : { suspense: options.suspense }),
+    ...(options.stabilize === undefined ? {} : { stabilize: options.stabilize }),
   };
   const raw = await locator.evaluate(
     (element, [global, sent]: readonly [string, PresentationAcquireRequest]) => {
@@ -92,6 +101,22 @@ export async function paintPresentationFocus(
   focus: PresentationFocus,
   layers?: readonly PaintLayer[],
 ): Promise<number> {
+  return paintPresentationInstructions(page, focus.paint, layers);
+}
+
+/** Paint one explicit alignment reading without acquiring the page again. */
+export async function paintPresentationAlignment(
+  page: Page,
+  reading: PresentationAlignmentReading,
+): Promise<number> {
+  return paintPresentationInstructions(page, reading.paint, ['axes']);
+}
+
+async function paintPresentationInstructions(
+  page: Page,
+  instructions: readonly PaintInstruction[],
+  layers?: readonly PaintLayer[],
+): Promise<number> {
   await install(page);
   return page.evaluate(
     ([global, instructions, selected]) => {
@@ -99,7 +124,7 @@ export async function paintPresentationFocus(
       if (agent === undefined) throw new Error(`the presentation sensing agent is not installed at ${global}`);
       return agent.paint(instructions, selected);
     },
-    [PRESENTATION_AGENT, focus.paint, layers] as const,
+    [PRESENTATION_AGENT, instructions, layers] as const,
   );
 }
 

@@ -21,6 +21,14 @@ describe('presentation alignment reading', () => {
         deviationPx: 2,
       }),
     ]));
+    expect(reading.paint).toHaveLength(5);
+    expect(reading.paint[0]).toEqual(expect.objectContaining({
+      owner: 'r0:0',
+      nodes: ['r0:0/0/0', 'r0:0/1/0', 'r0:0/1/1', 'r0:0/1/2'],
+      layer: 'axes',
+      shape: 'line',
+      line: { x1: 16, y1: 34, x2: 540, y2: 34 },
+    }));
     expect(report.findings).toEqual([]);
   });
 

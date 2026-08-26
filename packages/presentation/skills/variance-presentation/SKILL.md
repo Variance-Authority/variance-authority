@@ -40,7 +40,7 @@ and the user decide the response to that evidence.
 | A live Playwright `Page` and subject `Locator` | `sensePresentation` from `@variance-authority/presentation/playwright` | Acquires browser layout and Playwright ARIA, analyzes them, and optionally paints the page |
 | An existing `RawCapture` | `analyzePresentation` from `@variance-authority/presentation` | Pure report derivation; browser accessibility is optional independent evidence |
 | One structural level in an existing report | `focusPresentation` from `@variance-authority/presentation` | Pure owner reading that keeps nested evidence separate by default |
-| Product-known visual peers across wrappers | `inspectPresentationAlignment` from `@variance-authority/presentation` | Explicit coordinates, spread, and member deviations without a verdict |
+| Product-known visual peers across wrappers | `inspectPresentationAlignment` plus `paintPresentationAlignment` | Explicit coordinates, spread, member deviations, and matching paint without a verdict or another acquisition |
 | Two presentation reports | `comparePresentation` from `@variance-authority/presentation` | Optional edit feedback with finding counts and information identity kept separate |
 
 Prefer a page the caller already owns. Launch a browser only when the user asks
@@ -71,8 +71,9 @@ Then choose one path:
 2. For a deliberately holistic question, use `depth: 'subtree'` and state why
    descendants belong in the same reading.
 3. For a visual flow that crosses wrappers, explicitly select its concrete
-   nodes with `inspectPresentationAlignment`. The API measures the relationship;
-   the product task authorizes the peer set.
+   nodes with `inspectPresentationAlignment`. Select one structural level rather
+   than both a semantic wrapper and its nested control. The API measures the
+   relationship; the product task authorizes the peer set.
 4. Isolate one finding id before paint. Add a pattern or measurement layer only
    when it answers the same question.
 
@@ -106,14 +107,20 @@ Options:
 - `title`: optional human-facing subject title.
 - `fonts`: font identities the caller has independently established.
 - `suspense.timeoutMs`: settlement bound for React Suspense before sensing.
+- `stabilize`: optional intervention ids replacing the default recipe. Use `[]`
+  only when the caller owns a static document, such as an MHTML archive whose
+  page clock cannot advance.
 - `paint`: omit for no overlay, use `true` for all layers, or provide selected
   layer names.
 
-The browser agent waits for Suspense, applies the repository's collection
-stabilization, collects computed style and layout, reads Playwright's ARIA
+The browser agent waits for Suspense, settles images inside the subject and its
+portals rather than unrelated document images, applies the other collection
+interventions, collects computed style and layout, reads Playwright's ARIA
 snapshot for the subject and portals, analyzes the plain capture, and then
 optionally paints from the returned report. It does not capture a PNG. Prefer an
 unpainted first acquisition so the hierarchy can decide which evidence to show.
+Do not use an empty stabilization recipe to make a live page faster; it is a
+declaration that the document cannot move.
 
 If the page agent bundle is missing, build the installed package or repository
 before retrying. Do not replace a missing bundle with an empty or improvised
@@ -234,7 +241,10 @@ import {
   focusPresentation,
   inspectPresentationAlignment,
 } from '@variance-authority/presentation';
-import { paintPresentationFocus } from '@variance-authority/presentation/playwright';
+import {
+  paintPresentationAlignment,
+  paintPresentationFocus,
+} from '@variance-authority/presentation/playwright';
 
 const owner = report.patterns?.find((pattern) => pattern.instances.length >= 3)?.parent;
 if (owner === undefined) throw new Error('no repeated owner was observed');
@@ -258,12 +268,16 @@ const navFlow = inspectPresentationAlignment(
   'vertical-center',
 );
 console.log(navFlow.spreadPx, navFlow.members);
+await paintPresentationAlignment(page, navFlow);
 ```
 
 `focusPresentation` refuses an unknown owner and refuses a requested finding
 that is not owned at the selected depth. `inspectPresentationAlignment` refuses
 fewer than two distinct members, unknown members and members outside the owner.
-Its spread is neutral measurement, not a threshold or finding.
+Its spread is neutral measurement, not a threshold or finding. Alignment paint
+shows only the selected flow: one median axis and one deviation-labelled box per
+member. Role or name matching can discover candidates, but it does not authorize
+flattening a matching container and its matching descendant into the same flow.
 
 ## Preserve ARIA as a separately sensitive signal
 
