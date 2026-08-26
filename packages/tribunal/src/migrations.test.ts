@@ -100,6 +100,10 @@ describe('the D1 migrations are the schema', () => {
     for (const file of FILES) expect(text(file)).toContain('Do not edit');
   });
 
+  it.todo(
+    'the descriptor and these steps have been applied to a real Cloudflare account — every claim in `wrangler.jsonc` is a reading of the platform documentation, and the D1 these tests batch against is the in-memory one from `testing.ts`, which cannot tell a binding that works from one that merely parses, so this needs a deployment against a live account with `wrangler d1 migrations apply` and the routes answered over the network',
+  );
+
   it('applies the complete schema as one batch', async () => {
     const prepared: D1PreparedLike = {
       bind: () => prepared,

@@ -20,6 +20,9 @@
     "directory": "packages/playwright"
   },
   "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -39,6 +42,7 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "!dist/**/*.d.ts.map",
     "mark.svg"
   ],
   "scripts": {

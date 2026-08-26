@@ -12,10 +12,14 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
       ],
       "bin": {
         "variance": "./dist/bin.js"
+      },
+      "engines": {
+        "node": ">=22"
       }
     },
     "names": {
@@ -143,8 +147,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -841,8 +849,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -908,10 +920,14 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
       ],
       "bin": {
         "variance-authority-help": "./dist/bin.js"
+      },
+      "engines": {
+        "node": ">=22"
       }
     },
     "names": {
@@ -970,8 +986,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1060,9 +1080,13 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "jest-resolver.cjs",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       "./jsx-runtime": {
@@ -1108,10 +1132,14 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
       ],
       "bin": {
         "variance-authority-mcp": "./dist/bin.js"
+      },
+      "engines": {
+        "node": ">=22"
       }
     },
     "names": {
@@ -1180,8 +1208,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1217,8 +1249,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1282,8 +1318,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1339,8 +1379,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1388,8 +1432,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1426,9 +1474,13 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg",
         "scripts/bench.mjs"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1453,9 +1505,13 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "skills",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1524,8 +1580,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1630,8 +1690,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1710,8 +1774,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1779,8 +1847,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1854,8 +1926,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1893,8 +1969,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -1973,11 +2053,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg",
         "scripts/overhead.mjs"
       ],
-      "bin": {
-        "variance-authority-sense-overhead": "./scripts/overhead.mjs"
+      "engines": {
+        "node": ">=22"
       }
     },
     "names": {
@@ -2080,10 +2161,14 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
       ],
       "bin": {
         "variance-authority-server": "./dist/bin.js"
+      },
+      "engines": {
+        "node": ">=22"
       }
     },
     "names": {
@@ -2139,8 +2224,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -2187,8 +2276,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -2251,8 +2344,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -2309,8 +2406,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -2373,10 +2474,14 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg",
         "migrations",
         "wrangler.jsonc"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {
@@ -2473,8 +2578,12 @@
       },
       "files": [
         "dist",
+        "!dist/**/*.d.ts.map",
         "mark.svg"
-      ]
+      ],
+      "engines": {
+        "node": ">=22"
+      }
     },
     "names": {
       ".": {

@@ -2956,8 +2956,8 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
-    "@variance-authority/report": "workspace:^"
     "@variance-authority/react": "workspace:^"
+    "@variance-authority/report": "workspace:^"
   peerDependencies:
     "@playwright/test": ">=1.49 <2"
   peerDependenciesMeta:
@@ -3040,8 +3040,6 @@ __metadata:
   peerDependenciesMeta:
     vitest:
       optional: true
-  bin:
-    variance-authority-sense-overhead: ./scripts/overhead.mjs
   languageName: unknown
   linkType: soft
 
@@ -3114,6 +3112,11 @@ __metadata:
     pngjs: "npm:^7.0.0"
     react: "npm:^19"
     react-dom: "npm:^19"
+  peerDependencies:
+    react: ">=19"
+  peerDependenciesMeta:
+    react:
+      optional: true
   languageName: unknown
   linkType: soft
 

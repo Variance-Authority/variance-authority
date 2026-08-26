@@ -20,6 +20,9 @@
     "directory": "packages/mcp"
   },
   "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -42,6 +45,7 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.d.ts.map",
     "mark.svg"
   ],
   "scripts": {

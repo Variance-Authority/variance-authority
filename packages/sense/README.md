@@ -244,6 +244,21 @@ opaque dependency makes that row's `baseline`, `sensitivity`, and `deviation`
 absent; it is never reported as zero. If any row is indeterminate, the suite
 baseline, coverage ratio, and sensitivity are absent too.
 
+## Measure what the probes cost
+
+Instrumentation is only worth having while it stays cheap. The probe overhead
+`o` — an instrumented run divided by an uninstrumented one — is measured on the
+deployment machine over this package's own `scanRelations`:
+
+```bash
+node node_modules/@variance-authority/sense/scripts/overhead.mjs
+```
+
+Two arms differ only in how much of the clock is spent inside instrumented
+JavaScript: a cold arm dominated by the native parser, and a warm arm over a
+populated parse cache where nearly every millisecond carries probes. The warm
+arm is the closer bound.
+
 ## Find tests that cover source
 
 `coveringTests` is the runner-independent point query for coding agents,

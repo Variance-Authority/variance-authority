@@ -20,6 +20,9 @@
     "directory": "packages/sense"
   },
   "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -45,11 +48,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "variance-authority-sense-overhead": "./scripts/overhead.mjs"
-  },
   "files": [
     "dist",
+    "!dist/**/*.d.ts.map",
     "mark.svg",
     "scripts/overhead.mjs"
   ],

@@ -20,6 +20,9 @@
     "directory": "packages/tribunal"
   },
   "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -63,6 +66,7 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "!dist/**/*.d.ts.map",
     "mark.svg",
     "migrations",
     "wrangler.jsonc"
@@ -75,14 +79,22 @@
     "@variance-authority/history": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/report": "workspace:^",
-    "@variance-authority/server": "workspace:^",
-    "react": "^19"
+    "@variance-authority/server": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@variance-authority/remote": "workspace:^",
     "pngjs": "^7.0.0",
+    "react": "^19",
     "react-dom": "^19"
   }
 }
