@@ -12,7 +12,11 @@ function fill(n: number, cols: number): number {
 }
 
 /** Package roles grouped by an adopter's next action. */
-const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
+const PACKAGES: {
+  group: string;
+  note?: string;
+  items: { name: string; role: string }[];
+}[] = [
   {
     group: "what you install",
     items: [
@@ -41,6 +45,24 @@ const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
         role: "document and raster observation for custom integrations",
       },
       { name: "mcp", role: "the observation, exposed to an agent" },
+      {
+        name: "help",
+        role: "what a workspace publishes, ranked by what imports it, answered on demand",
+      },
+    ],
+  },
+  {
+    group: "what needs no baseline",
+    note: "Evidence about one interface, for a person or a coding agent to read. Nothing to approve, and no verdict to gate on.",
+    items: [
+      {
+        name: "presentation",
+        role: "one interface's presentation graph, independent ARIA evidence, relationship findings, and removable diagnostic paint",
+      },
+      {
+        name: "scenario",
+        role: "witnessed AAA paths, transition effects, and a partial state machine",
+      },
     ],
   },
   {
@@ -65,8 +87,16 @@ const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
         role: "the pixel tier as data — contracts, policies, the gate",
       },
       { name: "png", role: "decoding, comparison, the diff image" },
+      {
+        name: "png-sharp",
+        role: "the same comparison, with the decoding done natively",
+      },
       { name: "session", role: "many subjects in one standing world" },
       { name: "playwright", role: "the persistent harness, and a renderer" },
+      {
+        name: "storybook",
+        role: "a project's own stories as a subject list",
+      },
       { name: "store", role: "baselines on disk, and in git-LFS" },
       {
         name: "report",
@@ -90,6 +120,10 @@ const PACKAGES: { group: string; items: { name: string; role: string }[] }[] = [
         name: "remote",
         role: "a renderer and a store on the other side of a hop",
       },
+      {
+        name: "tribunal",
+        role: "baselines, history, and review-and-approve, in an account you control",
+      },
     ],
   },
 ];
@@ -102,7 +136,7 @@ export default function Packages() {
       className="scroll-mt-24 border-t border-hairline py-20"
     >
       <SectionHead
-        n="09"
+        n="10"
         label="packages"
         title="There is no pipeline. There are tools."
       >
@@ -126,6 +160,11 @@ export default function Packages() {
                 <span className="h-px flex-1 bg-hairline" />
                 <span className="text-quiet">{n}</span>
               </p>
+              {g.note ? (
+                <p className="mb-3 max-w-2xl text-xs leading-5 text-quiet">
+                  {g.note}
+                </p>
+              ) : null}
               {/* Cells carry their own hairlines so a short last row stays panel-coloured. */}
               <div
                 className={`grid overflow-hidden rounded-2xl border border-hairline bg-panel sm:grid-cols-2 [&>*]:min-w-0 ${

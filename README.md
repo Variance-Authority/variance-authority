@@ -6,10 +6,7 @@
 
 # Variance Authority
 
-**Visual Regression with Verifiable Results.**
-
-The [visual guidelines](docs/visual-guidelines.md) define the ribbon mark,
-palette and illustration grammar used across the repository and its packages.
+**Visual Regression. Verifiable Results.**
 
 Visual regression is good at telling you that something changed. It is much
 less useful at telling you why.
@@ -73,24 +70,40 @@ a control that never had an accessible name, or a string nobody translated.
 When a profile cannot observe a band, the report says `unobserved`; it does not
 turn missing evidence into a pass.
 
-[`@variance-authority/presentation`](packages/presentation) is a separate live
-sensing surface for the relationships inside one interface. It exposes semantic
-anchors, spacing, alignment, inferred baselines, surfaces, prominence, repeated
-patterns, and Playwright's independent ARIA reading as machine-readable evidence
-an agent can inspect and paint while it works. It creates no baseline or
-regression verdict; density, dimensions, margins, and utilization remain
-telemetry rather than design policy.
-
 The result is one report for a person, a pull request, or a coding agent. It can
 be JSON, a single HTML file, or an MCP response, and the process exits with a
 verdict: `0` for nothing to review, `1` for changes to review, and `2` for an
 operator error.
 
 [`docs/information.md`](docs/information.md) defines how visual, semantic,
-source, runtime, scenario, review, and history records align; which artifacts
-cross process and service boundaries; where each storage form belongs; and how
-full and partial evidence is created, updated, merged, deleted, or wiped and
-redefined.
+source, runtime, presentation, scenario, review, and history records align;
+which artifacts cross process and service boundaries; where each storage form
+belongs; and how full and partial evidence is created, updated, merged, deleted,
+or wiped and redefined.
+
+## Evidence that needs no baseline
+
+Two surfaces answer questions about one interface with nothing to approve and no
+verdict to gate on.
+
+[`@variance-authority/presentation`](packages/presentation) senses the
+relationships inside one live interface: semantic anchors, spacing, alignment,
+inferred baselines, surfaces, prominence, repeated patterns, and Playwright's
+independent ARIA reading, as machine-readable evidence an agent can inspect and
+paint while it works. Density, dimensions, margins, and utilization stay
+telemetry rather than design policy.
+
+[`@variance-authority/scenario`](packages/scenario) records Arrange, Act, Assert
+as a state machine. A named precondition is the initial state, each Act labels a
+transition, and assessment reads the variance across that edge — which is what
+answers whether two executions began differently, and at which Act their
+behaviour stopped agreeing.
+
+Neither writes a baseline, an approval, a history row, or an exit code, and what
+they measure can still travel: a pair of presentation readings becomes a
+presentation signal on the observation it belongs to.
+[`docs/presentation.md`](docs/presentation.md) and
+[`docs/scenarios.md`](docs/scenarios.md) are the full accounts.
 
 ## A real change, a flake, and a neighbour look identical
 
@@ -221,6 +234,15 @@ the suite's existing `test` and `expect` imports in place. Storybook and route
 adoption require the shared CLI plus one collector package;
 the collector owns how the UI becomes ready, while the CLI owns baselines,
 reports, acceptance, and CI exit codes.
+
+## Documentation
+
+[`docs/`](docs/README.md) is the reference, grouped by the question a reader
+arrives with: whether this fits, what a run decides, how a flake is told from a
+change, how less of a suite gets run, what needs no baseline, and what each
+claim is measured against. The [visual guidelines](docs/visual-guidelines.md)
+define the ribbon mark, palette and illustration grammar used across the
+repository and its packages.
 
 ## Licence
 

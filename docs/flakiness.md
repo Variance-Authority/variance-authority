@@ -1,6 +1,6 @@
 # Flakiness
 
-> **Draft.** This page is the position, not the manual. It will grow.
+This page is the position, not the manual.
 
 Yes, visual regression is flaky. Anyone who says otherwise has either not run it
 at scale or has quietly set a threshold large enough to hide it.

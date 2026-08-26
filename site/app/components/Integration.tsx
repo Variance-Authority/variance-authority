@@ -31,7 +31,7 @@ export default function Integration() {
       className="scroll-mt-24 border-t border-hairline py-20"
     >
       <SectionHead
-        n="10"
+        n="11"
         label="integrate"
         title="Start with a golden path. Keep the building blocks."
       >

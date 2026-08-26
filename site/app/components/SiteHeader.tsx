@@ -38,6 +38,12 @@ export default function SiteHeader() {
             Agents
           </a>
           <a
+            href="#packages"
+            className="hidden transition-colors hover:text-ivory lg:inline"
+          >
+            Packages
+          </a>
+          <a
             href="#integrate"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >

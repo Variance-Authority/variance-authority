@@ -226,5 +226,9 @@ live('a subject that settles after the framework says it is done', () => {
 // and a todo inside a skipped block is counted as skipped rather than as a gap.
 
 it.todo(
+  'a story whose image bytes change behind an unchanged URL is reported `changed` rather than `unchanged` — the scoped network keys and the document-digest carry are asserted over the route path in `packages/route-collector/src/network.chromium.test.ts`, and the Storybook path runs the same page agent and the same narrowing, so this needs one real story collected here through `@variance-authority/storybook-collector` behind an asset whose bytes moved',
+);
+
+it.todo(
   'no rule from Storybook’s own chrome — the addon layout, the error overlay, the toolbar — reaches a story’s snapshot, read off `styleProvenance[].selector` against the sheets a real Storybook ships rather than the fixture copy in `packages/dom/src/collect.test.ts` — needs one story collected through `@variance-authority/storybook-collector` here; the preview reset is a separate question, since ADR-0028 admits a rule that matches an ancestor of the subject and the reset matches `html`',
 );

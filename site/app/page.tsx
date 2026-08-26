@@ -8,6 +8,7 @@ import Eyebrow from "./components/Eyebrow";
 import Hero from "./components/Hero";
 import Integration from "./components/Integration";
 import Lifecycle from "./components/Lifecycle";
+import Packages from "./components/Packages";
 import Reveal from "./components/Reveal";
 import RuntimeEvidence from "./components/RuntimeEvidence";
 import SectionHead from "./components/SectionHead";
@@ -315,6 +316,10 @@ export default function Page() {
               <Answers />
             </div>
           </section>
+        </Reveal>
+
+        <Reveal>
+          <Packages />
         </Reveal>
 
         <Reveal>

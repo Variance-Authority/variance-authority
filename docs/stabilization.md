@@ -484,11 +484,6 @@ same digest after a logo's bytes move, the render is skipped, and the run report
 reappearing one layer in. Both keys carry the same scoped set, asserted in
 `packages/route-collector/src/network.chromium.test.ts`.
 
-**What is not yet proven by a browser**: the Storybook path runs the same page
-agent and the same narrowing as the route path, which is what the chromium tests
-exercise, but no test yet drives a *Storybook story* whose image changes behind
-its URL.
-
 ---
 
 ## The framework, which knows when it has finished
@@ -647,8 +642,7 @@ subject costs a third of a second on a ten-story Storybook and about six on two
 hundred — arithmetic, not a reading. The arm that would measure it is not there:
 `stabilize` is fixed when a collector is built and the sheet survives every
 collection after the first, so nothing the option can express reaches the
-unconditional path. That gap is recorded as a todo at the test rather than
-rounded into a figure.
+unconditional path, so the saving stays a bound and is labelled as one.
 
 Produced by
 [`packages/route-collector/src/stabilization.chromium.test.ts`](../packages/route-collector/src/stabilization.chromium.test.ts),
