@@ -139,6 +139,19 @@ The scenario path is per SUT. Runtime coverage is run-wide. A shared host explai
 why they occurred in one execution; only shared interval identity attributes
 particular source crossings to one frame.
 
+### Presentation readings
+
+A presentation reading is taken from one live page at one locator. The graph,
+telemetry, derived structures, findings, and paint geometry are process values
+that last as long as the caller holds them. A reading is not addressed by
+subject and establishes nothing a later run is measured against.
+
+Two readings of the same locator produce relationship effects and a
+presentation-independent content identity. Only that projection reaches a
+durable record, as the presentation signal on the observation the caller aligned
+it with. An incomparable pair carries its reason and no effects, because
+inventing a transition from a single reading would turn absence into evidence.
+
 ## What crosses process and service boundaries
 
 ### HTML and semantic state
@@ -256,21 +269,26 @@ discarded. At that boundary it can consume:
 - per-subject acquisition diagnostics and stabilization declarations;
 - semantic snapshots and source provenance for findings and attribution;
 - candidate/reference comparison, changed regions, ignores, and sensitivity;
+- paired presentation readings, when the caller supplied one for each side;
 - review-image addresses written beside the report;
 - same-run snapshots needed for suite composition and named variations; and
 - current and bounded answers returned by history after this run is recorded.
 
 The canonical `RunReport` persists the resulting observations, subject-coverage
 ledger, warnings, run/painter identity, image references, variation and
-composition readings, and bounded history answers. `variance report`, its HTML
+composition readings, presentation signals, and bounded history answers. `variance report`, its HTML
 form, and MCP tools over the report read that artifact; they do not reopen a
 browser or query the history service again.
 
 Full HTML, semantic trees, masks, baseline bytes, the source graph, runtime
-coverage, and scenario executions do not enter `RunReport`. They remain behind
-their own artifact or store boundary. A presentation that shows source-to-test
-evidence or scenario paths beside the visual report must be given the separate
-coverage or scenario artifact and may join it only through shared identities.
+coverage, scenario executions, and whole presentation readings do not enter
+`RunReport`. They remain behind their own artifact or store boundary. A
+presentation signal is the exception that is not a reference: its effects,
+content identity, and information deltas are copied into the observation, while
+the graph and paint geometry they were measured from stay with the caller. A
+view that shows source-to-test evidence or scenario paths beside the visual
+report must be given the separate coverage or scenario artifact and may join it
+only through shared identities.
 Relative image paths are the exception carried directly by the report because
 the page must know where its review pixels live.
 
@@ -326,6 +344,7 @@ The durable outputs are deliberately separate:
 | source index | versioned binary generation under the configured root; local XDG scan namespace by default | exact artifact through CI cache, shared volume, or artifact transfer | yes: reuses validated source, name, and graph sections |
 | runtime coverage | default `coverage.bin` cache or configured file artifact | restored CI cache, shared volume, or explicit artifact transfer | yes: selects tests for later source changes |
 | scenario execution | process memory or opt-in scenario archive root | whoever can read the admitted semantic text | assessment and presentation; not automatic visual selection |
+| presentation reading | caller process memory; only the projected signal persists, inside the run report | whoever holds the reading; the signal travels with the report | no: each run senses its own pages |
 | history facts | operator history service | authenticated clients in the configured project scope | yes: current values, recurrence, churn, flakiness, and drift |
 | review decision | history approval row and, for repository baselines, changelog evidence | history/repository readers | yes: determines which historical changes count as approved |
 

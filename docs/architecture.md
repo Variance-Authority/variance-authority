@@ -51,8 +51,9 @@ document → identity → raster → difference → places → components → ve
 The last three hops of that line are one chain and it is written out in
 [`attribution.md`](attribution.md); the graph the first question is asked of is
 in [`source.md`](source.md). [`information.md`](information.md) defines how the
-visual, semantic, source, runtime, scenario, review, and history domains exchange
-records, align identities, retain evidence, and combine full or partial runs.
+visual, semantic, source, runtime, presentation, scenario, review, and history
+domains exchange records, align identities, retain evidence, and combine full or
+partial runs.
 
 ## The contracts
 
