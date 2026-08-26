@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/history",
   "version": "0.0.0-beta.1",
+  "description": "Retain visual-regression observations across runs and answer churn, flakiness, reach and token-drift questions.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "history",
+    "flakiness",
+    "churn",
+    "metrics"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/history"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

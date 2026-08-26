@@ -1892,7 +1892,8 @@
         }
       },
       "files": [
-        "dist"
+        "dist",
+        "mark.svg"
       ]
     },
     "names": {

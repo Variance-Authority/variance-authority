@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/route-collector",
   "version": "0.0.0-beta.1",
+  "description": "Turn pages your application already serves into Variance Authority subjects.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "routes",
+    "ssr",
+    "static-site",
+    "collector"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/route-collector"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

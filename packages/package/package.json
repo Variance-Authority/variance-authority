@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/package",
   "version": "0.0.0-beta.1",
+  "description": "Read a workspace package surface as data: every entrypoint a manifest opens, and what each one exports.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "monorepo",
+    "workspaces",
+    "exports",
+    "api-surface"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/package"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

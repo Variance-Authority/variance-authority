@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/mcp",
   "version": "0.0.0-beta.1",
+  "description": "Expose a completed visual run and its source-to-test selection to an MCP client.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "mcp",
+    "agent",
+    "model-context-protocol",
+    "ai"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/mcp"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

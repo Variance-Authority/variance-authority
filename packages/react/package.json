@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/react",
   "version": "0.0.0-beta.1",
+  "description": "Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "react",
+    "fiber",
+    "provenance",
+    "components"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/react"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

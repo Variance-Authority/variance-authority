@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/session",
   "version": "0.0.0-beta.1",
+  "description": "Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "session",
+    "performance",
+    "mount",
+    "isolation"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/session"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

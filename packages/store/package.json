@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/store",
   "version": "0.0.0-beta.1",
+  "description": "Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "baselines",
+    "storage",
+    "git-lfs",
+    "snapshots"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/store"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

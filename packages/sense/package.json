@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/sense",
   "version": "0.0.0-beta.1",
+  "description": "Answer which components and tests a source change reaches, from a versioned index of a checkout.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "static-analysis",
+    "oxc",
+    "test-selection",
+    "dependency-graph"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/sense"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

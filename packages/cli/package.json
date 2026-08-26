@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/cli",
   "version": "0.0.0-beta.1",
+  "description": "Run the Variance Authority workflow from a project config: collect subjects, compare, render what moved, report, accept.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "cli",
+    "screenshot-testing",
+    "ci",
+    "visual-diff"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/cli"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

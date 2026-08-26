@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/playwright-test",
   "version": "0.0.0-beta.1",
+  "description": "Add a source-aware visual observation to a Playwright test that already knows how to reach the state.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "playwright",
+    "playwright-test",
+    "screenshot-testing",
+    "e2e"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/playwright-test"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

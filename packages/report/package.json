@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/report",
   "version": "0.0.0-beta.1",
+  "description": "The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "report",
+    "json",
+    "html-report",
+    "ci"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/report"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

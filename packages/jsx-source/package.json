@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/jsx-source",
   "version": "0.0.0-beta.1",
+  "description": "Carry the file and line that wrote a JSX element as far as the rendered DOM node.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "jsx",
+    "babel",
+    "source-maps",
+    "react"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/jsx-source"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     "./jsx-runtime": {

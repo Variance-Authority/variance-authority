@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/scenario",
   "version": "0.0.0-beta.1",
+  "description": "Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "scenario",
+    "state-machine",
+    "aaa",
+    "runtime"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/scenario"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {
@@ -22,7 +34,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "mark.svg"
   ],
   "scripts": {
     "build": "tsc --build"

@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/playwright",
   "version": "0.0.0-beta.1",
+  "description": "A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "playwright",
+    "browser",
+    "renderer",
+    "chromium"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/playwright"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

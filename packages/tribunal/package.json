@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/tribunal",
   "version": "0.0.0-beta.1",
+  "description": "A self-hosted review service for Variance Authority baselines, history and per-subject decisions.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "review",
+    "self-hosted",
+    "workers",
+    "approval"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/tribunal"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

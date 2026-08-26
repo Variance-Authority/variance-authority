@@ -1,13 +1,25 @@
 {
   "name": "@variance-authority/png",
   "version": "0.0.0-beta.1",
+  "description": "Decode, compare and diff PNGs without a browser: two buffers in, a mask out.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "png",
+    "image-diff",
+    "pixelmatch",
+    "comparison"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/png"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {

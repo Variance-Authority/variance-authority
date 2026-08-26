@@ -1,13 +1,26 @@
 {
   "name": "@variance-authority/presentation",
   "version": "0.0.0-beta.1",
+  "description": "Sense the presentation relationships inside one live interface — spacing, alignment, prominence, repetition — as evidence an agent can read.",
+  "keywords": [
+    "visual-regression",
+    "visual-testing",
+    "variance-authority",
+    "presentation",
+    "layout",
+    "accessibility",
+    "agent",
+    "playwright"
+  ],
   "license": "MIT",
   "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
     "directory": "packages/presentation"
   },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "type": "module",
   "exports": {
     ".": {
@@ -32,8 +45,8 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
-    "@variance-authority/report": "workspace:^",
-    "@variance-authority/react": "workspace:^"
+    "@variance-authority/react": "workspace:^",
+    "@variance-authority/report": "workspace:^"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.49 <2"

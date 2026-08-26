@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/presentation
 
 **Requires:** a `RawCapture`; the live sensing entry creates one through

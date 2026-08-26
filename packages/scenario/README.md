@@ -1,3 +1,5 @@
+<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+
 # @variance-authority/scenario
 
 **Requires:** semantic snapshots produced by the host. The optional archive also
@@ -117,3 +119,6 @@ instead of redacting it after hashing.
 `createScenarioArchive` takes `root`, the writable archive directory, and an
 optional `now` clock for deterministic expiry decisions. The system clock is the
 default. Neither option enables archival by itself; only calling `put` writes.
+
+See [Runtime scenarios](../../docs/scenarios.md) for the state-machine model,
+the three assessment pairs, and what the graph refuses to synthesize.
