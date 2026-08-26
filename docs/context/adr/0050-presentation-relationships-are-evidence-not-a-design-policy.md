@@ -46,6 +46,13 @@ Derived clusters and repeated patterns are local evidence. A presentation drift
 finding requires a dominant peer grammar and a deviation that available semantic
 state does not explain.
 
+A repeated structure can expose more than one relationship class inside each
+instance. When a distinct leading label introduces at least two same-class body
+peers, its first separation and the body peer separations remain separate
+measurements. Occupying the same spacing cluster is a hierarchy collision: the
+finding states that the rendered spacing does not distinguish those relations,
+without choosing which margin should change or by how much.
+
 The initial thresholds are calibration constants pinned by paired firing and
 non-firing fixtures. They are not exposed as design targets. Changing them is a
 change to the analyzer's format behaviour and requires its acceptance cases to

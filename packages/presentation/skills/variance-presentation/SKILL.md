@@ -80,6 +80,11 @@ Then choose one path:
    Read every separation, not only repeated patterns or existing findings.
    Compare the sequence of gaps and boundary strengths as one rhythm; then
    descend into a child only to answer a separate internal-spacing question.
+   Do not stop after comparing the owner's outside gap with its internal median:
+   when a leading heading or structural label introduces repeated body blocks,
+   compare `leading → first body` with `body → next body`. Equal relationship
+   classes erase that level of the visual hierarchy even when the owner's outer
+   boundary remains stronger.
 5. Isolate one finding id before paint. Add a pattern or measurement layer only
    when it answers the same question.
 
@@ -329,6 +334,7 @@ does not call the difference unexplained grammar drift.
 |---|---|
 | `SEPARATION_COLLISION` | Between-object boundary strength is indistinguishable from within-object boundaries |
 | `SPACING_RELATION_COLLISION` | Different relationship classes occupy the same inferred spacing cluster or distribution |
+| `SPACING_HIERARCHY_COLLISION` | A leading structural label is separated from its first body block exactly like ordinary body peers are separated from one another |
 | `ALIGNMENT_OUTLIER` | One corresponding peer departs from a dominant alignment axis |
 | `BASELINE_DRIFT` | One corresponding text-bearing peer departs from an inferred baseline |
 | `PROMINENCE_COLLAPSE` | A heading class and an ordinary text class occupy the same prominence treatment |
@@ -341,6 +347,11 @@ ratios, distances, clusters, or perceptual difference. Then connect that evidenc
 to the product task. Do not translate a finding into “looks wrong.”
 
 Thresholds are analyzer calibration. They are not user-facing design targets.
+A hierarchy-spacing finding is relational, not a preferred margin. Report the
+`leadingToBodyGapMedianPx`, `bodyToBodyGapMedianPx`, ratio and shared-cluster
+count. Its finding paint draws both relations for each affected instance, so the
+equal steps remain visible instead of replacing them with one enclosing box.
+
 A report with no findings is not a claim that the interface is good; it means no
 implemented relationship rule fired on the observed evidence. In particular,
 automatic relationship findings are local to inferred repeated patterns. Use an

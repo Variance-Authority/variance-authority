@@ -120,6 +120,34 @@ export function paintInstructions(input: {
     }
   });
   for (const finding of input.findings) {
+    if (finding.rule === 'SPACING_HIERARCHY_COLLISION') {
+      for (const instanceId of finding.nodes) {
+        const instance = byId.get(instanceId);
+        const members = instance?.children.slice(0, 3).flatMap((id) => byId.get(id) ?? []) ?? [];
+        if (members.length !== 3) continue;
+        for (let index = 0; index < 2; index += 1) {
+          const from = members[index]!;
+          const to = members[index + 1]!;
+          const relation = input.relations.find((candidate) =>
+            candidate.kind === 'separates' && candidate.from === from.id && candidate.to === to.id);
+          const [x1, y1] = center(from.rect);
+          const [x2, y2] = center(to.rect);
+          instructions.push({
+            id: `finding:${finding.id}:${from.id}:${to.id}`,
+            owner: finding.owner,
+            nodes: [from.id, to.id],
+            finding: finding.id,
+            ...(finding.pattern === undefined ? {} : { pattern: finding.pattern }),
+            layer: 'findings',
+            shape: 'line',
+            color: '#ff1744',
+            label: `${index === 0 ? 'leading→body' : 'body→body'} ${relation?.distancePx ?? 0}px`,
+            line: { x1, y1, x2, y2 },
+          });
+        }
+      }
+      continue;
+    }
     for (const id of finding.nodes) {
       const node = byId.get(id);
       if (node === undefined) continue;

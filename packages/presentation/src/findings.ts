@@ -26,6 +26,7 @@ export function detectFindings(
   const findings: DetectedFinding[] = [];
   for (const pattern of patterns) {
     findings.push(...relationshipFindings(pattern, measured));
+    findings.push(...hierarchySpacingFindings(pattern, measured));
     findings.push(...slotFindings(pattern, graph));
     const unexplained = pattern.outliers.filter((outlier) => !outlier.explainedByState);
     if (
@@ -54,6 +55,66 @@ export function detectFindings(
     codeUnitCompare(left.nodes.join('\0'), right.nodes.join('\0')) ||
     codeUnitCompare(left.pattern ?? '', right.pattern ?? ''),
   ).map((finding, index) => ({ id: `F${index + 1}`, ...finding }));
+}
+
+/** A leading structural label and the body peers it introduces need distinct spacing relations. */
+function hierarchySpacingFindings(
+  pattern: RepeatedPattern,
+  measured: Measurements,
+): DetectedFinding[] {
+  const byId = new Map(measured.nodes.map((node) => [node.id, node]));
+  const separations = new Map(measured.relations
+    .filter((relation) => relation.kind === 'separates')
+    .map((relation) => [`${relation.from}\0${relation.to}`, relation]));
+  const collisions = pattern.instances.flatMap((instanceId) => {
+    const instance = byId.get(instanceId);
+    if (instance === undefined || instance.children.length < 3) return [];
+    const leader = byId.get(instance.children[0]!);
+    const body = instance.children.slice(1).map((id) => byId.get(id));
+    if (leader === undefined || body.some((node) => node === undefined)) return [];
+    const bodyNodes = body as PresentationNode[];
+    if (
+      bodyNodes.length < 2 ||
+      bodyNodes.some((node) => node.semanticClass !== bodyNodes[0]!.semanticClass) ||
+      leader.semanticClass === bodyNodes[0]!.semanticClass
+    ) return [];
+    const leading = separations.get(`${leader.id}\0${bodyNodes[0]!.id}`);
+    const peer = bodyNodes.slice(0, -1).flatMap((node, index) =>
+      separations.get(`${node.id}\0${bodyNodes[index + 1]!.id}`) ?? []);
+    const leadingGap = leading?.distancePx;
+    const peerGap = median(peer.flatMap((relation) => relation.distancePx ?? []));
+    if (leadingGap === undefined || peerGap === undefined) return [];
+    const leadingClusters = new Set(leading?.spacingCluster === undefined ? [] : [leading.spacingCluster]);
+    const peerClusters = new Set(peer.flatMap((relation) => relation.spacingCluster ?? []));
+    const sharedCluster = [...leadingClusters].some((cluster) => peerClusters.has(cluster));
+    const smaller = Math.min(leadingGap, peerGap);
+    const larger = Math.max(leadingGap, peerGap);
+    const ratio = smaller === 0 ? (larger === 0 ? 1 : Number.POSITIVE_INFINITY) : larger / smaller;
+    if (!sharedCluster && ratio > CALIBRATION.relationshipRatio) return [];
+    return [{
+      instance: instance.id,
+      leader: leader.id,
+      body: bodyNodes.map((node) => node.id),
+      leadingGap,
+      peerGap,
+      ratio,
+      sharedCluster,
+    }];
+  });
+  if (collisions.length < 2) return [];
+  return [{
+    rule: 'SPACING_HIERARCHY_COLLISION',
+    owner: pattern.parent,
+    nodes: collisions.map((collision) => collision.instance),
+    pattern: pattern.id,
+    measurements: {
+      instances: collisions.length,
+      leadingToBodyGapMedianPx: round(median(collisions.map((collision) => collision.leadingGap))!, 2),
+      bodyToBodyGapMedianPx: round(median(collisions.map((collision) => collision.peerGap))!, 2),
+      ratio: round(median(collisions.map((collision) => collision.ratio))!),
+      sharedSpacingClusterInstances: collisions.filter((collision) => collision.sharedCluster).length,
+    },
+  }];
 }
 
 function relationshipFindings(

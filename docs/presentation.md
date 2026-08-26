@@ -88,6 +88,7 @@ The deterministic set remains deliberately small:
 |---|---|
 | `SEPARATION_COLLISION` | Between-object boundary strength is indistinguishable from within-object boundaries |
 | `SPACING_RELATION_COLLISION` | Different relationship classes occupy the same inferred spacing cluster or distribution |
+| `SPACING_HIERARCHY_COLLISION` | A leading structural label-to-body relation occupies the same spacing cluster or distribution as the body peer-to-peer relation it should distinguish |
 | `ALIGNMENT_OUTLIER` | One corresponding peer departs from a dominant alignment axis |
 | `BASELINE_DRIFT` | One corresponding text-bearing peer departs from an inferred baseline |
 | `PROMINENCE_COLLAPSE` | A heading class and an ordinary text class occupy the same prominence treatment |

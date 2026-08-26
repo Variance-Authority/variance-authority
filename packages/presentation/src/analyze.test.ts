@@ -62,6 +62,32 @@ describe('presentation intelligence', () => {
       ]));
   });
 
+  it('reports a leading structural label spaced like the body peers it introduces', () => {
+    const report = analyzePresentation(rawCapture(structuredRecords({ leading: 4, peer: 4 })));
+    const finding = report.findings?.find((candidate) => candidate.rule === 'SPACING_HIERARCHY_COLLISION');
+
+    expect(finding).toEqual(expect.objectContaining({
+      owner: 'r0:0',
+      measurements: expect.objectContaining({
+        leadingToBodyGapMedianPx: 4,
+        bodyToBodyGapMedianPx: 4,
+        ratio: 1,
+      }),
+    }));
+    const paint = report.paint?.filter((instruction) => instruction.finding === finding?.id);
+    expect(paint?.every((instruction) => instruction.shape === 'line')).toBe(true);
+    expect(paint?.map((instruction) => instruction.label)).toEqual(expect.arrayContaining([
+      'leading→body 4px',
+      'body→body 4px',
+    ]));
+  });
+
+  it('keeps a leading structural label distinct when its body relation has its own spacing', () => {
+    const report = analyzePresentation(rawCapture(structuredRecords({ leading: 2, peer: 8 })));
+
+    expect(report.findings?.some((candidate) => candidate.rule === 'SPACING_HIERARCHY_COLLISION')).toBe(false);
+  });
+
   it('compares prominence among structural peers rather than ancestors and descendants', () => {
     const report = analyzePresentation(rawCapture(node(
       'main',
@@ -207,6 +233,32 @@ function records(options: {
   });
   const total = options.count * height + (options.count - 1) * options.between;
   return node('main', rect(0, 0, 320, total), children, { role: 'main', name: 'Demands' });
+}
+
+function structuredRecords(options: { readonly leading: number; readonly peer: number }): RawNode {
+  const records = Array.from({ length: 4 }, (_, index) => {
+    const top = index * 180;
+    const labelHeight = 16;
+    const bodyHeight = 32;
+    const firstBody = top + labelHeight + options.leading;
+    return node(
+      'article',
+      rect(0, top, 320, 160),
+      [
+        node('span', rect(0, top, 320, labelHeight), [text(`Document ${index}`)], { role: null, name: null }, {
+          'font-weight': '600',
+        }),
+        ...Array.from({ length: 3 }, (_, bodyIndex) => node(
+          'div',
+          rect(0, firstBody + bodyIndex * (bodyHeight + options.peer), 320, bodyHeight),
+          [text(`Field ${bodyIndex}`)],
+          { role: null, name: null },
+        )),
+      ],
+      { role: 'article', name: `Record ${index}` },
+    );
+  });
+  return node('main', rect(0, 0, 320, 700), records, { role: 'main', name: 'Records' });
 }
 
 function rawCapture(root: RawNode, layout = true): RawCapture {
