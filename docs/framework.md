@@ -1,6 +1,6 @@
 # The framework, as a dimension
 
-Every band in this system reads the artefact — the markup, the CSS that applies
+Every dimension in this system reads the artefact — the markup, the CSS that applies
 to it, the boxes it produced. The artefact is a render in the past tense, and a
 whole class of fact never reaches it.
 
@@ -16,7 +16,7 @@ the four instruments below are four different questions asked of it.
 
 | Instrument | Answers | Shape |
 |---|---|---|
-| [`wiringOf`](#wiring-a-sixth-band) | how the framework holds this component — hooks, wrappers, contexts, keys | a **band**, hashed and stored |
+| [`wiringOf`](#wiring-a-sixth-digest) | how the framework holds this component — hooks, wrappers, contexts, keys | a **digest**, hashed and stored beside the others |
 | [`remountedSince`](#remounts-what-the-document-cannot-show-you) | which instances were destroyed and rebuilt rather than updated | a **finding**, from an export you call |
 | [`awaitQuiet`](stabilization.md#tapcommits--which-components-rendered-and-when-they-stopped) | which components are still committing, by name | a wait, and a diagnostic |
 | [`awaitSuspense`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name) | which boundary has not resolved, and who wrote it | a wait, and a **refusal** |
@@ -27,7 +27,7 @@ This page is about the first two, which are about a page that has.
 
 ---
 
-## Wiring: a sixth band
+## Wiring: a sixth digest
 
 ```ts
 collect(subject, { …, provenanceOf, wiringOf })
@@ -52,8 +52,8 @@ byte-identical `innerHTML` — and disagree on `wiring`.
 
 **Hook *values* are deliberately absent.** `useState(0)` records `useState` and
 never `0`. A value moves between two readings of an unchanged page by design, and
-a band that moves when nothing changed is worse than no band, because it produces
-work.
+a dimension that moves when nothing changed is worse than none, because it
+produces work.
 
 ### It stores nothing you were storing before
 
@@ -66,7 +66,7 @@ re-approves nothing, and changes no stored digest
 
 ### Absent is not empty
 
-A node no adapter could read is **absent** from the band. A component that was
+A node no adapter could read is **absent** from the digest. A component that was
 read perfectly and declares nothing reports an empty wiring, which is a different
 claim and hashes differently. A page with no framework and a plain component must
 not compare equal, and a component that *lost* its `memo` must not read like one
@@ -127,10 +127,10 @@ component owns no element of its own, and it is usually the one the author wrote
 and the one whose remount explains the rest, so `remounted[0]` is the outermost
 thing that was rebuilt rather than the innermost thing that noticed.
 
-### Why this is a finding and not a band
+### Why this is a finding and not a digest
 
 The rule is checkable, and it is what splits this page in two: **read the same
-page twice without changing anything, and if the value moved, it is not a band.**
+page twice without changing anything, and if the value moved, it is not one.**
 
 Hook shape, wrappers, contexts and keys survive that. Whether an instance
 remounted cannot, by construction — it is a property of a *reading*, not of a
@@ -139,7 +139,7 @@ run, and never stored beside `style`.
 
 The residual ambiguity is stated: two unkeyed siblings of one component at one
 depth, one removed and one added, will match each other. That is a list with no
-keys — which the wiring band reports separately, and the two are meant to be read
+keys — which the wiring digest reports separately, and the two are meant to be read
 together.
 
 ---
@@ -148,10 +148,10 @@ together.
 
 - **It is React.** `collect()` takes `wiringOf` as a callback, exactly as it takes
   `provenanceOf`, so another framework supplies its own — but no other
-  implementation exists, and a page without one is absent from the band rather
+  implementation exists, and a page without one is absent from the digest rather
   than reported as unwired.
 - **Nothing waits on these two.** Wiring and remounts are exports a caller uses,
-  and no shipped collector passes `wiringOf` — the band is defined and hashed
+  and no shipped collector passes `wiringOf` — the digest is defined and hashed
   where a caller supplies the reader, and absent otherwise.
   The Suspense reader is the exception: every *browser* collector waits for
   boundaries to settle before it reads, and refuses a subject that is still

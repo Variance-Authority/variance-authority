@@ -8,6 +8,20 @@ covering a feature; start from the question you actually have.
 The [root README](../README.md) is the shortest path into a suite. The
 [package READMEs](../packages) are the API surface.
 
+## The words these pages use
+
+A handful of nouns carry the whole model, and every page below assumes them.
+
+| Word | What it means |
+| --- | --- |
+| **subject** | One UI state a run addresses — a story, a route, a fixture, or a value — identified by an id that survives a rename. |
+| **band** | Which kind of difference a delta is: `a11y`, `geometry`, `token`, `content`, `texture`, loudest first. The band decides how loudly it is reported. |
+| **digest** | One hashed dimension of a component instance — `structure`, `semantics`, `text`, `style`, `geometry`, `wiring`. Two equal digests are a match, never a resemblance. |
+| **root** | The cause a change is attributed to, such as `component:Button` or `token:--va-color-accent`. Stable across subjects and builds, which is what lets an approval keep applying. |
+| **cluster** | Regions that share a semantic fingerprint — the kind of root, the shapes of the deltas, and the component responsible — so one decision covers all of them and reaches nothing else. |
+| **docket** | What a run leaves for a decision: the roots nobody declared, ranked by cause rather than by area. |
+| **verdict** | The one word a subject ends in — `unchanged`, `inherited`, `authorized`, `needs-review`, `violation`, or `unexplained`. A band a profile could not observe reports `unobserved`, which is not a verdict and never collapses into one. |
+
 ## Deciding whether it fits
 
 | Page | Reader question |

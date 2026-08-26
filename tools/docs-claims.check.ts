@@ -342,6 +342,18 @@ describe('every package this repository names exists', () => {
   });
 });
 
+/** A box is a directory directly under `packages/`; nothing deeper is one. */
+const PACKAGES = execFileSync('git', ['ls-files', 'packages/*/package.json'], {
+  cwd: ROOT,
+  encoding: 'utf8',
+})
+  .trim()
+  .split('\n')
+  // `*` matches `/` in a git pathspec, so this glob also reaches the miniature
+  // workspace `packages/package` keeps under `src/__fixtures__`.
+  .filter((file) => file.split('/').length === 3)
+  .map((file) => file.split('/')[1]!);
+
 /**
  * The inventory in `docs/architecture.md` is the package list, not a sample of it.
  *
@@ -358,18 +370,6 @@ describe('every package this repository names exists', () => {
  * that is not there.
  */
 describe('the architecture inventory lists every package', () => {
-  const PACKAGES = execFileSync('git', ['ls-files', 'packages/*/package.json'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  })
-    .trim()
-    .split('\n')
-    // `*` matches `/` in a git pathspec, so this glob also reaches the miniature
-    // workspace `packages/package` keeps under `src/__fixtures__`. A box is a
-    // directory directly under `packages/`; nothing deeper is one.
-    .filter((file) => file.split('/').length === 3)
-    .map((file) => file.split('/')[1]!);
-
   const INVENTORY =
     readFileSync(join(ROOT, 'docs/architecture.md'), 'utf8')
       .split('\n## ')
@@ -384,6 +384,79 @@ describe('the architecture inventory lists every package', () => {
 
   it('lists every package there is, and nothing that is not one', () => {
     expect([...LISTED].sort()).toEqual([...PACKAGES].sort());
+  });
+});
+
+/**
+ * The vocabulary the documentation index defines is the vocabulary the code has.
+ *
+ * `docs/README.md` is the first page an outside reader opens, and the only place
+ * that says what a band, a digest, a root, a docket or a verdict is. A glossary
+ * is the worst thing in a repository to leave unchecked: it is written once, read
+ * by everyone who arrives after, and nothing about a stale entry looks wrong.
+ *
+ * Both lists come out of the source rather than out of the built package, so this
+ * fails on the commit that renames a band and not on the one that rebuilds.
+ */
+describe('the documented vocabulary is the real one', () => {
+  const INDEX = readFileSync(join(ROOT, 'docs/README.md'), 'utf8');
+
+  /** The backticked words in one table row of the glossary. */
+  const worded = (term: string) =>
+    [...(new RegExp(`^\\| \\*\\*${term}\\*\\* \\|(.+)$`, 'm').exec(INDEX)?.[1] ?? '').matchAll(
+      /`([a-z-]+)`/g,
+    )].map((match) => match[1]!);
+
+  const listed = (file: string, name: string) =>
+    [...(new RegExp(`${name}[^=]*= \\[([^\\]]+)\\]`).exec(readFileSync(join(ROOT, file), 'utf8'))?.[1] ?? '')
+      .matchAll(/'([a-z-]+)'/g)].map((match) => match[1]!);
+
+  it('finds a glossary to check, so this rule cannot pass by reading nothing', () => {
+    expect(worded('band').length).toBeGreaterThan(3);
+    expect(worded('verdict').length).toBeGreaterThan(3);
+  });
+
+  it('names every band, in the order the loudest one is read from', () => {
+    expect(worded('band')).toEqual(listed('packages/core/src/compare/band.ts', 'const BANDS'));
+  });
+
+  it('names every verdict, in severity order, and `unobserved` after them', () => {
+    expect(worded('verdict')).toEqual([
+      ...listed('packages/core/src/judge/verdict.ts', 'const SEVERITY'),
+      'unobserved',
+    ]);
+  });
+});
+
+/**
+ * The fleet listing on the site is the one every manifest points at.
+ *
+ * All 28 manifests set `homepage` to the `#packages` anchor, so a package the
+ * grid does not name publishes a registry link to a page that does not mention
+ * it. The grid also went unrendered once — written, imported by nothing, and
+ * therefore checked by nothing — which is how it came to list 22 of 25 boxes
+ * without a single failing test.
+ *
+ * Against the package directories rather than against the architecture table, so
+ * the site and the documentation cannot agree with each other and both be wrong.
+ */
+describe('the site names every package', () => {
+  const GRID = readFileSync(join(ROOT, 'site/app/components/Packages.tsx'), 'utf8');
+
+  const NAMED = [...GRID.matchAll(/\bname: "([a-z0-9-]+)"/g)].map((match) => match[1]!);
+
+  it('finds a grid to check, so this rule cannot pass by reading nothing', () => {
+    expect(NAMED.length).toBeGreaterThan(20);
+  });
+
+  it('shows every package there is, and nothing that is not one', () => {
+    expect([...NAMED].sort()).toEqual([...PACKAGES].sort());
+  });
+
+  it('is on the page the anchor promises', () => {
+    const page = readFileSync(join(ROOT, 'site/app/page.tsx'), 'utf8');
+    expect(page).toContain('<Packages />');
+    expect(GRID).toContain('id="packages"');
   });
 });
 

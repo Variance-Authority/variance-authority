@@ -1,4 +1,4 @@
-import { DOCS, GITHUB } from "../links";
+import { DOCS, DOCS_INDEX, GITHUB } from "../links";
 import Mark from "./Mark";
 
 /** Only destinations that exist: page anchors, and files under docs/. */
@@ -18,7 +18,7 @@ const FOOTER = [
   {
     title: "project",
     links: [
-      { href: DOCS, label: "Documentation" },
+      { href: DOCS_INDEX, label: "Documentation" },
       { href: `${DOCS}/architecture.md`, label: "Architecture" },
       { href: `${DOCS}/attribution.md`, label: "Attribution" },
       { href: `${DOCS}/comparison.md`, label: "Comparison" },

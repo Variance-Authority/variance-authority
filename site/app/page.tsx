@@ -287,6 +287,14 @@ export default function Page() {
                   exact safe acceptance and names what must stay in review. The
                   agent edits and reruns; the reviewer sees the same account.
                 </p>
+                <p className="mt-4 leading-7 text-quiet">
+                  Some of what an agent needs has no baseline behind it.
+                  Presentation senses the relationships inside one live page —
+                  spacing, alignment, prominence, repetition. Scenarios record
+                  Arrange, Act, Assert as a state machine and assess the
+                  variance across a transition. Both answer while the agent
+                  works, with nothing to approve.
+                </p>
                 <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
                   Agent-ready is not a report the agent can read. It is a review
                   loop the agent can complete.

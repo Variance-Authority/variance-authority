@@ -45,6 +45,14 @@ also name what changed and where to review it:
       examples/readme-case/src/Button.js:9
 ```
 
+A **root** is a cause, not a screenshot: forty subjects that moved because one
+token moved are one root, addressed as `component:Button` or
+`token:--va-color-accent` and stable across builds. A branch that declares the
+roots it means to change gets each of them back `authorized` and out of the way;
+anything undeclared is `needs-review`, or a `violation` where project policy
+forbids it. What is left, ranked by cause, is the **docket** — the list a
+reviewer or an agent actually works through.
+
 [`examples/readme-case`](examples/readme-case) generates all three images and
 that report in the same Chromium run. The generated provenance records the
 Chromium engine, the paint-only `background-color` change, and the changed-pixel
@@ -240,7 +248,9 @@ reports, acceptance, and CI exit codes.
 [`docs/`](docs/README.md) is the reference, grouped by the question a reader
 arrives with: whether this fits, what a run decides, how a flake is told from a
 change, how less of a suite gets run, what needs no baseline, and what each
-claim is measured against. The [visual guidelines](docs/visual-guidelines.md)
+claim is measured against. [Architecture](docs/architecture.md) is the shape of
+the fleet: which package owns which domain, and which way a dependency is
+allowed to point. The [visual guidelines](docs/visual-guidelines.md)
 define the ribbon mark, palette and illustration grammar used across the
 repository and its packages.
 
