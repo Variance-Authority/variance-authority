@@ -1,0 +1,44 @@
+{
+  "name": "@variance-authority/presentation",
+  "version": "0.0.0-beta.1",
+  "license": "MIT",
+  "author": "Mechanic Garden",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/variance-authority/variance-authority.git",
+    "directory": "packages/presentation"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./playwright": {
+      "types": "./dist/playwright.d.ts",
+      "default": "./dist/playwright.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/dom": "workspace:^",
+    "@variance-authority/react": "workspace:^"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.49 <2"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    }
+  }
+}

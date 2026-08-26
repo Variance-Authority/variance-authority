@@ -26,6 +26,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Each entry is `[package, entry within dist, output within dist]`. */
 const AGENTS = [
+  ['packages/presentation', 'browser-agent-entry.js', 'browser-agent.bundle.js'],
   ['packages/playwright-test', 'page-agent-entry.js', 'page-agent.bundle.js'],
   ['packages/storybook-collector', 'page-agent-entry.js', 'page-agent.bundle.js'],
   ['packages/route-collector', 'page-agent-entry.js', 'page-agent.bundle.js'],

@@ -73,6 +73,14 @@ a control that never had an accessible name, or a string nobody translated.
 When a profile cannot observe a band, the report says `unobserved`; it does not
 turn missing evidence into a pass.
 
+[`@variance-authority/presentation`](packages/presentation) is a separate live
+sensing surface for the relationships inside one interface. It exposes semantic
+anchors, spacing, alignment, inferred baselines, surfaces, prominence, repeated
+patterns, and Playwright's independent ARIA reading as machine-readable evidence
+an agent can inspect and paint while it works. It creates no baseline or
+regression verdict; density, dimensions, margins, and utilization remain
+telemetry rather than design policy.
+
 The result is one report for a person, a pull request, or a coding agent. It can
 be JSON, a single HTML file, or an MCP response, and the process exits with a
 verdict: `0` for nothing to review, `1` for changes to review, and `2` for an

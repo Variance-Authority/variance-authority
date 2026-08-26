@@ -208,6 +208,7 @@ export interface Declaration {
   readonly references?: readonly string[];
 }
 
+/** Browser-layout coordinates retained as evidence, without a preferred layout policy. */
 export interface Rect {
   readonly x: number;
   readonly y: number;

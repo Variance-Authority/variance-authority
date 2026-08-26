@@ -29,6 +29,9 @@
       "path": "./packages/scenario"
     },
     {
+      "path": "./packages/presentation"
+    },
+    {
       "path": "./packages/png"
     },
     {

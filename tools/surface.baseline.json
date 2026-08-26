@@ -1436,6 +1436,56 @@
       }
     }
   },
+  "@variance-authority/presentation": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./playwright": {
+          "types": "./dist/playwright.d.ts",
+          "default": "./dist/playwright.js"
+        }
+      },
+      "files": [
+        "dist",
+        "mark.svg"
+      ]
+    },
+    "names": {
+      ".": {
+        "AlignmentAxis": "interface",
+        "AnalyzePresentationOptions": "interface",
+        "BaselineCluster": "interface",
+        "ElementReference": "interface",
+        "PaintInstruction": "interface",
+        "PaintLayer": "type",
+        "PresentationComparison": "interface",
+        "PresentationFinding": "interface",
+        "PresentationFindingRule": "type",
+        "PresentationNode": "interface",
+        "PresentationRelation": "interface",
+        "PresentationReport": "interface",
+        "PresentationSignature": "interface",
+        "PresentationTelemetry": "interface",
+        "ProminenceCluster": "interface",
+        "RepeatedPattern": "interface",
+        "SpacingCluster": "interface",
+        "SurfaceGroup": "interface",
+        "analyzePresentation": "function",
+        "comparePresentation": "function"
+      },
+      "./playwright": {
+        "SensePresentationOptions": "interface",
+        "clearPresentationPaint": "function",
+        "sensePresentation": "function"
+      }
+    }
+  },
   "@variance-authority/raster": {
     "declared": {
       "type": "module",

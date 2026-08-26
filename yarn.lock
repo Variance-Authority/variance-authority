@@ -2950,6 +2950,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/presentation@workspace:packages/presentation":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/presentation@workspace:packages/presentation"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+  peerDependencies:
+    "@playwright/test": ">=1.49 <2"
+  peerDependenciesMeta:
+    "@playwright/test":
+      optional: true
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/raster@workspace:^, @variance-authority/raster@workspace:packages/raster":
   version: 0.0.0-use.local
   resolution: "@variance-authority/raster@workspace:packages/raster"

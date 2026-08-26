@@ -132,6 +132,7 @@ entrypoints.
 | `jsx-source` | a JSX transform you control, and a React runtime | the file and line that wrote an element, carried as far as the DOM node |
 | `session` | a live DOM | many subjects in one standing world |
 | `scenario` | semantic snapshots; its archive entrypoint additionally needs a filesystem | witnessed AAA paths, transition-effect assessment, a partial state machine, and opt-in semantic retention |
+| `presentation` | a browser capture; its Playwright entrypoint additionally needs a live browser | one subject's presentation graph, independent ARIA evidence, relationship findings, and removable diagnostic paint |
 | `playwright` | a browser | the persistent harness, and a renderer |
 | `playwright-test` | a browser, and a Playwright test run | additive observation and assertion helpers; optional unbound fixture and matcher parts |
 | `unit-test` | a live DOM, and a writable artifact directory | resource-closed capture archives and a CLI collector for a later render process |
