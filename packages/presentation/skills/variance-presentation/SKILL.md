@@ -17,6 +17,10 @@ change, return a build verdict, score UI quality, or prescribe a redesign.
 
 Preserve product meaning and expose rendered relationships.
 
+Use this authority order: product meaning → structural ownership → rendered
+relationship → component contract → design-system token. A token is evidence of
+implementation, never authorization for the relationship in which it appears.
+
 - Treat content volume, density, dimensions, margins, whitespace, utilization,
   and page height as telemetry. None is independently a defect.
 - Do not recommend deleting, hiding, collapsing, or truncating required
@@ -42,6 +46,7 @@ and the user decide the response to that evidence.
 | One structural level in an existing report | `focusPresentation` from `@variance-authority/presentation` | Pure owner reading that keeps nested evidence separate by default |
 | Product-known visual peers across wrappers | `inspectPresentationAlignment` plus `paintPresentationAlignment` | Explicit coordinates, spread, member deviations, and matching paint without a verdict or another acquisition |
 | Consecutive regions arranged by one box or composition | `inspectPresentationSpacing` plus `paintPresentationSpacing` | Every adjacent gap and boundary at that owner, even when the regions have different semantic shapes |
+| Product-known hierarchy roles across nested owners | `inspectPresentationHierarchy` plus `paintPresentationHierarchy` | Typed outside-in relationship levels, adjacent collisions, findings, and role-labelled paint |
 | Two presentation reports | `comparePresentation` from `@variance-authority/presentation` | Optional edit feedback with finding counts and information identity kept separate |
 
 Prefer a page the caller already owns. Launch a browser only when the user asks
@@ -85,7 +90,16 @@ Then choose one path:
    compare `leading → first body` with `body → next body`. Equal relationship
    classes erase that level of the visual hierarchy even when the owner's outer
    boundary remains stronger.
-5. Isolate one finding id before paint. Add a pattern or measurement layer only
+5. When product meaning identifies the roles, declare them with
+   `inspectPresentationHierarchy`: `owner-boundary`, `leading-to-body`,
+   `body-peer`, then `content-internal`. Do not derive those roles from token
+   names. The contract rejects reversed levels, duplicated roles, reused
+   relationships and nodes outside its owner.
+6. Challenge a clean report once at the mapped hierarchy: identify a plausible
+   relationship class automatic inference did not compare. Stop when the map
+   contains no product-authorized peer set or relationship role left unmeasured;
+   do not manufacture intent to force a finding.
+7. Isolate one finding id before paint. Add a pattern or measurement layer only
    when it answers the same question.
 
 After sensing, the report becomes a structural map, then one owned relationship,
@@ -251,11 +265,13 @@ one inspectable relationship.
 import {
   focusPresentation,
   inspectPresentationAlignment,
+  inspectPresentationHierarchy,
   inspectPresentationSpacing,
 } from '@variance-authority/presentation';
 import {
   paintPresentationAlignment,
   paintPresentationFocus,
+  paintPresentationHierarchy,
   paintPresentationSpacing,
 } from '@variance-authority/presentation/playwright';
 
@@ -292,6 +308,18 @@ const rhythm = inspectPresentationSpacing(
 );
 console.log(rhythm.distance, rhythm.boundary, rhythm.separations);
 await paintPresentationSpacing(page, rhythm);
+
+const hierarchy = inspectPresentationHierarchy(report, {
+  id: 'record-hierarchy',
+  owner: composition.id,
+  axis: 'vertical',
+  levels: [
+    { role: 'leading-to-body', relations: [{ from: 'r0:0/1/0', to: 'r0:0/1/1' }] },
+    { role: 'body-peer', relations: [{ from: 'r0:0/1/1', to: 'r0:0/1/2' }] },
+  ],
+});
+console.log(hierarchy.collisions, hierarchy.findings);
+await paintPresentationHierarchy(page, hierarchy);
 ```
 
 `focusPresentation` refuses an unknown owner and refuses a requested finding
@@ -308,6 +336,13 @@ the sequence: several touching regions followed by one spacious boundary is
 different evidence from a uniformly spaced composition with the same maximum.
 Heterogeneous regions are not required to align or repeat; their shared owner is
 what makes their adjacent spacing one inspectable relationship.
+
+`inspectPresentationHierarchy` is the product-owned route when automatic
+inference or a design system cannot establish meaning. Read every level and its
+pair before the collisions. Equal token values across adjacent roles are
+evidence of a collision, but token validity, popularity and naming do not alter
+the result. Treat the contract as a falsifiable hypothesis: the owner, nodes,
+axis and outside-in order must survive inspection of the rendered graph.
 
 ## Preserve ARIA as a separately sensitive signal
 

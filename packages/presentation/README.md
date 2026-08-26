@@ -156,6 +156,48 @@ children in the owner's structural order. This prevents a broad descendant set
 from becoming an invented spacing relationship. The result is evidence, not a
 preferred gap or an automatic finding.
 
+## Declare relationship roles instead of trusting tokens
+
+A design-system token describes how spacing was implemented. Product structure
+decides what the spacing relates. Declare that structure over an existing
+report:
+
+```ts
+import {
+  inspectPresentationHierarchy,
+  type PresentationHierarchyContract,
+  type PresentationReport,
+} from '@variance-authority/presentation';
+import type { Page } from '@playwright/test';
+import { paintPresentationHierarchy } from '@variance-authority/presentation/playwright';
+
+declare const page: Page;
+declare const report: PresentationReport;
+
+const contract: PresentationHierarchyContract = {
+  id: 'demand-record',
+  owner: 'r0:0',
+  axis: 'vertical',
+  levels: [
+    { role: 'owner-boundary', relations: [{ from: 'r0:0/0', to: 'r0:0/1' }] },
+    { role: 'leading-to-body', relations: [{ from: 'r0:0/1/0', to: 'r0:0/1/1' }] },
+    { role: 'body-peer', relations: [{ from: 'r0:0/1/1', to: 'r0:0/1/2' }] },
+    { role: 'content-internal', relations: [{ from: 'r0:0/1/1/0', to: 'r0:0/1/1/1' }] },
+  ],
+};
+const hierarchy = inspectPresentationHierarchy(report, contract);
+
+console.log(hierarchy.levels, hierarchy.collisions, hierarchy.findings);
+await paintPresentationHierarchy(page, hierarchy);
+```
+
+Roles are ordered outside-in and may not repeat. Every relationship must be a
+measured separation inside the declared owner, and one pair cannot hold two
+roles. Adjacent roles occupying the same spacing cluster or calibrated
+distribution produce `SPACING_HIERARCHY_COLLISION`; the result does not choose a
+replacement value. Paint labels each declared role, so a shared raw token cannot
+stand in for product intent.
+
 ## Analyze one capture
 
 ```ts

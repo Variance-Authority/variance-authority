@@ -1473,6 +1473,9 @@
         "PresentationFindingRule": "type",
         "PresentationFocus": "interface",
         "PresentationFocusDepth": "type",
+        "PresentationHierarchyContract": "interface",
+        "PresentationHierarchyReading": "interface",
+        "PresentationHierarchyRole": "type",
         "PresentationNode": "interface",
         "PresentationRelation": "interface",
         "PresentationReport": "interface",
@@ -1488,6 +1491,7 @@
         "comparePresentation": "function",
         "focusPresentation": "function",
         "inspectPresentationAlignment": "function",
+        "inspectPresentationHierarchy": "function",
         "inspectPresentationSpacing": "function"
       },
       "./playwright": {
@@ -1495,6 +1499,7 @@
         "clearPresentationPaint": "function",
         "paintPresentationAlignment": "function",
         "paintPresentationFocus": "function",
+        "paintPresentationHierarchy": "function",
         "paintPresentationSpacing": "function",
         "sensePresentation": "function"
       }

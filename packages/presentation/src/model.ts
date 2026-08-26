@@ -148,6 +148,58 @@ export interface PresentationSpacingReading {
   readonly paint: readonly PaintInstruction[];
 }
 
+/** Product-owned relationship roles, ordered from the outside of a structure inward. */
+export type PresentationHierarchyRole =
+  | 'owner-boundary'
+  | 'leading-to-body'
+  | 'body-peer'
+  | 'content-internal';
+
+export interface PresentationHierarchyContract {
+  readonly id: string;
+  /** The smallest graph node that contains every declared relationship. */
+  readonly owner: string;
+  readonly axis: PresentationSpacingAxis;
+  /** Ordered outside-in. A role is intent; it is not inferred from a design token. */
+  readonly levels: readonly {
+    readonly role: PresentationHierarchyRole;
+    readonly relations: readonly {
+      readonly from: string;
+      readonly to: string;
+    }[];
+  }[];
+}
+
+export interface PresentationHierarchyReading {
+  readonly formatVersion: 1;
+  readonly report: Digest;
+  readonly contract: PresentationHierarchyContract;
+  readonly owner: PresentationNode;
+  readonly levels: readonly {
+    readonly role: PresentationHierarchyRole;
+    readonly separations: readonly {
+      readonly from: PresentationNode;
+      readonly to: PresentationNode;
+      readonly distancePx: number;
+      readonly boundaryStrength: number;
+      readonly spacingCluster?: string;
+    }[];
+    readonly distanceMedianPx: number;
+    readonly boundaryMedian: number;
+    readonly spacingClusters: readonly string[];
+  }[];
+  readonly collisions: readonly {
+    readonly outer: PresentationHierarchyRole;
+    readonly inner: PresentationHierarchyRole;
+    readonly outerMedianPx: number;
+    readonly innerMedianPx: number;
+    readonly ratio: number;
+    readonly sharedSpacingClusters: readonly string[];
+  }[];
+  readonly findings: readonly PresentationFinding[];
+  readonly paint: readonly PaintInstruction[];
+}
+
 export interface BaselineCluster {
   readonly id: string;
   readonly coordinate: number;
@@ -202,6 +254,7 @@ export interface PresentationFinding {
   readonly owner: string;
   readonly nodes: readonly string[];
   readonly pattern?: string;
+  readonly contract?: string;
   readonly measurements: Readonly<Record<string, number | string>>;
 }
 
@@ -250,6 +303,7 @@ export interface PaintInstruction {
   readonly nodes: readonly string[];
   readonly finding?: string;
   readonly pattern?: string;
+  readonly contract?: string;
   readonly layer: PaintLayer;
   readonly shape: 'rect' | 'line' | 'label';
   readonly color: string;

@@ -4,11 +4,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from '@playwright/test';
 import { comparePresentation } from './compare.js';
 import { focusPresentation } from './focus.js';
-import { inspectPresentationAlignment, inspectPresentationSpacing } from './index.js';
+import {
+  inspectPresentationAlignment,
+  inspectPresentationHierarchy,
+  inspectPresentationSpacing,
+} from './index.js';
 import {
   clearPresentationPaint,
   paintPresentationAlignment,
   paintPresentationFocus,
+  paintPresentationHierarchy,
   paintPresentationSpacing,
   sensePresentation,
 } from './playwright.js';
@@ -112,6 +117,47 @@ live('live presentation sensing', () => {
     expect(reading.distance).toEqual({ minPx: 0, medianPx: 0, maxPx: 38 });
     expect(await paintPresentationSpacing(page, reading)).toBe(3);
     expect(await page.locator('[data-variance-authority-presentation-overlay] [data-layer="spacing"]').count()).toBe(3);
+    await page.close();
+  });
+
+  it('paints product-declared relationship roles without trusting their shared token', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    await page.setContent(`
+      <style>
+        * { margin: 0; }
+        main { display: flex; flex-direction: column; gap: 12px; }
+        article { display: flex; flex-direction: column; gap: 4px; }
+        .field { display: flex; flex-direction: column; gap: 2px; }
+      </style>
+      <main>
+        <article><p>Previous</p></article>
+        <article><strong>Document</strong><div class="field"><small>Does</small><span>Cooling off</span></div><div>Terminate</div></article>
+      </main>
+    `);
+
+    const report = await sensePresentation(page, page.getByRole('main'));
+    const byId = new Map(report.graph.nodes.map((node) => [node.id, node]));
+    const owner = report.graph.nodes.find((node) => node.parent === undefined)!;
+    const previous = owner.children[0]!;
+    const current = byId.get(owner.children[1]!)!;
+    const leader = current.children[0]!;
+    const firstBody = byId.get(current.children[1]!)!;
+    const secondBody = current.children[2]!;
+    const reading = inspectPresentationHierarchy(report, {
+      id: 'record-hierarchy',
+      owner: owner.id,
+      axis: 'vertical',
+      levels: [
+        { role: 'owner-boundary', relations: [{ from: previous, to: current.id }] },
+        { role: 'leading-to-body', relations: [{ from: leader, to: firstBody.id }] },
+        { role: 'body-peer', relations: [{ from: firstBody.id, to: secondBody }] },
+        { role: 'content-internal', relations: [{ from: firstBody.children[0]!, to: firstBody.children[1]! }] },
+      ],
+    });
+
+    expect(reading.findings).toHaveLength(1);
+    expect(await paintPresentationHierarchy(page, reading)).toBe(4);
+    expect(await page.locator('[data-variance-authority-presentation-overlay] [data-layer="findings"]').count()).toBe(4);
     await page.close();
   });
 

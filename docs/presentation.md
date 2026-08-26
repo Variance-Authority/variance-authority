@@ -100,6 +100,14 @@ Thresholds are implementation calibration, not design targets. They determine
 when measured peer evidence supports one of the named relationship findings;
 they never define a preferred density, margin, page dimension, or spacing scale.
 
+Product-known relationships can be declared after sensing with
+`inspectPresentationHierarchy`. Its typed roles run from `owner-boundary`
+through `content-internal`; the API refuses reversed or duplicated roles,
+relationships reused under two roles, missing separations and nodes outside the
+declared owner. Adjacent roles sharing a spacing cluster or calibrated local
+distribution become `SPACING_HIERARCHY_COLLISION` evidence. Design-system token
+identity is neither a role nor an exemption.
+
 ## ARIA is retained, not repaired
 
 The Playwright ARIA snapshot is a separately sensitive input to the report. The

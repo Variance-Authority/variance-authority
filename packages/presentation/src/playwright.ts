@@ -5,6 +5,7 @@ import type {
   PaintLayer,
   PresentationAlignmentReading,
   PresentationFocus,
+  PresentationHierarchyReading,
   PresentationReport,
   PresentationSpacingReading,
 } from './model.js';
@@ -119,6 +120,14 @@ export async function paintPresentationSpacing(
   reading: PresentationSpacingReading,
 ): Promise<number> {
   return paintPresentationInstructions(page, reading.paint, ['spacing']);
+}
+
+/** Paint one product-declared hierarchy reading without acquiring the page again. */
+export async function paintPresentationHierarchy(
+  page: Page,
+  reading: PresentationHierarchyReading,
+): Promise<number> {
+  return paintPresentationInstructions(page, reading.paint, ['findings']);
 }
 
 async function paintPresentationInstructions(
