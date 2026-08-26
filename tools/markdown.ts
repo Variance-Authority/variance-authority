@@ -12,12 +12,22 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
+/**
+ * A changelog is written by `changeset version`, and a file under `.changeset/`
+ * is consumed by it. Every rule below reads prose somebody chose the words of —
+ * a link worth resolving, an example worth compiling, a claim worth holding to
+ * source — and holding generated output to any of them holds a generator to a
+ * standard it cannot answer for. `.changeset/README.md` is authored and stays.
+ */
+const GENERATED = /(^|\/)CHANGELOG\.md$|^\.changeset\/(?!README\.md$)/;
+
 export const MARKDOWN: readonly string[] = execFileSync('git', ['ls-files', '*.md'], {
   cwd: ROOT,
   encoding: 'utf8',
 })
   .trim()
-  .split('\n');
+  .split('\n')
+  .filter((file) => !GENERATED.test(file));
 
 /** Markdown with fenced blocks blanked out, so a prose rule cannot read an example. */
 export function prose(file: string): string {

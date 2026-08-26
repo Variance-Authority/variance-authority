@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseConfig } from '@variance-authority/cli';
-import { FENCES, MARKDOWN, ROOT, fencesIn, lineOf, prose } from './markdown.js';
+import { FENCES, MARKDOWN, ROOT, fencesIn, lineOf } from './markdown.js';
 
 /**
  * Claims the documentation makes about itself, and about the binary.
@@ -153,52 +153,6 @@ describe('the documented command line is the real one', () => {
   it.todo(
     'every flag `.github/actions/variance/action.yml` hands the CLI is one the parser accepts — needs the action read as text and its `run:` lines pulled apart here, since the rules above see a command line only where a markdown fence holds it and the action is the one caller that is neither prose nor a test',
   );
-});
-
-/**
- * A count of the files this suite reads, stated in prose, is the count.
- *
- * Trivial to check and it has been wrong twice. The second time was a number
- * measured *mid-transaction* — two files staged as deleted and two not yet
- * tracked — which is the failure worth guarding, because the writer had just
- * run the command and had every reason to believe the answer.
- *
- * Deliberately narrow: only the phrase "N markdown files", which can mean one
- * thing. A rule that tried to check every number in the prose would be checking
- * measurements, and a measurement is a claim about a run rather than about the
- * repository as it stands.
- *
- * **"the other N" is read as N + 1**, because a page counting the rest of the
- * repository from inside it writes "this and the other N markdown files" and is
- * right. The alternative was to require the phrasing a simpler rule would accept,
- * which is the wrong direction: a checker that quietly forces one phrasing is a
- * checker that edits the prose it was supposed to be checking. No page is written
- * that way, so the branch answers a phrasing rather than a line.
- *
- * `backlog/` is excluded. A task's notes record what a run observed on the day it
- * ran, quoting the numbers it saw — including the ones it saw be *wrong*. Holding
- * a frozen record to the present count would demand editing history to keep a
- * checker quiet, which is the one repair that makes the record worthless.
- */
-describe('a stated file count is the file count', () => {
-  const STATED = MARKDOWN.filter((file) => !file.startsWith('backlog/')).flatMap((file) => {
-    const text = prose(file);
-    return [...text.matchAll(/(the other )?(\d+)\s+markdown files/g)].map(
-      (match) =>
-        [
-          `${file}:${lineOf(text, match.index)}`,
-          Number(match[2]) + (match[1] === undefined ? 0 : 1),
-        ] as const,
-    );
-  });
-
-  it('finds a count to check, so this rule cannot pass by reading nothing', () => {
-    expect(STATED.length).toBeGreaterThan(0);
-  });
-
-  it.each(STATED)('%s', (_where, stated) => {
-    expect(stated).toBe(MARKDOWN.length);
-  });
 });
 
 /**

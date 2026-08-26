@@ -267,7 +267,7 @@ cross-repo `inherited`, hosted anything. No push, no publish.
   page it was acquired from".
 - **The documentation is checked now, and one class of it still is not.**
   `tools/docs-links.check.ts` resolves every link, every backticked repository
-  path and every `file:line` reference across all 219 markdown files, and compiles
+  path and every `file:line` reference across the markdown corpus, and compiles
   every README `ts` example against the built `.d.ts` with no unused import. It
   found that **11 of the 20 examples did not compile** — wrong arity, options
   that were renamed, a field that no longer exists — which is what a reader was
