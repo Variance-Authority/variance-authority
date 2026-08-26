@@ -47,6 +47,7 @@ answering it means speaking a protocol over a pipe.
 ## Serve it
 
 ```bash
+npm install --save-dev @variance-authority/help
 variance-authority-help .
 ```
 

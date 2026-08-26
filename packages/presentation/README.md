@@ -18,6 +18,11 @@ The packaged [`variance-presentation`](skills/variance-presentation/SKILL.md)
 skill gives coding agents the complete live, raw-capture, headed collaboration,
 ARIA, paint, finding, and re-sensing workflow.
 
+```bash
+npm install --save-dev @variance-authority/presentation @playwright/test
+npx playwright install chromium
+```
+
 ## Sense once, then choose the structural owner
 
 ```ts

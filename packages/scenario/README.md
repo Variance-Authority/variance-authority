@@ -15,6 +15,10 @@ The host remains responsible for producing `page-loading`, `page-error`,
 the existing planned-subject naming machinery; this package records that evidence
 and never tries to infer fixtures, mocks, cookies, routes, or flags.
 
+```bash
+npm install --save-dev @variance-authority/scenario
+```
+
 ## Record and assess two paths
 
 ```ts

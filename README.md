@@ -64,10 +64,10 @@ A PNG knows colours and coordinates. It does not know that the changed pixels
 came from `Button`, or that only its paint changed while its structure held.
 
 Variance Authority therefore compares the **rendered document**, not just its
-image. A run acquires the markup, the CSS that applies to it, the
-component ownership chain, and the source provenance available from the
-collector. It then asks each question at the cheapest representation that can
-answer it:
+image. A run acquires the markup, the CSS that applies to it, the component
+ownership chain — React's, read straight off the fiber, with no protocol to
+adopt — and whatever source provenance the collector can supply. It then asks
+each question at the cheapest representation that can answer it:
 
 - structure and authored CSS before a browser is needed;
 - semantics under `jsdom` or Chromium;
@@ -204,6 +204,7 @@ onto the team adopting it:
 | **Compute** | Rendering happens on your machines or on a pinned renderer you operate. |
 | **Storage** | Baselines can live in a directory, git-LFS, or a service you deploy. Storage location does not change the verdict. |
 | **Mounting** | Storybook, served URLs, Playwright suites, and browserless unit DOMs have adapters. A custom component environment supplies its own collector and definition of “ready.” |
+| **Provenance** | A component name and a `file:line` come from the collector. React supplies the owner chain off the fiber, and a JSX-source transform carries the authored line; with neither, a name still resolves to where it is declared by reading source. A region nothing can account for is reported as a region, never as a guessed component. |
 | **The gate** | The exit code integrates with any CI that runs a command. Pull-request comments and their credentials remain your workflow. |
 | **Comparability** | Raster artifacts are keyed by renderer identity. Two incompatible identities are reported as `incomparable`, never `different`. |
 
