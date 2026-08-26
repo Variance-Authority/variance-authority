@@ -116,6 +116,37 @@ export interface PresentationAlignmentReading {
   readonly paint: readonly PaintInstruction[];
 }
 
+export type PresentationSpacingAxis = 'horizontal' | 'vertical';
+
+export interface PresentationSpacingReading {
+  readonly formatVersion: 1;
+  readonly report: Digest;
+  /** The box or composition whose immediate children own these separations. */
+  readonly owner: PresentationNode;
+  readonly axis: PresentationSpacingAxis;
+  /** Consecutive immediate children in structural order. */
+  readonly members: readonly PresentationNode[];
+  readonly separations: readonly {
+    readonly from: PresentationNode;
+    readonly to: PresentationNode;
+    readonly distancePx: number;
+    readonly boundaryStrength: number;
+    readonly spacingCluster?: string;
+  }[];
+  readonly distance: {
+    readonly minPx: number;
+    readonly medianPx: number;
+    readonly maxPx: number;
+  };
+  readonly boundary: {
+    readonly min: number;
+    readonly median: number;
+    readonly max: number;
+  };
+  /** Boundary marks derived from this reading; painting does not acquire the page. */
+  readonly paint: readonly PaintInstruction[];
+}
+
 export interface BaselineCluster {
   readonly id: string;
   readonly coordinate: number;

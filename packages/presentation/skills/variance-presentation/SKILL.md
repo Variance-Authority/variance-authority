@@ -41,6 +41,7 @@ and the user decide the response to that evidence.
 | An existing `RawCapture` | `analyzePresentation` from `@variance-authority/presentation` | Pure report derivation; browser accessibility is optional independent evidence |
 | One structural level in an existing report | `focusPresentation` from `@variance-authority/presentation` | Pure owner reading that keeps nested evidence separate by default |
 | Product-known visual peers across wrappers | `inspectPresentationAlignment` plus `paintPresentationAlignment` | Explicit coordinates, spread, member deviations, and matching paint without a verdict or another acquisition |
+| Consecutive regions arranged by one box or composition | `inspectPresentationSpacing` plus `paintPresentationSpacing` | Every adjacent gap and boundary at that owner, even when the regions have different semantic shapes |
 | Two presentation reports | `comparePresentation` from `@variance-authority/presentation` | Optional edit feedback with finding counts and information identity kept separate |
 
 Prefer a page the caller already owns. Launch a browser only when the user asks
@@ -74,7 +75,12 @@ Then choose one path:
    nodes with `inspectPresentationAlignment`. Select one structural level rather
    than both a semantic wrapper and its nested control. The API measures the
    relationship; the product task authorizes the peer set.
-4. Isolate one finding id before paint. Add a pattern or measurement layer only
+4. For a box or composition that arranges different kinds of adjacent region,
+   inspect its consecutive immediate children with `inspectPresentationSpacing`.
+   Read every separation, not only repeated patterns or existing findings.
+   Compare the sequence of gaps and boundary strengths as one rhythm; then
+   descend into a child only to answer a separate internal-spacing question.
+5. Isolate one finding id before paint. Add a pattern or measurement layer only
    when it answers the same question.
 
 After sensing, the report becomes a structural map, then one owned relationship,
@@ -240,10 +246,12 @@ one inspectable relationship.
 import {
   focusPresentation,
   inspectPresentationAlignment,
+  inspectPresentationSpacing,
 } from '@variance-authority/presentation';
 import {
   paintPresentationAlignment,
   paintPresentationFocus,
+  paintPresentationSpacing,
 } from '@variance-authority/presentation/playwright';
 
 const owner = report.patterns?.find((pattern) => pattern.instances.length >= 3)?.parent;
@@ -269,6 +277,16 @@ const navFlow = inspectPresentationAlignment(
 );
 console.log(navFlow.spreadPx, navFlow.members);
 await paintPresentationAlignment(page, navFlow);
+
+const composition = report.graph.nodes.find((node) => node.parent === undefined)!;
+const rhythm = inspectPresentationSpacing(
+  report,
+  composition.id,
+  composition.children,
+  'vertical',
+);
+console.log(rhythm.distance, rhythm.boundary, rhythm.separations);
+await paintPresentationSpacing(page, rhythm);
 ```
 
 `focusPresentation` refuses an unknown owner and refuses a requested finding
@@ -278,6 +296,13 @@ Its spread is neutral measurement, not a threshold or finding. Alignment paint
 shows only the selected flow: one median axis and one deviation-labelled box per
 member. Role or name matching can discover candidates, but it does not authorize
 flattening a matching container and its matching descendant into the same flow.
+
+`inspectPresentationSpacing` refuses descendants, skipped siblings and an axis
+that does not describe the owned separations. Its range summaries do not replace
+the sequence: several touching regions followed by one spacious boundary is
+different evidence from a uniformly spaced composition with the same maximum.
+Heterogeneous regions are not required to align or repeat; their shared owner is
+what makes their adjacent spacing one inspectable relationship.
 
 ## Preserve ARIA as a separately sensitive signal
 
@@ -317,7 +342,10 @@ to the product task. Do not translate a finding into “looks wrong.”
 
 Thresholds are analyzer calibration. They are not user-facing design targets.
 A report with no findings is not a claim that the interface is good; it means no
-implemented relationship rule fired on the observed evidence.
+implemented relationship rule fired on the observed evidence. In particular,
+automatic relationship findings are local to inferred repeated patterns. Use an
+explicit spacing reading when the hierarchy says heterogeneous siblings form a
+composition whose rhythm must be inspected holistically.
 
 ## Paint evidence
 

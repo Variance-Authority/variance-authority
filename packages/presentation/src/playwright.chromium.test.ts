@@ -4,11 +4,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from '@playwright/test';
 import { comparePresentation } from './compare.js';
 import { focusPresentation } from './focus.js';
-import { inspectPresentationAlignment } from './index.js';
+import { inspectPresentationAlignment, inspectPresentationSpacing } from './index.js';
 import {
   clearPresentationPaint,
   paintPresentationAlignment,
   paintPresentationFocus,
+  paintPresentationSpacing,
   sensePresentation,
 } from './playwright.js';
 
@@ -89,6 +90,28 @@ live('live presentation sensing', () => {
     expect(reading.spreadPx).toBe(2);
     expect(await paintPresentationAlignment(page, reading)).toBe(5);
     expect(await page.locator('[data-variance-authority-presentation-overlay] [data-layer="axes"]').count()).toBe(5);
+    await page.close();
+  });
+
+  it('paints spacing between heterogeneous sections at their composition owner', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+    await page.setContent(`
+      <style>* { margin: 0; }</style>
+      <main style="width: 800px">
+        <section style="height: 100px"><h1>Matter</h1></section>
+        <aside style="height: 80px"><p>Summary</p></aside>
+        <div style="height: 60px"><button>Review</button></div>
+        <section style="height: 120px; margin-top: 38px"><h2>Activity</h2></section>
+      </main>
+    `);
+
+    const report = await sensePresentation(page, page.getByRole('main'));
+    const owner = report.graph.nodes.find((node) => node.parent === undefined)!;
+    const reading = inspectPresentationSpacing(report, owner.id, owner.children, 'vertical');
+
+    expect(reading.distance).toEqual({ minPx: 0, medianPx: 0, maxPx: 38 });
+    expect(await paintPresentationSpacing(page, reading)).toBe(3);
+    expect(await page.locator('[data-variance-authority-presentation-overlay] [data-layer="spacing"]').count()).toBe(3);
     await page.close();
   });
 

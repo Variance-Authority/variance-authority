@@ -1477,6 +1477,8 @@
         "PresentationRelation": "interface",
         "PresentationReport": "interface",
         "PresentationSignature": "interface",
+        "PresentationSpacingAxis": "type",
+        "PresentationSpacingReading": "interface",
         "PresentationTelemetry": "interface",
         "ProminenceCluster": "interface",
         "RepeatedPattern": "interface",
@@ -1485,13 +1487,15 @@
         "analyzePresentation": "function",
         "comparePresentation": "function",
         "focusPresentation": "function",
-        "inspectPresentationAlignment": "function"
+        "inspectPresentationAlignment": "function",
+        "inspectPresentationSpacing": "function"
       },
       "./playwright": {
         "SensePresentationOptions": "interface",
         "clearPresentationPaint": "function",
         "paintPresentationAlignment": "function",
         "paintPresentationFocus": "function",
+        "paintPresentationSpacing": "function",
         "sensePresentation": "function"
       }
     }

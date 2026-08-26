@@ -46,6 +46,14 @@ acquisition.
 Painting a focused result reuses its existing instructions and does not acquire
 the browser again.
 
+`inspectPresentationSpacing` measures consecutive immediate children at an
+explicit owner. Unlike automatic repetition findings, it does not require those
+children to share a semantic shape. It retains every adjacent distance, boundary
+strength and spacing cluster, and summarizes their ranges without choosing a
+preferred gap or turning variation into a finding. Requiring one structural
+level and a consecutive run prevents unrelated descendants from being flattened
+into an apparent rhythm.
+
 ## Consequences
 
 An agent first maps composition, boxes and flows, then chooses the owner of the

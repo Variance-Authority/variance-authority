@@ -126,6 +126,36 @@ both of them peers. Its `paint` marks the
 median axis and every selected member with its signed deviation; painting reuses
 the report and does not acquire the page.
 
+## Inspect spacing at a composition owner
+
+Adjacent sections do not need the same semantic shape to participate in one
+composition. Select consecutive immediate children at the owner that arranges
+them:
+
+```ts
+import {
+  inspectPresentationSpacing,
+  type PresentationReport,
+} from '@variance-authority/presentation';
+import type { Page } from '@playwright/test';
+import { paintPresentationSpacing } from '@variance-authority/presentation/playwright';
+
+declare const browserPage: Page;
+declare const report: PresentationReport;
+
+const page = report.graph.nodes.find((node) => node.parent === undefined)!;
+const reading = inspectPresentationSpacing(report, page.id, page.children, 'vertical');
+
+console.log(reading.distance, reading.boundary, reading.separations);
+await paintPresentationSpacing(browserPage, reading);
+```
+
+The reading preserves every adjacent distance, boundary strength and spacing
+cluster, plus min/median/max summaries. Members must be consecutive immediate
+children in the owner's structural order. This prevents a broad descendant set
+from becoming an invented spacing relationship. The result is evidence, not a
+preferred gap or an automatic finding.
+
 ## Analyze one capture
 
 ```ts

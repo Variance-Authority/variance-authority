@@ -6,6 +6,7 @@ import type {
   PresentationAlignmentReading,
   PresentationFocus,
   PresentationReport,
+  PresentationSpacingReading,
 } from './model.js';
 import { analyzePresentation } from './analyze.js';
 import {
@@ -110,6 +111,14 @@ export async function paintPresentationAlignment(
   reading: PresentationAlignmentReading,
 ): Promise<number> {
   return paintPresentationInstructions(page, reading.paint, ['axes']);
+}
+
+/** Paint one explicit spacing reading without acquiring the page again. */
+export async function paintPresentationSpacing(
+  page: Page,
+  reading: PresentationSpacingReading,
+): Promise<number> {
+  return paintPresentationInstructions(page, reading.paint, ['spacing']);
 }
 
 async function paintPresentationInstructions(
