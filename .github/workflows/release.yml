@@ -20,10 +20,8 @@
 # runs `yarn npm publish`, which matters: npm would ship that protocol verbatim
 # and break every install. It publishes in dependency order, skips versions the
 # registry already has — so a second press is a no-op, not a disaster — and takes
-# the dist-tag from pre mode rather than from anything typed here.
-#
-# The repository is in pre mode under the `beta` tag, so that is the dist-tag.
-# `yarn changeset pre exit`, merged like anything else, is what ends that.
+# the dist-tag from the version each manifest carries rather than from anything
+# typed here.
 
 name: release
 

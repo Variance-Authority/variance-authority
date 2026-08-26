@@ -3,8 +3,8 @@
 **Missing:** a pushed tag, and a demonstrated install. Nothing has ever been sent
 to a registry, so no consumer outside this workspace can resolve
 `@variance-authority/*`.
-**Built on:** MIT licensing and non-private manifests at `0.0.0-beta.1`,
-changesets in pre mode under the `beta` tag
+**Built on:** MIT licensing, non-private manifests, changesets holding every
+package in one `fixed` group
 ([`.changeset/config.json`](../../.changeset/config.json)), and
 [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
 
@@ -29,9 +29,11 @@ the expensive half is demonstrating that what landed on the registry is usable.
    and every changelog — is the record, and merging it publishes nothing.
    Publishing is a separate, hand-run job: no merge can reach a registry, which
    is the only property that survives a repository having contributors.
-3. A prerelease publishes under the `beta` dist-tag, never `latest`. Pre mode is
-   what keeps a `minor` bump from quietly becoming one. Any install line written
-   before a non-prerelease version exists must say so.
+3. The dist-tag is derived from the version rather than typed at release time,
+   and every install line in this repository is plain — `npm install --save-dev
+   @variance-authority/cli`, with nothing after it. What the manifests carry when
+   the button is pressed is therefore what decides whether those lines resolve,
+   and that is the last thing to read before pressing it.
 
 **The install is the acceptance test, and it belongs outside this repository.**
 In a directory that is not a clone: add the CLI and one surface package, write a
@@ -50,17 +52,14 @@ the operator's setup.
   non-empty only because the workflow builds before it publishes. A manual
   publish from a clean checkout ships nothing, and a git-URL dependency on this
   repository resolves to no built output at all.
-- **The manifests name the repository in lowercase** while the remote is
-  `Variance-Authority/variance-authority`. Harmless to npm, wrong on the package
-  page, and free to fix before the first publish rather than after.
 
 ## What it forces a decision about
 
-Whether `0.0.0-beta.1` is the right first version, and what the compatibility
-promise is between beta versions. The documentation gate already records that 11
-of the 20 examples that existed when it first ran had gone stale against renamed
-APIs; a published package makes that churn somebody else's problem, and the
-version is the only place to say how much of it to expect.
+What the first version number is, and what it promises between minors. The
+documentation gate already records that 11 of the 20 examples that existed when
+it first ran had gone stale against renamed APIs; a published package makes that
+churn somebody else's problem, and the version is the only place to say how much
+of it to expect.
 
 ## Leaves behind
 

@@ -55,8 +55,8 @@ collects the changesets on `main` into one "Version packages" pull request;
 merging that moves the version numbers and writes the changelogs, and still
 sends nothing to a registry. Publishing is the `release` workflow run by hand,
 from the Actions tab, on whatever `main` carries at that moment — it refuses to
-run while a changeset is still waiting to be versioned. The repository is in pre mode under the
-`beta` tag, so versions stay prereleases and the dist-tag follows them.
+run while a changeset is still waiting to be versioned. The dist-tag is derived
+from the version rather than typed at release time.
 
 Unfinished product work lives in [`docs/specs`](docs/specs/README.md); the
 current implementation checkpoint lives in
