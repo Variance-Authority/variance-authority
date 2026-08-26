@@ -5,7 +5,9 @@ import type {
   PresentationNode,
   RepeatedPattern,
 } from './model.js';
-import { median, round } from './math.js';
+import { codeUnitCompare, median, round } from './math.js';
+
+type DetectedFinding = Omit<PresentationFinding, 'id'>;
 
 /** Thresholds are pinned by the acceptance fixtures, never user-facing targets. */
 const CALIBRATION = {
@@ -21,7 +23,7 @@ export function detectFindings(
   measured: Measurements,
   patterns: readonly RepeatedPattern[],
 ): PresentationFinding[] {
-  const findings: PresentationFinding[] = [];
+  const findings: DetectedFinding[] = [];
   for (const pattern of patterns) {
     findings.push(...relationshipFindings(pattern, measured));
     findings.push(...slotFindings(pattern, graph));
@@ -33,6 +35,7 @@ export function detectFindings(
     ) {
       findings.push({
         rule: 'PRESENTATION_GRAMMAR_DRIFT',
+        owner: pattern.parent,
         nodes: unexplained.map((outlier) => outlier.node),
         pattern: pattern.id,
         measurements: {
@@ -46,14 +49,17 @@ export function detectFindings(
   findings.push(...surfaceFindings(measured.nodes));
   findings.push(...prominenceFindings(measured));
   return findings.sort((left, right) =>
-    left.rule < right.rule ? -1 : left.rule > right.rule ? 1 : (left.nodes[0] ?? '') < (right.nodes[0] ?? '') ? -1 : 1,
-  );
+    codeUnitCompare(left.rule, right.rule) ||
+    codeUnitCompare(left.owner, right.owner) ||
+    codeUnitCompare(left.nodes.join('\0'), right.nodes.join('\0')) ||
+    codeUnitCompare(left.pattern ?? '', right.pattern ?? ''),
+  ).map((finding, index) => ({ id: `F${index + 1}`, ...finding }));
 }
 
 function relationshipFindings(
   pattern: RepeatedPattern,
   measured: Measurements,
-): PresentationFinding[] {
+): DetectedFinding[] {
   const members = new Set(pattern.instances);
   const between = measured.relations.filter(
     (relation) => relation.kind === 'separates' && members.has(relation.from) && members.has(relation.to),
@@ -70,12 +76,13 @@ function relationshipFindings(
   const withinBoundary = median(within.flatMap((relation) => relation.boundaryStrength ?? []));
   const betweenGap = median(between.flatMap((relation) => relation.distancePx ?? []));
   const withinGap = median(within.flatMap((relation) => relation.distancePx ?? []));
-  const results: PresentationFinding[] = [];
+  const results: DetectedFinding[] = [];
   if (betweenBoundary !== undefined && withinBoundary !== undefined) {
     const ratio = withinBoundary === 0 ? (betweenBoundary === 0 ? 1 : Number.POSITIVE_INFINITY) : betweenBoundary / withinBoundary;
     if (ratio <= CALIBRATION.relationshipRatio) {
       results.push({
         rule: 'SEPARATION_COLLISION',
+        owner: pattern.parent,
         nodes: pattern.instances,
         pattern: pattern.id,
         measurements: {
@@ -88,6 +95,7 @@ function relationshipFindings(
     if (pattern.instances.length >= 3 && betweenBoundary <= CALIBRATION.weakBoundary) {
       results.push({
         rule: 'REPETITION_GRAMMAR_COLLAPSE',
+        owner: pattern.parent,
         nodes: pattern.instances,
         pattern: pattern.id,
         measurements: {
@@ -106,6 +114,7 @@ function relationshipFindings(
     if (overlap || ratio <= CALIBRATION.relationshipRatio) {
       results.push({
         rule: 'SPACING_RELATION_COLLISION',
+        owner: pattern.parent,
         nodes: pattern.instances,
         pattern: pattern.id,
         measurements: {
@@ -119,7 +128,7 @@ function relationshipFindings(
   return results;
 }
 
-function slotFindings(pattern: RepeatedPattern, graph: BuiltGraph): PresentationFinding[] {
+function slotFindings(pattern: RepeatedPattern, graph: BuiltGraph): DetectedFinding[] {
   if (pattern.instances.length < 4) return [];
   const slots = new Map<string, Array<{ readonly node: PresentationNode; readonly instance: PresentationNode }>>();
   for (const instanceId of pattern.instances) {
@@ -137,7 +146,7 @@ function slotFindings(pattern: RepeatedPattern, graph: BuiltGraph): Presentation
       slots.set(key, members);
     }
   }
-  const findings: PresentationFinding[] = [];
+  const findings: DetectedFinding[] = [];
   for (const [slot, members] of slots) {
     if (members.length !== pattern.instances.length) continue;
     const left = median(members.map((member) => member.node.rect.x))!;
@@ -148,6 +157,7 @@ function slotFindings(pattern: RepeatedPattern, graph: BuiltGraph): Presentation
     if (aligned.length * 3 >= members.length * 2 && alignmentOutliers.length > 0) {
       findings.push({
         rule: 'ALIGNMENT_OUTLIER',
+        owner: pattern.parent,
         nodes: alignmentOutliers.map((member) => member.node.id),
         pattern: pattern.id,
         measurements: {
@@ -177,6 +187,7 @@ function slotFindings(pattern: RepeatedPattern, graph: BuiltGraph): Presentation
     if (baselineAligned.length * 3 >= baselines.length * 2 && baselineOutliers.length > 0) {
       findings.push({
         rule: 'BASELINE_DRIFT',
+        owner: pattern.parent,
         nodes: baselineOutliers.map((candidate) => candidate.node.id),
         pattern: pattern.id,
         measurements: {
@@ -191,7 +202,7 @@ function slotFindings(pattern: RepeatedPattern, graph: BuiltGraph): Presentation
   return findings;
 }
 
-function surfaceFindings(nodes: readonly PresentationNode[]): PresentationFinding[] {
+function surfaceFindings(nodes: readonly PresentationNode[]): DetectedFinding[] {
   const surfaceTags = new Set(['button', 'input', 'select', 'textarea', 'article', 'section', 'aside', 'dialog']);
   return nodes.flatMap((node) => {
     const difference = node.surface.perceptualDifference;
@@ -207,6 +218,7 @@ function surfaceFindings(nodes: readonly PresentationNode[]): PresentationFindin
     ) return [];
     return [{
       rule: 'SURFACE_COLLISION' as const,
+      owner: node.parent,
       nodes: [node.id],
       measurements: {
         perceptualDifference: difference,
@@ -217,25 +229,27 @@ function surfaceFindings(nodes: readonly PresentationNode[]): PresentationFindin
   });
 }
 
-function prominenceFindings(measured: Measurements): PresentationFinding[] {
-  return measured.prominence.flatMap((cluster) => {
-    const headings = cluster.semanticClasses.filter((kind) => kind.startsWith('heading'));
-    const ordinary = cluster.semanticClasses.filter((kind) =>
-      ['label', 'paragraph', 'text', 'generic', 'span', 'div'].includes(kind),
+function prominenceFindings(measured: Measurements): DetectedFinding[] {
+  const byId = new Map(measured.nodes.map((node) => [node.id, node]));
+  return measured.nodes.flatMap((owner) => measured.prominence.flatMap((cluster) => {
+    const members = owner.children.flatMap((id) => {
+      const node = byId.get(id);
+      return node !== undefined && node.prominence.cluster === cluster.id ? [node] : [];
+    });
+    const headings = members.filter((node) => node.semanticClass.startsWith('heading'));
+    const ordinary = members.filter((node) =>
+      ['label', 'paragraph', 'text', 'generic', 'span'].includes(node.semanticClass),
     );
     if (headings.length === 0 || ordinary.length === 0) return [];
-    const nodes = cluster.members.filter((id) => {
-      const semanticClass = measured.nodes.find((node) => node.id === id)?.semanticClass ?? '';
-      return headings.includes(semanticClass) || ordinary.includes(semanticClass);
-    });
     return [{
       rule: 'PROMINENCE_COLLAPSE' as const,
-      nodes,
+      owner: owner.id,
+      nodes: [...headings, ...ordinary].map((node) => node.id),
       measurements: {
         prominenceCluster: cluster.id,
-        semanticClasses: [...headings, ...ordinary].join(','),
+        semanticClasses: [...new Set([...headings, ...ordinary].map((node) => node.semanticClass))].join(','),
         magnitude: cluster.magnitude,
       },
     }];
-  });
+  }));
 }

@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { accessibilitySnapshot } from '@variance-authority/core';
-import type { PaintLayer, PresentationReport } from './model.js';
+import type { PaintLayer, PresentationFocus, PresentationReport } from './model.js';
 import { analyzePresentation } from './analyze.js';
 import {
   PRESENTATION_AGENT,
@@ -84,6 +84,23 @@ export async function clearPresentationPaint(page: Page): Promise<void> {
     const agent = (globalThis as unknown as Record<string, InstalledPresentationAgent | undefined>)[global];
     agent?.clear();
   }, PRESENTATION_AGENT);
+}
+
+/** Paint one already-focused structural reading without acquiring the page again. */
+export async function paintPresentationFocus(
+  page: Page,
+  focus: PresentationFocus,
+  layers?: readonly PaintLayer[],
+): Promise<number> {
+  await install(page);
+  return page.evaluate(
+    ([global, instructions, selected]) => {
+      const agent = (globalThis as unknown as Record<string, InstalledPresentationAgent | undefined>)[global];
+      if (agent === undefined) throw new Error(`the presentation sensing agent is not installed at ${global}`);
+      return agent.paint(instructions, selected);
+    },
+    [PRESENTATION_AGENT, focus.paint, layers] as const,
+  );
 }
 
 async function install(page: Page): Promise<void> {

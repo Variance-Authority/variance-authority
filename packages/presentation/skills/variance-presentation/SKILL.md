@@ -39,10 +39,46 @@ and the user decide the response to that evidence.
 |---|---|---|
 | A live Playwright `Page` and subject `Locator` | `sensePresentation` from `@variance-authority/presentation/playwright` | Acquires browser layout and Playwright ARIA, analyzes them, and optionally paints the page |
 | An existing `RawCapture` | `analyzePresentation` from `@variance-authority/presentation` | Pure report derivation; browser accessibility is optional independent evidence |
+| One structural level in an existing report | `focusPresentation` from `@variance-authority/presentation` | Pure owner reading that keeps nested evidence separate by default |
+| Product-known visual peers across wrappers | `inspectPresentationAlignment` from `@variance-authority/presentation` | Explicit coordinates, spread, and member deviations without a verdict |
 | Two presentation reports | `comparePresentation` from `@variance-authority/presentation` | Optional edit feedback with finding counts and information identity kept separate |
 
 Prefer a page the caller already owns. Launch a browser only when the user asks
 for a new live or headed session.
+
+## The first move: build the presentation hierarchy
+
+The locator says what to acquire. It does not say that every descendant should
+be compared. Before interpreting a finding or painting the page, map the sensed
+subject into the smallest useful hierarchy:
+
+| Structural reading | What belongs together | What does not follow |
+|---|---|---|
+| Composition | Major content, illustration, navigation, or action regions whose arrangement answers a whole-subject question | Descendants of different regions are not automatically peers |
+| Box | Immediate contents whose boundary owns spacing, repetition, surface, or prominence evidence | A finding owned by a nested box is not a defect of every ancestor |
+| Flow | Product-known visual peers, even when implementation wrappers separate them | Shared ancestry alone does not make a flow |
+| Content or illustration | Material carried by a composition and the internal boxes that organize it | Content and illustration do not need alignment merely because they are adjacent |
+
+Use the graph's containment, roles, names, text, geometry and repeated patterns
+to make this map. Do not start by reading the findings list as prose about the
+whole locator.
+
+Then choose one path:
+
+1. For a box-owned relationship, call `focusPresentation(report, ownerId)`.
+   Read its immediate nodes and owned findings. If `nested` is non-zero, descend
+   only when that nested box is the next product question.
+2. For a deliberately holistic question, use `depth: 'subtree'` and state why
+   descendants belong in the same reading.
+3. For a visual flow that crosses wrappers, explicitly select its concrete
+   nodes with `inspectPresentationAlignment`. The API measures the relationship;
+   the product task authorizes the peer set.
+4. Isolate one finding id before paint. Add a pattern or measurement layer only
+   when it answers the same question.
+
+After sensing, the report becomes a structural map, then one owned relationship,
+then evidence for a product decision. A finding can legitimately produce no edit
+when the hierarchy explains it.
 
 ## Sense a live subject
 
@@ -55,7 +91,6 @@ declare const page: Page;
 const report = await sensePresentation(page, page.getByRole('main'), {
   subjectId: 'underwriting:demands',
   title: 'Underwriting demands',
-  paint: ['semantic', 'repetition', 'findings'],
 });
 ```
 
@@ -77,7 +112,8 @@ Options:
 The browser agent waits for Suspense, applies the repository's collection
 stabilization, collects computed style and layout, reads Playwright's ARIA
 snapshot for the subject and portals, analyzes the plain capture, and then
-paints from the returned report. It does not capture a PNG.
+optionally paints from the returned report. It does not capture a PNG. Prefer an
+unpainted first acquisition so the hierarchy can decide which evidence to show.
 
 If the page agent bundle is missing, build the installed package or repository
 before retrying. Do not replace a missing bundle with an empty or improvised
@@ -89,8 +125,10 @@ The same live entry point works with a headed Playwright browser:
 
 ```ts
 import { chromium } from '@playwright/test';
+import { focusPresentation } from '@variance-authority/presentation';
 import {
   clearPresentationPaint,
+  paintPresentationFocus,
   sensePresentation,
 } from '@variance-authority/presentation/playwright';
 
@@ -99,9 +137,15 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await page.goto('http://127.0.0.1:3000');
 
 const subject = page.getByRole('main');
-const report = await sensePresentation(page, subject, {
-  paint: ['spacing', 'axes', 'baselines', 'repetition', 'findings'],
-});
+const report = await sensePresentation(page, subject);
+const finding = report.findings?.[0];
+if (finding !== undefined) {
+  const focus = focusPresentation(report, finding.owner, {
+    findings: [finding.id],
+    paint: ['findings'],
+  });
+  await paintPresentationFocus(page, focus);
+}
 
 await page.pause();
 await clearPresentationPaint(page);
@@ -178,6 +222,49 @@ nodes occupy path positions but are not invented as rendered graph nodes.
 Baselines are explicitly `inferred`. Treat them as browser geometry plus a
 typographic approximation, not optical alignment.
 
+Every finding carries a stable report-local `id` and an `owner`. Every paint
+instruction carries an owner and touched nodes; finding and pattern paint also
+carry their correlation ids. These fields are the route from a broad report to
+one inspectable relationship.
+
+## Focus one owner or visual flow
+
+```ts
+import {
+  focusPresentation,
+  inspectPresentationAlignment,
+} from '@variance-authority/presentation';
+import { paintPresentationFocus } from '@variance-authority/presentation/playwright';
+
+const owner = report.patterns?.find((pattern) => pattern.instances.length >= 3)?.parent;
+if (owner === undefined) throw new Error('no repeated owner was observed');
+
+const owned = focusPresentation(report, owner, {
+  paint: ['repetition', 'findings'],
+});
+const finding = owned.findings[0];
+if (finding !== undefined) {
+  const isolated = focusPresentation(report, owner, {
+    findings: [finding.id],
+    paint: ['findings'],
+  });
+  await paintPresentationFocus(page, isolated);
+}
+
+const navFlow = inspectPresentationAlignment(
+  report,
+  'r0:0',
+  ['r0:0/0/0', 'r0:0/1/0', 'r0:0/1/1'],
+  'vertical-center',
+);
+console.log(navFlow.spreadPx, navFlow.members);
+```
+
+`focusPresentation` refuses an unknown owner and refuses a requested finding
+that is not owned at the selected depth. `inspectPresentationAlignment` refuses
+fewer than two distinct members, unknown members and members outside the owner.
+Its spread is neutral measurement, not a threshold or finding.
+
 ## Preserve ARIA as a separately sensitive signal
 
 The DOM-correlated semantic anchors and Playwright's ARIA snapshot answer
@@ -231,7 +318,7 @@ Available layers are:
 - `repetition`: every instance of each repeated pattern.
 - `findings`: affected nodes emphasized by rule.
 
-Start with the smallest layers that answer the current question. For a repeated
+Start with one owner and one finding. For a repeated
 wall of text, use `repetition`, `spacing`, `prominence`, and `findings`. For one
 misplaced action, use `axes`, `baselines`, and `findings`. Use `paint: true` only
 when the full diagnostic field is useful rather than visually overwhelming.

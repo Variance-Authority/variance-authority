@@ -28,6 +28,8 @@ export function paintInstructions(input: {
   for (const node of input.nodes) {
     instructions.push({
       id: `semantic:${node.id}`,
+      owner: node.parent ?? node.id,
+      nodes: [node.id],
       layer: 'semantic',
       shape: 'rect',
       color: COLORS[0]!,
@@ -43,6 +45,8 @@ export function paintInstructions(input: {
     const [x2, y2] = center(to.rect);
     instructions.push({
       id: `spacing:${relation.id}`,
+      owner: commonOwner([relation.from, relation.to], byId) ?? relation.from,
+      nodes: [relation.from, relation.to],
       layer: 'spacing',
       shape: 'line',
       color: COLORS[2]!,
@@ -56,6 +60,8 @@ export function paintInstructions(input: {
     const vertical = ['left', 'right', 'horizontal-center'].includes(axis.kind);
     instructions.push({
       id: `axis:${axis.id}`,
+      owner: commonOwner(axis.members, byId) ?? firstMember(members),
+      nodes: axis.members,
       layer: 'axes',
       shape: 'line',
       color: COLORS[3]!,
@@ -80,6 +86,8 @@ export function paintInstructions(input: {
     if (members.length === 0) continue;
     instructions.push({
       id: `baseline:${baseline.id}`,
+      owner: commonOwner(baseline.members.map((member) => member.node), byId) ?? firstMember(members),
+      nodes: baseline.members.map((member) => member.node),
       layer: 'baselines',
       shape: 'line',
       color: COLORS[4]!,
@@ -100,6 +108,9 @@ export function paintInstructions(input: {
       if (node === undefined) continue;
       instructions.push({
         id: `pattern:${pattern.id}:${id}`,
+        owner: pattern.parent,
+        nodes: [id],
+        pattern: pattern.id,
         layer: 'repetition',
         shape: 'rect',
         color: COLORS[index % COLORS.length]!,
@@ -113,7 +124,11 @@ export function paintInstructions(input: {
       const node = byId.get(id);
       if (node === undefined) continue;
       instructions.push({
-        id: `finding:${finding.rule}:${id}`,
+        id: `finding:${finding.id}:${id}`,
+        owner: finding.owner,
+        nodes: [id],
+        finding: finding.id,
+        ...(finding.pattern === undefined ? {} : { pattern: finding.pattern }),
         layer: 'findings',
         shape: 'rect',
         color: '#ff1744',
@@ -138,6 +153,8 @@ function groupedRects(
       if (node === undefined) continue;
       sink.push({
         id: `${layer}:${group.id}:${member}`,
+        owner: node.parent ?? node.id,
+        nodes: [member],
         layer,
         shape: 'rect',
         color: COLORS[index % COLORS.length]!,
@@ -146,4 +163,28 @@ function groupedRects(
       });
     }
   });
+}
+
+function firstMember(nodes: readonly PresentationNode[]): string {
+  return nodes[0]?.parent ?? nodes[0]?.id ?? 'presentation';
+}
+
+function commonOwner(
+  ids: readonly string[],
+  byId: ReadonlyMap<string, PresentationNode>,
+): string | undefined {
+  const chains = ids.map((id) => ancestorChain(id, byId));
+  const first = chains[0];
+  if (first === undefined) return undefined;
+  return first.find((candidate) => chains.every((chain) => chain.includes(candidate)));
+}
+
+function ancestorChain(id: string, byId: ReadonlyMap<string, PresentationNode>): string[] {
+  const chain: string[] = [];
+  let current = byId.get(id)?.parent;
+  while (current !== undefined) {
+    chain.push(current);
+    current = byId.get(current)?.parent;
+  }
+  return chain;
 }

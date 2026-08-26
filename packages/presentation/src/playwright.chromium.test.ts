@@ -3,7 +3,8 @@ import { chromium } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser } from '@playwright/test';
 import { comparePresentation } from './compare.js';
-import { clearPresentationPaint, sensePresentation } from './playwright.js';
+import { focusPresentation } from './focus.js';
+import { clearPresentationPaint, paintPresentationFocus, sensePresentation } from './playwright.js';
 
 const READY = existsSync(chromium.executablePath());
 const live = READY ? describe : describe.skip;
@@ -29,15 +30,21 @@ live('live presentation sensing', () => {
     const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
     await page.setContent(collapsedRecords(31));
 
-    const report = await sensePresentation(page, page.getByRole('main'), { paint: true });
+    const report = await sensePresentation(page, page.getByRole('main'));
     const rules = report.findings?.map((finding) => finding.rule);
+    const pattern = report.patterns?.find((candidate) => candidate.instances.length === 31);
+    const focus = focusPresentation(report, pattern!.parent, {
+      paint: ['repetition', 'findings'],
+    });
 
     expect(report.semantic.browserAccessibility?.roots[0]).toContain('main "Demands"');
-    expect(report.patterns?.some((pattern) => pattern.instances.length === 31)).toBe(true);
+    expect(pattern).toBeDefined();
     expect(rules).toContain('SEPARATION_COLLISION');
     expect(rules).toContain('SPACING_RELATION_COLLISION');
     expect(rules).toContain('REPETITION_GRAMMAR_COLLAPSE');
     expect(JSON.parse(JSON.stringify(report))).toEqual(report);
+    expect(focus.paint.length).toBeLessThan(report.paint?.length ?? 0);
+    expect(await paintPresentationFocus(page, focus)).toBe(focus.paint.length);
     expect(await page.locator('[data-variance-authority-presentation-overlay] [data-layer="repetition"]').count())
       .toBeGreaterThanOrEqual(31);
 

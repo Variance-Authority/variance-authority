@@ -97,6 +97,23 @@ export interface AlignmentAxis {
   readonly members: readonly string[];
 }
 
+export type PresentationAlignmentKind = AlignmentAxis['kind'];
+
+export interface PresentationAlignmentReading {
+  readonly formatVersion: 1;
+  readonly report: Digest;
+  /** The box or composition in which the caller says these nodes form one visual flow. */
+  readonly owner: PresentationNode;
+  readonly kind: PresentationAlignmentKind;
+  readonly coordinatePx: number;
+  readonly spreadPx: number;
+  readonly members: readonly {
+    readonly node: PresentationNode;
+    readonly coordinatePx: number;
+    readonly deviationPx: number;
+  }[];
+}
+
 export interface BaselineCluster {
   readonly id: string;
   readonly coordinate: number;
@@ -144,7 +161,11 @@ export interface RepeatedPattern {
 }
 
 export interface PresentationFinding {
+  /** Stable within one deterministic report. */
+  readonly id: string;
   readonly rule: PresentationFindingRule;
+  /** The graph node whose immediate structural relationship produced this finding. */
+  readonly owner: string;
   readonly nodes: readonly string[];
   readonly pattern?: string;
   readonly measurements: Readonly<Record<string, number | string>>;
@@ -189,12 +210,38 @@ export type PaintLayer =
 
 export interface PaintInstruction {
   readonly id: string;
+  /** The graph node that owns the painted relationship. */
+  readonly owner: string;
+  /** Graph nodes touched by this measurement. */
+  readonly nodes: readonly string[];
+  readonly finding?: string;
+  readonly pattern?: string;
   readonly layer: PaintLayer;
   readonly shape: 'rect' | 'line' | 'label';
   readonly color: string;
   readonly label: string;
   readonly rect?: Rect;
   readonly line?: { readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number };
+}
+
+export type PresentationFocusDepth = 'owner' | 'subtree';
+
+export interface PresentationFocus {
+  readonly formatVersion: 1;
+  readonly report: Digest;
+  readonly depth: PresentationFocusDepth;
+  readonly owner: PresentationNode;
+  /** Owner, immediate children, and owned evidence nodes; or the complete subtree at `subtree` depth. */
+  readonly nodes: readonly PresentationNode[];
+  readonly patterns: readonly RepeatedPattern[];
+  readonly findings: readonly PresentationFinding[];
+  readonly paint: readonly PaintInstruction[];
+  /** Evidence below an owner focus, kept separate rather than folded into its findings. */
+  readonly nested: {
+    readonly owners: number;
+    readonly patterns: number;
+    readonly findings: number;
+  };
 }
 
 export interface PresentationReport {

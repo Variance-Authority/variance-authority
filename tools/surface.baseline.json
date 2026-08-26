@@ -1463,11 +1463,16 @@
         "AnalyzePresentationOptions": "interface",
         "BaselineCluster": "interface",
         "ElementReference": "interface",
+        "FocusPresentationOptions": "interface",
         "PaintInstruction": "interface",
         "PaintLayer": "type",
+        "PresentationAlignmentKind": "type",
+        "PresentationAlignmentReading": "interface",
         "PresentationComparison": "interface",
         "PresentationFinding": "interface",
         "PresentationFindingRule": "type",
+        "PresentationFocus": "interface",
+        "PresentationFocusDepth": "type",
         "PresentationNode": "interface",
         "PresentationRelation": "interface",
         "PresentationReport": "interface",
@@ -1478,11 +1483,14 @@
         "SpacingCluster": "interface",
         "SurfaceGroup": "interface",
         "analyzePresentation": "function",
-        "comparePresentation": "function"
+        "comparePresentation": "function",
+        "focusPresentation": "function",
+        "inspectPresentationAlignment": "function"
       },
       "./playwright": {
         "SensePresentationOptions": "interface",
         "clearPresentationPaint": "function",
+        "paintPresentationFocus": "function",
         "sensePresentation": "function"
       }
     }

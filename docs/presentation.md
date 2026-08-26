@@ -9,7 +9,7 @@ The operating principle is: **preserve information; expose relationships**.
 
 ## One report, independent dimensions
 
-[`sensePresentation`](../packages/presentation/README.md#sense-a-live-subject)
+[`sensePresentation`](../packages/presentation/README.md#sense-once-then-choose-the-structural-owner)
 reads a locator in a live Playwright page. Its report keeps
 these dimensions separate:
 
@@ -44,6 +44,30 @@ Repeated sibling shapes form local peer groups. Each group carries recurring
 labels, presentation similarity, a dominant signature, and outliers. A state
 signature such as `invalid`, `selected`, or `disabled` explains visual variance;
 the measurement remains in the report, but it is not called unexplained drift.
+
+## Structural ownership
+
+A broad locator is an acquisition boundary, not a claim that every descendant
+is a peer. Each finding names the graph-node `owner` whose immediate structural
+relationship produced it. `focusPresentation` reads that owner without another
+browser acquisition and keeps findings from nested owners separate by default.
+Its `nested` counts signal that deeper boxes contain evidence without folding
+that evidence into the parent composition.
+
+This supports three distinct readings from one report:
+
+- A composition is read holistically to understand which boxes and flows it
+  contains. Its content and illustration need not align merely because they
+  share the composition.
+- A box owns the relationships among its immediate contents. Repeated rows in a
+  list, for example, are inspected at the list owner rather than at the page.
+- A visual flow may cross implementation wrappers. A caller that knows the
+  product relationship selects those nodes with `inspectPresentationAlignment`;
+  the returned coordinate, spread, and member deviations remain evidence, not
+  an automatic design verdict.
+
+`depth: 'subtree'` is an explicit request to fold nested ownership into a
+holistic reading. It is not the default.
 
 ## Findings
 
@@ -87,6 +111,11 @@ inspection removes an earlier overlay before reading the page, and
 The colors are diagnostic identities, not an interpretation of the product's
 colors. Surface groups, repeated patterns, and outliers are deliberately painted
 with conspicuous colors so a human can challenge the analyzer's grouping.
+
+Paint instructions carry their owner and touched nodes. Pattern and finding
+instructions also carry the corresponding stable report-local id. A focused
+reading can therefore paint one owner or one finding from an existing report;
+painting does not require re-sensing the page.
 
 ## Re-sense without turning the result into regression
 

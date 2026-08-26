@@ -54,6 +54,28 @@ describe('presentation intelligence', () => {
     expect(rules).toContain('SPACING_RELATION_COLLISION');
     expect(rules).toContain('REPETITION_GRAMMAR_COLLAPSE');
     expect(rules).toContain('PROMINENCE_COLLAPSE');
+    expect(report.findings?.filter((finding) => finding.pattern).every((finding) => finding.owner === 'r0:0'))
+      .toBe(true);
+    expect(report.findings?.filter((finding) => finding.rule === 'PROMINENCE_COLLAPSE'))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ owner: 'r0:0/0' }),
+      ]));
+  });
+
+  it('compares prominence among structural peers rather than ancestors and descendants', () => {
+    const report = analyzePresentation(rawCapture(node(
+      'main',
+      rect(0, 0, 400, 160),
+      [node(
+        'h1',
+        rect(0, 0, 400, 80),
+        [node('span', rect(0, 0, 400, 40), [text('Same treatment')], { role: null, name: null })],
+        { role: 'heading', name: 'Same treatment' },
+      )],
+      { role: 'main', name: 'Reading' },
+    )));
+
+    expect(report.findings?.some((finding) => finding.rule === 'PROMINENCE_COLLAPSE')).toBe(false);
   });
 
   it('records large margins without inventing a utilization finding', () => {
