@@ -1453,6 +1453,7 @@
       },
       "files": [
         "dist",
+        "skills",
         "mark.svg"
       ]
     },

@@ -12,6 +12,10 @@ drift without recommending a layout or assigning a UI quality score.
 This is a sensing and support surface, not a visual-regression assertion. It does
 not create a baseline, approve a change, or produce a pass/fail verdict.
 
+The packaged [`variance-presentation`](skills/variance-presentation/SKILL.md)
+skill gives coding agents the complete live, raw-capture, headed collaboration,
+ARIA, paint, finding, and re-sensing workflow.
+
 ## Sense a live subject
 
 ```ts
