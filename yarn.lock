@@ -2665,7 +2665,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/cli@workspace:^, @variance-authority/cli@workspace:packages/cli":
+"@variance-authority/cli@npm:^0.0.0-beta.1, @variance-authority/cli@workspace:^, @variance-authority/cli@workspace:packages/cli":
   version: 0.0.0-use.local
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:
@@ -2790,6 +2790,15 @@ __metadata:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/example-static-site@workspace:examples/static-site":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-static-site@workspace:examples/static-site"
+  dependencies:
+    "@variance-authority/cli": "npm:^0.0.0-beta.1"
+    "@variance-authority/route-collector": "npm:^0.0.0-beta.1"
   languageName: unknown
   linkType: soft
 
@@ -3005,7 +3014,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/route-collector@workspace:packages/route-collector":
+"@variance-authority/route-collector@npm:^0.0.0-beta.1, @variance-authority/route-collector@workspace:packages/route-collector":
   version: 0.0.0-use.local
   resolution: "@variance-authority/route-collector@workspace:packages/route-collector"
   dependencies:

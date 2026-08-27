@@ -1,0 +1,13 @@
+{
+  "name": "@variance-authority/example-static-site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Gate a built static site on visual change, from the command line.",
+  "scripts": {
+    "variance": "variance"
+  },
+  "devDependencies": {
+    "@variance-authority/cli": "^0.0.0-beta.1",
+    "@variance-authority/route-collector": "^0.0.0-beta.1"
+  }
+}

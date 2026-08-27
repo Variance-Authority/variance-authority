@@ -102,6 +102,22 @@ async function pageAgentBundle(): Promise<string> {
   );
 }
 
+/**
+ * Build the module a `subjects.collector` path should default-export.
+ *
+ * A directory of built HTML is the one collector input that needs no running
+ * application: every file under it is already a subject, and the adopter is
+ * left holding only the directory and which element of a page is the subject.
+ *
+ * ```js
+ * import { routeCollector } from '@variance-authority/route-collector';
+ *
+ * export default routeCollector({
+ *   directory: './site',
+ *   roots: ['main'],
+ * });
+ * ```
+ */
 export function routeCollector(
   options: RouteCollectorOptions,
 ): (context: CollectorContext) => Promise<Collector> {
