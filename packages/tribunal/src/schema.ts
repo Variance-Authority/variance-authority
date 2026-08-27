@@ -40,7 +40,15 @@ import type { D1Like } from './bindings.js';
 export const SCHEMA_VERSION = 5;
 
 /** The version `INITIAL` alone leaves a database at. Frozen: it is deployed. */
-const INITIAL_VERSION = 3;
+/**
+ * The version the frozen initial set lands a database on.
+ *
+ * Exported because {@link MIGRATIONS} is indexed against it: step `i` lands on
+ * `INITIAL_VERSION + i + 1`. An operator holding a deployed database reads its
+ * `schema_version`, and without this the only way to line that number up with a
+ * step is to derive it from `SCHEMA_VERSION - MIGRATIONS.length`.
+ */
+export const INITIAL_VERSION = 3;
 
 /**
  * What a run kept, and what a review decided, in order — as this database first

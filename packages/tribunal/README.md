@@ -45,7 +45,7 @@ operator supplies the deployment and credentials.
 
 | entrypoint | requires | holds |
 |---|---|---|
-| `@variance-authority/tribunal` | nothing | the binding types, `SCHEMA`, `applySchema` |
+| `@variance-authority/tribunal` | nothing | the binding types, `SCHEMA`, `applySchema`, `MIGRATIONS` |
 | `@variance-authority/tribunal/store` | D1 and R2 | `createBucketStore` — baselines |
 | `@variance-authority/tribunal/history` | D1 | `createD1Backend` — the drift record |
 | `@variance-authority/tribunal/review` | D1 and R2 | `createReviewStore` — builds, decisions, retention |
@@ -119,8 +119,10 @@ the whole shape and applying it a second time fails on the first `CREATE TABLE`,
 which is the intended behaviour; what an existing database needs is the part it
 is missing. That is `MIGRATIONS` — one entry per version after the shape this
 package first shipped, each ending by writing the version it lands on, so a
-database is never left at a version whose tables it does not have. Applying the
-initial set and then every step in order arrives at exactly the same place.
+database is never left at a version whose tables it does not have. Step `i`
+lands on `INITIAL_VERSION + i + 1`, so a database reporting `schema_version` `n`
+needs every step from `n - INITIAL_VERSION` on. Applying the initial set and
+then every step in order arrives at exactly the same place.
 
 ### Or deploy the one that ships
 

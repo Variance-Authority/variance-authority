@@ -1,9 +1,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import type { DatabaseSync } from 'node:sqlite';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { D1Like, D1PreparedLike } from './bindings.js';
-import { INITIAL, MIGRATIONS, SCHEMA, SCHEMA_VERSION, applySchema } from './schema.js';
+import { INITIAL, INITIAL_VERSION, MIGRATIONS, SCHEMA, SCHEMA_VERSION, applySchema } from './schema.js';
 
 /**
  * The migrations `wrangler` applies and the arrays the tests run against are one
@@ -21,6 +23,10 @@ import { INITIAL, MIGRATIONS, SCHEMA, SCHEMA_VERSION, applySchema } from './sche
  * one, and nothing about it looks wrong until an operator upgrades and a route
  * starts answering `no such table`.
  */
+
+const { DatabaseSync: Database } = createRequire(import.meta.url)('node:sqlite') as {
+  DatabaseSync: new (path: string) => DatabaseSync;
+};
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '../migrations');
 
@@ -103,6 +109,49 @@ describe('the D1 migrations are the schema', () => {
   it.todo(
     'the descriptor and these steps have been applied to a real Cloudflare account — every claim in `wrangler.jsonc` is a reading of the platform documentation, and the D1 these tests batch against is the in-memory one from `testing.ts`, which cannot tell a binding that works from one that merely parses, so this needs a deployment against a live account with `wrangler d1 migrations apply` and the routes answered over the network',
   );
+
+  it('offers an operator with a deployed database the steps it is missing', async () => {
+    // The README sends an already-deployed database to `MIGRATIONS`, and this
+    // entrypoint is the only door into the package that needs no binding. A
+    // constant that lives in a private module answers that sentence for nobody.
+    const entrypoint = await import('./index.js');
+
+    expect(entrypoint.MIGRATIONS).toBe(MIGRATIONS);
+    expect(entrypoint.INITIAL_VERSION).toBe(INITIAL_VERSION);
+    expect(INITIAL_VERSION + MIGRATIONS.length).toBe(SCHEMA_VERSION);
+
+    // And what the operator does with them: read `schema_version`, take every
+    // step after it, arrive at the version this package is at. From the initial
+    // shape that is all of them; from the newest it is none.
+    for (let deployed = INITIAL_VERSION; deployed <= SCHEMA_VERSION; deployed += 1) {
+      const missing = MIGRATIONS.slice(deployed - INITIAL_VERSION);
+      expect(deployed + missing.length).toBe(SCHEMA_VERSION);
+    }
+    expect([...INITIAL, ...MIGRATIONS.flat()]).toEqual([...SCHEMA]);
+  });
+
+  it('arrives where a fresh database does, running the files wrangler runs', () => {
+    // The other tests compare the generated `.sql` to `SCHEMA` as text. This one
+    // runs both through an engine, because a file `wrangler` applies and an
+    // array `applySchema` batches are the same shape only if SQLite says they
+    // are — and it is the file, not the array, that reaches a deployment.
+    const shapeOf = (statements: readonly string[]): readonly string[] => {
+      const database = new Database(':memory:');
+      try {
+        for (const statement of statements) database.exec(statement);
+        return database
+          .prepare(`SELECT type, name, sql FROM sqlite_master ORDER BY type, name`)
+          .all()
+          .map((row) => JSON.stringify(row));
+      } finally {
+        database.close();
+      }
+    };
+
+    const migrated = shapeOf(FILES.map(text));
+    expect(migrated).toEqual(shapeOf([...SCHEMA]));
+    expect(migrated.length).toBeGreaterThan(0);
+  });
 
   it('applies the complete schema as one batch', async () => {
     const prepared: D1PreparedLike = {
