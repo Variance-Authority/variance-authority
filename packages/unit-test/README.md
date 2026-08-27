@@ -10,10 +10,24 @@ does not export `test`, `expect`, a reporter, or a browser.
 must be supplied as immutable bytes; capture refuses a document it cannot close
 over rather than calling a hash-only payload portable.
 
+Browserless describes this half. The capture carries markup, CSS and resources —
+not pixels — so the later `variance run` opens a browser to paint it and refuses
+the run if it cannot. Splitting it this way is what lets the suite stay in
+jsdom: the unit process never waits for a browser, and CI installs one once for
+the render step rather than once per test job.
+
 Install the package and the DOM environment used by the test runner:
 
 ```bash
 npm install --save-dev @variance-authority/unit-test jsdom
+```
+
+The render half is a separate process and a separate install, in the job that
+paints:
+
+```bash
+npm install --save-dev @variance-authority/cli
+npx playwright install chromium
 ```
 
 Vitest needs `// @vitest-environment jsdom` (or an equivalent project setting).
@@ -144,6 +158,30 @@ export default captureCollector({ directory: '.variance/captures' });
 `directory` is the only option, and duplicate subject ids inside it are an error
 rather than a last-write-wins: two tests writing `button/save` is a name
 collision, and picking one silently makes half the suite invisible.
+
+Name that module as the collector, and point `profile` at the tier the capture
+was taken in:
+
+```json
+{
+  "project": "design-system",
+  "profile": "jsdom",
+  "viewport": { "width": 320, "height": 200 },
+  "retention": "durable",
+  "subjects": { "kind": "collector", "collector": "variance/collector.mjs" },
+  "baselines": { "kind": "directory", "root": "baselines" },
+  "report": "out/report.json"
+}
+```
+
+```bash
+npx variance run
+```
+
+`profile: "jsdom"` says what observed the subject, not what paints it. The
+capture has no layout engine behind it, so every changed region in the report is
+reported unattributed rather than joined to a guessed node — the render is still
+Chromium. The first run exits 1: a new baseline is a review, not a pass.
 
 `variance run` reads document captures and uses its configured local or remote
 renderer, baseline store, comparison policy, and report. Use a fresh capture
