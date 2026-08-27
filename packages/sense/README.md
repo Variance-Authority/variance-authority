@@ -205,6 +205,12 @@ root. It never names individual Vitest cases and does not replace the runner.
 Storybook is the exception: because the product owns that execution surface, it
 can select one story.
 
+A changed file selects by how the snapshot records it. A product module selects
+the tests that entered the changed region. A test file selects itself: nothing
+enters a test, so its own edit is the only thing that can run it. A precondition
+selects every test it governs, which is what declaring one is for. A file the
+snapshot never recorded selects nothing.
+
 ## Measure test-file deviation
 
 Deviation compares what a test file can statically reach with what it enters in

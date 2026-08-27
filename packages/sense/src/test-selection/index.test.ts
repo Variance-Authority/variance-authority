@@ -10,7 +10,10 @@ const coverage: TestCoverage = {
   tests: testFiles.map((file) => ({
     file,
     complete: true,
-    preconditions: [{ name: file, digest: `source:${file}` }],
+    preconditions: [
+      { name: file, digest: `source:${file}` },
+      { name: 'vitest.config.ts', digest: 'source:config' },
+    ],
   })),
   modules: [
     {
@@ -85,6 +88,48 @@ describe('selectTestFiles', () => {
     expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
       'test/alpha.test.ts',
     ]);
+  });
+
+  it('runs a test whose own file changed', () => {
+    // Nothing enters a test file, so coverage has no module row for one. Read as
+    // `no module, no tests`, a commit that adds or edits a test selected nothing
+    // and the new test never ran.
+    const diff = `--- a/test/alpha.test.ts
++++ b/test/alpha.test.ts
+@@ -9,0 +10,3 @@
++it('covers the new case', () => {
++  expect(decide('x')).toBe('Alpha');
++});`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
+      'test/alpha.test.ts',
+    ]);
+  });
+
+  it('runs every test a changed precondition governs', () => {
+    // What `preconditions` is for: runner configuration governs every test and is
+    // entered by none of them.
+    const diff = `--- a/vitest.config.ts
++++ b/vitest.config.ts
+@@ -3,1 +3,1 @@
+-    environment: 'node',
++    environment: 'jsdom',`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual(
+      testFiles,
+    );
+  });
+
+  it('stays silent for a changed file nothing records', () => {
+    const diff = `--- a/README.md
++++ b/README.md
+@@ -1,1 +1,1 @@
+-# Old
++# New`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual(
+      [],
+    );
   });
 
   it('widens to the module when a changed line has no recorded region', () => {

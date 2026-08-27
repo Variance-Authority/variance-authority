@@ -7,10 +7,14 @@ export function selectTestFilesFromView(
 ): readonly string[] {
   const changed = changedLines(diff);
   const selected = new Set<number>();
+  const governing: string[] = [];
 
   for (const [file, ranges] of changed) {
     const module = findModule(coverage, file);
-    if (module === undefined) continue;
+    if (module === undefined) {
+      governing.push(file);
+      continue;
+    }
     const first = coverage.moduleBlocks[module]!;
     const end = coverage.moduleBlocks[module + 1]!;
     const matching: number[] = [];
@@ -52,9 +56,50 @@ export function selectTestFilesFromView(
     }
   }
 
+  for (const test of testsGovernedBy(coverage, governing)) {
+    selected.add(test);
+  }
+
   return [...selected]
     .map((test) => coverage.string(coverage.testPath[test]!))
     .sort(codeUnitOrder);
+}
+
+/**
+ * Tests a changed file governs, for the files no instrumented module answers
+ * for.
+ *
+ * Coverage records where execution *entered* a module, so a file nothing enters
+ * has no module row however much it decides. A test file is one: it is its own
+ * recorded precondition, and nothing enters it. A declared `preconditions` entry
+ * — runner configuration, a fixture, an environment file — is another, and it is
+ * every test's. Read as "no module, no tests", a commit that edits a test
+ * selected nothing and the new test never ran; a commit that changed the runner
+ * config selected nothing and every test that config governs never ran. Both are
+ * silent: the selector returns an empty list and the run is green.
+ */
+function testsGovernedBy(
+  coverage: TestCoverageView,
+  files: readonly string[],
+): readonly number[] {
+  if (files.length === 0) return [];
+  const wanted = new Set(files);
+  const governed: number[] = [];
+
+  for (let test = 0; test < coverage.testPath.length; test += 1) {
+    for (
+      let input = coverage.testPreconditions[test]!;
+      input < coverage.testPreconditions[test + 1]!;
+      input += 1
+    ) {
+      if (wanted.has(coverage.string(coverage.preconditionName[input]!))) {
+        governed.push(test);
+        break;
+      }
+    }
+  }
+
+  return governed;
 }
 
 /** Module rows are code-unit sorted when the merged snapshot is written. */
