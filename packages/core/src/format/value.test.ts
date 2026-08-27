@@ -120,6 +120,31 @@ describe('what cannot be a value is refused by name', () => {
     );
   });
 
+  it('names the pointer of a date, which serializes to nothing', () => {
+    // `typeof` says object, `Object.entries` says empty, and the text says `{}`.
+    // Two different instants would have addressed to the same digest and compared
+    // as unchanged.
+    expect(() => shapeValue({ at: new Date(0) })).toThrow(/at \/at is a Date/);
+    expect(() => shapeValue({ a: { b: [{ at: new Date(0) }] } })).toThrow(
+      /at \/a\/b\/0\/at is a Date/,
+    );
+  });
+
+  it('refuses the other containers whose state is not in their keys', () => {
+    expect(() => shapeValue({ seen: new Set([1]) })).toThrow(/at \/seen is a Set/);
+    expect(() => shapeValue({ by: new Map([['a', 1]]) })).toThrow(/at \/by is a Map/);
+    expect(() => shapeValue({ at: new URL('https://example.com') })).toThrow(/at \/at is a URL/);
+  });
+
+  it('keeps an empty object and an instance that carries its own fields', () => {
+    class Row {
+      constructor(readonly id: string) {}
+    }
+    expect(shapeValue({ empty: {}, row: new Row('a') }).text).toBe(
+      '{"empty":{},"row":{"id":"a"}}',
+    );
+  });
+
   it('escapes a key that contains a pointer separator', () => {
     expect(() => shapeValue({ 'a/b': Number.POSITIVE_INFINITY })).toThrow(
       /at \/a~1b is Infinity/,

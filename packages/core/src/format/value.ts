@@ -193,12 +193,49 @@ function shapeNode(value: unknown, pointer: string, options: ValueShaping): Cano
 
   if (Array.isArray(value)) return shapeArray(value, pointer, options);
 
+  if (opaque(value)) {
+    throw new TypeError(
+      `${describe(pointer)} is a ${nameOf(value)}, which is not a value. Its state is not in ` +
+        'its own enumerable keys, so it would serialize to `{}` and two different ones would ' +
+        'compare as unchanged. Convert it where it is produced — an ISO string, a number, a ' +
+        'plain object — so the text says what was compared.',
+    );
+  }
+
   const shaped: Record<string, CanonicalValue> = {};
   for (const [key, member] of Object.entries(value as Record<string, unknown>)) {
     if (member === undefined) continue;
     shaped[key] = shapeNode(member, `${pointer}/${pointerToken(key)}`, options);
   }
   return shaped;
+}
+
+/**
+ * Whether an object keeps its state somewhere `Object.entries` cannot reach.
+ *
+ * A `Date`, a `Map`, a `Set`, a `URL`, a `RegExp` — each has no own enumerable
+ * key, so the object branch below produces `{}` for every one of them. That is
+ * the exact harm the function and bigint refusals exist to prevent, arriving
+ * through the one `typeof` that does not name it: a timestamp that moved a year
+ * and a timestamp that did not both address to the digest of `{}`, and the run
+ * that compares them reports unchanged.
+ *
+ * Emptiness alone is not the test — `{}` is a value, and an adopter may legitimately
+ * snapshot one. The test is emptiness in something that is not a plain object,
+ * which is what says the state went somewhere else. An instance carrying its own
+ * fields serializes those fields and is left alone, exactly as `JSON.stringify`
+ * would leave it.
+ */
+function opaque(value: object): boolean {
+  if (Object.keys(value).length > 0) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype !== Object.prototype && prototype !== null;
+}
+
+/** What to call the thing in the refusal, so the message names the type at hand. */
+function nameOf(value: object): string {
+  const named = value.constructor?.name;
+  return typeof named === 'string' && named.length > 0 ? named : 'object';
 }
 
 function shapeArray(
