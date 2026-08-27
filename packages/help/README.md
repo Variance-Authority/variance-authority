@@ -8,21 +8,29 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
-**Requires:** a workspace on a disk this process can read, and — to serve it — a
-client that speaks MCP over stdio. Nothing has to have been built, and nothing is
-generated ahead of time.
+It does not render, diff, or report on pixels. It reads TypeScript source
+across a workspace and answers what a name is, where it is declared, and who
+imports it. Skip it if what you need is a visual comparison — reach for the
+toolkit's other packages for that.
 
-Use this package when a person or coding agent needs to find the public name,
-signature, documentation, or consumer of an exported workspace symbol. It
-re-reads the checkout on every MCP request, ranks names by package consumers,
-and reports undocumented names separately.
+**Requires:** a workspace — a monorepo checkout, on a disk this process can
+read — and, to serve it, a client that speaks MCP over stdio. Nothing has to
+have been built, and nothing is generated ahead of time.
+
+Use this package when a person or coding agent needs the public name,
+signature, documentation, or consumers of an exported symbol: a function,
+class, interface, type, or constant a package makes public. A consumer is any
+package in the workspace whose source imports that symbol. This package
+re-reads the checkout on every MCP request, ranks names by how many consumers
+they have, and reports undocumented names separately.
 
 ## What it provides
 
-A reader does not need every export with equal weight. The useful first answer is
-which names exist, which packages reach them, what their signatures are, and what
-the source says above each declaration. All four are read from the same checkout
-without a build or generated documentation site.
+A reader does not need every name in a package's surface — the exports its
+manifest opens — weighted equally. The useful first answer is which names
+exist, which packages reach them, what their signatures are, and what the
+source says above each declaration. All four are read from the same checkout,
+without a build or a generated documentation site.
 
 The ranking counts how many packages in the repository import each name. A
 frequently imported symbol becomes a front door; a symbol with no external use
@@ -45,10 +53,9 @@ collect [function] packages/dom/src/collect.ts:183 — used by 13 packages: …
 | `.` | stdio, to serve | everything, plus `serveWorkspace` and `writePages` |
 | `@variance-authority/help/tools` | nothing | the five answers, as pure functions from a reading to text |
 
-The tools are pure and separately importable for the same reason the report
-server's are: the question that matters — *does this answer let an agent use the
-library?* — has to stay cheap to ask, and it stops being asked the moment
-answering it means speaking a protocol over a pipe.
+The tools in `@variance-authority/help/tools` are plain functions with no MCP
+dependency, so they can be called directly, tested in isolation, or embedded
+in another interface without speaking the protocol.
 
 ## Serve it
 
@@ -78,15 +85,13 @@ Five tools, in the order they are meant to be asked in:
 | `docs_search` | a string | names whose name or doc contains it, ranked the same way |
 | `docs_gaps` | nothing | names other packages import and which say nothing about themselves |
 
-`docs_packages` needs no argument and returns the arguments every other tool
-takes. That shape is the design: a model that must guess a package name to ask
-its first question will guess, and a wrong guess costs a turn and reads exactly
-like a workspace that does not publish the thing.
+`docs_packages` takes no argument and returns the import specifiers every
+other tool takes as input, so it is the natural first call.
 
-Every request re-reads the workspace. An agent that edits a file and asks again
-is the whole reason this outlives one question, and the reading is manifests and
-module records rather than a compilation — twenty-six packages and fifteen
-hundred names take about two hundred milliseconds.
+Every request re-reads the workspace, so an answer always reflects the file on
+disk right now, not the one at boot. The read is manifests and module
+records, not a compilation, so it stays well under a second even across
+dozens of packages and well over a thousand names.
 
 ## Write it
 
@@ -107,9 +112,9 @@ npx variance-authority-help write . --out docs/api
 `--base https://github.com/you/repo/blob/main/` puts a prefix in front of every
 path, for pages that will be read away from the checkout.
 
-The same two from a program, where `writePages` takes them as `base` and `page` —
-the second overriding the title and summary the pages would otherwise take from
-the root manifest:
+The same two from a program, where `writePages` takes them as `base` and
+`page` — `page` being the title and summary for the generated files above,
+overriding what they would otherwise take from the root manifest:
 
 ```ts
 import { writePages } from '@variance-authority/help';
@@ -120,9 +125,8 @@ writePages('.', 'docs/api', {
 });
 ```
 
-The JSON is there because everything above it is a rendering decision somebody
-will eventually disagree with, and disagreeing should cost a `JSON.parse` rather
-than a fork.
+`help.json` holds the same reading the other three files render. Parsing it
+lets a caller build a different rendering without re-reading the workspace.
 
 ## Serve it from a program
 

@@ -9,9 +9,11 @@ compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
 Use this package when you need Storybook index parsing, subject planning, or a
-host-neutral preview driver. For the complete CLI/browser workflow, use
-`@variance-authority/storybook-collector`. This package
-does not mount stories or choose a browser for you.
+host-neutral preview driver. A *subject* is the one thing under test — here, one
+Storybook story. *Subject planning* is turning the index's raw story list into
+an ordered, filtered plan of which subjects a run will actually observe. For the
+complete CLI/browser workflow, use `@variance-authority/storybook-collector`.
+This package does not mount stories or choose a browser for you.
 
 **Requires:** a built Storybook's `index.json` as a value. `storybook/read`
 additionally requires a readable path, and driving a preview requires a page
@@ -31,11 +33,13 @@ to author: a subject is whatever the existing stories already mount.
 
 The package has two explicit host boundaries:
 
-- **Browser-free index and planning helpers.** `harnessPage` names the three
-  page methods it drives (`url`, `goto`, `evaluate`) instead of importing a
-  `Page`. Six lines of interface against a browser in the dependency tree of
-  everyone who reads a story index. Storybook support and Playwright support
-  are separate concerns that meet at a URL and a function call.
+- **Browser-free index and planning helpers.** `harnessPage` adapts a
+  `BrowserHarness` — an object shaped `{ page }`, where `page` exposes
+  `url(): string`, `goto(url, options?)`, and `evaluate(fn, arg)` — into the
+  smaller interface this package actually drives. Nothing here imports a `Page`
+  type from a browser library, so reading a story index never pulls a browser
+  into the dependency tree. Storybook support and Playwright support are
+  separate concerns that meet at a URL and a function call.
 - **Caller-owned input.** `index.json` arrives as a value. The one function that
   reads it off a disk is `@variance-authority/storybook/read`, because a project
   fetching it from a running dev server, or holding it in memory, or pulling it
@@ -54,17 +58,24 @@ console.log(plan.subjects.map(({ story }) => story.id));
 ```
 
 1. **`parseStoryIndex`** reads what a built Storybook declares, and refuses
-   anything that is not that. No browser, no evaluation, no `.storybook/`.
-   Dispatches on the key that is present rather than on `v`, so a newer index in
-   a familiar shape is read and *warned about* rather than refused. Call it
-   directly on an index you already hold; `readStoryIndex` is the same parser
-   with a `readFile` in front of it, for the disk case above.
+   anything that is not that. No browser, no evaluation, no `.storybook/`. It
+   recognizes index versions 3 (the older `stories` shape) and 4 and 5 (the
+   newer `entries` shape). An index that declares a different or no `v` is still
+   read — by whichever of `entries`/`stories` is actually present — with a
+   warning attached to the returned `warnings` array rather than a refusal.
+   Refusal is reserved for a file with neither key, or an entry missing a
+   required field. Call it directly on an index you already hold;
+   `readStoryIndex` is the same parser with a `readFile` in front of it, for the
+   disk case above.
 2. **`toSubjects`** applies policy — exclusion by tag, viewport, a deterministic
    order. Excluded stories stay in the plan as `excluded` rather than being
    dropped, so a run still accounts for them. Pure.
-3. **`collectStories`** drives a preview page that is already open, moving between
-   stories over Storybook's own channel rather than reloading. One navigation for
-   a whole run; a second one is *reported*, not counted internally.
+3. **`collectStories`** drives a preview page that is already open, moving
+   between stories over Storybook's own channel — the `postMessage` bridge
+   Storybook's manager UI normally uses to tell the preview iframe which story
+   to show — rather than reloading the page for each one. One navigation for a
+   whole run; if no channel is found, a story instead costs a reload, and that
+   is reported in the outcome's warnings rather than absorbed silently.
 
 The snippet above is the smallest complete path: it reads the built artifact and
 returns an ordered, policy-filtered plan. It does not open a browser. The CLI
@@ -113,33 +124,35 @@ collector package when the CLI should own that composition.
 | option | default | what it decides |
 |---|---|---|
 | `baseUrl` | required | Storybook's root URL — `http://localhost:6006`, or a `file://` build |
-| `readySelector` | none | see below. The one signal that can end a flake instead of re-running it |
+| `readySelector` | none | CSS selector for a marker the story attaches once it has settled (see Readiness, below). When set, it is the only signal that can mark a story `rendered` |
 | `timeoutMs` | `15000` | budget for one story to become ready |
 | `pollMs` | `50` | markup sampling interval, on the fallback path only |
-| `events` | `STORYBOOK_EVENTS` | the channel event names. Configuration rather than a constant because they belong to a package this one does not depend on |
+| `events` | `STORYBOOK_EVENTS` | the channel event names this adapter listens for — `{ setCurrentStory, storyRendered, storyThrewException, storyErrored, storyMissing, playFunctionThrewException }`. Override any of them if a Storybook build renamed one |
 | `roots` | `#storybook-root`, `#root` | where the story mounts, tried in order |
-| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | how the preview renders a fatal error, consulted only on the channel-less path where there is no event to carry it. Presentation details of somebody else's package, so they are configuration |
-| `observe` | none | `collectStories` only: called after a story became ready and before the next is shown. This is where a capture goes. Sequential by contract, and called only for `rendered` stories — capturing the *previous* story's markup under this story's id is how a suite acquires a baseline that never corresponded to anything |
+| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | the CSS selectors that identify Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Only consulted when no channel was found, since there is then no event to carry the error |
+| `observe` | none | `collectStories` only: called after a story became ready and before the next is shown. This is where a capture goes. Called only for `rendered` stories, and sequentially — one call finishes before the next story is shown |
 
 ## Readiness
 
-`readySelector` is worth the configuration for any component that fetches,
-animates, or defers work to an effect — the stories that make a suite flaky.
+`readySelector` is worth configuring for any component that fetches, animates,
+or defers work to an effect. Those async gaps are what cause a *flake*: a
+capture that differs between otherwise-identical runs because it was taken
+before the component had actually finished rendering.
 
-Supplied, it becomes the only thing that can produce a `rendered` outcome, and a
-story that never attaches it **times out rather than being captured on weaker
-evidence**. There is no fallback because there is nothing to fall back *to*: the
-difference between a declared contract and a guess is that the guess photographs
-a loading spinner and calls it the component.
+Supplied, it becomes the only signal that can produce a `rendered` outcome: a
+story that never attaches the selector **times out rather than being captured
+early**.
 
-Without it, readiness is Storybook's own `storyRendered` signal, with markup
-quiescence as an explicitly weaker fallback that says so in the outcome.
+Without it, readiness falls back to Storybook's own `storyRendered` event, and
+below that to markup quiescence — the mounted root's markup being unchanged
+across two polls, `pollMs` apart. Either fallback is recorded as such in the
+outcome's `readiness` field, so a report can tell a declared-ready capture from
+a guessed one.
 
 ## No Storybook-specific denylist
 
 Nothing here prunes Storybook's chrome, and it does not have to. The story mounts
 into `#storybook-root`, so the preview reset, the addon layout and the error
 overlay are outside the subject subtree and are dropped by ordinary CSS
-applicability pruning.
-A denylist would be a second normalization ruleset, versioned by nobody.
+applicability pruning. No separate list of things to exclude is maintained.
 

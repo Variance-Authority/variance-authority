@@ -13,9 +13,10 @@ bind, no runtime globals — the same `types: []` bar `core` clears.
 
 What is left when those are taken away turns out to be most of the interesting
 part: what a document assembles to, what a renderer promises, what a store
-promises, which policy a comparison ran under, which tricks a subject was held
-still with, whether it held still at all, and what the composition that produced
-an answer was.
+promises, which policy a comparison ran under, which tricks a subject — the
+image, component, or page instance being compared — was held still with,
+whether it held still at all, and what composition (the specific ordered
+sequence of tools) produced an answer.
 
 ```bash
 npm install --save-dev @variance-authority/raster
@@ -25,8 +26,13 @@ npm install --save-dev @variance-authority/raster
 Install `@variance-authority/raster` when a caller already has decoded pixels or
 needs the contracts around rendering, storage, plans, and stability. It does not
 decode PNGs, launch a browser, write a baseline, or choose a test runner. Use
-`@variance-authority/png` for PNG bytes and pass a `ChangeMask` here
-when the next step is region isolation or attribution.
+`@variance-authority/png` for PNG bytes, and pass a `ChangeMask` — the
+per-pixel changed/unchanged bitmap a comparison produces — here when the next
+step is region isolation or attribution.
+
+If you just want to run visual regression tests end to end against a project
+config, without wiring these contracts together yourself, use
+`@variance-authority/cli` instead.
 
 ## Package boundary
 
@@ -43,37 +49,50 @@ needs this vocabulary without a second browser; a team keeping baselines
 somewhere this project has never heard of needs the store contract without a
 disk.
 
-The ephemeral retention mode lives here for the same reason, and it is the
-clearest case: *"no container, no pinned runner, no stored artifact"* stops being
-a claim in a comment when the mode's package pulls in no filesystem and no
-socket.
+Retention is the choice of what happens to an image after it is compared:
+**durable** keeps it and compares against it again on a later run; **ephemeral**
+renders both images now, in one run, and keeps neither. The ephemeral mode
+lives here for the same reason, and it is the clearest case: *"no container, no
+pinned runner, no stored artifact"* stops being a claim in a comment when the
+mode's package pulls in no filesystem and no socket.
 
 ## What it holds
 
 - **`assemble`** — a `RenderDocument` becomes an HTML string. Pure text.
 - **`Renderer`** — the contract every renderer satisfies, local or two networks
   away, plus `identityFor` (the lookup key and the write key must be one value).
-- **`RasterStore`** — the contract every backend satisfies, plus the in-memory
-  store and the checks a stored record passes before it is believed, wherever it
-  arrived from. A store failure is never a verdict: every one of them throws.
+- **`RasterStore`** — the contract a baseline backend satisfies: look up a
+  stored image for a subject, describe it without paying for the bytes, and
+  save a new one. Ships with an in-memory implementation and the checks a
+  stored record passes before it is believed, wherever it arrived from. A store
+  failure is never a verdict: every one of them throws.
 - **`RenderCache`** — a store's sibling, kept separate because
   the two have opposite loss semantics. Losing a baseline is fatal; losing a cache
   entry costs a render, so **a `RenderCache` never throws** and `neverFails` holds
   an implementation to that at construction.
-- **`DiffPolicy`** — `DEFAULT_POLICY` and `STRICT_POLICY`. A threshold and an
-  antialiasing rule decide verdicts and belong in a plan's identity, and none of
-  that requires the ability to decode a PNG.
+- **`DiffPolicy`** — a named threshold and antialiasing rule that decides
+  whether a compared pixel counts as changed: `DEFAULT_POLICY` and
+  `STRICT_POLICY`. It decides verdicts and belongs in a plan's identity, and
+  none of that requires the ability to decode a PNG.
 - **The stability gate** — two cheap documents compared. Never a third sample.
-- **The default plan** — the shipped composition, declared.
+- **The default plan** — a `Plan` is the ordered list of tool declarations
+  (which comparator, which clustering, which stabilization) whose combined
+  digest addresses everything the pipeline produces; the default plan is the
+  one this project ships, declared rather than implied.
 
 ## Interventions are not here
 
 They are in `@variance-authority/core/format`, and that is a claim
 about what they are rather than tidying. Holding a page still looks like something
 you do before you photograph it, but an animation in flight moves `transform`,
-which the *cheap* representation carries. A stabilization recipe is a render input
-on every tier, its digest is a field of `EnvironmentInputs`, and it belongs beside
-the key it is part of.
+which the *cheap* representation carries. A stabilization recipe — the fixed
+sequence of tricks (pausing animations, freezing carets, and the like) used to
+hold a subject still before it is captured — is a render input on every tier
+(semantic and raster, the two representations a subject can be captured at).
+Its digest is a field of `EnvironmentInputs`, the full set of non-code render
+inputs whose hash — the environment key — decides whether two captures are
+comparable, so the recipe belongs beside the rest of that key rather than off
+to the side.
 
 What is still here is the plan that names one:
 `defaultPlan({ stabilization })` folds `recipeDigest` into the plan identity, so
@@ -154,30 +173,30 @@ comparison.curveDelta;  // how much more of the image differs, at each severity
 comparison.fieldDelta;  // and where, per pixel
 ```
 
-The result is a difference field and severity curve; `compareDifferenceObservations`
-returns their movement between the two observations. The images must already
-share dimensions, colour space, and alpha mode. This entrypoint does not resize,
-decode, align, or decide whether a movement is acceptable; those choices belong
-to the caller and to the PNG or policy packages.
+The result pairs a difference field — one non-negative severity value per
+pixel, 0 meaning *measured and equal* — with a severity curve: `C(t)` is the
+proportion of the image differing at severity `t` or above, for each level in
+`severityLevels`. `compareDifferenceObservations` returns how that field and
+curve moved between two observations, as `fieldDelta` and `curveDelta`. The
+images must already share dimensions, colour space, and alpha mode. This
+entrypoint does not resize, decode, align, or decide whether a movement is
+acceptable; those choices belong to the caller and to the PNG or policy
+packages.
 
 Two renderers that never agreed, a font stack that was always slightly off, a
 compression pass that always softened an edge — none has to be eliminated before
 it can be watched, because the quantity under observation is the disagreement
 rather than either side of it.
 
-**It keeps severity and amount apart.** A pixel count collapses them, and the
-result is dominated by area — which is how a one-pixel spacing change reports
-thousands of differing pixels and means nothing by it. `C(t)` is the proportion
-of the image differing at severity `t` or above, so a broad weak change and a
-small severe one stop looking alike.
+A pixel count collapses severity and amount together, and the result is
+dominated by area — which is how a one-pixel spacing change reports thousands
+of differing pixels and means nothing by it. The curve keeps the two apart, so
+a broad weak change and a small severe one stop looking alike. The result type
+carries no verdict — no threshold, no ranking, no grouping, no alignment, no
+resizing, and no status field — which is what lets one stored observation
+outlive several generations of the policy reading it.
 
-**It decides nothing.** No verdict, no threshold, no ranking, no grouping, no
-alignment, no resizing. The result type has no status field and there is nowhere
-to put one — which is what lets one stored observation outlive several
-generations of the policy reading it.
-
-**Its severities are readable against a threshold you already run.**
-`YIQ_DISTANCE` is the arithmetic `pixelmatch` performs divided by its own
+`YIQ_DISTANCE` is the arithmetic `pixelmatch` performs, divided by its own
 maximum, so `severity === threshold²`: `DEFAULT_POLICY` is severity `0.01` and
 `STRICT_POLICY` is anything above `0`.
 

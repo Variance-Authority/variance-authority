@@ -11,13 +11,21 @@ component caused each change. This package is one piece of it.
 **Requires:** by entrypoint, `observeRasters` needs only two rasters. Durable
 raster observation needs a store. Document paths need a renderer and store.
 
-Compare render documents or rasters and receive one `Observation` regardless of
-where the images came from. The entrypoint determines which capabilities the
-caller supplies.
+This package is the comparison core. Give it two images of the same
+**subject** — a story, route, fixture, or value under test, identified by a
+stable id — and it returns one `Observation`: a `verdict` (one of a fixed set
+of outcomes, listed below) plus the evidence behind it. A `RenderDocument` is
+serialized markup and styles that a renderer turns into a **raster**: a
+decoded PNG carrying an **identity**, the browser, platform, and scale it was
+painted under. Comparing two rasters clusters the changed pixels into
+**regions** — boxes of contiguous difference — and, given a semantic snapshot,
+attributes each region to the component and file line that produced it. A
+**band** classifies what kind of change a region is (accessibility, geometry,
+a style token, text, or sub-pixel texture), loudest first.
 
 Use this package when you are building a custom integration below the CLI,
-Storybook, route, or Playwright surfaces. It fixes the order of render, lookup,
-comparison, region isolation, attribution, and verdict selection while leaving
+Storybook, route, or Playwright surfaces: it fixes the order of render,
+lookup, comparison, isolation, attribution, and verdict selection, and leaves
 acquisition, renderer lifecycle, storage lifecycle, acceptance, and reporting
 to your application.
 
@@ -42,7 +50,7 @@ npm install --save-dev @variance-authority/observe
 | `observeAgainstBaseline` | The current document should be compared with a durable baseline. | A document, baseline key, renderer, and store containing the approved baseline. |
 | `observeRasters` | Both PNG rasters already exist, including foreign-image ingestion. | A subject id and two rasters; snapshot and source are optional enrichment. |
 | `observeCaptureAgainstBaseline` | An adapter emits the shared document-or-raster artifact. | A `CaptureArtifact`, baseline key, and store; a renderer only when the artifact contains a document. |
-| `summarizeObservation` | You are printing an observation to a person or an agent, outside the CLI. It is the string a failing `assertUnchanged` prints, and there is deliberately only one of it. | An `Observation`, and a `SourceIndex` when you want file lines. |
+| `summarizeObservation` | You are printing an observation to a person or an agent, outside the CLI — the same string a failing `assertUnchanged` prints. | An `Observation`, and a `SourceIndex` when you want file lines. |
 | `declaredIgnores` | A report must account for ignore declarations even on paths that never compare. | The semantic snapshot and device scale. Most integrators should let the higher-level pipeline call it. |
 
 `observePair` and `observeAgainstBaseline` return the same `Observation`, so the
@@ -128,14 +136,9 @@ const observation = await observeRasters(
 );
 ```
 
-**The declaration is what makes the comparison legal.** Pixels are machine-bound,
-and this is the one entrypoint where nothing upstream has already established
-that two images came from the same painter: the ephemeral path paints both sides
-with one renderer, and the durable path asks the store under a key the renderer
-supplied. Here the caller is handing over two buffers from anywhere. So the
-identities are checked here, and two different painters return `incomparable`
-naming both — one word rather than a wall of red that `accept` could promote into
-a baseline.
+Pixels are machine-bound, so `observeRasters` checks both identities before
+comparing. Two rasters from different painters return `incomparable`, naming
+both, instead of a large diff attributed to the wrong component.
 
 The ceiling is pixels: no components, no bands, no causes. An image carries no
 structure, so `regions` comes back empty and attribution needs a document.

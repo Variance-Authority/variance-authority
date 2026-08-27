@@ -9,14 +9,22 @@ compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
 **Requires:** a workspace on a disk this process can read — a root `package.json`
-whose `workspaces` field names the members, and, for any package that publishes
-compiled declarations, a `tsconfig.json` saying which directory they were
-compiled from. Nothing has to have been built.
+whose `workspaces` field lists the workspace members (the packages that make up
+the monorepo), and, for any package that publishes compiled declarations, a
+`tsconfig.json` saying which directory they were compiled from. Nothing has to
+have been built.
 
-Use this package when a release or API check needs the package surface as data:
-the subpaths each manifest opens and every name reachable through them. It reads
-source and manifests directly; it does not need a build or compare two readings
-for you.
+This package reads a TypeScript workspace's public API as data: a **surface**.
+For each package it records which subpaths a manifest opens — an **entrypoint**
+— and which exported identifiers, or **names**, each entrypoint **reaches** by
+following re-exports through barrel files to their source. It reads source and
+manifests directly, never a build. It is a release and breaking-change tool, not
+a visual-regression step: nothing here renders anything or compares pixels.
+
+**When not to use it:** if you need to compare two renders of a UI, this is the
+wrong package — see `@variance-authority/core` and the rest of the toolkit
+instead. This package only tells you what an API looked like and what changed
+about it.
 
 ```bash
 npm install --save-dev @variance-authority/package
@@ -28,11 +36,11 @@ npm install --save-dev @variance-authority/package
 | `.` | nothing | what a workspace offers: manifests, entrypoints, the names behind them |
 | `@variance-authority/package/help` | nothing | the same reading joined with what imports it, and the pages made from it |
 
-The second is the first plus a question the first cannot answer: not *what is
-published* but *what is used*, which is what turns a thousand equally-weighted
-names into a front door and a footnote. It is a separate door because a baseline
-of the published surface does not need to walk every file in the repository, and
-the reading that ranks does.
+`/help` runs the same read as `.` and adds two more: what was written above each
+name, and which packages import it. Names come back ordered by how many
+packages import them, so the ones most consumers depend on sort first. It is a
+separate entrypoint because that ranking requires walking every file in the
+repository, and a plain published-surface reading does not.
 
 ## What it checks
 
@@ -63,15 +71,15 @@ surface['@variance-authority/core']?.names['.']?.['digestValue']; // 'function'
 countNames(surface); // number of published names in this workspace
 ```
 
-Two halves, and the split is the design. What a package **offers** comes from its
-`package.json`, because that manifest is the thing npm uploads and the thing
-another project reads. What each entrypoint **reaches** comes from the source
-that manifest points at, followed through the barrels — a rule that stopped at
-the first `export *` would be watching eight lines instead of a thousand names.
+Each package's entry in the surface has two parts: `declared`, read straight
+from `package.json`, and `names`, read from the source file each entrypoint
+points at. `names` is built by following re-exports through barrel files, not
+just the first `export *`, so a package that re-exports groups of modules still
+has every name it makes available counted.
 
 Nothing here opens `dist`. A `types` target of `./dist/index.d.ts` is mapped back
 through that package's own `rootDir`/`outDir` to `src/index.ts`, so the names
-recorded are the ones somebody wrote and not the ones a build once emitted.
+recorded are the ones somebody wrote, not the ones a build emitted.
 
 ## Rank names and find undocumented exports
 
@@ -89,15 +97,14 @@ core?.openings[0]?.entries[0]; // the name the most packages reach for, first
 undocumented(help).length; // names another package imports and which say nothing
 ```
 
-Entries arrive ordered by how many packages import them, because everything
-downstream truncates and what survives should be what somebody was going to ask
-about. `skip` adds directory names the walk never descends into, on top of
-`node_modules`, `coverage`, `build` and `out`; a package's own build output needs
-no entry, since where it lands is read from that package's `tsconfig.json`.
+Entries arrive ordered by how many packages import them. `skip` adds directory
+names the walk never descends into, on top of the defaults `node_modules`,
+`coverage`, `build` and `out`; a package's own build output needs no entry,
+since where it lands is read from that package's `tsconfig.json`.
 
 `help.deep` is the other half of the same reading: every specifier that reaches
-into a workspace package past what its `exports` map opens. Those are the imports
-that break on a refactor nobody thought was breaking.
+into a workspace package past what its `exports` map opens — an import that
+depends on internals the manifest never promised to keep stable.
 
 ## Compare two readings
 
@@ -155,17 +162,15 @@ go through an `exports` map into a built directory.
 package that *starts* declaring one reads as a change rather than as a silence.
 Pass `offered` to narrow it.
 
-Every kind of dependency is deliberately absent, peers included. A dependency
-graph is a different subject with different questions — which range, which
-duplicate, which transitive licence — and tools built for it answer them. This
-reads what a package offers, not what it needs. `version` is out for a duller
-reason: it moves every release and would drown the signal.
+No dependency information is recorded — no `dependencies`, `peerDependencies`,
+or `version`. This reads what a package offers as an API, not its dependency
+graph or its release history.
 
-Each name in the surface is recorded as what kind of thing it is and nothing
-more, so **a signature that changes under a name that does not is a change the
-surface misses**. The narrowness is the surface's, not the reader's: `readHelp`
-carries the head of each declaration — everything written before the body — and a
-consumer that wants to watch signatures has them there.
+`readSurface` records each name as what kind of thing it is (function,
+interface, `const`, and so on) and nothing more, so **a signature that changes
+under a name that does not is a change the surface misses**. `readHelp` carries
+the head of each declaration — everything written before the body — for a
+consumer that needs to watch signatures too.
 
 What neither reads is `dist`. An emitted `.d.ts` states what a compiler inferred;
 source states what somebody wrote, so `export const jsxDEV = runtime.jsxDEV`
@@ -174,8 +179,7 @@ the other one costs a build as a precondition and pays in stale output.
 
 ## What it refuses
 
-A declaration form nobody mapped, a workspace glob more elaborate than `dir/*`, a
-`types` target that maps to no file, a name re-exported from a module that does
-not publish it: each is an error naming the file, never a quietly smaller
-surface. A reader like this fails by returning *less*, and less is what a
-re-recorded baseline agrees with forever.
+An unmapped declaration form, a workspace glob more elaborate than `dir/*`, a
+`types` target that maps to no file, or a name re-exported from a module that
+does not publish it — each of these makes the read throw an `Error` naming the
+file, rather than silently producing a smaller surface.

@@ -8,11 +8,16 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
-Use this package when your integration owns a browser harness or needs to turn a
-`RenderDocument` into a raster. For an existing Playwright Test suite, start
-with `@variance-authority/playwright-test`; for CLI route or
-Storybook collection, use the corresponding collector. This lower-level package
-does not choose subjects, mount application state, or build a page agent.
+Use this package when your integration owns a **harness** (a long-lived browser
+instance kept open across captures) or needs to turn a `RenderDocument` — a
+serialized snapshot of one **subject**'s rendered state, where a subject is the
+story, route, or component variant under test — into a **raster** (a PNG image
+plus the conditions it was captured under). If you already have a Playwright
+Test suite, use `@variance-authority/playwright-test` instead; for a CLI route
+or Storybook collection, use the corresponding collector. This lower-level
+package does not choose subjects, mount application state, or build the
+`PageAgent` — the in-page object a bundle installs to read a subject and hand
+back a capture; your integration supplies that.
 
 **Requires:** a browser **binary** on the machine, which an install does not give
 you:
@@ -26,11 +31,11 @@ This is the only box in the repository that will ever ask you to install a
 browser. Everything downstream of a render — comparison, isolation, attribution,
 storage — sits elsewhere and stays reachable without one.
 
-Two tools live here — a persistent harness and a renderer — and they are separate
-tools that happen to share that requirement. Beside them sit the wire's
-observers: `observeNetwork` and its `freezeGif`, `blank*` and `fetchModules`
-helpers, `unresizable`, and `captureOnce` for a single capture without standing
-up a harness.
+Two tools live here: the harness described above, and a **renderer**, which
+turns a single `RenderDocument` into a raster without keeping a browser open
+across calls. Beside them sit the wire's observers: `observeNetwork` and its
+`freezeGif`, `blank*` and `fetchModules` helpers, `unresizable`, and
+`captureOnce` for a single capture without standing up a harness.
 
 ## Entrypoints
 
@@ -40,9 +45,9 @@ up a harness.
 | `playwright/renderer` | `createPlaywrightRenderer` | the renderer alone, without the harness |
 | `playwright/agent` | `PageAgent`, `CaptureRequest`, `AGENT_GLOBAL` | **must not** need `playwright` — it is bundled into the page |
 
-`playwright/agent` is the reason there are entrypoints at all. It is the page-side half,
-injected into the browser as a classic script, and importing Playwright behind it
-would put a node module in a bundle destined for a page.
+`playwright/agent` is published separately because it runs inside the browser:
+it is injected as a classic script, and importing Playwright behind it would
+put a Node module in a bundle destined for a page.
 
 ## The harness: one Chromium, one page, one navigation
 
@@ -95,11 +100,15 @@ subjects into one document and let one decide the other's verdict.
 | `headless` | `true` | set false to watch a case that is behaving oddly |
 | `prepare` | none | run against the page *before* its first navigation. This is where `observeNetwork` attaches: a watcher installed after `goto` has already missed every asset the document pulled in, and the alternative pays a second page load per run to observe the first one |
 
-`prepare` is a hook rather than a `network` option on purpose. The harness owns a
-browser and nothing else; teaching it what an asset hash is would put a second
-decision about the environment key in a file whose job is a page.
+`prepare` is a hook rather than a `network` option: the harness only owns the
+browser, so decisions about the environment key — like asset hashing — stay in
+the page, not the harness.
 
 ## The wire: what the page actually received
+
+`observeNetwork` watches every request a page's navigation makes and returns a
+`NetworkObservation`: which assets were seen, and — per the options below —
+which of them were frozen or blanked before they reached the page.
 
 ```ts
 import {
@@ -124,11 +133,11 @@ const harness = await createHarness({
 });
 ```
 
-This is the axis nothing else in the category operates on, and it closes a false
-`unchanged` a page cannot see about itself: a logo re-exported at the same URL is
-the same markup, the same CSS and the same document — every tier settles and the
-run reports that nothing moved, while the image is different bytes. Only the
-party that saw the response knows otherwise.
+This closes a false `unchanged` a page cannot see about itself: a logo
+re-exported at the same URL is the same markup, the same CSS and the same
+document, so every comparison tier — DOM, CSS, layout — settles and the run
+reports that nothing moved, even though the served image is different bytes.
+Only the party that watched the network response knows otherwise.
 
 | option | default | what it decides |
 |---|---|---|
@@ -144,10 +153,10 @@ different picture later than the run that observed it, which is the one thing an
 archive exists to prevent. `@variance-authority/route-collector`'s `portable: true`
 is this option with a refusal on top.
 
-`observeNetwork` returns a `NetworkObservation`: `assets` for the key, and
-`frozen` and `blanked` as ledgers rather than counts — blanking is the one
-intervention here that can hide a real regression, so an operator who blanked
-more than they meant to can read back exactly what disappeared.
+`assets` is the map folded into the environment key. `frozen` and `blanked` are
+ledgers rather than counts — blanking is the one intervention here that can
+hide a real regression, so an operator who blanked more than they meant to can
+read back exactly what disappeared.
 
 ## Which engine paints
 
@@ -161,16 +170,14 @@ const safari = await createPlaywrightRenderer({ browser: 'webkit' });
 binary is still the caller's to install — `npx playwright install webkit`.
 
 **A second engine costs a second paint and nothing else.** A `RenderDocument` is
-engine-independent, so it is collected once and rasterized per engine — which is
-the whole difference from a category that prices coverage as
-`tests × browsers × widths`, because there a browser produces the entire
-observation.
+engine-independent, so it is collected once and rasterized once per engine,
+instead of being re-collected for each one.
 
-**And no cross-engine rule was needed.** The engine was already in
-`RenderIdentity`, which already keys the store, so a WebKit baseline lands in its
-own directory and a Chromium run that finds it reports `incomparable` naming both.
-The supplied stabilization recipe targets Chromium. Use `prepare` for any
-engine-specific controls required by Firefox or WebKit.
+The engine is part of `RenderIdentity`, which keys the baseline store: a
+WebKit baseline lands in its own directory, and a Chromium run that finds one
+reports `incomparable`, naming both engines. The supplied stabilization recipe
+targets Chromium — use `prepare` for engine-specific controls needed by
+Firefox or WebKit.
 
 ## The renderer: a document in, a raster out
 
@@ -210,10 +217,9 @@ browser.
 | `assemble` | `AssembleOptions` defaults | how the document is turned into a page |
 | `concurrency` | `1` | how many documents may be painted at once. Above 1 each render leases its own page, because `setContent` replaces a page's whole document. Worth having: the raster tier is where a run's time is |
 
-It satisfies the `Renderer` contract from
-`@variance-authority/raster` — the same one a renderer across a
-network satisfies, which is what makes offloading a wiring decision made once at
-the top rather than a rewrite.
+It satisfies the `Renderer` contract from `@variance-authority/raster` — the
+same contract a renderer running across a network satisfies, so callers can
+swap one for the other without a rewrite.
 
 It applies the stabilization recipe it is given, and reports conflicts rather
 than resolving them.

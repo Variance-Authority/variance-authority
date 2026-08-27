@@ -11,14 +11,17 @@ component caused each change. This package is one piece of it.
 **Requires:** a browser binary and a reachable application, unless a static
 directory is supplied. Authenticated routes are unsupported.
 
-Turn pages your application already serves into `variance` subjects. Use this
-package when the real application has already solved bundling, providers,
-routing, and mounting, and the remaining integration is to name the pages,
-bound the part that matters, and say when each one is ready.
+A **subject** is the rendered unit a report compares against its approved
+baseline. This package is a **collector**: a module that plans subjects from
+your routes and hands `@variance-authority/cli` what to render, via
+`subjects.collector` in `variance.config.json`. Use it when the real
+application has already solved bundling, providers, routing, and mounting,
+and the remaining integration is to name the pages, bound the part that
+matters, and say when each one is ready.
 
-This is a collector for `@variance-authority/cli`, not a crawler or a
-web server for your application. Authentication has no cookie, header, or
-storage-state escape hatch.
+It navigates routes you give it — it does not crawl links, and it is not a
+web server for your application. It has no cookie, header, or storage-state
+login support (see **When integration fails**, below, for the alternative).
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/route-collector
@@ -119,11 +122,11 @@ export default routeCollector({
 For static output, replace `sitemap` with `directory: './build'`; the collector
 serves it locally and creates one subject per `.html` file.
 
-Discovery removes duplicated route lists, but it changes the safety boundary: a
-page removed from the sitemap or build also disappears from the suite without a
-config diff. Use the explicit `list` form when that silence is unacceptable. A
-sitemap index is not followed—its own `<loc>` values are treated as pages—and
-links on pages are never crawled.
+Discovery avoids maintaining two route lists, but a page removed from the
+sitemap or build also disappears from the suite without a config diff — use
+the explicit `list` form when that silence is unacceptable. A sitemap index
+is not followed: its own `<loc>` values are treated as pages, and links on
+pages are never crawled.
 
 ## Observe responsive layouts
 
@@ -145,6 +148,9 @@ so code that reads `matchMedia` during mount makes the correct decision.
 
 ## Options
 
+`widths` takes a viewport width set — an array of pixel widths — and renders
+each route once per width, independently.
+
 | Option | Use it when | Default and boundary |
 | --- | --- | --- |
 | `routes` | The config should explicitly name every subject. | Mutually exclusive with `sitemap` and `directory`. |
@@ -164,17 +170,17 @@ so code that reads `matchMedia` during mount makes the correct decision.
 
 ## Readiness and loading
 
-Before each route is read, the collector waits for every React Suspense boundary
-under the selected roots to settle. This runs first, ahead of stabilization,
-because content that arrives late brings its own images and fonts.
+Before each route is read, the collector waits for every React Suspense
+boundary under the selected roots to **settle** — resolve its real content,
+as opposed to still-arriving, where a fallback is still on screen. This runs
+before stabilization, because content that arrives late brings its own
+images and fonts.
 
-`ready` cannot cover this case and neither can the network: a component that
-suspends renders no markup for a selector to attach to, and a response that
-arrived is not a component that rendered — between them sit a promise, a retry,
-and a commit. A route still showing a fallback when the wait runs out is reported
-as **not collected**, naming the open boundaries and the components that wrote
-them. A skeleton on a slow machine and the component on a fast one is a
-difference no one authored, and every band agrees with both.
+Neither `ready` nor the network can cover this: a suspended component
+renders no markup for a selector to attach to, and an arrived network
+response is not the same event as a committed render. A route still showing
+a fallback when `suspenseTimeoutMs` runs out is reported as **not
+collected**, naming the open boundaries and the components that wrote them.
 
 Declare the exception when the fallback is the subject:
 
@@ -185,21 +191,22 @@ export default routeCollector({
 });
 ```
 
-A declared route waits for nothing, and is refused if it turns out to have
-settled — a declaration that outlived its subject is the same nondeterminism from
-the other side.
+A **declared route** — one listed in `loading` — skips the Suspense wait
+entirely. The check runs both ways: a declared route that turns out to
+settle is refused too.
 
 ### Sitemap helpers
 
-The package also exports the pure helpers used by discovery:
+The package also exports the pure **sitemap helpers** used by discovery —
+functions that parse sitemap XML without fetching it or crawling any links:
 
 - `locationsIn(xml)` returns `<loc>` values in document order;
 - `routesFrom(xml)` turns those locations into the route map and refuses path
   collisions;
 - `subjectIdFor(url)` derives the stable path-based subject id.
 
-Use them when your integration needs to preview or validate a sitemap plan
-before constructing the collector. They do not fetch a sitemap or crawl links.
+Use them to preview or validate a sitemap plan before constructing the
+collector.
 
 ## When integration fails
 
@@ -220,28 +227,19 @@ before constructing the collector. They do not fetch a sitemap or crawl links.
   component is *declared* — one line however many times the component renders.
   For the line the changed element is written on, see below.
 - **Elements report their component's declaration rather than their own line:**
-  against a development server this needs nothing at all. React 19 captures the
-  call site itself, and the elements a report is about to name are resolved
-  through the source map the dev server already emits — a changed subject costs
-  a handful of module fetches and a settled one costs none; React 18 keeps the
-  transform's own location on the fiber and needs no resolving. Either way a
-  route served by `vite dev`, `next dev` or
-  any other development server reports exact lines with no build change of any
-  kind. Two cases have nothing to read — a **production** build, where React
-  captures nothing, and React 18 compiled with the *classic* transform, which
-  emits no location for React to keep. For both, add the
-  `@variance-authority/jsx-source` plugin to the application's
-  build and turn on `jsxDev` for that case. The plugin leaves `jsxImportSource`
-  alone, so an application built against Emotion or theme-ui needs no compiler
-  change either way.
+  a route served by `vite dev`, `next dev`, or any other development server
+  reports exact lines with no build change. A production build, or React 18
+  compiled with the classic JSX transform, has nothing to read — add the
+  `@variance-authority/jsx-source` plugin to the application's build and turn
+  on `jsxDev` for that case.
 - **A login redirect is captured:** authenticated routes are outside this
-  package's current contract; use an existing Playwright test instead.
+  package's contract; use `@variance-authority/playwright-test` with a
+  Playwright test that performs the login instead.
 
 ## Boundaries
 
 Routes navigate once per subject. Storybook can switch many subjects over one
-preview navigation, so use
-`@variance-authority/storybook-collector` when the
+preview navigation, so use `@variance-authority/storybook-collector` when the
 source is Storybook. If navigation and readiness already live in a Playwright
-test, use `@variance-authority/playwright-test` and let the
-test body remain the collector.
+test, use `@variance-authority/playwright-test` and let the test body remain
+the collector.

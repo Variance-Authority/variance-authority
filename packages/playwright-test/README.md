@@ -11,11 +11,17 @@ component caused each change. This package is one piece of it.
 **Requires:** a Playwright test run with an already-opened `Page`, a non-null
 viewport, and a browser binary on the machine.
 
-Add a source-aware visual observation to a Playwright test that already knows
+A **subject** is the piece of UI a test observes: the `Locator` you pass in,
+identified by a `subjectId`. A **baseline** is the last screenshot of that
+subject a human approved; later runs compare against it. An observation is
+**source-aware** when you pass a `SourceIndex` as `source` — changed regions
+then resolve to `file:line` instead of just a component name.
+
+This package adds that observation to a Playwright test that already knows
 how to navigate, authenticate, mount data, and wait for the application. The
-test body remains the collector. This package does not export `test` or
-`expect`; the suite keeps the runner, fixtures, matchers, and import paths it
-already owns.
+test body remains the collector: this package does not export `test` or
+`expect`, and the suite keeps the runner, fixtures, matchers, and import
+paths it already owns.
 
 Use this integration when the state you need is already easiest to reach in a
 Playwright test:
@@ -50,7 +56,8 @@ test('the cart survives an empty basket', async ({ page }, testInfo) => {
 
 `observe` creates and closes its renderer around one observation. It returns an
 `Observation`; `assertUnchanged` is a plain assertion helper, not a replacement
-for Playwright's `expect`. A test may also inspect `verdict`, `regions`,
+for Playwright's `expect`. A test may also inspect `verdict`, `regions` (the
+changed areas, each attributed to a component when the comparison can tell),
 `missingFonts`, `signals`, or diagnostics before deciding what to do. `signals`
 keeps document, pixel, and browser accessibility results separate; an invisible
 ARIA change therefore returns `changed` with zero changed pixels and retained
@@ -136,11 +143,10 @@ npx playwright test --update-snapshots=all
 ```
 
 Acceptance promotes the candidate painted by that run; it never paints a second,
-unseen image. That run **passes**: a subject it promoted comes back `unchanged`,
-with a `because` naming the acceptance and the verdict it replaced, so the
-documented command is one an operator can run without a branch in the spec around
-`assertUnchanged`. The comparison and the ranked regions are dropped with it —
-both describe the baseline that was just replaced.
+unseen image. That run **passes**: the subject it promoted comes back
+`unchanged`, with a `because` naming the acceptance and the verdict it
+replaced. The comparison and the ranked regions are dropped with it — both
+described the baseline that was just replaced.
 
 Only `--update-snapshots=all` and `=changed` cross that boundary. Playwright
 defaults the field to `missing` with no flag supplied, and treating the default as
@@ -184,7 +190,7 @@ accessibility field means the boundary was not observed.
 | `subjectKind` | The subject is not a navigated route. | `route`. |
 | `fonts` | Renderer identity must include an asserted font stack. | Omitted and reported as missing identity evidence. Values are `family/weight/style/hash`. |
 | `source` | Failure output should resolve components to `file:line`. | Omitted; regions can still name components. |
-| `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled. |
+| `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled (stopped showing its fallback). |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
 
 ### `createVariance(page, testInfo, options)`
@@ -201,12 +207,11 @@ opens and closes the rest itself.
 | `bundle` | The suite deliberately builds its own page agent. | The package's bundled agent. A custom bundle must install itself both in the current document and on future navigations. |
 | `materialization` | Pixels should come from the browser the suite already pinned. | `{ kind: 'deferred' }`. |
 
-`materialization` is a union on `kind` rather than a flag, because in-place
-capture is not deferred rendering with a switch flipped — it needs facts deferred
-rendering does not have. `kind: 'in-place'` requires `browser`, the declared launch of the
-suite's own Chromium (`headless` and the ordered `launchArgs`), which is what
-enters renderer identity; `stabilityChecks` defaults to `2` and cannot lower the
-check below two captures.
+`materialization` selects how pixels are produced; its `kind` field picks the
+strategy. `kind: 'in-place'` requires
+`browser`, the declared launch of the suite's own Chromium (`headless` and the
+ordered `launchArgs`), which is what enters renderer identity; `stabilityChecks`
+defaults to `2` and cannot go lower than two captures.
 
 ### Optional fixture composition
 
@@ -219,13 +224,10 @@ check below two captures.
 
 ### Matcher integration
 
-`toBeUnchanged` is the same verdict read as a matcher rather than an assertion,
-and it takes an `Observation` rather than a `Locator`. That is the whole design:
-every third-party matcher that takes a page ends up owning a browser, a store and
-a bundle in module-level state, because `expect.extend` cannot reach a fixture.
-Both it and `assertUnchanged` accept `UnchangedOptions`. Its `source` field is a
-`SourceIndex` resolving components to `file:line` when the
-observation was made without one.
+`toBeUnchanged` reads the same verdict as a matcher rather than an assertion; it
+takes an `Observation`, not a `Locator`. Both it and `assertUnchanged` accept
+`UnchangedOptions`. Its `source` field is a `SourceIndex` resolving components
+to `file:line` when the observation was made without one.
 
 ```ts
 // the suite's own expect, in the suite's own extension module
@@ -254,17 +256,15 @@ create a renderer, store, or acceptance lifecycle on their own.
 ## Loading and Suspense boundaries
 
 Before the subtree is acquired, the integration waits for every React Suspense
-boundary under the locator to settle. This runs first, ahead of stabilization,
-because content that arrives late brings its own images and fonts.
+boundary under the locator to **settle** — stop showing its fallback. This runs
+first, ahead of stabilization, because content that arrives late brings its own
+images and fonts.
 
 A subtree still showing a fallback when `suspenseTimeoutMs` runs out throws,
-naming the open boundaries and the components that wrote them. That is
-deliberate, and it is where this integration differs from a collector, which
-reports the subject as not collected: `observe` returns an `Observation`, and a
-photographed spinner is not a comparison result. A failed assertion is what
-reaches the person who can decide which of the two states the test is about.
+naming the open boundaries and the components that wrote them.
 
-Pass `loading: true` when the fallback is the subject:
+Pass `loading: true` when the fallback itself is the subject you want to
+review:
 
 ```ts
 import { test } from '@playwright/test';
@@ -277,9 +277,9 @@ test('the cart is reviewed while it loads', async ({ page }, testInfo) => {
 });
 ```
 
-The declaration is checked in both directions: a subtree declared as a loading
-capture that turns out to have settled throws as well, because a declaration
-that outlived its subject is the same nondeterminism from the other side.
+`loading` is a **declared** state, checked against what actually happened: a
+subtree declared as a loading capture that turns out to have **settled** by
+the time it's read throws as well.
 
 ## Read and act on failures
 
@@ -307,11 +307,9 @@ that outlived its subject is the same nondeterminism from the other side.
 This package does not merge Playwright shards into one docket. Playwright's
 `--shard` can still run the tests, but each shard owns its own result set.
 
-For a Storybook inventory use
-`@variance-authority/storybook-collector`. For a map
-of served pages use
-`@variance-authority/route-collector`. For two documents
-already in hand or a custom renderer/store composition, use
-`@variance-authority/observe`.
-For browserless Jest or Vitest acquisition followed by a later renderer, use
-`@variance-authority/unit-test`.
+Use a different package when a Playwright test isn't the right place to start:
+for a Storybook inventory use `@variance-authority/storybook-collector`; for a
+map of served pages use `@variance-authority/route-collector`; for two
+documents already in hand, or a custom renderer/store composition, use
+`@variance-authority/observe`; for browserless Jest or Vitest acquisition
+followed by a later renderer, use `@variance-authority/unit-test`.

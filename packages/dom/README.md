@@ -11,41 +11,42 @@ component caused each change. This package is one piece of it.
 **Requires:** a live DOM in scope — a mounted element and the `document` that
 owns it. jsdom or a browser; it never asks which.
 
-Extract a `RawCapture` from a mounted element. One implementation for both
-observation profiles: jsdom in a unit test, Chromium in a page, same code, same
-ruleset.
+Extract a `RawCapture` — a serializable snapshot of an element's tree, ARIA, and
+applicable styles — from a mounted element. One implementation covers both
+**observation profiles**, i.e. what a document can be asked for: jsdom in a unit
+test, Chromium in a page, same code, same ruleset.
 
 ```bash
 npm install --save-dev @variance-authority/dom
 ```
 ## Use this package when
 
-Install `@variance-authority/dom` when a collector owns a live `Element`. The
-host supplies `document`, the mounted subject, viewport conditions, and any font
-or asset hashes it can verify. This package does not mount React, launch a
-browser, decode images, or normalize the capture; pass its result to
-`@variance-authority/core`. React attribution is optional and is
-injected by `@variance-authority/react`.
+Install `@variance-authority/dom` when your code — the **host** — already owns a
+live `Element` and the `document` it belongs to; a collector or a test is a
+host. The host supplies that document, the **subject** (a stable id naming the
+story, route, fixture, or value under test, independent of which element
+renders it), viewport conditions, and any font or asset hashes it can verify.
+This package does not mount React, launch a browser, decode images, or
+normalize the capture; pass its result to `@variance-authority/core`. React
+attribution is optional and is injected by `@variance-authority/react`.
 
-## Package boundary
-
-Deciding whether a CSS rule *applies* requires a live document. You cannot know
-whether `.card:hover .title` matches without something to match against, and
-`core` is forbidden from having one.
-
-So applicability pruning happens here and nothing else does. Every other
-normalization rule must be versioned by the ruleset rather than by the collector,
-or two collectors become two rulesets and the profiles stop agreeing by
-construction.
+Skip this package if nothing has mounted an element yet: a collector such as
+`@variance-authority/storybook-collector` or `@variance-authority/route-collector`
+owns the browser and the mounting for you.
 
 ## Applicability pruning
 
+**CSS applicability pruning** discards every stylesheet rule that cannot reach
+the mounted subject, keeping only what could actually style it. It happens in
+this package, not in `@variance-authority/core`, because deciding whether a rule
+applies needs a live document; every other normalization rule stays versioned by
+the ruleset instead of the collector.
+
 On a single-button subject mounted under Storybook chrome, a preview reset, dead
 utility classes and CSS-in-JS accretion, applicability pruning reduced 1,010
-parsed rules to the one rule that could reach the subject.
-A design system's stylesheet is almost entirely irrelevant to any one subject,
-and a comparison that carries it is comparing the document a subject happened to
-be mounted in.
+parsed rules to the one rule that could reach the subject. A design system's
+stylesheet is almost entirely irrelevant to any one subject, and a comparison
+that carries it is comparing the document a subject happened to be mounted in.
 
 ## Smallest working path
 

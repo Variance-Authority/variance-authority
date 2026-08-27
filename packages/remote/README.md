@@ -9,8 +9,16 @@ compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
 Use this package when rendering or baseline storage must happen in another
-process or on another machine. The client and server share one HTTP protocol;
-the server wraps a renderer or store you provide.
+process or on another machine — for example, painting screenshots on a box with
+a pinned browser while the rest of the pipeline runs elsewhere. The server
+wraps a **renderer** (the pluggable component that paints a document into an
+image) or a **store** (the pluggable component that holds baselines and a
+render cache) that you supply, and exposes it over one HTTP protocol shared by
+the client and the server.
+
+Skip this package if the renderer and the store already run in the same
+process as the rest of the pipeline: the HTTP hop only pays for itself once
+rendering or storage happens somewhere else.
 
 **Requires:** a port to bind for a server, or an endpoint to reach for a client.
 The package does not provide a renderer, a database, or a baseline policy.
@@ -20,16 +28,18 @@ npm install --save-dev @variance-authority/remote
 ```
 ## What crosses the wire
 
-Render documents, rasters, baseline descriptions, and cache entries are already
-serializable. A document acquired in a jsdom unit test can therefore be painted
-by a pinned renderer elsewhere without changing the interfaces above or below
-the hop.
+A **render document** (the serializable description of what to paint), a
+**raster** (the painted image, its pixels carried as base64), a **baseline
+description** (a baseline's metadata — digest, comparability, missing fonts —
+without its image bytes), and a **cache entry** (a previously rendered raster,
+kept so an unchanged document is not repainted) are all plain JSON. A document
+acquired in a jsdom unit test can therefore be painted by a pinned renderer
+elsewhere without changing the interfaces above or below the hop.
 
 ## Client and server entrypoints
 
-The client and the server are **one protocol**. Split across two packages they
-drift, and a client and a server disagreeing about a wire format is the class of
-failure that presents as a verdict.
+The client and server ship from one package. A client and server that disagree
+about the wire format fail silently, as a wrong verdict rather than an error.
 
 | entrypoint | holds |
 |---|---|
@@ -38,6 +48,9 @@ failure that presents as a verdict.
 | `./store` | `createRemoteStore`, `serveRasterStore` |
 
 ## Usage
+
+A server pins one renderer; a client anywhere else connects to it as if it were
+local:
 
 ```ts
 import { serveRenderer, connectRenderer } from '@variance-authority/remote/renderer';
@@ -59,9 +72,10 @@ one.
 
 `render(document)` is unchanged and takes one document. Underneath, calls that
 overlap in time leave as **one request** to `/render/batch`, because a run's
-raster tier goes as wide as the operator allowed and one request per subject pays
-a connection, a round trip and — on a farm that scales to zero — a chance of a
-cold start, per subject, around a paint that costs ~65 ms.
+raster tier goes as wide as the operator allowed, and one request per
+**subject** (the component or page a baseline represents) pays a connection, a
+round trip and — on a farm that scales to zero — a chance of a cold start, per
+subject, around a paint that costs ~65 ms.
 
 The batching is under the interface rather than in it: nothing upstream learns a
 new shape, no caller picks a size, and the local and remote renderers stay
@@ -75,22 +89,15 @@ interchangeable.
 | `fetch` | `globalThis.fetch` | Substitute it to route through a proxy or add headers |
 
 `createRemoteStore` takes the same `endpoint`, `timeoutMs` and `fetch`, plus
-`token` — the bearer the operator set on the service. It constructs
-synchronously, unlike `connectRenderer`, and the asymmetry is deliberate: a
-renderer has an identity that must be learned before anything it returns can be
-trusted, whereas a store has none of its own. The identity in play belongs to the
-renderer and travels on every call, so there is nothing to hand-shake about and a
-constructor that pinged the endpoint would move the failure earlier without
-changing what it means.
+`token` — the bearer the operator set on the service. Unlike `connectRenderer`,
+it constructs synchronously: a store has no identity of its own to learn up
+front, only the renderer's identity, which travels on every call instead.
 
 Two properties the batch does not get to soften. **The identity check stays per
-document** — it is the thing that stops a raster being filed under a key nobody
-looks up, and a saving that widened it to "somewhere in these sixteen" would be
-the worst possible trade. And **one document's failure is one document's**: the
-server answers per item, so a malformed subject cannot turn the fifteen it
-travelled with into failures somebody has to re-run to find innocent. A transport
-failure is the one thing that belongs to the whole batch, because nothing came
-back to attribute.
+document**, so a raster is never filed under "somewhere in these sixteen". And
+**one document's failure is one document's**: the server answers per item, so a
+malformed subject fails only itself, not the batch it travelled with. Only a
+transport failure — nothing came back at all — fails the whole batch.
 
 ## Serving the other half
 

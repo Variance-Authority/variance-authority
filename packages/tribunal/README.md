@@ -27,10 +27,6 @@ Producing runs and reports is the job of `@variance-authority/cli`. This package
 stores the evidence they send and gives a reviewer a place to inspect and settle
 it; it does not render subjects or decide what a run should contain.
 
-The deployment boundary includes D1 transaction behavior, R2 object limits, and
-concurrent Worker writes. Validate those platform constraints in the account
-where the service runs; the package owns the request and storage contracts.
-
 ```bash
 npm install @variance-authority/tribunal
 ```
@@ -45,9 +41,11 @@ npm install @variance-authority/tribunal
 `variance run` reaches this deployment with **no change to the CLI** —
 `baselines.kind: "remote"` and a URL — and a client built from
 `@variance-authority/history/client` reaches it with no change to the client.
-The baseline surface keeps the same `RasterStore` contract as the disk and
-remote stores; the review surface adds builds, subjects, and decisions. The
-operator supplies the deployment and credentials.
+
+A **subject** is one rendered unit under test — a story, route, or fixture —
+identified by a string id (for example `story:card`). `@variance-authority/cli`
+decides each subject's verdict (`unchanged`, `changed`, `new`, among others)
+upstream; this service stores the evidence and the decision made about it.
 
 ## Entrypoints
 
@@ -108,26 +106,22 @@ export default {
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request rather than on a timer, because a Worker has no timer and this package will not invent a cron the operator did not ask for — wire it to a scheduled trigger, call it from a CI job, or never |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
-`env.DB` and `env.BUCKET` are Cloudflare's own `D1Database` and `R2Bucket` and
-are accepted as-is: this package declares the narrow subset it uses and a wider
-type is assignable to a narrower one. It does **not** depend on
-`@cloudflare/workers-types`, which is why the store is testable in a plain
-`vitest` process.
+`env.DB` and `env.BUCKET` are Cloudflare's own `D1Database` and `R2Bucket`,
+accepted as-is via structural typing: this package declares only the subset it
+uses, and does **not** depend on `@cloudflare/workers-types` — which is why the
+store is testable in a plain `vitest` process.
 
 Apply the schema yourself, once — `applySchema(db)`, or the statements in
 `SCHEMA` through whatever you use for migrations. Nothing here migrates on a
-request: a handler that migrates on first use migrates concurrently under load,
-and D1 has no advisory lock to serialize that with.
+request, since D1 has no advisory lock to serialize a migration running under
+concurrent load.
 
-A database that is **already deployed** is not upgraded by that call. `SCHEMA` is
-the whole shape and applying it a second time fails on the first `CREATE TABLE`,
-which is the intended behaviour; what an existing database needs is the part it
-is missing. That is `MIGRATIONS` — one entry per version after the shape this
-package first shipped, each ending by writing the version it lands on, so a
-database is never left at a version whose tables it does not have. Step `i`
-lands on `INITIAL_VERSION + i + 1`, so a database reporting `schema_version` `n`
-needs every step from `n - INITIAL_VERSION` on. Applying the initial set and
-then every step in order arrives at exactly the same place.
+An **already-deployed** database is not upgraded by that call: `SCHEMA` is the
+whole shape, and applying it a second time fails on the first `CREATE TABLE`.
+Apply `MIGRATIONS` instead — one entry per version after the package's initial
+shape, each writing the version it lands on. Step `i` lands on
+`INITIAL_VERSION + i + 1`, so a database reporting `schema_version` `n` needs
+every step from `n - INITIAL_VERSION` on.
 
 ### Or deploy the one that ships
 
@@ -177,15 +171,13 @@ A bad environment answers **500 with a sentence**, not a deployment-wide platfor
 error: construction happens inside `fetch`, so *your token is too short* and *your
 two tokens are the same* reach the operator as the response body.
 
-`PROJECT` being a deployment setting is what has to change before a second tenant exists — the credential should
-establish the project and no route should accept one. Harmless while a deployment
-serves one project, and the whole of the problem at two.
+`PROJECT` is a deployment setting, so one deployment serves one project; a
+second tenant needs a second deployment.
 
-Two properties worth knowing before you run it. The migrations in `migrations/`
-are **generated** from `SCHEMA` by `tools/tribunal-migrations.mjs`. Change
-`schema.ts` and rebuild rather than editing a generated `.sql` file. The
-`wrangler.jsonc` carries the project name and no credentials; keep both tokens
-in Wrangler secrets.
+The migrations in `migrations/` are **generated** from `SCHEMA` by
+`tools/tribunal-migrations.mjs` — change `schema.ts` and rebuild rather than
+editing a generated `.sql` file. `wrangler.jsonc` carries the project name and
+no credentials; keep both tokens in Wrangler secrets.
 
 ### The review surface
 
@@ -236,34 +228,26 @@ export const { GET, POST, HEAD } = createTribunalRoutes(worker, {
 });
 ```
 
-`createReviewClient` takes `endpoint` — where the Worker is mounted, relative
-behind this adapter because the page and the API are one deployment — and an
+`createReviewClient` takes `endpoint` — where the Worker is mounted — and an
 optional `token` for a caller holding the review token directly. Omit `token`
-behind the adapter: there the server route holds it and the browser never sees
-it, which is the entire reason the adapter exists. A review token shipped to a
-browser is a token in everybody's devtools.
+behind the Next.js adapter above: the server route holds it and the browser
+never sees it.
 
 `createTribunalRoutes` takes `basePath`, `authorize` and `tokens`. `basePath` is
-stripped before the request reaches the Worker, which knows only its own paths —
-without it every request arrives as `/variance/review/builds` and 404s against a
-route table that has never heard of the prefix. `tokens` is passed again rather
-than read off the worker, because a `Tribunal` is deliberately a `fetch` handler
-and nothing else: a handler that could be asked for its own secrets is a handler
-that can leak them by being logged.
+stripped before the request reaches the Worker. `tokens` is passed explicitly
+because the `Tribunal` object only exposes `fetch`, not the tokens it was
+created with.
 
-`authorize` has **no default**, and that is the one decision this package refuses
-to make for you. The review token promotes baselines, so it stays on the server
-and the route handler attaches it — which makes the handler, not the token, the
-gate. Defaulting it to `'review'` would publish an approve button to the
-internet; an operator who genuinely wants that writes `() => 'review'` in their
-own file, where the next person reading the repository can see it.
+`authorize` has **no default**. It returns `'ingest'`, `'review'`, or `null`; a
+refused caller gets a 401 before the Worker sees the request, and a caller
+returned `'review'` has the review token attached on their behalf.
 
-### `GET /review/changelog`: why the baselines are what they are
+### `GET /review/changelog`
 
-A build says what changed today. This says what was *approved*, grouped by what
-changed rather than by which screenshot changed — the same unit the docket uses,
-because a token edit across forty stories is one decision and forty entries would
-reproduce exactly the review problem clustering exists to solve.
+A build says what changed today; this endpoint says what was *approved*,
+grouped by shape rather than by which screenshot changed — the same grouping
+the docket (the reviewer's ranked list of causes, described below) uses, so a
+token edit across forty stories is one entry, not forty.
 
 ```ts
 import { createReviewStore } from '@variance-authority/tribunal/review';
@@ -287,116 +271,88 @@ changes[0]?.builds;    // where the approvals came from
 query parameters.
 
 **One row is written per approval, and its columns are copies rather than a
-join.** Everything in them is already in `builds` and `build_subjects` at the
-moment of approval, and a view over those two would be shorter — and empty after
-`sweep`. Builds expire; the explanation of a baseline has to last exactly as long
-as the baseline, which is forever. So the regions, the commit, the intent and the
-reviewer are frozen at the moment of approval, the same way
-the git-LFS half freezes them into a commit message.
+join.** The regions, the commit, the intent and the reviewer are frozen at the
+moment of approval rather than read live from `builds` and `build_subjects`,
+because a `sweep` (see Retention below) removes builds, and a baseline's
+explanation has to outlive them.
 
-Nothing is written for a **rejection**. It is a decision and it is recorded in
-`decisions`, but no baseline changed, and a changelog carrying rejections would
-answer *why does this baseline look like this* with entries about baselines that
-are not there.
+**Nothing is written for a rejection.** It is recorded in `decisions`, but no
+baseline changed.
 
-The shapes are grouped **when somebody reads**, not when a row is written.
-Approval here is per subject — a reviewer clicks through a docket rather than
-running one command over a report — so there is no batch at write time to
-cluster, and grouping late means a shape approved across three sessions still
-reads as one change. Approved subjects that no shape could group are returned as
-`ungrouped` rather than dropped, so the total stays a total.
+**Shapes are grouped when somebody reads**, not when a row is written — approval
+here is per subject, so there is no batch at write time to cluster, and a shape
+approved across several sessions still reads as one change. Approved subjects
+that no shape could group are returned as `ungrouped` rather than dropped.
 
 ## Review surface
 
-Everyone in this category shows a before and an after and asks you to spot the
-difference. That is the review blindness this project exists to refuse: the
-hundredth screenshot gets the same glance as the first.
+When `ReviewApp` (`@variance-authority/tribunal/ui`) is open on a build, a
+reviewer sees, in this order:
 
-So the order is inverted.
-
-1. **The docket.** Components the semantic tier named as *causes*, largest first,
-   with the file each is declared in. Collateral is one number for the build.
+1. **The docket** — one entry per component the semantic tier (the analysis step
+   that attributes a changed region to a component, rather than just measuring
+   pixels) named as a *cause*, largest first, with the file each is declared in.
+   Collateral is one number for the build rather than a per-region list.
 2. **The regions, drawn on the render**, cause and collateral styled apart, each
    labelled with the component that owns it.
 3. **The comparison** — swipe, onion, side-by-side, difference mask — last, and
    only the modes this build actually kept images for.
 
-Ranked by area that report is *backwards*: a large container that only reflowed
-can outrank the smaller edit that caused it. The ordering comes from the tier
-that has provenance, which is why `cause` is a field on a region and not a guess
-made in a component.
+The docket ranks by cause pixels rather than total area, so a large container
+that only reflowed does not outrank the smaller edit that caused it; `cause` is
+a field on a region rather than something inferred from a component's size.
 
 ## Review invariants
 
 **Approval promotes an image; it never records one.** Deciding *approved* makes
 that build's uploaded candidate the baseline, through the same `RasterStore` the
 next run reads. A subject whose candidate was never uploaded **cannot be
-approved** — the alternative is a review surface that renders in order to say
-yes, and a surface that can render can record something nobody looked at. This is
-`variance accept`'s rule, and it is why a build stores the candidate's document
-digest and dimensions rather than only its pixels.
+approved**.
 
 **A store failure is never a verdict.** Every D1 and R2 failure raises
-`RasterStoreError`. `null` is reserved for *the store looked and there is no
-baseline*, because `null` becomes `new`, `new` records whatever this build
-painted, and the image it overwrites was the only evidence of what the subject
-looked like before.
+`RasterStoreError` rather than returning a value; `null` is reserved for *the
+store looked and there is no baseline*.
 
-**A row without its object is damage, not absence.** The sidecar lives in D1 and
-the image in R2, which is the directory store's `.json`/`.png` pair with the
-halves in the services that suit them — and it inherits the pair's failure mode
-exactly. `describe` spends an R2 `head` for this reason: answering from the row
-alone would let the cheap lookup and the full one disagree about whether a
-baseline exists, and a verdict that depends on which question you asked is not a
-verdict.
+**A row without its object is damage, not absence.** The sidecar (metadata)
+lives in D1 and the image in R2. `describe` spends an R2 `head` call to confirm
+the object still exists rather than answering from the D1 row alone.
 
 **A coverage list that was never stated is not an empty one.** `undefined` and
-`[]` are stored as different values, returned as different values, and drawn as
-different sentences. A run that planned 300 subjects, failed on 50 and found 250
-unchanged produces a report in which every observation is clean; the only thing
-that can refuse "nothing to review" is that list, and a UI printing `0 failed`
-for a silent writer would undo it at the last possible moment. The same
-distinction holds for findings: `[]` is *inspected and clean*, absent is *nothing
-looked*.
+`[]` are stored, returned, and drawn as different values: absent means nothing
+looked, `[]` means inspected and clean. The same distinction holds for findings.
 
 **Two tokens, and they may not be equal.** The ingest token lives in CI
-configuration and writes builds, baselines and history. The review token belongs
-to people and decides. Construction refuses a short token and refuses two
-identical ones — a deployment with one secret would satisfy every check in the
-router while anything that can read a build log could approve a regression.
+configuration and writes builds, baselines and history; the review token
+belongs to people and decides. Construction refuses a token under 16 characters
+and refuses two identical tokens.
 
 **Authentication happens before routing.** A caller holding neither token gets
-one sentence, identical for a wrong token, a missing token, and a path that does
-not exist. The capability check happens after routing, and only reveals to
-someone already holding a valid token which of the two a route wants.
+one identical response for a wrong token, a missing token, and a path that does
+not exist; which of the two tokens a route wants is only revealed to a caller
+who already holds a valid one.
 
 **The Worker makes no outbound request.** Not a status check, not a PR comment,
-not a webhook, not telemetry. The pipeline reports to the server; the server
-reports to nobody. It also means there is no credential here for anybody else's
-system.
+not a webhook, not telemetry — the pipeline reports to the server, and the
+server reports to nobody.
 
-**The record is append-only, and the database says so rather than this code.**
-Runs, observations, token values and decisions all carry `UPDATE` and `DELETE`
-triggers with the message attached — so a person at a `wrangler d1 execute`
-prompt hits them too.
+**The record is append-only, and the database enforces it.** Runs,
+observations, token values and decisions all carry `UPDATE` and `DELETE`
+triggers, so a direct `wrangler d1 execute` against the database is refused
+too.
 
 ## Retention
 
 `POST /review/sweep?days=N` removes builds older than `N` days: their subject
 rows, their coverage rows, and every image they kept. It **reports counts** for
-everything it removed, because a store that discards quietly is a store whose
-"we have never seen this" is a lie — `builds`, `subjects`, `objects`.
+everything it removed — `builds`, `subjects`, `objects`.
 
-What it does not remove: **promoted baselines**, which are what the next run
-compares against; **decisions**, which carry a permanence trigger — a promoted
-baseline whose approval was deleted is a change nobody can attribute to anyone;
-and the **changelog**, for the same reason one rung further out. The fourth
-count, `decisionsKept`, is named for that: it is how many approvals outlived the
-builds this call removed, not a fourth removal.
+What it does not remove: **promoted baselines** (what the next run compares
+against), **decisions**, and the **changelog**. The fourth count,
+`decisionsKept`, is how many approvals outlived the builds this call removed,
+not a fourth removal.
 
-It runs on request and never on a timer. A Worker has no timer, and this package
-will not invent a cron the operator did not ask for; wire it to a scheduled
-trigger or call it from CI.
+It runs on request only, never on a timer — wire it to a scheduled trigger or
+call it from CI.
 
 ## Testing your own wiring
 
@@ -427,16 +383,16 @@ request and subrequest limits, object-size ceilings, quotas, and the behavior of
 concurrent writes. Those are deployment conditions, not behavior this package
 can configure or infer.
 
-**Concurrency around run lineage is weaker than the SQLite backend's.** That one
-takes a write lock before checking whether a run id is registered; two Workers
-cannot. The `WHERE NOT EXISTS` guard and the unique index still refuse a run id
-pointing at two commits — the pre-read only exists to make the message name both
-commits instead of an index.
+**Concurrency around run lineage is weaker than the SQLite backend's.** The
+SQLite backend takes a write lock before checking whether a run id is
+registered; two Workers cannot. A unique index still refuses a run id pointing
+at two commits either way.
 
 **A build's images are as large as the run kept.** Nothing here compresses,
 resizes, or deduplicates across builds.
 
 **A build cannot distinguish two images of one subject.** `ObservationRecord`
-carries a subject and no label, so labelled baselines are writable through the
-store and not reachable through the review path.
+(the per-subject outcome a run reports — subject id, verdict, regions) carries
+a subject and no label, so labelled baselines are writable through the store
+and not reachable through the review path.
 

@@ -12,9 +12,10 @@ component caused each change. This package is one piece of it.
 built `index.json` is the input; `.storybook` configuration is not read.
 
 Turn a built or already-served Storybook into subjects that `variance run` can
-observe. Use this package when Storybook already owns component mounting and you
-want source-attributed visual, semantic, accessibility, and localization
-findings without writing a browser harness.
+observe — one subject per story, the unit a comparison runs against. Use this
+package when Storybook already owns component mounting and you want
+source-attributed visual, semantic, accessibility, and localization findings
+without writing a browser harness.
 
 This is the Storybook adapter, not the `variance` binary. Pair it with
 `@variance-authority/cli`.
@@ -28,9 +29,9 @@ npx playwright install chromium
 
 ### 1. Build the artifact you want to observe
 
-The collector reads the artifact Storybook produced, so run your ordinary
-Storybook build first. A development server also works when you pass `baseUrl`
-below.
+The collector — the module you create in step 2 below — reads the artifact
+Storybook produced, so run your ordinary Storybook build first. A development
+server also works when you pass `baseUrl` below.
 
 ### 2. Add a collector module
 
@@ -59,18 +60,14 @@ still name components, but it cannot point to their declarations.
 It names where a component is *declared* — one line however many times that
 component is rendered.
 
-For the line the changed element is actually written on, a **development**
-Storybook needs nothing: React 19 captures the call site itself, and the
-elements a report is about to name are resolved through the source map the dev
-server already emits — a story that settled on its digest resolves nothing —
-while React 18 keeps the transform's own location on the fiber and needs no
-resolving at all. Against a **built, minified** Storybook there is no such capture, and the
-way to have it there is the
-`@variance-authority/jsx-source` plugin in your `viteFinal`
-with `esbuild.jsxDev` on. A report prefers the exact location wherever it comes
-from, and this collector makes it repository-relative. The plugin does not take
-`jsxImportSource`, so a Storybook already compiling against Emotion or theme-ui
-keeps doing exactly that.
+For the line the changed element is actually written on: against a
+**development** Storybook, source locations work automatically — nothing to
+configure. Against a **built, minified** Storybook it needs the
+`@variance-authority/jsx-source` plugin in your `viteFinal` with
+`esbuild.jsxDev` on; a report prefers the exact location wherever it comes
+from, and this collector makes it repository-relative. The plugin does not
+take `jsxImportSource`, so a Storybook already compiling against Emotion or
+theme-ui keeps doing exactly that.
 
 ```bash
 npm install --save-dev @variance-authority/jsx-source
@@ -105,10 +102,17 @@ npx variance doctor --config variance.config.json
 npx variance run --config variance.config.json
 ```
 
-The first successful run exits `1` and reports each story as `new`; a baseline
-nobody approved is not a pass. Review the candidates, accept the intended
-subjects, and run again. The next unchanged run exits `0` without painting
-subjects whose stored document digest already proves they did not move.
+Each run writes `.variance/report.json`, the artifact everything else reads.
+Run `npx variance report --config variance.config.json --format html` (redirect
+the output to a file) and open the result in a browser to see before/diff/after
+images per changed story, grouped by cause rather than by story.
+
+The first successful run exits `1` and reports each story as `new`; a
+baseline — the stored snapshot a subject is compared against — nobody
+approved is not a pass. Review the candidates, accept the intended subjects,
+and run again. The next unchanged run exits `0` without re-rendering
+(*painting*) subjects whose stored document digest already proves they did
+not move.
 
 The executable `storybook-case` demonstrates the
 complete cycle against a Storybook-built artifact: new → accept → unchanged → a
@@ -142,8 +146,10 @@ and does not enter the subject document.
 ## Readiness and loading
 
 Before each story is read, the collector waits for every React Suspense boundary
-under the story root to settle. This runs first, ahead of stabilization, because
-content that arrives late brings its own images and fonts.
+under the story root to settle. This runs first, ahead of stabilization — the
+step that pins in-flight CSS animations and transitions to a settled frame
+before anything is read — because content that arrives late brings its own
+images and fonts.
 
 `ready` cannot cover this case and no marker can: a component that suspends
 renders no markup for a selector to attach to, and Storybook's `storyRendered`
@@ -151,7 +157,9 @@ has already fired — the story function returned. A story still showing a
 fallback when the wait runs out is reported as **not collected**, naming the open
 boundaries and the components that wrote them, rather than recorded as a
 baseline. A skeleton on a slow machine and the component on a fast one is a
-difference no one authored, and every band agrees with both.
+difference no one authored, and every band — the severity category, from
+accessibility down to sub-pixel noise, a change is filed under — agrees with
+both.
 
 Declare the exception when the fallback is the subject:
 
@@ -200,7 +208,3 @@ use `@variance-authority/route-collector`. For an existing
 Playwright test, use
 `@variance-authority/playwright-test`, where the test body
 already performs navigation, mounting, and readiness.
-
-Cause-first ordering also depends on the baseline carrying component hashes. A
-baseline without them can still produce attributed regions, but the docket must
-order those regions by area and state that displacement is not blame.

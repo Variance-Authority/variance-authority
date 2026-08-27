@@ -12,15 +12,19 @@ Capture a mounted DOM subject in a browserless Jest or Vitest process, then let
 `variance run` render and observe that artifact in a later process. The package
 does not export `test`, `expect`, a reporter, or a browser.
 
+A subject is the thing captured for comparison: a mounted DOM subtree here, or
+— for `snapshotValue` below — a plain value. Each one is identified by a
+`SubjectRef`: an id plus a `kind` recording what produced it (`'story'`,
+`'route'`, `'fixture'`, or `'value'`), not what it looks like.
+
 **Requires:** a live DOM and a writable artifact directory. External resources
-must be supplied as immutable bytes; capture refuses a document it cannot close
-over rather than calling a hash-only payload portable.
+must be supplied as immutable bytes: capture closes over the document by
+resolving every resource it references into bytes the artifact carries, and
+refuses to write a capture it cannot close this way.
 
 Browserless describes this half. The capture carries markup, CSS and resources —
 not pixels — so the later `variance run` opens a browser to paint it and refuses
-the run if it cannot. Splitting it this way is what lets the suite stay in
-jsdom: the unit process never waits for a browser, and CI installs one once for
-the render step rather than once per test job.
+the run if it cannot.
 
 Install the package and the DOM environment used by the test runner:
 
@@ -85,8 +89,7 @@ It does not produce a screenshot or visual verdict.
 `resolveResource` is the whole of the requirement above. A capture is rendered in
 another process — possibly on another machine, possibly hours later — so a
 document that carries digests and no bytes is a document that paints holes over
-there and cannot say why. Refusing here costs one test failure; the alternative
-costs a report nobody can act on.
+there and cannot say why.
 
 `writeCapture(directory, artifact)` writes one versioned file per subject;
 `readCapture` and `captureFiles` are the read half, and `CAPTURE_SUFFIX` is what
@@ -125,11 +128,9 @@ test('the health endpoint', async () => {
 | `arrayKey` | none | for an array of records, the member that identifies a row: `{ '/rows': 'id' }` |
 | `generator` | none | what emitted the value, when something did |
 
-`arrayKey` is the option that decides whether the report is worth reading. An
-array compared by index says two thousand rows changed when one row was
-inserted at the top; compared by what identifies a row it says one row was
-added, and the same edit made to two different rows carries one identity — so a
-recurring change is countable rather than two thousand fresh ones.
+Set `arrayKey` for any array of records. Without it, an array is compared by
+index, so a row inserted at the top reports every row after it as changed
+instead of reporting the one insertion.
 
 The value is serialized here, in the unit process, into canonical text: keys
 sorted, numbers written portably, `undefined` members omitted. That text is what
@@ -164,8 +165,9 @@ export default captureCollector({ directory: '.variance/captures' });
 rather than a last-write-wins: two tests writing `button/save` is a name
 collision, and picking one silently makes half the suite invisible.
 
-Name that module as the collector, and point `profile` at the tier the capture
-was taken in:
+Name that module as the collector, and set `profile` to the observation tier
+the capture was taken in — `"jsdom"` here, or `"chromium"` for a
+browser-based collector:
 
 ```json
 {
@@ -179,15 +181,28 @@ was taken in:
 }
 ```
 
+`retention` is `"durable"` (compare against a stored baseline — `baselines` is
+then required) or `"ephemeral"` (nothing is stored, and `baselines` must be
+absent). `subjects.kind` says where the run gets its subject list:
+`"collector"` (a module like the one above), `"storybook"`, or `"list"`.
+`baselines.kind` says where the stored baseline lives: `"directory"`, `"lfs"`,
+or `"remote"`.
+
 ```bash
 npx variance run
 ```
 
-`profile: "jsdom"` says what observed the subject, not what paints it. The
-capture has no layout engine behind it, so every changed region in the report is
-reported unattributed rather than joined to a guessed node — the render is still
-Chromium. The first run exits 1: a new baseline is a review, not a pass.
+`variance run` is the command `@variance-authority/cli` installs as `variance`.
+It reads the document captures this package wrote, renders each one with the
+configured renderer, compares it against the configured baseline, and writes
+the report.
 
-`variance run` reads document captures and uses its configured local or remote
-renderer, baseline store, comparison policy, and report. Use a fresh capture
-directory per run; the runner still owns test selection and retry lifecycle.
+`profile: "jsdom"` says what observed the subject, not what paints it: the
+capture has no layout engine behind it, so every changed region in the report
+is reported unattributed rather than joined to a guessed node — the render
+itself is still Chromium.
+
+A run that finds nothing to review exits 0. The first run against baselines
+that don't exist yet has nothing to compare against, so it exits 1 for review
+rather than a pass. Use a fresh capture directory per run; the runner still
+owns test selection and retry lifecycle.

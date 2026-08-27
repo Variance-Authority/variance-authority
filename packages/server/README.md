@@ -8,9 +8,13 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
-Run this package when a pipeline needs a self-hosted HTTP history service. It
-accepts observations and approvals, stores them in a backend, and answers the
-history queries defined by `@variance-authority/history`.
+Run this package when a pipeline needs a self-hosted HTTP history service. A
+**run** — one execution of the pipeline, recorded whether or not anything
+changed — posts **observations** (one row per component whose rendered hash
+moved, on a **subject**: the page or story under test) and **approvals** (a
+reviewer accepting one subject's observations for one run). The service stores
+both in a backend and answers the history queries defined by
+`@variance-authority/history`.
 
 **Requires:** a port and a bearer token of at least 16 characters — it refuses to
 start without the token. The shipped backend adds a Node with `node:sqlite` (22+,
@@ -23,21 +27,20 @@ starts it for another project or provisions a database.
 
 ## Deployment model
 
-**You run it.** A process, a port, and a token you set. Nothing in this
-repository runs it for anyone, no instance is shared between operators, and every
-row in it was posted by your own code — see [who writes to it](#who-writes-to-it),
-because that is not `variance run`. It neither reaches out nor accepts a write it
-cannot attribute to its configured token.
+**You run it.** A process, a port, and a token you set. No instance is shared
+between operators, and every row in it was posted by your own code — see
+[who writes to it](#who-writes-to-it). It neither reaches out nor accepts a
+write it cannot attribute to its configured token.
 
-`@variance-authority/history` holds the client-side contract and drift arithmetic
-and no storage at all; this package holds a database and a socket, and the
-row→answer arithmetic that every backend shares. **A backend itself does no
-arithmetic** — it appends and returns rows, and `churnFrom`/`journeyFrom`/
-`reachFrom` turn those into numbers here, so two backends cannot disagree about
-what a number means. The line between the packages is what makes the record a
-**service**: two branches
-observing different hashes for one key are two rows, and nothing here has to
-resolve a merge, because nothing here is a file anybody reviews.
+`@variance-authority/history` holds the client-side contract and the drift
+arithmetic and no storage; this package holds a database and a socket, plus the
+row-to-answer arithmetic every backend shares. A backend itself does no
+arithmetic — it only appends and returns rows. Three functions turn those rows
+into the numbers a client reads: **churn** (how often one component's own code
+changed, as a rate), **journey** (a design token's recorded values over time),
+and **reach** (the subjects a component appears in, and which of those are newly
+arrived). Every backend shares this arithmetic, so two backends cannot disagree
+about what a number means.
 
 ## Entrypoints
 
@@ -47,9 +50,8 @@ resolve a merge, because nothing here is a file anybody reviews.
 | `./sqlite` | `node:sqlite` | `createSqliteBackend`, `SCHEMA_VERSION` |
 | `./bin` | both | `readConfig`, `start` — what the executable runs |
 
-The split is the point of the package layout applied to itself: an operator
-backing this with Postgres implements `HistoryBackend` and should **never load
-`node:sqlite`**.
+An operator backing this with Postgres implements `HistoryBackend` and should
+**never load `node:sqlite`**.
 
 ## Running it
 
@@ -63,12 +65,45 @@ npx variance-authority-server
 `VARIANCE_HISTORY_PORT` defaults to `7788` and `VARIANCE_HISTORY_HOST` to
 `127.0.0.1`; the token has no default, which is the point.
 
-`readConfig` refuses to start without a token, and refuses a short one. A history
-service holds every observation every run has ever made about a codebase, and a
-default-open port with a placeholder token is not a configuration mistake anybody
-notices until it matters.
+`readConfig` refuses to start without a token, and refuses one shorter than 16
+characters.
+
+## HTTP API
+
+Every request needs `Authorization: Bearer <token>`, checked before the path is
+even looked at: a missing or wrong token gets `401`, with a `WWW-Authenticate:
+Bearer` header and body `{"error": "a valid bearer token is required"}`,
+whatever path it named. All paths are versioned under `/v1`, and `project` is an
+optional query parameter on every route below, for a service shared across
+projects.
+
+| method & path | request | response |
+|---|---|---|
+| `POST /v1/observations` | `{ run, observations, tokens, instabilities? }` — the run record, the observation rows that moved, the token values resolved, and optionally which subjects read differently from themselves this run | `204`, empty body |
+| `POST /v1/approvals` | `{ approvals }` | `204`, empty body |
+| `POST /v1/current?project=` | `{ subjects }` — up to 200 subject ids | `200 { observations, tokens }` — the latest recorded row per subject/component/band/profile, and every token's latest value |
+| `GET /v1/last-changed?project=&subject=&component=&band=` | `subject` and `component` required; `band` optional, one of `structure`\|`style`\|`geometry` | `200 { observation }` — the observation, or `null` |
+| `GET /v1/churn?project=&component=&since=&until=&limit=` | `component` required | `200` — runs and changed-runs in the window, a `rate` per comparable band, and separate counts of collateral and rejected runs |
+| `GET /v1/flakiness?project=&subject=&since=&until=&limit=` | `subject` required | `200` — sweeps, occurrences, absorbed runs, and a `rate` that is absent (not zero) when nothing swept |
+| `GET /v1/value-journey?project=&token=&since=&until=&limit=` | `token` required | `200` — the token's recorded values, oldest first |
+| `GET /v1/reach?project=&component=&since=&until=&limit=` | `component` required | `200` — subjects the component appeared in, and which of those are newly arrived |
+
+`since`/`until` are ISO-8601 instants and `limit` a positive integer; all three
+are optional on every `GET` route above. Whatever a `limit` excludes comes back
+as an `omitted` count rather than silently shrinking a total.
+
+Errors are `{"error": "..."}`: `400` for a malformed request, `404` for an
+unknown path, `405` for the wrong method (with an `Allow` header), `409` when a
+write conflicts with what is already stored, and `413` when a write exceeds
+`maxBodyBytes`.
 
 ## Implementing another backend
+
+`HistoryBackend` is the interface a custom store implements: append rows,
+return rows, no arithmetic. Wire it straight into the HTTP service below, or
+skip the socket and wrap it as a `HistoryStore` — the same interface
+`@variance-authority/history`'s client and CLI call to read and write history,
+whether it is backed by this socket or an in-process backend.
 
 ```ts
 import { serveHistory, createBackedStore, type HistoryBackend } from '@variance-authority/server';
@@ -84,28 +119,25 @@ const service = await serveHistory({ backend, token, port: 7788 });
 const store = createBackedStore(backend, 'my-project');
 ```
 
-A backend answers with **rows**. Turning rows into churn, journeys and reach is
-`churnFrom`/`journeyFrom`/`reachFrom`, shared by every backend, so two backends
-cannot disagree about what a number means.
-
 `serveHistory` takes:
 
-| option | default | what it decides |
+| option | default | what it does |
 |---|---|---|
-| `backend` | required | rows in, rows out. The one thing the socket does not implement |
-| `token` | required | the bearer the operator set. There is exactly one, it is shared, and it carries no identity: the service holds no accounts and everything in it was produced by the operator's own runs. Not *who are you* — *is this write attributable to this deployment at all* |
-| `port` | `7788` from the executable, `0` here | `0` binds an ephemeral port and returns its selected address |
-| `host` | `127.0.0.1` | a history service that binds every interface the moment it starts is one misconfigured firewall away from being a public record of an unreleased product's internals. Making the operator ask for it is one line of configuration against a failure with no symptom |
-| `maxBodyBytes` | 8 MiB | a ceiling on memory held for one socket, not a limit anyone should reach — 300 subjects write a handful of hundred-byte rows. Exceeding it is a 413 that says so, never a truncated body parsed as far as it went |
+| `backend` | required | the `HistoryBackend` that stores and returns rows |
+| `token` | required | the bearer token clients must send; checked on every request |
+| `port` | `7788` from the executable, `0` here | `0` binds an ephemeral port; the bound address is returned |
+| `host` | `127.0.0.1` | the interface to bind; set it explicitly to listen beyond loopback |
+| `maxBodyBytes` | 8 MiB | largest request body accepted; a larger write gets a `413` |
 
 `createSqliteBackend` takes one: `path`, a file or `':memory:'` for a store that
 ends with the process.
 
 ## Atomic writes
 
-A run and its rows travel together and commit or fail together. Recording rows
-whose run never landed leaves a change with no denominator; recording the run
-without its rows leaves a quiet run that was not quiet.
+A run and its rows commit together or not at all: `POST /v1/observations`
+either stores the whole write or none of it. Rows without their run would leave
+a change with no denominator; a run without its rows would leave a quiet run
+that was not quiet.
 
 ## Who writes to it
 

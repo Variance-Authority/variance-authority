@@ -8,29 +8,38 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
+This package reads **provenance**: React's own record of which components
+produced a piece of DOM. For a node, that means its **owner chain** (the
+composite components enclosing it, innermost first), a **props digest** at
+each one (a hash of that component's own props, excluding children), and
+whether the node came through a **portal** — content `createPortal` places
+elsewhere in the document while it stays part of the component tree rooted at
+the **subject**, the component, page, or story a capture is taken of.
+
 **Requires:** that `react-dom` rendered the tree you are pointing at. This
 package reads metadata attached to DOM nodes and does not import the
 application's React package, so it cannot pin, duplicate, or replace that copy.
-
-That distinction is the whole reason this is a package instead of a folder in
-`@variance-authority/dom`. The requirement is real and a consumer is
-buying it; the npm dependency is not.
 
 ```bash
 npm install --save-dev @variance-authority/react
 ```
 ## Use this package when
 
-Install `@variance-authority/react` when `react-dom` has already mounted the
-element you want to inspect. It reads React's fiber metadata; it does not render
-components, install a test runner, or replace the application's React copy. For
-the DOM capture that consumes the callback, use `@variance-authority/dom`.
+Use it once `react-dom` has already mounted the element you want to inspect.
+It reads React's fiber metadata; it does not render components, install a
+test runner, or replace the application's React copy.
+
+**Don't use it** to capture the DOM itself — that's `@variance-authority/dom`,
+which this package's output plugs into via the `provenanceOf` callback below.
+And there is nothing to read if nothing mounted: a static page, a non-React
+widget, or server-rendered markup the client never hydrated all make
+`provenanceOf` return `undefined`, not an error.
 
 ## Smallest working path
 
-Given a mounted element, `provenanceOf` returns the `Provenance` value defined by
-`core`: composite owners, a props digest at each boundary, and the component that
-authored the element.
+Given a mounted element, `provenanceOf` returns the `Provenance` value defined
+by `@variance-authority/core`: the owner chain, a props digest at each
+boundary, and the component that authored the element.
 
 ```ts
 import { provenanceOf } from '@variance-authority/react';
@@ -58,17 +67,19 @@ a build plugin or an annotation.
 
 | | |
 |---|---|
-| `wiringOf` | hook shape, wrapper chain, context subscriptions, reconciliation keys — a **band**, folded in beside `style` by `collect` |
-| `remountedSince` | which instances were destroyed and rebuilt rather than updated — a **finding**, because it is a property of a reading and not of a revision |
+| `wiringOf` | hook shape, wrapper chain, context subscriptions, reconciliation keys — a **band** (one of the categories VA reports changes under, like `style`), folded in beside `style` by `collect` |
+| `remountedSince` | which instances were destroyed and rebuilt rather than updated — a **finding**: a fact about this one reading, not a diff between two revisions |
 | `awaitSuspense` / `suspenseRefusal` | wait for every boundary under a node to settle, and rule on what to do if one did not |
 | `tapCommits` / `awaitQuiet` | which components are still committing, by name — the one export here with a precondition: it must be installed before `react-dom` loads, and refuses rather than reporting a page it reached too late |
 
-The Suspense pair is what every shipped collector calls before it reads a page,
-and it is split in two on purpose: the page waits and reports, the driver
-decides. `awaitSuspense` returns `settled`, `pending` or `unobserved` — three
-states, so a page with no React under it can never claim to have arrived — and
-`suspenseRefusal` turns that into `string | undefined`, which is the shape a
-caller cannot accidentally downgrade to a warning.
+Every shipped collector calls the Suspense pair before it reads a page: the
+page waits and reports, the driver decides. `awaitSuspense` returns `settled`,
+`pending` or `unobserved` — three states, so a page with no React under it can
+never claim to have arrived. `suspenseRefusal` turns a `pending` or
+`unobserved` settlement into a **Suspense refusal**: a `string` telling the
+caller to fail the run rather than capture the subject mid-arrival, or
+`undefined` when the wait genuinely succeeded — a shape a caller cannot
+accidentally downgrade to a warning.
 
 The commit tap is different: it is not installed automatically. Call
 `tapCommits()` before `react-dom` is imported, then pass the returned tap to
@@ -98,11 +109,12 @@ consulted only for the exact React version, and only if it happens to exist.
 
 ## Why provenance is load-bearing, not decoration
 
-Provenance does two jobs. It attributes a region to the component that produced
-it, and it supplies the component-tree boundary a subject is defined by: the component tree.
-Owner chains therefore drive differ matching as well as reporting. A tree
-matched without them matches by position, and a reordered list looks like every
-item changed.
+Provenance does two jobs. It attributes a region to the component that
+produced it, and it draws the subject's boundary by the component tree rather
+than by DOM containment — so content a component renders through a portal
+elsewhere in the document still counts as part of the subject. Owner chains
+also drive differ matching, not just reporting: a tree matched without them
+matches by DOM position, and a reordered list looks like every item changed.
 
 ## Honest limits
 

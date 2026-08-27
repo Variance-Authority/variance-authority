@@ -23,11 +23,12 @@ npm install --save-dev @variance-authority/store
 ```
 ## Choose a backend
 
-Everything about what a baseline *means* — the contract, the refusal, the checks
-a stored record passes before it is believed — is in
-`@variance-authority/raster`, which requires nothing. That split is
-the reason a verdict cannot depend on where the bytes were kept. Each backend
-supplies bytes and metadata to the same validation and comparison contract.
+Everything about what a baseline *means* — the `RasterStore` contract, the
+refusal, and the checks a stored record (the JSON sidecar naming the
+**document digest**, a hash of the rendered document used to tell whether the
+subject could have changed without comparing images) passes before it is
+believed — lives in `@variance-authority/raster`, which requires nothing. Each
+backend here supplies bytes and metadata to that same contract.
 
 | entrypoint | requires | holds, and when you want it |
 |---|---|---|
@@ -36,6 +37,19 @@ supplies bytes and metadata to the same validation and comparison contract.
 | `./lfs` | a filesystem and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
 | `./changelog` | `git` and a repository | reading back **why** a baseline is what it is. Take it when you are building a history view rather than running a comparison; nothing in the render path imports it. |
 
+### The `RasterStore` contract
+
+Both backends implement this shape:
+
+| member | signature | answers |
+|---|---|---|
+| `find` | `(key, identity) => Promise<Found \| null>` | the baseline for `{ subject, label? }`, looked up under any identity that has ever written one; `null` only when none has. `Found` carries the `raster`, whether it is `comparable` (written by the identity asking), and `storedUnder` (the identity that actually wrote it). |
+| `describe` | `(key, identity) => Promise<Described \| null>` | the same lookup without the image: `documentDigest`, `comparable`, `storedUnder`, `missingFonts`, and optional `accessibility` and `components`. Cheap enough to run for every subject before deciding which ones need the image at all. |
+| `put` | `(key, raster) => Promise<void>` | writes a baseline. |
+| `renderCache` | `{ get(documentDigest, identity), put(raster) }` | the **render cache** — images this machine has already painted, keyed by document digest and identity, so an unchanged document is not re-rendered. A lookup or write here never throws; a miss and a failure both just mean "render it". |
+| `expect?` | `(keys) => void` | an optional hint naming subjects about to be asked about; both backends here ignore it. |
+| `retention` | `'durable' \| 'ephemeral'` | both backends here are `'durable'`. |
+
 ## Baseline layout
 
 ```
@@ -43,44 +57,43 @@ supplies bytes and metadata to the same validation and comparison contract.
 <root>/<identityDigest>/<subject>[__label].json
 ```
 
-A baseline written by one machine **cannot be silently picked up by another** —
-not by convention, and not by a check somebody remembered to write, but because
+`identityDigest` is a hash of the render identity — renderer, engine, platform,
+device scale factor and fonts — so it names a directory per rendering machine.
+`subject` is the id of the thing compared; an optional `label` distinguishes
+several images of one subject, such as a viewport or a state.
+
+A baseline written by one machine **cannot be silently picked up by another**:
 it is not in the directory the other machine reads.
 
-`find` then scans the sibling identities so it can say what it *did* find, which
-is what turns a wrong-machine run from a mysterious mass failure into one
-sentence with a platform in it.
+`find` also scans the sibling identity directories, so a wrong-machine run is
+reported as one **sentence** — a single line, ready to print, naming the
+platform that *was* found — instead of a mysterious mass failure.
 
-The sidecar carries the identity in readable form. A directory named by a digest
-is unreviewable, and a baseline nobody can attribute to a machine is a baseline
-nobody can decide to discard.
+The sidecar carries the identity in readable form, so a baseline can be
+attributed to the machine that wrote it and a reviewer can decide whether to
+discard it.
 
 `createDurableStore(root, options)` takes two, and `createLfsStore` passes both
 through:
 
 | option | default | what it decides |
 |---|---|---|
-| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` reads the subject id as a path and walks it down from the root — `src/ui/Button/<identityDigest>/primary.png` — so baselines sit in the source tree, arrive with the checkout, and move when the component moves. An id with a `..` or an empty segment is refused rather than resolved, because it would write outside the root |
-| `cacheRoot` | `root` | where the render cache goes, since a durable store is also one. See the LFS table below; the argument is the same and so is the default |
+| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` reads the subject id as a path and walks it down from the root — `src/ui/Button/<identityDigest>/primary.png` — so baselines sit in the source tree, arrive with the checkout, and move when the component moves. An id with a `..` or an empty segment is refused rather than resolved |
+| `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere |
 
-Both layouts keep the identity directory, because that partition is the only
-thing between a runner-image upgrade and a day of unattributable red. Which placement a project wants is a project decision. Neither layout can
-enforce the one rule that matters: a committed root has to actually be
-committed.
+Both layouts keep the identity directory: a baseline from another machine
+still lands in a directory this one does not read. Neither layout enforces
+the one rule that matters — a committed root has to actually be committed.
 
 ## Missing and corrupt baselines
 
-Both halves of the pair absent. Everything else throws — one file without the
-other, a sidecar that will not parse, EACCES after a permissions change, EMFILE
-under a run wide enough to exhaust the descriptor table.
+A missing pair — both `.png` and `.json` absent for a key — returns `null` and
+is treated as a new baseline. Any other corruption throws: one file without
+the other, a sidecar that will not parse, EACCES after a permissions change,
+EMFILE under a run wide enough to exhaust the descriptor table.
 
-The asymmetry forces this. A thrown error costs a re-run. A `null` costs the
-baseline: it is read as `new`, `new` records whatever this build painted, and the
-image it overwrites was the only evidence of what the subject looked like before
-— **all of it reported as success.**
-
-A CI cache restore that ran out of space and a `put` killed between its two
-writes both produce exactly a half-written pair.
+A CI cache restore that ran out of space, or a `put` killed between its two
+writes, both produce exactly a half-written pair — the case that throws.
 
 ## Git LFS backend
 
@@ -105,21 +118,22 @@ subject in the suite.
 | option | default | what it decides |
 |---|---|---|
 | `root` | required | baseline root, laid out exactly as the durable store lays it out |
-| `pattern` | `*.png` | which files are tracked, relative to the `.gitattributes` holding the entry. Deliberately narrow: the `.json` sidecar beside each image is small, readable, and the only thing that says which machine wrote a baseline, so putting it through LFS makes the reviewable half unreviewable in exchange for nothing |
-| `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives. In the baseline root rather than the repository root, because attributes apply to the directory holding the file and everything under it — which is exactly this store's scope. Writing to the repository root takes a shared file hostage to a subdirectory's needs |
-| `cacheRoot` | `root` | where the render cache goes. The cache is regenerable and keyed by document digest, so it grows with every edit and is worth nothing after one. Left at the default it is tracked and committed like a baseline — correct, and expensive. Point it outside the work tree to not pay for it |
+| `pattern` | `*.png` | which files are tracked, relative to the `.gitattributes` holding the entry. Only images match by default; the `.json` sidecar next to each is never routed through LFS |
+| `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
+| `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `verify` | `true` | `false` skips consulting git entirely, and says so in `tracking.diagnostics` rather than silently |
-| `git` | `runCommand` | the `CommandRunner` git is invoked through |
+| `git` | `runCommand` | the `CommandRunner` git is invoked through — a `(command, args, { cwd }) => Promise<{ code, stdout, stderr }>` function, defaulting to a wrapper around `execFile`, swappable in tests |
 
 `git` is injected, so all of this is testable without a git repository.
 
 ## Read the baseline changelog
 
 Where baselines are commits, the commit message is where `variance accept` put
-the explanation of the update — prose for the reviewer, opaque versioned trailers
-for a parser (both are
-`@variance-authority/report`'s `renderCommitMessage`). This is the
-other direction:
+the explanation of the update: prose for the reviewer, and versioned
+**trailers** — `Key: value` lines appended after the body, for a parser rather
+than a person — for a machine. Both are written by
+`@variance-authority/report`'s `renderCommitMessage`. This reads them back
+into a `ChangelogRecord` — which subjects changed in that commit, and why.
 
 ```ts
 import { readChangelog, wasRead } from '@variance-authority/store/changelog';
@@ -136,7 +150,7 @@ else for (const commit of answer.commits) console.log(commit.sha, commit.record.
 |---|---|---|
 | `root` | required | the baseline root. Only commits that touched a path under it are read — a repository's ordinary commits are not baseline updates, and scanning them would spend the whole log to reach the same answer |
 | `cwd` | `root` | where git is run |
-| `limit` | `200` | commits to read. The question this answers is always *recently*, and a reading that filled its cap says so rather than presenting a window as a total |
+| `limit` | `200` | commits to read; a reading that hits this cap notes it in `bounded` rather than presenting the window as the whole history |
 | `since` | none | a revision to read forward from, exclusive, passed as `<since>..HEAD`. One that does not resolve is a refusal naming it, never an empty answer |
 | `git` | `runCommand` | the `CommandRunner` git is invoked through, so this is testable without a repository |
 

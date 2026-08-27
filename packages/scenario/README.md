@@ -8,24 +8,32 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
-**Requires:** semantic snapshots produced by the host. The optional archive also
-requires a writable directory.
+**Requires:** semantic snapshots produced by the host — a `SemanticSnapshot` is
+the normalized capture of a rendered subject that `@variance-authority/core`
+produces from a collector's raw capture; this package never produces one
+itself. The optional archive also requires a writable directory.
 
 Use this package when a host can arrange a named UI state, perform meaningful
-acts, and attempt a semantic snapshot after each one. A scenario is AAA as a
-state machine: Arrange is the initial state observation, each Act labels a
-transition, and assessment compares the variance across those transitions.
+acts, and attempt a semantic snapshot after each one. A scenario is AAA
+(Arrange-Act-Assert) as a state machine: Arrange is the initial state
+observation, each Act labels a transition, and assessment compares the
+variance across those transitions.
 
 The host remains responsible for producing `page-loading`, `page-error`,
-`page-one-article`, or any other precondition. Pass the resolved parent link from
-the existing planned-subject naming machinery; this package records that evidence
-and never tries to infer fixtures, mocks, cookies, routes, or flags.
+`page-one-article`, or any other precondition. If the host already resolved
+this precondition's parent subject, pass that parent's id and whether it was
+declared or named as `preconditionLink`; this package only records that
+evidence and never tries to infer fixtures, mocks, cookies, routes, or flags.
 
 ```bash
 npm install --save-dev @variance-authority/scenario
 ```
 
 ## Record and assess two paths
+
+Each `SemanticSnapshot` below is a `declare const` stand-in: a real one comes
+from a collector capturing a rendered subject and `@variance-authority/core`
+normalizing it, not from this package.
 
 ```ts
 import type { SemanticSnapshot } from '@variance-authority/core';
@@ -75,10 +83,18 @@ const assessment = assessScenarios(oneArticle, twoArticles);
 console.log(assessment.arrange, assessment.firstDivergence);
 ```
 
+Each `startScenario` or `recordAct` call above appends one frame to the
+execution — Arrange's own outcome, or one Act's — pairing that frame's render
+hash (the exact content digest of what rendered) with its semantic snapshot.
+
 `arrange` compares the initial observations. Each transition then carries the
-left effect, the right effect, and whether those two effect digests agree. A
-shared token edit can move every absolute state while leaving the effect digest
-stable; changing the handler moves the digest at that Act.
+left effect, the right effect, and whether the two agree; an effect digest is
+the digest of the classified semantic variance between an Act's before and
+after snapshot, not the frame's own render hash. A shared token edit moves
+every frame's render hash — its exact, absolute state — yet leaves the effect
+digest stable, because the edit is already present in an Act's before and
+after frame alike; changing the handler does move the digest at that Act,
+because that is exactly the comparison the delta is taken from.
 
 Acts align by `(key, occurrence)` along their common ordered prefix. An inserted,
 missing, or repeated Act is reported in `unmatched` with its side; later ordinals are not
@@ -91,7 +107,7 @@ shifted into a plausible pair. A failed observation is created with
 | option | required state | what it decides |
 | --- | --- | --- |
 | `id` | required, non-empty | the execution identity within its run |
-| `precondition` | required | the existing `SubjectRef` in the role of Arrange |
+| `precondition` | required | a `SubjectRef` — the host's stable subject id and kind — in the role of Arrange |
 | `profile` | required | the observation profile every frame must match |
 | `preconditionLink` | absent | the resolved parent and its declared or named evidence; omission means no link was supplied |
 
@@ -103,8 +119,8 @@ Act reach two destination hashes, both transitions remain and the machine report
 the divergence. An unobserved Act appears under `unknown`; an edge no execution
 witnessed does not exist in the value and is never called impossible.
 
-The fold is partial evidence, not replay. Scenario records contain no selectors,
-callbacks, timing, request bodies, credentials, or typed event values.
+This does not replay anything: folding only turns already-recorded frames into
+a graph of witnessed states and edges.
 
 ## Retain semantic evidence explicitly
 
@@ -113,18 +129,19 @@ The root entrypoint is ephemeral and performs no I/O. Import
 semantic evidence must survive the process.
 
 The archive requires an address covering project, run, scenario, execution,
-precondition, profile, and attempt. Its policy declares expiry, access, deletion,
-and an admission function for every semantic snapshot. Equal snapshots are
+precondition, profile, and attempt — a caller-assigned label, such as a retry
+count, that the archive never derives from the run itself. Its policy declares
+expiry, access, deletion, and an admission function — a check that can refuse
+to retain a given snapshot — for every semantic snapshot. Equal snapshots are
 stored once by content digest. Expired or missing evidence reads as
 `unobserved`; garbage collection removes expired manifests and semantic objects
 no retained manifest references.
 
 Only canonical `SemanticSnapshot` text and a versioned manifest enter the
-archive. There is no raster, resource-closed document, baseline promotion,
-history row, approval, changelog, or exit-code API. Semantic snapshots can still
-contain document text, accessible names, attributes, URLs, and source evidence,
-so an admission policy that cannot retain those values must refuse the snapshot
-instead of redacting it after hashing.
+archive — this does not store screenshots or make pass/fail decisions. Semantic
+snapshots can still contain document text, accessible names, attributes, URLs,
+and source evidence, so an admission policy that cannot retain those values
+must refuse the snapshot instead of redacting it after hashing.
 
 `createScenarioArchive` takes `root`, the writable archive directory, and an
 optional `now` clock for deterministic expiry decisions. The system clock is the

@@ -12,12 +12,17 @@ component caused each change. This package is one piece of it.
 only through that function, so a session runs whatever a caller can put on a
 page.
 
-Run many subjects in one standing world.
+A **subject** is one thing to render and compare — a story, a component
+instance, a page. A session owns one reusable container and **brackets** each
+subject's mount: it takes a cheap snapshot of shared state immediately before
+and after the mount, so it can tell what that subject left behind. The caller
+supplies the mount function, so the same runner can host DOM-only subjects or a
+framework integration without importing that framework.
 
-A session owns one reusable container and brackets each subject's mount with a
-shared-state probe. The caller supplies the mount function, so the same runner
-can host DOM-only subjects or a framework integration without importing that
-framework.
+Because nothing is torn down between subjects, one subject can leave state that
+another one reads — a stylesheet, a global attribute, a stray DOM node. This
+package calls that **cross-pollution** and reports it rather than preventing
+it.
 
 ```bash
 npm install --save-dev @variance-authority/session
@@ -29,7 +34,9 @@ and the caller can provide the mount function. It is a library runner, not an
 automatic Playwright, Vitest, or Jest integration: those runners must call
 `createSession` and `session.run` themselves. Use `@variance-authority/dom`
 when you only need one capture, or use `@variance-authority/react`
-to supply React provenance and readiness to the mount callback.
+to supply React provenance and readiness to the mount callback. Skip this
+package when subjects already run in separate processes or fresh documents —
+there is no shared world for pollution to cross, and the probe only adds cost.
 
 ## Cost and trade-off
 
@@ -38,14 +45,19 @@ story, no Storybook reload, no re-parsing the design system's stylesheet.
 Choose a session when that repeated setup dominates the cost of the lightweight
 shared-state probe.
 
-The risk that buys is cross-pollution — one subject leaving state another one
-reads. The industry answer is to rinse between subjects, and rinsing is exactly
-the cost we just removed.
+The trade-off is the cross-pollution risk described above. Most runners avoid
+it by rinsing state between subjects; a session skips that step and detects the
+leaks instead.
 
 ## How findings are produced
 
 Every subject is bracketed by a cheap shared-state probe, and its reads are
-derived from its own capture. Which turns *"these tests are flaky in CI"* into:
+derived from its own capture. That turns *"these tests are flaky in CI"* into a
+**finding**: a fixed report with five fields — `[confidence] victim` names the
+affected subject and whether the cause is suspected or confirmed; `cause:`
+names the subject that wrote the shared state (and the components that
+rendered it, when known); `via:` names the shared-state key both subjects
+touched; `evidence:` says how the tool knows; `fix:` says what to change.
 
 ```
 [confirmed] story:card
@@ -58,12 +70,11 @@ derived from its own capture. Which turns *"these tests are flaky in CI"* into:
             cannot reach `story:card`
 ```
 
-Isolation is an enemy of cost and detection is not, which is the half that
-generalises. Naming the writer is the narrow half: a `via:` line can only ever be
-something the document can read about itself — a stylesheet, a root custom
-property, an attribute on the root or body, a stray body child, the title. That
-set was chosen for cost and it is the right set for the cost; it is also a small
-fraction of the ways one subject reaches another.
+A `via:` line can only ever name something the document can read about itself
+— a stylesheet, a root custom property, an attribute on the root or body, a
+stray body child, the title. That is a small fraction of the ways one subject
+can reach another, so a finding can miss a leak that lands anywhere else (see
+"Honest limits" below).
 
 ## Smallest working path
 
@@ -98,6 +109,13 @@ promise for the same `SubjectRun`. `findings()` reports suspected
 cross-pollution. Call `verify(replay, sample?)` when a replay is affordable and
 you need confirmation of order dependence.
 
+Two options in the table below carry their own vocabulary. `engine` (e.g.
+`jsdom@30`) is recorded as part of the session's **identity** — the inputs a
+baseline is addressed by, so a different engine produces a different baseline
+rather than a diff. `provenanceOf` maps a DOM element to its **Provenance** —
+the chain of components that rendered it — so a finding can name a component
+instead of a bare node.
+
 `createSession` takes:
 
 | option | default | what it decides |
@@ -115,13 +133,12 @@ re-run. Omitted, every subject the session saw is replayed. Pass a sample when
 confirmation is the expensive half and you already know which subjects are worth
 the second pass.
 
-**`verify` takes the renderer back, and that is not a convenience.** Confirming a
-suspicion means rendering the subject again and seeing whether its hash moves,
-so a verification without the renderer could report only the original
-suspicion, not confirm it.
+`verify` needs the renderer back: confirming a suspicion means rendering the
+subject again and checking whether its hash moved.
 
-`probe`, `diffProbes` and `SheetRegistry` are the bracket itself, exported for a
-caller running the detector over a world a session did not create. `probe` takes
+`probe`, `diffProbes` and `SheetRegistry` are the bracket itself — the
+snapshot-and-diff pair described above — exported for a caller running the
+detector over a world a session did not create. `probe` takes
 `registry` — the `SheetRegistry` whose identities have to survive across both
 readings, since a stylesheet has no id of its own — and `ownedContainers`, the
 elements whose contents are the subject rather than residue. Without the second
@@ -141,8 +158,8 @@ session and `root.render` per subject.
 
 **A subject that renders nothing is refused, not snapshotted.** An empty
 container compares equal to every other empty container, so it would report
-`unchanged` forever while showing nothing — the exact failure this project
-exists to refuse, arriving through the cheapest possible door.
+`unchanged` forever while showing nothing. A session refuses that snapshot
+instead of producing it.
 
 A subject that is not finished when `mount` returns says so by returning a
 promise; `run` awaits it and stays entirely synchronous when it does not, because
@@ -156,7 +173,9 @@ the session has one reusable container.
 
 ## Honest limits
 
-**Detection generalises; attribution does not.** Module-level state — a singleton
+**Detection generalises; attribution does not.** Detection is noticing that a
+subject's output is unstable; attribution is naming which other subject caused
+it. Module-level state — a singleton
 store, a cached client, a memoized selector, a mocked clock — is outside the DOM
 and so outside the probe, and there is no stack to fall back on: the write
 happened during an earlier subject's render, in a frame that returned before this
@@ -170,5 +189,6 @@ the same wrong way in both passes and never moves the hash, so one the probe
 never saw either is reported as nothing at all. That is the two limits composing,
 and it is the kind that becomes a false regression rather than a flake. Catching
 it means varying the world instead — collecting the subject in one nothing else
-has touched, which is what a `variance run` asks its collector for when a
-subject's pixels moved.
+has touched, which is what `variance run` — the `run` command in
+`@variance-authority/cli` — asks its collector for when a subject's pixels
+moved.

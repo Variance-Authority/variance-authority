@@ -26,15 +26,21 @@ product source, attributes entered regions to completed test files, and writes
 the coverage index used for selection. Vitest still collects and executes every
 test inside each selected file.
 
+Skip it if tests run under something other than Vitest 2, if you need to
+exclude individual test cases rather than whole files, or if the instrumented
+code will run inside a browser or worker realm — a probe stringified into that
+realm throws on its first call. `coveringTests` is the exception: it queries
+execution data from any collector, independent of the runner.
+
 ```bash
 npm install --save-dev @variance-authority/sense
 ```
 ## Start with source selection
 
 The main entrypoint walks the configured directories, follows resolvable module
-and stylesheet references, and returns one `FileRecord` per file. Pass those
-records to `@variance-authority/core`, which owns the graph and the
-selection rules.
+and stylesheet references, and returns one `FileRecord` per file — that file's
+resolved outgoing edges and content digest. Pass those records to
+`@variance-authority/core`, which owns the graph and the selection rules.
 
 Prerequisites are a readable checkout, installed dependencies for bare
 specifiers, and any `tsconfig.json` path mappings used by the source.
@@ -68,14 +74,14 @@ for their exact shapes and defaults.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
 still enters the graph. Edges into `node_modules`, a sibling package's built
-output, or another path outside `root` are omitted. Use the workspace's project
-graph (for example, Nx or Turborepo) to add package-level affected seeds; this
-package deliberately does not invent those edges.
+output, or another path outside `root` are omitted — add package-level affected
+seeds yourself from the workspace's project graph (for example, Nx or
+Turborepo).
 
-An unreadable or unresolved relative edge widens the affected set and is
-reported as opaque. A missing bare package is recorded without widening: it is
-outside the repository's diff. The distinction prevents uncertainty from being
-reported as a smaller, confident selection.
+An unreadable or unresolved relative edge marks its file **opaque**: its true
+edges are unknown, so the file stays in the selection instead of being dropped;
+`selection.opaque` lists exactly these files. A missing bare package is
+recorded without that widening, because it lies outside the repository's diff.
 
 ## Entrypoints
 
@@ -90,9 +96,10 @@ reported as a smaller, confident selection.
 ## Keep repeated scans cheap
 
 The source index is optional. Put it outside the checkout; it is operational
-state, not source. It stores parses and resolved records in one versioned binary
-generation assembled from immutable segments. Each save appends only changed
-rows and tombstones; periodic compaction restores one globally interned segment.
+state, not source. It stores parses and resolved records in one versioned
+binary **generation**: a single consistent snapshot assembled by chaining
+immutable segments together. Each save appends only changed rows and
+tombstones; periodic compaction restores one globally interned segment.
 
 ```ts
 import { openSourceIndex, scanRelations } from '@variance-authority/sense';
@@ -128,21 +135,24 @@ if (result === undefined) {
 ```
 
 The transform inserts one-line probes at module, function, branch, continuation,
-loop, `switch`, handler, and `await` boundaries. `result.blocks` gives each
-probe's ordinal, source range, own-source digest, and enclosing arrival-region
-owner. A condition belongs to the region before its outcomes, so changing that
-precondition changes the owner's digest while an edit inside one outcome does
-not. `sourceDigest` names the exact input and `instrumentation` names the probe
-recipe. The original line count is preserved; columns shift because the
-transform does not print or source-map the file.
+loop, `switch`, handler, and `await` boundaries. Each probe marks entry into one
+**arrival region**: a stretch of code reachable under exactly one guard, such as
+an `if` body or a `catch`. `result.blocks` gives each probe's ordinal, source
+range, own-source digest, and the ordinal of its enclosing arrival region. A
+guard belongs to the region before its outcomes, so editing the guard changes
+that region's digest while an edit inside one outcome does not. `sourceDigest`
+names the exact input and `instrumentation` names the probe recipe. The
+original line count is preserved; columns shift because the transform does not
+print or source-map the file.
 
 Test selection is added to a runner configuration or CI job; adopters do not
 write an adapter or collector. It instruments modules after the runner’s
 transform and records coverage at test-file granularity. Its selector returns
 test files to run, never individual test cases or a replacement runner.
 
-If a module cannot be parsed, `instrument` returns `undefined`; treating that as
-an empty block list would turn “not instrumented” into “not executed”. A function
+If a module cannot be parsed, `instrument` returns `undefined`. Check for that
+before reading `result.blocks`: a missing result and an empty block list are
+different facts, and only the caller can keep them apart. A function
 stringified into a browser, worker, or other realm loses the generated runtime
 declarations and throws at its first probe.
 
@@ -151,9 +161,10 @@ declarations and throws at its first probe.
 Wrap the existing configuration once. `withTestSelection` preserves configured
 plugins, setup files, and reporters. Its default coverage path is under
 `XDG_CACHE_HOME`, keyed by the configured repository root, rather than inside the
-checkout. The artifact stores paths once and represents blocks and crossings as
-aligned typed-array sections with CSR offsets. Only its small versioned section
-index is JSON.
+checkout. The saved file stores each path once and records **crossings** —
+which test entered which probed block — as aligned typed-array sections linked
+by CSR (compressed sparse row) offsets, the compact layout sparse matrices use
+to skip empty cells. Only its small versioned section index is JSON.
 
 ```ts
 import { defineConfig } from 'vitest/config';
@@ -177,19 +188,16 @@ spec, dependency, and built-output files are excluded. `preconditions` names
 additional files whose contents govern every test, such as runner configuration.
 Configured setup files are included automatically.
 
-Every run contributes coverage data. An observation is complete only when every
-leaf task in its file passes; focused, skipped, or failed execution remains
-partial and cannot erase an earlier crossing from the same generation. Each
-test-file observation records the identities of its own source, configured setup,
-additional preconditions, and the instrumented modules it entered. A precondition
-change starts a new generation: inherited crossings are retired, and a partial
-new generation cannot justify excluding the file. A CI job can then pass its
-unified diff to the selector and give the returned paths to Vitest:
-
-A transformed module that the instrument cannot parse is recorded with
-`instrumented: false`; its missing blocks are unavailable evidence, not an empty
-execution result. It cannot attribute reach to individual tests, so selection
-must widen at the module boundary without consulting crossings.
+Every run contributes coverage data. An observation is **complete** only when
+every leaf task in its file passes; a focused, skipped, or failed run is
+**partial** and cannot erase an earlier crossing recorded in the same
+generation — a test file's current batch of crossings, tied to one fixed set of
+preconditions. Each test-file observation records the identities of its own
+source, configured setup, additional preconditions, and the instrumented
+modules it entered. Changing a precondition starts a new generation for that
+file: its inherited crossings are retired, and a partial new generation on its
+own cannot justify excluding the file. A CI job can pass its unified diff to
+the selector and hand the returned paths to Vitest:
 
 ```ts
 import { readFile } from 'node:fs/promises';
@@ -205,16 +213,24 @@ const testFiles = await selectTestFiles(
 );
 ```
 
+Hand `testFiles` to Vitest as path filters — for example
+`execFileSync('npx', ['vitest', 'run', ...testFiles], { stdio: 'inherit' })` —
+since each returned path already matches Vitest's own file-path filter. A
+module the instrumenter could not parse is recorded with `instrumented: false`;
+selection then widens to the whole module, since it cannot attribute reach to
+individual tests without that module's crossings.
+
 The result is a code-unit-sorted list of test-file paths relative to the Vitest
 root. It never names individual Vitest cases and does not replace the runner.
 Storybook is the exception: because the product owns that execution surface, it
 can select one story.
 
-A changed file selects by how the snapshot records it. A product module selects
-the tests that entered the changed region. A test file selects itself: nothing
-enters a test, so its own edit is the only thing that can run it. A precondition
-selects every test it governs, which is what declaring one is for. A file the
-snapshot never recorded selects nothing.
+A changed file selects by how the **snapshot** — the persisted coverage file
+`withTestSelection` writes — records it. A product module selects the tests
+that entered the changed region. A test file selects itself: nothing enters a
+test, so its own edit is the only thing that can run it. A precondition selects
+every test it governs, which is what declaring one is for. A file the snapshot
+never recorded selects nothing.
 
 ## Measure test-file deviation
 
@@ -251,9 +267,10 @@ owned by the narrowest entered source regions. The row's `sensitivity` is
 with the union of every baseline. Shared modules and lines count once.
 Suite-level `sensitivity` is the arithmetic mean of the per-test ratios, so a
 large test file does not outweigh a small one. A missing test-file node or an
-opaque dependency makes that row's `baseline`, `sensitivity`, and `deviation`
-absent; it is never reported as zero. If any row is indeterminate, the suite
-baseline, coverage ratio, and sensitivity are absent too.
+opaque dependency leaves that row's `baseline`, `sensitivity`, and `deviation`
+absent — check for `undefined` rather than treating a missing value as `0`. If
+any row is indeterminate, the suite baseline, coverage ratio, and sensitivity
+are absent too.
 
 ## Measure what the probes cost
 
@@ -273,10 +290,12 @@ arm is the closer bound.
 ## Find tests that cover source
 
 `coveringTests` is the runner-independent point query for coding agents,
-editors, and navigation integrations. Given an execution index and a source
-line or function, it returns individual test identities ordered by their
-shortest observed call-stack depth.
-`coveringTestsInFile` answers the whole indexed file in one operation:
+editors, and navigation integrations. It takes an `ExecutionIndex` — the same
+per-block, per-test crossings described above, supplied directly by a
+collector instead of read from a saved snapshot — plus a source line or
+function, and returns individual test identities ordered by their shortest
+observed call-stack depth. `coveringTestsInFile` answers the whole indexed file
+in one operation:
 
 ```ts
 import {

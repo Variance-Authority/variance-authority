@@ -8,34 +8,32 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
-**Requires:** a runtime that can load a compiled native addon, and a platform
-somebody has published binaries for. Not a Worker, not an edge runtime, not a
-bundle that cannot carry a `.node` file. That requirement is the entire reason
-this is its own package.
+Here, the **subject** is the newly rendered image under test, the **baseline**
+is the previously approved image it's checked against, and a **decoder** is
+what turns PNG bytes into raw pixels so the two can be compared.
+
+**Requires:** a runtime that can load a native addon — a compiled,
+platform-specific binary loaded into the process (here, Sharp's libvips
+binding, a `.node` file) — on a platform somebody has published one for. Not a
+Worker, not an edge runtime, not a bundle that cannot carry a `.node` file.
+That requirement is the entire reason this is its own package instead of
+living inside `@variance-authority/png`.
 
 The comparison is unchanged. Only the decoding is faster.
 
 ## Use this package when
 
-Install `@variance-authority/png-sharp` alongside `@variance-authority/png` when
-the process can load Sharp's native addon and concurrent PNG decoding is worth
-the platform dependency. Keep `@variance-authority/png` alone for a
-portable Node install, a Worker, or an edge bundle. The package supplies a
-decoder; it does not compare images, launch a browser, or choose a policy.
+`@variance-authority/png` alone needs only `Buffer` and runs anywhere Node
+does, including a Worker or an edge bundle. This package additionally needs
+the native addon described above. Choose `png-sharp` when the deployment
+target can load that addon and decode speed or concurrency is worth the
+platform dependency; keep `@variance-authority/png` alone for a portable Node
+install, a Worker, or an edge bundle. This package supplies a decoder; it does
+not compare images, launch a browser, or choose a policy.
 
 ```sh
 npm install @variance-authority/png @variance-authority/png-sharp
 ```
-
-## Package boundary
-
-Because packages here are cut by what a consumer must supply, and this one asks for something
-`@variance-authority/png` deliberately does not: a binary that has to exist,
-built for this machine. Fold it in and every consumer of a comparison installs a
-compiled artifact to reach a pure-JS default they may never leave — including the
-tribunal, which runs on Cloudflare Workers and could not load it at all.
-
-So it lives here, and a consumer opts in by depending on it.
 
 ## Decoder cost
 
@@ -54,7 +52,7 @@ The benchmark generates its inputs and checks every decoded RGBA buffer against
 `pngjs` before reporting time. `UV_THREADPOOL_SIZE` must be set before Node
 creates the pool; this package does not change it.
 
-## Use
+## Example
 
 ```ts
 import { readFileSync } from 'node:fs';

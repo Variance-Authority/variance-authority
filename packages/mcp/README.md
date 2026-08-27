@@ -74,6 +74,12 @@ the test runner.
 
 ## Diff the current state
 
+A **subject** is whatever data the server currently holds and answers questions
+about — a `RunReport` for the visual tools, or an `ExecutionIndex` for the
+source-test tool above. (Inside a `RunReport`, each individually observed
+rendering, such as `story:card--dark`, is also called a subject; the tool
+contract below works at that finer grain.)
+
 `variance_diff` compares the current supplied subject with the subject from the
 previous successful tool call. The first call records the current state and says
 there is nothing to compare. Each successful call then replaces that one value.
@@ -86,6 +92,14 @@ tool discovery, invalid calls, and failed calls do not replace it.
 without MCP framing.
 
 ## Run the report server
+
+Install it wherever the MCP client will launch it from:
+
+```bash
+npm install @variance-authority/mcp
+```
+
+No install is needed to just run the published binary:
 
 ```bash
 npx variance serve            # via the CLI, reading .variance/run.json
@@ -101,12 +115,22 @@ npx variance-authority-mcp .variance/run.json    # directly
 }
 ```
 
+Skip this package if there is no MCP client in the loop: running the suite and
+reading its output yourself is `@variance-authority/cli` (`variance run`,
+`variance accept`), with no server or protocol involved. Reach for this package
+only to hand an already-finished run, or an execution index, to an agent that
+speaks MCP.
+
 ## Visual report tool contract
 
 Eleven tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
 are asked wherever the agent is. One compares invocations; the other ten inspect
 the current artifact.
+
+A **component** is a named unit inside a rendering, such as `Button`; the same
+component can appear inside several subjects, which is what
+`variance_composition` and `variance_trace_component` below compare.
 
 ```ts
 import { toolByName } from '@variance-authority/mcp/tools';
@@ -158,36 +182,25 @@ supposed to happen. That third arm is where a wrong file, a dead branch, an
 overridden rule or a stale build surfaces, and no screenshot comparison reaches
 it.
 
-The declaration has to come first. The tool takes claims as an argument and
-derives none, so an agent that reads `variance_changes` and submits the answer
-back as its intent is scoring the run against itself — visibly, because the
-transcript shows the order. Nothing here can prevent that; what it can do is
-never do it *for* the agent. Over-claiming is not a way out either: a claim that
-reaches more subjects than it declared comes back `overreached`, so the agent
-that widens its claims to avoid *this moved and you did not mention it* walks
-into *its reach is not what you said*. Both directions cost something, which is
-what makes the declaration worth reading.
+The declaration has to come first: the tool takes claims as an argument rather
+than deriving them, so an agent must state what it expected before reading what
+happened. A claim that reaches more subjects than it declared comes back
+`overreached`.
 
 A claim carrying a field this resolution cannot check is named rather than
-dropped. An agent told `delivered` about a band nothing looked at has been told
-something the run never established, so the answer ends `Not checked here:
+dropped. A **band** is a category of visual difference, such as `content` or
+`geometry`; an agent told `delivered` about a band nothing looked at has been
+told something the run never established, so the answer ends `Not checked here:
 bands`. `examples/agent-claim` runs the whole
 boundary — CLI and this tool, every verdict, one process.
 
-`variance_changelog` is the only one that answers about something that has not
-happened. A baseline update is explained in the commit that carries it or in a
-review database, both written at the moment of acceptance and never again — so
-an agent that runs `accept` to find out what the record says has already written
-it. The preview renders the record's own lines, through the same function that
-renders them into the commit, over the subject set the same rules select. A tool
-that phrased its own summary would be a second account of the update, edited
-separately from the first, and the one the agent read would not be the one that
-survived.
-
-It stops short of the trailers, and that is the point rather than an omission. A
-trailer is a record, and records exist because somebody accepted something; one
-copied out of a preview would attribute a baseline to a promotion that never
-happened.
+`variance_changelog` previews what accepting this run would write into the
+baseline record, before the write happens — otherwise a baseline update is only
+explained in the commit that carries it, which does not exist until `accept`
+runs. The preview renders the record's own lines through the same function that
+writes the commit, over the subject set the same rules select, so the preview
+and the eventual commit cannot disagree. It stops short of the commit trailers:
+those are written only once a promotion has actually happened.
 
 `variance_composition` is the only one that reads the other axis. Everything
 else compares a subject to its baseline — two revisions, one thing. This
@@ -199,13 +212,11 @@ addressable the run can say which of its examples are watching literally the
 same bytes, which of them disagree at one commit, and — for anything that moved
 — whether an edited file, a moved token or an edited *caller* accounts for it.
 
-It is also where a flake gets named, and it can be named there because that is
-where the control group is. A movement nothing explains, in a subject that also
-failed to read the same way twice, is `flake`; the same movement in a subject
-nobody has read twice is `suspect`, which is a shortlist and not a verdict. Beside
-each one it prints the subjects where that same component, with the same props,
-**held**. Those are the *stable states to refer to*, and without them
-"unexplained" is a shrug rather than a finding.
+This is also where an unexplained movement gets a **control group**: the
+subjects where that same component, with the same props, held — did not move —
+the stable states to compare against. Given one, an unexplained movement is
+`flake` if the subject also failed to read the same way twice, or `suspect` — a
+shortlist, not a verdict — if nobody has read it twice yet.
 
 `variance_summary` labels a subject by what it *is*, which is not always its
 verdict. Three subjects can all be `changed` — the pixels did move — and need
@@ -217,21 +228,21 @@ three different people:
 | `order-dependent` | the difference is gone when the subject is collected with nothing else in the world | do not change the component; bisect run order to find the subject that writes the state this one reads |
 | `changed` | it survived both | review it |
 
-A fourth state is deliberately *not* on that list. A subject whose two readings
-differed entirely in bands its declared sensitivity level does not assert on is
-listed under **not asserted on** and carries no instruction: a route declared
-`layout` said in its config that it does not assert on what the page is painted
-with, so a clock inside it is a fact about the page rather than a defect in it.
-It is named and counted anyway, with the rule that absorbed it, for the same
-reason `ignored` is never spelled `unchanged` — a declaration nobody re-reads is
-how a suite quietly stops watching something.
+A fourth state is deliberately *not* on that table. A **sensitivity level** is a
+per-subject declaration of which bands it asserts on — a route declared `layout`
+has said, in its config, that it does not assert on what the page is painted
+with, so a clock inside it is a fact about the page rather than a defect. A
+subject whose two readings differed entirely in bands outside its declared level
+is listed under **not asserted on** and carries no instruction. It is still named
+and counted, with the rule that absorbed it — the same reason a subject whose
+pixels were excluded by an ignore rule is reported as `ignored` rather than
+folded into `unchanged`: an exclusion nobody can see again is one nobody is
+really watching.
 
-`accept` refuses the first two, so an agent that proposes promoting one is
-proposing something that will be rejected. The precedence is the order above:
-instability disqualifies the clean-world answer, because that answer's whole
-inference is *the clean reading differs from the shared one, therefore the world
-moved it* — which is only evidence on a subject whose two readings would
-otherwise have agreed.
+`accept` refuses `unstable` and `order-dependent` subjects; only `changed` can be
+promoted. Instability is checked first: the clean-vs-shared comparison behind
+`order-dependent` only means something when a subject's two readings would
+otherwise agree.
 
 `variance_findings` is the one that is not about a change. A control that never
 had an accessible name compares equal to itself on every run, so a comparison can
@@ -248,10 +259,11 @@ agent will act on — and unlike a human reading a dashboard, it has nothing els
 to check against.
 
 So the summary accounts for every subject including the ones nobody observed, and
-a run with unobserved subjects never reads as clean. `notObserved` distinguishes
-`excluded` from `failed`, and a malformed entry is refused rather than defaulted:
-guessing `excluded` turns a coverage hole into a decision somebody made, and
-guessing `failed` turns every deliberate exclusion into a permanently red build.
+a run with unobserved subjects never reads as clean. `notObserved` is the list of
+subjects the run planned and has no result for; it distinguishes `excluded` from
+`failed`, and a malformed entry is refused rather than defaulted: guessing
+`excluded` turns a coverage hole into a decision somebody made, and guessing
+`failed` turns every deliberate exclusion into a permanently red build.
 
 ## Serve a custom subject
 

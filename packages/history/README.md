@@ -8,8 +8,18 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
-Use this package when a visual-regression pipeline needs to retain observations
-across runs and turn them into churn, flakiness, reach, or token-drift answers.
+A **run** is one execution of the visual-regression suite, recorded whether or
+not anything changed. A run produces **observations** — rows recording that
+one component's content-hash moved for one **subject** (a rendered story,
+route, fixture, or value) — and, once a person signs off, an **approval** for
+that subject-and-run pair.
+
+Use this package when a pipeline needs to keep those rows across many runs and
+turn them into: **churn** (how often a component's own code changed, as a
+rate), flakiness (how often a subject read differently from itself), **reach**
+(where a component appears now that it did not before), and **token drift**
+(whether a token's recorded values — its **journey** across a window of runs —
+moved further, over approved runs, than any single review could have seen).
 The root entrypoint is pure contract and arithmetic; `history/client` is the
 optional HTTP client for a service you run.
 
@@ -25,13 +35,9 @@ npm install --save-dev @variance-authority/history
 ```
 ## Contract and storage boundary
 
-This package holds **no storage**. That is a boundary, not an omission — storage
-is `@variance-authority/server`, run by the operator in their own
-infrastructure.
-
-What is left is everything that can be argued about without a database: what a
-row is allowed to contain, what the numbers mean, and what to say when there is
-no store at all.
+This package holds no storage: the row contract, the drift arithmetic, and the
+wire protocol, but no database. Storage is `@variance-authority/server`, run
+by the operator in their own infrastructure.
 
 | entrypoint | requires | holds |
 |---|---|---|
@@ -70,10 +76,10 @@ stability the slice cannot support.
 
 ## Why history is external
 
-A committed lock file puts derived state under human merge resolution, and the
-hashes of a merge commit are neither branch's. A database has no merge conflicts
-because it stores **observations**, not state — two branches observing different
-hashes for one key are two rows.
+A committed lock file would put derived state under human merge resolution,
+where the hashes of a merge commit belong to neither branch. A database avoids
+that because it stores observations, not state: two branches observing
+different hashes for one key are simply two rows.
 
 ## Represent missing history
 
@@ -113,3 +119,10 @@ A store you reach directly through `createHttpHistoryStore`, outside the CLI,
 holds exactly what your own code posted to it — and with no writer at all, every
 drift query answers from an empty store, which `createAbsentStore` and the
 `unkept` sentence above give you a truthful way to report.
+
+## When not to use this
+
+Skip it if all you need is one run's pass/fail comparison against a baseline —
+no churn, flakiness, reach, or drift questions across runs. `@variance-authority/cli`
+runs that comparison on its own; the `history` config block is opt-in, and a
+run with no such block writes nothing here.

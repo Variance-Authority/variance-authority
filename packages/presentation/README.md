@@ -8,21 +8,24 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
-**Requires:** a `RawCapture`; the live sensing entry creates one through
-Playwright. Layout-derived evidence is available only when the capture's profile
-observes computed style and layout.
+**Requires:** a `RawCapture` — a normalized, serializable snapshot of one
+rendered DOM subject, produced by a collector such as this package's Playwright
+entry point. Layout-derived evidence is available only when the capture's
+profile — a declaration of what its collector could observe (ARIA, style,
+layout, pixels) — includes computed style and layout.
 
 Sense one rendered subject and return a machine-readable presentation graph. The
 report keeps semantic anchors attached to concrete element references, measures
-geometry and presentation relationships, and exposes deterministic collapse or
-drift without recommending a layout or assigning a UI quality score.
+geometry and presentation relationships, and exposes deterministic collapse (the
+gap that should separate repeated instances, or the size difference that should
+separate a heading from body text, disappearing) and drift (one instance's
+position, baseline, or presentation diverging from the dominant pattern) —
+without recommending a layout or assigning a UI quality score.
 
 This is a sensing and support surface, not a visual-regression assertion. It does
-not create a baseline, approve a change, or produce a pass/fail verdict.
-
-The packaged [`variance-presentation`](skills/variance-presentation/SKILL.md)
-skill gives coding agents the complete live, raw-capture, headed collaboration,
-ARIA, paint, finding, and re-sensing workflow.
+not create a baseline, approve a change, or produce a pass/fail verdict; pair it
+with `@variance-authority/report` (or another comparison layer) when a run needs
+one.
 
 ```bash
 npm install --save-dev @variance-authority/presentation @playwright/test
@@ -51,8 +54,10 @@ console.log(ownerReading.owner, ownerReading.findings, ownerReading.nested);
 
 Playwright supplies the live layout and its ARIA snapshot. The browser agent
 can paint from the same report it returns, but acquisition is normally left
-unpainted. Its default settlement waits for images inside the subject and its
-React portals, not unrelated images elsewhere in the document.
+unpainted. Its default settlement — the waits, for fonts, images, and
+animations, that hold a page still before it is measured — covers images inside
+the subject and its React portals, not unrelated images elsewhere in the
+document.
 `focusPresentation` reads one owner from that report without touching
 the page again. Its default `owner` depth includes the owner and its immediate
 children; evidence owned by nested boxes is counted in `nested` rather than
@@ -63,9 +68,10 @@ Focus options are `depth`, `paint`, and `findings`. `depth` defaults to `owner`;
 `paint` limits retained layers; `findings` limits the reading to report-local
 finding ids owned at the selected depth.
 
-Every finding has a stable report-local `id` and the graph-node `owner` whose
-relationship produced it. Pass `findings: [id]` to isolate one question. Paint
-that focused evidence without another acquisition:
+Every finding — a detected rule violation such as `SEPARATION_COLLISION`, tying
+specific graph nodes to a measurement — has a stable report-local `id` and the
+graph-node `owner` whose relationship produced it. Pass `findings: [id]` to
+isolate one question. Paint that focused evidence without another acquisition:
 
 ```ts
 import type { Page } from '@playwright/test';
@@ -92,10 +98,12 @@ acquisition error.
 `subjectId` and `title` identify the sensed boundary in the returned report.
 `fonts` records the browser fonts whose identities the caller has established;
 the report carries them back, and a substitution changes its digest while
-content identity holds.
+content identity — a digest of semantic classes, names, text, state, and the
+browser ARIA reading, independent of layout — holds.
 `suspense` controls settlement of React boundaries before sensing. `paint` is
-either `true` for every diagnostic layer or a list of named layers; omitting it
-leaves the page unpainted.
+either `true` for every diagnostic layer (`semantic`, `spacing`, `axes`,
+`baselines`, `surfaces`, `prominence`, `repetition`, `findings`) or a list of
+named layers; omitting it leaves the page unpainted.
 
 `stabilize` replaces the default collection recipe by intervention id. Pass an
 empty list only for a caller-owned static document such as an MHTML archive whose
@@ -106,9 +114,12 @@ Use the pure entry point below when another collector already supplies a
 
 ## Inspect a visual flow across nested boxes
 
-DOM wrappers do not decide which rendered objects the product treats as one
-visual flow. When peers such as a brand mark and navigation controls live in
-different nested boxes, select those concrete graph nodes explicitly:
+Use this when peers — a brand mark and navigation controls, say — live in
+different DOM wrappers but should be read as one visual flow: select their graph
+node ids explicitly. A node id encodes a path from a capture root, so
+`r0:0/1/2` is capture root `0`, its child `1`, and that child's child `2`; get
+real ids from `report.graph.nodes` rather than hardcoding them as this example
+does:
 
 ```ts
 import type { Page } from '@playwright/test';
@@ -132,20 +143,17 @@ console.log(reading.coordinatePx, reading.spreadPx, reading.members);
 await paintPresentationAlignment(page, reading);
 ```
 
-The owner must contain every selected member and at least two distinct members
-are required. The result reports coordinates and deviations; it does not turn
-their spread into a finding or a design target. The caller remains responsible
-for saying that those nodes belong to one visual flow. Select one structural
-level: a semantic role on both a wrapper and its nested control does not make
-both of them peers. Its `paint` marks the
-median axis and every selected member with its signed deviation; painting reuses
-the report and does not acquire the page.
+The owner must contain every selected member, and at least two distinct members
+are required. Members must sit at one structural level — a wrapper and its own
+nested control sharing a semantic role do not count as two peers. The result
+reports coordinates and deviations; it does not add a finding. Its `paint`
+marks the median axis and every selected member with its signed deviation;
+painting reuses the report and does not acquire the page.
 
 ## Inspect spacing at a composition owner
 
-Adjacent sections do not need the same semantic shape to participate in one
-composition. Select consecutive immediate children at the owner that arranges
-them:
+Select consecutive immediate children at the owner that arranges them — they
+don't need matching semantic shape to belong to one composition:
 
 ```ts
 import {
@@ -167,15 +175,14 @@ await paintPresentationSpacing(browserPage, reading);
 
 The reading preserves every adjacent distance, boundary strength and spacing
 cluster, plus min/median/max summaries. Members must be consecutive immediate
-children in the owner's structural order. This prevents a broad descendant set
-from becoming an invented spacing relationship. The result is evidence, not a
-preferred gap or an automatic finding.
+children in the owner's structural order. The result is evidence — distances and
+clusters — not a preferred gap or an automatic finding.
 
 ## Declare relationship roles instead of trusting tokens
 
-A design-system token describes how spacing was implemented. Product structure
-decides what the spacing relates. Declare that structure over an existing
-report:
+Declare which measured separations in an existing report stand for which
+product-defined role, independent of the design-system token that implemented
+the spacing:
 
 ```ts
 import {
@@ -209,9 +216,9 @@ await paintPresentationHierarchy(page, hierarchy);
 Roles are ordered outside-in and may not repeat. Every relationship must be a
 measured separation inside the declared owner, and one pair cannot hold two
 roles. Adjacent roles occupying the same spacing cluster or calibrated
-distribution produce `SPACING_HIERARCHY_COLLISION`; the result does not choose a
-replacement value. Paint labels each declared role, so a shared raw token cannot
-stand in for product intent.
+distribution produce `SPACING_HIERARCHY_COLLISION` — a finding that two declared
+roles are not actually distinguishable in the rendered spacing; the result does
+not choose a replacement value. Paint labels each declared role.
 
 ## Analyze one capture
 
@@ -258,14 +265,13 @@ const change = comparePresentation(before, after);
 console.log(change.findings, change.information);
 ```
 
-Finding counts and information evidence remain separate. Re-sensing can
-therefore show fewer collapsed relationships beside a presentation-independent
-content identity and the element, character, and repeated-object counts. A
-matching content identity proves the semantic classes, names, text, state, and
-browser ARIA reading held while presentation moved. The identity is derived
-before layout analysis, so the same boundary holds for a capture whose layout is
-unobserved. Neither side is folded into a global score or verdict, and no stored
-baseline is required.
+`change.findings` and `change.information` are reported separately, never
+folded into a global score or verdict. `information` holds the content identity
+plus the element, character, and repeated-object counts. A matching content
+identity proves content held while presentation moved; it is derived before
+layout analysis, so the same check works for a capture whose layout is
+unobserved. Re-sensing can therefore show fewer findings resolved alongside an
+unchanged content identity, and no stored baseline is required.
 
 ## Carry presentation impact into a run report
 
@@ -303,15 +309,15 @@ console.log(observation.signals?.presentation);
 ```
 
 The function combines automatic findings with the supplied product-owned
-hierarchy readings. It matches relationship identities across the two reports
-and records introduced, resolved, and measurement-changing persisted effects.
+hierarchy readings, matching relationship identities across the two reports and
+recording introduced, resolved, and measurement-changing effects.
 `beforeHierarchy` and `afterHierarchy` are optional; omit both when automatic
-findings are the complete evidence for the subject.
-Missing reports or layout findings produce `incomparable`, never an empty clean
-list. Content identity and information counts travel beside the effects so
-removing information cannot masquerade as a presentation repair.
+findings are the complete evidence for the subject. Missing reports or layout
+findings produce `incomparable`, never an empty clean list. The content
+identity and information counts travel alongside the effects.
 
-The stored signal reports consequence only. Renderer impact still answers how
-far a changed property can reach, and project policy still decides whether any
-finding blocks a run. A collector that participates in the general regression
-pipeline returns this value as its optional `presentation` field.
+The stored signal reports consequence only, not severity: renderer impact —
+whether a changed CSS property can only repaint or must also reflow the page —
+still answers how far a change can reach, and project policy still decides
+whether any finding blocks a run. A collector that participates in the general
+regression pipeline returns this value as its optional `presentation` field.

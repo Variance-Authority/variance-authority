@@ -11,9 +11,10 @@ component caused each change. This package is one piece of it.
 **Requires:** nothing for the format. `report/file` requires a path this process
 can read and write.
 
-What a run leaves behind. The observation pipeline produces values in memory and
-then the process ends; this is the shape those answers take so they can be read
-afterwards, from a different process, on a different machine, by whoever or
+What a run leaves behind. A run compares one or more **subjects** — the pages,
+routes, or components under test — and produces its answers in memory before the
+process ends. A **`RunReport`** is the shape those answers take, so they can be
+read afterwards: from a different process, on a different machine, by whoever or
 whatever is asking.
 
 ```bash
@@ -27,6 +28,11 @@ root entrypoint for in-memory report types and derivations. Use
 `@variance-authority/report/file` only when this process should read or write a
 local path; an object store, PR comment, or socket should carry the same
 `RunReport` value without importing the file entrypoint.
+
+This package does not compare anything itself. It has no browser, no renderer,
+and no baseline store — pair it with whatever produces a `RunReport` (the
+`variance` CLI, or a custom runner) and, on the reading side, with something
+like `@variance-authority/mcp` or `@variance-authority/store`.
 
 ## Package boundary
 
@@ -68,8 +74,48 @@ browser or recompute observations. A report from a future format is refused,
 and an absent `notObserved` field remains absent rather than being treated as an
 empty coverage list.
 
+## The shape
+
+A `RunReport` is one JSON value: run metadata plus one **`ObservationRecord`**
+per subject. Trimmed to the fields most reports use:
+
+```json
+{
+  "runVersion": 1,
+  "at": "2026-08-27T10:00:00.000Z",
+  "identity": {
+    "renderer": "playwright-chromium@1.49.0",
+    "engine": "chromium@131",
+    "platform": "linux-x64",
+    "deviceScaleFactor": 1,
+    "fonts": ["Inter"]
+  },
+  "retention": "durable",
+  "observations": [
+    {
+      "subject": "component:Button",
+      "verdict": "changed",
+      "because": "12 pixels differ inside the label",
+      "changedPixels": 12,
+      "regions": [
+        { "x": 4, "y": 8, "width": 60, "height": 18, "pixels": 12, "component": "Button", "cause": true }
+      ]
+    }
+  ]
+}
+```
+
+Each `ObservationRecord` holds one subject's **verdict** — `unchanged`,
+`changed`, `new`, `incomparable`, or `ignored` — and, when it changed, the
+**region**s responsible: attributed rectangles of the diff, each with the
+component and pixel count that explain it.
+
 ## Presentation consequence is a signal, not a verdict
 
+An `ObservationRecord` can carry one or more **signals** —
+`ObservationRecord.signals`, each an independently measured boundary
+(`document`, `pixels`, `accessibility`, `presentation`); a missing member means
+that boundary was never measured, not that it was clean.
 `ObservationRecord.signals.presentation` retains what changed in rendered
 relationships beside the document, pixel, and accessibility boundaries. It is
 orthogonal to the renderer's `layout`/`paint`/`composite` impact and does not
@@ -82,7 +128,9 @@ consequence changed. An `incomparable` signal carries a reason and no effects;
 an absent `presentation` member means nothing measured that boundary.
 
 Product-aware collectors return the signal with their collected subject. The
-CLI carries it through both compared and digest-settled paths, and the JSON file,
+CLI carries it through both a pixel-compared path and a **digest-settled**
+one — a subject whose document digest matched the baseline's, so it was
+declared unchanged without ever being repainted — and the JSON file,
 HTML report, text report, MCP description, and Tribunal record read the same
 stored value without re-running presentation analysis. The producing API and a complete
 example live with `@variance-authority/presentation`.
@@ -90,7 +138,9 @@ example live with `@variance-authority/presentation`.
 ## Format derivations
 
 None has a home in a reader. `clusterChanges` groups a run's changed subjects
-by fingerprint, so a token edit across forty stories is **one decision presented
+by fingerprint — the shape digest carried on each region — into a **cluster**:
+the set of subjects a single accept-or-reject decision covers. A token edit
+across forty stories becomes one cluster, so it is **one decision presented
 once** rather than forty. `adjudicateRun` reads those changes back against what
 the author said they were doing:
 
@@ -176,25 +226,19 @@ if (isRecorded(record)) {
 | `by` | optional; who accepted |
 | `entries` | optional; entries a caller already formed, appended after the clustered ones. Region clustering is one producer of entries, not the definition of one — a change to an interface is the same kind of fact and has no rectangle, and the alternative was fabricating four numbers into a `RegionRecord` to get through the region path. `ungrouped` is untouched by them, and an entry with no fingerprint, no subjects, or fewer reached than promoted is refused rather than written |
 
-It refuses — with a sentence, not an empty record — when nothing was accepted,
-and when the report cannot name its run. An invented run id would attribute a
-baseline to a build that never happened.
+It refuses, with a message rather than an empty record, when nothing was
+accepted or when the report has no run id to attribute the baseline to.
 
-A record is written once and read for as long as the baseline lives, so three
-things are kept out of it deliberately: **no changed-pixel count**, which
-measures displacement rather than magnitude and moves with the machine that took
-it — the regions say where the change was instead; **no rendered prose**, so
-drift is a token and two values rather than a sentence a later release could
-never reword; and **nothing derivable**, so there is no accepted-subject total
-that could disagree with the entries. `changelogVersion` moves only when an
-existing field changes meaning — a reader keeps keys it does not recognise and
-writes them back, so adding one does not need a version.
+The record omits a changed-pixel count (the regions already say where the
+change was), rendered prose (drift is a token and two values instead), and any
+derived total. `changelogVersion` changes only when an existing field's meaning
+changes — a reader keeps keys it does not recognize, so adding a new field does
+not need one.
 
-`renderCommitMessage` takes `message`, the operator's subject line, which is
-emitted unchanged, and `record`. The trailers are versioned and opaque, one per
-change, scanned out of the **whole** message rather than the last paragraph — a
-squash merge stops them being the last paragraph, and a reader that only looked
-there would silently return nothing.
+`renderCommitMessage` takes `message` (the operator's subject line, emitted
+unchanged) and `record`, and emits one versioned, opaque trailer per change.
+`parseCommitMessage` scans the whole message for them rather than just the last
+paragraph, since a squash merge can move them out of it.
 
 Reading it back where baselines are commits is
 `@variance-authority/store`'s `readChangelog`; where they are rows it
@@ -202,19 +246,11 @@ is `@variance-authority/tribunal`'s.
 
 ## Validation boundaries
 
-`readRunReport` checks `runVersion` and validates `notObserved` and presentation
-transitions rather than casting. These refusals earn their cost:
+`readRunReport` validates rather than casts. It refuses:
 
-- These tools answer questions an agent then **edits code on**. A silently
-  misparsed report produces confident answers about fields that were never there.
-- `notObserved` is the field a summary claims a clean run *from*. A malformed
-  entry that survived parsing would be counted as neither a failure nor an
-  exclusion, and would quietly stop holding the run open.
-- A presentation transition without the required before or after evidence would
-  let a reader attribute an introduced or resolved relationship to a side that
-  was never measured.
+- an unknown `runVersion`, including one from a future writer
+- a malformed `notObserved` entry
+- a presentation transition missing the before/after evidence it requires
 
-The price is that a report from a future writer with a third `kind` is refused
-outright rather than partly understood. That is the intended trade: partly
-understanding a coverage list is precisely the failure this field exists to
-prevent.
+A caller gets a fully-typed `RunReport` back, or a thrown error — never a
+partially-parsed value with some fields silently absent.

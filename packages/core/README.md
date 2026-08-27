@@ -8,23 +8,28 @@
 compares a rendered subject against an approved baseline and reports which
 component caused each change. This package is one piece of it.
 
-**Requires:** nothing — not even a runtime with a `Buffer`. No DOM, no I/O, no
-async, enforced by its `tsconfig` (`lib: ES2022`, `types: []`), so "the core
-cannot peek at a live document" is a compile error rather than a code-review
-convention.
+A **subject** is whatever is under test — a component, a page, or a plain
+value. A **capture** is the raw material a collector records from it once,
+before anything is compared. Collectors extract captures; this package
+normalizes and adjudicates them, and never captures anything itself.
 
-Pure data in, pure data out. Collectors extract; core normalizes and adjudicates.
+**Requires:** nothing — not even a runtime with a `Buffer`. No DOM, no I/O, no
+async, enforced by its `tsconfig` (`lib: ES2022`, `types: []`).
 
 ```bash
 npm install --save-dev @variance-authority/core
 ```
 ## Use this package when
 
-Install `@variance-authority/core` when the input is already a capture, snapshot,
-render document, raster mask, or value. The package does not collect a DOM, read
-PNG bytes, launch a renderer, or select a test runner. Add `@variance-authority/dom`
-for a live DOM, `@variance-authority/react` for React provenance, and
-`@variance-authority/png` when the input is a PNG.
+Install `@variance-authority/core` when the input is already produced: a
+capture, a semantic snapshot, a render document (serialized subject markup,
+ready to be rasterized elsewhere), a raster mask (`ChangeMask`: a per-pixel
+changed/unchanged bitmap, not an image), or a plain value. The package does
+not collect a DOM, read PNG bytes, launch a renderer, or select a test
+runner — for that, install `@variance-authority/dom` for a live DOM,
+`@variance-authority/react` for React provenance (the chain of component
+ownership attached to each node), and `@variance-authority/png` when the
+input is a PNG.
 
 ## Entrypoints
 
@@ -44,6 +49,13 @@ seven and is what most callers want.
 | `core/plan` | the whole configuration of a run — profile, ruleset version, viewport, policy, interventions — as one value, plus the identity digest derived from it |
 | `core/relate` | what rests on what: a file graph in adjacency form, the components a change reaches, and a closure digest over each one |
 
+Three terms recur across those groups. A **profile** records what a collector
+was capable of observing — jsdom sees structure and declared style, chromium
+adds layout and pixels. An **identity** is the content hash that addresses a
+result; two runs are comparable only when their identities match. A
+**verdict** is one of six words this package will commit to: `unchanged`,
+`inherited`, `authorized`, `needs-review`, `violation`, `unexplained`.
+
 The groups exist for callers who genuinely want one. Somebody implementing the
 capture format for a renderer this project has never met needs `core/format` and
 would be misled by everything else. Somebody deciding where a baseline is stored,
@@ -53,9 +65,7 @@ which baselines the run can see.
 
 ## Comparison and policy
 
-`compare` says **what moved**. `judge` says **whether anyone should mind**. A
-comparison that also decided severity could not be reused by a team with a
-different policy, and every team has a different policy.
+`compare` says **what moved**. `judge` says **whether anyone should mind**.
 
 ## Smallest working path: compare a value
 
@@ -141,15 +151,16 @@ Non-data throws, naming the pointer. A function, a `Date`, a `bigint` or a
 non-finite number cannot be canonical text, and dropping one silently puts a key
 in the record that the next run reads as removed.
 
-Rendered comparisons also throw when the subjects or observation profiles differ;
-crossing those boundaries would turn an engine limitation into a product change.
+Rendered comparisons also throw when the subjects or observation profiles differ.
 
 ## What it refuses
 
 **Absent is not empty.** Not measured, measured as zero, and unobservable are
-three states, and collapsing any two produces a pass nobody earned. A band a
-profile cannot see reports `UNOBSERVED`, which the type system will not let you
-spell the same way as a pass.
+three states, and collapsing any two produces a pass nobody earned. A **band**
+(the frequency category a change falls into — `a11y`, `geometry`, `token`,
+`content`, `texture`, rarest to noisiest) that a profile cannot see reports
+`UNOBSERVED`, which the type system will not let you spell the same way as a
+pass.
 
 **Two results whose identities differ are `incomparable`, never `different`.**
 A difference in conditions reported as a difference in the product is a

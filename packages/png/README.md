@@ -11,22 +11,27 @@ component caused each change. This package is one piece of it.
 **Requires:** a runtime with `Buffer` — so Node, not a browser. Nothing to launch,
 nothing to write, nothing to reach. Two buffers in, a mask out.
 
-This is a package rather than a folder so that **comparing two images never costs
-you a browser**. A team extending their own Playwright tests takes comparison,
-isolation and attribution and renders nothing; a team whose images arrive from
-elsewhere takes only the reading end. Neither should have to launch Chromium to
-do it, and with the codec boxed on its own neither does.
+This package needs a PNG codec and nothing else: no browser, no filesystem, no
+network socket. It decodes two images, compares them, and returns a
+`ChangeMask` — a per-pixel changed/unchanged bitmap, one byte per pixel, set
+where that pixel differs. Grouping those pixels into named places
+(**region isolation**) and matching a place to the component that produced it
+(**attribution**) are the next two steps; both live one layer up, in
+`@variance-authority/core`.
+
+## Install
 
 ```bash
 npm install --save-dev @variance-authority/png
 ```
+
 ## Use this package when
 
-Install `@variance-authority/png` in a Node process when the inputs are PNG
-bytes. Use `@variance-authority/raster` instead when a renderer
-already gives you RGBA pixels or when you need the policy and storage contracts
-without a codec. This package does not launch a browser, store a baseline, or
-decide a pass/fail verdict.
+Use `@variance-authority/png` when the inputs are PNG bytes. Use
+`@variance-authority/raster` instead when a renderer already gives you RGBA
+pixels, or when you need the policy and storage contracts without a codec.
+This package does not launch a browser, store a baseline, or decide a
+pass/fail verdict.
 
 ## Smallest working path
 
@@ -60,8 +65,8 @@ comparison result. If the caller already has decoded RGBA, `comparePixels`
 avoids a second decode.
 
 So this phase stops at the last artifact that still has **positions** in it, and
-the phases that turn positions into places and places into files come after, in
-`core/attribute`.
+the phases that turn positions into places and places into files — region
+isolation, then attribution — come after, in `@variance-authority/core`.
 
 ## The policy is not here
 
@@ -104,11 +109,14 @@ const observation = await observePngDifference({
 });
 ```
 
-Decoding is the only part that needs a decoder, so it is the only part here. The
-field, the curve, the deltas and the artifact are arithmetic over two arrays and
-live in `@variance-authority/raster/difference` — which means a team
-whose images arrive as raw RGBA, from a canvas or a WASM renderer or a
-framebuffer, never installs this package at all.
+Decoding is the only part that needs a decoder, so it is the only part here.
+`observePngDifference` returns a **difference field** — one magnitude, 0 to 1,
+per pixel — and a **severity curve**: for each threshold in `severityLevels`
+(the bands the curve is sampled at), the fraction of the image differing by at
+least that much. Both are arithmetic over two pixel arrays and live in
+`@variance-authority/raster/difference` — which means a team whose images
+arrive as raw RGBA, from a canvas or a WASM renderer or a framebuffer, never
+installs this package at all.
 
 Source hashes are taken over the **encoded** bytes rather than the decoded
 pixels, because that is what a caller has and can look up again.
@@ -116,12 +124,13 @@ pixels, because that is what a caller has and can look up again.
 ### It refuses mismatched sizes, and the section above does not
 
 A real divergence, stated rather than smoothed over. `compareRasters` pads,
-because it is answering *did this subject change* and refusing would let a layout
-change score "detected" without measuring anything. `observePngDifference`
-refuses, because it is answering *how has a known difference moved* — and a
-baseline field measured on one grid has no per-pixel correspondence with a
-current field measured on another. Padding there would silently invent a
-difference across the whole added region and then report it as drift.
+because it is answering *did this subject — the newly rendered image — change*
+and refusing would let a layout change score "detected" without measuring
+anything. `observePngDifference` refuses, because it is answering *how has a
+known difference moved* — and a baseline field measured on one grid has no
+per-pixel correspondence with a current field measured on another. Padding
+there would silently invent a difference across the whole added region and
+then report it as drift.
 
 Both are right for their question. Neither should be quietly given the other's
 behaviour.

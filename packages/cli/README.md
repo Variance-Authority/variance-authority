@@ -12,13 +12,16 @@ component caused each change. This package is one piece of it.
 binary for Chromium, writable storage for directory baselines, `git` for LFS,
 or reachable services for remote rendering and storage.
 
-Run the complete Variance Authority workflow from a project-owned config:
-collect subjects, settle cheap comparisons, render what remains, write one
-report, and return a CI-safe exit code.
+This CLI runs that workflow end to end from a project-owned config: it
+collects **subjects** — the individual stories, routes, or fixtures being
+compared — settles the ones cheap hashing can already answer, renders what
+remains, writes one report, and returns a CI-safe exit code. `variance doctor`
+checks the selected prerequisites before the first expensive run.
 
-Use this package when you want an executable integration rather than a custom
-library composition. `variance doctor` checks the selected prerequisites before
-the first expensive run.
+Use this package for an executable, config-driven integration. If navigation
+and readiness already live in Playwright tests, use
+`@variance-authority/playwright-test` instead of this CLI — it runs the same
+comparison from inside a test rather than from a separate command.
 
 Install the executable together with the collector adapter your project uses:
 
@@ -28,13 +31,14 @@ npm install --save-dev @variance-authority/cli
 
 The `config` path passed to `variance` defaults to `variance.config.json` and is
 resolved before the file is read. The CLI does not mount application pages
-itself; the selected collector owns that boundary.
+itself; a **collector** — the adapter that mounts a subject and reports when it
+is ready to be captured — owns that boundary.
 
 ## Integrate the CLI
 
 ### 1. Choose how subjects enter
 
-The CLI deliberately does not guess how your application mounts. Point
+The CLI does not guess how your application mounts. Point
 `subjects.collector` at one of the shipped adapters or at a collector module
 owned by your project:
 
@@ -47,13 +51,16 @@ owned by your project:
 
 ### 2. Add `variance.config.json`
 
-The config declares the observation profile, viewport, subject source,
-retention, baseline backend, renderer identity inputs, and report location.
-Start from the [configuration example](#configuration), then use the selected
-collector README for its subject-specific module.
+The config declares the observation **profile** (`jsdom` for structure only, or
+`chromium` for a full render), viewport, subject source, **retention**
+(`durable`, which compares against a saved baseline image, or `ephemeral`,
+which compares two images produced within the same run and keeps neither),
+baseline backend, renderer identity inputs, and report location. Start from the
+[configuration example](#configuration), then use the selected collector
+README for its subject-specific module.
 
-Unknown keys are refused. A misspelled option must not leave the operator
-reading one configuration while the run follows another.
+Unknown keys are refused, so a misspelled option cannot run silently against a
+different config than the one the operator is reading.
 
 ### 3. Diagnose the environment
 
@@ -96,25 +103,25 @@ variance doctor  [--config <path>]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
 ```
 
-`run` produces the verdict and the exit code; `report` re-reads what it wrote;
-`adjudicate` re-reads it against what you said you were doing;
+`run` produces the **verdict** — the per-subject outcome (`unchanged`,
+`needs-review`, and so on) that decides the exit code; `report` re-reads what
+it wrote; `adjudicate` re-reads it against what you said you were doing;
 `accept` promotes a candidate image to baseline — by subject, by `--all`, or by
-`--shape`, which accepts a difference *shape* wherever it is the whole change and
-refuses by name any subject where something else moved too; `changelog` reads back
-why the baselines are what they are; `doctor` says what this machine
-can observe before a run rather than after one. `serve` exposes the report the
-last run wrote to an MCP client — an agent asks it what changed, which component
-and which file, over stdio, without re-running anything; the tools are
+`--shape`, which accepts a difference **shape** (a fingerprint computed from the
+diff itself, identifying a category of visual difference so it can be matched
+across subjects) wherever that shape is the whole change, and refuses by name
+any subject where something else moved too; `changelog` reads back why the
+baselines are what they are; `doctor` says what this machine can observe
+before a run rather than after one. `serve` exposes the report the last run
+wrote to an MCP client — an agent asks it what changed, which component and
+which file, over stdio, without re-running anything; the tools are
 `@variance-authority/mcp`'s.
 
 ### Changelog: explain a baseline update
 
-A baseline update lands in a run of its own, and the artifact that lands says
-*what* the new baseline is and nothing about **what the change was**. By the time
-anybody asks — a month later, at the twelfth 2px approval — the report that could
-have answered is gone with the CI job that wrote it.
-
-So `accept` can write the explanation into the thing that survives:
+A baseline update's report says what the new baseline is, not what the change
+was. `accept` can write that explanation into the thing that survives — a
+commit:
 
 ```bash
 npx variance accept --all --message-file .variance/commit-message.txt
@@ -125,9 +132,8 @@ git commit -F .variance/commit-message.txt
 `--message-file` writes a commit message: prose a reviewer reads in `git log`,
 and opaque versioned trailers a parser reads back. `--message` sets the subject
 line and defaults to `chore(variance): regenerate baselines`. Nothing is
-committed here — whether these baselines are committed, to which branch and as
-whom, belongs to the workflow that already decides it, and `accept`'s safety
-argument is that it only ever promotes images the run produced.
+committed here — committing, to which branch and as whom, is left to the
+calling workflow; `accept` only ever promotes images the run itself produced.
 
 Reading it back:
 
@@ -144,32 +150,22 @@ a1b2c3d4e5f6  2026-08-21T10:14:02+10:00  run 4242 @ 9f8e7d6c5b4a --shape
 
 A change line leads with the fingerprint because that string is what
 `accept --shape` takes; `11/14` is promoted-of-reached, and a bare number means
-the shape reached exactly those. The header is the same four facts the commit
-message carried, in the same order, so moving between `git log` and this command
-is reading one format rather than two renderings of one record.
+the shape reached exactly those.
 
 `--subject` narrows to one subject id, `--since <rev>` reads forward from a tag
 or a SHA, `--limit` caps how many commits are read.
 
-Three things it will not do, and each of them is the point:
+Three failure modes are handled explicitly:
 
-- **It never prints an empty history for a question it could not ask.** git
-  missing, not a repository, a revision that does not resolve — each exits `2`
-  with a sentence. "No baseline has ever been explained" and "nobody could ask"
-  are opposite findings, and confusing them sends an operator hunting a bug in
-  the writer.
-- **It says when a shallow clone bounded the reading.** CI checks out at depth 1,
-  so a reading there sees one commit; the output carries a `note:` saying what it
-  could not see rather than presenting a window as a total.
-- **It refuses stores whose baselines are not commits, by name.** Under
-  `ephemeral` retention there is no baseline to explain; behind a `remote` store
-  the explanation went to that service's record — the review
-  surface answers it there — and this command reads the log of a
-  checkout.
-
-`selection` is on its own line because `--all` and a named subject are different
-amounts of review, and a reader auditing a baseline needs to see which one they
-are looking at. A regeneration must not read like a review.
+- **git missing, no repository, or an unresolvable revision** each exit `2`
+  with a message, rather than printing an empty history that looks the same as
+  "nothing has changed since the last baseline."
+- **A shallow clone bounds what can be read.** CI checkouts at depth 1 see one
+  commit; the output carries a `note:` saying what it could not see.
+- **Stores whose baselines are not commits are refused by name.** Under
+  `ephemeral` retention there is no baseline to explain; behind a `remote`
+  store the explanation lives in that service's record instead, and this
+  command reads only the log of a checkout.
 
 ### HTML report
 
@@ -181,12 +177,14 @@ One file, written beside `report.json`, uploaded by whatever already uploads you
 CI artifacts. No account, no upload step, no retention policy, nothing to keep
 running — the cheapest rung of presentation infrastructure there is.
 
-It renders the same docket the pull-request body does: causes first with
-`file:line`, collateral counted rather than listed, an entry the semantic tier
-did not name marked as *largest region, not a named cause*, and coverage failures
-above the findings so the page cannot look complete when it is not. A fourth
-renderer must never produce a fourth answer, so `docket.ts` folds and the
-renderers only draw.
+It renders the same **docket** the pull-request body does — one entry per root
+cause, grouping every subject that cause reached, instead of one entry per
+subject: causes first with `file:line`, collateral counted rather than listed,
+a pixel-diff **region** (a bounding box of changed pixels) the semantic tier
+could not attribute to a component marked as *largest region, not a named
+cause*, and coverage failures — subjects the run could not observe — listed
+above the **findings** (the defects and changes the run reports) so the page
+cannot look complete when it is not.
 
 Two constraints worth knowing. **Image paths are relative to the report**, so the
 page belongs beside it — a report written elsewhere shows broken images rather
@@ -209,7 +207,9 @@ npx variance run --flakes
 A subject that agrees with its baseline and disagrees with itself is a flake one
 run before anybody has to look at a red build, and it is unreachable from a
 verdict — a green suite settles on its digests and never builds a comparison at
-all. The answer names the component, the file and the frequency band:
+all. The answer names the component, the file and the **band** — one of five
+categories (`a11y`, `geometry`, `token`, `content`, `texture`) a change is
+classified into by what kind of thing moved:
 
 ```
 [unstable] story:case-surface--ticking: … Clock src/ds.jsx:118 read differently
@@ -227,10 +227,13 @@ Wednesday.
 Unstable subjects exit **1** even when every verdict is green — a sweep that
 found six and exited 0 would have told CI nothing it could act on.
 
-Stability is demanded only inside the boundary a subject declares. A route with
-`sensitivity.level: layout` has said it does not assert on what the page is
-painted with, so a clock ticking inside it is listed under *not asserted on*,
-does not gate, and is not refused by `accept`. `strict` absorbs nothing.
+Stability is demanded only inside the boundary a subject declares. A **sensitivity
+level** names the set of bands a subject is actually asserted on — `strict`
+(every band, the default), `layout` (`a11y` and `geometry` only), or `content`
+(`a11y` and `content` only). A route with `sensitivity.level: layout` has said
+it does not assert on what the page is painted with, so a clock ticking inside
+it is listed under *not asserted on*, does not gate, and is not refused by
+`accept`. `strict` absorbs nothing.
 
 ### Reporting without gating
 
@@ -263,24 +266,20 @@ one per job:
 npx variance comment --body-file body.md shard-1.json shard-2.json shard-3.json
 ```
 
-Naming any report replaces the configured one rather than adding to it, because
-a shard writes where its job told it to and merging in a file nobody asked for is
-not a thing a reader can undo.
+Naming report files replaces the configured one; it does not merge into it.
 
-The merge refuses more than it accepts, and both halves are the point. Shards
-whose renderer identity, retention or `--intent` differ were not one run, and are
-refused naming both files — carrying one of the two answers under a single
-heading is how half a report gets attributed to a machine that never saw it. Two
-shards observing the same subject means the globs overlapped, which only the
-operator can resolve.
+The merge refuses shards whose renderer identity, retention, or `--intent`
+(the free-text label recorded for what a run was meant to do) differ, naming
+both files — those were not one run. Two shards observing the same subject
+means the globs overlapped, which only the operator can resolve.
 
 What it does accept is the arithmetic nobody wants to do by hand. Each shard
 records every subject outside its slice as `excluded`, so three shards report
 each subject as excluded twice and observed once; the merge resolves those
 against what was actually observed. **A subject that every shard filtered out is
 promoted to `failed` and turns the merged run red** — each shard exits `0`
-because each did exactly what it was told, and the suite is missing a component.
-That is the case sharding introduces and nothing else can see.
+because each did exactly what it was told, and the merge is what notices the
+suite is missing a component.
 
 `comment` renders the same report as a pull-request body: causes first,
 collateral counted rather than listed, and **nothing when the check is green** —
@@ -313,23 +312,21 @@ npx variance adjudicate --claims claims.json
 ] }
 ```
 
-It answers three things, and the third is the one nothing else here can reach.
-What you declared and delivered. What moved that you did not declare. And **what
-you declared that did not happen** — `Card` rendered in two subjects and held
-still, which means a wrong file, a dead branch, an overridden rule or a stale
-build, and no comparison of screenshots can tell you that. The composition census
-is what separates it from *`Card` never rendered, so nothing here is evidence*.
+It answers three things: what you declared and delivered; what moved that you
+did not declare; and **what you declared that did not happen** — `Card`
+rendered in two subjects and held still, which means a wrong file, a dead
+branch, an overridden rule, or a stale build. That third answer is distinct
+from `Card` never rendering at all, which the run's own subject count already
+shows and is not evidence of anything on its own.
 
-Declare before reading the diff. The command derives no claim, so claims copied
-out of a report score the run against itself — nothing can prevent that, but the
-tool never does it for you. Over-claiming is not an escape either: a claim
-reaching more subjects than it declared comes back `overreached`. It changes no
-verdict and no exit code; it reports on the run `run` already judged.
-`examples/agent-claim` exercises every arm of it,
-and `variance serve` exposes the same thing to an agent as
-`variance_adjudicate`.
+Declare before reading the diff — claims copied out of a report score the run
+against itself; the tool does not stop you, but nothing is gained by it.
+Over-claiming is not an escape either: a claim reaching more subjects than it
+declared comes back `overreached`. It changes no verdict and no exit code; it
+reports on the run `run` already judged. `variance serve` exposes the same
+check to an agent as `variance_adjudicate`.
 
-Those seven are the whole surface. **No command posts anything anywhere.**
+Those eight are the whole surface. **No command posts anything anywhere.**
 `comment` produces the body; sending it is
 `.github/actions/variance`'s job, with the
 operator's own token, and the exit code and the report remain what a CI job
@@ -531,33 +528,30 @@ stops absorbing. A subject whose only differences were absorbed reports
 **`ignored`**, never `unchanged`, and every run prints a ledger naming the rules
 that absorbed nothing — the two states that make a masked suite rot.
 
-The remaining top-level keys, each with its own page: `history` points the run at
-a history service, and is what makes `variance run` record observations and
-`variance accept` record approvals;
-`images` decides what a run writes alongside its report; `blank` replaces an
-image on the wire with a transparent one of the same intrinsic size; `sensitivity` narrows a
-named subject by band; `decoder`
-chooses the PNG implementation; `concurrency` bounds how many subjects are in
-flight; `intent` and `alone` say what this run is for and what it must not share
-a world with.
+The remaining top-level keys: `history` points the run at a history service,
+which is what makes `variance run` record observations and `variance accept`
+record approvals; `images` decides what a run writes alongside its report;
+`blank` replaces an image on the wire with a transparent one of the same
+intrinsic size; `sensitivity` narrows a named subject to a sensitivity level;
+`decoder` chooses the PNG implementation; `concurrency` bounds how many
+subjects are in flight; `intent` sets the default `--intent` label; `alone.limit`
+bounds how many changed subjects a run re-collects in isolation to confirm a
+change reproduces (the same budget `run --flakes` ignores — see above).
 
-`browser` is `chromium` (the default), `firefox` or `webkit`. **One word, not a
-matrix**, and that is a property of what a run is rather than a missing feature:
-the engine is part of the identity a baseline is stored under, so two engines are
-two runs with two sets of baselines. Switching it is safe by construction — a run
-under a new engine finds nothing under its key and reports every subject `new`,
-loudly, instead of diffing two engines and blaming a component for a font stack.
-`retention: "ephemeral"` needs no baselines at all — both images are produced by
-this run.
+`browser` is `chromium` (the default), `firefox` or `webkit` — one engine per
+run, because the engine is part of the identity a baseline is stored under, so
+two engines produce two separate sets of baselines. Switching it is safe:
+a run under a new engine finds nothing under its key and reports every subject
+`new`, rather than diffing two engines and blaming a component for a font
+stack. `retention: "ephemeral"` needs no baselines at all — both images are
+produced by this run.
 
 ## Bitbucket Pipelines, and what carries to any CI
 
-There is a composite action for GitHub Actions
-(`.github/actions/variance`). There is no
-second integration to install, and there does not need to be: **the exit code
-above is the whole interface**, so a CI that can run a command already has the
-gate. What a platform integration adds is the comment, and that is the only part
-worth writing down twice.
+There is a composite action for GitHub Actions (`.github/actions/variance`).
+No second integration is required elsewhere: the exit code above is the whole
+interface, so any CI that can run a command already has the gate. What a
+platform integration adds on top is posting the comment.
 
 ```yaml
 # bitbucket-pipelines.yml
@@ -602,13 +596,6 @@ The YAML is a platform example. Its `script` invokes the same `variance` binary
 used locally, while `after-script` owns the platform-specific API call that
 publishes the body. This package renders the body and marker but does not post
 anything.
-
-## Acceptance mode boundary
-
-`accept --all` does not distinguish a new baseline from a changed one. In that
-mode the CI gate becomes a recorder, so name subjects explicitly — `variance
-accept story:card--populated …` — anywhere the difference matters. Keep `--all`
-out of unattended workflows.
 
 ## Integration troubleshooting
 
