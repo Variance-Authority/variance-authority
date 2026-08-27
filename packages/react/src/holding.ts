@@ -183,10 +183,20 @@ export function holdingOf(node: Node): Holding | undefined {
 function cellsOf(fiber: Fiber): { cells?: readonly HeldCell[]; unread?: string } {
   const names = fiber._debugHookTypes;
 
-  // A production build populates neither this nor `Wiring.hooks`, and so does a
-  // development build of a component that has not run a hook yet. Absent, not
-  // empty: "this component retained nothing" is a positive claim, neither case
-  // supports it, and the ladder above is entitled to act on the difference.
+  // A production build populates neither this nor `Wiring.hooks`. Absent, not
+  // empty: "this component retained nothing" is a positive claim that a build
+  // carrying no hook metadata cannot support, and the ladder above is entitled
+  // to act on the difference between that and a reading.
+  //
+  // The distinction that matters is the property's *presence*. React creates
+  // every fiber with `_debugHookTypes = null` under `__DEV__` and assigns the
+  // array on the first hook call, so `null` is the positive reading "this
+  // component ran no hooks" and only `undefined` is silence. Collapsing the two
+  // costs the whole flake case: a component with no hooks and no props that
+  // renders differently twice is exactly the shape worth calling
+  // nondeterministic, and it would instead be reported as unreadable.
+  if (names === undefined) return {};
+  if (names === null) return { cells: [] };
   if (!Array.isArray(names)) return {};
 
   const found: HeldCell[] = [];

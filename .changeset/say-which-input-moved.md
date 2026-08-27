@@ -34,3 +34,10 @@ was read and agreed. A wrapper that roots a component boundary no longer
 collapses, because collapsing it discarded the holding — the cost is that a run
 reading holdings keeps wrappers a run without them removes, which is why both
 sides of a comparison must be read the same way.
+
+A component that ran no hooks is read as having run none, rather than as
+unreadable. React writes `_debugHookTypes = null` on every fiber and fills it on
+the first hook call, so the property's absence is the only silence — and
+collapsing the two reported the one shape most worth calling nondeterministic, a
+component with no props and no hooks that renders differently twice, as
+something nothing could be said about.

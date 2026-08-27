@@ -133,6 +133,36 @@ describe('one page, read twice, with a hook moved between the readings', () => {
   });
 });
 
+describe('a component whose inputs did not move and whose output did', () => {
+  // The flake case. A component with no props and no hooks is not unreadable in
+  // a development build — React writes `_debugHookTypes = null` on every fiber
+  // and fills it on the first hook call, so "ran no hooks" is a reading. Losing
+  // that distinction reports the one shape worth calling nondeterministic as
+  // one nothing can be said about.
+  function Seat() {
+    return <div>{Math.random() > 0.5 ? 'aisle' : 'window'}</div>;
+  }
+
+  it('calls it nondeterministic rather than unreadable', async () => {
+    await render(<Seat />);
+    let before = await read();
+    let after = before;
+    for (let attempt = 0; attempt < 60 && after.renderHash === before.renderHash; attempt += 1) {
+      await render(<span />);
+      await render(<Seat />);
+      after = await read();
+    }
+    expect(after.renderHash).not.toBe(before.renderHash);
+
+    const parting = partingOf(before, after);
+
+    expect(parting.origins?.[0]).toMatchObject({ component: 'Seat', rung: 'undetermined' });
+    expect(explainParting(parting)[0]).toBe(
+      'Seat rendered differently from inputs that all agreed — nondeterministic',
+    );
+  });
+});
+
 describe('state that does not live in React', () => {
   function makeStore(initial: string) {
     let value = initial;

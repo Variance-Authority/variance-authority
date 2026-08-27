@@ -34,21 +34,23 @@ export function explainParting(parting: Parting): readonly string[] {
   for (const origin of origins) {
     if (claimed.has(origin)) continue;
     claimed.add(origin);
-    lines.push(sentence(origin));
-    lines.push(...deltaLines(origin));
+    const downstream = boundaries.filter(
+      (other) => !claimed.has(other) && under(origin.path, other.path),
+    );
+    for (const other of downstream) claimed.add(other);
 
-    for (const other of boundaries) {
-      if (claimed.has(other) || !under(origin.path, other.path)) continue;
-      claimed.add(other);
+    lines.push(sentence(origin));
+    lines.push(...deltaLines(origin, boundaries));
+    for (const other of downstream) {
       lines.push(`  manifests as ${sentence(other)}`);
-      lines.push(...deltaLines(other).map((line) => `  ${line}`));
+      lines.push(...deltaLines(other, boundaries).map((line) => `  ${line}`));
     }
   }
 
   for (const rest of boundaries) {
     if (claimed.has(rest)) continue;
     lines.push(sentence(rest));
-    lines.push(...deltaLines(rest));
+    lines.push(...deltaLines(rest, boundaries));
   }
 
   return lines;
@@ -75,6 +77,9 @@ function sentence(boundary: PartedBoundary): string {
   }
 }
 
+/** What `holdingOf` writes for a context React could not name. */
+const ANONYMOUS = '(anonymous)';
+
 function isHook(input: MovedInput): boolean {
   return input.kind === 'hook';
 }
@@ -88,17 +93,34 @@ function isHook(input: MovedInput): boolean {
  * have already done.
  */
 function list(inputs: readonly MovedInput[]): string {
-  const named = inputs.map((input) =>
-    input.index === undefined ? `\`${input.name}\`` : `${input.name} #${input.index}`,
-  );
+  const named = inputs.map((input) => {
+    if (input.index !== undefined) return `${input.name} #${input.index}`;
+    // A `createContext` call with no `displayName` is the common case, and
+    // "a different `(anonymous)`" names the gap in React's metadata rather than
+    // the thing that moved.
+    return input.name === ANONYMOUS ? 'context value' : `\`${input.name}\``;
+  });
   if (named.length === 0) return 'input';
   if (named.length === 1) return named[0] as string;
   return `${named.slice(0, -1).join(', ')} and ${named[named.length - 1] as string}`;
 }
 
-function deltaLines(boundary: PartedBoundary): readonly string[] {
+/**
+ * The deltas at a boundary, and the one case worth saying nothing about.
+ *
+ * A boundary owning no delta is only *quiet* if nothing under it owns one
+ * either. Otherwise the deltas are real and belong to a nested boundary, whose
+ * own line already reports them — and "and rendered the same anyway" directly
+ * beneath "chose differently" reads as a contradiction rather than as the
+ * ownership statement it is.
+ */
+function deltaLines(
+  boundary: PartedBoundary,
+  all: readonly PartedBoundary[],
+): readonly string[] {
   if (boundary.deltas === 0) {
-    return ['  and rendered the same anyway'];
+    const moved = all.some((other) => under(boundary.path, other.path) && other.deltas > 0);
+    return moved ? [] : ['  and rendered the same anyway'];
   }
   const bands = boundary.bands.join(', ');
   return [`  ${boundary.deltas} delta${boundary.deltas === 1 ? '' : 's'} here (${bands})`];
