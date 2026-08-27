@@ -562,7 +562,9 @@ that absorbed nothing — the two states that make a masked suite rot.
 
 The remaining top-level keys: `history` points the run at a history service,
 which is what makes `variance run` record observations and `variance accept`
-record approvals; `images` decides what a run writes alongside its report;
+record approvals — its `token`, and `baselines.token` on a remote store, take
+either a literal or `{ "env": "NAME" }` naming the environment variable that
+holds it, because a config in a repository is the wrong place for a credential; `images` decides what a run writes alongside its report;
 `blank` replaces an image on the wire with a transparent one of the same
 intrinsic size; `sensitivity` narrows a named subject to a sensitivity level;
 `decoder` chooses the PNG implementation; `concurrency` bounds how many

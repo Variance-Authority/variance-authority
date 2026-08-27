@@ -137,6 +137,54 @@ describe('parseConfig', () => {
     expect(error.field).toBe('history.token');
   });
 
+  it('takes a history token from a named environment variable', () => {
+    // The one setting that cannot be written down here. This file is in the
+    // operator's repository; a bearer token in a repository has been shared with
+    // everybody who can read it, and the alternative — generating the config in
+    // CI — moves the whole run's configuration out of review to hide one string.
+    process.env['VARIANCE_TEST_HISTORY_TOKEN'] = 'a-token-of-sixteen-plus';
+    try {
+      const config = parseConfig(
+        {
+          ...VALID,
+          history: {
+            endpoint: 'http://history.internal:7788',
+            token: { env: 'VARIANCE_TEST_HISTORY_TOKEN' },
+          },
+        },
+        OPTIONS,
+      );
+      expect(config.history?.token).toBe('a-token-of-sixteen-plus');
+    } finally {
+      delete process.env['VARIANCE_TEST_HISTORY_TOKEN'];
+    }
+  });
+
+  it('names the variable, not the field, when the environment does not hold it', () => {
+    // The config is correct and the secret is missing. Reporting this as
+    // `history.token must be a non-empty string` sends the operator to the one
+    // file that has nothing wrong with it.
+    delete process.env['VARIANCE_TEST_HISTORY_ABSENT'];
+    const error = attempt({
+      ...VALID,
+      history: {
+        endpoint: 'http://history.internal:7788',
+        token: { env: 'VARIANCE_TEST_HISTORY_ABSENT' },
+      },
+    });
+    expect(error.field).toBe('history.token');
+    expect(error.message).toContain('VARIANCE_TEST_HISTORY_ABSENT');
+    expect(error.message).toContain('not set');
+  });
+
+  it('refuses a token object that names no variable', () => {
+    const error = attempt({
+      ...VALID,
+      history: { endpoint: 'http://history.internal:7788', token: { name: 'TOKEN' } },
+    });
+    expect(error.field).toBe('history.token.env');
+  });
+
   it('refuses an empty subject list', () => {
     const error = attempt(withField('subjects', { kind: 'list', ids: [], collector: 'c.mjs' }));
     expect(error.field).toBe('subjects.ids');

@@ -7,6 +7,7 @@ import {
   nonEmpty,
   object,
   optionalText,
+  secret,
   quote,
   resolveFrom,
   strings,
@@ -272,7 +273,11 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
 
   if (kind === 'remote') {
     const source = object(value, 'baselines', ['kind', 'endpoint', 'token'], options);
-    const token = optionalText(source, 'token', options, 'baselines.token');
+    // Optional, and read through `secret` when it is there: the store that needs
+    // one is somebody's deployment, so the value belongs in the environment even
+    // though the decision to send it belongs here.
+    const token =
+      source['token'] === undefined ? undefined : secret(source, 'token', options, 'baselines.token');
 
     return {
       kind: 'remote',
@@ -340,8 +345,9 @@ export function parseHistory(value: unknown, options: ParseOptions): HistoryConf
     endpoint: url(source, 'endpoint', 'history.endpoint', options),
     // Required, unlike the raster store's token: the history service refuses a
     // write it cannot attribute to an operator, so a config without one produces
-    // a run that observes everything and records none of it.
-    token: nonEmpty(source, 'token', options, 'history.token'),
+    // a run that observes everything and records none of it. Through `secret`,
+    // so that requiring it does not require committing it.
+    token: secret(source, 'token', options, 'history.token'),
     ...(project !== undefined ? { project } : {}),
   };
 }

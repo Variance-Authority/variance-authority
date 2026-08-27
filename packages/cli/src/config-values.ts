@@ -110,6 +110,65 @@ export function nonEmpty(
   return value;
 }
 
+/**
+ * A value the config declares and does not contain.
+ *
+ * `"token": "abc…"` or `"token": { "env": "VARIANCE_HISTORY_TOKEN" }`. The second
+ * form exists because a bearer token is the one setting that cannot be written
+ * down here: this file lives in the operator's repository, and a credential in a
+ * repository is a credential that has been shared with everyone who can read it.
+ * The alternative operators reach for otherwise — generating the config from a
+ * template in CI — moves the whole run's configuration out of review to hide one
+ * string.
+ *
+ * It is a *declaration*, not an inference, which is what keeps the rule this file
+ * is built on. Nothing is read from the environment unless the config named the
+ * variable; the config still determines the run completely, because it says
+ * exactly where the value comes from. What changes is only that the secret is not
+ * the thing under version control.
+ *
+ * An unset or empty variable is refused by the name the config gave, not by the
+ * field. Reporting `history.token must be a non-empty string` to somebody whose
+ * config is correct and whose CI secret is missing sends them to the wrong file.
+ */
+export function secret(
+  source: Record<string, unknown>,
+  key: string,
+  options: ParseOptions,
+  field = key,
+): string {
+  const value = source[key];
+  if (typeof value === 'string') {
+    if (value.trim() === '') fail(field, `must be a non-empty string, not ${quote(value)}`, options);
+    return value;
+  }
+
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    fail(field, WRONG_SHAPE + quote(value), options);
+  }
+
+  const variable = (value as Record<string, unknown>)['env'];
+  if (typeof variable !== 'string' || variable.trim() === '') {
+    fail(`${field}.env`, WRONG_SHAPE + quote(variable), options);
+  }
+
+  const held = process.env[variable];
+  if (held === undefined || held.trim() === '') {
+    fail(
+      field,
+      `names the environment variable ${quote(variable)}, and it is ` +
+        `${held === undefined ? 'not set' : 'empty'}. The config is right and the value is ` +
+        'missing, so nothing was substituted here',
+      options,
+    );
+  }
+  return held;
+}
+
+const WRONG_SHAPE =
+  'must be a non-empty string, or `{ "env": "NAME" }` naming the environment variable that ' +
+  'holds it, not ';
+
 export function optionalText(
   source: Record<string, unknown>,
   key: string,

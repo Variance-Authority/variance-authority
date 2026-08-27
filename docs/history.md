@@ -52,10 +52,19 @@ successfully.
 {
   "history": {
     "endpoint": "http://history.internal:7788",
-    "token": "the-token-you-set"
+    "token": { "env": "VARIANCE_HISTORY_TOKEN" }
   }
 }
 ```
+
+The token is the one setting that does not belong in this file. The config is in
+your repository, so a literal here is a credential shared with everyone who can
+read it; `{ "env": "NAME" }` names the variable that holds it instead. The config
+still says exactly where the value comes from — nothing is read from the
+environment that the file did not name — and a variable that is unset is refused
+by *its* name, so an operator whose config is right and whose CI secret is
+missing is sent to the secret. A literal string is still accepted, for a token
+that is not a secret.
 
 A run also has to be able to **name itself**, because a row that cannot be joined
 to a build is a row nothing can ask about:
