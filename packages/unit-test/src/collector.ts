@@ -1,6 +1,7 @@
 import type { CaptureArtifact } from '@variance-authority/core';
 import { captureFiles, readCapture } from './archive.js';
 import type { Collector, SubjectSource } from './contract.js';
+import { operatorError } from './operator.js';
 
 export interface CaptureCollectorOptions {
   readonly directory: string;
@@ -16,12 +17,12 @@ export function captureCollector(options: CaptureCollectorOptions): SubjectSourc
       for (const path of await captureFiles(options.directory)) {
         const artifact = await readCapture(path);
         if (artifacts.has(artifact.subject.id)) {
-          throw new Error(`capture directory contains duplicate subject ${artifact.subject.id}`);
+          throw operatorError(`capture directory contains duplicate subject ${artifact.subject.id}`);
         }
         artifacts.set(artifact.subject.id, artifact);
       }
       if (artifacts.size === 0) {
-        throw new Error(`capture directory ${options.directory} contains no capture artifacts`);
+        throw operatorError(`capture directory ${options.directory} contains no capture artifacts`);
       }
     };
 

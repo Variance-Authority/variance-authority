@@ -65,7 +65,17 @@ export interface CollectorConfig {
     readonly maxPixels?: number;
   }[];
 
-  readonly subjects: { readonly index: string };
+  /**
+   * The subjects section of the config, as the operator wrote it.
+   *
+   * `index` is optional because it belongs to `subjects.kind: "storybook"`, and
+   * a config naming any other kind still reaches this collector — the kind is
+   * chosen in the config and the collector is chosen in the config, and nothing
+   * makes the operator pick a matching pair. Typed as always present, the first
+   * thing to read it hands `undefined` to `node:path` and the adopter gets a
+   * TypeError about an argument instead of a sentence naming the wrong word.
+   */
+  readonly subjects: { readonly index?: string };
 }
 
 export interface PlannedSubject {

@@ -28,6 +28,11 @@ export type {
   PlannedSubject,
 } from './contract.js';
 import type { Collected, Collector, CollectorContext, Plan, PlannedSubject } from './contract.js';
+import { operatorError } from './operator.js';
+
+/** Said in two places, because a mismatched kind can be caught at either. */
+const WRONG_KIND =
+  'this collector expects `subjects.kind: "storybook"`, which is what supplies the plan';
 import { serveStatic, type StaticServer } from './serve.js';
 import { scanSource, type SourceScan } from './source.js';
 
@@ -210,13 +215,20 @@ export function storybookCollector(
     const { config, plan } = context;
     const roots = options.roots ?? STORY_ROOTS;
 
+    // Checked before anything reads it. `index` is what `subjects.kind:
+    // "storybook"` supplies, so a config naming another kind arrives here with
+    // nothing to serve — and the guard further down in `plan()` is too late,
+    // because this line runs first.
+    const index = config.subjects.index;
+    if (index === undefined) throw operatorError(WRONG_KIND);
+
     // The build the config named, not a sibling this file assumed. Serving the
     // directory that holds the planned index is the only arrangement in which the
     // stories driven and the stories planned are guaranteed to be the same ones.
-    const staticDir = dirname(config.subjects.index);
+    const staticDir = dirname(index);
 
     if (options.baseUrl === undefined && !existsSync(join(staticDir, 'index.json'))) {
-      throw new Error(
+      throw operatorError(
         `${staticDir} has no index.json; build the Storybook first, or point ` +
           '`baseUrl` at one that is already served',
       );
@@ -271,9 +283,7 @@ export function storybookCollector(
     return {
       async plan(): Promise<Plan> {
         if (plan === undefined) {
-          throw new Error(
-            'this collector expects `subjects.kind: "storybook"`, which is what supplies the plan',
-          );
+          throw operatorError(WRONG_KIND);
         }
         return plan;
       },
