@@ -121,6 +121,32 @@ describe('renderComment', () => {
     expect(body).not.toContain('Text');
   });
 
+  it('does not publish a node path as the cause a reviewer should open', () => {
+    // A page this project did not write in React has no component names, and the
+    // fallback was `path`. The comment then led with **`0/1`** in code voice \u2014 a
+    // child index presented as the thing to grep for \u2014 and counted the
+    // path-keyed groups beside it as "1 component(s)" over a page with none.
+    const body = renderComment({
+      report: reportOf([
+        {
+          subject: 'site/about',
+          verdict: 'changed',
+          because: '1627 pixel(s) differ across 2 region(s)',
+          changedPixels: 1627,
+          regions: [
+            { x: 32, y: 123, width: 478, height: 114, pixels: 1124, path: '0/1', cause: false },
+            { x: 50, y: 162, width: 111, height: 24, pixels: 503, path: '0/2', cause: false },
+          ],
+        },
+      ]),
+    });
+
+    expect(body).not.toContain('`0/1`');
+    expect(body).toContain('a region at 32,123 (478\u00d7114)');
+    expect(body).toContain('1 further region (503px) across 1 subject');
+    expect(body).not.toContain('component(s)');
+  });
+
   it('names the component, the file, and the landmark for each cause', () => {
     // A cause a reviewer cannot open is a cause they will not act on. The
     // landmark is the part a pixel differ cannot produce at all.

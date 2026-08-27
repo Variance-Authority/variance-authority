@@ -55,6 +55,26 @@ describe('summarizeObservation', () => {
     expect(message).not.toContain('Toggle at');
   });
 
+  it('never prints the containing node\u2019s path as the name of a region', () => {
+    // A tree with no provenance is every page not written in React. `path` was
+    // the fallback, so a Playwright assertion over a plain document printed
+    // `1510px \u2014 0` three times \u2014 the child index of the containing node, in
+    // the position a reader looks for something to open. Geometry is not a name
+    // either, but it is an address that finds the rect in the diff image.
+    const message = summarizeObservation(
+      observation([
+        { region: at(18, 23, 515), path: '0', unattributed: false },
+        { region: at(0, 0, 1510), path: '0', unattributed: false },
+      ]),
+    );
+
+    expect(message).toContain('1510px \u2014 at 0,0 (10\u00d710)');
+    expect(message).toContain('515px \u2014 at 18,23 (10\u00d710)');
+    // Not "unattributed": a box did contain these, and saying otherwise sends the
+    // reader after a wrong scale or origin that is not there.
+    expect(message).not.toContain('unattributed');
+  });
+
   it("prefers the element's own line to the component's declaration", () => {
     // Two different answers. Resolving `Toggle` says where `Toggle` is declared,
     // which is the same line for every instance of it; the element's own line

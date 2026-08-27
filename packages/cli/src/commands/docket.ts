@@ -167,7 +167,10 @@ export function docketOf(report: CliRunReport): Docket {
       if (region === lead) continue;
       collateralRegions += 1;
       collateralPixels += region.pixels;
-      collateralComponents.add(keyOf(region));
+      // Components, not keys. `keyOf` falls back to a path so that regions group
+      // at all, and counting those made "in 1 component(s)" appear over a page
+      // that has none.
+      if (region.component !== undefined) collateralComponents.add(region.component);
       collateralSubjects.add(observation.subject);
     }
 
@@ -254,8 +257,26 @@ function labelOf(region: RegionRecord): { label: string; named: boolean } {
       named: false,
     };
   }
-  const name = region.component ?? region.path;
-  return name === undefined
-    ? { label: 'a region with no component and no path', named: false }
-    : { label: name, named: true };
+
+  if (region.component !== undefined) return { label: region.component, named: true };
+
+  // No component, so no name — and `path` is not one. A tree without provenance
+  // is every page this project did not write in React, and labelling its lead
+  // region `0/1` published a pull-request comment whose first cause was a child
+  // index in code voice. `named: true` then told the renderer it was greppable,
+  // which is how "**`0/1`** — largest changed region" reached a reviewer with
+  // nothing in it to open, search for, or edit.
+  //
+  // The landmark phrase is the intended answer and `locate` builds it from roles
+  // and names; a page with neither leaves it empty, and then the honest label is
+  // the geometry, which at least finds the thing in the diff image. `keyOf` goes
+  // on grouping by `path` — an address is a poor name and a perfectly good key.
+  if (region.where !== undefined && region.where !== '') {
+    return { label: `a region in ${region.where}`, named: false };
+  }
+
+  return {
+    label: `a region at ${region.x},${region.y} (${region.width}×${region.height})`,
+    named: false,
+  };
 }

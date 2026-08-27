@@ -54,11 +54,17 @@ export function summarizeObservation(
 function line(region: AttributedRegion, source: SourceIndex | undefined): string {
   const nearest =
     region.nearest?.component === undefined ? '' : ` (nearest: ${region.nearest.component})`;
-  const named = region.component ?? region.path;
-  const what =
-    region.unattributed || named === undefined
-      ? `unattributed at ${region.region.x},${region.region.y}${nearest}`
-      : named;
+  const { x, y, width, height } = region.region;
+  // `path` is not among the candidates, and that is deliberate. A tree with no
+  // provenance — every page not written in React — left this printing the child
+  // index of the containing node, so a failing Playwright assertion read
+  // `1510px — 0`, three times, with the three rows distinguished only by their
+  // pixel counts. `locate.ts` says why: an address tells a reviewer nothing. It
+  // is at least an address a reader can find in the diff image when it is a rect,
+  // and `0` is not even that.
+  const what = region.unattributed
+    ? `unattributed at ${x},${y}${nearest}`
+    : (region.component ?? `at ${x},${y} (${width}×${height})`);
 
   const declared =
     source !== undefined && region.component !== undefined

@@ -195,9 +195,15 @@ function collateralBlocks(collateral: Collateral): readonly string[] {
   const lines: string[] = [];
 
   if (collateral.regions > 0) {
+    // The component clause is dropped rather than printed as zero: a tree with no
+    // provenance has no components, and "in 0 component(s)" invites the reader to
+    // go looking for the ones that were counted.
+    const within =
+      collateral.components > 0 ? `in ${count(collateral.components, 'component')} ` : '';
+
     lines.push(
       `Collateral: ${count(collateral.regions, 'further region')} ` +
-        `(${collateral.pixels}px) in ${count(collateral.components, 'component')} ` +
+        `(${collateral.pixels}px) ${within}` +
         `across ${count(collateral.subjects, 'subject')} moved with the changes above. ` +
         'Counted and not listed — displacement is not an edit, and a line each would ' +
         'bury the causes.',
