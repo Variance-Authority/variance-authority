@@ -142,14 +142,20 @@ export function conditionKey(environment: ConditionEnvironment): string {
  *
  * Matched on the owning element's attribute rather than on the rule text,
  * because rule text is something an application could legitimately contain.
+ *
+ * Asked of the owner optionally, twice over, because a sheet may have no owner
+ * and an owner may be no element. The CSSOM says the first is `null`; a DOM
+ * implementation is free to say `undefined` instead, and one does — jsdom below
+ * 26 leaves `ownerNode` unset on every sheet it parses. A `!== null` guard reads
+ * as defensive and admits exactly that value, so the next line dereferenced it
+ * and the first page with a stylesheet on it threw a TypeError out of a private
+ * module rather than returning a snapshot. Every other reader of `ownerNode` in
+ * this project already asks with `?.`; this one is the outlier, and it is the
+ * one that ran first.
  */
 function isStabilizationSheet(sheet: CSSStyleSheet): boolean {
-  const owner = sheet.ownerNode;
-  return (
-    owner !== null &&
-    typeof (owner as Element).getAttribute === 'function' &&
-    (owner as Element).hasAttribute(STABILIZE_ATTRIBUTE)
-  );
+  const owner = sheet.ownerNode as Element | null | undefined;
+  return owner?.hasAttribute?.(STABILIZE_ATTRIBUTE) === true;
 }
 
 export function indexStyleSheets(

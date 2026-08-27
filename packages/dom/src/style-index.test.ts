@@ -3,6 +3,7 @@ import { JSDOM } from 'jsdom';
 import { normalize, type RawCapture, type RawNode, type Viewport } from '@variance-authority/core';
 import { collect, conditionsFor } from './collect.js';
 import { indexStyleSheets } from './css.js';
+import { STABILIZE_ATTRIBUTE } from './stabilize.js';
 
 /**
  * Reusing one style index across the subjects that share a document.
@@ -184,6 +185,42 @@ function sharedIndex(subjects: number): number {
 
   return performance.now() - started;
 }
+
+describe('a DOM that answers `undefined` for a sheet with no owner', () => {
+  // The CSSOM says `ownerNode` is `null` when there is no owning element. jsdom
+  // below 26 says `undefined`, and says it for every sheet it parses — owned or
+  // not. Anything reading the owner has to survive both spellings, because the
+  // one it meets is a property of the caller's DOM and not of the page.
+  function withUnsetOwners(css: string): Document {
+    const { document } = world(css);
+    for (const sheet of Array.from(document.styleSheets)) {
+      Object.defineProperty(sheet, 'ownerNode', { value: undefined, configurable: true });
+    }
+    return document;
+  }
+
+  it('indexes the page instead of throwing out of a private module', () => {
+    const document = withUnsetOwners('.copy { color: rgb(1, 2, 3); }');
+
+    const index = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
+
+    expect(index.totalRules).toBe(1);
+    expect(index.byKey.get('.copy')?.length).toBe(1);
+  });
+
+  it('still skips the stabilization sheet when the owner is there to be asked', () => {
+    const { document } = world('.copy { color: rgb(1, 2, 3); }');
+    const injected = document.createElement('style');
+    injected.setAttribute(STABILIZE_ATTRIBUTE, '');
+    injected.textContent = '*, *::before, *::after { animation: none !important; }';
+    document.head.append(injected);
+
+    const index = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
+
+    expect(index.totalRules).toBe(1);
+    expect(index.universal).toEqual([]);
+  });
+});
 
 describe('the cost of rebuilding the index per subject', () => {
   it('falls materially when one index is shared across the subjects of a document', () => {
