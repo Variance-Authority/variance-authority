@@ -150,7 +150,11 @@ a1b2c3d4e5f6  2026-08-21T10:14:02+10:00  run 4242 @ 9f8e7d6c5b4a --shape
 
 A change line leads with the fingerprint because that string is what
 `accept --shape` takes; `11/14` is promoted-of-reached, and a bare number means
-the shape reached exactly those.
+the shape reached exactly those. `Card src/Card.tsx` is where the shape was
+attributed, and reads `unattributed` when the run could not name a component —
+the promotion is no less real, it just cannot be pinned to one source. The line
+under the commit is that run's `--intent`, which is why a run started without
+one prints no such line.
 
 `--subject` narrows to one subject id, `--since <rev>` reads forward from a tag
 or a SHA, `--limit` caps how many commits are read.
@@ -311,6 +315,13 @@ npx variance adjudicate --claims claims.json
   { "root": "component:Card", "reason": "tighten the gap above the action" }
 ] }
 ```
+
+A `root` is `component:<name>`, or `shape:<fingerprint>` when the run resolved
+no component and grouped the change by its shape alone — which is what the
+unclaimed lines below print, and what a suite with no source attribution has to
+claim by. A bare name is read as a component; any other prefix is read as part
+of the component's name, so a misspelt one comes back as a component that never
+rendered rather than as an error.
 
 It answers three things: what you declared and delivered; what moved that you
 did not declare; and **what you declared that did not happen** — `Card`
