@@ -2769,6 +2769,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-playwright@workspace:examples/playwright":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-playwright@workspace:examples/playwright"
+  dependencies:
+    "@playwright/test": "npm:^1.62.1"
+    "@variance-authority/playwright-test": "npm:^0.0.0-beta.1"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/example-readme-case@workspace:examples/readme-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-readme-case@workspace:examples/readme-case"
@@ -2934,7 +2943,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/playwright-test@workspace:^, @variance-authority/playwright-test@workspace:packages/playwright-test":
+"@variance-authority/playwright-test@npm:^0.0.0-beta.1, @variance-authority/playwright-test@workspace:^, @variance-authority/playwright-test@workspace:packages/playwright-test":
   version: 0.0.0-use.local
   resolution: "@variance-authority/playwright-test@workspace:packages/playwright-test"
   dependencies:
