@@ -82,6 +82,28 @@ function store(project = 'todomvc'): ReturnType<typeof createBucketStore> {
   return createBucketStore({ db, bucket, project });
 }
 
+describe('a deployment that never said which project it is', () => {
+  it('is refused at construction, however the operator spelled the omission', () => {
+    // The operator who gets this wrong read the value out of an environment or a
+    // config file, where the compiler is not standing. Before this, `undefined`
+    // reached D1 as a bind parameter and came back as "could not reach its
+    // database or its bucket" — the platform blamed for a line in a wrangler
+    // file — and a blank string quietly became a namespace nobody named.
+    for (const project of [undefined, '', '   ']) {
+      expect(() =>
+        createBucketStore({ db, bucket, project: project as unknown as string }),
+      ).toThrow(/`project` is required/);
+    }
+  });
+
+  it('keeps two projects out of one namespace', async () => {
+    await store('todomvc').put({ subject: 's' }, raster(MAC));
+
+    expect(await store('todomvc').describe({ subject: 's' }, MAC)).not.toBeNull();
+    expect(await store('checkout').describe({ subject: 's' }, MAC)).toBeNull();
+  });
+});
+
 describe('a baseline split across D1 and R2', () => {
   it('reads back byte-identically', async () => {
     await store().put({ subject: 's' }, raster(MAC));

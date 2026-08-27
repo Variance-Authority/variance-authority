@@ -2488,6 +2488,8 @@
         "D1Like": "interface",
         "D1PreparedLike": "interface",
         "D1Value": "type",
+        "INITIAL_VERSION": "const",
+        "MIGRATIONS": "const",
         "R2Like": "interface",
         "R2ObjectLike": "interface",
         "SCHEMA": "const",

@@ -69,6 +69,31 @@ export interface BucketStoreOptions extends TribunalBindings {
   readonly now?: () => Date;
 }
 
+/**
+ * Refuse a deployment that never said which project it is.
+ *
+ * Checked here rather than left to the type, because the operator who gets this
+ * wrong reads the value out of an environment or a config file, where the
+ * compiler is not standing. Two of `createTribunal`'s five required options
+ * already answer with a sentence; this one answered `could not reach its
+ * database or its bucket` from the first request that touched a baseline, which
+ * blames the platform for a line in a wrangler file.
+ *
+ * Blank is refused with absent. A project is the namespace every row and object
+ * key is scoped by, and one nobody named is the invented default this option
+ * exists to make impossible.
+ */
+function requireProject(project: string): void {
+  if (typeof project !== 'string' || project.trim() === '') {
+    throw new Error(
+      '`project` is required and must not be blank. It scopes every row and every object key, ' +
+        'so one deployment can serve several repositories without their `story:card` colliding; ' +
+        'a deployment that never named itself puts them in one namespace, and the first symptom ' +
+        'is a mass `changed`',
+    );
+  }
+}
+
 /** Shape of every baseline and cache row as it comes back out of D1. */
 interface SidecarRow {
   readonly identity: string;
@@ -82,6 +107,7 @@ interface SidecarRow {
 
 export function createBucketStore(options: BucketStoreOptions): RasterStore {
   const { db, bucket, project } = options;
+  requireProject(project);
   const now = options.now ?? ((): Date => new Date());
 
   return {
