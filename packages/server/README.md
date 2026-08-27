@@ -92,6 +92,13 @@ projects.
 are optional on every `GET` route above. Whatever a `limit` excludes comes back
 as an `omitted` count rather than silently shrinking a total.
 
+An observation row carries `accepted` as the run recorded it, which is always
+`false`: the run wrote the row before anybody looked at it. Accepting a subject
+posts an approval to `/v1/approvals` rather than rewriting that row, so a row
+still reading `accepted: false` after a review is the record behaving, not an
+approval that went missing. `churn` joins the two, which is why it can report
+rejected runs separately.
+
 Errors are `{"error": "..."}`: `400` for a malformed request, `404` for an
 unknown path, `405` for the wrong method (with an `Allow` header), `409` when a
 write conflicts with what is already stored, and `413` when a write exceeds
