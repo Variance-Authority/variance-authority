@@ -52,7 +52,7 @@ reading one configuration while the run follows another.
 ### 3. Diagnose the environment
 
 ```bash
-variance doctor --config variance.config.json
+npx variance doctor --config variance.config.json
 ```
 
 Run this in the same machine or CI image that will execute `variance run`.
@@ -62,10 +62,10 @@ not performed rather than pretending a network endpoint is healthy.
 ### 4. Run, review, accept, rerun
 
 ```bash
-variance run --config variance.config.json
-variance report --config variance.config.json --format html > .variance/report.html
-variance accept --config variance.config.json story:checkout--empty
-variance run --config variance.config.json
+npx variance run --config variance.config.json
+npx variance report --config variance.config.json --format html > .variance/report.html
+npx variance accept --config variance.config.json story:checkout--empty
+npx variance run --config variance.config.json
 ```
 
 The first successful durable run exits `1` because its subjects are `new`.
@@ -83,7 +83,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--flakes] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
-variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path>] [--message <text>]
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
@@ -111,7 +111,7 @@ have answered is gone with the CI job that wrote it.
 So `accept` can write the explanation into the thing that survives:
 
 ```bash
-variance accept --all --message-file .variance/commit-message.txt
+npx variance accept --all --message-file .variance/commit-message.txt
 git add -- .variance/baselines
 git commit -F .variance/commit-message.txt
 ```
@@ -126,7 +126,7 @@ argument is that it only ever promotes images the run produced.
 Reading it back:
 
 ```bash
-variance changelog --component Card --limit 50
+npx variance changelog --component Card --limit 50
 ```
 
 ```
@@ -168,7 +168,7 @@ are looking at. A regeneration must not read like a review.
 ### HTML report
 
 ```bash
-variance report --format html > out/report.html
+npx variance report --format html > out/report.html
 ```
 
 One file, written beside `report.json`, uploaded by whatever already uploads your
@@ -197,7 +197,7 @@ different question: not *is this change real* but *which of these subjects would
 flake tomorrow*.
 
 ```bash
-variance run --flakes
+npx variance run --flakes
 ```
 
 A subject that agrees with its baseline and disagrees with itself is a flake one
@@ -247,14 +247,14 @@ about the suite rather than about a slice — one exit code, one body for
 `comment`:
 
 ```bash
-variance report shard-1.json shard-2.json shard-3.json
+npx variance report shard-1.json shard-2.json shard-3.json
 ```
 
 `comment` takes them the same way, so the pull request gets one body rather than
 one per job:
 
 ```bash
-variance comment --body-file body.md shard-1.json shard-2.json shard-3.json
+npx variance comment --body-file body.md shard-1.json shard-2.json shard-3.json
 ```
 
 Naming any report replaces the configured one rather than adding to it, because
@@ -297,7 +297,7 @@ rather than a flag because a claim is a root, a reason and a bound, and
 `--intent "tighten the card"` is a sentence:
 
 ```bash
-variance adjudicate --claims claims.json
+npx variance adjudicate --claims claims.json
 ```
 
 ```jsonc
@@ -582,7 +582,7 @@ pipelines:
 The poster is the platform-specific half, and it needs one thing from this CLI:
 
 ```bash
-variance comment --marker
+npx variance comment --marker
 ```
 
 That prints the invisible marker the rendered body carries, and nothing else.

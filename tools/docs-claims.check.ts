@@ -75,6 +75,21 @@ describe('the documented command line is the real one', () => {
   });
 
   /**
+   * Innermost-first, because an optional may hold an optional: `--message` is
+   * only a flag once `--message-file` names the file it writes a line of. One
+   * non-nesting pass leaves the outer bracket behind and reads the synopsis as
+   * malformed.
+   */
+  const dropOptionals = (line: string): string => {
+    let text = line;
+    for (let previous = ''; previous !== text; ) {
+      previous = text;
+      text = text.replace(/\[[^[\]]*\]/g, '');
+    }
+    return text;
+  };
+
+  /**
    * Wherever a block lists the commands, it lists all of them, in the binary's
    * own words.
    *
@@ -117,9 +132,7 @@ describe('the documented command line is the real one', () => {
       if (!line.startsWith('variance ')) return false;
       if (!/[[<]/.test(line)) return false;
 
-      const remaining = line
-        .replace(/#.*$/, '')
-        .replace(/\[[^\]]*\]/g, '')
+      const remaining = dropOptionals(line.replace(/#.*$/, ''))
         .replace(/<[^>]*>/g, '')
         .trim()
         .split(/\s+/)

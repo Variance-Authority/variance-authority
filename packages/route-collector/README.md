@@ -30,6 +30,7 @@ rather than adding an arbitrary delay.
 ### 2. Add a collector module
 
 ```js
+// variance/routes.mjs
 import { routeCollector } from '@variance-authority/route-collector';
 
 export default routeCollector({
@@ -74,8 +75,8 @@ a reviewable configuration change.
 ### 4. Check the machine, then run
 
 ```bash
-variance doctor --config variance.config.json
-variance run --config variance.config.json
+npx variance doctor --config variance.config.json
+npx variance run --config variance.config.json
 ```
 
 The first successful run reports the routes as `new` and exits `1`. After the

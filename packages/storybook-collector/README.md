@@ -33,6 +33,7 @@ only project-specific facts in the common path are where components live and
 which stories need an explicit readiness marker.
 
 ```js
+// variance/storybook.mjs
 import { storybookCollector } from '@variance-authority/storybook-collector';
 
 export default storybookCollector({
@@ -65,6 +66,10 @@ from, and this collector makes it repository-relative. The plugin does not take
 `jsxImportSource`, so a Storybook already compiling against Emotion or theme-ui
 keeps doing exactly that.
 
+```bash
+npm install --save-dev @variance-authority/jsx-source
+```
+
 ### 3. Point the CLI at the Storybook index and collector
 
 In `variance.config.json`, the index is the built file and `collector` is the
@@ -90,8 +95,8 @@ module you created:
 ### 4. Check the machine, then run
 
 ```bash
-variance doctor --config variance.config.json
-variance run --config variance.config.json
+npx variance doctor --config variance.config.json
+npx variance run --config variance.config.json
 ```
 
 The first successful run exits `1` and reports each story as `new`; a baseline

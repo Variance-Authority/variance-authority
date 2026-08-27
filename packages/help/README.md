@@ -48,7 +48,7 @@ answering it means speaking a protocol over a pipe.
 
 ```bash
 npm install --save-dev @variance-authority/help
-variance-authority-help .
+npx variance-authority-help .
 ```
 
 ```json
@@ -88,7 +88,7 @@ For the readers that cannot call a tool — a chat window with a URL box, a
 crawler, a person:
 
 ```bash
-variance-authority-help write . --out docs/api
+npx variance-authority-help write . --out docs/api
 ```
 
 | file | is |
