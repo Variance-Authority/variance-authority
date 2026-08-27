@@ -2665,7 +2665,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/cli@npm:^0.0.0-beta.1, @variance-authority/cli@workspace:^, @variance-authority/cli@workspace:packages/cli":
+"@variance-authority/cli@workspace:^, @variance-authority/cli@workspace:packages/cli":
   version: 0.0.0-use.local
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:
@@ -2735,16 +2735,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/example-history@workspace:examples/history":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/example-history@workspace:examples/history"
-  dependencies:
-    "@variance-authority/cli": "npm:^0.0.0-beta.1"
-    "@variance-authority/route-collector": "npm:^0.0.0-beta.1"
-    "@variance-authority/server": "npm:^0.0.0-beta.1"
-  languageName: unknown
-  linkType: soft
-
 "@variance-authority/example-kitchen-sink@workspace:examples/kitchen-sink":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-kitchen-sink@workspace:examples/kitchen-sink"
@@ -2779,15 +2769,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/example-playwright@workspace:examples/playwright":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/example-playwright@workspace:examples/playwright"
-  dependencies:
-    "@playwright/test": "npm:^1.62.1"
-    "@variance-authority/playwright-test": "npm:^0.0.0-beta.1"
-  languageName: unknown
-  linkType: soft
-
 "@variance-authority/example-readme-case@workspace:examples/readme-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-readme-case@workspace:examples/readme-case"
@@ -2802,15 +2783,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/example-running-app@workspace:examples/running-app":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/example-running-app@workspace:examples/running-app"
-  dependencies:
-    "@variance-authority/cli": "npm:^0.0.0-beta.1"
-    "@variance-authority/route-collector": "npm:^0.0.0-beta.1"
-  languageName: unknown
-  linkType: soft
-
 "@variance-authority/example-selection-reuse@workspace:examples/selection-reuse":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-selection-reuse@workspace:examples/selection-reuse"
@@ -2818,30 +2790,6 @@ __metadata:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     vitest: "npm:^2.1.8"
-  languageName: unknown
-  linkType: soft
-
-"@variance-authority/example-static-site@workspace:examples/static-site":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/example-static-site@workspace:examples/static-site"
-  dependencies:
-    "@variance-authority/cli": "npm:^0.0.0-beta.1"
-    "@variance-authority/route-collector": "npm:^0.0.0-beta.1"
-  languageName: unknown
-  linkType: soft
-
-"@variance-authority/example-storybook@workspace:examples/storybook":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/example-storybook@workspace:examples/storybook"
-  dependencies:
-    "@storybook/react-vite": "npm:^9.1.13"
-    "@variance-authority/cli": "npm:^0.0.0-beta.1"
-    "@variance-authority/jsx-source": "npm:^0.0.0-beta.1"
-    "@variance-authority/storybook-collector": "npm:^0.0.0-beta.1"
-    react: "npm:^19.2.0"
-    react-dom: "npm:^19.2.0"
-    storybook: "npm:^9.1.13"
-    vite: "npm:^6.0.0"
   languageName: unknown
   linkType: soft
 
@@ -2884,17 +2832,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/example-vitest@workspace:examples/vitest":
-  version: 0.0.0-use.local
-  resolution: "@variance-authority/example-vitest@workspace:examples/vitest"
-  dependencies:
-    "@variance-authority/cli": "npm:^0.0.0-beta.1"
-    "@variance-authority/unit-test": "npm:^0.0.0-beta.1"
-    jsdom: "npm:^25.0.1"
-    vitest: "npm:^2.1.9"
-  languageName: unknown
-  linkType: soft
-
 "@variance-authority/help@workspace:packages/help":
   version: 0.0.0-use.local
   resolution: "@variance-authority/help@workspace:packages/help"
@@ -2914,7 +2851,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/jsx-source@npm:^0.0.0-beta.1, @variance-authority/jsx-source@workspace:^, @variance-authority/jsx-source@workspace:packages/jsx-source":
+"@variance-authority/jsx-source@workspace:^, @variance-authority/jsx-source@workspace:packages/jsx-source":
   version: 0.0.0-use.local
   resolution: "@variance-authority/jsx-source@workspace:packages/jsx-source"
   dependencies:
@@ -2964,7 +2901,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/playwright-test@npm:^0.0.0-beta.1, @variance-authority/playwright-test@workspace:^, @variance-authority/playwright-test@workspace:packages/playwright-test":
+"@variance-authority/playwright-test@workspace:^, @variance-authority/playwright-test@workspace:packages/playwright-test":
   version: 0.0.0-use.local
   resolution: "@variance-authority/playwright-test@workspace:packages/playwright-test"
   dependencies:
@@ -3068,7 +3005,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/route-collector@npm:^0.0.0-beta.1, @variance-authority/route-collector@workspace:packages/route-collector":
+"@variance-authority/route-collector@workspace:packages/route-collector":
   version: 0.0.0-use.local
   resolution: "@variance-authority/route-collector@workspace:packages/route-collector"
   dependencies:
@@ -3106,7 +3043,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/server@npm:^0.0.0-beta.1, @variance-authority/server@workspace:^, @variance-authority/server@workspace:packages/server":
+"@variance-authority/server@workspace:^, @variance-authority/server@workspace:packages/server":
   version: 0.0.0-use.local
   resolution: "@variance-authority/server@workspace:packages/server"
   dependencies:
@@ -3140,7 +3077,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/storybook-collector@npm:^0.0.0-beta.1, @variance-authority/storybook-collector@workspace:^, @variance-authority/storybook-collector@workspace:packages/storybook-collector":
+"@variance-authority/storybook-collector@workspace:^, @variance-authority/storybook-collector@workspace:packages/storybook-collector":
   version: 0.0.0-use.local
   resolution: "@variance-authority/storybook-collector@workspace:packages/storybook-collector"
   dependencies:
@@ -3183,7 +3120,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/unit-test@npm:^0.0.0-beta.1, @variance-authority/unit-test@workspace:^, @variance-authority/unit-test@workspace:packages/unit-test":
+"@variance-authority/unit-test@workspace:^, @variance-authority/unit-test@workspace:packages/unit-test":
   version: 0.0.0-use.local
   resolution: "@variance-authority/unit-test@workspace:packages/unit-test"
   dependencies:
@@ -6400,7 +6337,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vitest@npm:^2.1.8, vitest@npm:^2.1.9":
+"vitest@npm:^2.1.8":
   version: 2.1.9
   resolution: "vitest@npm:2.1.9"
   dependencies:
