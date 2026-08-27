@@ -5,6 +5,8 @@
     ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
     "./widget": { "types": "./dist/widget.d.ts", "default": "./dist/widget.js" },
     "./direct": { "types": "./src/direct.ts", "default": "./src/direct.ts" },
+    "./plain": "./src/plain.ts",
+    "./nested": { "import": { "types": "./dist/nested.d.ts", "default": "./dist/nested.js" } },
     "./raw": { "default": "./raw.js" }
   },
   "files": ["dist"]

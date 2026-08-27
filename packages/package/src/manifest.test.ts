@@ -79,6 +79,22 @@ describe('reading a workspace', () => {
     expect(at('./direct')).toBe('/packages/alpha/src/direct.ts');
   });
 
+  it('opens a subpath written as a bare path to source', () => {
+    // The shape a repository publishing its own TypeScript writes, and the one
+    // most manifests outside this workspace use. Read as `no types condition`,
+    // it left a package that had said exactly where its code was opening
+    // nothing at all.
+    const alpha = offerings.find((offering) => offering.name === 'alpha');
+    const plain = alpha!.entrypoints.find((entry) => entry.subpath === './plain');
+    expect(plain?.source.slice(WORKSPACE.length)).toBe('/packages/alpha/src/plain.ts');
+  });
+
+  it('opens a subpath whose types sit one level down, under `import`', () => {
+    const alpha = offerings.find((offering) => offering.name === 'alpha');
+    const nested = alpha!.entrypoints.find((entry) => entry.subpath === './nested');
+    expect(nested?.source.slice(WORKSPACE.length)).toBe('/packages/alpha/src/nested.ts');
+  });
+
   it('keeps a subpath that declares no types, and opens nothing for it', () => {
     const alpha = offerings.find((offering) => offering.name === 'alpha');
     expect(Object.keys(alpha!.declared['exports'] as object)).toContain('./raw');

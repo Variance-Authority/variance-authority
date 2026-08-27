@@ -17,7 +17,7 @@ describe('what a workspace publishes', () => {
   });
 
   it('carries every name each subpath opens, by subpath', () => {
-    expect(Object.keys(surface['alpha']?.names ?? {})).toEqual(['.', './widget', './direct']);
+    expect(Object.keys(surface['alpha']?.names ?? {})).toEqual(['.', './widget', './direct', './plain', './nested']);
     expect(surface['alpha']?.names['./widget']).toEqual({ Widget: 'function' });
   });
 
@@ -47,7 +47,7 @@ describe('how many names a surface holds', () => {
   it('is the number that would drop to nothing if the reading stopped working', () => {
     // The interesting failure of a reader like this is not a wrong answer but
     // an empty one, and a baseline re-recorded from nothing agrees with it.
-    expect(countNames(readSurface(WORKSPACE))).toBe(24);
+    expect(countNames(readSurface(WORKSPACE))).toBe(26);
     expect(countNames({})).toBe(0);
   });
 });

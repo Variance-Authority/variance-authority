@@ -153,12 +153,45 @@ function sourceOf(dir: string, types: string): string {
 }
 
 /**
+ * Where a subpath's condition says its declarations are, or `undefined` when it
+ * names none.
+ *
+ * `types` is the answer wherever a manifest writes it, and one level down inside
+ * `import` or `require` is where most manifests write it — the shape every
+ * tooling guide prints. Read only at the top level, a package that had said
+ * exactly where its declarations were opened nothing at all.
+ *
+ * A bare string is the other common shape, and it carries declarations exactly
+ * when it is TypeScript. `"./src/index.ts"` is the source itself, which is what
+ * a repository that publishes its own source writes; `"./jest-resolver.cjs"` is
+ * a file with no declarations behind it, which is the case this returns
+ * `undefined` for and the reason the check is on the extension rather than on
+ * the shape.
+ */
+function declarationsOf(condition: unknown): string | undefined {
+  if (typeof condition === 'string') {
+    return /\.(ts|tsx|mts|cts)$/.test(condition) ? condition : undefined;
+  }
+  if (typeof condition !== 'object' || condition === null || Array.isArray(condition)) return undefined;
+
+  const declared = (condition as { types?: unknown }).types;
+  if (typeof declared === 'string') return declared;
+
+  for (const nested of Object.values(condition)) {
+    const found = declarationsOf(nested);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/**
  * Every published package of a workspace, and the source each entrypoint opens.
  *
  * `private: true` is the only filter, and it is the manifest's own word for *do
- * not publish this*. A subpath with no `types` condition is recorded under
- * `declared` and not opened: a package may publish a file it has no declarations
- * for, and pretending otherwise would either invent a source or drop the subpath.
+ * not publish this*. A subpath whose condition names no declarations — see
+ * {@link declarationsOf} — is recorded under `declared` and not opened: a package
+ * may publish a file it has no declarations for, and pretending otherwise would
+ * either invent a source or drop the subpath.
  */
 export function readOfferings(root: string, options: OfferingOptions = {}): readonly Offering[] {
   const offered = options.offered ?? OFFERED;
@@ -175,11 +208,8 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
     const entrypoints: Entrypoint[] = [];
     const exports = (manifest['exports'] ?? {}) as Record<string, unknown>;
     for (const [subpath, condition] of Object.entries(exports)) {
-      const types =
-        typeof condition === 'object' && condition !== null
-          ? (condition as { types?: unknown }).types
-          : undefined;
-      if (typeof types !== 'string') continue;
+      const types = declarationsOf(condition);
+      if (types === undefined) continue;
       entrypoints.push({ subpath, source: sourceOf(dir, types) });
     }
 
