@@ -36,8 +36,8 @@ export type {
   TokenWindowQuery,
   WindowQuery,
 } from './backend.js';
+export { HistoryWriteConflict } from './backend.js';
 export {
-  HistoryWriteConflict,
   churnFrom,
   createBackedStore,
   currentFrom,
@@ -45,7 +45,7 @@ export {
   journeyFrom,
   lastChangedFrom,
   reachFrom,
-} from './backend.js';
+} from './answers.js';
 
 export type { HistoryService, HistoryServiceOptions } from './http.js';
 export { serveHistory } from './http.js';

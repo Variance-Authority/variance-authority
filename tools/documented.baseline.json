@@ -3,7 +3,13 @@
     "name": "Viewport",
     "kind": "interface",
     "at": "packages/core/src/format/environment.ts",
-    "packages": 15
+    "packages": 16
+  },
+  {
+    "name": "collect",
+    "kind": "function",
+    "at": "packages/dom/src/collect.ts",
+    "packages": 14
   },
   {
     "name": "normalize",
@@ -12,10 +18,10 @@
     "packages": 14
   },
   {
-    "name": "collect",
-    "kind": "function",
-    "at": "packages/dom/src/collect.ts",
-    "packages": 13
+    "name": "SubjectRef",
+    "kind": "interface",
+    "at": "packages/core/src/format/capture.ts",
+    "packages": 10
   },
   {
     "name": "createHarness",
@@ -42,27 +48,21 @@
     "packages": 8
   },
   {
-    "name": "SubjectRef",
-    "kind": "interface",
-    "at": "packages/core/src/format/capture.ts",
-    "packages": 8
-  },
-  {
     "name": "Harness",
     "kind": "interface",
     "at": "packages/playwright/src/harness.ts",
     "packages": 7
   },
   {
-    "name": "acquireDocument",
-    "kind": "function",
-    "at": "packages/dom/src/document.ts",
-    "packages": 6
-  },
-  {
     "name": "BaselineKey",
     "kind": "interface",
     "at": "packages/raster/src/store.ts",
+    "packages": 6
+  },
+  {
+    "name": "ProfileId",
+    "kind": "type",
+    "at": "packages/core/src/format/profile.ts",
     "packages": 6
   },
   {
@@ -72,21 +72,27 @@
     "packages": 6
   },
   {
+    "name": "acquireDocument",
+    "kind": "function",
+    "at": "packages/dom/src/document.ts",
+    "packages": 6
+  },
+  {
     "name": "resolveSource",
     "kind": "function",
     "at": "packages/core/src/attribute/source.ts",
     "packages": 6
   },
   {
-    "name": "Found",
+    "name": "Diagnostic",
     "kind": "interface",
-    "at": "packages/raster/src/store.ts",
+    "at": "packages/core/src/format/capture.ts",
     "packages": 5
   },
   {
-    "name": "ProfileId",
-    "kind": "type",
-    "at": "packages/core/src/format/profile.ts",
+    "name": "Found",
+    "kind": "interface",
+    "at": "packages/raster/src/store.ts",
     "packages": 5
   },
   {
@@ -114,22 +120,10 @@
     "packages": 4
   },
   {
-    "name": "Diagnostic",
-    "kind": "interface",
-    "at": "packages/core/src/format/capture.ts",
-    "packages": 4
-  },
-  {
     "name": "profileById",
     "kind": "function",
     "at": "packages/core/src/format/profile.ts",
     "packages": 4
-  },
-  {
-    "name": "decode",
-    "kind": "function",
-    "at": "packages/png/src/compare.ts",
-    "packages": 3
   },
   {
     "name": "Instability",
@@ -186,15 +180,21 @@
     "packages": 3
   },
   {
-    "name": "Churn",
-    "kind": "interface",
-    "at": "packages/history/src/store.ts",
-    "packages": 2
+    "name": "decode",
+    "kind": "function",
+    "at": "packages/png/src/compare.ts",
+    "packages": 3
   },
   {
     "name": "CHURN_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "Churn",
+    "kind": "interface",
+    "at": "packages/history/src/store.ts",
     "packages": 2
   },
   {
@@ -210,27 +210,9 @@
     "packages": 2
   },
   {
-    "name": "createCallSiteResolver",
-    "kind": "function",
-    "at": "packages/core/src/attribute/call-site.ts",
-    "packages": 2
-  },
-  {
-    "name": "createHttpHistoryStore",
-    "kind": "function",
-    "at": "packages/history/src/client.ts",
-    "packages": 2
-  },
-  {
     "name": "HistoryStore",
     "kind": "interface",
     "at": "packages/history/src/store.ts",
-    "packages": 2
-  },
-  {
-    "name": "inspect",
-    "kind": "function",
-    "at": "packages/core/src/judge/inspect.ts",
     "packages": 2
   },
   {
@@ -252,15 +234,15 @@
     "packages": 2
   },
   {
-    "name": "Observation",
-    "kind": "interface",
-    "at": "packages/observe/src/observe.ts",
-    "packages": 2
-  },
-  {
     "name": "OBSERVATIONS_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
+    "name": "Observation",
+    "kind": "interface",
+    "at": "packages/observe/src/observe.ts",
     "packages": 2
   },
   {
@@ -276,21 +258,15 @@
     "packages": 2
   },
   {
-    "name": "RasterComparison",
-    "kind": "interface",
-    "at": "packages/raster/src/policy.ts",
-    "packages": 2
-  },
-  {
     "name": "REACH_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
     "packages": 2
   },
   {
-    "name": "recipeCss",
-    "kind": "function",
-    "at": "packages/core/src/format/stabilize.ts",
+    "name": "RasterComparison",
+    "kind": "interface",
+    "at": "packages/raster/src/policy.ts",
     "packages": 2
   },
   {
@@ -306,21 +282,9 @@
     "packages": 2
   },
   {
-    "name": "settleRecipe",
-    "kind": "function",
-    "at": "packages/core/src/format/stabilize.ts",
-    "packages": 2
-  },
-  {
     "name": "SubjectComposition",
     "kind": "interface",
     "at": "packages/core/src/attribute/composition.ts",
-    "packages": 2
-  },
-  {
-    "name": "toSubjects",
-    "kind": "function",
-    "at": "packages/storybook/src/subjects.ts",
     "packages": 2
   },
   {
@@ -330,27 +294,51 @@
     "packages": 2
   },
   {
-    "name": "accumulateChurn",
+    "name": "createCallSiteResolver",
     "kind": "function",
-    "at": "packages/history/src/churn.ts",
-    "packages": 1
+    "at": "packages/core/src/attribute/call-site.ts",
+    "packages": 2
   },
   {
-    "name": "accumulateFlakiness",
+    "name": "createHttpHistoryStore",
     "kind": "function",
-    "at": "packages/history/src/flakiness.ts",
-    "packages": 1
+    "at": "packages/history/src/client.ts",
+    "packages": 2
+  },
+  {
+    "name": "environmentKey",
+    "kind": "function",
+    "at": "packages/core/src/format/environment.ts",
+    "packages": 2
+  },
+  {
+    "name": "inspect",
+    "kind": "function",
+    "at": "packages/core/src/judge/inspect.ts",
+    "packages": 2
+  },
+  {
+    "name": "recipeCss",
+    "kind": "function",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 2
+  },
+  {
+    "name": "settleRecipe",
+    "kind": "function",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 2
+  },
+  {
+    "name": "toSubjects",
+    "kind": "function",
+    "at": "packages/storybook/src/subjects.ts",
+    "packages": 2
   },
   {
     "name": "APPROVALS_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
-    "packages": 1
-  },
-  {
-    "name": "assemble",
-    "kind": "function",
-    "at": "packages/raster/src/assemble.ts",
     "packages": 1
   },
   {
@@ -384,15 +372,9 @@
     "packages": 1
   },
   {
-    "name": "compareDifferenceObservations",
-    "kind": "function",
-    "at": "packages/raster/src/difference/compare.ts",
-    "packages": 1
-  },
-  {
-    "name": "compareLocales",
-    "kind": "function",
-    "at": "packages/core/src/judge/locale.ts",
+    "name": "CURRENT_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
     "packages": 1
   },
   {
@@ -402,33 +384,15 @@
     "packages": 1
   },
   {
-    "name": "createAbsentStore",
-    "kind": "function",
-    "at": "packages/history/src/absent.ts",
-    "packages": 1
-  },
-  {
-    "name": "createBucketStore",
-    "kind": "function",
-    "at": "packages/tribunal/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "createMemoryR2",
-    "kind": "function",
-    "at": "packages/tribunal/src/testing.ts",
-    "packages": 1
-  },
-  {
-    "name": "CURRENT_PATH",
-    "kind": "const",
-    "at": "packages/history/src/protocol.ts",
-    "packages": 1
-  },
-  {
     "name": "Declaration",
     "kind": "interface",
     "at": "packages/core/src/format/capture.ts",
+    "packages": 1
+  },
+  {
+    "name": "DiffRegion",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/mask.ts",
     "packages": 1
   },
   {
@@ -444,9 +408,9 @@
     "packages": 1
   },
   {
-    "name": "DiffRegion",
-    "kind": "interface",
-    "at": "packages/core/src/attribute/mask.ts",
+    "name": "EMPTY_CONTEXT",
+    "kind": "const",
+    "at": "packages/core/src/rules/normalize/cascade.ts",
     "packages": 1
   },
   {
@@ -456,21 +420,9 @@
     "packages": 1
   },
   {
-    "name": "EMPTY_CONTEXT",
+    "name": "FLAKINESS_PATH",
     "kind": "const",
-    "at": "packages/core/src/rules/normalize/cascade.ts",
-    "packages": 1
-  },
-  {
-    "name": "environmentKey",
-    "kind": "function",
-    "at": "packages/core/src/format/environment.ts",
-    "packages": 1
-  },
-  {
-    "name": "fieldStatistics",
-    "kind": "function",
-    "at": "packages/raster/src/difference/field.ts",
+    "at": "packages/history/src/protocol.ts",
     "packages": 1
   },
   {
@@ -483,12 +435,6 @@
     "name": "FileRecord",
     "kind": "interface",
     "at": "packages/core/src/relate/records.ts",
-    "packages": 1
-  },
-  {
-    "name": "FLAKINESS_PATH",
-    "kind": "const",
-    "at": "packages/history/src/protocol.ts",
     "packages": 1
   },
   {
@@ -522,12 +468,6 @@
     "packages": 1
   },
   {
-    "name": "indexStyleSheets",
-    "kind": "function",
-    "at": "packages/dom/src/css-index.ts",
-    "packages": 1
-  },
-  {
     "name": "Instability",
     "kind": "interface",
     "at": "packages/core/src/attribute/instability.ts",
@@ -543,12 +483,6 @@
     "name": "Isolation",
     "kind": "interface",
     "at": "packages/core/src/attribute/mask.ts",
-    "packages": 1
-  },
-  {
-    "name": "journeyFrom",
-    "kind": "function",
-    "at": "packages/server/src/backend.ts",
     "packages": 1
   },
   {
@@ -576,12 +510,6 @@
     "packages": 1
   },
   {
-    "name": "observeDifference",
-    "kind": "function",
-    "at": "packages/raster/src/difference/observe.ts",
-    "packages": 1
-  },
-  {
     "name": "Plan",
     "kind": "type",
     "at": "packages/core/src/plan/tool.ts",
@@ -591,24 +519,6 @@
     "name": "RawAria",
     "kind": "interface",
     "at": "packages/core/src/format/capture.ts",
-    "packages": 1
-  },
-  {
-    "name": "reachFrom",
-    "kind": "function",
-    "at": "packages/server/src/backend.ts",
-    "packages": 1
-  },
-  {
-    "name": "recipeScreenshot",
-    "kind": "function",
-    "at": "packages/core/src/format/stabilize.ts",
-    "packages": 1
-  },
-  {
-    "name": "recordFrom",
-    "kind": "function",
-    "at": "packages/raster/src/store.ts",
     "packages": 1
   },
   {
@@ -624,33 +534,15 @@
     "packages": 1
   },
   {
-    "name": "resolveStyle",
-    "kind": "function",
-    "at": "packages/core/src/rules/normalize/cascade.ts",
-    "packages": 1
-  },
-  {
     "name": "RunAdjudication",
     "kind": "interface",
     "at": "packages/report/src/intent.ts",
     "packages": 1
   },
   {
-    "name": "serve",
-    "kind": "function",
-    "at": "packages/mcp/src/server.ts",
-    "packages": 1
-  },
-  {
     "name": "StoreServer",
     "kind": "interface",
     "at": "packages/remote/src/serve-store.ts",
-    "packages": 1
-  },
-  {
-    "name": "stringArg",
-    "kind": "function",
-    "at": "packages/mcp/src/tools/tool.ts",
     "packages": 1
   },
   {
@@ -672,15 +564,117 @@
     "packages": 1
   },
   {
-    "name": "toolByName",
-    "kind": "function",
-    "at": "packages/mcp/src/tools.ts",
-    "packages": 1
-  },
-  {
     "name": "ToolDeclaration",
     "kind": "interface",
     "at": "packages/core/src/plan/tool.ts",
+    "packages": 1
+  },
+  {
+    "name": "accumulateChurn",
+    "kind": "function",
+    "at": "packages/history/src/churn.ts",
+    "packages": 1
+  },
+  {
+    "name": "accumulateFlakiness",
+    "kind": "function",
+    "at": "packages/history/src/flakiness.ts",
+    "packages": 1
+  },
+  {
+    "name": "assemble",
+    "kind": "function",
+    "at": "packages/raster/src/assemble.ts",
+    "packages": 1
+  },
+  {
+    "name": "compareDifferenceObservations",
+    "kind": "function",
+    "at": "packages/raster/src/difference/compare.ts",
+    "packages": 1
+  },
+  {
+    "name": "compareLocales",
+    "kind": "function",
+    "at": "packages/core/src/judge/locale.ts",
+    "packages": 1
+  },
+  {
+    "name": "createAbsentStore",
+    "kind": "function",
+    "at": "packages/history/src/absent.ts",
+    "packages": 1
+  },
+  {
+    "name": "createBucketStore",
+    "kind": "function",
+    "at": "packages/tribunal/src/store.ts",
+    "packages": 1
+  },
+  {
+    "name": "createMemoryR2",
+    "kind": "function",
+    "at": "packages/tribunal/src/testing.ts",
+    "packages": 1
+  },
+  {
+    "name": "fieldStatistics",
+    "kind": "function",
+    "at": "packages/raster/src/difference/field.ts",
+    "packages": 1
+  },
+  {
+    "name": "indexStyleSheets",
+    "kind": "function",
+    "at": "packages/dom/src/css-index.ts",
+    "packages": 1
+  },
+  {
+    "name": "observeDifference",
+    "kind": "function",
+    "at": "packages/raster/src/difference/observe.ts",
+    "packages": 1
+  },
+  {
+    "name": "reachFrom",
+    "kind": "function",
+    "at": "packages/server/src/answers.ts",
+    "packages": 1
+  },
+  {
+    "name": "recipeScreenshot",
+    "kind": "function",
+    "at": "packages/core/src/format/stabilize.ts",
+    "packages": 1
+  },
+  {
+    "name": "recordFrom",
+    "kind": "function",
+    "at": "packages/raster/src/store.ts",
+    "packages": 1
+  },
+  {
+    "name": "resolveStyle",
+    "kind": "function",
+    "at": "packages/core/src/rules/normalize/cascade.ts",
+    "packages": 1
+  },
+  {
+    "name": "serve",
+    "kind": "function",
+    "at": "packages/mcp/src/server.ts",
+    "packages": 1
+  },
+  {
+    "name": "stringArg",
+    "kind": "function",
+    "at": "packages/mcp/src/tools/tool.ts",
+    "packages": 1
+  },
+  {
+    "name": "toolByName",
+    "kind": "function",
+    "at": "packages/mcp/src/tools.ts",
     "packages": 1
   }
 ]

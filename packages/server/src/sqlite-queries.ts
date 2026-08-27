@@ -73,9 +73,10 @@ export function componentFilter(query: ComponentWindowQuery): Filter {
 export function tokenFilter(query: TokenWindowQuery): Filter {
   const base = windowFilter(query);
   return {
-    // Only values a write carrying an approval left behind; see
-    // `carriesAnApproval`.
-    sql: `${base.sql} AND token = $token AND accepted = 1`,
+    // Every recorded value, approved or not. Which of them shipped is decided by
+    // `journeyFrom`, against the approvals table — a write cannot know, because
+    // acceptance is a decision made after it and this table is append-only.
+    sql: `${base.sql} AND token = $token`,
     params: { ...base.params, $token: query.token },
   };
 }

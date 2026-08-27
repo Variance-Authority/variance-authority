@@ -8,7 +8,8 @@ import {
   type RunRecord,
 } from '@variance-authority/history';
 import { createSqliteBackend } from './backend-sqlite.js';
-import { lastChangedFrom, type HistoryBackend } from './backend.js';
+import { lastChangedFrom } from './answers.js';
+import type { HistoryBackend } from './backend.js';
 import { serveHistory, type HistoryService } from './http.js';
 
 /**

@@ -85,11 +85,11 @@ export function subjectFilter(query: SubjectWindowQuery): Filter {
 
 export function tokenFilter(query: TokenWindowQuery): Filter {
   const base = windowFilter(query);
-  // Only values a write carrying an approval left behind. A journey through
-  // values that were never shipped describes the review process rather than the
-  // product, and every number in it looks real.
+  // Every recorded value, approved or not. Which of them shipped is decided by
+  // `journeyFrom` in `@variance-authority/server`, against the approvals table —
+  // a write cannot know, because acceptance is a decision made after it.
   return {
-    sql: `${base.sql} AND token = ? AND accepted = 1`,
+    sql: `${base.sql} AND token = ?`,
     params: [...base.params, query.token],
   };
 }

@@ -6,7 +6,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core';
 import type { Observation, RunRecord, TokenValue } from '@variance-authority/history';
-import { churnFrom, journeyFrom, lastChangedFrom, reachFrom } from './backend.js';
+import { churnFrom, journeyFrom, lastChangedFrom, reachFrom } from './answers.js';
 import { SCHEMA_VERSION, createSqliteBackend } from './backend-sqlite.js';
 import type { HistoryBackend } from './backend.js';
 
@@ -82,6 +82,24 @@ function token(fields: Partial<TokenValue> = {}): TokenValue {
     at: '2026-03-01T10:00:00.000Z',
     ...fields,
   } as TokenValue;
+}
+
+/**
+ * The decision a run cannot make about itself.
+ *
+ * Every test below that asks for a journey has to call this, and that is the
+ * point: a run writes its rows unapproved, always, so a fixture that skipped this
+ * step would be a fixture of a store nobody has ever reviewed.
+ */
+async function approve(backend: HistoryBackend, ...runs: readonly string[]): Promise<void> {
+  await backend.appendApprovals(
+    runs.map((id) => ({
+      project: 'shop',
+      subject: 'checkout',
+      run: id,
+      at: '2026-04-01T10:00:00.000Z',
+    })),
+  );
 }
 
 describe('schema', () => {
@@ -291,6 +309,8 @@ describe('queries', () => {
     const churn = await churnFrom(backend, 'shop', 'Button', { limit: 2 });
     expect([churn.runs, churn.omittedRuns, churn.omittedObservations]).toEqual([2, 2, 2]);
 
+    await approve(backend, 'r1', 'r2', 'r3', 'r4');
+
     const journey = await journeyFrom(backend, 'shop', '--va-space-3', { limit: 2 });
     expect(journey.values.map((value) => value.value)).toEqual(['16px', '18px']);
     expect(journey.omitted).toBe(2);
@@ -322,56 +342,6 @@ describe('queries', () => {
     // Four excluded by the limit, one stranded by it — all five accounted for.
     expect(churn.omittedObservations).toBe(5);
     expect(churn.omittedRuns).toBe(1);
-  });
-
-  it('excludes a token value from a write in which nothing was approved', async () => {
-    // A rejected change was caught and never shipped; its resolved values would
-    // otherwise become steps in a journey through a product that never existed.
-    const backend = track(open());
-
-    await backend.append(run({ run: 'r1', commit: 'c1' }), [observation({ run: 'r1', commit: 'c1' })], [token({ commit: 'c1', value: '12px' })]);
-    await backend.append(
-      run({ run: 'r2', commit: 'c2', at: '2026-03-02T10:00:00.000Z' }),
-      [observation({ run: 'r2', commit: 'c2', at: '2026-03-02T10:00:00.000Z', accepted: false })],
-      [token({ commit: 'c2', at: '2026-03-02T10:00:00.000Z', value: '99px' })],
-    );
-    await backend.append(
-      run({ run: 'r3', commit: 'c3', at: '2026-03-03T10:00:00.000Z' }),
-      [observation({ run: 'r3', commit: 'c3', at: '2026-03-03T10:00:00.000Z' })],
-      [token({ commit: 'c3', at: '2026-03-03T10:00:00.000Z', value: '20px' })],
-    );
-
-    const journey = await journeyFrom(backend, 'shop', '--va-space-3', {});
-    expect(journey.values.map((value) => value.value)).toEqual(['12px', '20px']);
-    // Spec 0002 acceptance 1: an exact journey with a commit per step.
-    expect(journey.values.map((value) => value.commit)).toEqual(['c1', 'c3']);
-  });
-
-  it('keeps the values of a quiet run and of a write that mixes approval with rejection', async () => {
-    // The asymmetry is deliberate. Excluding a value that did ship removes a step
-    // from the sum the whole store exists to compute, and nothing on the page
-    // contradicts the smaller number.
-    const backend = track(open());
-
-    await backend.append(run({ run: 'quiet', commit: 'c0' }), [], [token({ commit: 'c0', value: '12px' })]);
-    await backend.append(
-      run({ run: 'mixed', commit: 'c1', at: '2026-03-02T10:00:00.000Z' }),
-      [
-        observation({ run: 'mixed', commit: 'c1', at: '2026-03-02T10:00:00.000Z' }),
-        observation({
-          run: 'mixed',
-          commit: 'c1',
-          at: '2026-03-02T10:00:00.000Z',
-          component: 'Toggle',
-          accepted: false,
-        }),
-      ],
-      [token({ commit: 'c1', at: '2026-03-02T10:00:00.000Z', value: '14px' })],
-    );
-
-    expect(
-      (await journeyFrom(backend, 'shop', '--va-space-3', {})).values.map((value) => value.value),
-    ).toEqual(['12px', '14px']);
   });
 
   it('separates the subjects a component appears in from the ones it arrived in', async () => {

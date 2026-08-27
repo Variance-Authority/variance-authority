@@ -153,6 +153,16 @@ describe('the wire, spoken by the real client', () => {
     const churn = await store.churn('Button', {});
     expect(isKept(churn) && [churn.runs, churn.changedRuns]).toEqual([1, 1]);
 
+    // Approved over the wire, because that is the only way it ever happens — and
+    // asked once before, because a journey is made of the runs somebody agreed to
+    // ship and nobody had agreed to anything yet.
+    const unapproved = await store.valueJourney('--va-space-3', {});
+    expect(isKept(unapproved) && unapproved.values).toEqual([]);
+
+    await store.approve([
+      { project: 'shop', subject: 'checkout', run: 'run-1', at: '2026-04-01T10:00:00.000Z' },
+    ]);
+
     const journey = await store.valueJourney('--va-space-3', {});
     expect(isKept(journey) && journey.values.map((value) => value.value)).toEqual(['12px']);
 

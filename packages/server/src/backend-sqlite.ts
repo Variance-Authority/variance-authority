@@ -283,27 +283,14 @@ export function createSqliteBackend(options: SqliteBackendOptions): HistoryBacke
 }
 
 /**
- * Whether the values a write carried describe something that shipped.
+ * Whether the write itself already carried an approval.
  *
- * `TokenValue` has no acceptance of its own — it records what a commit resolved
- * to, and acceptance is a fact about the run that proposed it — so the join has
- * to be made here, at write time, from the observations that arrived with it.
- *
- * The rule is deliberately asymmetric. A write with no rows at all is a quiet
- * run: nothing was proposed, so nothing was rejected, and the values it resolved
- * are the ones in force. A write is treated as unshipped only when it carried
- * rows and *none* of them were approved. A mixed write — the case the history
- * package's `RunContext` documents, where half a run's components were decided
- * separately — counts as shipped.
- *
- * That asymmetry is a choice between two wrong answers, made in the direction the
- * product cares about. Including a value that was not shipped puts a step in a
- * journey that an investigator can follow to a commit and dismiss. Excluding a
- * value that *was* shipped removes a step from a sum, and the sum is the entire
- * point: eleven approved 2px steps that nobody ever saw as 22px. A missing step
- * is a smaller number that nothing on the page contradicts, and nobody knows to
- * look for it. The cost is stated rather than fixed because fixing it needs a
- * per-value acceptance the recorded shape does not carry (spec 0002).
+ * Provenance about the write, and nothing more. It is *not* what decides which
+ * values a journey is made of — that is `journeyFrom`, which asks the approvals
+ * table, because acceptance is a decision made after the run and this table is
+ * append-only. Recorded because it is the one acceptance fact that will never be
+ * recoverable later: a caller that submits already-approved rows (a review
+ * surface writing a decision it has just made) leaves no approval row behind it.
  */
 function carriesAnApproval(observations: readonly Observation[]): boolean {
   return observations.length === 0 || observations.some((row) => row.accepted);

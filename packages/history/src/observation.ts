@@ -60,14 +60,18 @@ export interface Observation {
   readonly at: string;
 
   /**
-   * Whether the change this row records was approved.
+   * Whether this row arrived already approved.
    *
-   * Drift sums only approved changes. A rejected change was caught, and counting
-   * it would describe the review process rather than the product. The flag is on
-   * the row rather than derived later because acceptance is a fact about a
-   * particular change, and a store that had to join back to a review system to
-   * find it would answer a drift question with a network call to somebody else's
-   * database.
+   * Almost always `false`, and that is not a defect: a run writes its rows when
+   * it observes them, and approval happens afterwards, in `variance accept` or in
+   * a review surface. The flag is only true for a caller that submits a decision
+   * it has already made.
+   *
+   * So it is provenance about the write, never the answer to *was this change
+   * approved*. That question is answered by joining the approvals table, which is
+   * what `churnFrom` and `journeyFrom` do; a reader that filtered on this flag
+   * instead would report a component that changed forty times as never having
+   * changed, and be believed.
    */
   readonly accepted: boolean;
 

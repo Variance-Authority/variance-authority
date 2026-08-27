@@ -300,13 +300,11 @@ function conflict(run: RunRecord, recorded: string): HistoryWriteConflict {
 }
 
 /**
- * Whether the values a write carried describe something that shipped.
+ * Whether the write itself already carried an approval.
  *
- * Transcribed from the SQLite backend, asymmetry included: a write with no rows
- * is a quiet run whose values are the ones in force, and a write is treated as
- * unshipped only when it carried rows and none of them were approved. Two
- * backends that judged this differently would give one database's journey a step
- * the other's does not have, for the same commits.
+ * Transcribed from the SQLite backend, and provenance about the write in both.
+ * Which values a journey is made of is decided by `journeyFrom`, which both
+ * backends share and which asks the approvals table.
  */
 function carriesAnApproval(observations: readonly Observation[]): boolean {
   return observations.length === 0 || observations.some((row) => row.accepted);

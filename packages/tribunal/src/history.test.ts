@@ -27,7 +27,15 @@ import { createSqliteD1, type SqliteD1 } from './testing.js';
 
 const WINDOW: Window = { since: '2026-01-01T00:00:00.000Z', until: '2026-12-31T23:59:59.000Z' };
 
-function run(id: string, at: string, commit = `c-${id}`): RunRecord {
+/**
+ * A run, at the commit its rows claim.
+ *
+ * `r-1` is recorded at `c-1`, matching what `observation` and `token` default to.
+ * A fixture whose run and whose rows named different commits would be a history
+ * no writer can produce — a `TokenValue` is built from the `RunRecord` that
+ * carries it — and it would take the journey join with it.
+ */
+function run(id: string, at: string, commit = `c-${id.slice(2)}`): RunRecord {
   return { project: 'todomvc', run: id, commit, profile: 'chromium', at };
 }
 
@@ -118,6 +126,17 @@ beforeEach(async () => {
     for (const write of HISTORY) {
       await backend.append(write.run, write.observations, write.tokens);
     }
+    // Arriving after every write, because that is the only order there is: a run
+    // records what it observed, and a reviewer accepts it later. `r-4` is left
+    // unapproved, which is what keeps its value out of the journey below.
+    await backend.appendApprovals(
+      ['r-1', 'r-3'].map((id) => ({
+        project: 'todomvc',
+        subject: 'story:card',
+        run: id,
+        at: '2026-04-01T00:00:00.000Z',
+      })),
+    );
   }
 });
 
@@ -151,7 +170,7 @@ describe('D1 answers what SQLite answers', () => {
     expect(answers['D1']).toMatchObject({ component: 'Button', runs: 4 });
   });
 
-  it('on a token journey through approved writes only', async () => {
+  it('on a token journey through the runs a reviewer approved', async () => {
     const answers = await bothAnswer((store) => store.valueJourney('--va-space-3', WINDOW));
 
     agreed(answers);
