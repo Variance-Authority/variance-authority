@@ -6,6 +6,7 @@ import { ALLOWLIST_VERSION, RULESET_VERSION, admitsAttribute } from '../ruleset.
 import type { SemanticNode, SemanticSnapshot, StyleProvenanceEntry } from '../../format/snapshot.js';
 import { aliasAttributeValue, aliasStyleValue, buildAliasMap, type AliasResult } from './alias.js';
 import { sitesIn, structureOf, styleOf } from './project.js';
+import { isInertWrapper } from './wrapper.js';
 import {
   
   resolveStyle,
@@ -270,6 +271,10 @@ function normalizeNode(
       ...(text !== undefined ? { text } : {}),
       ...(node.provenance ? { provenance: rooted(node.provenance, state.sourceRoot) } : {}),
       ...(node.wiring ? { wiring: node.wiring } : {}),
+      // Carried and never projected, like `ignoredBy` below it. This is the
+      // only field on a node that holds values rather than shapes, and the
+      // reason it may is that nothing downstream hashes it.
+      ...(node.holding ? { holding: node.holding } : {}),
       // Carried, never acted on. `structureOf` and `styleOf` project the fields
       // they hash by name, so this reaches the snapshot without reaching the
       // identity — which is the whole contract an ignore is under.
@@ -295,7 +300,7 @@ function normalizeNode(
       // A collapsed wrapper is replaced by its children in place. Re-pathing them
       // is why collapse must happen during the walk rather than as a later pass:
       // paths must reflect the final tree, or every downstream reference is stale.
-      if (state.collapseWrappers && isInertWrapper(child, candidate, state)) {
+      if (state.collapseWrappers && isInertWrapper(child, candidate, state.declaredBy)) {
         for (const grandchild of candidate.children) {
           built.push(repath(grandchild, `${nodePath}/${built.length}`));
         }
@@ -307,122 +312,6 @@ function normalizeNode(
 
     return built;
   }
-}
-
-/**
- * Whether a node exists only to hold its children.
- *
- * Conservative on purpose: this is the one normalization rule that *removes* a
- * node, so a wrong answer here deletes evidence. Anything carrying a role, a
- * name, an id, an admitted attribute, text, or a non-inherited style declaration
- * is kept, whatever it looks like.
- *
- * Inherited properties are excluded from the test because a wrapper inheriting
- * `color` from above passes that same value to its children either way — its
- * presence changes nothing that renders.
- */
-function isInertWrapper(raw: RawNode, node: SemanticNode, state: WalkState): boolean {
-  if (node.tag !== 'div' && node.tag !== 'span') return false;
-  if (node.role !== undefined || node.name !== undefined || node.state !== undefined) return false;
-  if (node.alias !== undefined || node.text !== undefined) return false;
-  if (Object.keys(node.attributes).length > 0) return false;
-  if (raw.shadowChildren !== undefined && raw.shadowChildren.length > 0) return false;
-
-  // A wrapper the operator excluded is never inert, whatever it declares.
-  //
-  // The mark is not an attribute — `data-variance-ignore` is deliberately outside
-  // the allowlist so that adding it re-baselines nothing — so the check above
-  // cannot see it, and a bare marked `<div>` is exactly the shape this function
-  // deletes. Collapsing it drops the mark with it, `sitesIn` finds no site, and
-  // the exclusion silently evaporates: the operator reads their config, sees the
-  // rule, and the run compares the region anyway. An ignore that stops working
-  // without saying so is the same failure as one that absorbs too much, pointed
-  // the other way.
-  if (node.ignoredBy !== undefined && node.ignoredBy.length > 0) return false;
-
-  const declaredHere = state.declaredBy.get(node) ?? EMPTY_PROPERTIES;
-
-  for (const [property, value] of Object.entries(node.style)) {
-    // Only what the wrapper *declared* is evidence about the wrapper.
-    //
-    // An inherited value passes through unchanged — the children receive it
-    // whether or not the wrapper is there. An engine-computed value is worse
-    // than uninformative: under a profile with computed style every one of the
-    // ~200 allowlisted properties arrives with a resolved value, including used
-    // values like `width: 1264px` that describe the *parent's* layout rather
-    // than anything the wrapper did. Testing those against an initial-value
-    // table meant `isInertDeclaration` returned false on the first unrecognized
-    // one and no wrapper anywhere collapsed under `chromium` — the same rule
-    // disabled by a different accident under `jsdom` in journal 0005, and
-    // invisible until the two profiles were scored against each other (P4).
-    //
-    // Conservatism is kept where it is evidence: an unrecognized property the
-    // wrapper *declared* still blocks the collapse.
-    if (!declaredHere.has(property)) continue;
-    if (!isInertDeclaration(property, value)) return false;
-  }
-
-  return true;
-}
-
-const EMPTY_PROPERTIES: ReadonlySet<string> = new Set();
-
-/**
- * Initial values for the properties a bare `div`/`span` legitimately carries.
- *
- * Needed because a profile with computed style reports *every* property, initial
- * ones included — so "declares no styling" cannot be tested by an empty map.
- */
-const INERT_VALUES: Readonly<Record<string, readonly string[]>> = {
-  // `contents` generates no box at all, so a wrapper carrying it is inert by
-  // definition: its children already participate in the parent's layout.
-  display: ['block', 'inline', 'contents'],
-  position: ['static'],
-  'box-sizing': ['content-box', 'border-box'],
-  'overflow-x': ['visible'],
-  'overflow-y': ['visible'],
-  opacity: ['1'],
-  visibility: ['visible'],
-  transform: ['none'],
-  filter: ['none'],
-  'backdrop-filter': ['none'],
-  'mix-blend-mode': ['normal'],
-  'background-color': ['rgb(0 0 0 / 0)'],
-  'background-image': ['none'],
-  'z-index': ['auto'],
-  float: ['none'],
-  clear: ['none'],
-  width: ['auto'],
-  height: ['auto'],
-  'min-width': ['0', 'auto'],
-  'min-height': ['0', 'auto'],
-  'max-width': ['none'],
-  'max-height': ['none'],
-  'aspect-ratio': ['auto'],
-  'content-visibility': ['visible'],
-  'object-fit': ['fill'],
-  'table-layout': ['auto'],
-};
-
-const ZERO_PREFIXED = ['margin-', 'padding-', 'border-', 'outline-', 'inset', 'top', 'right', 'bottom', 'left'];
-
-function isInertDeclaration(property: string, value: string): boolean {
-  const allowed = INERT_VALUES[property];
-  if (allowed) return allowed.includes(value);
-
-  if (property.startsWith('border-') && property.endsWith('-style')) return value === 'none';
-  if (property.startsWith('border-') && property.endsWith('-color')) return true;
-  if (property === 'outline-style') return value === 'none';
-  if (property === 'outline-color') return true;
-  if (property === 'box-shadow' || property === 'text-shadow') return value === 'none';
-
-  if (ZERO_PREFIXED.some((prefix) => property.startsWith(prefix))) {
-    return value === '0' || value === 'auto';
-  }
-
-  // An unrecognized property on a wrapper is a reason to keep it. Silence is
-  // not evidence of inertness.
-  return false;
 }
 
 function repath(node: SemanticNode, path: string): SemanticNode {

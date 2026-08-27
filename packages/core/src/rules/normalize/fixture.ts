@@ -6,6 +6,7 @@ import type {
   Rect,
 } from '../../format/capture.js';
 import { CHROMIUM_PROFILE, JSDOM_PROFILE, type ObservationProfile } from '../../format/profile.js';
+import type { Holding } from '../../format/holding.js';
 import { propsDigest, type SourceLocation, type StackFrame } from '../../format/provenance.js';
 
 /**
@@ -56,6 +57,16 @@ export interface NodeSpec {
 
   /** Frames React captured, which a location has not yet been bought with. */
   readonly stack?: readonly StackFrame[];
+
+  /**
+   * What the boundary rooted here was holding, as a framework adapter read it.
+   *
+   * Written out rather than derived from a props spec, because the cases worth
+   * writing are the ones a real render makes awkward to reach: a hook chain that
+   * ran out mid-read, a production build with no hook names at all, and a
+   * boundary whose every input agreed. See `compare/parting.ts`.
+   */
+  readonly holding?: Holding;
 }
 
 export interface OwnerSpec {
@@ -95,6 +106,7 @@ export function node(spec: NodeSpec = {}): RawNode {
     ...(spec.computedStyle ? { computedStyle: spec.computedStyle } : {}),
     ...(spec.rect ? { rect: spec.rect } : {}),
     ...(spec.text !== undefined ? { text: spec.text } : {}),
+    ...(spec.holding ? { holding: spec.holding } : {}),
     ...(spec.owners || spec.source || spec.stack
       ? {
           provenance: {

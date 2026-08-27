@@ -4,6 +4,7 @@ import type { Digest } from './hash.js';
 import type { ObservationProfile } from './profile.js';
 import type { Provenance } from './provenance.js';
 import type { Wiring } from './wiring.js';
+import type { Holding } from './holding.js';
 
 /**
  * The normalized semantic snapshot: the verdict's input, and the thing a render
@@ -151,6 +152,25 @@ export interface SemanticNode {
    * where `shapeOf` goes looking.
    */
   readonly wiring?: Wiring;
+
+  /**
+   * What that component was holding. **Outside every hash**, always.
+   *
+   * The field beside it is the contrast worth reading: `wiring` is a band and
+   * this is evidence. `Wiring` refuses state values because a hook's value is
+   * exactly what may legitimately differ between two readings of one page, and
+   * that refusal is right and is not softened here — a `holding` reaches the
+   * snapshot and reaches no digest, so a subject whose clock ticked has the same
+   * `renderHash` it had before this field existed.
+   *
+   * It rides outside on the same terms as `styleProvenance`, `styleTokens` and
+   * `ignoredBy`, by the same mechanism: `structureOf`, `styleOf` and `shapeOf`
+   * project the fields they hash **by name**, so a field none of them names
+   * cannot reach an identity. `holding.hash.test.ts` asserts that rather than
+   * trusting it, because the cost of being wrong is every baseline in a
+   * repository invalidating the first time a component held a timestamp.
+   */
+  readonly holding?: Holding;
 
   /**
    * `true` on the root of a subtree rendered through a portal.

@@ -169,6 +169,25 @@ describe('wrapper collapse', () => {
     expect(hashOf(target)).not.toBe(hashOf(bare));
   });
 
+  it('keeps a wrapper that roots a component boundary', () => {
+    // `function Summary() { return <span>{total}</span> }` is most of a component
+    // library, and collapsing that span takes the record of what `Summary` was
+    // handed with it. The boundary is the anchor `compare/parting.ts` traces a
+    // difference back through, so the wrapper stops being inert the moment one
+    // is attached — the bargain `ignoredBy` already makes one line above.
+    const boundary = node({
+      children: [
+        node({
+          holding: { props: [{ name: 'total', digest: 'v1:0' }] },
+          children: [node({ tag: 'span', text: 'hi' })],
+        }),
+      ],
+    });
+    const bare = node({ children: [node({ tag: 'span', text: 'hi' })] });
+
+    expect(hashOf(boundary)).not.toBe(hashOf(bare));
+  });
+
   it('repaths promoted children so paths describe the final tree', () => {
     const snapshot = normalize(
       capture({

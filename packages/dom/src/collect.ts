@@ -9,6 +9,7 @@ import {
   type SubjectRef,
   type Viewport,
   type Wiring,
+  type Holding,
 } from '@variance-authority/core';
 import { ariaOf } from './aria.js';
 import { resolveIgnores, type IgnoreSelector } from './ignore.js';
@@ -64,6 +65,18 @@ export interface CollectOptions {
    * page with no framework adapter should look like (ADR-0002).
    */
   readonly wiringOf?: (element: Element) => Wiring | undefined;
+
+  /**
+   * Held-state provider, usually `holdingOf` from `@variance-authority/react`.
+   *
+   * Opt-in separately from `wiringOf`, and that is the point rather than
+   * symmetry with it. Wiring is a band every run wants; a holding is evidence,
+   * it carries digests of application values, and a project should be able to
+   * decide that question on its own — so it is a third injection and absent by
+   * default. Absent leaves the snapshot exactly as it was before the field
+   * existed, since nothing hashes it.
+   */
+  readonly holdingOf?: (element: Element) => Holding | undefined;
 
   /**
    * Fonts in play, as `family/weight/style/contentHash`.
@@ -313,6 +326,7 @@ function captureNode(
 
   const provenance = options.provenanceOf?.(element);
   const wiring = options.wiringOf?.(element);
+  const holding = options.holdingOf?.(element);
   const ignoredBy = marks.get(element);
   const { matched, couplings } = matchRulesFor(element, index);
   for (const coupling of couplings) couplingSink.add(coupling);
@@ -353,6 +367,7 @@ function captureNode(
     ...(profile.layout ? { rect: rectOf(element) } : {}),
     ...(provenance ? { provenance } : {}),
     ...(wiring ? { wiring } : {}),
+    ...(holding ? { holding } : {}),
     children,
     ...(shadowChildren.length > 0 ? { shadowChildren } : {}),
     // Marked here and nowhere else. Only the element that matched carries the
