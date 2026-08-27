@@ -393,6 +393,6 @@ describe('what the review surface answers', () => {
   it('reports what a sweep removed', async () => {
     const swept = await (await call('/review/sweep?days=0', { token: REVIEW, body: {} })).json();
 
-    expect(swept).toEqual({ builds: 0, subjects: 0, objects: 0, decisions: 0 });
+    expect(swept).toEqual({ builds: 0, subjects: 0, objects: 0, decisionsKept: 0 });
   });
 });

@@ -350,11 +350,11 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         .all<Row>();
 
       const ids = expired.results.map((row) => text(row, 'build', 'a build'));
-      if (ids.length === 0) return { builds: 0, subjects: 0, objects: 0, decisions: 0 };
+      if (ids.length === 0) return { builds: 0, subjects: 0, objects: 0, decisionsKept: 0 };
 
       let objects = 0;
       let subjects = 0;
-      let decisions = 0;
+      let decisionsKept = 0;
 
       for (const id of ids) {
         const rows = await db
@@ -376,7 +376,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
           .prepare('SELECT COUNT(*) AS n FROM decisions WHERE project = ? AND build = ?')
           .bind(project, id)
           .first<Row>();
-        decisions += number(counted ?? {}, 'n', 'a decision count');
+        decisionsKept += number(counted ?? {}, 'n', 'a decision count');
 
         // `decisions` carries a permanence trigger and is deliberately not swept:
         // a promoted baseline whose approval was deleted is a change nobody can
@@ -393,7 +393,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         await db.prepare('DELETE FROM builds WHERE project = ? AND build = ?').bind(project, id).run();
       }
 
-      return { builds: ids.length, subjects, objects, decisions };
+      return { builds: ids.length, subjects, objects, decisionsKept };
     },
   };
 }

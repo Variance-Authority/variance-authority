@@ -382,12 +382,14 @@ prompt hits them too.
 `POST /review/sweep?days=N` removes builds older than `N` days: their subject
 rows, their coverage rows, and every image they kept. It **reports counts** for
 everything it removed, because a store that discards quietly is a store whose
-"we have never seen this" is a lie.
+"we have never seen this" is a lie — `builds`, `subjects`, `objects`.
 
 What it does not remove: **promoted baselines**, which are what the next run
 compares against; **decisions**, which carry a permanence trigger — a promoted
 baseline whose approval was deleted is a change nobody can attribute to anyone;
-and the **changelog**, for the same reason one rung further out.
+and the **changelog**, for the same reason one rung further out. The fourth
+count, `decisionsKept`, is named for that: it is how many approvals outlived the
+builds this call removed, not a fourth removal.
 
 It runs on request and never on a timer. A Worker has no timer, and this package
 will not invent a cron the operator did not ask for; wire it to a scheduled

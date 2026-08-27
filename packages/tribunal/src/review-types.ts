@@ -156,10 +156,24 @@ export interface Cause {
 }
 
 export interface SweepReport {
+  /** Builds removed. */
   readonly builds: number;
+  /** Subject rows removed with them. */
   readonly subjects: number;
+  /** Stored images removed with them. */
   readonly objects: number;
-  readonly decisions: number;
+  /**
+   * Decisions those builds carried, which are **kept**, not removed.
+   *
+   * Named for what happened to them, because every other number here is a
+   * removal and an operator reading `decisions: 4` beside them concludes four
+   * approvals were deleted — the one thing this store promises never happens
+   * ([ADR-0021](../../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md)).
+   * The count is worth reporting: it is how much attribution outlived the build
+   * that proposed it, and a sweep that returned zero here forever would be a
+   * retention policy quietly disagreeing with the trigger on the table.
+   */
+  readonly decisionsKept: number;
 }
 
 export interface ReviewStore {

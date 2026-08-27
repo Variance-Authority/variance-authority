@@ -408,7 +408,7 @@ describe('retention holds nothing more than is needed', () => {
 
     const swept = await review.sweep(7);
 
-    expect(swept).toEqual({ builds: 1, subjects: 2, objects: 3, decisions: 0 });
+    expect(swept).toEqual({ builds: 1, subjects: 2, objects: 3, decisionsKept: 0 });
     expect(await review.build('ci-1001')).toBeNull();
     expect(bucket.keys()).toEqual([]);
   });
@@ -438,7 +438,7 @@ describe('retention holds nothing more than is needed', () => {
     await review.ingest(ingest());
     clock = new Date('2026-06-03T12:00:00.000Z');
 
-    expect(await review.sweep(7)).toEqual({ builds: 0, subjects: 0, objects: 0, decisions: 0 });
+    expect(await review.sweep(7)).toEqual({ builds: 0, subjects: 0, objects: 0, decisionsKept: 0 });
     expect(await review.build('ci-1001')).not.toBeNull();
   });
 
@@ -454,7 +454,19 @@ describe('retention holds nothing more than is needed', () => {
 
     // Counts, not a boolean. A sweep that says only "done" leaves an operator
     // unable to tell a working retention policy from one deleting a build a day.
-    expect(await review.sweep(0)).toMatchObject({ builds: 1, objects: 3, decisions: 1 });
+    //
+    // And the decision count is named for the opposite outcome from the three
+    // beside it. Every other number here is a removal; this one is what outlived
+    // the build, because an approval that went with its build is a promoted
+    // baseline nobody can attribute to anyone. An operator reading `decisions: 1`
+    // in a list of removals concludes the store did exactly that.
+    expect(await review.sweep(0)).toMatchObject({ builds: 1, objects: 3, decisionsKept: 1 });
+
+    const rows = await db
+      .prepare('SELECT COUNT(*) AS n FROM decisions')
+      .bind()
+      .first<{ readonly n: number }>();
+    expect(rows?.n).toBe(1);
   });
 
   it('refuses a retention window that is not one', async () => {
