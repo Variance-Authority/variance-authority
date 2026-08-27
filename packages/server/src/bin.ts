@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path';
 import process from 'node:process';
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { createSqliteBackend } from './backend-sqlite.js';
 import { serveHistory, type HistoryService } from './http.js';
 
@@ -186,7 +187,23 @@ async function main(): Promise<void> {
   }
 }
 
+/**
+ * Whether `entry` names this file, following links on both sides.
+ *
+ * A package manager installs a bin as a symlink — `node_modules/.bin/variance-authority-server`
+ * pointing here — so `process.argv[1]` is the link and `import.meta.url` is its
+ * target. Compared as written they never match, and the guard below then skips
+ * `main` and lets the process exit 0 without serving anything.
+ */
+function isProgram(entry: string): boolean {
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
 const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
+if (entry !== undefined && isProgram(entry)) {
   void main();
 }
