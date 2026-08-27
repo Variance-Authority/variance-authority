@@ -1,15 +1,15 @@
 {
   "name": "@variance-authority/sense",
   "version": "0.0.0-beta.1",
-  "description": "Answer which components and tests a source change reaches, from a versioned index of a checkout.",
+  "description": "Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
-    "static-analysis",
-    "oxc",
     "test-selection",
-    "dependency-graph"
+    "impact-analysis",
+    "dependency-graph",
+    "static-analysis",
+    "monorepo",
+    "typescript"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

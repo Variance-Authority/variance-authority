@@ -3,13 +3,12 @@
   "version": "0.0.0-beta.1",
   "description": "Run the Variance Authority workflow from a project config: collect subjects, compare, render what moved, report, accept.",
   "keywords": [
+    "variance-authority",
     "visual-regression",
     "visual-testing",
-    "variance-authority",
-    "cli",
     "screenshot-testing",
-    "ci",
-    "visual-diff"
+    "visual-diff",
+    "ci"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

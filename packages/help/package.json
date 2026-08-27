@@ -1,15 +1,15 @@
 {
   "name": "@variance-authority/help",
   "version": "0.0.0-beta.1",
-  "description": "Find the public name, signature, documentation and consumers of an exported workspace symbol, over MCP.",
+  "description": "Find the public name, signature, documentation and consumers of an exported TypeScript workspace symbol, over MCP.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "mcp",
-    "typescript",
+    "model-context-protocol",
     "monorepo",
-    "api-docs"
+    "typescript",
+    "api-docs",
+    "code-search"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

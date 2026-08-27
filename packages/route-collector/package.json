@@ -3,13 +3,12 @@
   "version": "0.0.0-beta.1",
   "description": "Turn pages your application already serves into Variance Authority subjects.",
   "keywords": [
+    "variance-authority",
     "visual-regression",
     "visual-testing",
-    "variance-authority",
-    "routes",
     "ssr",
     "static-site",
-    "collector"
+    "routes"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

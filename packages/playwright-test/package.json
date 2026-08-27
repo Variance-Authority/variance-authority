@@ -3,11 +3,10 @@
   "version": "0.0.0-beta.1",
   "description": "Add a source-aware visual observation to a Playwright test that already knows how to reach the state.",
   "keywords": [
+    "variance-authority",
     "visual-regression",
     "visual-testing",
-    "variance-authority",
     "playwright",
-    "playwright-test",
     "screenshot-testing",
     "e2e"
   ],

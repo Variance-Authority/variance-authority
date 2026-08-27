@@ -3,12 +3,10 @@
   "version": "0.0.0-beta.1",
   "description": "Faster PNG decoding for Variance Authority through sharp, for runtimes that can load a native addon.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "png",
     "sharp",
-    "decoding",
+    "image-decoding",
     "performance"
   ],
   "license": "MIT",

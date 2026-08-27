@@ -3,13 +3,13 @@
   "version": "0.0.0-beta.1",
   "description": "Capture a mounted DOM subject in a browserless Jest or Vitest process, then render and observe it later.",
   "keywords": [
+    "variance-authority",
     "visual-regression",
     "visual-testing",
-    "variance-authority",
-    "jest",
     "vitest",
+    "jest",
     "jsdom",
-    "unit-testing"
+    "component-testing"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

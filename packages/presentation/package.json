@@ -1,16 +1,15 @@
 {
   "name": "@variance-authority/presentation",
   "version": "0.0.0-beta.1",
-  "description": "Sense the presentation relationships inside one live interface — spacing, alignment, prominence, repetition — as evidence an agent can read.",
+  "description": "Sense spacing, alignment, prominence and repetition inside one live interface, as evidence an agent can read.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
-    "presentation",
     "layout",
+    "spacing",
+    "alignment",
     "accessibility",
     "agent",
-    "playwright"
+    "ui-analysis"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

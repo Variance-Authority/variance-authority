@@ -3,13 +3,12 @@
   "version": "0.0.0-beta.1",
   "description": "Decode, compare and diff PNGs without a browser: two buffers in, a mask out.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "png",
     "image-diff",
+    "image-comparison",
     "pixelmatch",
-    "comparison"
+    "pixel-diff"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

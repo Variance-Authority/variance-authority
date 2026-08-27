@@ -3,13 +3,11 @@
   "version": "0.0.0-beta.1",
   "description": "Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "baselines",
-    "storage",
+    "snapshots",
     "git-lfs",
-    "snapshots"
+    "storage"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

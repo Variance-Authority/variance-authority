@@ -3,13 +3,12 @@
   "version": "0.0.0-beta.1",
   "description": "Turn a built or already-served Storybook into Variance Authority subjects.",
   "keywords": [
+    "variance-authority",
     "visual-regression",
     "visual-testing",
-    "variance-authority",
     "storybook",
-    "collector",
-    "stories",
-    "component-testing"
+    "component-testing",
+    "stories"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

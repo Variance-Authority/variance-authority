@@ -3,13 +3,12 @@
   "version": "0.0.0-beta.1",
   "description": "Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "dom",
     "jsdom",
     "css",
-    "capture"
+    "capture",
+    "serialization"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

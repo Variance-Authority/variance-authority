@@ -3,13 +3,12 @@
   "version": "0.0.0-beta.1",
   "description": "Carry the file and line that wrote a JSX element as far as the rendered DOM node.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "jsx",
     "babel",
-    "source-maps",
-    "react"
+    "source-location",
+    "react",
+    "provenance"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

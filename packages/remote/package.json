@@ -3,13 +3,11 @@
   "version": "0.0.0-beta.1",
   "description": "Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "remote",
     "http",
-    "renderer",
-    "distributed"
+    "distributed",
+    "renderer"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

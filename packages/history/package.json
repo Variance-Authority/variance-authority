@@ -3,13 +3,11 @@
   "version": "0.0.0-beta.1",
   "description": "Retain visual-regression observations across runs and answer churn, flakiness, reach and token-drift questions.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
-    "history",
     "flakiness",
     "churn",
-    "metrics"
+    "metrics",
+    "test-history"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

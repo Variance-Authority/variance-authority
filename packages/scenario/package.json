@@ -3,11 +3,9 @@
   "version": "0.0.0-beta.1",
   "description": "Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
-    "scenario",
     "state-machine",
+    "scenario",
     "aaa",
     "runtime"
   ],

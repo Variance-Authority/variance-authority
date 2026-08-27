@@ -1,15 +1,15 @@
 {
   "name": "@variance-authority/package",
   "version": "0.0.0-beta.1",
-  "description": "Read a workspace package surface as data: every entrypoint a manifest opens, and what each one exports.",
+  "description": "Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "monorepo",
     "workspaces",
+    "api-surface",
     "exports",
-    "api-surface"
+    "typescript",
+    "breaking-changes"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

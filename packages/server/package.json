@@ -3,13 +3,12 @@
   "version": "0.0.0-beta.1",
   "description": "A self-hosted HTTP history service for Variance Authority observations and approvals.",
   "keywords": [
+    "variance-authority",
     "visual-regression",
     "visual-testing",
-    "variance-authority",
-    "server",
+    "self-hosted",
     "history",
-    "sqlite",
-    "self-hosted"
+    "sqlite"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",

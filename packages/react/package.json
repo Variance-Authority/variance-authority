@@ -3,8 +3,6 @@
   "version": "0.0.0-beta.1",
   "description": "Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.",
   "keywords": [
-    "visual-regression",
-    "visual-testing",
     "variance-authority",
     "react",
     "fiber",

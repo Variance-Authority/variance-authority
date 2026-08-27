@@ -11,7 +11,7 @@ signature, documentation, or consumer of an exported workspace symbol. It
 re-reads the checkout on every MCP request, ranks names by package consumers,
 and reports undocumented names separately.
 
-## What it answers
+## What it provides
 
 A reader does not need every export with equal weight. The useful first answer is
 which names exist, which packages reach them, what their signatures are, and what
