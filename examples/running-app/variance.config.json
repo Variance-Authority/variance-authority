@@ -1,0 +1,23 @@
+{
+  "project": "example-running-app",
+  "profile": "chromium",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "retention": "durable",
+  "subjects": {
+    "kind": "list",
+    "ids": [
+      "plans",
+      "seats"
+    ],
+    "collector": "variance/routes.mjs"
+  },
+  "baselines": {
+    "kind": "directory",
+    "root": ".variance/baselines"
+  },
+  "fonts": [],
+  "report": "out/report.json"
+}

@@ -2783,6 +2783,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-running-app@workspace:examples/running-app":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-running-app@workspace:examples/running-app"
+  dependencies:
+    "@variance-authority/cli": "npm:^0.0.0-beta.1"
+    "@variance-authority/route-collector": "npm:^0.0.0-beta.1"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/example-selection-reuse@workspace:examples/selection-reuse":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-selection-reuse@workspace:examples/selection-reuse"
