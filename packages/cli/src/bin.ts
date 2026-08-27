@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { ProfileId } from '@variance-authority/core';
 import { noPositionals, readFlags } from './args.js';
 import { messageOf } from './config-values.js';
-import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from './exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, isOperatorError, type ExitCode } from './exit.js';
 import { dispatch } from './dispatch.js';
 import type { ReportFormat } from './commands/report.js';
 
@@ -417,7 +417,7 @@ export async function main(
   try {
     return await dispatch(parsed, streams);
   } catch (error) {
-    if (error instanceof OperatorError) {
+    if (isOperatorError(error)) {
       streams.err(`${messageOf(error)}\n`);
       return EXIT_OPERATOR;
     }

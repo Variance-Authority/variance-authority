@@ -46,21 +46,59 @@ export const EXIT_OPERATOR = 2;
 export type ExitCode = typeof EXIT_CLEAN | typeof EXIT_REVIEW | typeof EXIT_OPERATOR;
 
 /**
+ * The property a thrower sets to say "this is the operator's to fix".
+ *
+ * The contract between a collector and this CLI, and the reason it is a bare
+ * property name rather than a shared class. A collector is loaded by dynamic
+ * import from the operator's own `node_modules`, so it holds *its* copy of
+ * whatever package declares the class — and `instanceof` across two copies is
+ * `false`. A class alone would work in this repository, pass its tests, and then
+ * degrade in the field into precisely the failure it exists to prevent: a
+ * misconfigured suite told it has found a bug in the tool.
+ *
+ * A name, like a header name, survives that. It is also what lets a third-party
+ * collector participate without taking a dependency on the CLI that will run it:
+ * `Object.assign(new Error(why), { varianceOperatorError: true })` is the whole
+ * integration.
+ *
+ * This is still not a message convention. The thrower *declares* the
+ * classification; nothing here reads what the error says.
+ */
+export const OPERATOR_ERROR_MARKER = 'varianceOperatorError';
+
+/**
  * The error that means `2`.
  *
  * A distinct class rather than a message convention, because the mapping from
  * "something went wrong" to an exit code is exactly what must not be done by
- * matching on text. Anything thrown that is *not* one of these is a defect in
- * this CLI, and `bin.ts` reports it as such rather than dressing it up as an
- * operator problem.
+ * matching on text. Anything thrown that is *not* recognised by
+ * {@link isOperatorError} is a defect in this CLI, and `bin.ts` reports it as
+ * such rather than dressing it up as an operator problem.
  */
 export class OperatorError extends Error {
   readonly exitCode: typeof EXIT_OPERATOR = EXIT_OPERATOR;
+
+  /** See {@link OPERATOR_ERROR_MARKER}. Spelled out, because the name is the contract. */
+  readonly varianceOperatorError = true;
 
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = 'OperatorError';
   }
+}
+
+/**
+ * Whether an error is a statement about the operator's configuration.
+ *
+ * Structural rather than `instanceof`, for the reason
+ * {@link OPERATOR_ERROR_MARKER} gives.
+ */
+export function isOperatorError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as Record<string, unknown>)[OPERATOR_ERROR_MARKER] === true
+  );
 }
 
 /**

@@ -15,6 +15,8 @@
  * when it matters.
  */
 
+import { operatorError } from './operator.js';
+
 /**
  * The `<loc>` values in a sitemap, in document order.
  *
@@ -74,7 +76,7 @@ export function routesFrom(xml: string): Readonly<Record<string, string>> {
     const existing = routes[id];
 
     if (existing !== undefined && existing !== url) {
-      throw new Error(
+      throw operatorError(
         `this sitemap lists two URLs whose paths are both \`${id}\` (${existing} and ${url}). ` +
           'One subject cannot have two addresses, and picking either would watch one page while ' +
           'reporting the other — list the routes explicitly instead',
@@ -100,11 +102,11 @@ export async function discover(sitemap: string): Promise<Readonly<Record<string,
   try {
     const response = await fetch(sitemap);
     if (!response.ok) {
-      throw new Error(`the sitemap at ${sitemap} answered ${response.status}`);
+      throw operatorError(`the sitemap at ${sitemap} answered ${response.status}`);
     }
     xml = await response.text();
   } catch (error) {
-    throw new Error(
+    throw operatorError(
       `the sitemap at ${sitemap} could not be read (${error instanceof Error ? error.message : String(error)}). ` +
         'A run that answered this with an empty plan would report a clean suite that observed ' +
         'nothing',
@@ -114,7 +116,7 @@ export async function discover(sitemap: string): Promise<Readonly<Record<string,
 
   const routes = routesFrom(xml);
   if (Object.keys(routes).length === 0) {
-    throw new Error(
+    throw operatorError(
       `the sitemap at ${sitemap} lists no <loc> entries, so this run has no subjects. ` +
         'Planning zero subjects and exiting 0 is indistinguishable from a suite that passed',
     );
@@ -165,7 +167,7 @@ export function declaredOnce(options: {
   );
 
   if (given.length > 1) {
-    throw new Error(
+    throw operatorError(
       `routeCollector was given ${given.join(' and ')}. Two lists cannot be one, and merging ` +
         'them quietly is how a run watches a page nobody listed — declare one',
     );
@@ -175,7 +177,7 @@ export function declaredOnce(options: {
     given.length === 0 ||
     (options.routes !== undefined && Object.keys(options.routes).length === 0)
   ) {
-    throw new Error(
+    throw operatorError(
       'routeCollector needs at least one route, or a `sitemap` or `directory` to discover them; ' +
         'a run over no subjects is not a run',
     );

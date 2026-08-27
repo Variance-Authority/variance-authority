@@ -52,7 +52,15 @@ export type {
   SubjectsConfig,
 } from './config.js';
 
-export { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor } from './exit.js';
+export {
+  EXIT_CLEAN,
+  EXIT_OPERATOR,
+  EXIT_REVIEW,
+  OPERATOR_ERROR_MARKER,
+  OperatorError,
+  exitFor,
+  isOperatorError,
+} from './exit.js';
 export type { ExitCode, ReviewableReport } from './exit.js';
 
 export {

@@ -2,6 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { indexSource, mergeSourceIndexes, type SourceIndex } from '@variance-authority/core';
 
+import { operatorError } from './operator.js';
+
 /**
  * Component to `file:line`, by scanning the project's own source.
  *
@@ -69,7 +71,7 @@ export function scanSource(root: string, scan: SourceScan): SourceIndex {
   // a report whose every component resolves to no file — which reads exactly like
   // a project whose components are anonymous, and is instead a mistyped path.
   if (files.length === 0) {
-    throw new Error(
+    throw operatorError(
       `no source files under ${scan.dirs.join(', ')} (from ${root}) matching ` +
         `${extensions.join(', ')}; every component would resolve to no file`,
     );

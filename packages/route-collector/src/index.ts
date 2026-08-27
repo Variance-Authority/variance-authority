@@ -18,6 +18,7 @@ import {
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { suspenseRefusal } from '@variance-authority/react';
 import type { AcquireRequest, Acquired } from './page-agent.js';
+import { operatorError } from './operator.js';
 import { scanSource } from './source.js';
 export type {
   Collected,
@@ -146,7 +147,7 @@ export function routeCollector(
     // route after paying for all of them.
     const portable = options.portable ?? false;
     if (portable && options.network === false) {
-      throw new Error(
+      throw operatorError(
         'portable documents need the network observer: the retained bytes are the ones the ' +
           'page was served, and `network: false` is the option that stops anyone seeing them',
       );
@@ -230,7 +231,7 @@ export function routeCollector(
             resolved = routesFromFiles(pagesIn(resolve(options.directory)), served.baseUrl);
 
             if (Object.keys(resolved).length === 0) {
-              throw new Error(
+              throw operatorError(
                 `${options.directory} holds no .html file, so this run has no subjects. ` +
                   'Planning zero subjects and exiting 0 is indistinguishable from a suite that ' +
                   'passed',
@@ -258,7 +259,7 @@ export function routeCollector(
         }
 
         if (plan === undefined) {
-          throw new Error(
+          throw operatorError(
             'this collector expects `subjects.kind: "list"`, which is what supplies the plan — ' +
               'or `sitemap`, with `subjects.kind: "collector"`, to discover one',
           );

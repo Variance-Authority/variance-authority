@@ -252,6 +252,27 @@ leaves operator errors at 2, and writes one line to stderr saying the code was
 suppressed — a run whose exit was quietly rewritten is otherwise indistinguishable
 in a log from a run that found nothing.
 
+### Exit 2 from your own collector
+
+Exit `2` says the run did not happen as configured; anything else that escapes is
+reported as a defect in this tool, with a stack trace, because telling somebody to
+go and edit a config that was never wrong costs them an afternoon.
+
+A collector is loaded from your `node_modules`, not this package's, so it cannot
+be recognised by its error's class — two installed copies of the same class are
+not the same class. It is recognised by a property instead:
+
+```js
+throw Object.assign(new Error('this collector needs `subjects.kind: "list"`'), {
+  varianceOperatorError: true,
+});
+```
+
+That is the entire integration, and it is worth doing: without it a mistyped path
+in your own collector reaches the adopter as a stack trace claiming this tool is
+broken. Leave the marker off anything they cannot act on — a bug in the collector
+should still read as a bug.
+
 ### Sharding: `report` takes more than one file
 
 A suite big enough to split across CI jobs runs `variance run --subjects <glob>`

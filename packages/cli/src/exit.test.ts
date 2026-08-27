@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, exitFor } from './exit.js';
+import {
+  EXIT_CLEAN,
+  EXIT_OPERATOR,
+  EXIT_REVIEW,
+  OPERATOR_ERROR_MARKER,
+  OperatorError,
+  exitFor,
+  isOperatorError,
+} from './exit.js';
 
 describe('exit codes', () => {
   it('keeps a verdict and a crash on different codes', () => {
@@ -8,6 +16,36 @@ describe('exit codes', () => {
     // block on infrastructure.
     expect(new Set([EXIT_CLEAN, EXIT_REVIEW, EXIT_OPERATOR]).size).toBe(3);
     expect(new OperatorError('x').exitCode).toBe(EXIT_OPERATOR);
+  });
+});
+
+describe('isOperatorError', () => {
+  it('recognises this package’s own class', () => {
+    expect(isOperatorError(new OperatorError('x'))).toBe(true);
+  });
+
+  it('recognises a collector’s error that never imported this package', () => {
+    // The case the marker exists for. A collector is loaded by dynamic import
+    // from the adopter's `node_modules`, so it cannot be holding this class —
+    // and before this was structural, every misconfiguration it caught was
+    // reported to the adopter as a defect in the tool, with a stack trace.
+    class SomebodyElsesError extends Error {
+      readonly varianceOperatorError = true;
+    }
+    expect(isOperatorError(new SomebodyElsesError('bad config'))).toBe(true);
+    expect(isOperatorError(Object.assign(new Error('bad config'), { [OPERATOR_ERROR_MARKER]: true }))).toBe(
+      true,
+    );
+  });
+
+  it('leaves an undeclared failure a defect, so a bug is never dressed as a config problem', () => {
+    expect(isOperatorError(new Error('cannot read properties of undefined'))).toBe(false);
+    expect(isOperatorError(Object.assign(new Error('x'), { varianceOperatorError: 'yes' }))).toBe(
+      false,
+    );
+    expect(isOperatorError(undefined)).toBe(false);
+    expect(isOperatorError(null)).toBe(false);
+    expect(isOperatorError('a string nobody threw deliberately')).toBe(false);
   });
 });
 
