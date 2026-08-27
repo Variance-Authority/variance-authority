@@ -2735,6 +2735,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-history@workspace:examples/history":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-history@workspace:examples/history"
+  dependencies:
+    "@variance-authority/cli": "npm:^0.0.0-beta.1"
+    "@variance-authority/route-collector": "npm:^0.0.0-beta.1"
+    "@variance-authority/server": "npm:^0.0.0-beta.1"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/example-kitchen-sink@workspace:examples/kitchen-sink":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-kitchen-sink@workspace:examples/kitchen-sink"
@@ -3096,7 +3106,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/server@workspace:^, @variance-authority/server@workspace:packages/server":
+"@variance-authority/server@npm:^0.0.0-beta.1, @variance-authority/server@workspace:^, @variance-authority/server@workspace:packages/server":
   version: 0.0.0-use.local
   resolution: "@variance-authority/server@workspace:packages/server"
   dependencies:
