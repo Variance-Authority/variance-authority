@@ -24,6 +24,35 @@ describe('presentation intelligence', () => {
     expect(report.telemetry.content.elements).toBe(1);
   });
 
+  it('carries the font identities the caller established, and only when there are some', () => {
+    // The live entry takes a `fonts` option and threads it into the capture,
+    // then analyzes the capture and drops it. Whatever the caller pinned has to
+    // arrive on the report or that option buys them nothing at all through the
+    // door they actually use.
+    const root = node('main', undefined, [], { role: null, name: null });
+    const none = analyzePresentation(rawCapture(root, false));
+    const pinned = analyzePresentation(withFonts(rawCapture(root, false), ['Inter/400/normal/deadbeef']));
+    const substituted = analyzePresentation(withFonts(rawCapture(root, false), ['Inter/400/normal/cafebabe']));
+
+    expect(none.fonts).toBeUndefined();
+    expect(pinned.fonts).toEqual(['Inter/400/normal/deadbeef']);
+    // A substitution moves every metric on the page without changing a byte of
+    // code, so the reading is a different reading and its digest says so. The
+    // content identity is what has to survive presentation moving, so it holds.
+    expect(substituted.digest).not.toBe(pinned.digest);
+    expect(substituted.contentDigest).toBe(pinned.contentDigest);
+  });
+
+  it('does not make the order a caller listed fonts in part of the reading', () => {
+    const root = node('main', undefined, [], { role: null, name: null });
+    const asWritten = ['b/700/italic/2222', 'a/400/normal/1111'];
+    const reordered = ['a/400/normal/1111', 'b/700/italic/2222'];
+
+    expect(analyzePresentation(withFonts(rawCapture(root, false), asWritten)).digest).toBe(
+      analyzePresentation(withFonts(rawCapture(root, false), reordered)).digest,
+    );
+  });
+
   it('makes absent, empty, and partial ARIA separately sensitive report identities', () => {
     const capture = rawCapture(node('main', undefined, [], { role: null, name: null }), false);
     const absent = analyzePresentation(capture);
@@ -289,6 +318,10 @@ function structuredRecords(options: { readonly leading: number; readonly peer: n
     );
   });
   return node('main', rect(0, 0, 320, 700), records, { role: 'main', name: 'Records' });
+}
+
+function withFonts(capture: RawCapture, fonts: readonly string[]): RawCapture {
+  return { ...capture, environment: { ...capture.environment, fonts } };
 }
 
 function rawCapture(root: RawNode, layout = true): RawCapture {

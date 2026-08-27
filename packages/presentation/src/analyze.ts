@@ -40,6 +40,7 @@ export function analyzePresentation(
       formatVersion: 1 as const,
       contentDigest,
       subject: capture.subject,
+      ...fontsOf(capture),
       semantic: {
         anchors,
         ...(options.accessibility === undefined ? {} : { browserAccessibility: options.accessibility }),
@@ -69,6 +70,7 @@ export function analyzePresentation(
     formatVersion: 1 as const,
     contentDigest,
     subject: capture.subject,
+    ...fontsOf(capture),
     semantic: {
       anchors,
       ...(options.accessibility === undefined ? {} : { browserAccessibility: options.accessibility }),
@@ -85,6 +87,28 @@ export function analyzePresentation(
     paint,
   };
   return { ...body, digest: digestValue(body as never) };
+}
+
+/**
+ * Carry the caller-established font identities onto the report.
+ *
+ * The live entry accepts a `fonts` option and threads it into the capture, and
+ * the capture is then analyzed and dropped — so through that door the option
+ * had no observable consequence at all. It has one here. Fonts are a render
+ * input of the more consequential kind: a substitution moves every metric on
+ * the page without changing a byte of code, so a reading taken under different
+ * pinned identities is a different reading and the digest says so.
+ *
+ * Sorted, because the order a caller happened to list them in is not part of
+ * their identity — the same position `normalize` takes on the environment key.
+ * Absent rather than empty when none were established, matching the capture,
+ * which says the same thing a second way with its `unverified-fonts` caveat.
+ * The content digest is deliberately untouched: font identity is presentation,
+ * and content identity is what has to survive presentation moving.
+ */
+function fontsOf(capture: RawCapture): { fonts?: readonly string[] } {
+  const fonts = capture.environment.fonts;
+  return fonts.length === 0 ? {} : { fonts: [...fonts].sort() };
 }
 
 function contentEvidence(capture: RawCapture): unknown {

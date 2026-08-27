@@ -338,6 +338,11 @@ export interface PresentationReport {
   /** Presentation-independent structure, text, DOM-correlated semantics, and state. */
   readonly contentDigest: Digest;
   readonly subject: SubjectRef;
+  /**
+   * Font identities the caller established for the capture, as the capture
+   * spells them. Absence means none were established.
+   */
+  readonly fonts?: readonly string[];
   readonly semantic: {
     /** An empty array means semantic anchoring ran and found no anchors. */
     readonly anchors: readonly string[];

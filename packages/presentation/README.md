@@ -84,7 +84,9 @@ ARIA tree with no parent or children, remains an observed value rather than an
 acquisition error.
 
 `subjectId` and `title` identify the sensed boundary in the returned report.
-`fonts` records the browser fonts whose identities the caller has established.
+`fonts` records the browser fonts whose identities the caller has established;
+the report carries them back, and a substitution changes its digest while
+content identity holds.
 `suspense` controls settlement of React boundaries before sensing. `paint` is
 either `true` for every diagnostic layer or a list of named layers; omitting it
 leaves the page unpainted.
