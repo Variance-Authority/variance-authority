@@ -57,6 +57,12 @@ story id and selector instead of silently capturing a spinner.
 `source` enables component-to-`file:line` attribution. Without it the report can
 still name components, but it cannot point to their declarations.
 
+Against a built Storybook those names arrive minified — a run reports the cause
+as `Ce`, not `Button`, because the bundler renamed it and nothing in the browser
+remembers otherwise. `file:line` is the identifier that survives minification,
+which is what makes the plugin below load-bearing there rather than an
+enhancement.
+
 It names where a component is *declared* — one line however many times that
 component is rendered.
 
