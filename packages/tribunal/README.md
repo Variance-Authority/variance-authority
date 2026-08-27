@@ -161,8 +161,8 @@ reads four names plus two optional ones:
 
 | name | kind | what it decides |
 |---|---|---|
-| `DB` | binding | D1. The schema is in `migrations/` |
-| `BUCKET` | binding | R2. Baseline and candidate bytes; never a row |
+| `DB` | binding | D1. The schema is in `migrations/`. A name that does not match what `d1_databases` declares is refused by name |
+| `BUCKET` | binding | R2. Baseline and candidate bytes; never a row. Declared for production and not for a preview environment is refused by name |
 | `INGEST_TOKEN` | secret | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `REVIEW_TOKEN` | secret | held by people. Reads the review surface and decides. 16 characters or more |
 | `PROJECT` | var, default `default` | scopes every row and object |

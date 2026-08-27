@@ -114,3 +114,48 @@ export function base64Of(buffer: ArrayBuffer): string {
   }
   return btoa(binary);
 }
+
+/**
+ * Refuse a deployment whose bindings never arrived.
+ *
+ * The operator who gets this wrong wrote a `wrangler.jsonc` — spelled the
+ * binding `D1` instead of `DB`, or added the R2 bucket to production and not to
+ * a preview environment — and the compiler is not standing there. Without this,
+ * `undefined` is carried all the way to the first statement that touches it and
+ * surfaces as `Cannot read properties of undefined (reading 'prepare')` on one
+ * request, while routes that happen not to reach the missing half keep working.
+ *
+ * `worker-entry` already turns every construction refusal into a 500 whose body
+ * is the sentence, and it already falls back for `PROJECT` and `RETENTION_DAYS`
+ * rather than letting them fail late. The two bindings are the settings most
+ * likely to be wrong and were the only ones with no sentence.
+ *
+ * Shape-checked rather than merely present, because a binding pointing at the
+ * wrong kind of resource is the same mistake one line further along, and
+ * `R2Like` and `D1Like` share no method name for the two to be confused by.
+ * Split in two because `./history` takes a database and no bucket, and one
+ * function with an optional second argument cannot tell that door from a store
+ * whose bucket is missing.
+ */
+export function requireD1(db: unknown): void {
+  if (db === null || typeof db !== 'object' || typeof (db as D1Like).prepare !== 'function') {
+    throw new Error(
+      '`db` is not a D1 binding. A Worker receives it as `env.DB`, declared under `d1_databases` ' +
+        'in `wrangler.jsonc` with the `binding` name matching what the entry reads; a name that ' +
+        'does not match arrives as `undefined`, and the first request to touch a row is where you ' +
+        'would otherwise hear about it',
+    );
+  }
+}
+
+/** The other half. See {@link requireD1}. */
+export function requireR2(bucket: unknown): void {
+  if (bucket === null || typeof bucket !== 'object' || typeof (bucket as R2Like).get !== 'function') {
+    throw new Error(
+      '`bucket` is not an R2 binding. A Worker receives it as `env.BUCKET`, declared under ' +
+        '`r2_buckets` in `wrangler.jsonc`; declaring it for production and not for a preview ' +
+        'environment is the common shape of this, and the sidecar rows would be written without ' +
+        'the images they describe',
+    );
+  }
+}

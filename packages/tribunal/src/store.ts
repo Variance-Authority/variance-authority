@@ -10,7 +10,15 @@ import {
   type Found,
   type RasterStore,
 } from '@variance-authority/raster';
-import { base64Of, bytesOf, type D1Like, type R2Like, type TribunalBindings } from './bindings.js';
+import {
+  base64Of,
+  bytesOf,
+  requireD1,
+  requireR2,
+  type D1Like,
+  type R2Like,
+  type TribunalBindings,
+} from './bindings.js';
 
 /**
  * Baselines in R2, attributed in D1.
@@ -107,6 +115,8 @@ interface SidecarRow {
 
 export function createBucketStore(options: BucketStoreOptions): RasterStore {
   const { db, bucket, project } = options;
+  requireD1(db);
+  requireR2(bucket);
   requireProject(project);
   const now = options.now ?? ((): Date => new Date());
 

@@ -11,7 +11,7 @@ import {
   type ReachRows,
   type Slice,
 } from '@variance-authority/server';
-import type { D1Like, D1PreparedLike } from './bindings.js';
+import { requireD1, type D1Like, type D1PreparedLike } from './bindings.js';
 import {
   areaFilter,
   componentFilter,
@@ -72,6 +72,8 @@ import {
  */
 
 export function createD1Backend(db: D1Like): HistoryBackend {
+  requireD1(db);
+
   return {
     async append(run, observations, tokens, instabilities = []): Promise<void> {
       const registered = await registeredCommit(db, run);

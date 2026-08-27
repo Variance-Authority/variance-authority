@@ -8,6 +8,7 @@ import {
   type RenderIdentity,
 } from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
+import { createD1Backend } from './history.js';
 import { createBucketStore } from './store.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
 
@@ -81,6 +82,34 @@ beforeEach(async () => {
 function store(project = 'todomvc'): ReturnType<typeof createBucketStore> {
   return createBucketStore({ db, bucket, project });
 }
+
+describe('a deployment whose bindings never arrived', () => {
+  it('names the binding rather than failing on the first row that touches it', () => {
+    // The operator who gets this wrong wrote a `wrangler.jsonc`. Before this,
+    // `env.DB` spelled `D1` reached the store as `undefined` and surfaced as
+    // "Cannot read properties of undefined (reading 'prepare')" on whichever
+    // request happened to touch a row first.
+    expect(() => createBucketStore({ db: undefined as never, bucket, project: 'p' })).toThrow(
+      /`db` is not a D1 binding/,
+    );
+    expect(() => createBucketStore({ db: {} as never, bucket, project: 'p' })).toThrow(
+      /`db` is not a D1 binding/,
+    );
+    expect(() => createBucketStore({ db, bucket: undefined as never, project: 'p' })).toThrow(
+      /`bucket` is not an R2 binding/,
+    );
+    // A bucket declared for production and not for a preview environment would
+    // otherwise write sidecar rows without the images they describe.
+    expect(() => createBucketStore({ db, bucket: db as never, project: 'p' })).toThrow(
+      /`bucket` is not an R2 binding/,
+    );
+  });
+
+  it('lets the history backend say it too, since it is its own entrypoint', () => {
+    expect(() => createD1Backend(undefined as never)).toThrow(/`db` is not a D1 binding/);
+    expect(() => createD1Backend(db)).not.toThrow();
+  });
+});
 
 describe('a deployment that never said which project it is', () => {
   it('is refused at construction, however the operator spelled the omission', () => {
