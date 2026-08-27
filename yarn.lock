@@ -2802,6 +2802,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-storybook@workspace:examples/storybook":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-storybook@workspace:examples/storybook"
+  dependencies:
+    "@storybook/react-vite": "npm:^9.1.13"
+    "@variance-authority/cli": "npm:^0.0.0-beta.1"
+    "@variance-authority/jsx-source": "npm:^0.0.0-beta.1"
+    "@variance-authority/storybook-collector": "npm:^0.0.0-beta.1"
+    react: "npm:^19.2.0"
+    react-dom: "npm:^19.2.0"
+    storybook: "npm:^9.1.13"
+    vite: "npm:^6.0.0"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/example-structural-change@workspace:examples/structural-change":
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-structural-change@workspace:examples/structural-change"
@@ -2860,7 +2875,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/jsx-source@workspace:^, @variance-authority/jsx-source@workspace:packages/jsx-source":
+"@variance-authority/jsx-source@npm:^0.0.0-beta.1, @variance-authority/jsx-source@workspace:^, @variance-authority/jsx-source@workspace:packages/jsx-source":
   version: 0.0.0-use.local
   resolution: "@variance-authority/jsx-source@workspace:packages/jsx-source"
   dependencies:
@@ -3086,7 +3101,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/storybook-collector@workspace:^, @variance-authority/storybook-collector@workspace:packages/storybook-collector":
+"@variance-authority/storybook-collector@npm:^0.0.0-beta.1, @variance-authority/storybook-collector@workspace:^, @variance-authority/storybook-collector@workspace:packages/storybook-collector":
   version: 0.0.0-use.local
   resolution: "@variance-authority/storybook-collector@workspace:packages/storybook-collector"
   dependencies:
