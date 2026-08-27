@@ -264,8 +264,14 @@ export async function dispatch(
       // An empty file, never a missing one. The poster has to tell "nothing
       // needs review" from "the render never ran", and only the first of those
       // may clear a previous docket.
-      if (parsed.bodyFile !== undefined) await writeFile(parsed.bodyFile, body, 'utf8');
-      else streams.out(body);
+      //
+      // Terminated, both ways. On a terminal the prompt would otherwise return
+      // on the last line of the comment; in a file it is the line every tool
+      // that reads text files expects, and an empty body stays empty because
+      // the newline is only added to one that has content.
+      const text = body === '' ? body : `${body}\n`;
+      if (parsed.bodyFile !== undefined) await writeFile(parsed.bodyFile, text, 'utf8');
+      else streams.out(text);
 
       // `0` for "this rendered", not for "the run was clean". The verdict is
       // `run`'s and the workflow already has it; a second opinion here could

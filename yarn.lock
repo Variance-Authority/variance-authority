@@ -2874,6 +2874,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-vitest@workspace:examples/vitest":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-vitest@workspace:examples/vitest"
+  dependencies:
+    "@variance-authority/cli": "npm:^0.0.0-beta.1"
+    "@variance-authority/unit-test": "npm:^0.0.0-beta.1"
+    jsdom: "npm:^25.0.1"
+    vitest: "npm:^2.1.9"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/help@workspace:packages/help":
   version: 0.0.0-use.local
   resolution: "@variance-authority/help@workspace:packages/help"
@@ -3162,7 +3173,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/unit-test@workspace:^, @variance-authority/unit-test@workspace:packages/unit-test":
+"@variance-authority/unit-test@npm:^0.0.0-beta.1, @variance-authority/unit-test@workspace:^, @variance-authority/unit-test@workspace:packages/unit-test":
   version: 0.0.0-use.local
   resolution: "@variance-authority/unit-test@workspace:packages/unit-test"
   dependencies:
@@ -6379,7 +6390,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vitest@npm:^2.1.8":
+"vitest@npm:^2.1.8, vitest@npm:^2.1.9":
   version: 2.1.9
   resolution: "vitest@npm:2.1.9"
   dependencies:

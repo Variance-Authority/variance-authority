@@ -95,6 +95,32 @@ there and cannot say why.
 `readCapture` and `captureFiles` are the read half, and `CAPTURE_SUFFIX` is what
 they match on.
 
+## Clear the directory once per run
+
+```ts
+// vitest.config.js  →  test: { globalSetup: ['variance/reset.mjs'] }
+import { resetCaptures } from '@variance-authority/unit-test';
+
+export async function setup() {
+  await resetCaptures('.variance/captures');
+}
+```
+
+A capture is addressed by its subject id, so two tests that both call themselves
+`button/save` address one file. `writeCapture` refuses to be the second write
+rather than overwriting, because the run that reads this directory afterwards
+would otherwise be missing a subject and say nothing about it.
+
+That refusal is only correct over a directory holding one run, and nothing in a
+test runner makes a directory hold one run by itself. `resetCaptures` is what
+does. Call it from a once-per-run hook — `globalSetup` in Vitest, a setup project
+in Playwright — never from a test file, where it would race the other test files
+and delete their captures. It removes capture files and leaves everything else in
+the directory alone, and a directory that does not exist yet is not an error.
+
+Without it the second run of an unchanged suite fails, and the failure names a
+subject id collision to somebody who has only ever had one subject.
+
 ## Snapshot a value
 
 Not every public surface is a page. An API response, a generated OpenAPI

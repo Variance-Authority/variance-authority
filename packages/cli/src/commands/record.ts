@@ -222,11 +222,27 @@ function because(observation: Observation, changed: number, strict: number): str
  *
  * Severity is printed because it is what `exitFor` reads, and a reader who sees a
  * complaint quoted at them and a `0` exit code is owed the reason those agree.
+ *
+ * Counted rather than repeated, because one code covers more than one fact: a
+ * capture with no font identities and no font content hashes raises
+ * `unverified-fonts` twice, with two different messages, and `diagnosticsOf`
+ * keeps both on the record precisely because they are two facts. Printed
+ * one-per-entry that became `unverified-fonts (warn), unverified-fonts (warn)`
+ * — a line that reads as the tool stuttering rather than as two things being
+ * wrong, on the first run of every browserless suite.
  */
 export function qualification(diagnostics: readonly Diagnostic[]): string {
   if (diagnostics.length === 0) return '';
 
-  const named = diagnostics.map((entry) => `${entry.code} (${entry.severity})`).join(', ');
+  const counts = new Map<string, number>();
+  for (const entry of diagnostics) {
+    const token = `${entry.code} (${entry.severity})`;
+    counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+
+  const named = [...counts]
+    .map(([token, count]) => (count === 1 ? token : `${token} ×${count}`))
+    .join(', ');
   return (
     `; the collection of this subject reported ${named}, so what was compared may be less ` +
     'than the whole subject'

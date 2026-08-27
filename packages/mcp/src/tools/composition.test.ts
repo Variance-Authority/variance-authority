@@ -322,4 +322,22 @@ describe('a run that composed nothing', () => {
     expect(answer).toContain('it says this run cannot tell');
     expect(answer).not.toContain('0 component(s)');
   });
+
+  it('names the missing attribution when a composed run found no component', () => {
+    const bare: RunReport = {
+      ...REPORT,
+      composition: { ...COMPOSED, components: [], echoes: [], divergences: [], movements: [] },
+    };
+
+    // Distinct from the case above: composition *ran*, over subjects that carry
+    // no provenance — a fixture built with `createElement`, a page served
+    // without source stamping. A census of zeros with an empty `components:`
+    // list after it reads as a broken report, not as an answered question.
+    const answer = composition.run(bare, {});
+
+    expect(answer).toContain('no component named in 4 subject(s)');
+    expect(answer).toContain('located in the image but not attributed');
+    expect(answer).not.toContain('0 component(s)');
+    expect(answer).not.toContain('components: ');
+  });
 });

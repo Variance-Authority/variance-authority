@@ -1,8 +1,9 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CAPTURE_SUFFIX, captureFiles } from './archive.js';
+import type { CaptureArtifact } from '@variance-authority/core';
+import { CAPTURE_SUFFIX, captureFiles, resetCaptures, writeCapture } from './archive.js';
 
 /**
  * The handoff directory, read as a directory rather than as a private channel.
@@ -64,5 +65,52 @@ describe('captureFiles', () => {
     await expect(captureFiles(join(tmpdir(), 'variance-archive-absent'))).rejects.toThrow(
       'cannot read capture directory',
     );
+  });
+});
+
+describe('resetCaptures', () => {
+  /**
+   * Minimal enough to be written and read back by name.
+   *
+   * `writeCapture` addresses the file by the subject id and serialises the rest,
+   * so the id is the only field these tests are about. The shape is checked on
+   * the way *in* by `readCapture`, which is a different question.
+   */
+  const artifact = (id: string): CaptureArtifact =>
+    ({ artifactVersion: 1, subject: { id, kind: 'fixture' } }) as unknown as CaptureArtifact;
+
+  it('lets the same subject be captured again on the next run', async () => {
+    // The whole reason it exists. Without this call the second run of an
+    // unchanged suite fails, and it fails with a message about two subjects
+    // sharing an id — to somebody who has only ever had one.
+    const directory = await directoryWith([]);
+    await writeCapture(directory, artifact('badge/urgent'));
+    await expect(writeCapture(directory, artifact('badge/urgent'))).rejects.toThrow(
+      'already has a capture',
+    );
+
+    await resetCaptures(directory);
+    await expect(writeCapture(directory, artifact('badge/urgent'))).resolves.toContain(
+      'badge%2Furgent',
+    );
+  });
+
+  it('takes the captures and leaves everything else', async () => {
+    // Same reasoning as `captureFiles`' filter, with more at stake: that one
+    // misreads a neighbouring file, this one would delete it.
+    const directory = await directoryWith([`alpha${CAPTURE_SUFFIX}`, 'coverage.json']);
+
+    await resetCaptures(directory);
+
+    expect(await captureFiles(directory)).toEqual([]);
+    await expect(readFile(join(directory, 'coverage.json'), 'utf8')).resolves.toBe('{}\n');
+  });
+
+  it('accepts a directory that is not there, because that is the first run', async () => {
+    // Ordinary, not exceptional: nothing has written a capture yet. Throwing
+    // here would make every clean checkout fail before a single test ran.
+    await expect(
+      resetCaptures(join(tmpdir(), 'variance-archive-never-written')),
+    ).resolves.toBeUndefined();
   });
 });

@@ -125,7 +125,25 @@ function one(composed: CompositionReport, wanted: string): string {
     .join('\n\n');
 }
 
+/**
+ * The census, or the one sentence that replaces it when there is nothing to count.
+ *
+ * A run whose subjects carry no component provenance — a fixture built with
+ * `createElement`, a page served without source stamping — would otherwise get a
+ * census of zeros and an empty `components:` list, which reads as a broken
+ * report rather than as an answered question. Every other section here already
+ * suppresses itself when empty; this one could not, because it is also the only
+ * place the reader learns that attribution was unavailable rather than clean.
+ */
 function headline(composed: CompositionReport, unexplained: number): string {
+  if (composed.components.length === 0) {
+    return (
+      `no component named in ${composed.subjects.length} subject(s) — these subjects carry no ` +
+      'component provenance, so a change in them can be located in the image but not ' +
+      'attributed to what rendered it'
+    );
+  }
+
   const echoes = composed.echoes.length + (composed.truncated?.echoes ?? 0);
   const movements =
     composed.movements.length === 0

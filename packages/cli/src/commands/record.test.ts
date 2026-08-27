@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Observation } from '@variance-authority/observe';
+import { qualification } from './record.js';
 import { recordOf } from './run.js';
 import { UNREADABLE } from './run-fixture.js';
 
@@ -136,5 +137,39 @@ describe('recordOf', () => {
     expect(region?.component).toBeUndefined();
     expect(region?.unattributed).toBe(true);
     expect(region?.where).toBe('near Card (main → card)');
+  });
+});
+
+
+describe('qualification', () => {
+  it('says nothing when the collection had nothing to complain about', () => {
+    expect(qualification([])).toBe('');
+  });
+
+  it('counts a code carrying more than one fact instead of repeating it', () => {
+    // The first run of every browserless suite: a capture with no font
+    // identities and no font content hashes raises `unverified-fonts` twice,
+    // with two different messages, and both belong on the record. Printed
+    // one-per-entry the line read `unverified-fonts (warn), unverified-fonts
+    // (warn)`, which reads as the tool stuttering rather than as two things
+    // being wrong.
+    const line = qualification([
+      { severity: 'warn', code: 'unverified-fonts', message: 'no font identities supplied' },
+      { severity: 'warn', code: 'unverified-fonts', message: 'no font content hashes supplied' },
+      { severity: 'warn', code: 'portals-not-resolved', message: 'no portal provider supplied' },
+    ]);
+
+    expect(line).toContain('unverified-fonts (warn) ×2');
+    expect(line).toContain('portals-not-resolved (warn)');
+    expect(line).not.toContain('portals-not-resolved (warn) ×');
+  });
+
+  it('keeps one code at two severities apart, because they exit differently', () => {
+    expect(
+      qualification([
+        { severity: 'warn', code: 'cross-origin-stylesheet', message: 'a' },
+        { severity: 'error', code: 'cross-origin-stylesheet', message: 'b' },
+      ]),
+    ).toContain('cross-origin-stylesheet (warn), cross-origin-stylesheet (error)');
   });
 });

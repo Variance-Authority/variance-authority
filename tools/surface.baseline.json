@@ -2606,6 +2606,7 @@
         "captureCollector": "function",
         "captureFiles": "function",
         "readCapture": "function",
+        "resetCaptures": "function",
         "snapshotValue": "function",
         "writeCapture": "function"
       }
