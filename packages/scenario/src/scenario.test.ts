@@ -144,6 +144,38 @@ describe('recording a witnessed AAA path', () => {
     expect(failed.execution.termination).toEqual([FAILURE]);
   });
 
+  it('names each required option a host left out, rather than dereferencing it', () => {
+    // A host that builds these options from a config file can omit any of them,
+    // and the compiler is not there to say so. Whichever one is missing, the
+    // caller reads a sentence about their own call — not a property access that
+    // failed somewhere inside this module.
+    const definition = defineScenario('load', [{ key: 'retry' }]);
+    const arrange = snapshot('page', 'Ready');
+    const complete = { id: 'execution-4', precondition: arrange.subject, profile: 'chromium' };
+
+    for (const [missing, message] of [
+      ['id', 'execution id is required'],
+      ['precondition', 'execution precondition is required'],
+      ['profile', 'execution profile is required'],
+    ] as const) {
+      const { [missing]: _dropped, ...rest } = complete;
+      expect(() =>
+        startScenario(definition, rest as unknown as typeof complete, arrange),
+      ).toThrow(message);
+    }
+
+    expect(() =>
+      startScenario(definition, { ...complete, id: '  ' }, arrange),
+    ).toThrow('execution id must not be empty');
+    expect(() =>
+      startScenario(
+        definition,
+        { ...complete, precondition: { id: '', kind: 'fixture' } },
+        arrange,
+      ),
+    ).toThrow('execution precondition id must not be empty');
+  });
+
   it('refuses a shifted ordinal instead of guessing which authored Act it meant', () => {
     const definition = defineScenario('ordered', [{ key: 'open' }, { key: 'confirm' }]);
     const run = startScenario(

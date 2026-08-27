@@ -54,6 +54,14 @@ export function startScenario(
   arrange: ScenarioObservation,
 ): ScenarioRun {
   requireName(options.id, 'execution id');
+  // Named here rather than left to the first read of them. The first read is a
+  // property access *on* the value that is missing, so an omitted
+  // `precondition` answered `Cannot read properties of undefined (reading
+  // 'id')` from inside this module while its neighbour on the same options
+  // object answered `execution id must not be empty`. Three options are
+  // required and the caller supplies all three; they say so the same way.
+  requirePrecondition(options.precondition);
+  requireName(options.profile, 'execution profile');
   const snapshots = new Map<string, SemanticSnapshot>();
   const outcome = outcomeOf(arrange, options, snapshots);
 
@@ -218,5 +226,17 @@ function isUnobserved(
 }
 
 function requireName(value: string, what: string): void {
+  // Absent and blank are different mistakes and the caller fixes them
+  // differently, so they are not folded into one sentence. Absent is checked at
+  // all because the type saying `string` binds the compiler, not a host that
+  // built these options out of a config file.
+  if (typeof value !== 'string') throw new Error(`${what} is required`);
   if (value.trim() === '') throw new Error(`${what} must not be empty`);
+}
+
+function requirePrecondition(value: SemanticSnapshot['subject']): void {
+  if (value === null || typeof value !== 'object') {
+    throw new Error('execution precondition is required');
+  }
+  requireName(value.id, 'execution precondition id');
 }
