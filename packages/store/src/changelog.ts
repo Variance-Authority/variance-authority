@@ -1,4 +1,5 @@
 import { parseCommitMessage, type ChangelogRecord } from '@variance-authority/report';
+import { resolve } from 'node:path';
 import { runCommand, type CommandRunner } from './lfs.js';
 
 /**
@@ -78,6 +79,10 @@ export interface ChangelogHistoryOptions {
    * The filter is what keeps this cheap and what keeps it honest: a repository's
    * ordinary commits are not baseline updates, and scanning them for trailers
    * would spend the whole log to find the same answer.
+   *
+   * A relative path is read against {@link ChangelogHistoryOptions.cwd} when one
+   * is given, and against the calling process's directory when none is — the
+   * same directory `createDurableStore` would have read it against.
    */
   readonly root: string;
 
@@ -121,6 +126,13 @@ const DEFAULT_LIMIT = 200;
  */
 export async function readChangelog(options: ChangelogHistoryOptions): Promise<ChangelogAnswer> {
   const cwd = options.cwd ?? options.root;
+  // Absolute, because git reads a relative pathspec against the directory it was
+  // run in — and by default that directory is the root itself, so a relative root
+  // asked about `<root>/<root>` and found nothing there. Which is the fifth way to
+  // produce no commits, and the only one that looked like an answer: git ran, the
+  // checkout was a repository, the baseline commit was right there, and the
+  // reading said the baselines had never been explained.
+  const under = resolve(options.cwd ?? process.cwd(), options.root);
   const git = options.git ?? runCommand;
   const limit = options.limit ?? DEFAULT_LIMIT;
   const bounded: string[] = [];
@@ -141,7 +153,7 @@ export async function readChangelog(options: ChangelogHistoryOptions): Promise<C
     `--max-count=${String(limit)}`,
     ...(options.since === undefined ? [] : [`${options.since}..HEAD`]),
     '--',
-    options.root,
+    under,
   ]);
   if (!log.ok) return log.answer;
 

@@ -1,5 +1,6 @@
 import { changelogOf, isRecorded, renderCommitMessage } from '@variance-authority/report';
 import type { RunReport } from '@variance-authority/report';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readChangelog, wasRead, type ChangelogAnswer } from './changelog.js';
 import { runCommand, type CommandResult, type CommandRunner } from './lfs.js';
@@ -165,6 +166,49 @@ describe('what a repository can say about its own baselines', () => {
     expect(wasRead(answer)).toBe(false);
     if (wasRead(answer)) return;
     expect(answer.because).toContain('v9.9.9..HEAD');
+  });
+
+  it('asks about the root the caller named, not one relative to where git ran', async () => {
+    // The path git is told to filter on is read against the directory git runs in,
+    // and that directory defaults to the root — so a relative root spelled the way
+    // this package's own README spells it asked about `<root>/<root>`. Nothing is
+    // committed there, so the reading came back empty, which is the one sentence
+    // this module may not say by accident: no baseline has ever been explained.
+    //
+    // This git answers the way git does — the pathspec it was handed, resolved
+    // against the directory it was run in, has to be the root that holds the
+    // baselines — rather than answering whatever it is asked.
+    const asGitWould =
+      (root: string): CommandRunner =>
+      (_command, args, options) => {
+        const key = args[0] ?? '';
+        if (key === 'rev-parse') return Promise.resolve({ code: 0, stdout: 'false\n', stderr: '' });
+        const pathspec = args[args.length - 1] ?? '';
+        const asked = resolve(options?.cwd ?? process.cwd(), pathspec);
+        return Promise.resolve({
+          code: 0,
+          stdout:
+            asked === resolve(root)
+              ? log([['8888888888888888', '2026-08-21T00:00:00Z', message()]])
+              : '',
+          stderr: '',
+        });
+      };
+
+    const relative = await readChangelog({
+      root: '.variance/baselines',
+      git: asGitWould(resolve('.variance/baselines')),
+    });
+    if (!wasRead(relative)) throw new Error(relative.because);
+    expect(relative.commits).toHaveLength(1);
+
+    const elsewhere = await readChangelog({
+      root: '.variance/baselines',
+      cwd: '/repo',
+      git: asGitWould('/repo/.variance/baselines'),
+    });
+    if (!wasRead(elsewhere)) throw new Error(elsewhere.because);
+    expect(elsewhere.commits).toHaveLength(1);
   });
 
   it('says when the limit, not the history, ended the reading', async () => {
