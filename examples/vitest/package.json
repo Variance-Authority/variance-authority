@@ -1,0 +1,16 @@
+{
+  "name": "@variance-authority/example-vitest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "variance": "variance"
+  },
+  "devDependencies": {
+    "@variance-authority/cli": "^0.0.0-beta.1",
+    "@variance-authority/unit-test": "^0.0.0-beta.1",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.9"
+  }
+}
