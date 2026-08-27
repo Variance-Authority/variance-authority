@@ -24,8 +24,8 @@ import { countNames, readSurface } from '@variance-authority/package';
  * Reading is from manifests and source, never from `dist` — but this runner
  * reaches the reader through its own `exports`, so `yarn build` has to have run
  * before `yarn surface` does. That is a precondition of the runner, not of the
- * reading: the twenty-five packages it reports on are read whether or not any of
- * them has ever been compiled.
+ * reading: the packages it reports on are read whether or not any of them has
+ * ever been compiled.
  */
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');

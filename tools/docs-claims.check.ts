@@ -398,7 +398,7 @@ describe('the documented vocabulary is the real one', () => {
 /**
  * The fleet listing on the site is the one every manifest points at.
  *
- * All 28 manifests set `homepage` to the `#packages` anchor, so a package the
+ * Every manifest sets `homepage` to the `#packages` anchor, so a package the
  * grid does not name publishes a registry link to a page that does not mention
  * it. The grid also went unrendered once — written, imported by nothing, and
  * therefore checked by nothing — which is how it came to list 22 of 25 boxes

@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { compareValues, shapeValue } from '@variance-authority/core';
-import { BASELINE, countOf } from './surface.mjs';
+import { BASELINE, ROOT, countOf } from './surface.mjs';
 
 /**
  * What we publish is a subject, and this is its baseline.
@@ -91,5 +92,63 @@ describe('published surface', () => {
     // A resolver bug returns nothing rather than something wrong, and a baseline
     // rewritten from an empty surface would then agree with it forever.
     expect(countOf(produced())).toBeGreaterThan(1000);
+  });
+});
+
+/** A number, spelled or dialled, applied to what this workspace holds. */
+const NUMBERED =
+  /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|hundred|thousand)(?:-\w+)?[ -](?:packages|names|manifests|boxes|workspaces)\b/gi;
+
+/** `over a thousand names` is a floor and stays true; `fourteen hundred` is not. */
+const FLOORED = /\b(?:over|than|least|about|around|nearly|almost)\s+(?:a\s+)?$/i;
+
+/** The sizes a text states outright, floors excluded. */
+function counted(text: string): string[] {
+  return [...text.matchAll(NUMBERED)]
+    .filter((match) => !FLOORED.test(text.slice(Math.max(0, match.index - 24), match.index)))
+    .map((match) => match[0].trim());
+}
+
+/**
+ * Prose that describes this reading states a floor, not a count.
+ *
+ * `packages/help/src/server.ts` justifies re-reading the checkout on every MCP
+ * request by naming what the reading costs, and it named it as "twenty-five
+ * packages and fourteen hundred names". True when written, wrong three packages
+ * later, and wrong in the silent direction — nothing reads a comment, and that
+ * one is not the server's self-description either, so no client could ever have
+ * contradicted it. `tools/surface.mjs` carried the same twenty-five.
+ *
+ * Here rather than with the documentation rules because the floor is already in
+ * this file: `is large enough that a silent emptying would show` refuses a
+ * surface under a thousand names, which is the same thousand the prose claims.
+ * One number, asserted once, quoted in words next door.
+ *
+ * Deliberately not a general ban on counting packages. ADR-0024 says "it held
+ * for fourteen packages and then stopped answering the question anyone had",
+ * and that sentence is a record of when a rule broke — it is *supposed* to stay
+ * at fourteen. The difference is tense, which no regular expression can see, so
+ * the list is named: the files that narrate the reading in the present tense.
+ */
+describe('what the prose claims about this reading', () => {
+  /** Present tense about the current workspace, as opposed to a record of history. */
+  const NARRATORS = ['packages/help/src/server.ts', 'tools/surface.mjs'];
+
+  it('still catches the sentence it was written for, and lets a floor through', () => {
+    // Verbatim from `server.ts`, so a loosened pattern cannot quietly turn the
+    // rule below into one that reads every file and finds nothing by construction.
+    expect(counted('Twenty-five packages and fourteen hundred names take under 200ms')).toEqual([
+      'Twenty-five packages',
+      'hundred names',
+    ]);
+    expect(counted('every package it publishes, well over a thousand exported names')).toEqual([]);
+    expect(counted('and more than 25 packages went past')).toEqual([]);
+  });
+
+  it.each(NARRATORS)('%s counts no packages and no names', (file) => {
+    expect(
+      counted(readFileSync(join(ROOT, file), 'utf8')),
+      `${file} states a size the next package falsifies; say a floor instead`,
+    ).toEqual([]);
   });
 });

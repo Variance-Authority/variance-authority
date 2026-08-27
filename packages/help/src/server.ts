@@ -12,9 +12,16 @@ import { HELP } from './tools.js';
  * falsely — the agent asking is the agent that just changed the file.
  *
  * So every request re-reads, and the cost is the reason that is affordable: the
- * reading is manifests and module records, not a compilation. Twenty-five
- * packages and fourteen hundred names take under two hundred milliseconds, which
- * is less than the model spends deciding what to ask next.
+ * reading is manifests and module records, not a compilation. Reading this
+ * workspace whole — every package it publishes, well over a thousand exported
+ * names — costs less than the model spends deciding what to ask next.
+ *
+ * The scale is a floor rather than a count, because a count is a sentence the
+ * next package falsifies and nothing here would notice: this is a comment, not
+ * the server's self-description — `initialize` sends a name and a version, and
+ * no prose in this file reaches a client. `tools/surface.check.ts` holds the floor
+ * to the recorded surface, which is what makes the sentence above a claim rather
+ * than a decoration.
  */
 
 export interface WorkspaceOptions extends HelpOptions {
