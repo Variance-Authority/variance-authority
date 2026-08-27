@@ -23,7 +23,7 @@ for another fetch runtime, but the package makes no portability promise; the
 operator owns that deployment's platform limits. The name says what it is rather
 than where it runs.
 
-The report and run pipeline remain elsewhere in the repository. This package
+Producing runs and reports is the job of `@variance-authority/cli`. This package
 stores the evidence they send and gives a reviewer a place to inspect and settle
 it; it does not render subjects or decide what a run should contain.
 
@@ -60,16 +60,13 @@ operator supplies the deployment and credentials.
 | `@variance-authority/tribunal/worker` | D1, R2, two tokens | `createTribunal` — one `fetch` handler |
 | `@variance-authority/tribunal/worker-entry` | the bindings, as an `env` | the deployable module: `export default { fetch }`, and `wrangler.jsonc` beside it |
 | `@variance-authority/tribunal/ui` | React | the review surface, its JSON client, its stylesheet |
-| `@variance-authority/tribunal/next` | an App Router app | `createTribunalRoutes` — the vinext wiring |
+| `@variance-authority/tribunal/next` | an App Router app | `createTribunalRoutes` — route handlers for a Next.js App Router |
 | `@variance-authority/tribunal/testing` | Node 22 | D1 over `node:sqlite`, an in-memory bucket |
 
-**The table is for reading, not for slimming an install.** Everywhere else in
-this repository a package is cut by its requirements because a *tool* that
-drags a browser or a socket in behind your back has decided something for you.
-This is not a tool. It is one service, deployed once, and a service is entitled to
-whatever it needs to serve — so React is an ordinary production dependency even
-though only `/ui` and `/next` touch it. The rows above say which entrypoint needs
-what because that is worth knowing when you read the code or split the deployment
+**The table is for reading, not for slimming an install.** This is one service,
+deployed once, so React is an ordinary production dependency even though only
+`/ui` and `/next` touch it. The rows above say which entrypoint needs what,
+which is worth knowing when you read the code or split the deployment
 across two Workers, not because the package is trying to keep an install small.
 
 ## Wiring it up
@@ -211,7 +208,7 @@ export default async function VariancePage(): Promise<React.ReactElement> {
 ```
 
 ```ts
-// app/variance/[[...path]]/route.ts — the vinext half
+// app/variance/[[...path]]/route.ts
 import type { D1Like, R2Like } from '@variance-authority/tribunal';
 import { createTribunalRoutes } from '@variance-authority/tribunal/next';
 import { createTribunal } from '@variance-authority/tribunal/worker';

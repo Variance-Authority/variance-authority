@@ -194,6 +194,7 @@ Two boundaries matter when reading the field:
 and antialiasing forgiveness is not the one on the severity axis: `pixelmatch`
 decides it from a neighbourhood of *both* images, so it can treat two pixels
 carrying an identical difference value oppositely. No threshold on any per-pixel
-field reproduces that, and
-field reproduces that.
+field reproduces that, because the decision is not a property of the pixel.
+Keep both: the field for how far a change reaches, the policy for whether a
+renderer’s antialiasing counts as a change at all.
 

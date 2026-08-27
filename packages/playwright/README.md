@@ -46,12 +46,11 @@ would put a node module in a bundle destined for a page.
 
 ## The harness: one Chromium, one page, one navigation
 
-**A warm capture costs roughly a twenty-sixth of a cold one** — 9.0 ms against
-233.3 ms over 48 renders on the machine that last ran
-`yarn workspace @variance-authority/example-kitchen-sink bench`, 7.5 against 205
-on an earlier one. The milliseconds are that machine's; the ratio is the whole
-argument for persistence, and it is why the `chromium` semantic tier is
-affordable at all.
+**A warm capture costs roughly a twenty-sixth of a cold one.** Measured over 48
+renders, a capture into an already-open page took about 9 ms against about 233 ms
+for one that launched a browser first. Absolute numbers depend on your machine;
+the ratio is why the harness keeps one Chromium and one page for a whole run
+instead of opening a browser per subject.
 
 ```ts
 import { createHarness } from '@variance-authority/playwright';

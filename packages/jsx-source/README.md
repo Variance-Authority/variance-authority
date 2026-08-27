@@ -33,9 +33,9 @@ transform in development mode passes `{fileName, lineNumber, columnNumber}` to
 the runtime as the fifth argument of `jsxDEV`; the classic transform passes the
 same object as a `__source` prop. The information is not missing from your build.
 
-React 19 discards it on both paths. Its `jsxDEV` export takes four parameters and
+React 19 discards it on both paths: its `jsxDEV` export takes four parameters and
 synthesizes its own `Error` for the fifth, and `createElement` skips `__source`
-by name while copying config into props. Both read in 19.2.8.
+by name while copying config into props.
 
 So the last hop is the one to supply. This package is React's JSX runtime with
 one line added: the location is written onto the props object under a symbol, and
