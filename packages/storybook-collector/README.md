@@ -103,9 +103,11 @@ npx variance run --config variance.config.json
 ```
 
 Each run writes `.variance/report.json`, the artifact everything else reads.
-Run `npx variance report --config variance.config.json --format html` (redirect
-the output to a file) and open the result in a browser to see before/diff/after
-images per changed story, grouped by cause rather than by story.
+Run `npx variance report --config variance.config.json --format html >
+.variance/report.html` and open the result in a browser to see before/diff/after
+images per changed story, grouped by cause rather than by story. The page
+references its images relatively, so it belongs beside the `report` path this
+config declares; written anywhere else it shows broken images.
 
 The first successful run exits `1` and reports each story as `new`; a
 baseline — the stored snapshot a subject is compared against — nobody

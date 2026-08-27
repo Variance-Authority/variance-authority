@@ -76,7 +76,7 @@ not performed rather than pretending a network endpoint is healthy.
 
 ```bash
 npx variance run --config variance.config.json
-npx variance report --config variance.config.json --format html > .variance/report.html
+npx variance report --config variance.config.json --format html > out/report.html
 npx variance accept --config variance.config.json story:checkout--empty
 npx variance run --config variance.config.json
 ```
