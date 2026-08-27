@@ -70,10 +70,14 @@ export function batching<In, Out>(
   const windowMs = Math.max(0, options.windowMs ?? 0);
 
   let waiting: Waiting<In, Out>[] = [];
-  let scheduled = false;
+  let scheduled: ReturnType<typeof setTimeout> | undefined;
 
   function flush(): void {
-    scheduled = false;
+    // Cleared rather than left to fire, because a full batch flushes early and
+    // would otherwise leave a timer behind that holds the process open past the
+    // work — the case that once argued for `unref`, which cost the send itself.
+    if (scheduled !== undefined) clearTimeout(scheduled);
+    scheduled = undefined;
     if (waiting.length === 0) return;
 
     const batch = waiting;
@@ -126,12 +130,15 @@ export function batching<In, Out>(
         return;
       }
 
-      if (scheduled) return;
-      scheduled = true;
-      // `unref` where it exists, so a pending window never holds a process open
-      // past the work — a CLI that exits on the last render must not wait 10 ms
-      // for a batch that has already been sent.
-      const timer = setTimeout(flush, windowMs);
-      (timer as { unref?: () => void }).unref?.();
+      if (scheduled !== undefined) return;
+      // Ref'd, because this timer *is* the send. Unref'd, a process whose only
+      // remaining work is the batch it is waiting on exits before the timer
+      // fires: the request never leaves, every caller's promise stays pending
+      // forever, and Node reports an unsettled await rather than a failed render.
+      // That is the ordinary shape of a client — a run that offloaded rendering
+      // is holding no browser, no server and no socket of its own, so the batch
+      // is the only thing left. The window is bounded and the fetch holds the
+      // process from there.
+      scheduled = setTimeout(flush, windowMs);
     });
 }

@@ -56,6 +56,49 @@ describe('calls that overlap travel together', () => {
     expect(batches).toEqual([[1, 2], [3, 4], [5]]);
   });
 
+  it('keeps the process alive until the batch it is holding has left', async () => {
+    // The timer is the send, so it has to count as work. Unref'd it did not: a
+    // client process holds no browser, no server and no socket of its own, so a
+    // pending batch was the only thing left in the loop — Node saw an empty loop,
+    // exited, and the request never went out. Every caller's promise stayed
+    // pending, and a render that never happened reported nothing at all.
+    const opened: { handle: NodeJS.Timeout; refs: boolean; done: boolean }[] = [];
+    const realSet = globalThis.setTimeout;
+    const realClear = globalThis.clearTimeout;
+
+    globalThis.setTimeout = ((handler: () => void, ms?: number) => {
+      const handle = realSet(() => {
+        seen.done = true;
+        handler();
+      }, ms);
+      const seen = { handle, refs: handle.hasRef(), done: false };
+      opened.push(seen);
+      return handle;
+    }) as typeof globalThis.setTimeout;
+    globalThis.clearTimeout = ((handle: NodeJS.Timeout) => {
+      for (const seen of opened) if (seen.handle === handle) seen.done = true;
+      realClear(handle);
+    }) as typeof globalThis.clearTimeout;
+
+    try {
+      const { send, batches } = recorder();
+      const call = batching(send, { maxBatch: 2 });
+      const pending = Promise.all([call(1), call(2), call(3)]);
+
+      expect(opened).not.toEqual([]);
+      expect(opened.every((timer) => timer.refs && timer.handle.hasRef())).toBe(true);
+
+      await pending;
+      expect(batches).toEqual([[1, 2], [3]]);
+      // And nothing outlives the work: the full batch flushed early, so the timer
+      // it opened is cleared rather than left holding an idle process open.
+      expect(opened.filter((timer) => !timer.done)).toEqual([]);
+    } finally {
+      globalThis.setTimeout = realSet;
+      globalThis.clearTimeout = realClear;
+    }
+  });
+
   it('answers each caller its own item, by position', async () => {
     const call = batching<number, string>(async (items) =>
       items.map((item) => ({ ok: true as const, value: `v${item}` })),
