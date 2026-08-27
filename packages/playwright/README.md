@@ -2,9 +2,15 @@
 
 # @variance-authority/playwright
 
+> A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 Use this package when your integration owns a browser harness or needs to turn a
 `RenderDocument` into a raster. For an existing Playwright Test suite, start
-with [`@variance-authority/playwright-test`](../playwright-test); for CLI route or
+with `@variance-authority/playwright-test`; for CLI route or
 Storybook collection, use the corresponding collector. This lower-level package
 does not choose subjects, mount application state, or build a page agent.
 
@@ -206,7 +212,7 @@ browser.
 | `concurrency` | `1` | how many documents may be painted at once. Above 1 each render leases its own page, because `setContent` replaces a page's whole document. Worth having: the raster tier is where a run's time is |
 
 It satisfies the `Renderer` contract from
-[`@variance-authority/raster`](../raster) — the same one a renderer across a
+`@variance-authority/raster` — the same one a renderer across a
 network satisfies, which is what makes offloading a wiring decision made once at
 the top rather than a rewrite.
 
@@ -219,6 +225,3 @@ A bundle that throws leaves the agent global undefined, and the failure would
 otherwise surface as a timeout with no cause. Page-side errors are recorded and
 reported, so `React is not defined` reads as `React is not defined`.
 
-## Reading
-
-- [ADR-0002](../../docs/context/adr/0002-observation-profiles.md) — the two rendering surfaces

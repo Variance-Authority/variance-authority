@@ -2,6 +2,12 @@
 
 # @variance-authority/storybook-collector
 
+> Turn a built or already-served Storybook into Variance Authority subjects.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a browser binary and a built or already-served Storybook. The
 built `index.json` is the input; `.storybook` configuration is not read.
 
@@ -11,7 +17,7 @@ want source-attributed visual, semantic, accessibility, and localization
 findings without writing a browser harness.
 
 This is the Storybook adapter, not the `variance` binary. Pair it with
-[`@variance-authority/cli`](../cli).
+`@variance-authority/cli`.
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/storybook-collector
@@ -60,7 +66,7 @@ server already emits — a story that settled on its digest resolves nothing —
 while React 18 keeps the transform's own location on the fiber and needs no
 resolving at all. Against a **built, minified** Storybook there is no such capture, and the
 way to have it there is the
-[`@variance-authority/jsx-source`](../jsx-source) plugin in your `viteFinal`
+`@variance-authority/jsx-source` plugin in your `viteFinal`
 with `esbuild.jsxDev` on. A report prefers the exact location wherever it comes
 from, and this collector makes it repository-relative. The plugin does not take
 `jsxImportSource`, so a Storybook already compiling against Emotion or theme-ui
@@ -104,7 +110,7 @@ nobody approved is not a pass. Review the candidates, accept the intended
 subjects, and run again. The next unchanged run exits `0` without painting
 subjects whose stored document digest already proves they did not move.
 
-The executable [`storybook-case`](../../cases/storybook-case) demonstrates the
+The executable `storybook-case` demonstrates the
 complete cycle against a Storybook-built artifact: new → accept → unchanged → a
 `Button` edit changing exactly the five stories that render it.
 
@@ -158,8 +164,7 @@ export default storybookCollector({
 
 A declared story waits for nothing, and is refused if it turns out to have
 settled — a declaration that outlived its subject is the same nondeterminism from
-the other side. The decision is
-[ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md).
+the other side.
 
 ## When integration fails
 
@@ -191,9 +196,9 @@ the other side. The decision is
 ## Boundaries
 
 This package handles Storybook only. For pages your application already serves,
-use [`@variance-authority/route-collector`](../route-collector). For an existing
+use `@variance-authority/route-collector`. For an existing
 Playwright test, use
-[`@variance-authority/playwright-test`](../playwright-test), where the test body
+`@variance-authority/playwright-test`, where the test body
 already performs navigation, mounting, and readiness.
 
 Cause-first ordering also depends on the baseline carrying component hashes. A

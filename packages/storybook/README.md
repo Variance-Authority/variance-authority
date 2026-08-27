@@ -2,9 +2,15 @@
 
 # @variance-authority/storybook
 
+> Storybook index parsing, subject planning and a host-neutral preview driver.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 Use this package when you need Storybook index parsing, subject planning, or a
 host-neutral preview driver. For the complete CLI/browser workflow, use
-[`@variance-authority/storybook-collector`](../storybook-collector). This package
+`@variance-authority/storybook-collector`. This package
 does not mount stories or choose a browser for you.
 
 **Requires:** a built Storybook's `index.json` as a value. `storybook/read`
@@ -62,7 +68,7 @@ console.log(plan.subjects.map(({ story }) => story.id));
 
 The snippet above is the smallest complete path: it reads the built artifact and
 returns an ordered, policy-filtered plan. It does not open a browser. The CLI
-adapter in [`@variance-authority/storybook-collector`](../storybook-collector)
+adapter in `@variance-authority/storybook-collector`
 owns the browser and capture callback for a normal visual run.
 
 ## Drive an existing preview
@@ -134,10 +140,6 @@ quiescence as an explicitly weaker fallback that says so in the outcome.
 Nothing here prunes Storybook's chrome, and it does not have to. The story mounts
 into `#storybook-root`, so the preview reset, the addon layout and the error
 overlay are outside the subject subtree and are dropped by ordinary CSS
-applicability pruning ([ADR-0003](../../docs/context/adr/0003-cruft-removal-and-css-applicability.md)).
+applicability pruning.
 A denylist would be a second normalization ruleset, versioned by nobody.
 
-## Reading
-
-- [ADR-0020](../../docs/context/adr/0020-read-the-artifact-not-the-configuration.md) — why this reads `index.json` and not `.storybook/`
-- [`cases/storybook-case`](../../cases/storybook-case) — a real Storybook, built by Storybook, read from outside

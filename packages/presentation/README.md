@@ -2,6 +2,12 @@
 
 # @variance-authority/presentation
 
+> Sense spacing, alignment, prominence and repetition inside one live interface, as evidence an agent can read.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a `RawCapture`; the live sensing entry creates one through
 Playwright. Layout-derived evidence is available only when the capture's profile
 observes computed style and layout.
@@ -309,6 +315,3 @@ The stored signal reports consequence only. Renderer impact still answers how
 far a changed property can reach, and project policy still decides whether any
 finding blocks a run. A collector that participates in the general regression
 pipeline returns this value as its optional `presentation` field.
-
-See [Presentation intelligence](../../docs/presentation.md) for the report model,
-finding boundaries, and paint layers.

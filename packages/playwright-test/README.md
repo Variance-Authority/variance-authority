@@ -2,6 +2,12 @@
 
 # @variance-authority/playwright-test
 
+> Add a source-aware visual observation to a Playwright test that already knows how to reach the state.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a Playwright test run with an already-opened `Page`, a non-null
 viewport, and a browser binary on the machine.
 
@@ -273,9 +279,7 @@ test('the cart is reviewed while it loads', async ({ page }, testInfo) => {
 
 The declaration is checked in both directions: a subtree declared as a loading
 capture that turns out to have settled throws as well, because a declaration
-that outlived its subject is the same nondeterminism from the other side. The
-decision is
-[ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md).
+that outlived its subject is the same nondeterminism from the other side.
 
 ## Read and act on failures
 
@@ -304,10 +308,10 @@ This package does not merge Playwright shards into one docket. Playwright's
 `--shard` can still run the tests, but each shard owns its own result set.
 
 For a Storybook inventory use
-[`@variance-authority/storybook-collector`](../storybook-collector). For a map
+`@variance-authority/storybook-collector`. For a map
 of served pages use
-[`@variance-authority/route-collector`](../route-collector). For two documents
+`@variance-authority/route-collector`. For two documents
 already in hand or a custom renderer/store composition, use
-[`@variance-authority/observe`](../observe).
+`@variance-authority/observe`.
 For browserless Jest or Vitest acquisition followed by a later renderer, use
-[`@variance-authority/unit-test`](../unit-test).
+`@variance-authority/unit-test`.

@@ -2,6 +2,12 @@
 
 # @variance-authority/sense
 
+> Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a readable checkout for `scanRelations`, or source text plus a
 file/module id for the pure readers and transform. Resolution of bare specifiers
 also requires the checkout's installed dependencies and any `tsconfig.json` path
@@ -20,11 +26,14 @@ product source, attributes entered regions to completed test files, and writes
 the coverage index used for selection. Vitest still collects and executes every
 test inside each selected file.
 
+```bash
+npm install --save-dev @variance-authority/sense
+```
 ## Start with source selection
 
 The main entrypoint walks the configured directories, follows resolvable module
 and stylesheet references, and returns one `FileRecord` per file. Pass those
-records to [`@variance-authority/core`](../core), which owns the graph and the
+records to `@variance-authority/core`, which owns the graph and the
 selection rules.
 
 Prerequisites are a readable checkout, installed dependencies for bare
@@ -98,9 +107,7 @@ The parse section is keyed by content digest. The record section is additionally
 keyed by the repository path layout and resolution settings, because resolution
 can change while file bytes stay the same. `gitDigests` supplies the content
 digests from Git when available; `scanRelations` calls it unless `digests: false`
-or a caller-provided map is used. The
-[binary format](../../docs/source-index.md) documents the container, columns and
-rejection rules.
+or a caller-provided map is used.
 
 ## Instrument one module
 
@@ -132,9 +139,7 @@ transform does not print or source-map the file.
 Test selection is added to a runner configuration or CI job; adopters do not
 write an adapter or collector. It instruments modules after the runner’s
 transform and records coverage at test-file granularity. Its selector returns
-test files to run, never individual test cases or a replacement runner. The
-runner seams and path-index contract are in
-[`spec 0028`](../../docs/specs/0028-the-instrument.md).
+test files to run, never individual test cases or a replacement runner.
 
 If a module cannot be parsed, `instrument` returns `undefined`; treating that as
 an empty block list would turn “not instrumented” into “not executed”. A function
@@ -316,6 +321,4 @@ throws.
 
 ## Related contracts
 
-- [`@variance-authority/core`](../core) turns records into relations and answers selection questions.
-- [`docs/selecting.md`](../../docs/selecting.md) describes the product-level selection behavior.
-- [`docs/specs/0028-the-instrument.md`](../../docs/specs/0028-the-instrument.md) sets the acceptance contract for the runner adapter and path index.
+- `@variance-authority/core` turns records into relations and answers selection questions.

@@ -2,6 +2,12 @@
 
 # @variance-authority/package
 
+> Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a workspace on a disk this process can read — a root `package.json`
 whose `workspaces` field names the members, and, for any package that publishes
 compiled declarations, a `tsconfig.json` saying which directory they were
@@ -12,6 +18,9 @@ the subpaths each manifest opens and every name reachable through them. It reads
 source and manifests directly; it does not need a build or compare two readings
 for you.
 
+```bash
+npm install --save-dev @variance-authority/package
+```
 ## Entrypoints
 
 | entrypoint | requires | holds |
@@ -93,7 +102,7 @@ that break on a refactor nobody thought was breaking.
 ## Compare two readings
 
 The value is JSON. Hand it to a snapshot assertion, to `jsondiffpatch`, to
-whatever you already have. Handed to [`@variance-authority/core`](../core) it
+whatever you already have. Handed to `@variance-authority/core` it
 gains the part neither a reader nor a comparison supplies: every delta carries a
 fingerprint that is stable across commits, so an approval keeps meaning the same
 thing next week.

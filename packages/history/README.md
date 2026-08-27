@@ -2,6 +2,12 @@
 
 # @variance-authority/history
 
+> Retain visual-regression observations across runs and answer churn, flakiness, reach and token-drift questions.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 Use this package when a visual-regression pipeline needs to retain observations
 across runs and turn them into churn, flakiness, reach, or token-drift answers.
 The root entrypoint is pure contract and arithmetic; `history/client` is the
@@ -14,10 +20,13 @@ A single run cannot describe accumulation: a button can gain 2px across eleven
 approved runs without any one review seeing the 22px travel. History keeps the
 rows and the arithmetic that makes that sum observable.
 
+```bash
+npm install --save-dev @variance-authority/history
+```
 ## Contract and storage boundary
 
 This package holds **no storage**. That is a boundary, not an omission — storage
-is [`@variance-authority/server`](../server), run by the operator in their own
+is `@variance-authority/server`, run by the operator in their own
 infrastructure.
 
 What is left is everything that can be argued about without a database: what a

@@ -2,6 +2,12 @@
 
 # @variance-authority/scenario
 
+> Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** semantic snapshots produced by the host. The optional archive also
 requires a writable directory.
 
@@ -123,6 +129,3 @@ instead of redacting it after hashing.
 `createScenarioArchive` takes `root`, the writable archive directory, and an
 optional `now` clock for deterministic expiry decisions. The system clock is the
 default. Neither option enables archival by itself; only calling `put` writes.
-
-See [Runtime scenarios](../../docs/scenarios.md) for the state-machine model,
-the three assessment pairs, and what the graph refuses to synthesize.

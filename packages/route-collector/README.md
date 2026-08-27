@@ -2,6 +2,12 @@
 
 # @variance-authority/route-collector
 
+> Turn pages your application already serves into Variance Authority subjects.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a browser binary and a reachable application, unless a static
 directory is supplied. Authenticated routes are unsupported.
 
@@ -10,7 +16,7 @@ package when the real application has already solved bundling, providers,
 routing, and mounting, and the remaining integration is to name the pages,
 bound the part that matters, and say when each one is ready.
 
-This is a collector for [`@variance-authority/cli`](../cli), not a crawler or a
+This is a collector for `@variance-authority/cli`, not a crawler or a
 web server for your application. Authentication has no cookie, header, or
 storage-state escape hatch.
 
@@ -181,8 +187,7 @@ export default routeCollector({
 
 A declared route waits for nothing, and is refused if it turns out to have
 settled — a declaration that outlived its subject is the same nondeterminism from
-the other side. The decision is
-[ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md).
+the other side.
 
 ### Sitemap helpers
 
@@ -225,7 +230,7 @@ before constructing the collector. They do not fetch a sitemap or crawl links.
   kind. Two cases have nothing to read — a **production** build, where React
   captures nothing, and React 18 compiled with the *classic* transform, which
   emits no location for React to keep. For both, add the
-  [`@variance-authority/jsx-source`](../jsx-source) plugin to the application's
+  `@variance-authority/jsx-source` plugin to the application's
   build and turn on `jsxDev` for that case. The plugin leaves `jsxImportSource`
   alone, so an application built against Emotion or theme-ui needs no compiler
   change either way.
@@ -236,7 +241,7 @@ before constructing the collector. They do not fetch a sitemap or crawl links.
 
 Routes navigate once per subject. Storybook can switch many subjects over one
 preview navigation, so use
-[`@variance-authority/storybook-collector`](../storybook-collector) when the
+`@variance-authority/storybook-collector` when the
 source is Storybook. If navigation and readiness already live in a Playwright
-test, use [`@variance-authority/playwright-test`](../playwright-test) and let the
+test, use `@variance-authority/playwright-test` and let the
 test body remain the collector.

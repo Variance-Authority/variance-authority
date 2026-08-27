@@ -1,6 +1,12 @@
 <p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
 
-# `@variance-authority/unit-test`
+# @variance-authority/unit-test
+
+> Capture a mounted DOM subject in a browserless Jest or Vitest process, then render and observe it later.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
 
 Capture a mounted DOM subject in a browserless Jest or Vitest process, then let
 `variance run` render and observe that artifact in a later process. The package
@@ -141,8 +147,7 @@ If its directory contains a value capture, collection
 reports that the material is a value capture while the run compares rendered
 documents; it does not turn that refusal into an unchanged result. The
 value-writing API is therefore usable independently, but the CLI/raster path
-does not compare value artifacts. See [spec 0031](../../docs/specs/0031-a-contract-is-a-subject.md)
-for the value material contract and its required comparison surface.
+does not compare value artifacts.
 
 ## Render later
 
@@ -186,6 +191,3 @@ Chromium. The first run exits 1: a new baseline is a review, not a pass.
 `variance run` reads document captures and uses its configured local or remote
 renderer, baseline store, comparison policy, and report. Use a fresh capture
 directory per run; the runner still owns test selection and retry lifecycle.
-
-See [`docs/surface.md`](../../docs/surface.md) for how this deferred-document
-route composes with in-place browser capture and the Storybook collector.

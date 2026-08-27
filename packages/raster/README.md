@@ -2,6 +2,12 @@
 
 # @variance-authority/raster
 
+> Pixel-tier contracts for Variance Authority: what a renderer and a store promise, and which policy a comparison ran under.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** nothing. No browser to launch, no directory to write, no port to
 bind, no runtime globals — the same `types: []` bar `core` clears.
 
@@ -11,23 +17,26 @@ promises, which policy a comparison ran under, which tricks a subject was held
 still with, whether it held still at all, and what the composition that produced
 an answer was.
 
+```bash
+npm install --save-dev @variance-authority/raster
+```
 ## Use this package when
 
 Install `@variance-authority/raster` when a caller already has decoded pixels or
 needs the contracts around rendering, storage, plans, and stability. It does not
 decode PNGs, launch a browser, write a baseline, or choose a test runner. Use
-[`@variance-authority/png`](../png) for PNG bytes and pass a `ChangeMask` here
+`@variance-authority/png` for PNG bytes and pass a `ChangeMask` here
 when the next step is region isolation or attribution.
 
 ## Package boundary
 
 | package | requires |
 |---|---|
-| [`@variance-authority/png`](../png) | a PNG codec |
-| [`@variance-authority/playwright`](../playwright) | a browser |
-| [`@variance-authority/store`](../store) | a filesystem |
-| [`@variance-authority/remote`](../remote) | a socket |
-| [`@variance-authority/observe`](../observe) | a PNG codec — it composes `png` with `core` and this package, and nothing else in this table |
+| `@variance-authority/png` | a PNG codec |
+| `@variance-authority/playwright` | a browser |
+| `@variance-authority/store` | a filesystem |
+| `@variance-authority/remote` | a socket |
+| `@variance-authority/observe` | a PNG codec — it composes `png` with `core` and this package, and nothing else in this table |
 
 Nothing here imports any of them. A team extending their own Playwright tests
 needs this vocabulary without a second browser; a team keeping baselines
@@ -59,13 +68,12 @@ socket.
 
 ## Interventions are not here
 
-They are in [`@variance-authority/core/format`](../core), and that is a claim
+They are in `@variance-authority/core/format`, and that is a claim
 about what they are rather than tidying. Holding a page still looks like something
 you do before you photograph it, but an animation in flight moves `transform`,
 which the *cheap* representation carries. A stabilization recipe is a render input
 on every tier, its digest is a field of `EnvironmentInputs`, and it belongs beside
-the key it is part of. See
-[`docs/stabilization.md`](../../docs/stabilization.md).
+the key it is part of.
 
 What is still here is the plan that names one:
 `defaultPlan({ stabilization })` folds `recipeDigest` into the plan identity, so
@@ -189,8 +197,3 @@ carrying an identical difference value oppositely. No threshold on any per-pixel
 field reproduces that, and
 field reproduces that.
 
-## Reading
-
-- [`docs/architecture.md`](../../docs/architecture.md) — the composition model
-- [ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md) — the two retention modes
-- [ADR-0012](../../docs/context/adr/0012-observability-and-the-damage-boundary.md) — what testability is allowed to cost

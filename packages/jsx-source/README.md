@@ -2,6 +2,12 @@
 
 # @variance-authority/jsx-source
 
+> Carry the file and line that wrote a JSX element as far as the rendered DOM node.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a build you control the JSX transform of, and a React runtime for
 it to resolve. Nothing imports this package — a compiler or a bundler does,
 because a setting told it to.
@@ -9,6 +15,9 @@ because a setting told it to.
 Keep the source location of every JSX element as far as the rendered DOM node, so
 a difference in a screenshot can name the file and line that wrote it.
 
+```bash
+npm install --save-dev @variance-authority/jsx-source
+```
 ## Use this package when
 
 Install `@variance-authority/jsx-source` for a production React bundle, or for
@@ -32,12 +41,12 @@ So the last hop is the one to supply. This package is React's JSX runtime with
 one line added: the location is written onto the props object under a symbol, and
 the props object is handed to React unchanged. React creates the element, React
 owns it, React validates it — and the location arrives at `fiber.memoizedProps`,
-where [`@variance-authority/react`](../react) reads it.
+where `@variance-authority/react` reads it.
 
 ## Check whether you need it
 
 **Against a React development build, you probably do not.**
-[`@variance-authority/react`](../react) reads two fields off the fiber before
+`@variance-authority/react` reads two fields off the fiber before
 anything here is involved, and between them they cover every dev server, Vitest
 and Jest:
 

@@ -2,6 +2,12 @@
 
 # @variance-authority/png
 
+> Decode, compare and diff PNGs without a browser: two buffers in, a mask out.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a runtime with `Buffer` — so Node, not a browser. Nothing to launch,
 nothing to write, nothing to reach. Two buffers in, a mask out.
 
@@ -11,10 +17,13 @@ isolation and attribution and renders nothing; a team whose images arrive from
 elsewhere takes only the reading end. Neither should have to launch Chromium to
 do it, and with the codec boxed on its own neither does.
 
+```bash
+npm install --save-dev @variance-authority/png
+```
 ## Use this package when
 
 Install `@variance-authority/png` in a Node process when the inputs are PNG
-bytes. Use [`@variance-authority/raster`](../raster) instead when a renderer
+bytes. Use `@variance-authority/raster` instead when a renderer
 already gives you RGBA pixels or when you need the policy and storage contracts
 without a codec. This package does not launch a browser, store a baseline, or
 decide a pass/fail verdict.
@@ -52,12 +61,12 @@ avoids a second decode.
 
 So this phase stops at the last artifact that still has **positions** in it, and
 the phases that turn positions into places and places into files come after, in
-[`core/attribute`](../core).
+`core/attribute`.
 
 ## The policy is not here
 
 A threshold and an antialiasing rule decide verdicts and belong in a plan's
-identity, so they live in [`@variance-authority/raster`](../raster) where a caller
+identity, so they live in `@variance-authority/raster` where a caller
 who never opens a PNG can read, compare and hash them.
 
 **Both policies are reported by default**, and that is a fairness rule rather
@@ -97,7 +106,7 @@ const observation = await observePngDifference({
 
 Decoding is the only part that needs a decoder, so it is the only part here. The
 field, the curve, the deltas and the artifact are arithmetic over two arrays and
-live in [`@variance-authority/raster/difference`](../raster) — which means a team
+live in `@variance-authority/raster/difference` — which means a team
 whose images arrive as raw RGBA, from a canvas or a WASM renderer or a
 framebuffer, never installs this package at all.
 

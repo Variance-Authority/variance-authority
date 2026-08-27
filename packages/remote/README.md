@@ -2,6 +2,12 @@
 
 # @variance-authority/remote
 
+> Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 Use this package when rendering or baseline storage must happen in another
 process or on another machine. The client and server share one HTTP protocol;
 the server wraps a renderer or store you provide.
@@ -9,6 +15,9 @@ the server wraps a renderer or store you provide.
 **Requires:** a port to bind for a server, or an endpoint to reach for a client.
 The package does not provide a renderer, a database, or a baseline policy.
 
+```bash
+npm install --save-dev @variance-authority/remote
+```
 ## What crosses the wire
 
 Render documents, rasters, baseline descriptions, and cache entries are already
@@ -120,7 +129,7 @@ to a deployed protocol at all.
 ## Validate remote records
 
 A record off a socket passes the same checks a record off a disk passes, from
-[`@variance-authority/raster`](../raster). Two copies of those checks would be two
+`@variance-authority/raster`. Two copies of those checks would be two
 ideas of what a baseline is, and the one that drifts is the one that accepts a
 record the other refuses.
 

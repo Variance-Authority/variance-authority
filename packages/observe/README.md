@@ -2,6 +2,12 @@
 
 # @variance-authority/observe
 
+> Compare render documents or rasters and receive one Variance Authority observation, whatever produced the images.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** by entrypoint, `observeRasters` needs only two rasters. Durable
 raster observation needs a store. Document paths need a renderer and store.
 
@@ -16,10 +22,10 @@ acquisition, renderer lifecycle, storage lifecycle, acceptance, and reporting
 to your application.
 
 If you want a ready-made integration rather than those responsibilities, start
-with [`@variance-authority/cli`](../cli),
-[`@variance-authority/storybook-collector`](../storybook-collector),
-[`@variance-authority/route-collector`](../route-collector), or
-[`@variance-authority/playwright-test`](../playwright-test).
+with `@variance-authority/cli`,
+`@variance-authority/storybook-collector`,
+`@variance-authority/route-collector`, or
+`@variance-authority/playwright-test`.
 
 Install this package when your integration can supply the renderer, raster
 store, and acceptance boundary:
@@ -197,6 +203,6 @@ Those are integration decisions, not omitted defaults.
 
 Import this composition when its fixed order is the order you want. If your
 pipeline needs another order, compose the public tools in
-[`@variance-authority/core`](../core),
-[`@variance-authority/raster`](../raster), and
-[`@variance-authority/png`](../png) directly.
+`@variance-authority/core`,
+`@variance-authority/raster`, and
+`@variance-authority/png` directly.

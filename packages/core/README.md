@@ -2,20 +2,29 @@
 
 # @variance-authority/core
 
+> The Variance Authority format, rules, comparison, attribution and verdicts. Pure data in, pure data out, no DOM and no I/O.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** nothing — not even a runtime with a `Buffer`. No DOM, no I/O, no
 async, enforced by its `tsconfig` (`lib: ES2022`, `types: []`), so "the core
 cannot peek at a live document" is a compile error rather than a code-review
-convention ([ADR-0006](../../docs/context/adr/0006-host-free-core.md)).
+convention.
 
 Pure data in, pure data out. Collectors extract; core normalizes and adjudicates.
 
+```bash
+npm install --save-dev @variance-authority/core
+```
 ## Use this package when
 
 Install `@variance-authority/core` when the input is already a capture, snapshot,
 render document, raster mask, or value. The package does not collect a DOM, read
-PNG bytes, launch a renderer, or select a test runner. Add [`@variance-authority/dom`](../dom)
-for a live DOM, [`@variance-authority/react`](../react) for React provenance, and
-[`@variance-authority/png`](../png) when the input is a PNG.
+PNG bytes, launch a renderer, or select a test runner. Add `@variance-authority/dom`
+for a live DOM, `@variance-authority/react` for React provenance, and
+`@variance-authority/png` when the input is a PNG.
 
 ## Entrypoints
 
@@ -146,9 +155,3 @@ spell the same way as a pass.
 A difference in conditions reported as a difference in the product is a
 confident wrong answer, and the confidence is what makes it expensive.
 
-## Reading
-
-- [ADR-0001](../../docs/context/adr/0001-toolchain-and-layout.md) — layout and direction
-- [ADR-0003](../../docs/context/adr/0003-cruft-removal-and-css-applicability.md) — CSS applicability pruning, 1010 rules → 1
-- [ADR-0007](../../docs/context/adr/0007-subject-boundary-is-the-component-tree.md) — the subject boundary
-- [ADR-0008](../../docs/context/adr/0008-per-profile-expectations.md) — undecidable / divergent / undeclared

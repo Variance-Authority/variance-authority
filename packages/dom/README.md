@@ -2,6 +2,12 @@
 
 # @variance-authority/dom
 
+> Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a live DOM in scope — a mounted element and the `document` that
 owns it. jsdom or a browser; it never asks which.
 
@@ -9,21 +15,23 @@ Extract a `RawCapture` from a mounted element. One implementation for both
 observation profiles: jsdom in a unit test, Chromium in a page, same code, same
 ruleset.
 
+```bash
+npm install --save-dev @variance-authority/dom
+```
 ## Use this package when
 
 Install `@variance-authority/dom` when a collector owns a live `Element`. The
 host supplies `document`, the mounted subject, viewport conditions, and any font
 or asset hashes it can verify. This package does not mount React, launch a
 browser, decode images, or normalize the capture; pass its result to
-[`@variance-authority/core`](../core). React attribution is optional and is
-injected by [`@variance-authority/react`](../react).
+`@variance-authority/core`. React attribution is optional and is
+injected by `@variance-authority/react`.
 
 ## Package boundary
 
 Deciding whether a CSS rule *applies* requires a live document. You cannot know
 whether `.card:hover .title` matches without something to match against, and
-`core` is forbidden from having one
-([ADR-0006](../../docs/context/adr/0006-host-free-core.md)).
+`core` is forbidden from having one.
 
 So applicability pruning happens here and nothing else does. Every other
 normalization rule must be versioned by the ruleset rather than by the collector,
@@ -38,8 +46,6 @@ parsed rules to the one rule that could reach the subject.
 A design system's stylesheet is almost entirely irrelevant to any one subject,
 and a comparison that carries it is comparing the document a subject happened to
 be mounted in.
-
-See [ADR-0003](../../docs/context/adr/0003-cruft-removal-and-css-applicability.md).
 
 ## Smallest working path
 

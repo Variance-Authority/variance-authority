@@ -2,6 +2,12 @@
 
 # @variance-authority/cli
 
+> Run the Variance Authority workflow from a project config: collect subjects, compare, render what moved, report, accept.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a project config plus the runtime resources it selects: a browser
 binary for Chromium, writable storage for directory baselines, `git` for LFS,
 or reachable services for remote rendering and storage.
@@ -32,11 +38,11 @@ The CLI deliberately does not guess how your application mounts. Point
 `subjects.collector` at one of the shipped adapters or at a collector module
 owned by your project:
 
-- [`@variance-authority/storybook-collector`](../storybook-collector) for a
+- `@variance-authority/storybook-collector` for a
   built or served Storybook;
-- [`@variance-authority/route-collector`](../route-collector) for served routes,
+- `@variance-authority/route-collector` for served routes,
   a sitemap, or a static build;
-- [`@variance-authority/playwright-test`](../playwright-test) instead of this
+- `@variance-authority/playwright-test` instead of this
   CLI when navigation and readiness already live in Playwright tests.
 
 ### 2. Add `variance.config.json`
@@ -99,7 +105,7 @@ why the baselines are what they are; `doctor` says what this machine
 can observe before a run rather than after one. `serve` exposes the report the
 last run wrote to an MCP client — an agent asks it what changed, which component
 and which file, over stdio, without re-running anything; the tools are
-[`@variance-authority/mcp`](../mcp)'s.
+`@variance-authority/mcp`'s.
 
 ### Changelog: explain a baseline update
 
@@ -157,8 +163,8 @@ Three things it will not do, and each of them is the point:
   could not see rather than presenting a window as a total.
 - **It refuses stores whose baselines are not commits, by name.** Under
   `ephemeral` retention there is no baseline to explain; behind a `remote` store
-  the explanation went to that service's record — [the review
-  surface](../tribunal) answers it there — and this command reads the log of a
+  the explanation went to that service's record — the review
+  surface answers it there — and this command reads the log of a
   checkout.
 
 `selection` is on its own line because `--all` and a named subject are different
@@ -319,13 +325,13 @@ out of a report score the run against itself — nothing can prevent that, but t
 tool never does it for you. Over-claiming is not an escape either: a claim
 reaching more subjects than it declared comes back `overreached`. It changes no
 verdict and no exit code; it reports on the run `run` already judged.
-[`examples/agent-claim`](../../examples/agent-claim) exercises every arm of it,
-and [`variance serve`](../mcp) exposes the same thing to an agent as
+`examples/agent-claim` exercises every arm of it,
+and `variance serve` exposes the same thing to an agent as
 `variance_adjudicate`.
 
 Those seven are the whole surface. **No command posts anything anywhere.**
 `comment` produces the body; sending it is
-[`.github/actions/variance`](../../.github/actions/variance)'s job, with the
+`.github/actions/variance`'s job, with the
 operator's own token, and the exit code and the report remain what a CI job
 actually gates on.
 
@@ -463,7 +469,7 @@ downloaded, so the run's inputs are the ones in the repository.
   // `relations` reads what imports what, so a changed stylesheet reaches the
   // components that rest on it instead of running everything; `changes` borrows
   // a monorepo tool's answer across the package boundary a specifier cannot
-  // cross. See ../../docs/selecting.md.
+  // cross.
   "source": {
     "dirs": ["src"],
     "relations": true,
@@ -475,7 +481,7 @@ downloaded, so the run's inputs are the ones in the repository.
 
   // What is not the subject. Every rule needs an id and a reason, and every rule
   // must name a `select` or a `fingerprints` — a rule scoped only by band would
-  // be a tolerance. See ../../docs/ignores.md.
+  // be a tolerance.
   "ignore": [
     { "id": "clock", "reason": "renders wall time", "select": "header time" }
   ]
@@ -485,7 +491,7 @@ downloaded, so the run's inputs are the ones in the repository.
 `subjects` is one of three kinds. `{ kind: "list", ids, collector }` and
 `{ kind: "storybook", index, collector }` name the subjects up front — **both
 need a collector**, and for Storybook that collector is
-[`@variance-authority/storybook-collector`](../storybook-collector) and five
+`@variance-authority/storybook-collector` and five
 lines. For anything else, neither a list of ids nor a story index says how to
 mount, and the mounting half is code you write. `{ kind: "collector", collector }`
 is the third: the collector discovers the subject list itself, which is what a
@@ -510,7 +516,7 @@ failure that produced it would skip every consumer of whatever changed.
 
 `renderer` points the run at a machine that is not this one:
 `{ "endpoint": "http://pinned-runner:7777" }`, served by `serveRenderer` from
-[`@variance-authority/remote`](../remote). It carries no token because
+`@variance-authority/remote`. It carries no token because
 `serveRenderer` has no authentication — a field accepting a credential nobody
 transmits would read as the endpoint being protected. It is refused together with
 `browser`, since the engine belongs to whichever machine paints. `variance doctor`
@@ -523,16 +529,14 @@ difference shape (`fingerprints`, copied out of a previous run's regions), may b
 narrowed by `subjects` or by `tags`, and may carry an `until` date after which it
 stops absorbing. A subject whose only differences were absorbed reports
 **`ignored`**, never `unchanged`, and every run prints a ledger naming the rules
-that absorbed nothing — the two states that make a masked suite rot. Full
-treatment with a case per situation in [`docs/ignores.md`](../../docs/ignores.md).
+that absorbed nothing — the two states that make a masked suite rot.
 
 The remaining top-level keys, each with its own page: `history` points the run at
 a history service, and is what makes `variance run` record observations and
-`variance accept` record approvals ([`docs/history.md`](../../docs/history.md));
+`variance accept` record approvals;
 `images` decides what a run writes alongside its report; `blank` replaces an
-image on the wire with a transparent one of the same intrinsic size
-([`docs/stabilization.md`](../../docs/stabilization.md)); `sensitivity` narrows a
-named subject by band ([`docs/ignores.md`](../../docs/ignores.md)); `decoder`
+image on the wire with a transparent one of the same intrinsic size; `sensitivity` narrows a
+named subject by band; `decoder`
 chooses the PNG implementation; `concurrency` bounds how many subjects are in
 flight; `intent` and `alone` say what this run is for and what it must not share
 a world with.
@@ -549,7 +553,7 @@ this run.
 ## Bitbucket Pipelines, and what carries to any CI
 
 There is a composite action for GitHub Actions
-([`.github/actions/variance`](../../.github/actions/variance)). There is no
+(`.github/actions/variance`). There is no
 second integration to install, and there does not need to be: **the exit code
 above is the whole interface**, so a CI that can run a command already has the
 gate. What a platform integration adds is the comment, and that is the only part
@@ -597,8 +601,7 @@ against GitHub's API and is the file to read while writing the other.
 The YAML is a platform example. Its `script` invokes the same `variance` binary
 used locally, while `after-script` owns the platform-specific API call that
 publishes the body. This package renders the body and marker but does not post
-anything; see [ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md)
-for the comment contract.
+anything.
 
 ## Acceptance mode boundary
 
@@ -620,7 +623,3 @@ out of unattended workflows.
 | A merged shard report is refused | The shards did not describe one compatible run or observed the same subject twice. | Align renderer identity, retention, and intent, then make the subject globs disjoint. |
 | A change is green but reported as `ignored` | Differences existed and declarations absorbed all of them. | Read the ignore and sensitivity registers; `ignored` is intentionally distinct from `unchanged`. |
 
-## Reading
-
-- [ADR-0017](../../docs/context/adr/0017-the-exit-code-is-the-interface.md) — why the exit code carries the verdict and the config is a file
-- [ADR-0019](../../docs/context/adr/0019-one-comment-that-leads-with-causes.md) — the CI story around it

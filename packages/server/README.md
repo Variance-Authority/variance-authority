@@ -2,9 +2,15 @@
 
 # @variance-authority/server
 
+> A self-hosted HTTP history service for Variance Authority observations and approvals.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 Run this package when a pipeline needs a self-hosted HTTP history service. It
 accepts observations and approvals, stores them in a backend, and answers the
-history queries defined by [`@variance-authority/history`](../history).
+history queries defined by `@variance-authority/history`.
 
 **Requires:** a port and a bearer token of at least 16 characters — it refuses to
 start without the token. The shipped backend adds a Node with `node:sqlite` (22+,

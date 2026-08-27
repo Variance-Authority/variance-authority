@@ -2,6 +2,12 @@
 
 # @variance-authority/session
 
+> Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a live DOM, and a `mount` function you write. It knows about React
 only through that function, so a session runs whatever a caller can put on a
 page.
@@ -13,13 +19,16 @@ shared-state probe. The caller supplies the mount function, so the same runner
 can host DOM-only subjects or a framework integration without importing that
 framework.
 
+```bash
+npm install --save-dev @variance-authority/session
+```
 ## Use this package when
 
 Install `@variance-authority/session` when one live DOM can host many subjects
 and the caller can provide the mount function. It is a library runner, not an
 automatic Playwright, Vitest, or Jest integration: those runners must call
-`createSession` and `session.run` themselves. Use [`@variance-authority/dom`](../dom)
-when you only need one capture, or use [`@variance-authority/react`](../react)
+`createSession` and `session.run` themselves. Use `@variance-authority/dom`
+when you only need one capture, or use `@variance-authority/react`
 to supply React provenance and readiness to the mount callback.
 
 ## Cost and trade-off
@@ -55,8 +64,6 @@ something the document can read about itself — a stylesheet, a root custom
 property, an attribute on the root or body, a stray body child, the title. That
 set was chosen for cost and it is the right set for the cost; it is also a small
 fraction of the ways one subject reaches another.
-
-See [ADR-0009](../../docs/context/adr/0009-sessions-detect-instead-of-rinse.md).
 
 ## Smallest working path
 
@@ -164,5 +171,4 @@ never saw either is reported as nothing at all. That is the two limits composing
 and it is the kind that becomes a false regression rather than a flake. Catching
 it means varying the world instead — collecting the subject in one nothing else
 has touched, which is what a `variance run` asks its collector for when a
-subject's pixels moved
-([spec 0012](../../docs/specs/0012-order-dependence-in-a-run.md)).
+subject's pixels moved.

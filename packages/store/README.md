@@ -2,6 +2,12 @@
 
 # @variance-authority/store
 
+> Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 Use this package when a comparison needs baselines on a filesystem. Choose the
 plain durable backend for a directory owned by one runner, or the LFS backend
 when the baseline images must travel with a branch.
@@ -12,11 +18,14 @@ assumption could not be checked.
 
 Both backends implement the same `RasterStore` contract.
 
+```bash
+npm install --save-dev @variance-authority/store
+```
 ## Choose a backend
 
 Everything about what a baseline *means* — the contract, the refusal, the checks
 a stored record passes before it is believed — is in
-[`@variance-authority/raster`](../raster), which requires nothing. That split is
+`@variance-authority/raster`, which requires nothing. That split is
 the reason a verdict cannot depend on where the bytes were kept. Each backend
 supplies bytes and metadata to the same validation and comparison contract.
 
@@ -55,10 +64,9 @@ through:
 | `cacheRoot` | `root` | where the render cache goes, since a durable store is also one. See the LFS table below; the argument is the same and so is the default |
 
 Both layouts keep the identity directory, because that partition is the only
-thing between a runner-image upgrade and a day of unattributable red. Which
-placement a project wants — and the one rule neither layout can enforce, that a
-committed root has to actually be committed — is
-[`placement.md`](../../docs/placement.md).
+thing between a runner-image upgrade and a day of unattributable red. Which placement a project wants is a project decision. Neither layout can
+enforce the one rule that matters: a committed root has to actually be
+committed.
 
 ## Missing and corrupt baselines
 
@@ -110,7 +118,7 @@ subject in the suite.
 Where baselines are commits, the commit message is where `variance accept` put
 the explanation of the update — prose for the reviewer, opaque versioned trailers
 for a parser (both are
-[`@variance-authority/report`](../report)'s `renderCommitMessage`). This is the
+`@variance-authority/report`'s `renderCommitMessage`). This is the
 other direction:
 
 ```ts
@@ -144,7 +152,3 @@ whole history. That is not refused, but the answer carries a `bounded` sentence
 saying what it could not see, alongside one for any commit whose record this
 reader could not decode and one for a limit the log filled.
 
-## Reading
-
-- [ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md) — durable vs ephemeral
-- [ADR-0016](../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) — why there are three backends and why the choice must not show

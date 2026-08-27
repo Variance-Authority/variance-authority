@@ -2,6 +2,12 @@
 
 # @variance-authority/help
 
+> Find the public name, signature, documentation and consumers of an exported TypeScript workspace symbol, over MCP.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a workspace on a disk this process can read, and — to serve it — a
 client that speaks MCP over stdio. Nothing has to have been built, and nothing is
 generated ahead of time.
@@ -134,9 +140,9 @@ that owns the transport or process streams.
 
 Three parts, and none of them is new here:
 
-- The reading is [`@variance-authority/package`](../package), which owns every
+- The reading is `@variance-authority/package`, which owns every
   decision about what a workspace publishes and what reaches for it.
-- The framing is [`@variance-authority/mcp`](../mcp), whose protocol half is
+- The framing is `@variance-authority/mcp`, whose protocol half is
   generic in what it serves — a JSON-RPC line is a JSON-RPC line whether the
   subject is a visual-difference report or an API.
 - What is left, and what is in this package, is the five questions and the words

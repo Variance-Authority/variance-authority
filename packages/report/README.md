@@ -2,6 +2,12 @@
 
 # @variance-authority/report
 
+> The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** nothing for the format. `report/file` requires a path this process
 can read and write.
 
@@ -10,6 +16,9 @@ then the process ends; this is the shape those answers take so they can be read
 afterwards, from a different process, on a different machine, by whoever or
 whatever is asking.
 
+```bash
+npm install --save-dev @variance-authority/report
+```
 ## Use this package when
 
 Install `@variance-authority/report` when a producer and its readers need a
@@ -75,9 +84,8 @@ an absent `presentation` member means nothing measured that boundary.
 Product-aware collectors return the signal with their collected subject. The
 CLI carries it through both compared and digest-settled paths, and the JSON file,
 HTML report, text report, MCP description, and Tribunal record read the same
-stored value without re-running presentation analysis. The producing API and a
-complete example live with
-[`@variance-authority/presentation`](../presentation#carry-presentation-impact-into-a-run-report).
+stored value without re-running presentation analysis. The producing API and a complete
+example live with `@variance-authority/presentation`.
 
 ## Format derivations
 
@@ -189,8 +197,8 @@ squash merge stops them being the last paragraph, and a reader that only looked
 there would silently return nothing.
 
 Reading it back where baselines are commits is
-[`@variance-authority/store`](../store)'s `readChangelog`; where they are rows it
-is [`@variance-authority/tribunal`](../tribunal)'s.
+`@variance-authority/store`'s `readChangelog`; where they are rows it
+is `@variance-authority/tribunal`'s.
 
 ## Validation boundaries
 

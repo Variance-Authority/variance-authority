@@ -2,6 +2,12 @@
 
 # @variance-authority/mcp
 
+> Expose a completed visual run and its source-to-test selection to an MCP client.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 Use this package when an MCP client needs to inspect a completed visual run or
 ask which named tests exercise source. The server reads supplied evidence and
 returns text; it never runs tests, rerenders a subject, changes a baseline, or
@@ -30,8 +36,8 @@ and it stops being asked the moment answering it requires speaking a protocol
 over a pipe.
 
 What a producer *wrote* is not here either. The visual report format belongs to
-[`@variance-authority/report`](../report), and the execution index belongs to
-[`@variance-authority/sense`](../sense). MCP reads both contracts; it owns
+`@variance-authority/report`, and the execution index belongs to
+`@variance-authority/sense`. MCP reads both contracts; it owns
 neither.
 
 ## Give an agent the tests for source
@@ -165,7 +171,7 @@ what makes the declaration worth reading.
 A claim carrying a field this resolution cannot check is named rather than
 dropped. An agent told `delivered` about a band nothing looked at has been told
 something the run never established, so the answer ends `Not checked here:
-bands`. [`examples/agent-claim`](../../examples/agent-claim) runs the whole
+bands`. `examples/agent-claim` runs the whole
 boundary — CLI and this tool, every verdict, one process.
 
 `variance_changelog` is the only one that answers about something that has not
@@ -196,8 +202,7 @@ same bytes, which of them disagree at one commit, and — for anything that move
 It is also where a flake gets named, and it can be named there because that is
 where the control group is. A movement nothing explains, in a subject that also
 failed to read the same way twice, is `flake`; the same movement in a subject
-nobody has read twice is `suspect`, which is a shortlist and not a verdict —
-the position in [`flakiness.md`](../../docs/flakiness.md) has not moved. Beside
+nobody has read twice is `suspect`, which is a shortlist and not a verdict. Beside
 each one it prints the subjects where that same component, with the same props,
 **held**. Those are the *stable states to refer to*, and without them
 "unexplained" is a shrug rather than a finding.

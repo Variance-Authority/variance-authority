@@ -2,6 +2,12 @@
 
 # @variance-authority/png-sharp
 
+> Faster PNG decoding for Variance Authority through sharp, for runtimes that can load a native addon.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** a runtime that can load a compiled native addon, and a platform
 somebody has published binaries for. Not a Worker, not an edge runtime, not a
 bundle that cannot carry a `.node` file. That requirement is the entire reason
@@ -13,7 +19,7 @@ The comparison is unchanged. Only the decoding is faster.
 
 Install `@variance-authority/png-sharp` alongside `@variance-authority/png` when
 the process can load Sharp's native addon and concurrent PNG decoding is worth
-the platform dependency. Keep [`@variance-authority/png`](../png) alone for a
+the platform dependency. Keep `@variance-authority/png` alone for a
 portable Node install, a Worker, or an edge bundle. The package supplies a
 decoder; it does not compare images, launch a browser, or choose a policy.
 
@@ -23,8 +29,7 @@ npm install @variance-authority/png @variance-authority/png-sharp
 
 ## Package boundary
 
-Because [ADR-0013](../../docs/context/adr/0013-packages-are-named-for-their-requirements.md)
-cuts packages by what a consumer must supply, and this one asks for something
+Because packages here are cut by what a consumer must supply, and this one asks for something
 `@variance-authority/png` deliberately does not: a binary that has to exist,
 built for this machine. Fold it in and every consumer of a comparison installs a
 compiled artifact to reach a pure-JS default they may never leave — including the

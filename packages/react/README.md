@@ -2,20 +2,29 @@
 
 # @variance-authority/react
 
+> Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 **Requires:** that `react-dom` rendered the tree you are pointing at. This
 package reads metadata attached to DOM nodes and does not import the
 application's React package, so it cannot pin, duplicate, or replace that copy.
 
 That distinction is the whole reason this is a package instead of a folder in
-[`@variance-authority/dom`](../dom). The requirement is real and a consumer is
+`@variance-authority/dom`. The requirement is real and a consumer is
 buying it; the npm dependency is not.
 
+```bash
+npm install --save-dev @variance-authority/react
+```
 ## Use this package when
 
 Install `@variance-authority/react` when `react-dom` has already mounted the
 element you want to inspect. It reads React's fiber metadata; it does not render
 components, install a test runner, or replace the application's React copy. For
-the DOM capture that consumes the callback, use [`@variance-authority/dom`](../dom).
+the DOM capture that consumes the callback, use `@variance-authority/dom`.
 
 ## Smallest working path
 
@@ -49,9 +58,9 @@ a build plugin or an annotation.
 
 | | |
 |---|---|
-| `wiringOf` | hook shape, wrapper chain, context subscriptions, reconciliation keys — a **band**, folded in beside `style` by `collect` ([`framework.md`](../../docs/framework.md)) |
+| `wiringOf` | hook shape, wrapper chain, context subscriptions, reconciliation keys — a **band**, folded in beside `style` by `collect` |
 | `remountedSince` | which instances were destroyed and rebuilt rather than updated — a **finding**, because it is a property of a reading and not of a revision |
-| `awaitSuspense` / `suspenseRefusal` | wait for every boundary under a node to settle, and rule on what to do if one did not ([ADR-0037](../../docs/context/adr/0037-a-subject-still-arriving-is-refused.md)) |
+| `awaitSuspense` / `suspenseRefusal` | wait for every boundary under a node to settle, and rule on what to do if one did not |
 | `tapCommits` / `awaitQuiet` | which components are still committing, by name — the one export here with a precondition: it must be installed before `react-dom` loads, and refuses rather than reporting a page it reached too late |
 
 The Suspense pair is what every shipped collector calls before it reads a page,
@@ -90,8 +99,7 @@ consulted only for the exact React version, and only if it happens to exist.
 ## Why provenance is load-bearing, not decoration
 
 Provenance does two jobs. It attributes a region to the component that produced
-it, and it supplies the component-tree boundary required by
-[ADR-0007](../../docs/context/adr/0007-subject-boundary-is-the-component-tree.md).
+it, and it supplies the component-tree boundary a subject is defined by: the component tree.
 Owner chains therefore drive differ matching as well as reporting. A tree
 matched without them matches by position, and a reordered list looks like every
 item changed.
@@ -111,7 +119,7 @@ item changed.
   too, because React captures the same error in `createElement`.
 
   A **production** build has no such error, and that is where
-  [`@variance-authority/jsx-source`](../jsx-source) comes in — a bundler plugin
+  `@variance-authority/jsx-source` comes in — a bundler plugin
   or a Jest resolver, still without taking `jsxImportSource`. An element whose
   props were rebuilt by a custom runtime records one fiber up, and
   `resolveProvenance` climbs composite ancestors to find it.
@@ -126,7 +134,7 @@ item changed.
   to replace it; that corner is the plugin's.
 
   With none of the three, attribution falls back to resolving a component *name*
-  against a repository scan ([`core/attribute`](../core)'s `indexSource`) — the
+  against a repository scan (`core/attribute`'s `indexSource`) — the
   declaration rather than the call site.
 - **A node React never rendered has no chain**, and says so — `NO_FIBER` with a
   reason, never an empty chain that reads like "no components involved".
@@ -134,10 +142,6 @@ item changed.
 If the element has no React fiber, or the application uses a production build
 without source metadata, the result is intentionally incomplete. `provenanceOf`
 does not guess a component from the DOM; use the name scan in `core/attribute` or
-install [`@variance-authority/jsx-source`](../jsx-source) for production call-site
+install `@variance-authority/jsx-source` for production call-site
 locations.
 
-## Reading
-
-- [ADR-0005](../../docs/context/adr/0005-fiber-traversal.md) — why fibers, and why not the hook
-- [ADR-0007](../../docs/context/adr/0007-subject-boundary-is-the-component-tree.md) — the subject boundary

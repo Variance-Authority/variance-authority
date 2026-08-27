@@ -2,6 +2,12 @@
 
 # @variance-authority/tribunal
 
+> A self-hosted review service for Variance Authority baselines, history and per-subject decisions.
+
+**Variance Authority** is a visual regression toolkit for web interfaces: it
+compares a rendered subject against an approved baseline and reports which
+component caused each change. This package is one piece of it.
+
 Use this package when you are deploying a self-hosted review service for
 baselines, history, and per-subject decisions. It supplies the Worker handler,
 storage adapters, review API, and optional React UI; it does not provide a hosted
@@ -15,8 +21,7 @@ bindings are the narrow structural subset used by the package, and the router
 speaks Web-standard `Request` and `Response`. Those interfaces allow an adapter
 for another fetch runtime, but the package makes no portability promise; the
 operator owns that deployment's platform limits. The name says what it is rather
-than where it runs, for the reasons in
-[ADR-0023](../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md).
+than where it runs.
 
 The report and run pipeline remain elsewhere in the repository. This package
 stores the evidence they send and gives a reviewer a place to inspect and settle
@@ -26,12 +31,15 @@ The deployment boundary includes D1 transaction behavior, R2 object limits, and
 concurrent Worker writes. Validate those platform constraints in the account
 where the service runs; the package owns the request and storage contracts.
 
+```bash
+npm install @variance-authority/tribunal
+```
 ## The service surfaces
 
 | surface | contract | defined by |
 |---|---|---|
-| baselines | `RasterStore` behind `/baseline/*` and `/cache/*` | [`raster`](../raster), [`remote`](../remote) |
-| history | `HistoryBackend` behind `/v1/*` | [`history`](../history), [`server`](../server) |
+| baselines | `RasterStore` behind `/baseline/*` and `/cache/*` | `raster`, `remote` |
+| history | `HistoryBackend` behind `/v1/*` | `history`, `server` |
 | review | builds, subjects, decisions | here |
 
 `variance run` reaches this deployment with **no change to the CLI** —
@@ -172,9 +180,7 @@ A bad environment answers **500 with a sentence**, not a deployment-wide platfor
 error: construction happens inside `fetch`, so *your token is too short* and *your
 two tokens are the same* reach the operator as the response body.
 
-`PROJECT` being a deployment setting is exactly what
-[spec 0014](../../docs/specs/0014-hosted-who-the-caller-is-and-what-the-bill-counts.md)
-says has to change before a second tenant exists — the credential should
+`PROJECT` being a deployment setting is what has to change before a second tenant exists — the credential should
 establish the project and no route should accept one. Harmless while a deployment
 serves one project, and the whole of the problem at two.
 
@@ -289,7 +295,7 @@ moment of approval, and a view over those two would be shorter — and empty aft
 `sweep`. Builds expire; the explanation of a baseline has to last exactly as long
 as the baseline, which is forever. So the regions, the commit, the intent and the
 reviewer are frozen at the moment of approval, the same way
-[the git-LFS half](../store) freezes them into a commit message.
+the git-LFS half freezes them into a commit message.
 
 Nothing is written for a **rejection**. It is a decision and it is recorded in
 `decisions`, but no baseline changed, and a changelog carrying rejections would
@@ -437,11 +443,3 @@ resizes, or deduplicates across builds.
 carries a subject and no label, so labelled baselines are writable through the
 store and not reachable through the review path.
 
-## Reading
-
-- [ADR-0021](../../docs/context/adr/0021-approval-promotes-an-image-that-already-exists.md) — why approving may not render
-- [ADR-0022](../../docs/context/adr/0022-deciding-is-not-writing.md) — why there are two tokens
-- [ADR-0023](../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md) — why a service may depend on what it needs
-- [ADR-0016](../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) — why a store failure is not a verdict
-- [spec 0002](../../docs/specs/0002-history-store.md) — what a history row is allowed to contain
-- [ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md) — why the identity partition is the primary key
