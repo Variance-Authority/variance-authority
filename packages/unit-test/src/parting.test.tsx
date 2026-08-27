@@ -133,6 +133,65 @@ describe('one page, read twice, with a hook moved between the readings', () => {
   });
 });
 
+describe('the last joint: what the prop turned into on the page', () => {
+  // The chain the rungs exist to climb runs state -> prop -> attribute -> pixel.
+  // A boundary that reports a count and a band has stopped one link short of the
+  // thing somebody staring at a visual regression is trying to name.
+  function Badge({ tone, count }: { tone: string; count: number }) {
+    return (
+      <span
+        className={`badge badge--${tone}`}
+        aria-label={`${count} ${tone} messages`}
+        style={{
+          color: tone === 'alert' ? 'rgb(200 0 0)' : 'rgb(100 100 100)',
+          padding: tone === 'alert' ? '8px' : '2px',
+        }}
+      >
+        {count}
+      </span>
+    );
+  }
+
+  let promote = (): void => {};
+  function Inbox() {
+    const [urgent, setUrgent] = useState(false);
+    promote = () => setUrgent(true);
+    return (
+      <div>
+        <Badge tone={urgent ? 'alert' : 'muted'} count={7} />
+      </div>
+    );
+  }
+
+  it('names the properties the moved prop produced', async () => {
+    await render(<Inbox />);
+    const before = await read();
+    await act(async () => {
+      promote();
+    });
+    const parting = partingOf(before, await read());
+
+    const badge = parting.boundaries?.find((entry) => entry.component === 'Badge');
+    expect(badge?.rung).toBe('handed');
+    expect(badge?.inputs.map((input) => input.name)).toEqual(['tone']);
+
+    // `class` is not admitted and `data-*` is not either, so the class name
+    // churn a component library emits is not what lands here. The resolved
+    // style is, and that is the half a picture would have shown.
+    expect(badge?.moved).toEqual([
+      'color',
+      'padding-bottom',
+      'padding-left',
+      'padding-right',
+      'padding-top',
+    ]);
+
+    expect(explainParting(parting)).toContain(
+      '    7 deltas here (a11y, token) — color, padding-bottom, padding-left, padding-right and 1 more',
+    );
+  });
+});
+
 describe('a component whose inputs did not move and whose output did', () => {
   // The flake case. A component with no props and no hooks is not unreadable in
   // a development build — React writes `_debugHookTypes = null` on every fiber

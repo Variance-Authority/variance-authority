@@ -41,3 +41,10 @@ the first hook call, so the property's absence is the only silence — and
 collapsing the two reported the one shape most worth calling nondeterministic, a
 component with no props and no hooks that renders differently twice, as
 something nothing could be said about.
+
+`PartedBoundary.moved` names the properties the owned deltas named — `color`,
+`padding-top`, `width` — and `explainParting` spends them on the delta line.
+That is the last joint of the chain the rungs climb: a hook cell moved, a prop
+carried it down, and this is what the prop turned into on the page. A count and
+a band stop one link short of what somebody chasing a visual regression is
+trying to name.

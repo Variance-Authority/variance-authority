@@ -106,6 +106,22 @@ export interface PartedBoundary {
 
   /** Bands those deltas fall in, in band order. */
   readonly bands: readonly Band[];
+
+  /**
+   * The properties the owned deltas named, deduplicated and in code-unit order.
+   *
+   * The last joint of the chain the rungs above climb: a hook cell moved, a prop
+   * carried it down, and *this* is what the prop turned into on the page —
+   * `color`, `padding-top`, `width`. A reader chasing a visual regression is
+   * looking for this list, and `deltas: 7` alone sends them back to the delta
+   * array to assemble it.
+   *
+   * Absent when no owned delta named a property, which is a reading rather than
+   * a gap: a removed node and a changed accessible name are whole-node facts and
+   * have no property to name. `deltas` and `bands` still say what happened
+   * there.
+   */
+  readonly moved?: readonly string[];
 }
 
 /**
@@ -335,6 +351,10 @@ function attribute(drafts: readonly Draft[], deltas: readonly Delta[]): void {
 function settle(draft: Draft): PartedBoundary {
   const bands = BANDS.filter((band) => draft.owned.some((delta) => bandOf(delta.kind) === band));
 
+  const moved = [
+    ...new Set(draft.owned.map((delta) => delta.property).filter((name) => name !== undefined)),
+  ].sort();
+
   return {
     component: draft.component,
     path: draft.path,
@@ -343,6 +363,7 @@ function settle(draft: Draft): PartedBoundary {
     inputs: draft.inputs,
     deltas: draft.owned.length,
     bands,
+    ...(moved.length > 0 ? { moved } : {}),
   };
 }
 

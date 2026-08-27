@@ -123,7 +123,23 @@ function deltaLines(
     return moved ? [] : ['  and rendered the same anyway'];
   }
   const bands = boundary.bands.join(', ');
-  return [`  ${boundary.deltas} delta${boundary.deltas === 1 ? '' : 's'} here (${bands})`];
+  const count = `${boundary.deltas} delta${boundary.deltas === 1 ? '' : 's'} here (${bands})`;
+  return [`  ${count}${named(boundary.moved)}`];
+}
+
+const SHOWN = 4;
+
+/**
+ * The properties that moved, truncated where a list stops being a sentence.
+ *
+ * Four because `padding` expands to four longhands and a reader who has seen
+ * the first learns nothing from the rest. What was dropped is counted rather
+ * than elided — a list that quietly ends reads as the whole list.
+ */
+function named(moved: readonly string[] | undefined): string {
+  if (moved === undefined || moved.length === 0) return '';
+  if (moved.length <= SHOWN) return ` — ${moved.join(', ')}`;
+  return ` — ${moved.slice(0, SHOWN).join(', ')} and ${moved.length - SHOWN} more`;
 }
 
 /**
