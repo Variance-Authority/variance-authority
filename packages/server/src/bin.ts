@@ -141,7 +141,7 @@ export async function start(
   write(
     `variance-authority history service listening on ${service.url}\n` +
       `  database: ${config.database}\n` +
-      `  storage:  node:sqlite (experimental on Node 22; reached through one adapter)\n` +
+      `  storage:  node:sqlite on ${process.versions.node} — a built-in, nothing was compiled to install it\n` +
       `  auth:     bearer token from ${TOKEN_VARIABLE}\n`,
   );
 
