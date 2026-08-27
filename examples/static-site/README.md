@@ -1,13 +1,13 @@
 # Visual regression for a built static site
 
-The command-line path: point Variance Authority at a directory of built HTML,
-and every page in it becomes a subject a run compares against an approved
-baseline. No test framework, no server, no service — the exit code is the whole
+Point Variance Authority at a folder of built HTML and it watches every page in
+it, telling you when one starts rendering differently than the version you
+approved. No test framework, no server, no service — the exit code is the whole
 CI integration.
 
 Two pages, one shared stylesheet, four commands.
 
-## 1. Nothing is a baseline until you say so
+## 1. Take the first look
 
 ```bash
 npm install
@@ -24,8 +24,9 @@ rendered by playwright-chromium (chromium@151.0.7922.34, darwin/arm64, 1x)
 [new] pricing.html: no baseline for `pricing.html` under this renderer; nothing to compare against
 ```
 
-Exit code `1`. There is nothing to compare against yet, and the run says so
-rather than inventing agreement by accepting whatever it saw first.
+Exit code `1`. You have not approved anything yet, so there is nothing to
+compare these pages against — and the run tells you that instead of quietly
+treating whatever it saw first as correct.
 
 ## 2. Approve what you see
 
@@ -50,9 +51,9 @@ again:
 [changed] pricing.html: 110 pixel(s) differ across 8 region(s)
 ```
 
-Exit code `1`. One declaration, two subjects. The run names the pages and
-counts the regions, so a reviewer knows the blast radius before opening a
-single image.
+Exit code `1`. One line of CSS, two pages. The run names each page it affected
+and counts the regions that moved, so you know how far the change reached
+before you open a single image.
 
 Accept it and the new renderings become the baselines; revert the stylesheet
 and the next run is green with nothing to approve.
