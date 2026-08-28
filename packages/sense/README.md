@@ -16,7 +16,8 @@ mapping they use.
 Use this package when you need to answer any of these questions:
 
 - Which files and components can a changed file reach?
-- Which Vitest files entered the source regions touched by a diff?
+- Which Vitest files, Storybook stories, or Playwright specs entered the source
+  regions touched by a diff?
 - Which execution regions did an instrumented module enter, and which test files
   entered each one?
 
@@ -34,10 +35,13 @@ product source, attributes entered regions to completed test files, and writes
 the coverage index used for selection. Vitest still collects and executes every
 test inside each selected file.
 
-Skip it if tests run under something other than Vitest 2, if you need to
-exclude individual test cases rather than whole files, or if the instrumented
-code will run inside a browser or worker realm — a probe stringified into that
-realm throws on its first call. `coveringTests` is the exception: it queries
+Skip it if tests run under something other than Vitest 2, Storybook, or
+Playwright, or if you need to exclude individual test cases rather than whole
+files. Code instrumented in an adopter's own build reports through
+[`@variance-authority/sense/journal`](#record-what-a-driven-page-executed), which
+carries the same probes over a different transport; a *stringified* function is
+still the exception, since text evaluated in another realm has lost the
+generated declarations and throws at its first probe. `coveringTests` is the exception: it queries
 execution data from any collector, independent of the runner — and independent
 of whether this package produced it.
 
@@ -100,7 +104,8 @@ recorded without that widening, because it lies outside the repository's diff.
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
-| `@variance-authority/sense/test-selection` | mapping a unified diff to test files, reading the recorded snapshot, and measuring test-file deviation | the Vitest coverage file |
+| `@variance-authority/sense/journal` | instrumenting an adopter's build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |
+| `@variance-authority/sense/test-selection` | mapping a unified diff to test files, reading the recorded snapshot, and measuring test-file deviation | the coverage file a runner or journal seam wrote |
 | `@variance-authority/sense/test-selection` (same import) | querying named-test reach with `coveringTests` | an execution index from a collector; this package ships no producer for one |
 
 ## Keep repeated scans cheap
@@ -241,6 +246,61 @@ that entered the changed region. A test file selects itself: nothing enters a
 test, so its own edit is the only thing that can run it. A precondition selects
 every test it governs, which is what declaring one is for. A file the snapshot
 never recorded selects nothing.
+
+## Record what a driven page executed
+
+A page cannot hold the names, spans, and digests that make a block ordinal mean
+something — and the process that built the bundle is usually not the one that
+later drives the page. So the two halves are written down separately and joined
+by the driver: `testSelectionProbes()` instruments product source in the
+adopter's own build and persists the block inventory, the page counts crossings,
+and `recordExecution` merges drained journals into the same coverage index
+the Vitest seam writes. Same probes, same ordinals, same file.
+
+```ts
+// vite.config.ts, or a Storybook `viteFinal`
+import { testSelectionProbes } from '@variance-authority/sense/journal';
+
+export default {
+  plugins: [testSelectionProbes({ root: process.cwd(), label: 'preview' })],
+};
+```
+
+`label` separates two builds over one repository — a Storybook preview and the
+application a Playwright suite drives are different builds of overlapping source,
+and one inventory over both would answer an ordinal with whichever built last.
+Give the driver the same label.
+
+The two supported drivers do the draining for you:
+
+- `@variance-authority/storybook-collector` records with `tests: true`, and a
+  story is its own owner, because this tool shows one story at a time.
+- `@variance-authority/playwright-test` records with the `varianceExecution`
+  fixture option, or `tests` on `createVariance`, and every observation in one
+  spec file joins that file — the runner's unit of execution is the file, so a
+  finer attribution is one no selector could spend.
+
+`testSelectionProbes` takes `root`, `label`, `include`, and `modulesFile` — the
+inventory path, which defaults to a repository-keyed file under
+`XDG_CACHE_HOME`. `recordExecution` takes the same `root`, `label`,
+`modulesFile`, and `coverageFile`, plus `subjects`: one entry per window the
+driver closed, each an `owner`, the drained `journal`, optional `preconditions`
+naming files whose identity the observation depended on, and `complete`, which is
+false for a subject that did not finish and keeps it from ever justifying a skip.
+
+Anything else drives it directly: evaluate `executionCollectorSource()` in the
+page if the build does not hoist it, call `drainExecution(page)` to close a
+subject's window, and hand the journals to `recordExecution`.
+
+Recording refuses in one direction only. A missing inventory, an inventory from
+another probe recipe, and a page with no collector each record **nothing** and
+say why — costing the next run its full suite — because half a journal written
+as though it were whole is the failure that silently skips a subject. Module-kind
+blocks are attributed to *every* subject the run drained: a module initializes
+once per page, for whichever subject happened to be first, and charging it to
+that one subject would leave every other story that reads the same top-level
+constant unselected. Concurrent workers merge under a lock on the index file, so
+two processes cannot each write over the other's contribution.
 
 ## Read what a run recorded
 

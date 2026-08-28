@@ -18,6 +18,7 @@ import {
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { suspenseRefusal } from '@variance-authority/react';
 import { collectStory, harnessPage } from '@variance-authority/storybook';
+import { createStoryRecorder, type StoryExecutionOptions } from './execution.js';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 export type {
   Collected,
@@ -142,6 +143,24 @@ export interface StorybookCollectorOptions {
   readonly suspenseTimeoutMs?: number;
 
   /**
+   * Record what each story executed, into the shared test-selection index.
+   *
+   * Off unless asked for, and it asks something of the build rather than of this
+   * package: the Storybook preview has to have been built with
+   * `testSelectionProbes()` from `@variance-authority/sense/journal`, which is
+   * what puts probes in the source and writes down what their ordinals mean.
+   * Without it a run records nothing and says so on stderr — the next selection
+   * then runs everything, which is the direction every uncertainty here
+   * resolves.
+   *
+   * A story is its own owner in that index. Storybook is an execution surface
+   * this tool drives one subject at a time, so unlike a test runner — where the
+   * file is the smallest thing a runner can be asked to execute — the crossings
+   * of one story belong to that story and to nothing else.
+   */
+  readonly tests?: boolean | StoryExecutionOptions;
+
+  /**
    * Stories whose *loading* state is the subject, as id globs.
    *
    * The escape hatch, and the only one. A story left showing its fallback is
@@ -235,6 +254,14 @@ export function storybookCollector(
     }
 
     const source = options.source === undefined ? undefined : scanSource(process.cwd(), options.source);
+
+    // What each story executed, if anybody asked. The index it feeds is the one
+    // the Vitest seam writes: same probe recipe, same block ordinals, one index
+    // across every origin.
+    const recorder =
+      options.tests === undefined || options.tests === false
+        ? undefined
+        : await createStoryRecorder(index, options.tests === true ? {} : options.tests);
     const bundle = await pageAgentBundle();
 
     let served: StaticServer | undefined;
@@ -290,6 +317,7 @@ export function storybookCollector(
 
       async collect(planned: PlannedSubject): Promise<Collected> {
         const storyId = planned.subject.id.replace(/^story:/, '');
+
         const viewport = planned.viewport ?? config.viewport;
         const readySelector = options.ready?.[storyId];
 
@@ -318,6 +346,9 @@ export function storybookCollector(
         // must not cost the others their observations, and must not be silently
         // absent either.
         if (outcome.status !== 'rendered') {
+          // A story that rendered a fallback still executed code, and counters left
+          // in the page would be handed to whichever story drained next.
+          await recorder?.note(page, planned.subject.id, false);
           return {
             ok: false,
             because:
@@ -399,6 +430,7 @@ export function storybookCollector(
         // one story and take the run with it, and defaulting it to "settled"
         // would silently restore the behaviour this exists to end.
         if (acquired.suspense === undefined) {
+          await recorder?.note(page, planned.subject.id, false);
           return {
             ok: false,
             because:
@@ -413,7 +445,12 @@ export function storybookCollector(
           subjectId: planned.subject.id,
           declaredLoading,
         });
-        if (unsettled !== undefined) return { ok: false, because: unsettled };
+        if (unsettled !== undefined) {
+          await recorder?.note(page, planned.subject.id, false);
+          return { ok: false, because: unsettled };
+        }
+
+        await recorder?.note(page, planned.subject.id, true);
 
         // No frames are spent here, and that is deliberate: a story that settles
         // on its document digest has nobody to hand a location to. They ride the
@@ -444,6 +481,7 @@ export function storybookCollector(
       callSites,
 
       async close(): Promise<void> {
+        await recorder?.close();
         await network?.close();
         await harness?.close();
         await served?.close();
@@ -452,5 +490,6 @@ export function storybookCollector(
   };
 }
 
+export type { StoryExecutionOptions } from './execution.js';
 export type { SourceScan } from './source.js';
 export type { AcquireRequest, Acquired } from './page-agent.js';

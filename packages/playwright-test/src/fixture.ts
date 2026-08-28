@@ -15,8 +15,6 @@ import {
 import type {
   CaptureArtifact,
   AccessibilitySnapshot,
-  Raster,
-  RenderIdentity,
   SemanticSnapshot,
   SourceIndex,
   SubjectRef,
@@ -25,7 +23,6 @@ import type {
 import {
   observeAgainstBaseline,
   observeCaptureAgainstBaseline,
-  observeRasters,
   type Observation,
 } from '@variance-authority/observe';
 import { createPlaywrightRenderer } from '@variance-authority/playwright';
@@ -35,6 +32,13 @@ import { createDurableStore } from '@variance-authority/store';
 import { accepted } from './accepted.js';
 import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
+import { stableRaster } from './in-place.js';
+import {
+  createExecutionRecorder,
+  ownerOf,
+  type ExecutionRecorder,
+  type ExecutionRecording,
+} from './execution.js';
 import type { AcquireRequest } from './page-agent.js';
 
 /**
@@ -128,6 +132,18 @@ export interface VarianceFixtures {
 }
 
 export interface VarianceWorkerFixtures {
+  /**
+   * Record what each spec executed, for the next run's `--since`.
+   *
+   * Off by default, and useless unless the application this suite drives was
+   * built with `testSelectionProbes()` from `@variance-authority/sense/journal`
+   * — without a collector in the page there is nothing to drain, and the worker
+   * says so on stderr rather than writing an index that would exclude specs it
+   * never watched.
+   */
+  readonly varianceExecution: boolean | ExecutionRecording;
+  /** The worker's accumulation. Written once, at worker teardown. */
+  readonly varianceRecorder: ExecutionRecorder | undefined;
   readonly varianceBundle: string;
   readonly varianceRenderer: Renderer;
   readonly varianceStore: RasterStore;
@@ -188,6 +204,26 @@ export const varianceFixtures: Fixtures<
 > = {
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
+  varianceExecution: [false, { scope: 'worker', option: true }],
+
+  // One recorder per worker, closed when the worker is: a worker is a process,
+  // and a process that wrote the shared index per assertion would spend the run
+  // contending for a lock it holds for microseconds of work.
+  varianceRecorder: [
+    async ({ varianceExecution }, use) => {
+      if (varianceExecution === false) {
+        await use(undefined);
+        return;
+      }
+      const recorder = createExecutionRecorder(
+        varianceExecution === true ? {} : varianceExecution,
+      );
+      await use(recorder);
+      await recorder.close();
+    },
+    { scope: 'worker' },
+  ],
+
   varianceBundle: [
     // Playwright reads this parameter's destructured names to discover a
     // fixture's dependencies, and rejects a parameter it cannot destructure. An
@@ -220,20 +256,34 @@ export const varianceFixtures: Fixtures<
     { scope: 'worker' },
   ],
 
-  variance: async ({ page, varianceBundle, varianceRenderer, varianceStore }, use, testInfo) => {
+  variance: async (
+    { page, varianceBundle, varianceRenderer, varianceStore, varianceRecorder },
+    use,
+    testInfo,
+  ) => {
     await page.addInitScript(varianceBundle);
-    await use((locator, options) =>
-      observeLocator(
-        {
-          page,
-          testInfo,
-          renderer: varianceRenderer,
-          store: varianceStore,
-        },
-        locator,
-        options,
-      ),
-    );
+    const owner = varianceRecorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
+    await use(async (locator, options) => {
+      try {
+        return await observeLocator(
+          {
+            page,
+            testInfo,
+            renderer: varianceRenderer,
+            store: varianceStore,
+          },
+          locator,
+          options,
+        );
+      } finally {
+        // Drained on the way out of a refusal too. A subject that threw still
+        // executed code, and counters left in the page would be handed to
+        // whichever spec drained next — an attribution that is simply false.
+        if (owner !== undefined) await varianceRecorder!.note(page, owner);
+      }
+    });
+    // After `use`, which is where the runner has already decided this test.
+    if (owner !== undefined) varianceRecorder!.mark(owner, testInfo.status === 'passed');
   },
 };
 
@@ -373,69 +423,6 @@ function engineOf(page: Page): string {
   const browser = page.context().browser();
   const name = browser?.browserType().name() ?? 'browser';
   return `${name}@${browser?.version() ?? 'unknown'}`;
-}
-
-async function stableRaster(
-  page: Page,
-  locator: Locator,
-  document: Parameters<typeof documentDigest>[0],
-  fonts: readonly string[],
-  stabilization: RenderIdentity['stabilization'],
-  options: InPlaceCaptureOptions,
-  snapshot: SemanticSnapshot,
-): Promise<Raster> {
-  const screenshot = {
-    type: 'png',
-    // Acquisition leaves the declared CSS animation hold installed. Let that
-    // one owner define both semantic and pixel state; asking Playwright to
-    // fast-forward here would apply a conflicting second intervention.
-    animations: 'allow',
-    caret: 'hide',
-  } as const;
-  const browser = page.context().browser();
-  const engine = browser?.browserType().name() ?? 'browser';
-  const identity: RenderIdentity = {
-    renderer: `playwright-${engine}-existing-page`,
-    engine: `${engine}@${browser?.version() ?? 'unknown'}`,
-    platform: `${process.platform}/${process.arch}`,
-    deviceScaleFactor: document.viewport.deviceScaleFactor,
-    fonts,
-    ...(stabilization === undefined ? {} : { stabilization }),
-    rasterization: digestValue({
-      browser: {
-        headless: options.browser.headless,
-        launchArgs: [...options.browser.launchArgs],
-      },
-      screenshot,
-    }),
-  };
-  const count = Math.max(2, options.stabilityChecks ?? 2);
-  const rasters: Raster[] = [];
-
-  for (let index = 0; index < count; index += 1) {
-    const bytes = await locator.screenshot(screenshot);
-    const box = await locator.boundingBox();
-    if (box === null) throw new Error(`subject ${document.subject.id} has no screenshot box`);
-    rasters.push({
-      documentDigest: documentDigest(document),
-      identity,
-      width: Math.round(box.width * document.viewport.deviceScaleFactor),
-      height: Math.round(box.height * document.viewport.deviceScaleFactor),
-      bytes: bytes.toString('base64'),
-      missingFonts: [],
-    });
-  }
-
-  const first = rasters[0]!;
-  for (const next of rasters.slice(1)) {
-    const agreement = await observeRasters(document.subject.id, first, next, { snapshot });
-    if (agreement.verdict !== 'unchanged') {
-      throw new Error(
-        `in-place capture for ${document.subject.id} is unstable: repeated screenshots disagree`,
-      );
-    }
-  }
-  return first;
 }
 
 /**

@@ -41,6 +41,10 @@
       "types": "./dist/test-selection/index.d.ts",
       "default": "./dist/test-selection/index.js"
     },
+    "./journal": {
+      "types": "./dist/test-selection/journal.d.ts",
+      "default": "./dist/test-selection/journal.js"
+    },
     "./vitest": {
       "types": "./dist/test-selection/vitest.d.ts",
       "default": "./dist/test-selection/vitest.js"

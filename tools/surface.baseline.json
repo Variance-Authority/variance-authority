@@ -1427,6 +1427,8 @@
         "CHROMIUM_RASTER_ARGS": "const",
         "CreateVarianceOptions": "interface",
         "DirectObservationOptions": "interface",
+        "ExecutionRecorder": "interface",
+        "ExecutionRecording": "interface",
         "InPlaceCaptureOptions": "interface",
         "InstalledAgent": "interface",
         "MaterializationOptions": "type",
@@ -1439,8 +1441,10 @@
         "acquire": "function",
         "assertUnchanged": "function",
         "bundlePageAgent": "function",
+        "createExecutionRecorder": "function",
         "createVariance": "function",
         "observe": "function",
+        "ownerOf": "function",
         "toBeUnchanged": "function",
         "varianceFixtures": "const",
         "varianceMatchers": "const"
@@ -2082,6 +2086,10 @@
           "types": "./dist/test-selection/index.d.ts",
           "default": "./dist/test-selection/index.js"
         },
+        "./journal": {
+          "types": "./dist/test-selection/journal.d.ts",
+          "default": "./dist/test-selection/journal.js"
+        },
         "./vitest": {
           "types": "./dist/test-selection/vitest.d.ts",
           "default": "./dist/test-selection/vitest.js"
@@ -2169,6 +2177,23 @@
         "readTestCoverage": "function",
         "selectTestFiles": "function",
         "testCoverageFile": "function"
+      },
+      "./journal": {
+        "EXECUTION_GLOBAL": "const",
+        "EvaluatingPage": "interface",
+        "ExecutedModule": "interface",
+        "ExecutionCollector": "interface",
+        "ExecutionJournal": "interface",
+        "ExecutionRecord": "interface",
+        "InstrumentingPlugin": "interface",
+        "ObservedSubject": "interface",
+        "RecordExecutionOptions": "interface",
+        "TestSelectionProbeOptions": "interface",
+        "drainExecution": "function",
+        "executionCollectorSource": "function",
+        "preconditionOf": "function",
+        "recordExecution": "function",
+        "testSelectionProbes": "function"
       },
       "./vitest": {
         "TestSelectionOptions": "interface",
@@ -2461,6 +2486,7 @@
         "Plan": "interface",
         "PlannedSubject": "interface",
         "SourceScan": "interface",
+        "StoryExecutionOptions": "interface",
         "StorybookCollectorOptions": "interface",
         "storybookCollector": "function"
       }

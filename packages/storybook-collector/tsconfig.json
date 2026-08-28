@@ -14,6 +14,7 @@
     { "path": "../dom" },
     { "path": "../playwright" },
     { "path": "../react" },
+    { "path": "../sense" },
     { "path": "../storybook" }
   ]
 }

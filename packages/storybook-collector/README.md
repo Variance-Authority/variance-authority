@@ -139,12 +139,21 @@ complete cycle against a Storybook-built artifact: new → accept → unchanged 
 | `headless` | You need to watch collection while debugging. | `true`; set `false` locally. |
 | `network` | Asset bytes at stable URLs must participate in render identity. | `true`; set `false` only when asset URLs are already content-addressed. |
 | `roots` | Your preview mounts somewhere other than the standard roots. | `['#storybook-root', '#root']`, tightest match first. |
+| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires a preview built with `testSelectionProbes()` from `@variance-authority/sense/journal`; without a collector in the page the run says so on stderr and records nothing. |
 
 The package exports `StorybookCollectorOptions` plus the collector contract
 types (`Collector`, `CollectorContext`, `Plan`, `PlannedSubject`, and
 `Collected`) for callers that need to wrap the factory without re-declaring its
 boundary. `SourceScan`, `AcquireRequest`, and `Acquired` expose the corresponding
 source and page-agent shapes.
+
+`tests` accepts `true` or `StoryExecutionOptions`: `root` is the repository root
+the recorded paths are relative to, `label` must match the one the preview's
+`testSelectionProbes()` was given, and `modulesFile` and `coverageFile` override
+the repository-keyed cache paths for the block inventory and the coverage index. A
+story is its own owner in the recorded index — Storybook is an execution surface
+this tool drives one subject at a time — and a story that did not render still
+contributes its crossings while never justifying a later skip.
 
 The collector reads a built Storybook index and switches stories over
 Storybook's own preview channel, so a suite pays for one navigation rather than

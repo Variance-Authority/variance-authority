@@ -9,6 +9,11 @@ import {
   type MaterializationOptions,
   type VarianceOptions,
 } from './fixture.js';
+import {
+  createExecutionRecorder,
+  ownerOf,
+  type ExecutionRecording,
+} from './execution.js';
 import { AGENT } from './page-agent.js';
 
 export interface CreateVarianceOptions {
@@ -22,6 +27,14 @@ export interface CreateVarianceOptions {
   readonly bundle?: string;
   /** Defaults to deferred document rendering. */
   readonly materialization?: MaterializationOptions;
+  /**
+   * Record what this session's page executed, for the next run's `--since`.
+   *
+   * Off by default. The application must be built with `testSelectionProbes()`
+   * from `@variance-authority/sense/journal`; without a collector in the page
+   * the session says so on stderr and records nothing.
+   */
+  readonly tests?: boolean | ExecutionRecording;
 }
 
 export interface DirectObservationOptions extends VarianceOptions {
@@ -29,6 +42,14 @@ export interface DirectObservationOptions extends VarianceOptions {
   readonly baselines?: string;
   /** Defaults to deferred document rendering. */
   readonly materialization?: MaterializationOptions;
+  /**
+   * Record what this observation executed. Off by default.
+   *
+   * One-shot: the session it opens closes immediately, so each call merges the
+   * index once. A test with several observations should hold a
+   * {@link createVariance} session instead and pay that once.
+   */
+  readonly tests?: boolean | ExecutionRecording;
 }
 
 export interface VarianceSession {
@@ -50,6 +71,11 @@ export async function createVariance(
   testInfo: TestInfo,
   options: CreateVarianceOptions = {},
 ): Promise<VarianceSession> {
+  const recorder =
+    options.tests === undefined || options.tests === false
+      ? undefined
+      : createExecutionRecorder(options.tests === true ? {} : options.tests);
+  const owner = recorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
   const bundle = options.bundle ?? (await bundlePageAgent());
   const materialization = options.materialization ?? { kind: 'deferred' };
   const store = options.store ?? createDurableStore(options.baselines ?? '.variance/baselines');
@@ -77,21 +103,32 @@ export async function createVariance(
   return {
     observe: async (locator, varianceOptions) => {
       if (closed) throw new Error('the variance session is closed');
-      return observeLocator(
-        {
-          page,
-          testInfo,
-          store,
-          materialization,
-          ...(renderer === undefined ? {} : { renderer }),
-        },
-        locator,
-        varianceOptions,
-      );
+      try {
+        return await observeLocator(
+          {
+            page,
+            testInfo,
+            store,
+            materialization,
+            ...(renderer === undefined ? {} : { renderer }),
+          },
+          locator,
+          varianceOptions,
+        );
+      } catch (error) {
+        // A refused observation is an incomplete one, and this is where the
+        // helper learns that: unlike the fixture, nothing here will later read
+        // the runner's verdict for this test.
+        if (owner !== undefined) recorder!.mark(owner, false);
+        throw error;
+      } finally {
+        if (owner !== undefined) await recorder!.note(page, owner);
+      }
     },
     close: async () => {
       if (closed) return;
       closed = true;
+      await recorder?.close();
       if (ownsRenderer) await renderer!.close();
     },
   };
@@ -109,6 +146,7 @@ export async function observe(
     ...(options.materialization === undefined
       ? {}
       : { materialization: options.materialization }),
+    ...(options.tests === undefined ? {} : { tests: options.tests }),
   });
   try {
     return await session.observe(locator, options);

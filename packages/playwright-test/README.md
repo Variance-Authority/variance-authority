@@ -205,6 +205,7 @@ opens and closes the rest itself.
 | `store` | Baselines do not live in a directory at all — a remote store, a fixture, a cache. | A durable directory store over `baselines`. |
 | `renderer` | The suite already owns a renderer and its lifetime. | One is created and closed with the session. A supplied renderer is never closed by `close()`. |
 | `bundle` | The suite deliberately builds its own page agent. | The package's bundled agent. A custom bundle must install itself both in the current document and on future navigations. |
+| `tests` | The next run should be able to skip specs whose code nothing touched. | `false`. Requires the application under test to be built with `testSelectionProbes()` from `@variance-authority/sense/journal`; without a collector in the page the session says so on stderr and records nothing. |
 | `materialization` | Pixels should come from the browser the suite already pinned. | `{ kind: 'deferred' }`. |
 
 `materialization` selects how pixels are produced; its `kind` field picks the
@@ -221,6 +222,14 @@ defaults to `2` and cannot go lower than two captures.
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
+| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+
+Recording joins every observation in one spec file to that file: the runner's
+unit of execution is the file, so an attribution finer than that is one no
+selector could spend. A worker accumulates and writes once at teardown, under a
+lock on the index, so parallel workers do not overwrite each other. A spec whose
+test failed is recorded as incomplete — its crossings still count, and it can
+never justify skipping itself later.
 
 ### Matcher integration
 

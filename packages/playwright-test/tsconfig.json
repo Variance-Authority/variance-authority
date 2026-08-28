@@ -16,6 +16,7 @@
     { "path": "../playwright" },
     { "path": "../raster" },
     { "path": "../react" },
+    { "path": "../sense" },
     { "path": "../store" }
   ]
 }

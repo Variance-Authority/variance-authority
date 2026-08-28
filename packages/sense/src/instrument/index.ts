@@ -29,7 +29,7 @@
  * declarations and throws, exposing that configuration error at its first probe.
  */
 
-// TODO: add maintained Jest and Playwright integrations; browser execution also needs transport.
+// TODO: add a maintained Jest integration. Vitest, Storybook and Playwright have one.
 
 import { digestString } from '@variance-authority/core';
 import { parseSync } from 'oxc-parser';
