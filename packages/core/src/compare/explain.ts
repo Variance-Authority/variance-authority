@@ -87,6 +87,14 @@ function sentence(boundary: PartedBoundary): string {
       return `${component} was given a different ${list(inputs.filter((i) => i.kind === 'context'))}`;
     case 'handed':
       return `${component} was handed a different ${list(inputs.filter((i) => i.kind === 'prop'))}`;
+    // Phrased at the ancestor rather than at the component, because that is
+    // where the reader has to go. `Price` did nothing; something it is standing
+    // inside declared a value it never declares for itself.
+    case 'inherited':
+      return (
+        `${component} inherited a different ` +
+        `${list(inputs.filter((i) => i.kind === 'inherited'))} — an ancestor declared it`
+      );
     case 'undetermined':
       return `${component} rendered differently from inputs that all agreed — nondeterministic`;
     case 'unread':
@@ -165,12 +173,14 @@ function slice(kind: PartingSlice): string {
       return 'variation — an input moved and the page followed';
     case 'flake':
       return 'flake — every input agreed, the component tree held, and the page moved anyway';
+    case 'reshaped':
+      return 'reshaped — the component tree is a different tree and the page followed';
     case 'refactor':
       return 'refactor — the component tree moved and the page did not';
     case 'absorbed':
       return 'absorbed — an input moved and the page did not';
     case 'unread':
-      return 'unread — the page moved and no boundary could be read';
+      return 'unread — the page moved and what would explain it was not read';
   }
 }
 

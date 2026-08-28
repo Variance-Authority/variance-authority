@@ -8,19 +8,28 @@ import type { PartedBoundary } from './parting.js';
  * The rungs in `parting.ts` answer *which input moved*. This answers the
  * question asked first and answered least: **is this worth looking at at all.**
  * Three facts are read independently — did the component tree move, did any
- * input move, did the output move — and the eight combinations collapse to six
- * sentences, four of which are a triage decision on their own:
+ * input move, did the output move — and the eight combinations collapse to
+ * seven sentences, five of which are a triage decision on their own:
  *
  * | component tree | inputs | output | slice |
  * |---|---|---|---|
  * | same | same | **moved** | `flake` |
  * | any | **moved** | **moved** | `variation` |
+ * | **moved** | same | **moved** | `reshaped` |
  * | **moved** | any | same | `refactor` |
  * | same | **moved** | same | `absorbed` |
  * | same | same | same | `settled` |
- * | unreadable | — | **moved** | `unread` |
+ * | unread | — | **moved** | `unread` |
  *
- * `refactor` is the one that pays for the other five. A component tree that
+ * `reshaped` is the row that used to be missing. It was answered `variation`,
+ * whose sentence says an input moved — and the whole point of this table is
+ * that in that row no input did. Two readings whose component trees are not the
+ * same tree, reached from inputs that all agreed, is a component that chose a
+ * different shape: a branch taken differently between two arms, or a rewrite
+ * between two revisions. Either way the tree is the finding and the rungs below
+ * have nothing to add, because there is no moved input for them to name.
+ *
+ * `refactor` is the one that pays for the other six. A component tree that
  * moved while the page did not is the receipt a refactor never gets: the
  * screenshots match, which is what a pixel differ says and all it says, and
  * *the components underneath were rewritten*, which is the fact somebody wanted
@@ -33,11 +42,13 @@ export type PartingSlice =
   | 'variation'
   /** Every input agreed, the tree held, and the output moved anyway. */
   | 'flake'
+  /** The component tree is a different tree, no input moved, and the output followed. */
+  | 'reshaped'
   /** The component tree moved and the output did not. */
   | 'refactor'
   /** An input moved and the output did not: the component ignored it. */
   | 'absorbed'
-  /** The output moved and nothing on either side could be read. */
+  /** The output moved and what would explain it was not read. */
   | 'unread';
 
 /**
@@ -64,7 +75,12 @@ export function sliceOf(
     return inputs ? 'absorbed' : 'settled';
   }
 
-  if (inputs || tree !== true) return 'variation';
+  if (inputs) return 'variation';
+  if (tree === false) return 'reshaped';
+  // `flake` is the accusation, and it rests on the component tree having held.
+  // A run that read holdings but no provenance never established that, so it
+  // gets the rung that says so rather than the one that blames the page.
+  if (tree === undefined) return 'unread';
   return 'flake';
 }
 

@@ -57,13 +57,14 @@ export { composeSubjects } from './composition.js';
 export type {
   Composition,
   ComponentEntry,
-  Divergence,
   Echo,
   PropsClass,
   Rendering,
   Site,
   SubjectComposition,
 } from './composition.js';
+
+export type { Divergence, DivergenceParting } from './divergence.js';
 
 export { attributeMovement } from './movement.js';
 export type { Attribution, Cause, Evidence, Moved, Movement } from './movement.js';

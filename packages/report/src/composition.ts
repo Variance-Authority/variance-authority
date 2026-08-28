@@ -142,6 +142,26 @@ export interface DivergenceRecord {
    * one subject to go and look at. `renderings.length` is the count this replaced.
    */
   readonly renderings: readonly (readonly string[])[];
+
+  /**
+   * Why each rendering after the first parted from it.
+   *
+   * The sentence, under the split. `renderings` says *promo is the odd one out*;
+   * this says *`Price` inherited a different `color` — an ancestor declared it*,
+   * which is the difference between a reader knowing where to look and knowing
+   * what they will find when they get there.
+   *
+   * Absent when the run kept no documents to read. Empty is never written.
+   */
+  readonly partings?: readonly PartingRecord[];
+}
+
+/** One rendering of a divergence, spoken. */
+export interface PartingRecord {
+  /** Index into {@link DivergenceRecord.renderings}, always at least 1. */
+  readonly rendering: number;
+  /** Already phrased for a reader; the first line is the triage slice. */
+  readonly lines: readonly string[];
 }
 
 /**

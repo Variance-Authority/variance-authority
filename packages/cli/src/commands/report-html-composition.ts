@@ -70,6 +70,13 @@ export function composition(report: CliRunReport): string {
                     .join(''),
                 )
                 .join('<span class="mark quiet">vs</span>') +
+              // And why. The links say which subject to open; these say what is
+              // waiting there — an ancestor's `color`, a context, a hook cell.
+              // It is the one explanation on this page that needed no baseline.
+              (divergence.partings ?? [])
+                .flatMap((parting) => parting.lines)
+                .map((line) => `<p class="why">${text(line)}</p>`)
+                .join('') +
               '</li>',
           )
           .join('') +

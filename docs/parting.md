@@ -26,24 +26,31 @@ question asked of one page instead of two.
 
 ## The slice: what kind of parting this is
 
-Before which input moved comes whether anybody should look. Six answers, decided
-from three facts — did the component tree hold, did any input move, did the
-output move:
+Before which input moved comes whether anybody should look. Seven answers,
+decided from three facts — did the component tree hold, did any input move, did
+the output move:
 
 | slice | reading |
 |---|---|
 | `settled` | nothing moved: not the tree, not an input, not the output |
 | `variation` | an input moved and the output followed — **the only one where the rungs below are worth reading** |
 | `flake` | every input agreed, the component tree held, and the output moved anyway |
+| `reshaped` | the component tree is a different tree, no input moved, and the output followed |
 | `refactor` | the component tree moved and the output did not |
 | `absorbed` | an input moved and the output did not — an arm was assigned differently and rendered the same |
-| `unread` | the output moved and no boundary could be read |
+| `unread` | the output moved and what would explain it was not read |
 
 `refactor` is the slice a pixel diff cannot reach at all, because there is
 nothing to diff: component identity is outside `renderHash` and outside every
 band, so wrapping a subtree in a new `Panel` produces zero deltas. The tree
 signature — owner chains and wiring, read directly rather than through a hash —
 is what notices.
+
+`reshaped` and `refactor` are the same reading of the component tree with the
+output landing on opposite sides. A tree that is a different tree and an output
+that followed is a component that chose a different shape — a branch taken
+differently between two arms, or a rewrite between two revisions — and in
+neither case is there a moved input for the rungs below to name.
 
 `unread` is why `flake` is safe to say. Nondeterminism is an accusation, and a
 run that read no boundaries has not found the inputs to agree, it has not asked
@@ -62,6 +69,7 @@ where that holds is what turns a page of deltas into one sentence.
 |---|---|---|
 | `handed` | a named prop differs | the parent decided this — up |
 | `provided` | a context value differs | a provider above decided this — up |
+| `inherited` | a style value differs that this boundary declares none of | an ancestor's cascade — up |
 | `external` | a `useSyncExternalStore` snapshot differs | the store moved, outside React |
 | `stateful` | an own hook cell differs | **here. This is the cause** |
 | `unread` | the output moved and something this boundary depends on could not be read | nowhere yet |
@@ -72,6 +80,13 @@ Anything arriving from outside settles the question, so `handed` and `provided`
 outrank the state rungs however much state the boundary is also holding. The
 boundaries whose output moved with no incoming input to explain it are the
 **origins**, and they are what the report leads with.
+
+`inherited` is the input nobody passes. `styleProvenance` records where every
+winning declaration came from, so a property a node ended up with and no
+declaration set *there* arrived from above — `color` from a card, a token from
+`:root`. It needs no framework adapter: the boundary is found from the owner
+chain and the cascade is read from the snapshot, which is why it is the rung a
+browser run reaches first.
 
 `external` is one row and covers the ecosystem. Redux, Zustand, Jotai, valtio
 and a URL all reach React through `useSyncExternalStore`, so a store that moved
@@ -165,8 +180,11 @@ to refuse.
   anyone should mind; a parting is an explanation and joins neither. It takes
   two snapshots without refusing a subject mismatch, because two arms of an
   experiment are two subjects on purpose.
-- **Its reach is its holdings.** Boundaries come back absent — never `[]` — when
-  no node on either side carried a readable holding, which puts the parting in
-  the `unread` slice rather than in `settled` or `flake`.
+- **Its reach is what was read.** Boundaries come back absent — never `[]` —
+  when no node on either side started a component, which puts the parting in the
+  `unread` slice rather than in `settled` or `flake`. Boundaries present and
+  every one of them at rung `unread` is the next reading up: the components were
+  found and their props and hook cells were not, which is every run without a
+  framework adapter attached.
 - **It is React.** `holdingOf` is a callback, exactly as `provenanceOf` is, so
   another framework supplies its own; no other implementation exists.

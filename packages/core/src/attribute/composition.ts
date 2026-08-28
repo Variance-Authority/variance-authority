@@ -1,7 +1,6 @@
-import type { Band } from '../compare/band.js';
 import type { Digest } from '../format/hash.js';
-import type { NodePath } from '../format/snapshot.js';
-import { movedBands } from './component-hash.js';
+import type { NodePath, SemanticSnapshot } from '../format/snapshot.js';
+import { divergencesOf, type Divergence } from './divergence.js';
 import { attributed, type ComponentInstance } from './instances.js';
 
 /**
@@ -153,33 +152,20 @@ export interface Echo {
   readonly example?: string;
 }
 
-/**
- * The same component, the same inputs, and more than one rendering. At one commit.
- *
- * Not a regression and not a comparison — there is no baseline anywhere in it.
- * It is a statement that the component's own inputs do not determine its output,
- * which is either a fact about the design (a token, a theme, an ancestor) or the
- * reading not being repeatable. `bands` says which kind of difference it is, in
- * the same vocabulary a sensitivity absorbs, so a divergence entirely inside a
- * band the subject relaxes is one a reader can dismiss without opening it.
- *
- * *Inputs*, not *props*, and the difference is the whole finding: a props digest
- * excludes `children` and the checks in `divergencesOf` are what close the gap.
- * A suite can legitimately produce none of these — `examples/todomvc` produces
- * exactly zero — and that is the correct answer for a suite in which nothing
- * renders two ways from one input, not a section to be filled.
- */
-export interface Divergence {
-  readonly component: string;
-  readonly props?: Digest;
-  readonly bands: readonly Band[];
-  /** At least two, sorted by how many sites each has, widest first. */
-  readonly renderings: readonly Rendering[];
-}
 
 export interface SubjectComposition {
   readonly subject: string;
   readonly instances: readonly ComponentInstance[];
+
+  /**
+   * The subject as read, kept so a divergence can say *which input* moved.
+   *
+   * Optional because `composeSubjects` is a fold over instance lists and stays
+   * one — a caller holding only a report's sidecars still gets the graph, the
+   * echoes and the divergences, and gets them without a `partings` field it
+   * would have to explain away as empty.
+   */
+  readonly snapshot?: SemanticSnapshot;
 }
 
 export interface Composition {
@@ -262,11 +248,16 @@ export function composeSubjects(subjects: readonly SubjectComposition[]): Compos
     }))
     .sort((a, b) => byCodeUnit(a.component, b.component));
 
+  const snapshots = new Map<string, SemanticSnapshot>();
+  for (const subject of subjects) {
+    if (subject.snapshot !== undefined) snapshots.set(subject.subject, subject.snapshot);
+  }
+
   return {
     subjects: order,
     components,
     echoes: echoesOf(components),
-    divergences: divergencesOf(components),
+    divergences: divergencesOf(components, snapshots),
   };
 }
 
@@ -304,102 +295,6 @@ function echoesOf(components: readonly ComponentEntry[]): readonly Echo[] {
   );
 }
 
-/**
- * Every props class that produced more than one rendering *from one input*.
- *
- * Three refusals, and all three are the same refusal: a props digest is not a
- * complete statement of a component's inputs, so most pairs of renderings that
- * share one are not a contradiction. Measured on `examples/todomvc` before the
- * checks below existed, **eleven divergences were reported and all eleven were
- * false** — which is what a finding built on an incomplete key looks like.
- *
- * **Unknown props are not shared props.** Instances whose provenance did not
- * survive are not known to have received the same thing. Grouping them and
- * reporting that they render differently manufactures a finding out of missing
- * data, in a system where absent must never read as equal.
- *
- * **Renderings that co-occur in one subject are not alternatives.** A component
- * whose nodes are interrupted by a nested boundary is walked as two boundaries
- * with one owner frame, so one `TextField` becomes a label-shaped rendering and
- * an input-shaped one under a single props digest. That is one instance in two
- * pieces, and it is indistinguishable from two instances that genuinely disagree
- * — so it is not reported. A contradiction is a component that renders as A
- * *here* and as B *there*, never both at once.
- *
- * **Different children are different inputs.** `propsDigest` excludes `children`
- * deliberately (see `digestableProps` in `@variance-authority/react`: folding the
- * subtree in would make every ancestor's props move on any descendant edit, and
- * §6.2's root/collateral rule could never fire). The consequence is that
- * `<Card><Stack/></Card>` and `<Card><Text/></Card>` share a props digest, and
- * calling their different output a contradiction blames the component for its
- * caller. Two proxies for "the children differed" are available and both are
- * required to be quiet: the child components mounted, and the boundary's own
- * text — which is where a string child lands.
- *
- * What survives is narrow on purpose. A movement wrongly dismissed as
- * `contradicted` is an explanation nobody can act on; the same movement left
- * unexplained lands on the suspect shortlist, where a second reading settles it.
- * The asymmetry is the whole reason these checks are here rather than in prose.
- */
-function divergencesOf(components: readonly ComponentEntry[]): readonly Divergence[] {
-  const divergences: Divergence[] = [];
-
-  for (const entry of components) {
-    for (const group of entry.classes) {
-      if (group.props === undefined || group.renderings.length < 2) continue;
-      if (!fromOneInput(group.renderings)) continue;
-
-      // Union against the first rather than over every pair. A band moves here
-      // when the renderings do not all agree on its digest, and a field that
-      // disagrees anywhere disagrees with the first somewhere — so the two are
-      // the same set, and the mapping stays in `movedBands` where the sensitivity
-      // tier reads it.
-      const [first, ...rest] = group.renderings;
-      const bands = new Set<Band>();
-      for (const other of rest) for (const band of movedBands(first!, other)) bands.add(band);
-
-      divergences.push({
-        component: entry.component,
-        props: group.props,
-        bands: [...bands],
-        renderings: group.renderings,
-      });
-    }
-  }
-
-  return divergences.sort((a, b) => byCodeUnit(a.component, b.component));
-}
-
-/**
- * Whether a props class' renderings can be said to have had the same inputs.
- *
- * The two checks the props digest cannot make for itself — see `divergencesOf`
- * above for why each exists. Both are conservative in the same direction: they
- * answer *no* whenever the run cannot tell, so what remains is a set of
- * renderings that mounted the same children, said the same words, and still came
- * out different, with no two of them observed in one subject.
- */
-function fromOneInput(renderings: readonly Rendering[]): boolean {
-  const [first, ...rest] = renderings;
-  if (first === undefined) return false;
-
-  if (rest.some((other) => other.text !== first.text)) return false;
-  if (rest.some((other) => !sameOrder(other.renders, first.renders))) return false;
-
-  const seen = new Set<string>();
-  for (const rendering of renderings) {
-    for (const subject of new Set(rendering.sites.map((site) => site.subject))) {
-      if (seen.has(subject)) return false;
-      seen.add(subject);
-    }
-  }
-
-  return true;
-}
-
-function sameOrder(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((value, index) => value === b[index]);
-}
 
 /**
  * The component a subject exists to show, when one component does.

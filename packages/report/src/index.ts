@@ -49,6 +49,7 @@ export type {
   ComponentRecord,
   EchoRecord,
   DivergenceRecord,
+  PartingRecord,
   MovementRecord,
 } from './composition.js';
 

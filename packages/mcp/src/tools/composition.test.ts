@@ -107,6 +107,16 @@ const COMPOSED: CompositionReport = {
       // is the shape a reader has to be able to see: the short group is the one
       // to open.
       renderings: [['page/all', 'page/active'], ['ds/chip--group']],
+      partings: [
+        {
+          rendering: 1,
+          lines: [
+            'variation — an input moved and the page followed',
+            'Chip inherited a different `color` — an ancestor declared it',
+            '  2 deltas here (token) — color',
+          ],
+        },
+      ],
     },
   ],
   movements: [
@@ -227,6 +237,30 @@ describe('the suite compared to itself', () => {
     // the only part of a divergence a reader can act on.
     expect(answer).toContain('2 subject(s): page/all, page/active');
     expect(answer).toContain('1 subject(s): ds/chip--group');
+  });
+
+  it('says which input moved, under the rendering that moved it', () => {
+    // The half that makes the split actionable. Without it an agent knows which
+    // subject to open and has to diff two pages by eye to learn why — which is
+    // the work the component graph exists to remove.
+    const answer = composition.run(REPORT, {});
+
+    expect(answer).toContain(
+      '  1 subject(s): ds/chip--group\n' +
+        '    variation — an input moved and the page followed\n' +
+        '    Chip inherited a different `color` — an ancestor declared it\n' +
+        '      2 deltas here (token) — color',
+    );
+  });
+
+  it('leaves the rendering everything else is measured against unexplained', () => {
+    // Rendering 0 is the reference, not a party to the parting. A line under it
+    // would be comparing it to itself.
+    const answer = composition.run(REPORT, {});
+    const [reference] = answer.split('  1 subject(s): ds/chip--group');
+
+    expect(reference).toContain('2 subject(s): page/all, page/active\n');
+    expect(reference).not.toContain('an ancestor declared it');
   });
 
   it('connects the dots, and says which subject is the narrow one', () => {

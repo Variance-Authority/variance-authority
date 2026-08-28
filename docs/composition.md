@@ -248,6 +248,31 @@ an ancestor's cascade — or a reading that is not repeatable. The bands say whi
 kind, in the same vocabulary a sensitivity absorbs, so a divergence entirely
 inside a relaxed band can be dismissed without opening it.
 
+Every rendering after the first also says **why**. Each is lifted out of the page
+it was found in, re-rooted at the component, and read against the first for
+[where the two parted](parting.md) — so the report does not stop at *`Price`
+rendered two ways*, it says which input moved:
+
+```text
+Price (token) — 2 rendering(s) from one props digest
+  2 subject(s): price, receipt
+  1 subject(s): promo
+    variation — an input moved and the page followed
+    Price inherited a different `color` — an ancestor declared it
+      2 deltas here (token) — color
+```
+
+The lift is what makes that readable. Compared as whole subjects, a receipt and a
+promo card differ everywhere and the answer would be the difference the reader
+already knows about. Compared as two `Price`s, they differ in one property.
+
+This is the one place in the system a parting is reachable without a decision
+about how both sides were read: both renderings come out of one run, off one
+collector, at one commit, so they are read the same way by construction. It needs
+no framework adapter either — the boundaries come from the owner chain and the
+cascade from `styleProvenance` — which is why an ancestor's `color` is nameable
+on a browser run today.
+
 **Measured on todomvc: zero.** A props digest is not a complete statement of a
 component's inputs, so three shapes reach the check and are refused by it
 ([ADR-0034](context/adr/0034-a-divergence-must-survive-the-children-it-excludes.md)):

@@ -145,9 +145,13 @@ padding:.1rem .3rem;border-radius:2px;white-space:nowrap;margin-right:.35rem;cur
 .subs a:hover{border-color:var(--orange);color:var(--ivory)}
 .subs a.partial{opacity:.5;border-style:dashed}
 .folds{list-style:none;margin:.3rem 0 0;padding:0}
-.folds li{display:flex;align-items:baseline;gap:.6rem;padding:.25rem 0;
+.folds li{display:flex;flex-wrap:wrap;align-items:baseline;gap:.6rem;padding:.25rem 0;
 border-bottom:1px solid #ffffff0a;font-size:11.5px}
 .folds .n{color:var(--quiet);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* A divergence's parting: full width under the subjects it explains, and
+   preformatted, because explainParting indents its own manifestation lines. */
+.folds .why{flex:0 0 100%;margin:.2rem 0 0;color:var(--quiet);
+font:11px/1.5 var(--mono);white-space:pre-wrap}
 .ungrouped{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;font-size:11px;color:var(--quiet)}
 
 /* copy affordances */

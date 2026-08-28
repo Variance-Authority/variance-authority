@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { capture, node } from '../rules/normalize/fixture.js';
+import { normalize } from '../rules/normalize/index.js';
 import { composeSubjects, type SubjectComposition } from './composition.js';
+import { componentInstances } from './instances.js';
 import { attributeMovement } from './movement.js';
 import type { ComponentInstance } from './instances.js';
 
@@ -362,5 +365,75 @@ describe('attributing a movement', () => {
     expect(attribution.movements[0]?.alsoIn).toEqual(['story:ds-chip--done']);
     // Nothing held: every site of it moved, so the suite offers no control.
     expect(attribution.movements[0]?.held).toEqual([]);
+  });
+});
+
+/**
+ * A divergence that says which input moved.
+ *
+ * The claim a pixel differ structurally cannot make, with the half that makes it
+ * actionable. `Price` declares a weight and no colour; the card it sits in
+ * declares the colour. Two cards, two colours, one props digest — and the
+ * finding is not "these disagree", it is *`color`, from above*.
+ */
+describe('why a divergence diverged', () => {
+  const card = (subject: string, color: string) => {
+    const snapshot = normalize(
+      capture({
+        subjectId: subject,
+        inheritedSeed: { color },
+        root: node({
+          tag: 'div',
+          owners: [{ name: 'Card', props: { tone: color } }],
+          children: [
+            node({
+              tag: 'span',
+              text: '$12.00',
+              owners: [{ name: 'Price', props: { amount: 1200 } }, { name: 'Card' }],
+              rules: [{ selector: '.price', declare: { 'font-weight': '600' } }],
+            }),
+          ],
+        }),
+      }),
+    );
+    return { subject, instances: componentInstances(snapshot), snapshot };
+  };
+
+  const SPLIT: readonly SubjectComposition[] = [
+    card('receipt', '#111111'),
+    card('promo', '#ffffff'),
+  ];
+
+  it('names the ancestor cascade rather than reporting a count', () => {
+    const divergence = composeSubjects(SPLIT).divergences.find(
+      (entry) => entry.component === 'Price',
+    )!;
+
+    expect(divergence.renderings).toHaveLength(2);
+    expect(divergence.partings?.map((parting) => parting.rendering)).toEqual([1]);
+    expect(divergence.partings![0]!.lines).toContain(
+      'Price inherited a different `color` — an ancestor declared it',
+    );
+  });
+
+  it('compares the component to itself, not the pages it was found in', () => {
+    // Read as whole subjects these two are a receipt and a promo card and differ
+    // everywhere. Lifted, they differ in one property, which is the answer.
+    const parting = composeSubjects(SPLIT).divergences.find(
+      (entry) => entry.component === 'Price',
+    )!.partings![0]!;
+
+    expect(parting.lines[0]).toBe('variation — an input moved and the page followed');
+  });
+
+  it('is absent, never empty, when the run kept no documents', () => {
+    const withoutDocuments = SPLIT.map(({ subject, instances }) => ({ subject, instances }));
+
+    const divergence = composeSubjects(withoutDocuments).divergences.find(
+      (entry) => entry.component === 'Price',
+    )!;
+
+    expect(divergence.renderings).toHaveLength(2);
+    expect(divergence.partings).toBeUndefined();
   });
 });

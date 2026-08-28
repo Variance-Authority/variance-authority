@@ -292,7 +292,13 @@ async function observeAll(
     // own graph is folded from. Taken here, in the worker, because the snapshot
     // is not retained past this scope on the path that keeps no history.
     if (collected.snapshot !== undefined) {
-      compositions[index] = { subject: id, instances: componentInstances(collected.snapshot) };
+      compositions[index] = {
+        subject: id,
+        instances: componentInstances(collected.snapshot),
+        // Carried so a divergence can name the input that moved, which needs the
+        // documents and not the digests. It does not outlive this array.
+        snapshot: collected.snapshot,
+      };
     }
 
     // Retained here for the same reason the composition is taken here: the

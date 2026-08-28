@@ -1,8 +1,10 @@
+import { boundaries as componentBoundaries, UNATTRIBUTED } from '../attribute/boundary.js';
 import type { Digest } from '../format/hash.js';
-import type { HeldCell, HeldValue, Holding } from '../format/holding.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import { BANDS, bandOf, type Band } from './band.js';
 import { compareTrees, matchTrees, type Delta } from './diff/index.js';
+import { cascadeInputs, declaredIn } from './cascade.js';
+import { compareHoldings } from './holding-diff.js';
 import { sameTree, sliceOf, type PartingSlice } from './slice.js';
 
 /**
@@ -63,9 +65,10 @@ export interface Parting {
    * Boundaries where something moved — an input, an output, or both — in
    * document order.
    *
-   * Absent, never `[]`, when no node on either side carried a readable holding:
-   * a page with no framework adapter attached has not been found to agree, it
-   * has not been asked (ADR-0002).
+   * Absent, never `[]`, when no node on either side started a component: a page
+   * read with no framework adapter has not been found to agree, it has not been
+   * asked (ADR-0002). Present with every boundary at rung `unread` is the next
+   * reading up — the components were found and their inputs were not.
    */
   readonly boundaries?: readonly PartedBoundary[];
 
@@ -102,7 +105,10 @@ export interface PartedBoundary {
 
   readonly rung: PartingRung;
 
-  /** Inputs that differ, props first, then contexts, then hook calls in order. */
+  /**
+   * Inputs that differ: props, then contexts, then hook calls in order, then
+   * the inherited properties no declaration at this boundary accounts for.
+   */
   readonly inputs: readonly MovedInput[];
 
   /**
@@ -148,6 +154,11 @@ export type PartingRung =
   | 'handed'
   /** A context value differs. A provider above decided this; look up. */
   | 'provided'
+  /**
+   * An inherited style value differs, and this boundary declares none of it.
+   * An ancestor's cascade decided this; look up.
+   */
+  | 'inherited'
   /** A `useSyncExternalStore` snapshot differs — the store moved, outside React. */
   | 'external'
   /** An own hook cell differs. **This is the cause.** */
@@ -160,9 +171,12 @@ export type PartingRung =
   | 'unpaired';
 
 export interface MovedInput {
-  readonly kind: 'prop' | 'context' | 'hook';
+  readonly kind: 'prop' | 'context' | 'hook' | 'inherited';
 
-  /** Prop name, context display name, or hook name (`useState`). */
+  /**
+   * Prop name, context display name, hook name (`useState`), or — for
+   * `inherited` — the CSS property an ancestor decided.
+   */
   readonly name: string;
 
   /** Hook call position — the index a reader gets counting down the component. */
@@ -193,7 +207,10 @@ export function partingOf(baseline: SemanticSnapshot, candidate: SemanticSnapsho
   const tree = sameTree(baseline.root, candidate.root);
   const moved = comparison.deltas.length > 0;
 
-  const found = boundariesOf(baseline.root, candidate.root, partner);
+  const found = boundariesOf(baseline.root, candidate.root, partner, {
+    there: declaredIn(baseline),
+    here: declaredIn(candidate),
+  });
   if (found === undefined) {
     return {
       slice: sliceOf(tree, undefined, moved),
@@ -245,6 +262,7 @@ function boundariesOf(
   baselineRoot: SemanticNode,
   candidateRoot: SemanticNode,
   partner: ReadonlyMap<SemanticNode, SemanticNode>,
+  declared: { readonly there: ReadonlySet<string>; readonly here: ReadonlySet<string> },
 ): Draft[] | undefined {
   const mine = boundaryNodes(candidateRoot);
   const theirs = boundaryNodes(baselineRoot);
@@ -255,12 +273,16 @@ function boundariesOf(
   return mine.map((node) => {
     const other = paired.get(node);
     const moved = compareHoldings(other?.holding, node.holding);
+    const inputs = [
+      ...moved.inputs,
+      ...cascadeInputs(other, node, declared.there, declared.here),
+    ];
     return {
       component: node.provenance?.owners[0]?.name ?? '(anonymous)',
       path: node.path,
       ...(other === undefined ? {} : { basePath: other.path }),
       depth: depthOf(node.path),
-      inputs: moved.inputs,
+      inputs,
       unread: moved.unread,
       paired: other !== undefined,
       owned: [],
@@ -268,14 +290,46 @@ function boundariesOf(
   });
 }
 
+/**
+ * Every node where a component starts, in document order.
+ *
+ * Read from provenance and not from `holding`, which is the difference between
+ * this module working on one collector and working on all of them. A holding is
+ * what a *framework adapter* managed to read at a boundary — props values, hook
+ * cells — and only `@variance-authority/unit-test` supplies one today. Keying the
+ * boundary set on it made every rung unreachable from a browser run, including
+ * the two that need no adapter at all: the ancestor cascade, which is read from
+ * `styleProvenance`, and the tree comparison, which is read from the owner
+ * chains. Those runs got `unread` — "nothing can be said about why" — while
+ * holding the evidence to say it.
+ *
+ * {@link componentBoundaries} is the shared definition, so a boundary here is
+ * the same node the component hashes and the wiring band call one. It reports a
+ * node once per component that opens there; the nodes are what this needs, and
+ * `boundariesOf` names each by its innermost owner exactly as before.
+ *
+ * A node with a holding and no provenance is still kept. That is an adapter that
+ * read the fiber's values but not its owner chain, and dropping its evidence
+ * because of a second failure would lose the one rung it can still reach.
+ */
 function boundaryNodes(root: SemanticNode): readonly SemanticNode[] {
-  const found: SemanticNode[] = [];
-  const visit = (node: SemanticNode): void => {
-    if (node.holding !== undefined) found.push(node);
-    for (const child of node.children) visit(child);
+  const found = new Set<SemanticNode>();
+  for (const boundary of componentBoundaries(root)) {
+    // `(unattributed)` is the bucket for nodes whose owner chain broke, not a
+    // component, and `causesBetween` refuses it for the same reason: a boundary
+    // reported there would name a component nobody wrote and pool unrelated
+    // parts of the page under one name.
+    if (boundary.component === UNATTRIBUTED) continue;
+    found.add(boundary.node);
+  }
+
+  const holders = (node: SemanticNode): void => {
+    if (node.holding !== undefined) found.add(node);
+    for (const child of node.children) holders(child);
   };
-  visit(root);
-  return found;
+  holders(root);
+
+  return [...found].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
 /**
@@ -389,88 +443,12 @@ function rungOf(draft: Draft): PartingRung {
   if (!draft.paired) return 'unpaired';
   if (draft.inputs.some((input) => input.kind === 'prop')) return 'handed';
   if (draft.inputs.some((input) => input.kind === 'context')) return 'provided';
+  if (draft.inputs.some((input) => input.kind === 'inherited')) return 'inherited';
   if (draft.inputs.some((input) => input.name === 'useSyncExternalStore')) return 'external';
   if (draft.inputs.length > 0) return 'stateful';
   return draft.unread ? 'unread' : 'undetermined';
 }
 
-/**
- * What differs between two readings of one boundary.
- *
- * `unread` is returned beside the inputs rather than folded into them because
- * the two answer different questions. The inputs say what moved; `unread` says
- * whether "nothing moved" is a reading or a shrug, and only the second caller —
- * the one about to call a render nondeterministic — needs it.
- */
-function compareHoldings(
-  left: Holding | undefined,
-  right: Holding | undefined,
-): { inputs: readonly MovedInput[]; unread: boolean } {
-  const inputs: MovedInput[] = [];
-  let unread = left?.unread !== undefined || right?.unread !== undefined;
-
-  // Absent props mean `memoizedProps` was not an object, which is a failure to
-  // read rather than a component with no props. Symmetric absence is left alone:
-  // two readings that failed the same way have not disagreed.
-  if ((left?.props === undefined) !== (right?.props === undefined)) unread = true;
-  else compareNamed('prop', left?.props, right?.props, inputs);
-
-  // Contexts are different: absent means `dependencies` was null, and that is a
-  // positive reading — this component subscribes to no context.
-  compareNamed('context', left?.contexts, right?.contexts, inputs);
-
-  if (left?.cells === undefined || right?.cells === undefined) unread = true;
-  else compareCells(left.cells, right.cells, inputs);
-
-  return { inputs, unread };
-}
-
-function compareNamed(
-  kind: 'prop' | 'context',
-  left: readonly HeldValue[] | undefined,
-  right: readonly HeldValue[] | undefined,
-  into: MovedInput[],
-): void {
-  const before = new Map((left ?? []).map((value) => [value.name, value.digest]));
-  const after = new Map((right ?? []).map((value) => [value.name, value.digest]));
-
-  for (const name of [...new Set([...before.keys(), ...after.keys()])].sort()) {
-    const from = before.get(name);
-    const to = after.get(name);
-    if (from !== to) into.push({ kind, name, from, to });
-  }
-}
-
-/**
- * Hook cells, joined on call position.
- *
- * On position rather than on name because position is what a hook *is* to React
- * — the rule the linter enforces — and because a component that ran a different
- * number of hooks took a different branch before it rendered anything. That case
- * arrives here as cells present on one side only, which is a reading rather than
- * a join failure, and one of the loudest available.
- */
-function compareCells(
-  left: readonly HeldCell[],
-  right: readonly HeldCell[],
-  into: MovedInput[],
-): void {
-  const before = new Map(left.map((cell) => [cell.index, cell]));
-  const after = new Map(right.map((cell) => [cell.index, cell]));
-
-  for (const index of [...new Set([...before.keys(), ...after.keys()])].sort((a, b) => a - b)) {
-    const from = before.get(index);
-    const to = after.get(index);
-    if (from?.digest === to?.digest && from?.hook === to?.hook) continue;
-    into.push({
-      kind: 'hook',
-      name: to?.hook ?? from?.hook ?? '(unknown)',
-      index,
-      from: from?.digest,
-      to: to?.digest,
-    });
-  }
-}
 
 function depthOf(path: NodePath): number {
   return path === '' ? 0 : path.split('/').length;

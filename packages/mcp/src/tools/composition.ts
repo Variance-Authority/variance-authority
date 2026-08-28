@@ -251,10 +251,32 @@ function divergenceSection(divergences: readonly DivergenceRecord[]): string {
         // and they are what a reader opens. A single flat list of every subject
         // involved says a divergence happened and refuses to say where.
         divergence.renderings
-          .map((subjects) => `  ${subjects.length} subject(s): ${preview(subjects)}`)
+          .map(
+            (subjects, index) =>
+              `  ${subjects.length} subject(s): ${preview(subjects)}` +
+              // The parting, indented under the rendering it explains. This is
+              // the answer to the question the rest of the section only poses —
+              // an agent reading this has the moved input by name and never has
+              // to fetch two subjects and diff them.
+              partingLines(divergence, index),
+          )
           .join('\n'),
     ),
   ].join('\n');
+}
+
+/**
+ * The parting for one rendering, indented, or nothing.
+ *
+ * Nothing when the run kept no documents — silence rather than a line saying so,
+ * because this section is already explicit that a divergence has two possible
+ * causes, and a per-rendering "not read" under every row would be the same
+ * caveat repeated once per subject.
+ */
+function partingLines(divergence: DivergenceRecord, rendering: number): string {
+  const parting = divergence.partings?.find((entry) => entry.rendering === rendering);
+  if (parting === undefined) return '';
+  return parting.lines.map((line) => `\n    ${line}`).join('');
 }
 
 function echoSection(composed: CompositionReport): string {

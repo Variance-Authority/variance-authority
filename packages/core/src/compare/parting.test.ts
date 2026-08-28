@@ -147,7 +147,7 @@ describe('what this refuses to claim', () => {
     expect(parting.deltas.length).toBeGreaterThan(0);
     expect(parting.slice).toBe('unread');
     expect(explainParting(parting)).toEqual([
-      'unread — the page moved and no boundary could be read',
+      'unread — the page moved and what would explain it was not read',
       '  no framework boundary was read, so nothing can be said about why',
     ]);
   });
@@ -170,5 +170,128 @@ describe('what this refuses to claim', () => {
     expect(cart.rung).toBe('stateful');
     expect(cart.deltas).toBe(0);
     expect(explainParting(parting)).toContain('  and rendered the same anyway');
+  });
+});
+
+/**
+ * The cascade, which is an input nobody passed.
+ *
+ * A component that declares no `color` and renders in two colours has had its
+ * output decided by an ancestor. Every rung above this one reads something the
+ * boundary *received*; this one reads what it did not, by subtracting the
+ * declarations `styleProvenance` recorded from the values the node ended up
+ * with. Without it the reading is `undetermined`, whose sentence says
+ * nondeterministic — an accusation, made about the one input nobody read.
+ */
+describe('a value an ancestor decided', () => {
+  const price = (color: string) =>
+    capture({
+      subjectId: 'story:price--default',
+      inheritedSeed: { color },
+      root: node({
+        tag: 'span',
+        text: '$12.00',
+        owners: [{ name: 'Price' }],
+        holding: { cells: [], props: [held('amount', 1200)] },
+        rules: [{ selector: '.price', declare: { 'font-weight': '600' } }],
+      }),
+    });
+
+  it('names the inherited property and points up rather than at the component', () => {
+    const parting = part(price('#111111'), price('#ffffff'));
+    const boundary = parting.boundaries!.find((entry) => entry.component === 'Price')!;
+
+    expect(boundary.rung).toBe('inherited');
+    expect(boundary.inputs.map((input) => `${input.kind}:${input.name}`)).toEqual([
+      'inherited:color',
+    ]);
+    expect(explainParting(parting)).toContain(
+      'Price inherited a different `color` — an ancestor declared it',
+    );
+  });
+
+  it('is a variation and not a flake, because the input that moved was read', () => {
+    expect(part(price('#111111'), price('#ffffff')).slice).toBe('variation');
+  });
+
+  it('reaches the cascade with no framework adapter attached', () => {
+    // The reading every browser collector can make and none of them could. No
+    // holding anywhere: the boundary is found from the owner chain, its inputs
+    // are unreadable, and the one input nobody passes is still named.
+    const bare = (color: string) =>
+      capture({
+        subjectId: 'story:price--default',
+        inheritedSeed: { color },
+        root: node({
+          tag: 'span',
+          text: '$12.00',
+          owners: [{ name: 'Price' }],
+          rules: [{ selector: '.price', declare: { 'font-weight': '600' } }],
+        }),
+      });
+
+    const parting = part(bare('#111111'), bare('#ffffff'));
+    const boundary = parting.boundaries!.find((entry) => entry.component === 'Price')!;
+
+    expect(boundary.rung).toBe('inherited');
+    expect(parting.slice).toBe('variation');
+  });
+
+  it('says nothing about a property the boundary declares for itself', () => {
+    // `font-weight` is in `styleProvenance` at this path, so it is a declaration
+    // and never a cascade — even when it is the thing that moved.
+    const weighted = (weight: string) =>
+      capture({
+        subjectId: 'story:price--default',
+        inheritedSeed: { color: '#111111' },
+        root: node({
+          tag: 'span',
+          text: '$12.00',
+          owners: [{ name: 'Price' }],
+          holding: { cells: [], props: [held('amount', 1200)] },
+          rules: [{ selector: '.price', declare: { 'font-weight': weight } }],
+        }),
+      });
+
+    const boundary = part(weighted('400'), weighted('600')).boundaries!.find(
+      (entry) => entry.component === 'Price',
+    )!;
+
+    expect(boundary.inputs).toEqual([]);
+  });
+});
+
+/**
+ * Two readings whose component trees are not the same tree.
+ *
+ * The row that used to be answered `variation` — "an input moved and the page
+ * followed" — while no input had moved at all.
+ */
+describe('a tree that is a different tree', () => {
+  const card = (label: string, badge: string) =>
+    capture({
+      subjectId: 'story:card--default',
+      root: node({
+        tag: 'div',
+        owners: [{ name: 'Card' }],
+        holding: { cells: [], props: [held('id', 7)] },
+        children: [node({ tag: 'span', text: label, owners: [{ name: badge }, { name: 'Card' }] })],
+      }),
+    });
+
+  it('is reshaped, not a variation, when every input agreed', () => {
+    const parting = part(card('one', 'Badge'), card('two', 'Label'));
+
+    expect(parting.slice).toBe('reshaped');
+    expect(parting.boundaries!.every((entry) => entry.inputs.length === 0)).toBe(true);
+    expect(explainParting(parting)[0]).toBe(
+      'reshaped — the component tree is a different tree and the page followed',
+    );
+  });
+
+  it('is still a flake when the tree held and nothing readable moved', () => {
+    const parting = part(card('one', 'Badge'), card('two', 'Badge'));
+
+    expect(parting.slice).toBe('flake');
   });
 });

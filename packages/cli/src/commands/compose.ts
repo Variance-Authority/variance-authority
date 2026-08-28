@@ -224,6 +224,9 @@ function divergenceRecord(divergence: Divergence): DivergenceRecord {
     renderings: divergence.renderings.map((rendering) =>
       distinct(rendering.sites.map((site) => site.subject)),
     ),
+    ...(divergence.partings === undefined || divergence.partings.length === 0
+      ? {}
+      : { partings: divergence.partings }),
   };
 }
 
