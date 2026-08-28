@@ -2,6 +2,7 @@ import type {
   Band,
   Diagnostic,
   Digest,
+  PartingSlice,
   ProfileId,
   SemanticSnapshot,
   SubjectRef,
@@ -144,6 +145,39 @@ export interface ScenarioBlindSide {
   readonly sides: readonly ('left' | 'right')[];
 }
 
+/**
+ * Which kind of parting an edge is, and which input made it.
+ *
+ * The same value the composition graph attaches to a divergence, on the axis
+ * where two readings are separated by a moment rather than by a page. That is
+ * the whole claim: *snapshot, click, snapshot* and *snapshot, wait, snapshot*
+ * are not two features. They are one comparison whose answer differs, and the
+ * slice is where the difference lands —
+ *
+ * | slice | what the edge was |
+ * |---|---|
+ * | `variation` | the act moved state and the page followed. It worked |
+ * | `absorbed` | an input moved and the page did not. The act hit nothing |
+ * | `reshaped` | a different tree from the same inputs — a boundary resolved |
+ * | `settled` | the act changed nothing at all |
+ * | `flake` | every input agreed, the tree held, and it moved anyway |
+ * | `refactor` | the tree moved and the picture did not |
+ * | `unread` | it moved and what would explain it was not read |
+ *
+ * `refactor` keeps the name it has on the revision axis, where it is exact, and
+ * reads oddly here: across an act it means the components were swapped without
+ * changing the picture. Renaming it per axis would buy a better sentence in one
+ * place at the cost of two vocabularies for one reading.
+ *
+ * {@link lines} is `explainParting` output — the triage sentence first, then a
+ * line per boundary. A run whose collector read no fiber gets the honest pair
+ * rather than silence: the slice is `unread`, and the line under it says so.
+ */
+export interface ScenarioParting {
+  readonly slice: PartingSlice;
+  readonly lines: readonly string[];
+}
+
 export interface ScenarioVariance {
   readonly digest: Digest;
   readonly identical: boolean;
@@ -151,6 +185,19 @@ export interface ScenarioVariance {
   readonly components: readonly string[];
   readonly unobserved: readonly Band[];
   readonly blindSides: readonly ScenarioBlindSide[];
+
+  /**
+   * Why these two readings differ, not merely that they do.
+   *
+   * `components` names who moved and stops there, which is the same half-finding
+   * a divergence carried before it was given a parting: a reader holding it still
+   * has to open two frames and diff them by eye. This is the other half.
+   *
+   * Always present. A parting is decidable from any two snapshots — `unread` is
+   * a rung, not a gap — so an absent field here would mean the assessment did not
+   * run, and there is no such state.
+   */
+  readonly parting: ScenarioParting;
 }
 
 export type ScenarioComparison =

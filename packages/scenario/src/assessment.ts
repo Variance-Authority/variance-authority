@@ -2,7 +2,9 @@ import {
   BANDS,
   decidesBand,
   deriveVariation,
+  explainParting,
   observableBands,
+  partingOf,
   type SemanticSnapshot,
 } from '@variance-authority/core';
 import type {
@@ -12,6 +14,7 @@ import type {
   ScenarioComparison,
   ScenarioEffectDivergence,
   ScenarioFrame,
+  ScenarioParting,
   ScenarioRun,
   ScenarioTransitionAssessment,
   ScenarioUnmatchedAct,
@@ -109,7 +112,32 @@ function varianceOf(before: SemanticSnapshot, after: SemanticSnapshot): Scenario
     components: variation.components.map((component) => component.name),
     unobserved: variation.unobserved,
     blindSides: blindSides(before, after),
+    parting: partingBetween(before, after),
   };
+}
+
+/**
+ * The edge, read for which input made it.
+ *
+ * Called for both pairs this file measures, because both are the same question
+ * asked of different snapshots: an Arrange comparison asks why two executions
+ * began differently, a transition effect asks what an Act did. Neither is a
+ * regression — there is no baseline in a scenario — so this is `partingOf`'s
+ * home ground rather than a borrowed reading.
+ *
+ * No lifting, unlike the composition graph's use of it: both snapshots are the
+ * same subject at two moments, so they are already rooted at the same node and
+ * `boundarySnapshot` would have nothing to do. That is the one way the time axis
+ * is *easier* than the A/B one.
+ *
+ * A second comparison after `deriveVariation`'s, and deliberately not fused with
+ * it. `compareTrees` returns on matching render hashes, so the edge that moved
+ * nothing — the common one on a long path — pays a digest compare, and the edge
+ * that did move is the one somebody is about to read a sentence about.
+ */
+function partingBetween(before: SemanticSnapshot, after: SemanticSnapshot): ScenarioParting {
+  const parting = partingOf(before, after);
+  return { slice: parting.slice, lines: explainParting(parting) };
 }
 
 function blindSides(

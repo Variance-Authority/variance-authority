@@ -361,3 +361,120 @@ describe('folding witnessed paths into a partial machine', () => {
     expect(() => foldScenarios([forged])).toThrow('after an unobserved outcome');
   });
 });
+
+/**
+ * A subject read at two moments, with enough of the fiber to say why it moved.
+ *
+ * `snapshot` above deliberately carries no provenance, which is the reading a
+ * collector with no framework adapter gets. This is the other one, and the two
+ * together are what keep `unread` honest: it has to be reachable by a run that
+ * saw nothing, and unreachable by one that saw something.
+ */
+function reading(
+  subject: string,
+  options: {
+    readonly owner: string;
+    readonly text: string;
+    readonly state: string;
+    readonly prop?: string;
+  },
+): SemanticSnapshot {
+  const base = snapshot(subject, options.text);
+  const owners = [{ name: options.owner, propsDigest: digestValue({ p: options.prop ?? 'p' }) }];
+
+  return {
+    ...base,
+    renderHash: digestValue({ text: options.text, owner: options.owner }),
+    structureHash: digestValue({ tag: 'button', text: options.text, owner: options.owner }),
+    root: {
+      ...base.root,
+      provenance: { owners },
+      holding: {
+        cells: [{ index: 0, hook: 'useState', digest: digestValue(options.state) }],
+        props: [{ name: 'label', digest: digestValue(options.prop ?? 'p') }],
+      },
+    },
+  };
+}
+
+describe('what an act did to the subject', () => {
+  it('names the state a click moved, and calls the edge a variation', () => {
+    const before = reading('counter', { owner: 'Counter', text: '0', state: 'zero' });
+    const after = reading('counter', { owner: 'Counter', text: '1', state: 'one' });
+    const run = completed('one', 'counter', before, after);
+    const effect = assessScenarios(run, run).transitions[0]!.leftEffect;
+
+    expect(effect.kind).toBe('measured');
+    if (effect.kind !== 'measured') return;
+    expect(effect.variance.parting.slice).toBe('variation');
+    expect(effect.variance.parting.lines[0]).toBe(
+      'variation — an input moved and the page followed',
+    );
+    expect(effect.variance.parting.lines).toContainEqual(
+      'Counter chose differently — useState #0 moved',
+    );
+  });
+
+  it('calls an edge that changed nothing settled', () => {
+    const held = reading('counter', { owner: 'Counter', text: '0', state: 'zero' });
+    const run = completed('one', 'counter', held, held);
+    const effect = assessScenarios(run, run).transitions[0]!.leftEffect;
+
+    expect(effect.kind).toBe('measured');
+    if (effect.kind !== 'measured') return;
+    expect(effect.variance.identical).toBe(true);
+    expect(effect.variance.parting.slice).toBe('settled');
+  });
+
+  /**
+   * The story the slice exists to tell apart from the one above it. A boundary
+   * resolving replaces the fallback's components with the content's, so the
+   * component tree is a different tree while every input this run can read held
+   * — which is `reshaped`, and is not the accusation `flake` would have been.
+   */
+  it('calls a resolved boundary a reshape rather than a flake', () => {
+    const before = reading('article', { owner: 'Skeleton', text: 'loading', state: 'same' });
+    const after = reading('article', { owner: 'Article', text: 'the article', state: 'same' });
+    const run = completed('one', 'article', before, after);
+    const effect = assessScenarios(run, run).transitions[0]!.leftEffect;
+
+    expect(effect.kind).toBe('measured');
+    if (effect.kind !== 'measured') return;
+    expect(effect.variance.parting.slice).toBe('reshaped');
+    expect(effect.variance.parting.lines[0]).toBe(
+      'reshaped — the component tree is a different tree and the page followed',
+    );
+  });
+
+  /**
+   * ADR-0002 on the time axis. A collector with no framework adapter watched the
+   * page move and cannot say why, and the one thing it must never do is call
+   * that a flake.
+   */
+  it('says the reading was not made when no fiber was read', () => {
+    const run = completed('one', 'page', snapshot('page', 'before'), snapshot('page', 'after'));
+    const effect = assessScenarios(run, run).transitions[0]!.leftEffect;
+
+    expect(effect.kind).toBe('measured');
+    if (effect.kind !== 'measured') return;
+    expect(effect.variance.parting.slice).toBe('unread');
+    expect(effect.variance.parting.lines).toStrictEqual([
+      'unread — the page moved and what would explain it was not read',
+      '  no framework boundary was read, so nothing can be said about why',
+    ]);
+  });
+
+  it('reads the Arrange comparison with the same vocabulary', () => {
+    const left = completed('left', 'counter', 
+      reading('counter', { owner: 'Counter', text: '0', state: 'zero' }),
+      reading('counter', { owner: 'Counter', text: '1', state: 'one' }));
+    const right = completed('right', 'counter',
+      reading('counter', { owner: 'Counter', text: '7', state: 'seven' }),
+      reading('counter', { owner: 'Counter', text: '8', state: 'eight' }));
+    const arrange = assessScenarios(left, right).arrange;
+
+    expect(arrange.kind).toBe('measured');
+    if (arrange.kind !== 'measured') return;
+    expect(arrange.variance.parting.slice).toBe('variation');
+  });
+});

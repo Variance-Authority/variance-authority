@@ -20,6 +20,7 @@ export type {
   ScenarioFrame,
   ScenarioObservation,
   ScenarioOutcome,
+  ScenarioParting,
   ScenarioRun,
   ScenarioTransitionAssessment,
   ScenarioUnmatchedAct,

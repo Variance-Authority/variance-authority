@@ -40,6 +40,36 @@ Act produces a different delta. It is inquiry evidence, not a regression verdict
 scenario assessment writes no baseline, approval, history row, changelog, or
 exit code.
 
+## What the edge was, not only that there was one
+
+The first two readings carry a **parting** — [`parting.md`](parting.md)'s value,
+on the axis where two readings are separated by a moment instead of by a page.
+A digest says the Act had an effect. The parting says which input made it, and
+its slice is the triage:
+
+| slice | the edge was |
+| --- | --- |
+| `variation` | the Act moved state and the page followed. It did what it meant to |
+| `absorbed` | an input moved and the page did not. The Act landed on nothing |
+| `reshaped` | a different component tree from the same inputs — a boundary resolved |
+| `settled` | the Act changed nothing at all |
+| `flake` | every input agreed, the tree held, and the page moved anyway |
+| `refactor` | the tree moved and the picture did not |
+| `unread` | it moved, and what would explain it was not read |
+
+*Snapshot, click, snapshot* and *snapshot, wait for a boundary, snapshot* are not
+two features. They are one comparison, and the slice is the only place they part:
+a click that worked is `variation` with a hook cell named under it, an arrival is
+`reshaped`, and neither is reported as the accusation `flake` — which is reserved
+for the edge where every input a run actually read agreed.
+
+`refactor` keeps the name it carries on the revision axis, where it is exact.
+Across an Act it means the components were swapped without changing the picture.
+One vocabulary reading slightly oddly in one place is cheaper than two.
+
+The lift the composition graph needs is absent here: both snapshots are the same
+subject at two moments, so they are already rooted at the same node.
+
 An Act is identified by an authored key and its occurrence. DOM event bubbling,
 selectors, accessible names, and targets are not identity. Alignment stops at
 the first inserted, missing, or repeated Act and reports the unmatched values;

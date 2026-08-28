@@ -2031,6 +2031,7 @@
         "ScenarioMachineTransition": "interface",
         "ScenarioObservation": "type",
         "ScenarioOutcome": "type",
+        "ScenarioParting": "interface",
         "ScenarioRun": "class",
         "ScenarioTransitionAssessment": "interface",
         "ScenarioUnknownTransition": "interface",
