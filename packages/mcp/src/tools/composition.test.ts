@@ -103,8 +103,10 @@ const COMPOSED: CompositionReport = {
     {
       component: 'Chip',
       bands: ['style'],
-      renderings: 3,
-      subjects: ['ds/chip--group', 'page/all', 'page/active'],
+      // Two pages agreeing and the narrow subject disagreeing with both, which
+      // is the shape a reader has to be able to see: the short group is the one
+      // to open.
+      renderings: [['page/all', 'page/active'], ['ds/chip--group']],
     },
   ],
   movements: [
@@ -219,8 +221,12 @@ describe('the suite compared to itself', () => {
   it('says a divergence is not a regression, because nothing about it is one', () => {
     const answer = composition.run(REPORT, {});
 
-    expect(answer).toContain('Chip (style) — 3 rendering(s) from one props digest');
+    expect(answer).toContain('Chip (style) — 2 rendering(s) from one props digest');
     expect(answer).toContain('there is no baseline anywhere in this');
+    // The split, not just the total. Which subjects agreed with each other is
+    // the only part of a divergence a reader can act on.
+    expect(answer).toContain('2 subject(s): page/all, page/active');
+    expect(answer).toContain('1 subject(s): ds/chip--group');
   });
 
   it('connects the dots, and says which subject is the narrow one', () => {
@@ -284,7 +290,7 @@ describe('one component', () => {
     const answer = composition.run(REPORT, { component: 'Chip' });
 
     expect(answer).toContain('[flake]');
-    expect(answer).toContain('3 rendering(s) from one props digest');
+    expect(answer).toContain('2 rendering(s) from one props digest');
     expect(answer).not.toContain('Button');
     expect(answer).not.toContain('page/active · Card');
   });

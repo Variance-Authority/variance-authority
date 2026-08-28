@@ -244,9 +244,15 @@ function divergenceSection(divergences: readonly DivergenceRecord[]): string {
     '',
     ...divergences.map(
       (divergence) =>
-        `${divergence.component}${bands(divergence.bands)} — ${divergence.renderings} ` +
+        `${divergence.component}${bands(divergence.bands)} — ${divergence.renderings.length} ` +
         `rendering(s) from one props digest\n` +
-        `  across ${divergence.subjects.length} subject(s): ${preview(divergence.subjects)}`,
+        // One line per rendering, widest first. The split is the finding: the
+        // subjects on the short line are the ones that disagree with the rest,
+        // and they are what a reader opens. A single flat list of every subject
+        // involved says a divergence happened and refuses to say where.
+        divergence.renderings
+          .map((subjects) => `  ${subjects.length} subject(s): ${preview(subjects)}`)
+          .join('\n'),
     ),
   ].join('\n');
 }

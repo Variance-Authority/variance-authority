@@ -126,10 +126,22 @@ export interface EchoRecord {
 export interface DivergenceRecord {
   readonly component: string;
   readonly bands: readonly string[];
-  /** How many distinct renderings one props digest produced. At least two. */
-  readonly renderings: number;
-  /** Subjects involved, in plan order. */
-  readonly subjects: readonly string[];
+
+  /**
+   * The subjects behind each distinct rendering, widest group first. At least two.
+   *
+   * Grouped rather than counted, and that is the whole record. A divergence says
+   * one input produced more than one output, and the only sentence a reader can
+   * act on is *which* subjects sit on each side of it — `price` and `receipt`
+   * render one way, `promo` renders another, so `promo` is the one to open. A
+   * count with a flat subject list beside it, which is what this was, names every
+   * subject involved and withholds the only thing distinguishing them: the reader
+   * has three names, knows two of them agree, and cannot tell which two.
+   *
+   * Deduplicated per group, because a rendering reached twice in one subject is
+   * one subject to go and look at. `renderings.length` is the count this replaced.
+   */
+  readonly renderings: readonly (readonly string[])[];
 }
 
 /**

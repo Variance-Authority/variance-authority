@@ -54,8 +54,22 @@ export function composition(report: CliRunReport): string {
           .map(
             (divergence) =>
               `<li><code>${text(divergence.component)}</code>` +
-              `<span class="n">${divergence.renderings} renderings</span>` +
+              `<span class="n">${divergence.renderings.length} renderings</span>` +
               divergence.bands.map((band) => `<span class="mark band">${text(band)}</span>`).join('') +
+              // The subjects, grouped and linked. Every other row on this page
+              // ends somewhere a reader can click; this one used to end at a
+              // count, which made the one finding a screenshot tool cannot
+              // produce also the one finding this page could not be acted on.
+              divergence.renderings
+                .map((subjects) =>
+                  subjects
+                    .map(
+                      (subject) =>
+                        `<a href="#s-${text(slug(subject))}"><code>${text(subject)}</code></a>`,
+                    )
+                    .join(''),
+                )
+                .join('<span class="mark quiet">vs</span>') +
               '</li>',
           )
           .join('') +

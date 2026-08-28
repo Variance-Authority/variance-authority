@@ -209,13 +209,20 @@ function echoRecord(echo: Echo): EchoRecord {
   };
 }
 
+/**
+ * Kept grouped, because flattening it is what made the finding unreadable.
+ *
+ * `core` returns the renderings widest first and each one knows its own sites;
+ * folding them into one subject list and a count — which this did — discards the
+ * only fact a reader needs, namely which subjects agreed with each other. The
+ * grouping costs nothing to carry and cannot be recovered downstream.
+ */
 function divergenceRecord(divergence: Divergence): DivergenceRecord {
   return {
     component: divergence.component,
     bands: divergence.bands,
-    renderings: divergence.renderings.length,
-    subjects: distinct(
-      divergence.renderings.flatMap((rendering) => rendering.sites.map((site) => site.subject)),
+    renderings: divergence.renderings.map((rendering) =>
+      distinct(rendering.sites.map((site) => site.subject)),
     ),
   };
 }
