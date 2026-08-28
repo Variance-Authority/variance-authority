@@ -52,6 +52,7 @@ A handful of nouns carry the whole model, and every page below assumes them.
 | [`stabilization.md`](stabilization.md) | What is already held still before my subject is read? |
 | [`flakiness.md`](flakiness.md) | Which causes of variance get absorbed, and what does each one cost me? |
 | [`framework.md`](framework.md) | The artefact is a render in the past tense. What does the framework know that it cannot? |
+| [`parting.md`](parting.md) | Two readings differ. Which input moved, and is this a variation, a flake, or a refactor? |
 
 ## Running less of the suite
 

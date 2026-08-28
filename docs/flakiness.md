@@ -141,6 +141,13 @@ twice — both halves of the sentence, established by two different instruments,
 in one run. `suspect` is an unexplained movement in a subject nobody has read
 twice; it is a shortlist entry and the report says so in those words.
 
+Both are statements about a subject. Where the two readings carry component
+holdings, [`partingOf`](parting.md) makes the same accusation about a
+**boundary**: the component whose props, contexts and hook cells were all read,
+all agreed, and whose output moved anyway. That is the narrower claim, and it is
+available only to a run that asked what the components were holding — which is
+why an unread boundary is a slice of its own rather than a quiet pass.
+
 **The `held` list is what makes any of it evidence.** Those are the subjects
 where the same component, with the same props, did not move — the stable states
 to refer to, and the suite supplies them for free, because they are the other

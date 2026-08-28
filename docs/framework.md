@@ -12,18 +12,21 @@ recorded two different components as the same component and called it a pass.
 
 `@variance-authority/react` reads them off the fiber. There is no protocol to
 adopt, no build plugin and no annotation — the fiber is already in the page, and
-the four instruments below are four different questions asked of it.
+the five instruments below are five different questions asked of it.
 
 | Instrument | Answers | Shape |
 |---|---|---|
 | [`wiringOf`](#wiring-a-sixth-digest) | how the framework holds this component — hooks, wrappers, contexts, keys | a **digest**, hashed and stored beside the others |
+| [`holdingOf`](parting.md) | what this component was handed and what it retained — props, contexts, hook cells | **evidence**, carried beside the snapshot and entering no hash |
 | [`remountedSince`](#remounts-what-the-document-cannot-show-you) | which instances were destroyed and rebuilt rather than updated | a **finding**, from an export you call |
 | [`awaitQuiet`](stabilization.md#tapcommits--which-components-rendered-and-when-they-stopped) | which components are still committing, by name | a wait, and a diagnostic |
 | [`awaitSuspense`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name) | which boundary has not resolved, and who wrote it | a wait, and a **refusal** |
 
 The last two are about a page that has not finished and live in
 [`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished).
-This page is about the first two, which are about a page that has.
+`holdingOf` is about two readings of a page that has, and lives in
+[`parting.md`](parting.md) with the comparison it exists to feed. This page is
+about the remaining two, which are read once and stored.
 
 ---
 
@@ -77,6 +80,15 @@ One conflation is real and is stated rather than hidden: React assigns
 development build is indistinguishable from a production build**. Both report
 absent. The cost is a component gaining its first `useState` reading as "became
 readable"; the alternative claims something the observation does not support.
+
+`holdingOf` splits the same fact where the digest cannot, and the difference is
+what it costs to be wrong. React creates the property as `null` and assigns the
+array on the first hook call, so *presence* separates a development build from a
+production one, and a hookless component reports an empty cell list rather than
+silence. Nothing downstream of a holding is a baseline
+([`parting.md`](parting.md)), so the positive claim buys the one verdict worth
+having — a component with no inputs to disagree about, rendering two ways — at
+no risk of re-approving a page.
 
 ---
 

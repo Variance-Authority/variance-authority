@@ -61,3 +61,6 @@ silence — a run that read no boundary reports `unread`, never `flake`.
 `explainParting` leads with that line, and stops enumerating manifestations
 past three: one input at a fork can put a boundary on every component beneath
 it, and nine lines carrying one decision bury the one line worth reading.
+
+The whole layer is documented in `docs/parting.md`: the six slices, the seven
+rungs, what a holding carries and what it deliberately does not.

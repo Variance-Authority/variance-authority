@@ -62,12 +62,13 @@ component.
 
 ## What else it reads off the same fiber
 
-The same fiber answers four distinct questions, and none of them needs a hook,
+The same fiber answers five distinct questions, and none of them needs a hook,
 a build plugin or an annotation.
 
 | | |
 |---|---|
 | `wiringOf` | hook shape, wrapper chain, context subscriptions, reconciliation keys — a **band** (one of the categories VA reports changes under, like `style`), folded in beside `style` by `collect` |
+| `holdingOf` | what a component was handed and what it retained — props, contexts and hook cells, each as a digest — **evidence**: it rides beside the snapshot, enters no hash, and is read by `partingOf` to say which input a difference came from |
 | `remountedSince` | which instances were destroyed and rebuilt rather than updated — a **finding**: a fact about this one reading, not a diff between two revisions |
 | `awaitSuspense` / `suspenseRefusal` | wait for every boundary under a node to settle, and rule on what to do if one did not |
 | `tapCommits` / `awaitQuiet` | which components are still committing, by name — the one export here with a precondition: it must be installed before `react-dom` loads, and refuses rather than reporting a page it reached too late |

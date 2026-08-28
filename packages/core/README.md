@@ -67,6 +67,14 @@ which baselines the run can see.
 
 `compare` says **what moved**. `judge` says **whether anyone should mind**.
 
+Between them sits `partingOf`, which says **which input moved**. Given two
+snapshots carrying holdings it walks the component boundaries for the shallowest
+one whose inputs agreed and whose output did not, and reports that as the origin
+— a moved prop, a context, an external store, or a hook cell by call position.
+It leads with a slice (`variation`, `flake`, `refactor`, `absorbed`, `settled`,
+`unread`) so a reader knows whether to open the rest, and `explainParting` turns
+the whole thing into lines a person reads.
+
 ## Smallest working path: compare a value
 
 Value comparison needs no host setup and returns paths and fingerprints, not a
