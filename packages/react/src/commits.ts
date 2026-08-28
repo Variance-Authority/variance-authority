@@ -178,7 +178,9 @@ interface DevToolsHook {
  * The blocker is the ordering constraint above: a tap must be installed before
  * `react-dom` runs, and a collector's bundle is injected into a page the host
  * already built. `examples/todomvc` is the only caller, and it gets there by
- * owning its own entry.
+ * owning its own entry. This is the second rung of `stabilization.md`'s ladder,
+ * and the one held back by something a collector cannot decide — `gateStability`
+ * is the third, and is held back only by what it costs.
  */
 export function tapCommits(options: TapOptions = {}): CommitTap {
   const scope = options.scope ?? (globalThis as unknown as Record<string, unknown>);

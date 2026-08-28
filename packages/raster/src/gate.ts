@@ -26,6 +26,14 @@ import {
  * **Nothing here retries.** One disagreement is the answer. A third sample could
  * only tell you how often it happens, which is not the question — the question is
  * where it comes from, and the semantic snapshots already carry that.
+ *
+ * FIXME: no run composes this. It is the one rung of `stabilization.md`'s ladder
+ * that is both unblocked and unwired — `awaitSuspense` is wired into every page
+ * agent, `tapCommits` is held back by an ordering constraint it cannot satisfy,
+ * and this is held back only by what a second acquisition costs on every subject.
+ * A collector can take one whenever it likes. Today the second reading happens
+ * further downstream, on a subject the run already called `changed`, which finds
+ * the same instability one step after the image was paid for.
  */
 
 export interface StabilitySample {

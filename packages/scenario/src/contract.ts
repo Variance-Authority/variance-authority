@@ -150,24 +150,9 @@ export interface ScenarioBlindSide {
  *
  * The same value the composition graph attaches to a divergence, on the axis
  * where two readings are separated by a moment rather than by a page. That is
- * the whole claim: *snapshot, click, snapshot* and *snapshot, wait, snapshot*
- * are not two features. They are one comparison whose answer differs, and the
- * slice is where the difference lands —
- *
- * | slice | what the edge was |
- * |---|---|
- * | `variation` | the act moved state and the page followed. It worked |
- * | `absorbed` | an input moved and the page did not. The act hit nothing |
- * | `reshaped` | a different tree from the same inputs — a boundary resolved |
- * | `settled` | the act changed nothing at all |
- * | `flake` | every input agreed, the tree held, and it moved anyway |
- * | `refactor` | the tree moved and the picture did not |
- * | `unread` | it moved and what would explain it was not read |
- *
- * `refactor` keeps the name it has on the revision axis, where it is exact, and
- * reads oddly here: across an act it means the components were swapped without
- * changing the picture. Renaming it per axis would buy a better sentence in one
- * place at the cost of two vocabularies for one reading.
+ * the claim worth stating: *snapshot, act, snapshot* and *snapshot, wait,
+ * snapshot* are not two features but one comparison, and the slice is the only
+ * place their answers part. {@link PartingSlice} defines the seven.
  *
  * {@link lines} is `explainParting` output — the triage sentence first, then a
  * line per boundary. A run whose collector read no fiber gets the honest pair

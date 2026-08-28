@@ -613,6 +613,49 @@ and a boundary that never resolves, refused and then declared.
 
 ---
 
+## The order the questions are asked in
+
+The instruments above are not four independent checks. They are one question —
+*has this subject stopped moving* — asked at four prices, and each answer settles
+the ones beneath it:
+
+| the reading | what it settles | what it costs |
+| --- | --- | --- |
+| `pendingSuspense` | whether the subject has arrived at all | a fiber traversal |
+| `awaitQuiet` | whether the application has stopped working | a hook installed before React |
+| `documentDigest` | whether anything that reaches a renderer moved | a read of a page already mounted |
+| the image | whether the pixels moved | a raster, ~65ms against ~3.4ms |
+
+The implication runs one way. A component tree that did not re-render cannot
+have produced a different document, and a document that did not move cannot
+paint a different image — so the cheapest reading that answers ends the
+question. `settle()` is that early return at the third row: a document
+byte-identical to the one the baseline was painted from is not photographed
+again, and on a suite where nothing moved that is the whole value of a run.
+
+**The converse is where the findings are.** A row moving while the row above it
+holds is not a wasted check, it is the fact somebody wanted:
+
+- **The fiber moved and the document did not.** The components re-rendered and
+  the page did not follow — `refactor` in [`parting.md`](parting.md), read
+  across a moment instead of across a commit. This is the receipt a refactor
+  never gets, and no pixel differ can reach it.
+- **The document moved and the image did not.** Something reached the renderer
+  and the renderer absorbed it: sub-pixel geometry, a repeated colour, a rule
+  that lost the cascade.
+- **Nothing that was read moved and the image did.** Every input the run
+  actually looked at agreed and the picture changed anyway — `flake`, which is
+  an accusation, and only safe to make because `unread` exists to carry the case
+  where nothing was read at all.
+
+So this is a ladder of readings, not a settling loop. Climbing until two samples
+agree is what a pixel poll does, and it converts a finding into a delay: the run
+goes green, the component that would not sit still is never named, and the same
+cost is paid again tomorrow. Every row here is *read*, and which row answered is
+itself the reading.
+
+---
+
 ## What holding a page still costs
 
 Measured, because a stabilization claim is only free if you do not check.
@@ -667,6 +710,14 @@ Stated rather than left for you to find.
   loads, which a collector navigating to somebody else's page cannot guarantee,
   so an unattached tap would refuse every subject on a page it simply arrived at
   too late. Suspense had no such precondition, which is why it went first.
+- **`gateStability` is reachable and nothing composes it.** Two documents of one
+  subject at one commit are enough to catch a page that is still moving, before
+  any pixel is paid for — and unlike the commit tap there is no precondition in
+  the way, since a collector can acquire a second document whenever it likes.
+  What stops it is the price: a second acquisition on every subject is paid by
+  every subject forever, and today the second reading is spent only where it is
+  already earned, on a subject the run called `changed`. So the check is real,
+  tested and exported, and a run does not take it.
 - **`srcset` re-resolution** on a viewport change can leave a fractional height
   difference, because browsers reuse a cached candidate. Argos parses `srcset`
   and pins a single candidate; this does not.
