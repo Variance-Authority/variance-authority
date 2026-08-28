@@ -14,34 +14,28 @@ export default function SiteHeader() {
         </a>
         <nav className="flex items-center gap-6 text-sm text-quiet">
           <a
-            href="#react"
+            href="#evidence"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
-            React
+            Evidence
           </a>
           <a
-            href="#variations"
+            href="#review"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
-            Variants
+            Review
           </a>
           <a
-            href="#run"
+            href="#selection"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
-            Performance
+            Selection
           </a>
           <a
-            href="#agents"
+            href="#fit"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
-            Agents
-          </a>
-          <a
-            href="#packages"
-            className="hidden transition-colors hover:text-ivory lg:inline"
-          >
-            Packages
+            Fit
           </a>
           <a
             href="#integrate"

@@ -8,9 +8,9 @@ import "./globals.css";
  */
 const SITE = process.env.SITE_URL ?? "https://variance-authority.dev";
 
-const TITLE = "Variance Authority — Visual Regression. Verifiable Results.";
+const TITLE = "Variance Authority — Many screenshots. One review decision.";
 const DESCRIPTION =
-  "Visual regression that names the component and the file:line behind a changed pixel, reuses every answer that still holds, and senses presentation and scenario evidence a coding agent can read.";
+  "Causal visual review: pixel, document, accessibility, React, and source evidence connected per change, repeated effects grouped into one bounded decision, inside infrastructure you control.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Variance Authority — Visual Regression. Verifiable Results.",
+        alt: "Variance Authority — Many screenshots. One review decision.",
       },
     ],
   },

@@ -6,12 +6,12 @@ const FOOTER = [
   {
     title: "on this page",
     links: [
-      { href: "#react", label: "React attribution" },
-      { href: "#variations", label: "A/B + variants" },
-      { href: "#run", label: "Performance" },
-      { href: "#runtime", label: "Runtime evidence" },
-      { href: "#report", label: "The report" },
-      { href: "#agents", label: "Agentic review" },
+      { href: "#evidence", label: "Evidence slices" },
+      { href: "#react", label: "React trail" },
+      { href: "#review", label: "Grouped review" },
+      { href: "#intent", label: "Agent intent" },
+      { href: "#selection", label: "Selection + reuse" },
+      { href: "#fit", label: "Operating fit" },
       { href: "#integrate", label: "Integrate" },
     ],
   },
@@ -30,6 +30,7 @@ const FOOTER = [
 export default function SiteFooter() {
   return (
     <footer className="border-t border-hairline py-12">
+      <div className="mx-auto max-w-6xl px-6">
       <div className="grid gap-10 sm:grid-cols-[1.4fr_1fr_1fr] [&>*]:min-w-0">
         <div>
           <div className="flex items-center gap-3">
@@ -39,8 +40,9 @@ export default function SiteFooter() {
             </span>
           </div>
           <p className="mt-4 max-w-xs text-sm leading-6 text-quiet">
-            Visual Regression and Verifiable Results, with React attribution,
-            variant-aware reports, and infrastructure you control.
+            Visual review that names the cause, across pixel, document,
+            accessibility, React, and source evidence. Runs in your own
+            infrastructure.
           </p>
         </div>
         {FOOTER.map((col) => (
@@ -66,6 +68,7 @@ export default function SiteFooter() {
       <p className="mt-12 border-t border-hairline pt-6 font-mono text-xs text-warm">
         MIT · Copyright © 2026 Mechanic Garden
       </p>
+      </div>
     </footer>
   );
 }

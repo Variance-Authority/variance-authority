@@ -1,4 +1,3 @@
-import { GITHUB } from "../links";
 import Timelines from "./Timelines";
 import Verdict from "./Verdict";
 
@@ -15,19 +14,13 @@ export default function Hero() {
         </div>
       </div>
       <div className="rise relative">
-        <p className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-quiet">
-          <span className="text-orange">VR and VR</span>
-          <span className="text-hairline">/</span>
-          <span className="text-green">open source</span>
-          <span className="text-hairline">/</span>
-          <span>MIT</span>
-          <span className="text-hairline">/</span>
-          <span>runs in your infrastructure</span>
+        <p className="mb-6 font-mono text-xs uppercase tracking-[0.18em] text-orange">
+          cause-first visual review
         </p>
         <h1 className="max-w-4xl text-4xl font-bold leading-[1.06] tracking-tight text-ivory sm:text-6xl lg:text-[4.25rem]">
-          <span className="block">Visual Regression.</span>
+          <span className="block">Many screenshots.</span>
           <span className="block bg-gradient-to-br from-orange to-fold bg-clip-text text-transparent">
-            Verifiable Results.
+            One review decision.
           </span>
         </h1>
       </div>
@@ -36,24 +29,24 @@ export default function Hero() {
       <div className="mt-10 grid items-start gap-10 lg:mt-12 lg:grid-cols-[1fr_1.06fr] lg:gap-12 [&>*]:min-w-0">
         <div className="rise" style={{ animationDelay: "0.1s" }}>
           <p className="leading-7 text-quiet sm:text-lg sm:leading-8">
-            Every UI change has more than one witness. Pixels show where. HTML
-            says what. React says who—and points to the source. Variance
-            Authority brings those accounts together, reuses every answer that
-            still holds, and gives people and agents the tools to finish the
-            review.
+            Variance Authority connects a changed pixel to the document and
+            accessibility evidence behind it, to the React component that owns
+            it and the inputs that moved, and to the source that rendered it.
+            States that changed the same way are reviewed as one decision. A
+            state with extra or missing evidence stays open.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
-              href="#integrate"
+              href="#review"
               className="rounded-lg bg-gradient-to-t from-fold to-orange px-5 py-2.5 text-sm font-semibold text-deep shadow-lg shadow-orange/25 ring-1 ring-inset ring-white/20 transition-transform hover:-translate-y-0.5"
             >
-              Get started
+              See the review
             </a>
             <a
-              href={GITHUB}
+              href="#integrate"
               className="rounded-lg border border-hairline px-5 py-2.5 text-sm font-medium text-ivory transition-colors hover:border-orange/60"
             >
-              Star on GitHub
+              Choose an integration
             </a>
           </div>
 

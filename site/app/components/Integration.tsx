@@ -1,162 +1,146 @@
+import { DOCS, GITHUB } from "../links";
 import SectionHead from "./SectionHead";
 
 const RECIPES = [
   {
-    pkg: "@variance-authority/playwright-test",
-    when: "A Playwright suite",
-    how: "Add one observation to an existing test. Keep the test and expect imports you already use.",
+    key: "playwright",
+    title: "Existing Playwright suite",
+    install:
+      "@variance-authority/playwright-test @playwright/test · Chromium",
+    requires: "A Playwright test and a bounded Locator.",
+    result: "The observation and verdict live in Playwright test output.",
+    href: GITHUB + "/tree/main/packages/playwright-test",
   },
   {
-    pkg: "@variance-authority/storybook-collector",
-    when: "A built or served Storybook",
-    how: "Collect stories from an existing build or dev server. The CLI handles baselines, reports, acceptance, and CI.",
+    key: "storybook",
+    title: "Built or served Storybook",
+    install:
+      "@variance-authority/cli @variance-authority/storybook-collector · Chromium",
+    requires: "A reachable Storybook index and its stories.",
+    result: "The CLI writes candidate baselines and one review report.",
+    href: GITHUB + "/tree/main/packages/storybook-collector",
   },
   {
-    pkg: "@variance-authority/route-collector",
-    when: "A running app or static build",
-    how: "Provide a route list or sitemap. Each viewport gets its own baseline and result.",
+    key: "routes",
+    title: "Running app or static build",
+    install:
+      "@variance-authority/cli @variance-authority/route-collector · Chromium",
+    requires:
+      "An explicit route list or sitemap. Authenticated routes are outside this path; drive those from the Playwright suite.",
+    result: "Each route and viewport becomes a separately reviewable UI state.",
+    href: GITHUB + "/tree/main/packages/route-collector",
   },
   {
-    pkg: "@variance-authority/unit-test",
-    when: "Jest or Vitest under jsdom",
-    how: "Capture the document during the test. Afterward, Variance Authority renders it in a local or remote browser and runs the visual regression.",
+    key: "jsdom",
+    title: "Vitest or Jest under jsdom",
+    install:
+      "@variance-authority/unit-test jsdom · CLI and Chromium in the render job",
+    requires: "A capture job and a later browser render job.",
+    result: "The test writes a document capture; the CLI renders and compares it.",
+    href: GITHUB + "/tree/main/packages/unit-test",
   },
-];
+] as const;
 
-/** Where a suite already is, and the one package that meets it there. */
+/** Pick the integration by the process that already owns the UI. */
 export default function Integration() {
   return (
     <section
       id="integrate"
-      className="scroll-mt-24 border-t border-hairline py-20"
+      className="relative scroll-mt-24 border-t border-hairline py-20"
     >
+      <span
+        id="packages"
+        aria-hidden="true"
+        className="absolute -top-24"
+      />
       <SectionHead
-        n="12"
-        label="integrate"
-        title="Start with a golden path. Keep the building blocks."
+        n="07"
+        label="start here"
+        title="Start where the UI already runs."
       >
-        Choose the path that meets your UI where it already runs: Playwright,
-        Storybook, routes, or a document captured under jsdom. Each job remains
-        separate underneath, so you can keep the path, replace one part, or
-        assemble your own.
+        All four paths produce the same evidence and the same report format.
+        They differ in which tool drives the run, what you have to stand up, and
+        where baseline approval happens. Pick the one that matches the host your
+        UI already runs in.
       </SectionHead>
 
-      <div className="mt-10 rounded-2xl border border-hairline bg-panel px-5 py-5 sm:px-6">
-        <p className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">
-          the building blocks
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-          {["collect", "hold still", "render", "compare", "explain", "record"].map(
-            (step, i) => (
-              <div
-                key={step}
-                className="flex items-center gap-2 rounded-lg border border-hairline bg-deep px-3 py-2.5"
-              >
-                <span className="font-mono text-[10px] text-warm">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="text-sm text-ivory">{step}</span>
-              </div>
-            ),
-          )}
-        </div>
-      </div>
-
       <div className="mt-12 grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
-        {RECIPES.map((r) => (
-          <div
-            key={r.pkg}
+        {RECIPES.map((recipe) => (
+          <a
+            key={recipe.key}
+            href={recipe.href}
             className="group rounded-2xl border border-hairline bg-panel p-6 transition-all hover:-translate-y-1 hover:border-orange/50"
           >
-            <p className="text-sm font-semibold text-ivory">{r.when}</p>
-            <p className="mt-3 text-sm leading-6 text-quiet">{r.how}</p>
-            <p className="mt-4 border-t border-hairline pt-3 font-mono text-[13px] text-warm transition-colors group-hover:text-orange">
-              <span className="select-none text-quiet">npm i -D </span>
-              {r.pkg}
+            <p className="text-base font-semibold text-ivory">{recipe.title}</p>
+            <p className="mt-4 font-mono text-[11px] leading-5 text-orange">
+              {recipe.install}
             </p>
-          </div>
+            <dl className="mt-5 space-y-3 border-t border-hairline pt-4 text-sm leading-6">
+              <div>
+                <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-warm">
+                  requires
+                </dt>
+                <dd className="mt-1 text-quiet">{recipe.requires}</dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-warm">
+                  first result
+                </dt>
+                <dd className="mt-1 text-quiet">{recipe.result}</dd>
+              </div>
+            </dl>
+            <p className="mt-5 font-mono text-xs text-orange transition-colors group-hover:text-ivory">
+              setup and boundaries →
+            </p>
+          </a>
         ))}
       </div>
 
-      <div className="mt-10 grid gap-4 lg:grid-cols-[3fr_2fr] [&>*]:min-w-0">
+      <p className="mt-6 font-mono text-xs text-quiet">
+        These four are the entry points. Every package behind them is listed
+        in{" "}
+        <a
+          href={`${DOCS}/architecture.md`}
+          className="text-orange transition-colors hover:text-ivory"
+        >
+          architecture.md →
+        </a>
+      </p>
+
+      <div className="mt-10 grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         <div className="rounded-2xl border border-hairline bg-panel">
-          <p className="border-b border-hairline px-5 py-2.5 font-mono text-xs text-quiet">
-            cart.spec.ts — an existing Playwright test with one observation
+          <p className="border-b border-hairline px-5 py-3 font-mono text-xs text-quiet">
+            Playwright owns execution and approval
           </p>
-          {/* This one is code, so it scrolls where the terminal above
-              wraps. Narrow enough and the lines simply stop at the
-              panel's edge, which reads as a cropped screenshot; the fade
-              is what says the panel moves. */}
-          <div className="relative">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 rounded-r-2xl bg-gradient-to-l from-panel to-transparent md:hidden"
-            />
-            <pre className="overflow-x-auto px-5 py-4 font-mono text-[13px] leading-6 text-ivory">
-              <code>
-                <span className="text-warm">import</span>{" "}
-                {"{ test, expect }"} <span className="text-warm">from</span>{" "}
-                <span className="text-green">'@playwright/test'</span>;{"\n"}
-                <span className="text-warm">import</span>{" "}
-                {"{ assertUnchanged, observe }"}
-                {"\n  "}
-                <span className="text-warm">from</span>{" "}
-                <span className="text-green">
-                  '@variance-authority/playwright-test'
-                </span>
-                ;{"\n\n"}
-                <span className="text-ivory">test(</span>
-                <span className="text-green">
-                  'the cart survives an empty basket'
-                </span>
-                <span className="text-ivory">
-                  , async ({"{ page }"}, testInfo) {"=> {"}
-                </span>
-                {"\n  "}await page.goto(
-                <span className="text-green">'https://example.test/cart'</span>
-                );{"\n  "}
-                await page.getByRole(
-                <span className="text-green">'button'</span>, {"{ name: "}
-                <span className="text-green">'Clear'</span>
-                {" }"}).click();{"\n\n  "}
-                <span className="text-warm">const</span> observation ={" "}
-                <span className="text-warm">await</span>{" "}
-                <span className="text-orange">observe</span>(page,
-                page.getByTestId(
-                <span className="text-green">'cart'</span>
-                ),
-                {"\n    "}
-                testInfo, {"{ subjectId: "}
-                <span className="text-green">'cart/empty'</span>
-                {" }"});{"\n\n  "}
-                <span className="text-orange">assertUnchanged</span>
-                (observation);{"\n"}
-                {"}"});
-              </code>
-            </pre>
-          </div>
+          <pre className="overflow-x-auto px-5 py-4 font-mono text-[12px] leading-7 text-ivory">
+            <code>
+              <span className="text-quiet">$</span> npx playwright test{"\n"}
+              <span className="text-quiet">$</span> npx playwright test
+              --update-snapshots=all
+            </code>
+          </pre>
+          <p className="border-t border-hairline px-5 py-4 text-sm leading-6 text-quiet">
+            Variance Authority observes and asserts inside the Playwright test.
+            Baselines only change when you run Playwright’s explicit snapshot
+            update.
+          </p>
         </div>
-        <div className="flex flex-col rounded-2xl border border-hairline bg-panel">
-          <p className="border-b border-hairline px-5 py-2.5 font-mono text-xs text-quiet">
-            the review loop for Storybook and route suites
+
+        <div className="rounded-2xl border border-hairline bg-panel">
+          <p className="border-b border-hairline px-5 py-3 font-mono text-xs text-quiet">
+            Collected suites use the CLI lifecycle
           </p>
-          <pre className="overflow-x-auto px-5 py-4 font-mono text-[13px] leading-7 text-ivory">
+          <pre className="overflow-x-auto px-5 py-4 font-mono text-[12px] leading-7 text-ivory">
             <code>
               <span className="text-quiet">$</span> variance run{"\n"}
               <span className="text-quiet">$</span> variance report --format html
               {"\n"}
-              <span className="text-quiet">$</span> variance accept
-              story:checkout--empty{"\n"}
-              <span className="text-quiet">$</span> variance run{" "}
-              <span className="text-green"># exit 0</span>
+              <span className="text-quiet">$</span> variance accept &lt;subject&gt;
             </code>
           </pre>
           <p className="border-t border-hairline px-5 py-4 text-sm leading-6 text-quiet">
-            The first run reports every subject as{" "}
-            <span className="font-mono text-[0.95em]">new</span> and exits 1 — a
-            new baseline still needs review. The report is one HTML file beside
-            the JSON, with no account or upload step. Before capture, animations
-            are pinned, fonts and images are loaded, and scrollbars are hidden.
+            Storybook, route, and captured-document paths write candidate
+            baselines first. You accept them with a separate CLI command.
           </p>
         </div>
       </div>

@@ -2,12 +2,12 @@ import { GITHUB } from "../links";
 
 const TESTS = [
   {
-    name: "cart › survives an empty basket",
+    name: "test/cart-empty.case.ts",
     trail: ["cart opens", "basket is empty", "empty state renders"],
     selected: true,
   },
   {
-    name: "cart › applies a voucher",
+    name: "test/cart-voucher.case.ts",
     trail: ["cart opens", "voucher is valid", "priced state renders"],
     selected: false,
   },
@@ -27,7 +27,7 @@ export default function RuntimeEvidence() {
           </p>
         </div>
         <span className="rounded-full border border-orange/60 bg-orange/[0.08] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-orange uppercase">
-          one test comes back
+          one test file comes back
         </span>
       </div>
 
@@ -83,8 +83,8 @@ export default function RuntimeEvidence() {
 
       <div className="mt-5 border-t border-hairline pt-4">
         <p className="text-sm leading-6 text-quiet">
-          The useful answer is not a percentage. It is the test that has been
-          through the changed path before.
+          The useful answer is a test file: the one that has executed this
+          changed path before. Not a coverage percentage.
         </p>
         <a
           href={`${GITHUB}/tree/main/packages/sense#instrument-one-module`}

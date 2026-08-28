@@ -396,34 +396,79 @@ describe('the documented vocabulary is the real one', () => {
 });
 
 /**
- * The fleet listing on the site is the one every manifest points at.
- *
- * Every manifest sets `homepage` to the `#packages` anchor, so a package the
- * grid does not name publishes a registry link to a page that does not mention
- * it. The grid also went unrendered once — written, imported by nothing, and
- * therefore checked by nothing — which is how it came to list 22 of 25 boxes
- * without a single failing test.
- *
- * Against the package directories rather than against the architecture table, so
- * the site and the documentation cannot agree with each other and both be wrong.
+ * Package registry links land on the adopter chooser, not on repository
+ * decomposition. The complete fleet belongs to the architecture inventory
+ * checked above; the site names the four supported ways to start.
  */
-describe('the site names every package', () => {
-  const GRID = readFileSync(join(ROOT, 'site/app/components/Packages.tsx'), 'utf8');
+describe('the site routes package visitors to adopter integrations', () => {
+  const INTEGRATION = readFileSync(join(ROOT, 'site/app/components/Integration.tsx'), 'utf8');
+  const STARTS = [
+    '@variance-authority/playwright-test',
+    '@variance-authority/storybook-collector',
+    '@variance-authority/route-collector',
+    '@variance-authority/unit-test',
+  ];
 
-  const NAMED = [...GRID.matchAll(/\bname: "([a-z0-9-]+)"/g)].map((match) => match[1]!);
-
-  it('finds a grid to check, so this rule cannot pass by reading nothing', () => {
-    expect(NAMED.length).toBeGreaterThan(20);
+  it.each(STARTS)('names the %s start', (name) => {
+    expect(INTEGRATION).toContain(name);
   });
 
-  it('shows every package there is, and nothing that is not one', () => {
-    expect([...NAMED].sort()).toEqual([...PACKAGES].sort());
+  it('points a package visitor at the complete inventory', () => {
+    expect(INTEGRATION).toContain('architecture.md');
   });
 
-  it('is on the page the anchor promises', () => {
+  it('renders the chooser at both the page and the published package anchor', () => {
     const page = readFileSync(join(ROOT, 'site/app/page.tsx'), 'utf8');
-    expect(page).toContain('<Packages />');
-    expect(GRID).toContain('id="packages"');
+    expect(page).toContain('<Integration />');
+    expect(INTEGRATION).toContain('id="integrate"');
+    expect(INTEGRATION).toContain('id="packages"');
+  });
+});
+
+/**
+ * The landing page's competitor table quotes the compared document.
+ *
+ * `docs/comparison.md` is the repository's one carefully sourced statement about
+ * Percy, Chromatic, Argos, and Applitools — every vendor fact in it links the
+ * vendor's own published page, and its second section states what each does
+ * better than this project. The site does not get a second opinion: every cell
+ * the table marks with `doc()` must be a verbatim fragment of that document,
+ * so the page can claim fairness as a checked property rather than a tone.
+ * Matching is case-insensitive and ignores line wrap, backticks, and curly
+ * quotes, because those are formatting; the words are the claim.
+ */
+describe('the comparison table quotes the compared document', () => {
+  const TABLE = readFileSync(join(ROOT, 'site/app/components/Comparison.tsx'), 'utf8');
+
+  const flatten = (text: string): string =>
+    text
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/`|\*\*/g, '')
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+
+  const COMPARED = flatten(readFileSync(join(ROOT, 'docs/comparison.md'), 'utf8'));
+  const CLAIMS = [...TABLE.matchAll(/doc\(\s*"((?:[^"\\]|\\.)+)"\s*,?\s*\)/g)].map(
+    (match) => JSON.parse(`"${match[1]!}"`) as string,
+  );
+
+  it('reads the cells, so an emptied table cannot pass by claiming nothing', () => {
+    expect(CLAIMS.length).toBeGreaterThan(30);
+  });
+
+  it('parses every doc() call, so a cell the extractor cannot read fails here', () => {
+    expect(CLAIMS.length).toBe((TABLE.match(/doc\(/g) ?? []).length);
+  });
+
+  it.each(CLAIMS)('backs "%s"', (claim) => {
+    expect(COMPARED).toContain(flatten(claim));
+  });
+
+  it('is rendered on the page', () => {
+    const page = readFileSync(join(ROOT, 'site/app/page.tsx'), 'utf8');
+    expect(page).toContain('<Comparison />');
   });
 });
 

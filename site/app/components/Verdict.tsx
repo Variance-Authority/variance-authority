@@ -12,7 +12,7 @@ export default function Verdict() {
           <span className="h-2.5 w-2.5 rounded-full bg-warm/50" />
           <span className="h-2.5 w-2.5 rounded-full bg-green/60" />
           <span className="ml-2 font-mono text-xs text-quiet">
-            variance run · 40 subjects · 39 settled by digest
+            variance report · 11 affected states
           </span>
         </div>
         {/* Wraps on a phone, where the longest line is half again the width of
@@ -20,32 +20,38 @@ export default function Verdict() {
             this reads as the narrow window it is rather than a cropped image. */}
         <pre className="px-5 py-4 font-mono text-[12px] leading-6 whitespace-pre-wrap sm:overflow-x-auto sm:whitespace-pre">
           <code>
-            <span className="text-quiet">$ variance run</span>
+            <span className="text-quiet">$ variance report</span>
             {"\n"}
-            <span className="text-ivory">
-              1 root(s): 0 authorized, 1 to review, 0 violation(s).
-            </span>
+            <span className="text-ivory">1 repeated cause · 11 states</span>
             {"\n  "}
             <span className="rounded bg-orange/15 px-1 py-0.5 text-orange">
               [needs-review]
             </span>
-            <span className="text-ivory"> Button — Button</span>
+            <span className="text-ivory"> Button spacing</span>
             {"\n      "}
             {/* Held to the panel's width on purpose. A `pre` scrolls rather
                 than wraps, so a longer line reads as a clipped screenshot. */}
             <span className="text-quiet">
-              undeclared component change: token, paint — 1 subject
+              component Button · evidence token, geometry
             </span>
             {"\n      "}
             <span className="text-ivory underline decoration-orange decoration-2 underline-offset-4">
-              src/Button.js:9
+              src/ui/Button.tsx:18
+            </span>
+            {"\n      "}
+            <span className="text-quiet">
+              shape v1:9f2a11c4e77b · exact in 8 states
             </span>
             {"\n\n"}
             <span className="text-quiet">
-              $ variance accept story:button--primary
+              $ variance accept --shape v1:9f2a11c4e77b
             </span>
             {"\n"}
-            <span className="text-green">accepted · next run exits 0</span>
+            <span className="text-green">8 states accepted · one decision</span>
+            {"\n"}
+            <span className="text-orange">
+              3 states add evidence · stay in review
+            </span>
             {"\n"}
             <span className="text-quiet">$ </span>
             <span className="caret -mb-0.5 inline-block h-4 w-2 bg-orange align-middle" />

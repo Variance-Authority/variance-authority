@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * The scripted run: a pixel becomes a node, a node becomes a component, a
- * component becomes a file:line — advancing on its own, and steerable by hand.
+ * The scripted run: a pixel becomes a node, then React ownership and inputs,
+ * then a source location — advancing on its own, and steerable by hand.
  *
  * Each stage is a real artifact of the run rather than an illustration of one,
  * so the panel that lights up is the panel the CLI would have printed.
@@ -18,11 +18,20 @@ const STEPS = [
     caption: "one element changed in appearance",
   },
   {
-    key: "component",
+    key: "fiber",
     label: "react",
-    caption: "React says Title rendered the element",
+    caption: "the Fiber trail says Title owns the node",
   },
-  { key: "file", label: "source", caption: "Title was rendered here" },
+  {
+    key: "inputs",
+    label: "inputs",
+    caption: "the capture carried digests of props, context, and hook cells",
+  },
+  {
+    key: "file",
+    label: "source",
+    caption: "source metadata locates the rendered element",
+  },
 ] as const;
 
 function Chevron({ lit }: { lit: boolean }) {
@@ -156,12 +165,11 @@ function DocumentPanel({ active }: { active: boolean }) {
 }
 
 /** Stage 3 — the component tree, with the one that owns the node. */
-function ComponentPanel({ active }: { active: boolean }) {
+function FiberPanel({ active }: { active: boolean }) {
   const rows = [
-    { name: "Card", depth: 0, hit: false },
-    { name: "Header", depth: 1, hit: false },
-    { name: "Title", depth: 1, hit: true },
-    { name: "Button", depth: 1, hit: false },
+    { name: "Checkout", depth: 0, hit: false, relation: "authored" },
+    { name: "Header", depth: 1, hit: false, relation: "within" },
+    { name: "Title", depth: 2, hit: true, relation: "owns node" },
   ];
   return (
     <ul className="space-y-1 font-mono text-[11px]">
@@ -179,22 +187,47 @@ function ComponentPanel({ active }: { active: boolean }) {
             }`}
           />
           {r.name}
-          {r.hit && (
-            <span
-              className={`ml-auto text-[9px] tracking-[0.12em] transition-opacity duration-500 ${
-                active ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              STYLE
-            </span>
-          )}
+          <span
+            className={`ml-auto text-[9px] tracking-[0.08em] transition-opacity duration-500 ${
+              active ? "opacity-100" : "opacity-50"
+            }`}
+          >
+            {r.relation}
+          </span>
         </li>
       ))}
     </ul>
   );
 }
 
-/** Stage 4 — where it is written. */
+/** Stage 4 — runtime inputs attached to the owning Fiber. */
+function InputsPanel({ active }: { active: boolean }) {
+  return (
+    <div className="space-y-2 font-mono text-[10px]">
+      {[
+        ["prop · size", "digest changed"],
+        ["context · Theme", "digest held"],
+        ["hook cell #0", "digest changed"],
+      ].map(([kind, value]) => (
+        <div
+          key={kind}
+          className={`rounded border px-2 py-1.5 transition-colors duration-500 ${
+            active
+              ? "border-orange/30 bg-orange/[0.06]"
+              : "border-hairline"
+          }`}
+        >
+          <p className="text-warm">{kind}</p>
+          <p className={active ? "mt-0.5 text-ivory" : "mt-0.5 text-quiet"}>
+            {value}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Stage 5 — where the rendered element was written. */
 function FilePanel({ active }: { active: boolean }) {
   const rows = [
     { name: "src/", dim: true, mark: "" },
@@ -268,7 +301,13 @@ export default function Attribution() {
     return () => clearInterval(id);
   }, [running]);
 
-  const panels = [RasterPanel, DocumentPanel, ComponentPanel, FilePanel];
+  const panels = [
+    RasterPanel,
+    DocumentPanel,
+    FiberPanel,
+    InputsPanel,
+    FilePanel,
+  ];
 
   return (
     <div
@@ -298,7 +337,7 @@ export default function Attribution() {
         ))}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 [&>*]:min-w-0">
         {panels.map((P, i) => (
           <Panel
             key={STEPS[i].key}
@@ -316,7 +355,7 @@ export default function Attribution() {
           <span className="text-orange">{"//"}</span> {STEPS[step].caption}
         </p>
         <p className="font-mono text-[11px] tracking-[0.14em] text-warm uppercase">
-          one change · connected to React and source
+          one change · runtime ownership, input digests, and source
         </p>
       </div>
     </div>

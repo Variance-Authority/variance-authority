@@ -113,6 +113,19 @@ export default function DiffReport() {
 
   return (
     <div className="rounded-2xl border border-hairline bg-panel p-5 sm:p-7">
+      <div className="mb-5 grid gap-3 rounded-xl border border-hairline bg-deep p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
+            1 cause · 11 affected states
+          </p>
+          <p className="mt-1 text-sm text-ivory">
+            Button spacing · token and geometry evidence
+          </p>
+        </div>
+        <p className="font-mono text-[11px] text-warm">
+          8 exact repeats · 3 additional
+        </p>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {MODES.map((m) => (
           <button
@@ -251,7 +264,7 @@ export default function DiffReport() {
           </span>
         </p>
         <p className="mt-3 text-xs leading-5 text-quiet">
-          Paths, commands, fingerprints, and ignore rules can be copied. The
+          Paths, commands, fingerprints, and ignore rules are printed as text you can select and paste. The
           report is one self-contained HTML file with no network dependency, so
           it opens directly from a CI artifact.
         </p>

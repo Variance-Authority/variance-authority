@@ -6,22 +6,22 @@ const STEPS = [
   },
   {
     n: "02",
-    label: "inspect",
-    detail: "one repeated change across 11 states",
+    label: "observe",
+    detail: "11 states moved · one repeated component-level cause",
   },
   {
     n: "03",
-    label: "trace",
-    detail: "pixels → HTML → Button → src/Button.tsx:42",
+    label: "compare",
+    detail: "delivered 11 · overreached 0",
   },
   {
     n: "04",
-    label: "verify",
-    detail: "delivered 11 · undeclared 0 · missing 0",
+    label: "expose",
+    detail: "undelivered 1 · unclaimed 0",
   },
   {
     n: "05",
-    label: "settle",
+    label: "preview",
     detail: "8 safe to accept · 3 stay in review",
   },
 ] as const;
@@ -54,10 +54,12 @@ export default function AgentFlow() {
 
       <div className="flex flex-col gap-2 border-t border-hairline bg-deep/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-quiet">
-          edit <span className="px-1.5 text-hairline">→</span> rerun{" "}
-          <span className="px-1.5 text-hairline">→</span> verified
+          declaration <span className="px-1.5 text-hairline">→</span> observed
+          effect <span className="px-1.5 text-hairline">→</span> review boundary
         </p>
-        <p className="font-mono text-xs text-green">same evidence · exit 0</p>
+        <p className="font-mono text-xs text-green">
+          evidence ready for the next tool
+        </p>
       </div>
     </div>
   );

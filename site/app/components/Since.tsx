@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * `sense`, walking the hops a diff opens. The failure this animates is the one
- * every design system already knows: a token file declares no component, so
- * `--since` gives up and the suite runs everything. The answer is two hops away.
+ * Static reach connects a changed source file to a component, then the capture
+ * inventory names the UI states that rendered that component.
  */
 
 /** `edge` is the relation to the row below, so the walk reads straight down. */
@@ -14,45 +13,25 @@ const HOPS = [
     name: "src/tokens.css",
     tag: "changed",
     edge: "imported by",
-    note: "the file changed, but it does not declare a component",
+    note: "this file changed, and it declares no component",
   },
   {
     name: "src/button.css",
     tag: "",
     edge: "imported by",
-    note: "the stylesheet imports the changed token",
+    note: "a scan of JS imports alone stops here",
   },
   {
     name: "src/Button.tsx",
     tag: "",
     edge: "declares",
-    note: "Button.tsx imports the stylesheet",
+    note: "the first hop that declares a component a baseline can record",
   },
   {
     name: "Button",
     tag: "component",
     edge: "",
-    note: "Button is the component this token can affect",
-  },
-] as const;
-
-/** 95 ms · 3002 ms · 657 ms · 236 ms — packages/sense bench, 30,500 files, one Mac. */
-const SCAN = [
-  { label: "git digests", ms: 95, did: "content digests, no file opened" },
-  {
-    label: "first scan",
-    ms: 3002,
-    did: "every file opened, decoded, parsed, resolved",
-  },
-  {
-    label: "cached parses",
-    ms: 657,
-    did: "nothing parsed — every specifier still resolved",
-  },
-  {
-    label: "after a one-file edit",
-    ms: 236,
-    did: "the diff, and nothing else",
+    note: "the walk ends here, and the baselines decide which states are read",
   },
 ] as const;
 
@@ -152,37 +131,36 @@ export default function Since() {
       <p className="mt-4 min-h-[2.5rem] font-mono text-xs leading-5 text-quiet">
         <span className="text-orange">{"//"}</span>{" "}
         {i >= HOPS.length
-          ? "Button's UI states are selected; unrelated ones are skipped"
+          ? "a subject whose baseline lists no Button is skipped. A subject with no baseline is always run."
           : HOPS[i].note}
       </p>
 
       <div className="mt-5 border-t border-hairline pt-4">
         <p className="font-mono text-[11px] tracking-[0.16em] text-quiet uppercase">
-          source scan, measured
+          selected UI states
         </p>
-        <ul className="mt-3 space-y-1.5">
-          {SCAN.map((s) => (
-            <li key={s.label} className="flex items-center gap-3">
-              <span className="w-40 shrink-0 truncate font-mono text-[11px] text-quiet">
-                {s.label}
-              </span>
-              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-deep">
-                <span
-                  className={`block h-full rounded-full transition-[width] duration-1000 ease-out ${
-                    s.ms === 3002 ? "bg-warm/60" : "bg-orange"
-                  }`}
-                  style={{ width: `${Math.max(2, (s.ms / 3002) * 100)}%` }}
-                />
-              </span>
-              <span className="w-16 shrink-0 text-right font-mono text-[11px] text-ivory">
-                {s.ms} ms
-              </span>
-            </li>
-          ))}
+        <ul className="mt-3 space-y-2 font-mono text-[11px]">
+          <li className="flex items-center justify-between gap-3 rounded border border-orange/40 bg-orange/[0.06] px-3 py-2">
+            <span className="text-ivory">story:button--primary</span>
+            <span className="text-orange">rendered Button</span>
+          </li>
+          <li className="flex items-center justify-between gap-3 rounded border border-orange/40 bg-orange/[0.06] px-3 py-2">
+            <span className="text-ivory">route:/checkout</span>
+            <span className="text-orange">rendered Button</span>
+          </li>
+          <li className="flex items-center justify-between gap-3 rounded border border-hairline bg-deep px-3 py-2">
+            <span className="text-quiet">story:empty-cart</span>
+            <span className="text-warm">baseline records no Button</span>
+          </li>
         </ul>
         <p className="mt-3 text-xs leading-5 text-quiet">
-          Measured on one Mac with 30,500 files and 40,479 source relationships. After a
-          one-file edit, the cached scan took 236 ms.
+          The graph tells the run which components a change reached. The
+          baseline decides what to skip: a subject drops out only when its own
+          baseline lists none of those components. The graph alone never drops a
+          subject. Uncertainty always widens the run—a missing baseline, a
+          missing component list, or an unreadable import each add work. A warm
+          rescan of a generated 30,500-file tree takes about 236 ms, and a
+          one-file edit costs no measurable extra time.
         </p>
       </div>
     </div>

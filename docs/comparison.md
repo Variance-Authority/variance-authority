@@ -16,11 +16,36 @@ the contract.
 | --- | --- | --- | --- | --- | --- |
 | Acquisition | SDK captures DOM/resources or Automate captures the running browser | Storybook or E2E archive | Host adapters reach a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook/routes/unit tests emit a `RenderDocument`; Playwright emits a document or in-place `Raster` |
 | Pixel placement | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or operator-owned remote renderer |
-| Review | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | JSON/HTML/CLI/MCP evidence; approval is an operator command |
-| Browser breadth | Managed desktop/mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Chromium, Firefox, and WebKit renderers the operator installs and runs |
+| Review | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | Self-hosted `tribunal` — builds, docket, region overlays, recorded decisions (beta: the ingest upload is the operator's to write); or JSON/HTML/CLI/MCP evidence |
+| Browser breadth | Managed desktop/mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs |
 | Existing PNG input | Product-specific SDK paths | No general PNG intake | CLI upload | SDK checkpoints | Library seam through `observeRasters` or raster `CaptureArtifact`; no CLI ingest command |
-| Source attribution | DOM/CSS root-cause aids | Story identity and dependency tracing | Spec/story metadata | DOM/CSS root-cause aids | Pixel region → component → `file:line` when acquisition supplies matching provenance |
+| Source attribution | DOM/CSS root-cause aids | Story identity and dependency tracing | Spec/story metadata | DOM/CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies matching provenance |
+| Compared against | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
+| Change-driven selection | No documented equivalent | TurboSnap uses the module graph to avoid snapshots a change cannot reach | No documented equivalent | No documented equivalent | `--since` skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented Vitest runs also select test files by what they executed |
 | Operations | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
+
+**Percy** and **Argos** leave selection to you: you shard the suite yourself.
+That is a deliberate design choice, not a missing feature, and it keeps a run's
+coverage independent of how well a graph was read.
+
+The selection row divides on one axis: what a change imports versus what its
+tests executed. TurboSnap reads the static module graph, and the optional file
+graph here is the same family of thing — a specifier scan over `import`,
+`require`, `@use` and `url()` — which answers only the file-to-component half.
+What decides a skip is the other half, and it is not a prediction: a stored
+baseline records the components the document that painted it actually rendered,
+so a subject is skipped because the last run established what it is made of, and
+never because a graph said so.
+[Wallaby.js](https://wallabyjs.com/) holds the execution-side index, and takes it
+further than this project does. Its Test Story Viewer shows one test's full
+execution history in a single view: executed lines highlighted, context faded,
+file names shown where execution crosses files, with a time-travel debugger
+attached. This project does not build that viewer. It ships the index underneath
+it. Give `coveringTests` a source line or function and it returns the individual
+tests that executed it, nearest call stack first, reading an execution index from
+any collector. The gap is worth stating exactly. The shipped Vitest integration
+records one entry per test file and stores no call-stack depth, so per-test
+answers require a collector that already records them.
 
 The Variance integration matrix and exact material/placement choices are in
 [`surface.md`](surface.md). The underlying decision is recorded in
@@ -71,8 +96,9 @@ baselines, and reviewers. TurboSnap uses the module graph to avoid snapshots a
 change cannot reach. SteadySnap adds render stabilization and repeated-capture
 techniques within the managed service.
 
-Choose Chromatic when Storybook is the canonical UI inventory and non-engineer
-review, branch semantics, and managed stability matter more than self-operation.
+Choose Chromatic when Storybook is your canonical UI inventory, and
+non-engineer review, branch semantics, and managed stability matter more to you
+than self-operation.
 
 Sources: [Storybook workflow](https://www.chromatic.com/docs/storybook/),
 [TurboSnap](https://www.chromatic.com/docs/turbosnap/), and
@@ -193,16 +219,20 @@ inside the test environment and move only pixels to later systems.
 
 ## 5. When not to choose this
 
-Choose a managed product when any of these are hard requirements:
+Percy, Chromatic, Argos, and Applitools are good products, and each is further
+along than this project on the things a team notices in its first week: coverage
+somebody else keeps running, a review surface a designer can be handed a link to,
+and somebody to call when it breaks on a Friday.
 
-- a hosted review UI for designers, product managers, or assigned reviewers;
-- vendor-operated browser/device coverage;
-- broad framework/runner SDK coverage with supported upgrades;
-- perceptual or ML matching as the primary verdict;
-- contractual support, residency, audit, or uptime commitments;
-- a vendor-owned flake quarantine and baseline-branching workflow.
+The honest criterion is not a feature list. **Buy one of them when visual review
+should be a product rather than infrastructure you run** — when nobody on the team
+wants to own a renderer image, a storage bucket, an upload path, and the pager
+that comes with them. That is a legitimate answer, and the most common correct
+one.
 
-Choose the Variance composition when component/source attribution, explicit
-evidence boundaries, local or operator-controlled data placement, and the ability
-to combine browserless, deferred, and in-place capture are worth the operational
-ownership.
+Choose this composition when a changed screenshot should arrive as one cause
+with its evidence, and be settled in one decision — and when
+component/source attribution, explicit evidence boundaries, and local or
+operator-controlled data placement are worth owning the operation. It asks for
+more from the team and gives back a different kind of answer, which is a trade
+rather than an upgrade.
