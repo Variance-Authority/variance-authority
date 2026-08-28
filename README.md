@@ -113,6 +113,32 @@ presentation signal on the observation it belongs to.
 [`docs/presentation.md`](docs/presentation.md) and
 [`docs/scenarios.md`](docs/scenarios.md) are the full accounts.
 
+## One drill, more than one subject
+
+Those two are not the edge of it. Two readings that should agree, one thing
+varied between them, and a name for whatever stopped agreeing — that is the shape
+of every question here, and a picture is only the most obvious material to ask it
+of. Four more are the same move against other material:
+
+| Read across | What comes back | Where |
+| --- | --- | --- |
+| The two states a flag exists to tell apart | The difference between them, carrying an identity of its own — so a change *to that difference* is a result, rather than something you catch by opening two pictures | [`docs/variations.md`](docs/variations.md) |
+| The suite against itself, at one revision | Which subjects are watching the same rendering, which of them disagree with no baseline anywhere in it, and what in this run explains each thing that moved | [`docs/composition.md`](docs/composition.md) |
+| One subject across its own runs | How often a component has caused an approved change, how many runs since a flake was last seen, and how far a token has drifted across steps no single review ever saw the total of | [`docs/history.md`](docs/history.md) |
+| What a workspace publishes | Every subpath a manifest opens and every name it reaches, so a moved re-export is a named change before a consumer's build finds it | [`@variance-authority/package`](packages/package) |
+
+That last row opens no browser and compares no pixels; it answers a release
+question rather than a run's. It is in the table because it is the same drill.
+
+And the drill is the claim. None of these is the deepest tool for its own
+question: a dedicated auditor knows more about accessibility, and a release
+product built for one API format knows more about that format than reading a
+workspace's manifests does. What every row shares is the discipline — give the
+cause a name that survives the next build, let a branch declare the causes it
+means to change, count how often one has come back, and hand back one list ranked
+by cause rather than by area. A screenshot is where that is easiest to see, not
+the edge of where it applies.
+
 ## A real change, a flake, and a neighbour look identical
 
 Three subjects can all report *the pixels moved*, and need three different

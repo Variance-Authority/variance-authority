@@ -15,6 +15,7 @@ import SectionHead from "./components/SectionHead";
 import Since from "./components/Since";
 import SiteFooter from "./components/SiteFooter";
 import SiteHeader from "./components/SiteHeader";
+import Subjects from "./components/Subjects";
 import Variations from "./components/Variations";
 
 export default function Page() {
@@ -323,6 +324,39 @@ export default function Page() {
             <div className="mt-12">
               <Answers />
             </div>
+          </section>
+        </Reveal>
+
+        {/* The range: what else is read the way a screenshot is read */}
+        <Reveal>
+          <section
+            id="subjects"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
+            <SectionHead
+              n="10"
+              label="beyond pixels"
+              title="A screenshot is one subject. It is not the only one."
+            >
+              Two readings that should agree, one thing varied between them, and
+              a name for whatever stopped agreeing: that is the shape of every
+              question here, and only some of them are pictures. The same tools
+              read a suite against itself, a page with nothing to approve, a user
+              story run twice, and the public surface a package hands to
+              everyone who installs it.
+            </SectionHead>
+            <div className="mt-12">
+              <Subjects />
+            </div>
+            <p className="mt-8 max-w-3xl border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
+              None of these is the deepest tool for its own question, and none of
+              them is trying to be. A dedicated auditor knows more about
+              accessibility; a release product built for one API format knows
+              more about that format. What carries across every row is the drill:
+              name the cause, let a branch declare what it meant to change, count
+              how often it has come back, and leave one list ranked by cause
+              rather than by area.
+            </p>
           </section>
         </Reveal>
 
