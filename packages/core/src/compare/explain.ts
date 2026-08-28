@@ -1,4 +1,5 @@
 import type { Parting, PartedBoundary, MovedInput } from './parting.js';
+import type { PartingSlice } from './slice.js';
 
 /**
  * A parting, spoken.
@@ -22,14 +23,18 @@ import type { Parting, PartedBoundary, MovedInput } from './parting.js';
  */
 export function explainParting(parting: Parting): readonly string[] {
   const boundaries = parting.boundaries;
+  const headline = slice(parting.slice);
+
   if (boundaries === undefined) {
-    return ['no framework boundary was read, so nothing can be said about why'];
+    return [headline, '  no framework boundary was read, so nothing can be said about why'];
   }
-  if (boundaries.length === 0) return ['every boundary read held its inputs and its output'];
+  if (boundaries.length === 0) {
+    return [headline, '  every boundary read held its inputs and its output'];
+  }
 
   const origins = parting.origins ?? [];
   const claimed = new Set<PartedBoundary>();
-  const lines: string[] = [];
+  const lines: string[] = [headline];
 
   for (const origin of origins) {
     if (claimed.has(origin)) continue;
@@ -41,9 +46,23 @@ export function explainParting(parting: Parting): readonly string[] {
 
     lines.push(sentence(origin));
     lines.push(...deltaLines(origin, boundaries));
-    for (const other of downstream) {
-      lines.push(`  manifests as ${sentence(other)}`);
-      lines.push(...deltaLines(other, boundaries).map((line) => `  ${line}`));
+
+    // The avalanche. One input at a fork can put a boundary on every component
+    // beneath it, and enumerating them buries the one line worth reading under
+    // its own consequences. Past the cap the fan-out is stated as a size —
+    // pointing at the fork is the finding, and the boundary list is still there
+    // for a caller that wants to walk it.
+    if (downstream.length > FANOUT) {
+      const deltas = downstream.reduce((total, other) => total + other.deltas, 0);
+      lines.push(
+        `  manifests across ${downstream.length} boundaries below it` +
+          (deltas > 0 ? `, ${deltas} delta${deltas === 1 ? '' : 's'} in all` : ''),
+      );
+    } else {
+      for (const other of downstream) {
+        lines.push(`  manifests as ${sentence(other)}`);
+        lines.push(...deltaLines(other, boundaries).map((line) => `  ${line}`));
+      }
     }
   }
 
@@ -128,6 +147,32 @@ function deltaLines(
 }
 
 const SHOWN = 4;
+
+/** Above this many boundaries under one origin, the fan-out is the finding. */
+const FANOUT = 3;
+
+/**
+ * The triage line, first, before anything about which input moved.
+ *
+ * Deliberately a whole sentence rather than the bare word: `refactor` alone
+ * reads as a label somebody applied, and the clause is the evidence for it.
+ */
+function slice(kind: PartingSlice): string {
+  switch (kind) {
+    case 'settled':
+      return 'settled — the component tree, its inputs and its output all held';
+    case 'variation':
+      return 'variation — an input moved and the page followed';
+    case 'flake':
+      return 'flake — every input agreed, the component tree held, and the page moved anyway';
+    case 'refactor':
+      return 'refactor — the component tree moved and the page did not';
+    case 'absorbed':
+      return 'absorbed — an input moved and the page did not';
+    case 'unread':
+      return 'unread — the page moved and no boundary could be read';
+  }
+}
 
 /**
  * The properties that moved, truncated where a list stops being a sentence.

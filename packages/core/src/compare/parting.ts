@@ -3,6 +3,7 @@ import type { HeldCell, HeldValue, Holding } from '../format/holding.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import { BANDS, bandOf, type Band } from './band.js';
 import { compareTrees, matchTrees, type Delta } from './diff/index.js';
+import { sameTree, sliceOf, type PartingSlice } from './slice.js';
 
 /**
  * Where two readings of one page parted.
@@ -43,6 +44,15 @@ import { compareTrees, matchTrees, type Delta } from './diff/index.js';
  * a band's name. This module is the reader that value was kept for.
  */
 export interface Parting {
+  /**
+   * What kind of parting this is, decided before which input moved.
+   *
+   * The triage line. `refactor` and `settled` are pages nobody needs to open,
+   * `flake` is a page whose baseline is the problem, and `variation` is the
+   * only one where the rungs below are worth reading.
+   */
+  readonly slice: PartingSlice;
+
   /** `true` when both render hashes agree. Inputs may still have moved. */
   readonly identical: boolean;
 
@@ -180,9 +190,16 @@ export function partingOf(baseline: SemanticSnapshot, candidate: SemanticSnapsho
   const partner = new Map<SemanticNode, SemanticNode>();
   for (const [left, right] of matching.pairs) partner.set(right, left);
 
+  const tree = sameTree(baseline.root, candidate.root);
+  const moved = comparison.deltas.length > 0;
+
   const found = boundariesOf(baseline.root, candidate.root, partner);
   if (found === undefined) {
-    return { identical: comparison.identical, deltas: comparison.deltas };
+    return {
+      slice: sliceOf(tree, undefined, moved),
+      identical: comparison.identical,
+      deltas: comparison.deltas,
+    };
   }
 
   attribute(found, comparison.deltas);
@@ -196,6 +213,7 @@ export function partingOf(baseline: SemanticSnapshot, candidate: SemanticSnapsho
   );
 
   return {
+    slice: sliceOf(tree, boundaries, moved),
     identical: comparison.identical,
     deltas: comparison.deltas,
     boundaries,

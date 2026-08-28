@@ -116,7 +116,8 @@ describe('one page, read twice, with a hook moved between the readings', () => {
     });
     const lines = explainParting(partingOf(before, await read()));
 
-    expect(lines[0]).toBe('Cart chose differently — useState #0 moved');
+    expect(lines[0]).toBe('variation — an input moved and the page followed');
+    expect(lines[1]).toBe('Cart chose differently — useState #0 moved');
     expect(lines).toContain('  manifests as Summary was handed a different `expanded`');
   });
 
@@ -128,8 +129,89 @@ describe('one page, read twice, with a hook moved between the readings', () => {
     const parting = partingOf(await read(), await read());
 
     expect(parting.identical).toBe(true);
+    expect(parting.slice).toBe('settled');
     expect(parting.boundaries).toEqual([]);
     expect(parting.origins).toBeUndefined();
+  });
+});
+
+describe('the slice, decided before which input moved', () => {
+  it('calls a rewritten component tree over identical markup a refactor', async () => {
+    // The receipt a refactor never gets. A pixel differ says the screenshots
+    // match, which is true and is all it says; this says the components
+    // underneath were rewritten and the page came out the same anyway.
+    function Old() {
+      return (
+        <div>
+          <b>hi</b>
+        </div>
+      );
+    }
+    function Panel({ children }: { children: React.ReactNode }) {
+      return <div>{children}</div>;
+    }
+    function New() {
+      return (
+        <Panel>
+          <b>hi</b>
+        </Panel>
+      );
+    }
+
+    await render(<Old />);
+    const before = await read();
+    await render(<New />);
+    const parting = partingOf(before, await read());
+
+    expect(parting.identical).toBe(true);
+    expect(parting.deltas).toEqual([]);
+    expect(parting.slice).toBe('refactor');
+    expect(explainParting(parting)[0]).toBe(
+      'refactor — the component tree moved and the page did not',
+    );
+  });
+
+  it('points at the fork rather than enumerating what fell out of it', async () => {
+    function Leaf({ tone }: { tone: string }) {
+      return <i style={{ color: tone === 'hot' ? 'red' : 'blue' }}>x</i>;
+    }
+    function Row({ tone }: { tone: string }) {
+      return (
+        <div>
+          <Leaf tone={tone} />
+          <Leaf tone={tone} />
+        </div>
+      );
+    }
+    let heat = (): void => {};
+    function Grid() {
+      const [tone, setTone] = useState('cold');
+      heat = () => setTone('hot');
+      return (
+        <div>
+          <Row tone={tone} />
+          <Row tone={tone} />
+          <Row tone={tone} />
+        </div>
+      );
+    }
+
+    await render(<Grid />);
+    const before = await read();
+    await act(async () => {
+      heat();
+    });
+    const parting = partingOf(before, await read());
+
+    expect(parting.slice).toBe('variation');
+    expect(parting.boundaries?.length).toBeGreaterThan(3);
+
+    // Nine boundaries carrying one decision is nine lines that say the same
+    // thing. The fork is the finding; the list is still on `boundaries`.
+    const lines = explainParting(parting);
+    expect(lines[1]).toBe('Grid chose differently — useState #0 moved');
+    expect(lines).toContain('  manifests across 9 boundaries below it, 12 deltas in all');
+    expect(lines.some((line) => line.startsWith('  manifests as '))).toBe(false);
   });
 });
 
@@ -216,9 +298,12 @@ describe('a component whose inputs did not move and whose output did', () => {
     const parting = partingOf(before, after);
 
     expect(parting.origins?.[0]).toMatchObject({ component: 'Seat', rung: 'undetermined' });
-    expect(explainParting(parting)[0]).toBe(
+    expect(parting.slice).toBe('flake');
+    expect(explainParting(parting)).toEqual([
+      'flake — every input agreed, the component tree held, and the page moved anyway',
       'Seat rendered differently from inputs that all agreed — nondeterministic',
-    );
+      '  1 delta here (content)',
+    ]);
   });
 });
 
@@ -262,7 +347,7 @@ describe('state that does not live in React', () => {
     const parting = partingOf(before, await read());
 
     expect(parting.origins?.[0]).toMatchObject({ component: 'Arm', rung: 'external' });
-    expect(explainParting(parting)[0]).toBe(
+    expect(explainParting(parting)[1]).toBe(
       'Arm read a different external store — useSyncExternalStore #0 moved',
     );
   });

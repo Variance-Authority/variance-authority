@@ -88,7 +88,8 @@ describe('the rung a reading reaches', () => {
   it('speaks the origin and hangs its manifestations under it', () => {
     const lines = explainParting(part(tree({ expanded: false }), tree({ expanded: true })));
 
-    expect(lines[0]).toBe('Cart chose differently — useState #0 moved');
+    expect(lines[0]).toBe('variation — an input moved and the page followed');
+    expect(lines[1]).toBe('Cart chose differently — useState #0 moved');
     expect(lines).toContain('  manifests as Summary was handed a different `expanded`');
   });
 });
@@ -144,8 +145,10 @@ describe('what this refuses to claim', () => {
 
     expect(parting.boundaries).toBeUndefined();
     expect(parting.deltas.length).toBeGreaterThan(0);
+    expect(parting.slice).toBe('unread');
     expect(explainParting(parting)).toEqual([
-      'no framework boundary was read, so nothing can be said about why',
+      'unread — the page moved and no boundary could be read',
+      '  no framework boundary was read, so nothing can be said about why',
     ]);
   });
 
@@ -162,6 +165,7 @@ describe('what this refuses to claim', () => {
     );
 
     expect(parting.identical).toBe(true);
+    expect(parting.slice).toBe('absorbed');
     const cart = parting.boundaries!.find((entry) => entry.component === 'Cart')!;
     expect(cart.rung).toBe('stateful');
     expect(cart.deltas).toBe(0);

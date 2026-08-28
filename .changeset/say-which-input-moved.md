@@ -48,3 +48,16 @@ That is the last joint of the chain the rungs climb: a hook cell moved, a prop
 carried it down, and this is what the prop turned into on the page. A count and
 a band stop one link short of what somebody chasing a visual regression is
 trying to name.
+
+`Parting.slice` answers the question asked before which input moved: is this
+worth opening. Three facts are read independently — did the component tree
+move, did any input move, did the output move — and the combinations collapse
+to six sentences. `refactor` is the one that pays for the rest: a component
+tree that moved while the page did not is the receipt a refactor never gets,
+since a pixel differ can say the screenshots match and nothing about what was
+rewritten underneath. `flake` is `settled`'s opposite number and is refused on
+silence — a run that read no boundary reports `unread`, never `flake`.
+
+`explainParting` leads with that line, and stops enumerating manifestations
+past three: one input at a fork can put a boundary on every component beneath
+it, and nine lines carrying one decision bury the one line worth reading.

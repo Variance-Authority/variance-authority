@@ -33,6 +33,8 @@ export { deriveVariation } from './derive.js';
 export type { Variation } from './derive.js';
 
 export { partingOf } from './parting.js';
+export { sliceOf, sameTree } from './slice.js';
+export type { PartingSlice } from './slice.js';
 export type {
   Parting,
   PartedBoundary,
