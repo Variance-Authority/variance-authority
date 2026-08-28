@@ -2496,6 +2496,10 @@
           "types": "./dist/worker-entry.d.ts",
           "default": "./dist/worker-entry.js"
         },
+        "./node": {
+          "types": "./dist/node/index.d.ts",
+          "default": "./dist/node/index.js"
+        },
         "./ui": {
           "types": "./dist/ui/index.d.ts",
           "default": "./dist/ui/index.js"
@@ -2516,6 +2520,9 @@
         "migrations",
         "wrangler.jsonc"
       ],
+      "bin": {
+        "variance-authority-tribunal": "./dist/node/bin.js"
+      },
       "engines": {
         "node": ">=22"
       }
@@ -2574,6 +2581,23 @@
         "TribunalEnv": "interface",
         "default": "object"
       },
+      "./node": {
+        "DirectoryBucket": "interface",
+        "MAX_BODY_BYTES": "const",
+        "ReviewPageOptions": "interface",
+        "SqliteDatabase": "interface",
+        "TribunalDatabase": "interface",
+        "TribunalService": "interface",
+        "TribunalServiceOptions": "interface",
+        "createDirectoryBucket": "function",
+        "createRequestListener": "function",
+        "openDatabase": "function",
+        "reviewPage": "function",
+        "schemaVersionOf": "function",
+        "serveTribunal": "function",
+        "uiAsset": "function",
+        "wrapSqlite": "function"
+      },
       "./ui": {
         "BuildList": "function",
         "CoverageLine": "function",
@@ -2598,7 +2622,7 @@
       },
       "./testing": {
         "MemoryR2": "interface",
-        "SqliteD1": "interface",
+        "SqliteD1": "type",
         "createMemoryR2": "function",
         "createSqliteD1": "function"
       }

@@ -16,12 +16,18 @@ endpoint or an integration that posts runs for you.
 **Requires:** a database and object store owned by the deployment, a runtime that
 serves `fetch`, and two different bearer tokens of at least 16 characters.
 
-**The supplied deployment targets Cloudflare** — D1, R2, and a Worker. The
-bindings are the narrow structural subset used by the package, and the router
-speaks Web-standard `Request` and `Response`. Those interfaces allow an adapter
-for another fetch runtime, but the package makes no portability promise; the
-operator owns that deployment's platform limits. The name says what it is rather
-than where it runs.
+**Two deployments ship, and they run the same router.** On Cloudflare the
+database is D1, the object store is R2, and the runtime is a Worker. On a machine
+you own — a laptop, an EC2 instance, a container, the package does not ask — the
+database is a SQLite file through `node:sqlite` and the object store is a
+directory through `node:fs`. Every module above the bindings takes a `D1Like` and
+an `R2Like` and names no runtime, so the routes, the refusals and the status
+codes are the same code in both. The name says what it is rather than where it
+runs.
+
+Anything else that satisfies those two interfaces is an adapter away, but the
+package makes no portability promise beyond the two it ships; the operator owns
+their deployment's platform limits.
 
 Producing runs and reports is the job of `@variance-authority/cli`. This package
 stores the evidence they send and gives a reviewer a place to inspect and settle
@@ -57,6 +63,7 @@ upstream; this service stores the evidence and the decision made about it.
 | `@variance-authority/tribunal/review` | D1 and R2 | `createReviewStore` — builds, decisions, retention |
 | `@variance-authority/tribunal/worker` | D1, R2, two tokens | `createTribunal` — one `fetch` handler |
 | `@variance-authority/tribunal/worker-entry` | the bindings, as an `env` | the deployable module: `export default { fetch }`, and `wrangler.jsonc` beside it |
+| `@variance-authority/tribunal/node` | Node 22, a writable file and directory | `openDatabase`, `createDirectoryBucket`, `serveTribunal` — the same service over `node:sqlite`, `node:fs` and `node:http`, plus the `variance-authority-tribunal` executable |
 | `@variance-authority/tribunal/ui` | React | the review surface, its JSON client, its stylesheet |
 | `@variance-authority/tribunal/next` | an App Router app | `createTribunalRoutes` — route handlers for a Next.js App Router |
 | `@variance-authority/tribunal/testing` | Node 22 | D1 over `node:sqlite`, an in-memory bucket |
@@ -178,6 +185,87 @@ The migrations in `migrations/` are **generated** from `SCHEMA` by
 `tools/tribunal-migrations.mjs` — change `schema.ts` and rebuild rather than
 editing a generated `.sql` file. `wrangler.jsonc` carries the project name and
 no credentials; keep both tokens in Wrangler secrets.
+
+### Or run it on a machine you own
+
+No account, no `wrangler`, no platform. `variance-authority-tribunal` is the same
+service over a SQLite file and a directory, and it is configured entirely by the
+environment so that nothing about a deployment lives in a shell history:
+
+```bash
+VARIANCE_TRIBUNAL_PROJECT=todomvc VARIANCE_TRIBUNAL_INGEST_TOKEN=$INGEST VARIANCE_TRIBUNAL_REVIEW_TOKEN=$REVIEW npx variance-authority-tribunal
+```
+
+| variable | default | what it decides |
+|---|---|---|
+| `VARIANCE_TRIBUNAL_PROJECT` | required | scopes every row and object key. No default, for the reason `project` has none above |
+| `VARIANCE_TRIBUNAL_INGEST_TOKEN` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
+| `VARIANCE_TRIBUNAL_REVIEW_TOKEN` | required | held by people. Reads the review surface and decides. 16 characters or more, and not the ingest token |
+| `VARIANCE_TRIBUNAL_PORT` | `7789` | a whole number, or the process refuses to start |
+| `VARIANCE_TRIBUNAL_HOST` | `127.0.0.1` | the bind address. Anything reachable from off the machine also needs `VARIANCE_TRIBUNAL_TRUST_NETWORK` |
+| `VARIANCE_TRIBUNAL_DB` | `variance-tribunal.db` | the SQLite file. Created and migrated on start; the startup line prints its absolute path and its schema version |
+| `VARIANCE_TRIBUNAL_STORAGE` | `variance-tribunal-objects` | the directory holding baseline and candidate bytes |
+| `VARIANCE_TRIBUNAL_RETENTION_DAYS` | the package default | days of builds `POST /review/sweep` keeps |
+| `VARIANCE_TRIBUNAL_REVIEWER` | the OS user | the name written on decisions made through the served UI |
+| `VARIANCE_TRIBUNAL_TRUST_NETWORK` | unset | confirms a non-loopback bind, and see what it costs below |
+
+**On loopback, a browser is a reviewer.** The bare URL serves the review surface,
+and a caller with no token is treated as holding the review token — because
+anything that can open `127.0.0.1:7789` is already running as the person who
+started it, and asking them to paste their own secret back to themselves buys
+nothing. **On a network bind the review surface is not served at all**, and no
+call is authorized without a token: there would be nothing between an approve
+button and the internet. Put the Next.js adapter behind your own sign-in for
+that, or leave the process on loopback behind a proxy that authenticates.
+
+**The tokens are never printed and never rendered.** The startup line names the
+variables, not their values, and the served page carries the endpoint and the
+reviewer name and nothing else — the browser calls the service, which holds the
+token, exactly as it does behind Next.js.
+
+The schema is applied and migrated on start. That is the one thing the Node shell
+does that the Worker will not: a file has an exclusive lock and a single writer,
+so there is no concurrent-migration race to lose.
+
+Composing it yourself is the same three pieces without the executable, which is
+what you want when the process is also serving something else:
+
+```ts
+import { createDirectoryBucket, openDatabase, serveTribunal } from '@variance-authority/tribunal/node';
+import { createTribunal } from '@variance-authority/tribunal/worker';
+
+const ingest = process.env.INGEST_TOKEN ?? '';
+const review = process.env.REVIEW_TOKEN ?? '';
+
+const service = await serveTribunal({
+  tribunal: createTribunal({
+    db: await openDatabase('variance-tribunal.db'),
+    bucket: createDirectoryBucket('variance-tribunal-objects'),
+    project: 'todomvc',
+    ingestToken: ingest,
+    reviewToken: review,
+  }),
+  host: '127.0.0.1',
+  port: 7789,
+  authorize: (request) =>
+    request.headers.get('authorization') === `Bearer ${ingest}` ? 'ingest' : 'review',
+  tokens: { ingest, review },
+  ui: true,
+  reviewer: 'marina',
+});
+
+service.url;  // http://127.0.0.1:7789
+await service.close();
+```
+
+`serveTribunal` takes the `tribunal` to serve, an `authorize` and `tokens` that
+mean exactly what they mean for `createTribunalRoutes` — it is the same function
+underneath — plus `host`, `port`, and two that only a served page needs: `ui`,
+which decides whether the review surface and its bundle are served at all, and
+`reviewer`, the name written on decisions made through it. `openDatabase` opens,
+creates or migrates the file and reports the `version` it settled on;
+`createDirectoryBucket` writes each object through a staging file and renames it,
+so a reader never sees half of one.
 
 ### The review surface
 

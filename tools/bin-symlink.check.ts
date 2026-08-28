@@ -41,16 +41,23 @@ const TERMINATES: Readonly<Record<string, readonly string[]>> = {
   'variance-authority-mcp': [],
   // Refuses without a token, below — a bare run with one set would listen.
   'variance-authority-server': [],
+  // Refuses without a project, below — a bare run with one set would listen.
+  'variance-authority-tribunal': [],
 };
 
 /**
- * The environment, minus the one variable that would start a server.
+ * The environment, minus the variables that would start a server.
  *
- * `variance-authority-server` refuses without a token, and that refusal is what
- * makes it terminable here. On a machine where the operator happens to have one
- * exported, the same command listens and this check never returns.
+ * `variance-authority-server` refuses without a token and
+ * `variance-authority-tribunal` refuses without a project, and those refusals are
+ * what make them terminable here. On a machine where the operator happens to have
+ * either exported, the same command listens and this check never returns.
  */
-const { VARIANCE_HISTORY_TOKEN: _token, ...ENVIRONMENT } = process.env;
+const {
+  VARIANCE_HISTORY_TOKEN: _token,
+  VARIANCE_TRIBUNAL_PROJECT: _project,
+  ...ENVIRONMENT
+} = process.env;
 
 const links: string[] = [];
 

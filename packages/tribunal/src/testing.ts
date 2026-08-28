@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
-import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
-import { base64Of, type D1Like, type D1PreparedLike, type D1Value, type R2Like, type R2ObjectLike } from './bindings.js';
+import type { DatabaseSync } from 'node:sqlite';
+import { base64Of, type R2Like, type R2ObjectLike } from './bindings.js';
+import { wrapSqlite, type SqliteDatabase } from './node/database.js';
 import { applySchema } from './schema.js';
 
 /**
@@ -31,77 +32,32 @@ const { DatabaseSync: Database } = createRequire(import.meta.url)('node:sqlite')
   DatabaseSync: new (path: string) => DatabaseSync;
 };
 
-export interface SqliteD1 extends D1Like {
-  /** Ends the process's hold on the database. `':memory:'` disappears with it. */
-  close(): void;
-}
+/**
+ * A database with the schema already applied, and a way to let go of it.
+ *
+ * The same shape [`node/database.ts`](./node/database.ts) hands a running
+ * service — this is that adapter, over `':memory:'`, with the schema applied
+ * unconditionally because a fresh in-memory file is never anything else.
+ */
+export type SqliteD1 = SqliteDatabase;
 
 /**
  * A `D1Like` over `node:sqlite`, with the schema already applied.
  *
- * The one behavioural difference from a `DatabaseSync` used directly is that
- * `first` answers `null` where `get` answers `undefined`. That is not cosmetic:
- * `null` is D1's "no row", the whole store distinguishes it from a failure, and a
- * double that returned `undefined` would let a `=== null` check silently stop
- * being true.
+ * Deliberately not its own implementation. The wrapper is
+ * {@link wrapSqlite}, the one an operator's service runs, so a test that passes
+ * here is a test of the shipped adapter rather than of a second one written to
+ * agree with it. What differs is only the lifecycle: this applies `SCHEMA`
+ * outright, where `openDatabase` has to tell a fresh file from a deployed one.
+ *
+ * A path may be passed for a test that wants a file it can reopen; `':memory:'`
+ * is the default and disappears with the handle.
  */
 export async function createSqliteD1(path = ':memory:'): Promise<SqliteD1> {
   const database = new Database(path);
-  const db = wrap(database);
+  const db = wrapSqlite(database);
   await applySchema(db);
   return db;
-}
-
-function wrap(database: DatabaseSync): SqliteD1 {
-  const statement = (sql: string, values: readonly D1Value[]): D1PreparedLike => ({
-    bind: (...bound: readonly D1Value[]) => statement(sql, bound),
-    async first<Row>(): Promise<Row | null> {
-      const row = database.prepare(sql).get(...inputs(values));
-      return row === undefined ? null : (row as Row);
-    },
-    async all<Row>(): Promise<{ readonly results: readonly Row[] }> {
-      return { results: database.prepare(sql).all(...inputs(values)) as Row[] };
-    },
-    async run(): Promise<unknown> {
-      return database.prepare(sql).run(...inputs(values));
-    },
-  });
-
-  return {
-    prepare: (sql: string) => statement(sql, []),
-
-    /**
-     * All of them, or none of them.
-     *
-     * D1 documents `batch` as running inside an implicit transaction that rolls
-     * back on any failure, and the history backend's atomicity requirement rests
-     * entirely on that. Here it is a real `BEGIN IMMEDIATE`, so a test that
-     * expects a half-written run to leave nothing behind is testing the property
-     * rather than the platform's description of it.
-     */
-    async batch(statements: readonly D1PreparedLike[]): Promise<unknown> {
-      database.exec('BEGIN IMMEDIATE');
-      try {
-        const results: unknown[] = [];
-        for (const prepared of statements) results.push(await prepared.run());
-        database.exec('COMMIT');
-        return results;
-      } catch (error) {
-        database.exec('ROLLBACK');
-        throw error;
-      }
-    },
-
-    close: () => database.close(),
-  };
-}
-
-/**
- * `node:sqlite` accepts `null`, numbers, strings and `Uint8Array`; D1 speaks
- * `ArrayBuffer`. One conversion, in the one place the two vocabularies meet.
- */
-function inputs(values: readonly D1Value[]): SQLInputValue[] {
-  return values.map((value) => (value instanceof ArrayBuffer ? new Uint8Array(value) : value));
 }
 
 export interface MemoryR2 extends R2Like {
