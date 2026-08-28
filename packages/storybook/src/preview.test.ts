@@ -314,6 +314,49 @@ describe('the page function', () => {
     expect(result.status).toBe('rendered');
     expect(result.channel).toBe(true);
   });
+
+  it('leaves nothing running once it has handed back a result', async () => {
+    // The property, not the symptom. Readiness is decided by a race — a poll
+    // chain on one timer against Storybook's channel — and whichever loses is
+    // still mid-flight when the winner answers. A losing poll that nobody stops
+    // keeps calling `querySelector` until its own deadline, which is invisible
+    // in a browser about to be driven to the next story and is a timer outliving
+    // its DOM anywhere else. The first story of a session is the case that hits
+    // it every time: it arrives already selected, so the markup poll starts, and
+    // `storyRendered` lands between its two samples.
+    preview = fakePreview({});
+    const page = fakePage(preview);
+
+    const live = new Set<unknown>();
+    const scheduled = globalThis.setTimeout;
+    const cleared = globalThis.clearTimeout;
+
+    globalThis.setTimeout = ((fn: () => void, ms?: number) => {
+      const id: unknown = scheduled(() => {
+        live.delete(id);
+        fn();
+      }, ms);
+      live.add(id);
+      return id;
+    }) as typeof globalThis.setTimeout;
+    globalThis.clearTimeout = ((id: unknown) => {
+      live.delete(id);
+      return cleared(id as Parameters<typeof cleared>[0]);
+    }) as typeof globalThis.clearTimeout;
+
+    try {
+      const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
+
+      expect(outcome.status).toBe('rendered');
+      expect(outcome.readiness).toBe('storyRendered');
+      // Nothing outstanding: the poll that lost the race was stopped where the
+      // answer was, not left to expire on its own.
+      expect(live.size).toBe(0);
+    } finally {
+      globalThis.setTimeout = scheduled;
+      globalThis.clearTimeout = cleared;
+    }
+  });
 });
 
 /**

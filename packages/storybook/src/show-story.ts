@@ -74,6 +74,41 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
   const channel = scope.__STORYBOOK_PREVIEW__?.channel ?? scope.__STORYBOOK_ADDONS_CHANNEL__ ?? null;
   const warnings: string[] = [];
 
+  /**
+   * Stop reading the page the moment an answer has been handed back.
+   *
+   * Both polls below run on their own `setTimeout` chain, and either can still
+   * be mid-flight when the channel answers first. That is not an edge case, it
+   * is the ordinary first story of a session: it arrives already selected, so
+   * the `already-rendered` markup poll starts, and `storyRendered` lands between
+   * its two samples. Nothing used to stop the chain — it kept calling
+   * `querySelector` on its own timer until its own deadline, long after the
+   * result was out.
+   *
+   * In a browser that costs a few wasted polls on a page about to be driven
+   * elsewhere, which is why it survived. Off a browser it is a timer that
+   * outlives the DOM it reads: the straggler wakes up in a torn-down
+   * environment, `document` is not a binding any more, and the `ReferenceError`
+   * is attributed to whichever subject happened to be running.
+   *
+   * `abandonPolls` is called by `finish`, so the polls stop exactly where the
+   * answer stopped. A chain that reaches this guard leaves its promise pending
+   * forever and that is correct: its result was going to be discarded, and the
+   * only caller is a `.then(finish)` that would no-op.
+   */
+  let handedBack = false;
+  const polls: ReturnType<typeof setTimeout>[] = [];
+
+  const pollAgain = (tick: () => void): void => {
+    polls.push(setTimeout(tick, request.pollMs));
+  };
+
+  const abandonPolls = (): void => {
+    handedBack = true;
+    for (const poll of polls) clearTimeout(poll);
+    polls.length = 0;
+  };
+
   const rootSelector = (): string | null => {
     for (const selector of request.roots) {
       const element = document.querySelector(selector);
@@ -129,6 +164,8 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       let previous: string | null = null;
 
       const tick = (): void => {
+        if (handedBack) return;
+
         const failed = overlay();
         if (failed !== null) {
           resolve(result('errored', 'none', { message: failed.message, stack: failed.stack, notes }));
@@ -160,7 +197,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
           return;
         }
 
-        setTimeout(tick, request.pollMs);
+        pollAgain(tick);
       };
 
       tick();
@@ -193,6 +230,8 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       const deadline = Date.now() + budgetMs;
 
       const tick = (): void => {
+        if (handedBack) return;
+
         const failed = overlay();
         if (failed !== null) {
           resolve(result('errored', 'none', { message: failed.message, stack: failed.stack, notes }));
@@ -237,7 +276,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
           return;
         }
 
-        setTimeout(tick, request.pollMs);
+        pollAgain(tick);
       };
 
       tick();
@@ -273,6 +312,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       if (settled) return;
       settled = true;
       if (timer !== undefined) clearTimeout(timer);
+      abandonPolls();
       // Listeners outlive the story: the page is not reloaded between subjects,
       // so a handler left attached would answer for the *next* story as well.
       for (const entry of listeners) channel.off(entry.event, entry.handler);
