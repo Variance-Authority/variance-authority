@@ -1,0 +1,14 @@
+node_modules
+.env*
+.dev.vars
+.next
+next-env.d.ts
+/dist/
+.vinext/
+.wrangler/
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions

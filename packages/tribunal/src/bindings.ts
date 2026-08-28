@@ -31,6 +31,13 @@ export interface D1PreparedLike {
   run(): Promise<unknown>;
 }
 
+/**
+ * A SQL database that runs one statement or a batch of them.
+ *
+ * D1 is SQLite, so this is satisfied by the platform binding and by
+ * `node:sqlite` through a thin wrapper, which is what lets the same store back
+ * a Worker and a file on a machine somebody owns.
+ */
 export interface D1Like {
   prepare(sql: string): D1PreparedLike;
 
@@ -56,6 +63,13 @@ export interface R2ObjectLike {
   arrayBuffer(): Promise<ArrayBuffer>;
 }
 
+/**
+ * An object store addressed by key, holding image bytes and nothing else.
+ *
+ * Four methods, because that is all the store uses: read, exists, write, remove.
+ * A bucket is never listed and never scanned — every key this package reads is
+ * one a row already named.
+ */
 export interface R2Like {
   /** `null` means the bucket answered and there is no such object. */
   get(key: string): Promise<R2ObjectLike | null>;

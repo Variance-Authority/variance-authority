@@ -1,0 +1,55 @@
+{
+  // The deployment descriptor for the review console: a vinext app on a Worker,
+  // the same D1 database and R2 bucket the packaged Worker uses, and the two
+  // secrets that are not here and must never be.
+  //
+  // `vinext build` writes `dist/server/wrangler.json` from this file; deploy that
+  // one rather than this one.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "variance-tribunal-console",
+  "compatibility_date": "2026-08-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "vinext/server/fetch-handler",
+
+  "assets": {
+    "directory": "dist/client",
+    "not_found_handling": "none",
+    "binding": "ASSETS"
+  },
+
+  // Rows. `migrations_dir` points at the package's generated migrations, which
+  // are produced from `schema.ts` rather than written by hand — the console and
+  // the packaged Worker share one database and must share one schema history.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "variance-tribunal",
+      "database_id": "PLACEHOLDER — replace with the id `wrangler d1 create` prints",
+      "migrations_dir": "../packages/tribunal/migrations"
+    }
+  ],
+
+  // Bytes: baseline and candidate images. Never a row.
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "variance-tribunal"
+    }
+  ],
+
+  "vars": {
+    // Scopes every row and object key. One deployment, one project.
+    "PROJECT": "default",
+
+    // Both must be set for the review surface to be served at all. The team
+    // domain is where the signing keys are published; the audience tag is this
+    // Access application's, so a token minted for another app in the same team
+    // is refused here.
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
