@@ -81,7 +81,7 @@ const ROWS = [
       doc("No documented equivalent"),
       doc("No documented equivalent"),
       doc(
-        "--since skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented Vitest runs also select test files by what they executed",
+        "--since skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented test runs also select test files by what they executed",
       ),
     ],
   },
@@ -229,7 +229,7 @@ export default function Comparison() {
             )}
             .{" "}
             {doc(
-              "The shipped Vitest integration records one entry per test file and stores no call-stack depth, so per-test answers require a collector that already records them",
+              "The shipped integration records one entry per test file and stores no call-stack depth, so per-test answers require a collector that already records them",
             )}
             .
           </dd>

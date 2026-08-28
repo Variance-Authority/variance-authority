@@ -21,7 +21,7 @@ the contract.
 | Existing PNG input | Product-specific SDK paths | No general PNG intake | CLI upload | SDK checkpoints | Library seam through `observeRasters` or raster `CaptureArtifact`; no CLI ingest command |
 | Source attribution | DOM/CSS root-cause aids | Story identity and dependency tracing | Spec/story metadata | DOM/CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies matching provenance |
 | Compared against | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
-| Change-driven selection | No documented equivalent | TurboSnap uses the module graph to avoid snapshots a change cannot reach | No documented equivalent | No documented equivalent | `--since` skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented Vitest runs also select test files by what they executed |
+| Change-driven selection | No documented equivalent | TurboSnap uses the module graph to avoid snapshots a change cannot reach | No documented equivalent | No documented equivalent | `--since` skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
 | Operations | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
 
 **Percy** and **Argos** leave selection to you: you shard the suite yourself.
@@ -43,7 +43,7 @@ file names shown where execution crosses files, with a time-travel debugger
 attached. This project does not build that viewer. It ships the index underneath
 it. Give `coveringTests` a source line or function and it returns the individual
 tests that executed it, nearest call stack first, reading an execution index from
-any collector. The gap is worth stating exactly. The shipped Vitest integration
+any collector. The gap is worth stating exactly. The shipped integration
 records one entry per test file and stores no call-stack depth, so per-test
 answers require a collector that already records them.
 
