@@ -102,7 +102,7 @@ The options that make a capture applicable are supplied by the host:
 | call | useful controls |
 |---|---|
 | `collect` / `acquireDocument` | `subject`, `viewport`, and `engine` identify the reading; `features` supplies media conditions, `inherited` supplies declarations from ancestors outside the root, and `index` reuses a stylesheet index for a standing document |
-| `collect` | `wiringOf` adds framework wiring, while `stabilization` records the intervention recipe already applied; neither is inferred from markup |
+| `collect` | `wiringOf` adds framework wiring and `holdingOf` adds what each component was handed and what it retained, while `stabilization` records the intervention recipe already applied; none of the three is inferred from markup |
 | `stabilizeForObservation` | `recipe` selects the intervention list; the default is profile-specific `COLLECT_RECIPE`, and the returned digest records what was applied |
 | `attributeProvenance` | `component`, `createdBy`, and `props` are caller-declared metadata written to a node, not guesses from a tag name |
 | `resolveIgnores` | `selectors` names the excluded places and `markers` controls `data-variance-ignore` handling |
@@ -128,9 +128,10 @@ caller.
 
 ## Owner chains are optional and injected
 
-`provenanceOf` is a parameter, not an import. This package knows nothing about
-React, and a project using something else supplies its own — or none, and gets
-attribution down to the node rather than the component.
+`provenanceOf` is a parameter, not an import, and so are `wiringOf` and
+`holdingOf`. This package knows nothing about React, and a project using
+something else supplies its own — or none, and gets attribution down to the node
+rather than the component.
 
 `collect` cannot infer fonts, external asset contents, or portal ownership. Omit
 one only when the missing fact is genuinely outside the assertion; otherwise pass

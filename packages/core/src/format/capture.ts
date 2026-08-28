@@ -2,6 +2,7 @@ import type { EnvironmentInputs } from './environment.js';
 import type { ObservationProfile } from './profile.js';
 import type { Provenance } from './provenance.js';
 import type { Wiring } from './wiring.js';
+import type { Holding } from './holding.js';
 
 /**
  * The collector/core boundary.
@@ -140,6 +141,18 @@ export interface RawNode {
    * field.
    */
   readonly wiring?: Wiring;
+
+  /**
+   * What the component that authored this node was holding, when an adapter
+   * supplied it.
+   *
+   * A third injection at the same seam, and deliberately not folded into
+   * `wiring`: wiring is hashed into a band and this may never be, so a caller
+   * that wants the band must be able to have it without also carrying values,
+   * and a caller that wants explanations must be able to ask for them without
+   * changing a single digest. See {@link Holding}.
+   */
+  readonly holding?: Holding;
 
   readonly children: readonly RawNode[];
 

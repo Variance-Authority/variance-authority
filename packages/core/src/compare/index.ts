@@ -32,5 +32,17 @@ export type { Observability } from './observability.js';
 export { deriveVariation } from './derive.js';
 export type { Variation } from './derive.js';
 
+export { partingOf } from './parting.js';
+export { sliceOf, sameTree } from './slice.js';
+export type { PartingSlice } from './slice.js';
+export type {
+  Parting,
+  PartedBoundary,
+  PartingRung,
+  MovedInput,
+} from './parting.js';
+
+export { explainParting } from './explain.js';
+
 export { compareValues, fingerprintOfValueDelta } from './value.js';
 export type { ValueChange, ValueDelta } from './value.js';

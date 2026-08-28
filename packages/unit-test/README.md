@@ -85,6 +85,9 @@ It does not produce a screenshot or visual verdict.
 | `features` | none | environment facts folded into the capture and into media-condition resolution |
 | `sourceRoot` | none | the root component paths are made relative to, so `file:line` survives the move to another machine |
 | `resolveResource` | none | `(url) => bytes`. **Required the moment the subtree references anything**: a subtree with resources and no resolver throws at capture, naming every URL it would have had to guess at, and a resolver returning `null` for one of them throws naming that one |
+| `provenanceOf` | none | `(node) => owners`. Attaches the component chain that rendered each node, so a difference can be named by component rather than by path |
+| `wiringOf` | none | `(node) => wiring`. Attaches the framework wiring a node carries — hook count, keys, boundaries — as part of the compared identity |
+| `holdingOf` | none | `(node) => holding`. Attaches what each component boundary was handed and what it retained: props, contexts, and hook cells as digests. Evidence beside the snapshot, not part of any hash |
 
 `resolveResource` is the whole of the requirement above. A capture is rendered in
 another process — possibly on another machine, possibly hours later — so a

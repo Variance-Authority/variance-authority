@@ -57,7 +57,9 @@ export { awaitSuspense, suspenseRefusal } from './arrival.js';
 export type { Commit, CommitTap, TapOptions, TapRefusal, QuietOptions, QuietResult } from './commits.js';
 export { tapCommits, awaitQuiet } from './commits.js';
 
-export { wiringOf } from './wiring.js';
+export { wiringOf, componentFiberOf } from './wiring.js';
+
+export { holdingOf } from './holding.js';
 
 export type { Remount, RenderMark } from './identity.js';
 export { markRender, remountedSince } from './identity.js';

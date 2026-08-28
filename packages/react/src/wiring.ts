@@ -113,6 +113,20 @@ export function wiringOf(node: Node): Wiring | undefined {
 }
 
 /**
+ * The composite fiber this node is the root output of, or null.
+ *
+ * Exported so that {@link wiringOf} and `holdingOf` place a boundary at exactly
+ * the same node. They read different halves of one fiber — what the component
+ * *is* and what it was *holding* — and the moment they disagreed about where a
+ * component starts, a divergence would name a hook on a boundary the wiring band
+ * says has none. One walk, stated once, is what stops that.
+ */
+export function componentFiberOf(node: Node): Fiber | null {
+  const own = findFiber(node);
+  return own === null ? null : climb(own).component;
+}
+
+/**
  * Walk from a node's own fiber up to the component it is the root output of,
  * collecting the reconciliation key on the way.
  *

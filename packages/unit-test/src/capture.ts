@@ -2,6 +2,9 @@ import {
   digestBytes,
   normalize,
   type CaptureArtifact,
+  type Holding,
+  type Provenance,
+  type Wiring,
   type RenderDocument,
   type RenderResource,
   type SubjectRef,
@@ -28,6 +31,23 @@ export interface UnitCaptureOptions {
   readonly features?: Readonly<Record<string, string>>;
   readonly sourceRoot?: string;
   readonly resolveResource?: (url: string) => Promise<ResolvedResource | null>;
+
+  /**
+   * Framework readers, passed straight through to `collect`.
+   *
+   * Three callbacks rather than one adapter object, mirroring `CollectOptions`
+   * exactly, because they are opted into separately and cost differently: an
+   * owner chain is a name, and a holding is a digest of every hook cell and
+   * every prop in the tree. A caller reading a subject twice to ask whether it
+   * is stable wants all three; a caller archiving a fixture for a pixel diff
+   * wants none, and neither should be inferred from the other.
+   *
+   * Absent by default. This package does not import React, and a capture taken
+   * without them carries no component names — not empty ones.
+   */
+  readonly provenanceOf?: (element: Element) => Provenance | undefined;
+  readonly wiringOf?: (element: Element) => Wiring | undefined;
+  readonly holdingOf?: (element: Element) => Holding | undefined;
 }
 
 /** Capture a mounted DOM tree without importing or launching a browser. */
@@ -61,6 +81,9 @@ export async function capture(
     ...acquireOptions,
     engine: options.engine ?? engineOf(owner),
     assets,
+    ...(options.provenanceOf === undefined ? {} : { provenanceOf: options.provenanceOf }),
+    ...(options.wiringOf === undefined ? {} : { wiringOf: options.wiringOf }),
+    ...(options.holdingOf === undefined ? {} : { holdingOf: options.holdingOf }),
   });
 
   const document: RenderDocument = {

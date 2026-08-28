@@ -190,7 +190,28 @@ export function relativizeSource(location: SourceLocation, root: string): Source
  * decides who gets blamed, not whether anything happened.
  */
 export function propsDigest(props: Readonly<Record<string, unknown>>): Digest {
-  return digestValue(shapeOf(props, new WeakSet(), { left: MAX_VALUES }) as never);
+  return heldDigest(props);
+}
+
+/**
+ * The same projection, over one value rather than a props object.
+ *
+ * `propsDigest` is this function with a name that says what its argument is. The
+ * split exists because {@link Holding} digests things that are not props — a
+ * `useState` cell, a `useSyncExternalStore` snapshot, a context's current value,
+ * one prop on its own — and every one of them needs *this* shaper rather than a
+ * second one written to look like it.
+ *
+ * Nothing about the projection is incidental to that reuse, and two of its
+ * defences are load-bearing for hooks in a way they never were for props. A
+ * `useRef` cell holds a DOM node about as often as not, and `asHostObject` is
+ * what stops walking one from dragging the whole fiber graph through the digest
+ * and killing the renderer. An effect cell's `next` closes a ring, and the cycle
+ * guard is what makes that a token instead of a hang. A second implementation
+ * would have to rediscover both, in a page, on somebody else's site.
+ */
+export function heldDigest(value: unknown): Digest {
+  return digestValue(shapeOf(value, new WeakSet(), { left: MAX_VALUES }) as never);
 }
 
 /**

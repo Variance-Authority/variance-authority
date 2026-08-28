@@ -123,6 +123,22 @@ export interface Fiber {
 /** One link of the context-dependency list. `displayName` is set by the author. */
 export interface ContextDependency {
   readonly context?: { readonly displayName?: string } | null;
+
+  /**
+   * The context value this fiber read, as of its last render.
+   *
+   * Read by `holding.ts` and by nothing else, because it is a *value* and the
+   * wiring band may not carry one. It is the only route to a context's current
+   * contents: the provider holds the value, the consumer holds this, and the
+   * hook chain holds nothing at all — `useContext` builds no cell (measured on
+   * 19.2.8, and asserted in `holding.test.tsx`).
+   *
+   * INTERNAL CONTRACT: if React renames this, the symptom is every context
+   * digesting as `undefined`, so two components reading different themes get
+   * one digest and a divergence loses the rung that would have explained it.
+   */
+  readonly memoizedValue?: unknown;
+
   readonly next?: ContextDependency | null;
 }
 
