@@ -1,6 +1,9 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { encodeTestCoverage, openTestCoverage } from './format.js';
-import { testCoverageFile, type TestCoverage } from './index.js';
+import { decodeTestCoverage, encodeTestCoverage, openTestCoverage } from './format.js';
+import { readTestCoverage, testCoverageFile, type TestCoverage } from './index.js';
 import { selectTestFilesFromView } from './select.js';
 
 const testFiles = ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'];
@@ -144,3 +147,47 @@ describe('selectTestFiles', () => {
     ]);
   });
 });
+
+describe('readTestCoverage', () => {
+  it('returns the entered regions a run recorded, not a summary of them', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-read-coverage-'));
+    const file = resolve(directory, 'coverage.bin');
+    await writeFile(file, encodeTestCoverage(coverage));
+
+    try {
+      const read = await readTestCoverage(file);
+
+      // The whole point of the reader: which blocks exist, and which test files
+      // entered each one. `selectTestFiles` answers with paths and
+      // `deviationOfTests` with line counts; neither can show this.
+      expect(read).toEqual(decoded(coverage));
+      expect(read.modules.map((module) => module.file)).toContain('src/decide.ts');
+      expect(
+        read.modules
+          .flatMap((module) => module.blocks)
+          .some((block) => block.testFiles.length > 0),
+      ).toBe(true);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a file that is not a coverage snapshot', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-read-coverage-'));
+    const file = resolve(directory, 'coverage.bin');
+    await writeFile(file, 'not a snapshot');
+
+    try {
+      await expect(readTestCoverage(file)).rejects.toThrow(
+        /not a variance-authority test coverage artifact/,
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+/** What a round trip through the binary format normalizes the fixture to. */
+function decoded(input: TestCoverage): TestCoverage {
+  return decodeTestCoverage(encodeTestCoverage(input));
+}

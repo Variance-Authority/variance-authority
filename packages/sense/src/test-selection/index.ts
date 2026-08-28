@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString, type FileRecord } from '@variance-authority/core';
 import { deviationFromView } from './deviation.js';
-import { openTestCoverage } from './format.js';
+import { decodeTestCoverage, openTestCoverage } from './format.js';
 import { selectTestFilesFromView } from './select.js';
 
 export {
@@ -107,6 +107,24 @@ export function testCoverageFile(
 ): string {
   const repository = digestString(resolve(root)).replace(/^[^:]+:/, '');
   return resolve(cacheRoot, 'variance-authority', 'test-selection', repository, 'coverage.bin');
+}
+
+/**
+ * Read one persisted coverage snapshot as the logical model above.
+ *
+ * The other two readers here answer a question and decode only what the answer
+ * needed. This one decodes the whole snapshot, because the caller is asking
+ * about the regions themselves — which blocks a module has, which of them a run
+ * entered, and which test files entered them — rather than about a selection or
+ * a ratio derived from them. That is the only way to ask it: the snapshot is a
+ * binary artifact, and a consumer who cannot decode it cannot see the evidence
+ * its own runs produced, only the two summaries this module chose to compute.
+ *
+ * It is the counterpart to `mergeCoverage`, which takes and returns this same
+ * shape.
+ */
+export async function readTestCoverage(file: string): Promise<TestCoverage> {
+  return decodeTestCoverage(await readFile(file));
 }
 
 /**

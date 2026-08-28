@@ -2160,6 +2160,7 @@
         "coveringTests": "function",
         "coveringTestsInFile": "function",
         "deviationOfTests": "function",
+        "readTestCoverage": "function",
         "selectTestFiles": "function",
         "testCoverageFile": "function"
       },

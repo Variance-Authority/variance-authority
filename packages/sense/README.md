@@ -13,13 +13,21 @@ file/module id for the pure readers and transform. Resolution of bare specifiers
 also requires the checkout's installed dependencies and any `tsconfig.json` path
 mapping they use.
 
-Use this package when a Node process can read a checkout and you need to answer
-any of these questions:
+Use this package when you need to answer any of these questions:
 
 - Which files and components can a changed file reach?
-- Which execution regions did an instrumented module enter?
 - Which Vitest files entered the source regions touched by a diff?
-- Which named tests reached a function or line, and at what stack depth?
+- Which execution regions did an instrumented module enter, and which test files
+  entered each one?
+
+It also ships the *query* behind a fourth question — which named tests reached a
+function or line, and at what stack depth — without the data that answers it.
+`coveringTests` reads an `ExecutionIndex` supplied by a collector that records
+individual test cases and the call-stack depth of every crossing. The Vitest
+integration here is not that collector and is not becoming one: it attributes
+crossings to whole test files, which is the granularity that keeps probe
+overhead low enough to leave instrumentation on. See
+[Find tests that cover source](#find-tests-that-cover-source).
 
 The package reads source and returns data. Its Vitest integration instruments
 product source, attributes entered regions to completed test files, and writes
@@ -30,7 +38,8 @@ Skip it if tests run under something other than Vitest 2, if you need to
 exclude individual test cases rather than whole files, or if the instrumented
 code will run inside a browser or worker realm — a probe stringified into that
 realm throws on its first call. `coveringTests` is the exception: it queries
-execution data from any collector, independent of the runner.
+execution data from any collector, independent of the runner — and independent
+of whether this package produced it.
 
 ```bash
 npm install --save-dev @variance-authority/sense
@@ -91,7 +100,8 @@ recorded without that widening, because it lies outside the repository's diff.
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
-| `@variance-authority/sense/test-selection` | querying named-test reach, measuring test-file deviation, and mapping a unified diff to test files | execution data from a collector; persisted selection queries use the Vitest coverage file |
+| `@variance-authority/sense/test-selection` | mapping a unified diff to test files, reading the recorded snapshot, and measuring test-file deviation | the Vitest coverage file |
+| `@variance-authority/sense/test-selection` (same import) | querying named-test reach with `coveringTests` | an execution index from a collector; this package ships no producer for one |
 
 ## Keep repeated scans cheap
 
@@ -232,6 +242,41 @@ test, so its own edit is the only thing that can run it. A precondition selects
 every test it governs, which is what declaring one is for. A file the snapshot
 never recorded selects nothing.
 
+## Read what a run recorded
+
+`selectTestFiles` answers with paths and `deviationOfTests` with line counts.
+Both derive their answer from the snapshot and discard the rest of it. To see the
+regions themselves — which blocks a module has and which test files entered each
+one — read the snapshot as its logical model:
+
+```ts
+import {
+  readTestCoverage,
+  testCoverageFile,
+} from '@variance-authority/sense/test-selection';
+
+const coverage = await readTestCoverage(testCoverageFile(process.cwd()));
+
+for (const module of coverage.modules) {
+  // Recorded as unknown. Widen to the whole module rather than reading blocks
+  // that were never collected.
+  if (!module.instrumented) continue;
+
+  for (const block of module.blocks) {
+    console.log(module.file, block.kind, block.startLine, block.endLine, block.testFiles);
+  }
+}
+```
+
+The snapshot is a binary artifact, so this is the only way to read the evidence
+your own runs produced rather than the two summaries above. `mergeCoverage` from
+`@variance-authority/sense/vitest` takes and returns this same shape, which is
+how a job combines shard snapshots before querying them.
+
+Crossings here name **test files** and carry no call-stack depth. That is the
+recorded granularity, not a limit of this reader; see
+[Where the index comes from](#where-the-index-comes-from).
+
 ## Measure test-file deviation
 
 Deviation compares what a test file can statically reach with what it enters in
@@ -290,12 +335,10 @@ arm is the closer bound.
 ## Find tests that cover source
 
 `coveringTests` is the runner-independent point query for coding agents,
-editors, and navigation integrations. It takes an `ExecutionIndex` — the same
-per-block, per-test crossings described above, supplied directly by a
-collector instead of read from a saved snapshot — plus a source line or
-function, and returns individual test identities ordered by their shortest
-observed call-stack depth. `coveringTestsInFile` answers the whole indexed file
-in one operation:
+editors, and navigation integrations. It takes an `ExecutionIndex` plus a source
+line or function, and returns individual test identities ordered by their
+shortest observed call-stack depth. `coveringTestsInFile` answers the whole
+indexed file in one operation:
 
 ```ts
 import {
@@ -337,6 +380,21 @@ distances into inclusive ranges; an indexed but unreached range has an empty
 `tests` list, while lines absent from the instrumented source regions have no
 range. Missing source returns no claim; an invalid test reference or distance
 throws.
+
+### Where the index comes from
+
+This package ships the query and no producer for it. An `ExecutionIndex` names
+individual test cases and records the call-stack distance of every crossing; the
+snapshot `withTestSelection` writes does neither, so it cannot be converted into
+one. Both absences are deliberate. Attributing crossings to cases rather than
+files would make the selector exclude individual tests, which it refuses to do,
+and capturing a stack at every probe would cost far more than the overhead
+budget instrumentation is kept inside.
+
+Supply the index from a collector that already holds per-case data — an editor's
+test runner, a debugger, a language server — or record it yourself.
+`@variance-authority/mcp` puts the same query in front of an agent over MCP and
+asks exactly this of its caller.
 
 ## Related contracts
 
