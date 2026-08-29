@@ -2,11 +2,12 @@ import type { VariationRecord } from '@variance-authority/report';
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import type { BuildDetail, BuildSummary, Decision, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
+import { Findings } from './findings.js';
 import { ChangelogPage, SubjectHistory } from './history.js';
 import { Mark } from './mark.js';
 import { OriginsPanel } from './origins.js';
 import { ReachPanel } from './reach.js';
-import { briefly, count, element, headline, number, segments, sentence, when } from './text.js';
+import { briefly, count, number, segments, when } from './text.js';
 import { Viewer } from './viewer.js';
 
 /**
@@ -724,49 +725,6 @@ export function SubjectPanel({
         </section>
       </aside>
     </section>
-  );
-}
-
-/**
- * Findings, and the difference between clean and unexamined.
- *
- * `[]` means this render was inspected and no defect was found. `undefined` means
- * nothing inspected it. Printing the second as the first tells a reviewer the
- * component is fine on the authority of something that never looked.
- *
- * Drawn in three registers rather than one line. The report writes a rule id and
- * a clause — and the clause is written to *follow a noun the report never
- * prints*, which is how `label-mismatch reads "SNKR. shop" and is named …` used
- * to reach this page. So the headline is the defect in a person's words, the
- * element the clause was written for comes from `where`, and the id goes last,
- * beside the file, where it belongs: it is the least of the three to a reviewer
- * and the whole of it to an ignore list.
- */
-function Findings({ subject }: { readonly subject: SubjectView }): ReactElement {
-  if (subject.findings === undefined) {
-    return <p className="va-note">This render was not inspected, so no defect list applies.</p>;
-  }
-  if (subject.findings.length === 0) {
-    return <p className="va-note">Inspected, and nothing to report.</p>;
-  }
-
-  return (
-    <ul className="va-findings">
-      {subject.findings.map((finding, index) => (
-        <li key={`${finding.rule}-${finding.path}-${String(index)}`} className="va-finding">
-          <p className="va-finding-title">{headline(finding.rule)}</p>
-          <p className="va-finding-where">{element(finding.where) ?? finding.path}</p>
-          <p className="va-finding-what">{sentence(finding.what)}</p>
-          <p className="va-finding-owner">
-            {finding.component === undefined ? null : (
-              <span className="va-tag">{finding.component}</span>
-            )}
-            {finding.file === undefined ? null : <code className="va-tag">{finding.file}</code>}
-            <span className="va-tag va-rule">{finding.rule}</span>
-          </p>
-        </li>
-      ))}
-    </ul>
   );
 }
 

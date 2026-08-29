@@ -189,62 +189,67 @@ export function Viewer({
   return (
     <div className="va-viewer">
       <div className="va-viewer-bar">
-        <p className="va-modes">
-          {available.map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={option === mode ? 'va-mode va-current' : 'va-mode'}
-              aria-pressed={option === mode}
-              onClick={() => setMode(option)}
-            >
-              {LABELS[option]}
-            </button>
-          ))}
-        </p>
-        {zoomable ? (
-          <p className="va-zooms">
-            {ZOOMS.map((option) => (
+        <div className="va-viewer-controls">
+          <p className="va-modes">
+            {available.map((option) => (
               <button
-                key={String(option)}
+                key={option}
                 type="button"
-                className={option === zoom ? 'va-mode va-current' : 'va-mode'}
-                aria-pressed={option === zoom}
-                onClick={() => setZoom(option)}
+                className={option === mode ? 'va-mode va-current' : 'va-mode'}
+                aria-pressed={option === mode}
+                onClick={() => setMode(option)}
               >
-                {option === 'fit' ? 'fit' : `${String(option)}×`}
+                {LABELS[option]}
               </button>
             ))}
           </p>
-        ) : null}
-        <p className="va-showing">{showing(mode, { seam, blend, flip })}</p>
-        {size === undefined ? null : (
-          <p className="va-measure" title="the candidate’s own pixels, which 1× draws one for one">
-            {number(size.width)} × {number(size.height)}
-            {subject.baseline === undefined ||
-            (subject.baseline.width === size.width && subject.baseline.height === size.height) ? (
-              ''
-            ) : (
-              <span className="va-resized">
-                {' '}
-                · was {number(subject.baseline.width)} × {number(subject.baseline.height)}
+          {zoomable ? (
+            <p className="va-zooms">
+              {ZOOMS.map((option) => (
+                <button
+                  key={String(option)}
+                  type="button"
+                  className={option === zoom ? 'va-mode va-current' : 'va-mode'}
+                  aria-pressed={option === zoom}
+                  onClick={() => setZoom(option)}
+                >
+                  {option === 'fit' ? 'fit' : `${String(option)}×`}
+                </button>
+              ))}
+            </p>
+          ) : null}
+        </div>
+        <div className="va-viewer-readout">
+          <p className="va-showing">{showing(mode, { seam, blend, flip })}</p>
+          {size === undefined ? null : (
+            <p className="va-measure" title="the candidate’s own pixels, which 1× draws one for one">
+              {number(size.width)} × {number(size.height)}
+              {subject.baseline === undefined ||
+              (subject.baseline.width === size.width &&
+                subject.baseline.height === size.height) ? (
+                ''
+              ) : (
+                <span className="va-resized">
+                  {' '}
+                  · was {number(subject.baseline.width)} × {number(subject.baseline.height)}
+                </span>
+              )}
+            </p>
+          )}
+          {subject.regions.length > 0 ? (
+            <p className="va-steps">
+              <button type="button" onClick={() => jump(step(focus, subject.regions.length, -1))}>
+                ‹
+              </button>
+              <span className="va-num">
+                {focus === null ? '—' : String(focus + 1)} / {String(subject.regions.length)}
               </span>
-            )}
-          </p>
-        )}
-        {subject.regions.length > 0 ? (
-          <p className="va-steps">
-            <button type="button" onClick={() => jump(step(focus, subject.regions.length, -1))}>
-              ‹
-            </button>
-            <span className="va-num">
-              {focus === null ? '—' : String(focus + 1)} / {String(subject.regions.length)}
-            </span>
-            <button type="button" onClick={() => jump(step(focus, subject.regions.length, 1))}>
-              ›
-            </button>
-          </p>
-        ) : null}
+              <button type="button" onClick={() => jump(step(focus, subject.regions.length, 1))}>
+                ›
+              </button>
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {mode === 'side-by-side' ? (

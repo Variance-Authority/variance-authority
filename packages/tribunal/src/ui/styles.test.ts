@@ -46,13 +46,61 @@ describe('REVIEW_STYLES', () => {
     expect([...counted].filter(([, times]) => times > 1).map(([selector]) => selector)).toEqual([]);
   });
 
+  it('keeps the name of a comparison mode on one line, whatever it is called', () => {
+    // The labels are set in small uppercase mono with letter spacing, so `side by
+    // side` is three words the pill will break across three lines the moment the
+    // pane narrows — and a control whose height changes with the window is one a
+    // reviewer's cursor learns to miss.
+    expect(RULES.find((rule) => rule.selector === '.va-mode')?.body).toContain(
+      'white-space: nowrap',
+    );
+  });
+
+  it('reads out on its own line rather than beside the buttons', () => {
+    // The bar carries controls and a readout in the same mono face at the same
+    // size. Left to wrap as one row, `this build` lands next to `4×` and reads as
+    // a fourth magnification — so the two are separate rows by declaration, not
+    // by whatever width the window happens to be.
+    expect(RULES.find((rule) => rule.selector === '.va-viewer-bar')?.body).toContain(
+      'display: grid',
+    );
+    expect(
+      RULES.find((rule) => rule.selector === '.va-viewer-controls, .va-viewer-readout')?.body,
+    ).toContain('display: flex');
+    // And the groups themselves wrap: six comparison modes at a readable size are
+    // wider than a subject column on a laptop, and a group that cannot break puts
+    // `difference` past the right edge with nothing to scroll it back.
+    expect(RULES.find((rule) => rule.selector === '.va-modes, .va-zooms')?.body).toContain(
+      'flex-wrap: wrap',
+    );
+  });
+
+  it('never cuts a rail note, because half a number reads as a number', () => {
+    // The note carries the counts a reviewer picks the next subject by, and it
+    // ends in the largest of them. Clipped to one line with an ellipsis,
+    // `5,732px` arrives as `5,7…` — which is not a truncated number to the eye,
+    // it is a smaller one. The name above it may still clip: a name is
+    // recognised from its front, and a count is not.
+    const note = RULES.find((rule) => rule.selector === '.va-rail-note')?.body;
+
+    expect(note).not.toContain('text-overflow: ellipsis');
+    expect(note).not.toContain('white-space: nowrap');
+    expect(RULES.find((rule) => rule.selector === '.va-rail-name')?.body).toContain(
+      'text-overflow: ellipsis',
+    );
+  });
+
   it('lets no column be widened by what is inside it', () => {
     // A flex child sizes to its content unless it is told not to, and the content
     // here is a 1280-pixel capture the reviewer asked to see at 1:1. Without this
     // the columns grow to fit the plate, the app clips at the viewport, and the
     // panel carrying the findings and the two decision buttons is pushed off the
     // right edge at exactly the magnification somebody zoomed in to judge.
-    for (const selector of ['.va-subject', '.va-stage']) {
+    for (const selector of [
+      '.va-subject',
+      '.va-stage',
+      '.va-viewer-controls, .va-viewer-readout',
+    ]) {
       expect(RULES.find((rule) => rule.selector === selector)?.body).toContain('min-width: 0');
     }
     expect(RULES.find((rule) => rule.selector === '.va-loupe')?.body).toContain('max-width: 100%');
