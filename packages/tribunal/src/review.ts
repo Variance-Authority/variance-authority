@@ -106,7 +106,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
 
     async builds(limit = 50): Promise<readonly BuildSummary[]> {
       const listed = await db
-        .prepare('SELECT * FROM builds WHERE project = ? ORDER BY at_ms DESC LIMIT ?')
+        .prepare('SELECT * FROM builds WHERE project = ? ORDER BY at_ms DESC, rowid DESC LIMIT ?')
         .bind(project, limit)
         .all<Row>();
 

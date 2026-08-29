@@ -3,7 +3,9 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactElement }
 import type { BuildDetail, BuildSummary, Decision, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { Findings } from './findings.js';
+import { DivergencePanel } from './divergence.js';
 import { ChangelogPage, SubjectHistory } from './history.js';
+import { causeOf } from './lead.js';
 import { Mark } from './mark.js';
 import { OriginsPanel } from './origins.js';
 import { ReachPanel } from './reach.js';
@@ -461,6 +463,8 @@ function Overview({
           <ReachPanel client={client} build={build} />
         </div>
 
+        <DivergencePanel client={client} build={build} />
+
         <section className="va-card">
           <OriginsPanel
             client={client}
@@ -728,16 +732,6 @@ export function SubjectPanel({
   );
 }
 
-/**
- * The component the tier named as this subject's cause.
- *
- * The first region marked `cause`, in the order the report gave, and never the
- * largest: ranking by area names the container that reflowed instead of the edit
- * that moved it.
- */
-function causeOf(subject: SubjectView): string | undefined {
-  return subject.regions.find((region) => region.cause === true)?.component;
-}
 
 function Failure({ why, retry }: { readonly why: string; readonly retry: () => void }): ReactElement {
   return (

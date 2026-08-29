@@ -39,6 +39,7 @@ import type { Churn } from '@variance-authority/history';
 import type { BuildDetail, Decision, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { ChurnLine } from './history.js';
+import { leadOf } from './lead.js';
 import { count, magnitude, number } from './text.js';
 
 /** One subject an origin showed up in. */
@@ -77,18 +78,6 @@ export interface Origins {
   readonly unattributed: readonly SubjectView[];
 }
 
-/**
- * The leading cause of a subject: the first region the report marked, never the
- * largest.
- *
- * Ranking by area reports the container that reflowed instead of the edit that
- * moved it — measured at 6x on one change — and this is the same rule the docket
- * and the record already read by. Three readings of one fact must agree, or a
- * reviewer sees a subject filed under one component and explained by another.
- */
-function leadOf(subject: SubjectView): SubjectView['regions'][number] | undefined {
-  return subject.regions.find((region) => region.cause === true);
-}
 
 export function originsOf(build: BuildDetail): Origins {
   const files = new Map(build.causes.map((cause) => [cause.component, cause.file]));

@@ -239,6 +239,61 @@ export const REVIEW_STYLES = `
 .va-reach-note code { color: var(--va-ink-2); }
 .va-lost { color: var(--va-bad); }
 
+/* The map. Three registers on one row — what was edited, what it arrived at, and
+   what became of the renders drawing that — so the eye reads left to right and
+   lands on the track. The indent under a file carries a hairline because the
+   relation is containment rather than sequence: at this density an indent alone
+   reads as a second list. */
+.va-map { display: grid; gap: 0.55rem; margin-top: 0.9rem; }
+.va-edits { display: grid; gap: 0.5rem; }
+.va-edit { background: var(--va-sunken); border-radius: 9px; padding: 0.6rem 0.8rem; }
+.va-edit-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.va-edit-file { min-width: 0; overflow-wrap: anywhere; }
+/* The verdict on an edit is the one label on this page that is read by scanning a
+   column rather than by reading a sentence, which is what the mono face is for. */
+.va-effect { flex: none; font-family: var(--va-mono); font-size: 0.7rem; letter-spacing: 0.02em; margin-left: auto; text-transform: uppercase; }
+.va-effect-cause { color: var(--va-accent); }
+.va-effect-ask { color: var(--va-warn-ink); }
+.va-effect-quiet { color: var(--va-ink-3); }
+.va-arrivals { border-left: 1px solid var(--va-line-firm); display: grid; gap: 0.35rem; margin: 0.5rem 0 0 0.25rem; padding-left: 0.8rem; }
+.va-arrival { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; min-width: 0; }
+.va-arrival-name { font-size: 0.86rem; font-weight: 600; }
+.va-arrival-through { color: var(--va-ink-3); font-size: 0.76rem; }
+.va-arrival-tally { color: var(--va-ink-2); flex: none; font-size: 0.76rem; margin-left: auto; }
+/* Cause, collateral, still and not-compared are the same four readings the region
+   overlay spends colour on, spent the same way here. A track that invented its own
+   palette would be a second vocabulary for one set of facts. */
+.va-bar { background: var(--va-line); border-radius: 3px; display: flex; flex: 1; gap: 1px; height: 5px; max-width: 11rem; min-width: 3rem; overflow: hidden; }
+.va-bar-part { display: block; }
+.va-bar-caused { background: var(--va-cause); }
+.va-bar-moved { background: var(--va-collateral); }
+.va-bar-still { background: var(--va-good); }
+.va-bar-uncompared { background: var(--va-line-firm); }
+.va-map-aside { border-top: 1px solid var(--va-line); display: grid; gap: 0.5rem; padding-top: 0.6rem; }
+.va-map-note { color: var(--va-ink-3); font-size: 0.8rem; }
+.va-map-alarm { color: var(--va-bad-ink); }
+
+/* Since the last run. Each state carries its own left rule, because the section is
+   read by jumping to the one that matters and a uniform stack would have to be
+   read in order to find it. */
+.va-shift { border-left: 3px solid var(--va-line-firm); display: grid; gap: 0.25rem; margin-top: 0.85rem; padding-left: 0.8rem; }
+.va-shift-head { align-items: baseline; display: flex; gap: 0.5rem; }
+.va-shift-title { font-size: 0.9rem; font-weight: 650; }
+.va-shift-count { font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; margin-left: auto; }
+.va-shift-alarm { border-left-color: var(--va-bad); }
+.va-shift-alarm .va-shift-title, .va-shift-alarm .va-shift-count { color: var(--va-bad-ink); }
+.va-shift-ask { border-left-color: var(--va-warn); }
+.va-shift-ask .va-shift-title, .va-shift-ask .va-shift-count { color: var(--va-warn-ink); }
+.va-shift-known { border-left-color: var(--va-accent); }
+.va-shift-known .va-shift-count { color: var(--va-accent); }
+.va-shift-good { border-left-color: var(--va-good); }
+.va-shift-good .va-shift-count { color: var(--va-good-ink); }
+.va-shift-quiet { border-left-color: var(--va-line); }
+.va-shift-list { display: grid; font-size: 0.84rem; gap: 0.3rem; margin-top: 0.25rem; }
+.va-shift-row { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.5rem; min-width: 0; }
+.va-shift-subject { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.va-shift-held { border-top: 1px solid var(--va-line); margin-top: 0.95rem; padding-top: 0.6rem; }
+
 .va-variation-list { display: grid; gap: 0.5rem; }
 .va-variation { background: var(--va-sunken); border-radius: 9px; padding: 0.6rem 0.75rem; }
 .va-variation-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.15rem; }

@@ -33,6 +33,7 @@ import type { Flakiness } from '@variance-authority/history';
 import type { BuildDetail, ReachView, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { StabilityLine } from './history.js';
+import { OutcomeMapView } from './outcome.js';
 import { briefly, count, number } from './text.js';
 
 /**
@@ -108,6 +109,8 @@ export function ReachPanel({
         import graph carries them to {count(reach.components.length, 'component')}; the baselines say
         which subjects render those.
       </p>
+
+      <OutcomeMapView build={build} />
 
       {reach.whole === undefined ? (
         <Crossed client={client} build={build} reach={reach} />

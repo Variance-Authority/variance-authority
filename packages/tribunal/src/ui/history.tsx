@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { Churn, Flakiness, Reach } from '@variance-authority/history';
 import type { ChangelogChange, ChangelogRow, SubjectView, TribunalChangelog } from '../review.js';
 import type { ReviewClient } from './client.js';
+import { causeOf } from './lead.js';
 import { count, when } from './text.js';
 
 /**
@@ -409,17 +410,6 @@ export function ChurnLine({
   );
 }
 
-/**
- * The component the tier named as this subject's cause.
- *
- * The first region marked `cause`, in the order the report gave, and never the
- * largest: ranking by area reports the container that reflowed instead of the edit
- * that moved it, measured at 6× on one change. Absent when the run attributed
- * nothing, and absent is rendered rather than replaced with a guess.
- */
-function causeOf(subject: SubjectView): string | undefined {
-  return subject.regions.find((region) => region.cause === true)?.component;
-}
 
 function Failure({ why, retry }: { readonly why: string; readonly retry: () => void }): ReactElement {
   return (

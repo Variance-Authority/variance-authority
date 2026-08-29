@@ -244,15 +244,29 @@ describe('a build is the report a run already wrote', () => {
     ).rejects.toThrow(ReviewError);
   });
 
-  it('lists builds newest first', async () => {
+  it('lists builds newest first, and breaks a tied clock by arrival', async () => {
+    // Two runs pushed from one machine share `at` to the millisecond often
+    // enough to see it in a day's work. Ordered on the clock alone the tie is
+    // whatever the engine felt like, so a reader gets an older build above a
+    // newer one and anything reading *the run before this one* off the list
+    // crosses a build against its own successor.
     await review.ingest(ingest());
     await review.ingest({
       ...ingest(),
       build: 'ci-1002',
       report: { ...report(), at: '2026-06-02T10:00:00.000Z' },
     });
+    await review.ingest({
+      ...ingest(),
+      build: 'ci-1003',
+      report: { ...report(), at: '2026-06-02T10:00:00.000Z' },
+    });
 
-    expect((await review.builds()).map((build) => build.build)).toEqual(['ci-1002', 'ci-1001']);
+    expect((await review.builds()).map((build) => build.build)).toEqual([
+      'ci-1003',
+      'ci-1002',
+      'ci-1001',
+    ]);
   });
 });
 
