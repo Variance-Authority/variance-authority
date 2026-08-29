@@ -93,7 +93,7 @@ ids are the safe default after initial setup.
 ## Commands
 
 ```bash
-variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--flakes] [--exit-zero-on-changes]
+variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
@@ -125,9 +125,19 @@ A [`tribunal`](../tribunal/README.md) deployment holds builds, a docket and
 recorded decisions. `push` is what gets a run there — the report the run already
 wrote, with the images beside it.
 
+The `review` section is what tells `push` where to send it — an `endpoint` and
+the token to present:
+
 ```jsonc
 // variance.config.json
 {
+  "project": "snkr-shop",
+  "profile": "chromium",
+  "retention": "durable",
+  "viewport": { "width": 1280, "height": 800 },
+  "subjects": { "kind": "collector", "collector": "variance/collector.mjs" },
+  "baselines": { "kind": "directory", "root": "baselines" },
+  "report": "out/report.json",
   "review": {
     "endpoint": "https://variance.example.com/api",
     "token": { "env": "VARIANCE_INGEST_TOKEN" }
@@ -142,10 +152,11 @@ npx variance push --branch "$GITHUB_REF_NAME"
 
 The token is the deployment's **ingest** token, never its review one: review
 promotes a baseline every later run is compared against, and a value that can do
-that has no business in a config a run reads. The build's id and commit come from
-`--run`/`--commit` or from the CI environment, on exactly the terms `run` reads
-them — and neither is invented, because a build filed under an id nobody chose
-cannot be found again.
+that has no business in a config a run reads. A build is filed under three
+things — its `build` id, the `commit` it was rendered from, and the `branch`
+somebody is deciding about — and the first two come from `--run`/`--commit` or
+from the CI environment, on exactly the terms `run` reads them. Neither is
+invented: a build filed under an id nobody chose cannot be found again.
 
 Separate from `run` on purpose. A sharded suite produces N reports and one build,
 so `push` takes the same report arguments `report` and `comment` take and pushes
@@ -480,6 +491,12 @@ owns its own collector, renderer, storage, or review surface:
   selection that the executable's `--since` flag derives from Git. A missing
   `identity` or `since` means that concern is not requested, not that the run
   guessed one.
+- `run` also takes `against`, which is a different question from `since`:
+  `since` narrows *which subjects render*, and `against` leaves the plan alone
+  and reads *what the commit reaches* — the diff against that ref, walked
+  through the import graph to the components each subject renders. A changed
+  subject the commit does not reach is the strongest thing a report can say,
+  and it is unavailable to anything that only compares images.
 - `formatReport` takes a `format` of `text`, `json`, or `html`. `subject` narrows
   text or JSON to one id and is refused for HTML because a narrowed page would
   hide coverage. Use the CLI's `report` command when the report must be loaded

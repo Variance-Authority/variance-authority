@@ -112,7 +112,7 @@ describe('narrowing a run to what a diff could have changed', () => {
 
     expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
     expect(report.warnings?.join('\n')).toContain('did not narrow this run');
-    expect(report.warnings?.join('\n')).toContain('declare no component');
+    expect(report.warnings?.join('\n')).toContain('declares no component');
   });
 
   it('refuses `--since` with no configured source directories', async () => {

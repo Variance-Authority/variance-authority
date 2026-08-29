@@ -92,7 +92,7 @@ describe('choosing what to observe from a diff', () => {
     });
 
     expect(answer.observe).toEqual(['story:button', 'story:clock']);
-    expect(answer.whole).toContain('declare no component');
+    expect(answer.whole).toContain('no component');
     expect(answer.because).toContain('every subject was observed');
   });
 
@@ -127,7 +127,7 @@ describe('choosing what to observe from a diff', () => {
     });
 
     expect(answer.observe).toEqual(['story:button']);
-    expect(answer.whole).toContain('none of the 1 changed file(s) is under the scanned roots');
+    expect(answer.whole).toContain('none of the 1 changed file is under the scanned roots');
   });
 
   it('runs everything when the diff named nothing', () => {
@@ -155,7 +155,7 @@ describe('choosing what to observe from a diff', () => {
     });
 
     expect(answer.whole).toContain('under the scanned roots');
-    expect(answer.whole).not.toContain('declare no component');
+    expect(answer.whole).not.toContain('no component');
   });
 });
 
@@ -207,7 +207,7 @@ describe('choosing what to observe from a file graph', () => {
     // Two hops: `tokens.css` ← `button.css` ← `Button.tsx` ← `Button`. Without
     // them a token file is a file that declares nothing, and the run is whole.
     expect(affectedSubjects({ ...input, relations: GRAPH }).observe).toEqual(['story:button']);
-    expect(affectedSubjects(input).whole).toContain('declare no component');
+    expect(affectedSubjects(input).whole).toContain('no component');
   });
 
   it('runs everything when a changed file under the roots is not in the graph', () => {
@@ -239,7 +239,7 @@ describe('choosing what to observe from a file graph', () => {
 
     // A lockfile is a node in no graph and can repaint every subject in the
     // suite. Narrowing on it would be narrowing on silence.
-    expect(answer.whole).toContain('none of the 1 changed file(s) is in the file graph');
+    expect(answer.whole).toContain('none of the 1 changed file is in the file graph');
   });
 
   it('runs everything when the changed files reach no component', () => {

@@ -1,18 +1,31 @@
 /**
- * Everything `--since` has to go and fetch before anything can be ruled out.
+ * Everything the diff has to go and fetch before anything can be ruled out — or
+ * explained.
  *
- * The decision itself is a pure function next door in [`affected.ts`](./affected.ts),
- * and this is the half with a store, a disk and a subprocess in it. Splitting
- * them is what makes the rules assertable without a repository, a browser or a
- * baseline — and it keeps every input to the narrowing visible in one place,
- * which matters more here than anywhere else in the run: a missing input does
- * not fail, it silently rules out subjects nobody then looks at.
+ * The decisions themselves are pure functions next door: what to skip in
+ * [`affected.ts`](./affected.ts), what the commit reaches in
+ * [`reach.ts`](./reach.ts). This is the half with a store, a disk and a
+ * subprocess in it. Splitting them is what makes the rules assertable without a
+ * repository, a browser or a baseline — and it keeps every input to the
+ * narrowing visible in one place, which matters more here than anywhere else in
+ * the run: a missing input does not fail, it silently rules out subjects nobody
+ * then looks at.
+ *
+ * ## Two flags, one gathering
+ *
+ * `--since` narrows and `--against` explains, and they need exactly the same
+ * three things: the paths git named, the file graph, and the component list each
+ * baseline recorded when it was painted. Fetching that twice would be two disk
+ * walks for one answer, and — worse — would let the sentence a run prints about a
+ * subject disagree with the reason it skipped one.
  */
 
 import type { SourceIndex } from '@variance-authority/core';
+import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects } from './affected.js';
 import type { Plan } from './collector.js';
+import { reachOf } from './reach.js';
 import type { ObserveContext, RunOptions } from './run-context.js';
 
 export interface Selection {
@@ -27,19 +40,29 @@ export interface Selection {
    * source tree twice for one answer is a disk walk nobody asked for.
    */
   readonly source: SourceIndex;
+
+  /**
+   * What the commit reaches, when `--against` asked and a graph could answer.
+   *
+   * Absent under `--since` alone with no file graph configured: the
+   * declaration-only selector can name the components a diff touched but not the
+   * chain that carried it, and a reach section without trails is a list of names
+   * a reviewer cannot check.
+   */
+  readonly reach?: ReachReport;
 }
 
 /**
- * What `--since` ruled out, or `undefined` when nothing asked it to.
- *
- * Every input it needs is fetched here and the decision itself is a pure
- * function next door, which is what makes the rules in `affected.ts` assertable
- * without a repository, a store or a browser.
+ * What the diff ruled out and what it reaches, or `undefined` when nothing asked
+ * for either.
  *
  * **It refuses rather than guesses.** A `--since` with no `source.dirs` in the
  * config cannot know where components are declared, and narrowing on an empty
  * index would rule out the entire suite. That is an operator error and is raised
- * as one; the alternative is a green run over nothing.
+ * as one; the alternative is a green run over nothing. `--against` refuses on the
+ * same ground and one more: with no file graph there are no chains, and a section
+ * that named components without saying how they were reached would be an
+ * assertion a reviewer has no way to check.
  */
 export async function selectionFor(
   plan: Plan,
@@ -47,14 +70,16 @@ export async function selectionFor(
   options: RunOptions,
 ): Promise<Selection | undefined> {
   const { config, deps, renderer } = context;
-  if (options.since === undefined) return undefined;
+  const diff = options.since ?? options.against;
+  if (diff === undefined) return undefined;
 
+  const asked = options.since === undefined ? '`--against`' : '`--since`';
   const scan = deps.scanSource;
   if (config.source === undefined || scan === undefined) {
     throw new OperatorError(
-      '`--since` narrows a run to the subjects a diff could have changed, and needs to know ' +
-        'where your components are declared. Add `source: { dirs: [...] }` to the config. ' +
-        'Narrowing without it would rule out every subject in the suite.',
+      `${asked} reads a run against a diff, and needs to know where your components are ` +
+        'declared. Add `source: { dirs: [...] }` to the config. Narrowing without it would rule ' +
+        'out every subject in the suite.',
     );
   }
 
@@ -84,8 +109,36 @@ export async function selectionFor(
 
   const changedDirs =
     config.source.changes !== undefined && deps.changedProjects !== undefined
-      ? await deps.changedProjects(options.since.ref)
+      ? await deps.changedProjects(diff.ref)
       : undefined;
+
+  if (options.against !== undefined && relations === undefined) {
+    throw new OperatorError(
+      '`--against` explains a run by the chain from a changed file to a component, and needs a ' +
+        'file graph to walk. Add `source: { relations: true }` to the config. Without it the ' +
+        'run could name components the diff touched but not how it reached them, which is a ' +
+        'claim nobody reading the report could check.',
+    );
+  }
+
+  // Computed from `diff`, so `--since` gets the explanation for free when a graph
+  // is configured: the walk has already happened, and the only difference between
+  // the two flags is what the caller does with it.
+  const reach =
+    relations === undefined
+      ? undefined
+      : reachOf({
+          against: diff.ref,
+          changed: diff.changed,
+          relations,
+          roots: config.source.dirs,
+          baselines,
+          ...(changedDirs === undefined ? {} : { changedDirs }),
+        });
+
+  if (options.since === undefined) {
+    return { source, skipped: new Map(), ...(reach === undefined ? {} : { reach }) };
+  }
 
   const answer = affectedSubjects({
     planned: plan.subjects.map((planned) => planned.subject.id),
@@ -99,6 +152,7 @@ export async function selectionFor(
 
   return {
     source,
+    ...(reach === undefined ? {} : { reach }),
     skipped: new Map(
       answer.skipped.map((entry) => [
         entry.subject,

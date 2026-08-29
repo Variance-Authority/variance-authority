@@ -447,6 +447,12 @@ async function observeAll(
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),
     ...(composition !== undefined ? { composition } : {}),
     ...(variations !== undefined ? { variations } : {}),
+    // The third axis, and the only one that names a file somebody edited. Carried
+    // rather than consumed: the selector used this to decide what not to look at,
+    // and a reader crossing it against the verdicts above gets the two questions
+    // no comparison alone can pose — which reached subject did not move, and
+    // which moved subject nothing reached.
+    ...(selected?.reach !== undefined ? { reach: selected.reach } : {}),
     ...(warnings.length + selection.length + recorded.warnings.length > 0
       ? { warnings: [...warnings, ...selection, ...recorded.warnings] }
       : {}),

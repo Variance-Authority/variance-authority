@@ -3,8 +3,11 @@ import type {
   FindingRecord,
   NotObserved,
   ObservationRecord,
+  ReachHole,
+  ReachedComponent,
   RegionRecord,
   RunReport,
+  SubjectReach,
   VariationRecord,
 } from '@variance-authority/report';
 import type { TribunalBindings } from './bindings.js';
@@ -161,6 +164,39 @@ export interface BuildDetail extends BuildSummary {
    * one fact.
    */
   readonly variations: readonly VariationRecord[];
+
+  /**
+   * What the commit reaches, and per subject whether it reaches that one.
+   *
+   * `null` when the run carried no diff — no ref to read against, or no file
+   * graph to walk — which is different from a diff that reached nothing and is
+   * shown as different.
+   *
+   * The four states a reviewer actually reads are not stored anywhere. They are
+   * this crossed against the verdicts already in `subjects`, and two of them are
+   * questions no comparison can pose on its own: a subject the commit reaches
+   * that did not move, and a subject that moved with nothing in the commit
+   * reaching it.
+   */
+  readonly reach: ReachView | null;
+}
+
+/**
+ * The reach section as the page reads it.
+ *
+ * `subjects` absent is the run saying it had a diff and could not attribute it,
+ * with `whole` carrying the reason. Empty would say the commit was understood and
+ * reaches none of them, and a page that drew the second when it held the first
+ * would let somebody merge on a refusal.
+ */
+export interface ReachView {
+  readonly against: string;
+  readonly changed: readonly string[];
+  readonly components: readonly ReachedComponent[];
+  readonly subjects?: Readonly<Record<string, SubjectReach>>;
+  readonly whole?: string;
+  readonly unscanned?: readonly string[];
+  readonly opaque?: readonly ReachHole[];
 }
 
 export interface Cause {

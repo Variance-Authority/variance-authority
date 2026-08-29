@@ -375,6 +375,18 @@ export function ChurnLine({
   readonly churn: Churn;
   readonly reach?: Reach;
 }): ReactElement {
+  if (churn.runs === 0) {
+    // `0 of 0` reads as a component that has never moved, which is the opposite
+    // of what an empty window says. The same distinction `StabilityLine` draws:
+    // a rate nobody has a run for is unknown, not zero.
+    return (
+      <p className="va-churn va-unknown">
+        No recorded run carries <strong>{component}</strong>, so how often it changes is unknown —
+        not none.
+      </p>
+    );
+  }
+
   return (
     <p className="va-churn">
       <strong>{component}</strong> caused an approved change in {churn.changedRuns} of {churn.runs}{' '}

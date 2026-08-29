@@ -56,12 +56,12 @@ visual checks.
 | Local or remote render | **conditional** — the Storybook document does not archive resource bytes |
 | Managed change selection | **partial** — source/baseline selection exists, without Chromatic's hosted module-graph service |
 | Changed element resolved to `file:line` | **conditional** — a development Storybook needs nothing; a built, minified one is attributed to the line a component is *declared* on until its build carries `jsx-source`, `esbuild.jsxDev` and `keepNames` |
-| Vendor-hosted branch semantics and managed sign-off | **no** |
-| Non-engineer hosted review | **no** |
+| Branch semantics and recorded sign-off | **partial** — a build carries the `branch` it was pushed from and every decision is recorded against the reviewer who made it; baselines do not follow a branch's merge base, and nobody is running the deployment for you |
+| Non-engineer review surface | **partial** — the tribunal serves the review page and its identity provider decides who opens it; standing it up is an engineer's job, once |
 
-**Verdict:** suitable for operator-owned Storybook capture and gating. Choose
-Chromatic when Storybook-native hosted review, branch semantics, and managed
-stability are the product being bought.
+**Verdict:** suitable for operator-owned Storybook capture, gating and review.
+Choose Chromatic when the product being bought is somebody else running it —
+branch baselines, managed stability, and a surface nobody on the team maintains.
 
 ## Unit-runner gate
 

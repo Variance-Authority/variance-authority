@@ -1,11 +1,10 @@
 import type { VariationRecord } from '@variance-authority/report';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { BuildSummary, Cause, SubjectView } from '../review.js';
+import type { BuildSummary, SubjectView } from '../review.js';
 import { createReviewClient } from './client.js';
 import {
   CoverageLine,
-  Docket,
   RegionOverlay,
   SubjectPanel,
   Variations,
@@ -76,40 +75,6 @@ describe('coverage is drawn as three states, not two', () => {
 
     expect(markup).toContain('va-incomplete');
     expect(markup).toContain('50 failed to render');
-  });
-});
-
-describe('the docket leads with causes and counts collateral', () => {
-  const causes: readonly Cause[] = [
-    {
-      component: 'Toggle',
-      file: 'src/ds/components.tsx',
-      subjects: ['story:card'],
-      pixels: 86,
-      collateralPixels: 511,
-    },
-  ];
-
-  it('names the component and the file it is declared in', () => {
-    const markup = renderToStaticMarkup(<Docket causes={causes} />);
-
-    // The third column of the docket is the point. A reviewer who is told
-    // `Toggle` and `src/ds/components.tsx` can hand the change to whoever owns
-    // the file.
-    expect(markup).toContain('Toggle');
-    expect(markup).toContain('src/ds/components.tsx');
-  });
-
-  it('counts collateral rather than listing it', () => {
-    const markup = renderToStaticMarkup(<Docket causes={causes} />);
-
-    expect(markup).toContain('511 collateral pixels');
-  });
-
-  it('does not invent a cause when the tier named none', () => {
-    const markup = renderToStaticMarkup(<Docket causes={[]} />);
-
-    expect(markup).toContain('No component was named as a cause');
   });
 });
 

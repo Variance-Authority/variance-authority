@@ -29,7 +29,7 @@ import { FENCES, MARKDOWN, ROOT, fencesIn, lineOf } from './markdown.js';
  * nobody noticing.
  */
 describe('the documented command line is the real one', () => {
-  const bin = readFileSync(join(ROOT, 'packages/cli/src/bin.ts'), 'utf8');
+  const bin = readFileSync(join(ROOT, 'packages/cli/src/parse.ts'), 'utf8');
   const dispatched = [...(/const COMMANDS = \[([^\]]+)\]/.exec(bin)?.[1] ?? '').matchAll(/'([\w-]+)'/g)].map(
     (match) => match[1]!,
   );

@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BOOLEAN } from './args.js';
-import { USAGE, parseArgs } from './bin.js';
+import { USAGE, parseArgs } from './parse.js';
 import { openRenderer } from './dispatch.js';
 import { EXIT_OPERATOR, OperatorError } from './exit.js';
 

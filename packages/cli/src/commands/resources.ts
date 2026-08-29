@@ -131,7 +131,7 @@ function cacheRoot(kind: string): string {
 }
 
 /**
- * Files a diff against `ref` touched, repository-relative.
+ * Files a diff against `ref` touched, named the way the run names files.
  *
  * `git diff --name-only ref...HEAD` — three dots, so the comparison is against
  * the **merge base** rather than against the tip of the other branch. Two dots on
@@ -139,18 +139,48 @@ function cacheRoot(kind: string): string {
  * changed here, which would widen a selection to the whole suite for a reason
  * nobody could see.
  *
+ * ## Two coordinate systems, and the join between them is the whole feature
+ *
+ * `git` names files from the repository root, always, whichever directory it was
+ * invoked in. The file graph names them from the directory the run was invoked
+ * in, because that is what `source.dirs` is relative to. Those agree only when a
+ * run happens to start at the top of its own checkout — and when they disagree,
+ * *nothing fails*: every changed path simply matches nothing, the graph reports
+ * that it reaches no component, and a monorepo package narrows itself to the
+ * whole suite or refuses, for a reason no message on the page can show. So the
+ * paths are brought into the run's coordinates here, at the one place they cross.
+ *
+ * `roots` is where to look for the repository, not a filter. A checkout nested
+ * under the run — a vendored application, an example's cloned subject — is the
+ * only copy of git that has the history being asked about, and asking the outer
+ * repository instead answers *nothing changed* about a tree it was told to ignore.
+ * Paths outside the run's directory keep their `../` and are handed on as they
+ * are: they cannot be in the graph, and dropping them would quietly turn a diff
+ * this run cannot see into a diff that touched nothing.
+ *
  * A failure is an operator error rather than an empty list. An empty list means
  * *this diff touched nothing*, and answering a broken `git` with it would narrow
  * a run to nothing while reporting success.
  */
-export async function changedSince(ref: string): Promise<readonly string[]> {
+export async function changedSince(
+  ref: string,
+  roots: readonly string[] = [],
+): Promise<readonly string[]> {
   const run = promisify(execFile);
+  const here = process.cwd();
+  const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
 
   try {
     const { stdout } = await run('git', ['diff', '--name-only', `${ref}...HEAD`], {
+      cwd: repository,
       maxBuffer: 32 * 1024 * 1024,
     });
-    return stdout.split('\n').map((line) => line.trim()).filter((line) => line !== '');
+
+    return stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '')
+      .map((file) => relative(here, join(repository, file)));
   } catch (error) {
     throw new OperatorError(
       `\`--since ${ref}\` could not list what changed: ${messageOf(error)}. ` +
@@ -158,6 +188,27 @@ export async function changedSince(ref: string): Promise<readonly string[]> {
         'success, so it refuses instead. Check the ref exists and that this is a git checkout ' +
         '(a shallow CI clone often needs `fetch-depth: 0`).',
     );
+  }
+}
+
+/**
+ * The checkout a directory belongs to, or the run's own directory when none does.
+ *
+ * A failure here is deliberately not raised. `rev-parse` fails for one uninteresting
+ * reason — this is not a git checkout — and the diff that follows is about to fail
+ * with a sentence naming the ref the operator actually typed, which is the more
+ * useful of the two.
+ */
+async function topLevel(
+  run: (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>,
+  from: string,
+): Promise<string> {
+  try {
+    const { stdout } = await run('git', ['rev-parse', '--show-toplevel'], { cwd: from });
+    const found = stdout.trim();
+    return found === '' ? process.cwd() : found;
+  } catch {
+    return process.cwd();
   }
 }
 

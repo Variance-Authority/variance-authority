@@ -1,9 +1,11 @@
 import type { VariationRecord } from '@variance-authority/report';
 import { Fragment, useCallback, useEffect, useState, type ReactElement } from 'react';
-import type { BuildDetail, BuildSummary, Cause, Decision, SubjectView } from '../review.js';
+import type { BuildDetail, BuildSummary, Decision, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { ChangelogPage, SubjectHistory } from './history.js';
-import { count, element, headline, number, segments, sentence, when } from './text.js';
+import { OriginsPanel } from './origins.js';
+import { ReachPanel } from './reach.js';
+import { briefly, count, element, headline, number, segments, sentence, when } from './text.js';
 import { Viewer } from './viewer.js';
 
 /**
@@ -71,6 +73,14 @@ import { Viewer } from './viewer.js';
 
 export { RegionOverlay, Viewer, modesFor, type ViewerMode } from './viewer.js';
 export { ChangelogEntries, ChangelogPage, ChurnLine, StabilityLine, SubjectHistory } from './history.js';
+export { ReachPanel, crossReach, type Crossing } from './reach.js';
+export {
+  OriginsPanel,
+  originsOf,
+  type Appearance,
+  type Origin,
+  type Origins,
+} from './origins.js';
 
 export interface ReviewAppProps {
   readonly client: ReviewClient;
@@ -319,7 +329,7 @@ function BuildPage({
         />
 
         {current === undefined ? (
-          <Overview build={value} />
+          <Overview client={client} reviewer={reviewer} build={value} onDecided={load} />
         ) : (
           <SubjectPanel
             key={current.subject}
@@ -399,9 +409,7 @@ function SubjectRail({
                       <span className="va-rail-name">{subject.subject}</span>
                       <span className="va-rail-note">
                         {causeOf(subject) ?? 'no component named'}
-                        {subject.changedPixels > 0
-                          ? ` · ${count(subject.changedPixels, 'pixel')}`
-                          : ''}
+                        {subject.changedPixels > 0 ? ` · ${briefly(subject)}` : ''}
                       </span>
                     </span>
                     {subject.decision === null ? null : (
@@ -420,8 +428,18 @@ function SubjectRail({
   );
 }
 
-/** Where a build opens: the causes, the variations, and what nothing looked at. */
-function Overview({ build }: { readonly build: BuildDetail }): ReactElement {
+/** Where a build opens: the changes, the variations, and what nothing looked at. */
+function Overview({
+  client,
+  reviewer,
+  build,
+  onDecided,
+}: {
+  readonly client: ReviewClient;
+  readonly reviewer: string;
+  readonly build: BuildDetail;
+  readonly onDecided: () => void;
+}): ReactElement {
   return (
     <div className="va-stage va-scroll">
       <div className="va-page">
@@ -438,8 +456,17 @@ function Overview({ build }: { readonly build: BuildDetail }): ReactElement {
         )}
         <CoverageLine coverage={build.coverage} />
 
-        <section className="va-card va-docket" style={{ marginTop: '1.25rem' }}>
-          <Docket causes={build.causes} />
+        <div style={{ marginTop: '1.25rem' }}>
+          <ReachPanel client={client} build={build} />
+        </div>
+
+        <section className="va-card">
+          <OriginsPanel
+            client={client}
+            reviewer={reviewer}
+            build={build}
+            onDecided={onDecided}
+          />
         </section>
 
         {build.variations.length === 0 ? null : (
@@ -483,64 +510,6 @@ export function Prose({ text }: { readonly text: string }): ReactElement {
           <Fragment key={`${String(index)}-${part.text}`}>{part.text}</Fragment>
         ),
       )}
-    </>
-  );
-}
-
-/**
- * The docket: what a reviewer reads before looking at a single pixel.
- *
- * Each row is a component the semantic tier named as a cause, the file it is
- * declared in, and how many subjects it reached. Collateral is one number for the
- * build, deliberately not split between causes — deciding which edit pushed which
- * box around is exactly the attribution the tier declined to claim, and inventing
- * it here would put a confident wrong number on the page.
- */
-export function Docket({ causes }: { readonly causes: readonly Cause[] }): ReactElement {
-  if (causes.length === 0) {
-    return <p className="va-note">No component was named as a cause in this build.</p>;
-  }
-
-  const widest = Math.max(...causes.map((cause) => cause.pixels), 1);
-
-  return (
-    <>
-      <h2>Causes</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>component</th>
-            <th>declared in</th>
-            <th className="va-right">subjects</th>
-            <th className="va-right">cause pixels</th>
-          </tr>
-        </thead>
-        <tbody>
-          {causes.map((cause) => (
-            <tr key={cause.component}>
-              <td>
-                <strong>{cause.component}</strong>
-                {/* Ranked by cause pixels, and drawn to the same scale, so the
-                    gap between the edit and the next one is visible rather than
-                    arithmetic a reader has to do. */}
-                <span className="va-bar">
-                  <span style={{ width: `${String((cause.pixels / widest) * 100)}%` }} />
-                </span>
-              </td>
-              <td className="va-file">
-                <code>{cause.file ?? '—'}</code>
-              </td>
-              <td className="va-right va-num">{cause.subjects.length}</td>
-              <td className="va-right va-num">{number(cause.pixels)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="va-collateral">
-        {count(causes[0]?.collateralPixels ?? 0, 'collateral pixel')} across this build — regions
-        that moved because something else did. Counted, not listed: ranked by area they would
-        outrank the edit.
-      </p>
     </>
   );
 }

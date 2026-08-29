@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
-import { count, number } from './text.js';
+import { count, magnitude, number } from './text.js';
 
 /**
  * Looking at the change: the modes, the region overlay, and which of them a build
@@ -132,7 +132,7 @@ export function Viewer({
       ) : null}
 
       <p className="va-pixels">
-        {count(subject.changedPixels, 'pixel')} differ
+        {magnitude(subject)}
         {subject.truncated === undefined ? null : (
           <>
             {' '}

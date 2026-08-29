@@ -138,6 +138,23 @@ export interface RunOptions {
     /** The ref they were computed against, for the sentence. */
     readonly ref: string;
   };
+
+  /**
+   * `--against <ref>`: explain the run by this diff, and narrow nothing.
+   *
+   * The same inputs as `since` and the opposite use of them. The walk says which
+   * components the changed files can have moved and by which chain; crossed
+   * against the verdicts, that is what turns a green subject the edit reached
+   * into a finding, and a red subject nothing reached into a different one.
+   *
+   * Separate from `since` because narrowing is a cost decision and the
+   * explanation is not, and a suite that cannot afford to skip subjects still
+   * wants to know what its commit touched.
+   */
+  readonly against?: {
+    readonly changed: readonly string[];
+    readonly ref: string;
+  };
 }
 
 export interface ObserveContext {

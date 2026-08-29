@@ -126,6 +126,12 @@
     "packages": 4
   },
   {
+    "name": "Churn",
+    "kind": "interface",
+    "at": "packages/history/src/store.ts",
+    "packages": 3
+  },
+  {
     "name": "Instability",
     "kind": "interface",
     "at": "packages/history/src/instability.ts",
@@ -186,15 +192,21 @@
     "packages": 3
   },
   {
+    "name": "APPROVALS_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
+    "packages": 2
+  },
+  {
     "name": "CHURN_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
     "packages": 2
   },
   {
-    "name": "Churn",
-    "kind": "interface",
-    "at": "packages/history/src/store.ts",
+    "name": "CURRENT_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
     "packages": 2
   },
   {
@@ -207,6 +219,12 @@
     "name": "CompareOptions",
     "kind": "interface",
     "at": "packages/raster/src/policy.ts",
+    "packages": 2
+  },
+  {
+    "name": "FLAKINESS_PATH",
+    "kind": "const",
+    "at": "packages/history/src/protocol.ts",
     "packages": 2
   },
   {
@@ -336,12 +354,6 @@
     "packages": 2
   },
   {
-    "name": "APPROVALS_PATH",
-    "kind": "const",
-    "at": "packages/history/src/protocol.ts",
-    "packages": 1
-  },
-  {
     "name": "AssembleOptions",
     "kind": "interface",
     "at": "packages/raster/src/assemble.ts",
@@ -369,12 +381,6 @@
     "name": "CACHE_PUT_PATH",
     "kind": "const",
     "at": "packages/remote/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "CURRENT_PATH",
-    "kind": "const",
-    "at": "packages/history/src/protocol.ts",
     "packages": 1
   },
   {
@@ -420,12 +426,6 @@
     "packages": 1
   },
   {
-    "name": "FLAKINESS_PATH",
-    "kind": "const",
-    "at": "packages/history/src/protocol.ts",
-    "packages": 1
-  },
-  {
     "name": "FileEdge",
     "kind": "interface",
     "at": "packages/core/src/relate/records.ts",
@@ -453,12 +453,6 @@
     "name": "HistoryBackend",
     "kind": "interface",
     "at": "packages/server/src/backend.ts",
-    "packages": 1
-  },
-  {
-    "name": "Hole",
-    "kind": "interface",
-    "at": "packages/core/src/relate/records.ts",
     "packages": 1
   },
   {

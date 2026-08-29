@@ -3,12 +3,22 @@ import type {
   FindingRecord,
   NotObserved,
   ObservationRecord,
+  ReachHole,
+  ReachedComponent,
   RegionRecord,
+  SubjectReach,
   VariationRecord,
 } from '@variance-authority/report';
 import type { D1Like } from './bindings.js';
 import { ReviewError, number, optionalText, text, type Row } from './review-rows.js';
-import type { BuildSummary, Cause, Coverage, DecisionRecord, SubjectView } from './review-types.js';
+import type {
+  BuildSummary,
+  Cause,
+  Coverage,
+  DecisionRecord,
+  ReachView,
+  SubjectView,
+} from './review-types.js';
 
 /**
  * A build, read back out of D1 and turned into what a reviewer is shown.
@@ -252,6 +262,44 @@ export function toVariation(row: Row): VariationRecord {
     ...(components !== undefined ? { components: JSON.parse(components) as string[] } : {}),
     ...(digest !== undefined ? { digest } : {}),
     ...(how === 'declared' || how === 'named' ? { how } : {}),
+  };
+}
+
+/**
+ * The reach rows, read back as the section the page draws.
+ *
+ * The one rule worth stating: `whole` present means `subjects` stays *absent*,
+ * even though the query returned an empty list either way. A refusal rendered as
+ * an empty attribution reads as "this commit reaches none of your subjects",
+ * which is the sentence somebody merges on — and it is the opposite of what the
+ * row says.
+ */
+export function toReach(row: Row, subjects: readonly Row[]): ReachView {
+  const what = 'a build reach';
+  const whole = optionalText(row, 'whole', what);
+  const unscanned = optionalText(row, 'unscanned', what);
+  const opaque = optionalText(row, 'opaque', what);
+
+  const attributed: Record<string, SubjectReach> = {};
+  for (const entry of subjects) {
+    const because = 'a reached subject';
+    const through = optionalText(entry, 'through', because);
+    const trail = optionalText(entry, 'trail', because);
+    attributed[text(entry, 'subject', because)] = {
+      reached: Number(entry['reached']) !== 0,
+      through: through === undefined ? [] : (JSON.parse(through) as string[]),
+      because: text(entry, 'because', because),
+      ...(trail === undefined ? {} : { trail: JSON.parse(trail) as string[] }),
+    };
+  }
+
+  return {
+    against: text(row, 'against_ref', what),
+    changed: JSON.parse(text(row, 'changed', what)) as string[],
+    components: JSON.parse(text(row, 'components', what)) as ReachedComponent[],
+    ...(whole === undefined ? { subjects: attributed } : { whole }),
+    ...(unscanned === undefined ? {} : { unscanned: JSON.parse(unscanned) as string[] }),
+    ...(opaque === undefined ? {} : { opaque: JSON.parse(opaque) as ReachHole[] }),
   };
 }
 

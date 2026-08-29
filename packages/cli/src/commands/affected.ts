@@ -1,12 +1,10 @@
 import {
   indexSource,
   mergeSourceIndexes,
-  movedBy,
-  nodesOfKind,
-  type Hole,
   type Relations,
   type SourceIndex,
 } from '@variance-authority/core';
+import { componentsReached, many, refused, within } from './reach.js';
 
 /**
  * Which subjects an edit could possibly have changed — and, far more carefully,
@@ -186,7 +184,7 @@ export function affectedSubjects(input: AffectedInput): Affected {
     skipped.push({
       subject,
       because:
-        `its baseline records ${components.length} component(s) and this diff touched none of ` +
+        `its baseline records ${many(components.length, 'component')} and this diff touched none of ` +
         `them (${[...touched].slice(0, 3).join(', ')}${touched.size > 3 ? ', …' : ''})`,
     });
   }
@@ -195,7 +193,7 @@ export function affectedSubjects(input: AffectedInput): Affected {
     observe,
     skipped,
     because:
-      `${observe.length} of ${planned.length} subject(s) observed: ${how}, and the rest of the ` +
+      `${observe.length} of ${many(planned.length, 'subject')} observed: ${how}, and the rest of the ` +
       'suite records none of them',
   };
 }
@@ -232,7 +230,7 @@ function byDeclaration(
   if (undeclared.length > 0) {
     return {
       whole:
-        `${undeclared.length} changed file(s) under the scanned roots declare no component ` +
+        `${many(undeclared.length, 'changed file')} under the scanned roots ${undeclared.length === 1 ? 'declares' : 'declare'} no component ` +
         `(${sample(undeclared)}), and a stylesheet, a token file or a shared helper can move ` +
         'any subject without naming itself in one',
     };
@@ -253,36 +251,27 @@ function byDeclaration(
   if (touched.size === 0) {
     return {
       whole:
-        `none of the ${changed.length} changed file(s) is under the scanned roots, so this diff ` +
+        `none of the ${many(changed.length, 'changed file')} is under the scanned roots, so this diff ` +
         'says nothing about which components moved',
     };
   }
 
   return {
     touched,
-    how: `${touched.size} component(s) moved in ${inside.length} changed file(s)`,
+    how: `${many(touched.size, 'component')} moved in ${many(inside.length, 'changed file')}`,
   };
 }
 
 /**
  * What a diff moved, by walking the graph backwards from every changed file.
  *
- * Three refusals, and each one is a place the graph is being honest about the
- * limit of what it holds rather than answering anyway.
+ * A thin wrapper, and deliberately so: the walk and its three refusals live in
+ * [`reach.ts`](./reach.ts) because the report makes the same call for the
+ * opposite purpose. Everything this selector rules out, the report explains — and
+ * the two must not be able to disagree about which file reached what.
  *
- * A changed file **under the roots that the scan never read** makes the run
- * whole: the roots are the operator's own statement of where renders come from,
- * so a file inside them the graph cannot place is a gap in the scan, not a file
- * that affects nothing.
- *
- * A diff **entirely outside the graph** makes it whole. A lockfile, a
- * `package.json`, a build config: none is a node here, and every one of them can
- * repaint the entire suite.
- *
- * A diff that reaches **no component** makes it whole, which is the subtle one.
- * A changed file genuinely affecting nothing and a changed file declaring a
- * component the scanner did not recognise produce exactly the same empty answer,
- * and only one of them is safe to act on.
+ * The refusals arrive here as a `whole`, which is exactly the widening this
+ * selector already does for every other uncertainty.
  */
 function byRelation(
   changed: readonly string[],
@@ -290,70 +279,18 @@ function byRelation(
   relations: Relations,
   roots: readonly string[],
 ): Narrowing {
-  // A project directory expands to the graph's own files under it, so a coarse
-  // answer from `nx` or `turbo` enters the traversal as ordinary seeds and the
-  // graph narrows outwards from them like it does from any other change.
-  const expanded =
-    changedDirs.length === 0
-      ? []
-      : nodesOfKind(relations, 'file')
-          .map((id) => relations.names[id]!)
-          .filter((file) => within(file, changedDirs));
+  // The same call the report makes. Two walks would let the run skip a subject
+  // for one reason and print another, and the printed one is what a reviewer
+  // acts on.
+  const reach = componentsReached(relations, changed, changedDirs, roots);
+  if (refused(reach)) return { whole: reach.whole };
 
-  const moved = movedBy(relations, [...changed, ...expanded]);
-  // Only the diff's own paths can be missing; an expanded one came out of the
-  // graph, so it is in it by construction.
-  const seeded = changed.length - moved.missing.length + expanded.length;
-
-  const unscanned = moved.missing.filter((file) => within(file, roots));
-  if (unscanned.length > 0) {
-    return {
-      whole:
-        `${unscanned.length} changed file(s) under the scanned roots are not in the file graph ` +
-        `(${sample(unscanned)}), so nothing here can say what they reach`,
-    };
-  }
-
-  if (seeded === 0) {
-    return {
-      whole:
-        `none of the ${changed.length} changed file(s) is in the file graph, so this diff says ` +
-        'nothing about which components moved',
-    };
-  }
-
-  if (moved.components.length === 0) {
-    return {
-      whole:
-        `the ${seeded} changed file(s) in the graph reach no component, which is also what a ` +
-        'changed file declaring a component the scan did not recognise looks like',
-    };
-  }
-
-  // Named with their reasons, not counted. This is the only line in the run that
-  // tells an operator which file to fix in order to make the next run smaller,
-  // and a bare number tells them there is nothing to be done.
-  const widened =
-    moved.opaque.length === 0
-      ? ''
-      : `, ${moved.opaque.length} of them traversed as changed because their own imports could ` +
-        `not be read (${sample(moved.opaque.map(holeOf))})`;
-
-  return {
-    touched: new Set(moved.components),
-    how:
-      `${moved.components.length} component(s) reached from ${seeded} changed file(s) through ` +
-      `${moved.files.length} file(s)${widened}`,
-  };
+  return { touched: new Set(reach.components.map((entry) => entry.component)), how: reach.how };
 }
 
 /** The first three of a list, with a mark when there are more. */
 function sample(files: readonly string[]): string {
   return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}`;
-}
-
-function holeOf(hole: Hole): string {
-  return hole.because === undefined ? hole.file : `${hole.file}: ${hole.because}`;
 }
 
 /** Every file the index attributes at least one component to. */
@@ -363,20 +300,6 @@ function declaringFiles(source: SourceIndex): ReadonlySet<string> {
     for (const ref of refs) files.add(ref.file);
   }
   return files;
-}
-
-/**
- * Whether a changed path lies under one of the scanned roots.
- *
- * A prefix match on directory boundaries rather than on characters: `src` must
- * not claim `srcery/`, or a diff in an unrelated directory would force whole runs
- * forever and the operator would never find out why.
- */
-function within(file: string, roots: readonly string[]): boolean {
-  return roots.some((root) => {
-    const normalized = root.replace(/\/+$/, '');
-    return normalized === '.' || file === normalized || file.startsWith(`${normalized}/`);
-  });
 }
 
 /**

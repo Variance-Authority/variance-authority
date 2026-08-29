@@ -111,6 +111,18 @@ describe('churn counts approved changes and reports displacement beside them', (
 
     expect(markup).toContain('observed in 2 subjects');
   });
+
+  it('calls an empty window unknown rather than a component that never moved', () => {
+    // `0 of 0 runs` is the shape of an answer with none of the substance, and it
+    // reads as the reassuring one: a component nothing has recorded and a
+    // component recorded as still are opposite instructions to a reviewer.
+    const markup = renderToStaticMarkup(
+      <ChurnLine component="Toggle" churn={churn({ runs: 0, changedRuns: 0, collateralRuns: 0 })} />,
+    );
+
+    expect(markup).toContain('unknown');
+    expect(markup).not.toContain('0 of 0');
+  });
 });
 
 describe('the changelog groups by shape and still counts what it could not group', () => {

@@ -53,6 +53,13 @@ export type {
   MovementRecord,
 } from './composition.js';
 
+export type {
+  ReachReport,
+  ReachedComponent,
+  ReachHole,
+  SubjectReach,
+} from './reach.js';
+
 export { clusterChanges, describeClustering } from './cluster.js';
 export type { Change, Clustering } from './cluster.js';
 

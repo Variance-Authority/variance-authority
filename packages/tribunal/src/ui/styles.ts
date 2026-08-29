@@ -148,15 +148,77 @@ export const REVIEW_STYLES = `
 .va-aside .va-card { background: var(--va-sunken); border-color: transparent; }
 .va-aside h2 { color: var(--va-ink-3); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em; margin-bottom: 0.5rem; text-transform: uppercase; }
 
-.va-docket table { border-collapse: collapse; width: 100%; }
-.va-docket th { border-bottom: 1px solid var(--va-line-firm); color: var(--va-ink-3); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; padding: 0 0.5rem 0.4rem; text-align: left; text-transform: uppercase; }
-.va-docket td { border-bottom: 1px solid var(--va-line); padding: 0.5rem; vertical-align: middle; }
-.va-docket tr:last-child td { border-bottom-color: transparent; }
-.va-docket th.va-right, .va-docket td.va-right { text-align: right; }
-.va-docket .va-file { color: var(--va-ink-2); }
-.va-bar { background: var(--va-sunken); border-radius: 999px; display: block; height: 6px; margin-top: 0.3rem; overflow: hidden; width: 100%; }
-.va-bar span { background: var(--va-cause); display: block; height: 100%; }
+/* The review unit, which is a change and not a picture. Each card is one edit
+   and every place it landed, so the card is given the weight a row in a table
+   never had: a reviewer approves at this level and reads the subjects inside it
+   as evidence. The left edge is the cause colour, the same one the region boxes
+   use, because that is what the card is. */
+.va-origins { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
+.va-origin { background: var(--va-sunken); border-left: 3px solid var(--va-cause); border-radius: 10px; padding: 0.85rem 1rem; }
+.va-origin.va-orphan { border-left-color: var(--va-warn); }
+.va-origin-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.va-origin-head h3 { font-size: 1rem; margin: 0; }
+.va-origin-pixels { color: var(--va-ink-3); font-size: 0.84rem; margin-left: auto; }
+.va-file { color: var(--va-ink-2); }
+.va-origin p { font-size: 0.86rem; margin: 0.35rem 0 0; }
+.va-origin .va-churn, .va-origin .va-stability { margin: 0.35rem 0 0; }
+.va-origin-arrival.va-alarm { background: var(--va-bad-bg); border-radius: 6px; color: var(--va-bad-ink); padding: 0.35rem 0.55rem; }
+/* Two shapes under one component name is two edits, and the sentence saying so
+   is the one thing on the card that withdraws the batch approval. */
+.va-note.va-warned { color: var(--va-warn-ink); }
+.va-origin-where { display: grid; font-size: 0.86rem; gap: 0.35rem; margin-top: 0.7rem; }
+.va-origin-where li { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.va-origin-subject { font-weight: 600; }
+.va-origin-act { align-items: center; display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.8rem; }
+.va-origin-act button { font-weight: 600; }
+.va-origin-act .va-approve { background: var(--va-good); border-color: var(--va-good); color: #ffffff; }
+.va-origin-act .va-approve:disabled { background: var(--va-sunken); border-color: var(--va-line-firm); color: var(--va-ink-3); }
 .va-collateral { border-top: 1px solid var(--va-line); color: var(--va-ink-3); font-size: 0.84rem; margin-top: 0.75rem; padding-top: 0.65rem; }
+
+/* The third axis: what the commit reaches, crossed with what the run saw. Drawn
+   as a grid rather than four counts, because the four cells are one crossing and
+   a reader who takes them in as a shape sees at once which half of it is the
+   anomaly. */
+.va-reach .va-quad { display: grid; gap: 0.5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0.9rem; }
+.va-cell { background: var(--va-sunken); border-left: 3px solid var(--va-line-firm); border-radius: 9px; display: grid; gap: 0.1rem; padding: 0.7rem 0.85rem; }
+.va-cell-n { font-size: 1.6rem; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; }
+.va-cell-title { font-size: 0.82rem; font-weight: 650; }
+.va-cell-note { color: var(--va-ink-3); font-size: 0.78rem; }
+.va-cell.va-expected { border-left-color: var(--va-accent); }
+.va-cell.va-alarm { background: var(--va-bad-bg); border-left-color: var(--va-bad); }
+.va-cell.va-alarm .va-cell-n, .va-cell.va-alarm .va-cell-title { color: var(--va-bad-ink); }
+.va-cell.va-inert { background: var(--va-warn-bg); border-left-color: var(--va-warn); }
+.va-cell.va-inert .va-cell-n, .va-cell.va-inert .va-cell-title { color: var(--va-warn-ink); }
+/* A quadrant holding nothing keeps its place and loses its voice. Dropped, it
+   reads as a question nobody asked; coloured as a finding, as one nobody
+   answered. */
+.va-cell.va-zero { background: transparent; border-left-color: var(--va-line); }
+.va-cell.va-zero .va-cell-n, .va-cell.va-zero .va-cell-title { color: var(--va-ink-3); font-weight: 550; }
+
+.va-reach .va-band { border-left: 2px solid var(--va-line-firm); margin-top: 1.1rem; padding-left: 0.85rem; }
+.va-reach .va-band.va-alarm { border-left-color: var(--va-bad); }
+.va-reach .va-band.va-inert { border-left-color: var(--va-warn); }
+.va-reach .va-band h3 { font-size: 0.95rem; margin-bottom: 0.25rem; }
+.va-reach .va-stability, .va-reach .va-churn { margin: 0.2rem 0 0; }
+.va-reach-list { display: grid; font-size: 0.86rem; gap: 0.5rem; margin-top: 0.55rem; }
+.va-reach-list.va-columns { columns: 2 18rem; display: block; }
+.va-reach-list.va-columns li { break-inside: avoid; margin-bottom: 0.35rem; }
+
+/* The chain, which is the half a reviewer can disprove. A component named
+   without it is an assertion; tokens.css to button.tsx to Button is a claim
+   somebody can open three files and refute. */
+.va-trails { display: grid; font-size: 0.84rem; gap: 0.35rem; margin-top: 0.55rem; }
+.va-trails code { background: var(--va-sunken); border-radius: 5px; color: var(--va-ink-2); padding: 0.1rem 0.35rem; }
+.va-arrow { color: var(--va-ink-3); padding: 0 0.3rem; }
+.va-axis.va-unread { background: var(--va-warn-bg); color: var(--va-warn-ink); margin-left: 0.5rem; }
+
+/* Drawn where the crossing would have been, never beside it: an empty grid over
+   a diff nothing could attribute reads as this commit reaches none of your
+   subjects, which is a sentence somebody merges on. */
+.va-refusal { background: var(--va-warn-bg); border-radius: 9px; color: var(--va-warn-ink); font-size: 0.86rem; margin-top: 0.9rem; padding: 0.6rem 0.75rem; }
+.va-reach-note { border-top: 1px solid var(--va-line); margin-top: 0.9rem; padding-top: 0.6rem; }
+.va-reach-note code { color: var(--va-ink-2); }
+.va-lost { color: var(--va-bad); }
 
 .va-variation-list { display: grid; gap: 0.5rem; }
 .va-variation { background: var(--va-sunken); border-radius: 9px; padding: 0.6rem 0.75rem; }
@@ -215,7 +277,7 @@ export const REVIEW_STYLES = `
 .va-history { font-size: 0.86rem; }
 .va-ask { font-size: 0.86rem; width: 100%; }
 .va-stability, .va-churn { color: var(--va-ink-2); font-size: 0.86rem; margin-bottom: 0.5rem; }
-.va-stability.va-unknown { color: var(--va-warn); }
+.va-stability.va-unknown, .va-churn.va-unknown { color: var(--va-warn); }
 .va-stability.va-flaky { color: var(--va-bad); }
 
 /* One finding, in three registers: what it is, where it is, and the sentence
@@ -244,6 +306,7 @@ export const REVIEW_STYLES = `
   .va-rail { border-right: 0; width: 100%; }
   .va-subject { flex-wrap: wrap; }
   .va-aside { border-left: 0; width: 100%; }
+  .va-reach .va-quad { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-color-scheme: dark) {

@@ -37,7 +37,7 @@
 import type { D1Like } from './bindings.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** The version `INITIAL` alone leaves a database at. Frozen: it is deployed. */
 /**
@@ -399,6 +399,50 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
        PRIMARY KEY (project, build, subject)
      ) STRICT`,
     `UPDATE schema_version SET version = 6`,
+  ],
+  // 6 → 7: what the commit reaches, which is the only thing here that names a
+  // file somebody edited.
+  [
+    // Two tables rather than one, and the split is the whole point of the shape.
+    //
+    // The build row exists whenever a run had a diff to read, *including* when
+    // the walk refused to attribute it — a changed file the graph does not hold,
+    // a diff entirely outside the graph, a diff reaching no component. In that
+    // case `whole` carries the reason and there are no subject rows.
+    //
+    // So zero subject rows has two meanings and `whole` is what separates them:
+    // with a reason, nothing could be attributed and every subject must be read
+    // as possibly reached; without one, the commit was understood and simply
+    // reached none of the subjects whose baselines said what they were made of.
+    // Those support opposite decisions, and one table could not hold both.
+    `CREATE TABLE build_reach (
+       project     TEXT NOT NULL,
+       build       TEXT NOT NULL,
+       against_ref TEXT NOT NULL,
+       changed     TEXT NOT NULL,
+       components  TEXT NOT NULL,
+       whole       TEXT,
+       unscanned   TEXT,
+       opaque      TEXT,
+       PRIMARY KEY (project, build)
+     ) STRICT`,
+    // `through` and `trail` are nullable together with `reached = 0`: a subject
+    // this diff does not reach has no chain to print, and an empty array stored
+    // where a chain belongs would render as a trail of no hops rather than as no
+    // trail. A subject whose baseline recorded no component list is not a row at
+    // all — the run cannot say what it is made of, and `reached = 0` would be an
+    // assertion nobody made.
+    `CREATE TABLE build_reach_subjects (
+       project TEXT NOT NULL,
+       build   TEXT NOT NULL,
+       subject TEXT NOT NULL,
+       reached INTEGER NOT NULL,
+       through TEXT,
+       trail   TEXT,
+       because TEXT NOT NULL,
+       PRIMARY KEY (project, build, subject)
+     ) STRICT`,
+    `UPDATE schema_version SET version = 7`,
   ],
 ];
 

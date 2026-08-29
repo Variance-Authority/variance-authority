@@ -48,7 +48,7 @@ import { COMMENT_MARKER, renderComment } from './commands/comment.js';
 import { doctor, machineProbes, rendererOptionsFor } from './commands/doctor.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import type { ChangelogSelection } from '@variance-authority/report';
-import type { Parsed } from './bin.js';
+import type { Parsed } from './parse.js';
 
 /**
  * What each command *does*, and the two things every one of them needs.
@@ -102,6 +102,25 @@ export async function dispatch(
       // test can hand it one without setting environment variables that outlive
       // the test.
       const history = historyFor(effective);
+
+      // One fetch for both verbs when they name the same ref, and `--since`
+      // implies `--against` wherever a graph is configured: the walk has already
+      // happened by then, and a run that narrowed itself and could not say why is
+      // the one shape this is worth avoiding.
+      const dirs = effective.source?.dirs ?? [];
+      const since =
+        parsed.since === undefined
+          ? undefined
+          : { ref: parsed.since, changed: await changedSince(parsed.since, dirs) };
+      const againstRef =
+        parsed.against ?? (effective.source?.relations === true ? parsed.since : undefined);
+      const against =
+        againstRef === undefined
+          ? undefined
+          : againstRef === since?.ref
+            ? { ref: againstRef, changed: since.changed }
+            : { ref: againstRef, changed: await changedSince(againstRef, dirs) };
+
       const identity = identityOf(
         {
           ...(parsed.run !== undefined ? { run: parsed.run } : {}),
@@ -117,9 +136,8 @@ export async function dispatch(
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
           ...(parsed.flakes ? { flakes: true } : {}),
           ...(identity !== undefined ? { identity } : {}),
-          ...(parsed.since !== undefined
-            ? { since: { ref: parsed.since, changed: await changedSince(parsed.since) } }
-            : {}),
+          ...(since === undefined ? {} : { since }),
+          ...(against === undefined ? {} : { against }),
           deps: {
             collector,
             store: await storeFor(effective),

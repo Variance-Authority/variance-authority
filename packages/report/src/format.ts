@@ -1,5 +1,6 @@
 import type { AccessibilitySnapshot, Digest, RenderIdentity } from '@variance-authority/core';
 import type { CompositionReport } from './composition.js';
+import type { ReachReport } from './reach.js';
 import type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 import type { VariationRecord } from './variation.js';
 
@@ -148,6 +149,23 @@ export interface RunReport {
    * Absent when no subject in the run declared a parent. Never present and empty.
    */
   readonly variations?: readonly VariationRecord[];
+
+  /**
+   * What this commit reaches, from the diff and the file graph — see
+   * [`reach.ts`](./reach.ts).
+   *
+   * The third axis. `observations` is a subject against its past, `composition`
+   * is the suite against itself, and this is the suite against the *edit* — which
+   * components the changed files can possibly have moved, and by which chain.
+   * Crossed against the verdicts, it is what lets a report say that an edit
+   * reached a subject and changed nothing, or that a subject moved with nothing
+   * in the commit reaching it.
+   *
+   * Absent when the run was given no ref to diff against, or when no file graph
+   * was scanned. Present with `subjects` absent is the run saying it *has* a diff
+   * and could not attribute it, which is a different fact and a louder one.
+   */
+  readonly reach?: ReachReport;
 }
 
 /**
