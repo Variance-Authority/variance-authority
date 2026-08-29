@@ -2,7 +2,7 @@ import { PNG } from 'pngjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Digest, RenderIdentity } from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
-import type { RunReport } from '@variance-authority/report';
+import type { RunReport, VariationRecord } from '@variance-authority/report';
 import { createBucketStore } from './store.js';
 import { ReviewError, createReviewStore, type BuildIngest, type ReviewStore } from './review.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
@@ -232,6 +232,93 @@ describe('the docket leads with causes and counts collateral', () => {
         collateralPixels: 511,
       },
     ]);
+  });
+});
+
+/**
+ * The three states a variation arrives in, in one report.
+ *
+ * Together they are the distinction the table keeps a nullable column for: an arm
+ * that was measured and differs, one that was measured and reaches nothing, and
+ * one nothing could measure because the parent it named is not in this run.
+ */
+const VARIATIONS: readonly VariationRecord[] = [
+  {
+    subject: 'story:todos--populated-dark',
+    parent: 'story:todos--populated',
+    identical: false,
+    bands: ['token'],
+    components: ['Toggle'],
+    digest: 'v1:d2eebe6199661536',
+    how: 'named',
+    because: '`story:todos--populated-dark` differs from `story:todos--populated` in token',
+  },
+  {
+    subject: 'story:todos--sale',
+    parent: 'story:todos--populated',
+    identical: true,
+    bands: [],
+    digest: 'v1:ce4228e7c7dcb46f',
+    how: 'declared',
+    because: '`story:todos--sale` renders identically to `story:todos--populated`',
+  },
+  {
+    subject: 'story:todos--orphan',
+    because: 'the parent this subject declares was not observed in this run',
+  },
+];
+
+describe('a variation is carried, and is never a verdict', () => {
+  const declared = (): BuildIngest => ingest({ report: { ...report(), variations: VARIATIONS } });
+
+  it('round-trips every state, keeping unmeasured apart from unchanged', async () => {
+    await review.ingest(declared());
+
+    const detail = await review.build('ci-1001');
+    const by = (subject: string): VariationRecord | undefined =>
+      detail?.variations.find((entry) => entry.subject === subject);
+
+    expect(by('story:todos--populated-dark')).toEqual(VARIATIONS[0]);
+    expect(by('story:todos--sale')).toEqual(VARIATIONS[1]);
+    // The one the column is nullable for. `identical: false` here would say the
+    // pair was compared and differs, when what happened is that nothing compared
+    // them — a broken declaration read as a measurement.
+    expect(by('story:todos--orphan')).not.toHaveProperty('identical');
+    expect(by('story:todos--orphan')?.because).toContain('was not observed');
+  });
+
+  it('leaves the counts a reviewer merges on alone', async () => {
+    await review.ingest(declared());
+
+    const detail = await review.build('ci-1001');
+
+    // Three variations, and not one of them is a subject awaiting anybody. A
+    // variation reported as pending would be a subject flagged for existing.
+    expect(detail?.verdicts).toEqual({ changed: 1, unchanged: 1, new: 0, incomparable: 0, ignored: 0 });
+    expect(detail?.pending).toBe(1);
+    expect(detail?.causes).toHaveLength(1);
+  });
+
+  it('is empty rather than absent when the run declared none', async () => {
+    await review.ingest(ingest());
+
+    expect((await review.build('ci-1001'))?.variations).toEqual([]);
+  });
+
+  it('goes when the build goes', async () => {
+    await review.ingest(declared());
+    clock = new Date('2026-07-01T12:00:00.000Z');
+
+    await review.sweep(7);
+
+    // Rows keyed on a build that no longer exists are the same damage as an
+    // object nothing points at, and the next build reusing the id would read
+    // them as its own.
+    const rows = await db
+      .prepare('SELECT COUNT(*) AS n FROM build_variations')
+      .bind()
+      .first<{ readonly n: number }>();
+    expect(rows?.n).toBe(0);
   });
 });
 

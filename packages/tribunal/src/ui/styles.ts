@@ -42,6 +42,19 @@ export const REVIEW_STYLES = `
 .va-docket td { border-bottom: 1px solid #eee; padding: 0.25rem 0.5rem; }
 .va-collateral { color: #666; font-size: 0.9rem; }
 
+.va-variation-list { list-style: none; margin: 0; padding: 0; }
+.va-variation { border-bottom: 1px solid #eee; padding: 0.5rem 0; }
+.va-variation-head { margin: 0 0 0.15rem; }
+/* Every chip carries its own text colour rather than inheriting the page's: the
+   backgrounds are light in both schemes, and a chip that inherited a dark
+   scheme's foreground would be pale text on a pale block. */
+.va-axis { background: #e2e8f0; border-radius: 3px; color: #1e293b; font-size: 0.8rem; padding: 0.1rem 0.4rem; }
+/* The two states a reviewer can act on, and they are not the same finding: an
+   arm that changes nothing was measured, a pair with no parent never was. */
+.va-variation.va-inert .va-axis { background: #fde8c8; color: #6b3d00; }
+.va-variation.va-unlinked .va-axis { background: #f8d8d8; color: #7a1f1f; }
+.va-how { color: #666; font-size: 0.8rem; margin-left: 0.5rem; }
+
 .va-subject { border: 1px solid #e5e5e5; border-radius: 6px; margin: 1rem 0; padding: 1rem; }
 .va-subject header { align-items: baseline; display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .va-subject h3 { margin: 0; }
@@ -57,12 +70,18 @@ export const REVIEW_STYLES = `
 .va-mode.va-current { background: #333; border-color: #333; color: #fff; }
 
 .va-frame { display: inline-block; margin: 0.5rem 0; position: relative; }
-.va-frame img { display: block; image-rendering: pixelated; max-width: 100%; }
-.va-frame .va-overlaid { inset: 0; position: absolute; }
+/* height: auto, because a deferred raster carries its own dimensions as
+   attributes, and max-width alone would scale the width and keep the declared
+   height — every candidate squashed to the aspect ratio of nothing. */
+.va-frame img { display: block; height: auto; image-rendering: pixelated; max-width: 100%; }
+/* Pinned to the corner rather than inset: 0 — stretched between top and bottom,
+   an auto height fills the frame, and the candidate would be drawn at the
+   baseline's height whenever the two differ, which is often the change. */
+.va-frame .va-overlaid { left: 0; position: absolute; top: 0; }
 .va-swipe .va-swipe-top { inset: 0 auto 0 0; overflow: hidden; position: absolute; }
 .va-swipe .va-swipe-top img { max-width: none; }
 .va-side-by-side { display: flex; gap: 1rem; }
-.va-side-by-side img { image-rendering: pixelated; max-width: 100%; }
+.va-side-by-side img { height: auto; image-rendering: pixelated; max-width: 100%; }
 
 .va-regions { inset: 0; pointer-events: none; position: absolute; }
 .va-region { position: absolute; }
@@ -101,7 +120,8 @@ export const REVIEW_STYLES = `
 
 @media (prefers-color-scheme: dark) {
   .va-note, .va-branch, .va-counts, .va-because, .va-collateral,
-  .va-change-meta, .va-fingerprint { color: #999; }
+  .va-change-meta, .va-fingerprint, .va-how { color: #999; }
+  .va-variation { border-bottom-color: #333; }
   .va-nav button { background: #222; border-color: #444; color: #eee; }
   .va-nav button.va-current { background: #eee; color: #111; }
   .va-change { border-bottom-color: #333; }

@@ -5,6 +5,7 @@ import type {
   ObservationRecord,
   RegionRecord,
   RunReport,
+  VariationRecord,
 } from '@variance-authority/report';
 import type { TribunalBindings } from './bindings.js';
 
@@ -144,6 +145,22 @@ export interface BuildDetail extends BuildSummary {
   readonly subjects: readonly SubjectView[];
   readonly notObserved: readonly NotObserved[];
   readonly causes: readonly Cause[];
+  /**
+   * What the run read about its own subjects — the section with no baseline in it.
+   *
+   * Beside `causes` and not among them, because these are not changes and must
+   * never be counted as any: a variation is a difference somebody meant. It is
+   * here because it answers the question a docket cannot. A subject added behind
+   * a flag is `new`, its diff is empty, and what the flag *does* is visible only
+   * by opening two pictures side by side — which is the review nobody performs.
+   * The run already compared the pair, so the answer is carried rather than
+   * looked for.
+   *
+   * Empty when the report declared none. `VariationRecord` unchanged from the
+   * report's, because a store that reshaped it would be a second vocabulary for
+   * one fact.
+   */
+  readonly variations: readonly VariationRecord[];
 }
 
 export interface Cause {

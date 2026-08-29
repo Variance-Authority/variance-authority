@@ -1,8 +1,17 @@
+import type { VariationRecord } from '@variance-authority/report';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { BuildSummary, Cause, SubjectView } from '../review.js';
 import { createReviewClient } from './client.js';
-import { CoverageLine, Docket, RegionOverlay, SubjectPanel, Viewer, modesFor } from './review.js';
+import {
+  CoverageLine,
+  Docket,
+  RegionOverlay,
+  SubjectPanel,
+  Variations,
+  Viewer,
+  modesFor,
+} from './review.js';
 
 /**
  * What is worth testing in a review surface, and what is not.
@@ -104,6 +113,68 @@ describe('the docket leads with causes and counts collateral', () => {
   });
 });
 
+describe('a variation that reaches nothing is the one worth reading', () => {
+  const lattice: readonly VariationRecord[] = [
+    {
+      subject: 'story:product-card--control-dark',
+      parent: 'story:product-card--control',
+      identical: false,
+      bands: ['token'],
+      how: 'named',
+      because: 'differs in token',
+    },
+    {
+      subject: 'story:product-card--orphan',
+      because: 'the parent this subject declares was not observed in this run',
+    },
+    {
+      subject: 'story:product-card--sale',
+      parent: 'story:product-card--control',
+      identical: true,
+      bands: [],
+      how: 'named',
+      because: 'renders identically to `story:product-card--control`',
+    },
+  ];
+
+  it('leads with the arm whose flag changes no pixel', () => {
+    // The finding every tool in this category is blind to: both subjects are
+    // `unchanged`, both are green, and the experiment measures nothing. Given in
+    // report order — where it is last — it has to come out first.
+    const markup = renderToStaticMarkup(<Variations variations={lattice} />);
+
+    const inert = markup.indexOf('story:product-card--sale');
+    const unlinked = markup.indexOf('story:product-card--orphan');
+    const measured = markup.indexOf('story:product-card--control-dark');
+
+    expect(inert).toBeGreaterThan(-1);
+    expect(inert).toBeLessThan(unlinked);
+    expect(unlinked).toBeLessThan(measured);
+    expect(markup).toContain('reaches nothing');
+  });
+
+  it('says a pair nothing compared was not compared, rather than that it differs', () => {
+    const markup = renderToStaticMarkup(<Variations variations={[lattice[1]!]} />);
+
+    // `differs` here would report a broken declaration as a measurement, which
+    // is the one thing the nullable column exists to keep apart.
+    expect(markup).toContain('not compared');
+    expect(markup).not.toContain('differs');
+    expect(markup).toContain('va-unlinked');
+  });
+
+  it('names the axis the run measured rather than a pixel count', () => {
+    const markup = renderToStaticMarkup(<Variations variations={[lattice[0]!]} />);
+
+    expect(markup).toContain('token');
+    expect(markup).toContain('named');
+  });
+
+  it('says nothing at all when no subject declared a parent', () => {
+    expect(renderToStaticMarkup(<Variations variations={[]} />)).toBe('');
+  });
+});
+
 describe('the viewer offers only comparisons this build can make', () => {
   it('leads with regions when the build kept a candidate and its boxes', () => {
     const withRegions = subject({
@@ -146,6 +217,41 @@ describe('the viewer offers only comparisons this build can make', () => {
     // Never silently dropped. A docket that showed five regions when eleven were
     // found is a docket a reviewer would trust as complete.
     expect(markup).toContain('12 further regions');
+  });
+});
+
+describe('a docket of subjects does not decode every raster to draw a table', () => {
+  it('defers the candidate and reserves the box it will need', () => {
+    // A route suite's candidates are full-page. Twenty of them decoded at once is
+    // tens of thousands of rows of bitmap in one document, and the reviewer is
+    // reading a four-row table at the top of it.
+    const markup = renderToStaticMarkup(
+      <Viewer
+        client={CLIENT}
+        build="7"
+        subject={subject({
+          size: { width: 1280, height: 8868 },
+          regions: [{ x: 0, y: 0, width: 10, height: 10, cause: true }],
+        })}
+      />,
+    );
+
+    expect(markup).toContain('loading="lazy"');
+    expect(markup).toContain('width="1280"');
+    expect(markup).toContain('height="8868"');
+  });
+
+  it('reserves nothing for a baseline, whose height is frequently the change', () => {
+    // `size` is the candidate's. A comparison mode draws both, and giving the
+    // baseline the candidate's box settles the page at one height and then jumps
+    // — worse than not reserving at all.
+    const markup = renderToStaticMarkup(
+      <Viewer client={CLIENT} build="7" subject={subject({ size: { width: 8, height: 8 } })} />,
+    );
+
+    expect(markup).toContain('baseline" loading="lazy"');
+    expect(markup).toContain('candidate" loading="lazy"');
+    expect(markup).not.toContain('width="');
   });
 });
 

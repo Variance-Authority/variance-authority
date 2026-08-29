@@ -1,7 +1,14 @@
 import { identityDigest } from '@variance-authority/core';
 import type { D1Like } from './bindings.js';
 import { readChangelog, recordApproval } from './changelog.js';
-import { docket, latestDecisions, summarize, toNotObserved, toSubjectView } from './review-read.js';
+import {
+  docket,
+  latestDecisions,
+  summarize,
+  toNotObserved,
+  toSubjectView,
+  toVariation,
+} from './review-read.js';
 import { ReviewError, instant, number, optionalText, text, type Row } from './review-rows.js';
 import type {
   BuildDetail,
@@ -186,6 +193,34 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         );
       }
 
+      for (const variation of report.variations ?? []) {
+        statements.push(
+          db
+            .prepare(
+              `INSERT OR REPLACE INTO build_variations
+                 (project, build, subject, parent, identical, bands, unobserved, components,
+                  digest, how, because)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .bind(
+              project,
+              build.build,
+              variation.subject,
+              variation.parent ?? null,
+              // Absent stays absent. `false` would say the pair was compared and
+              // differs; what happened is that the parent this run was told about
+              // is not in this run, which is a broken link and reads as one.
+              variation.identical === undefined ? null : variation.identical ? 1 : 0,
+              variation.bands === undefined ? null : JSON.stringify(variation.bands),
+              variation.unobserved === undefined ? null : JSON.stringify(variation.unobserved),
+              variation.components === undefined ? null : JSON.stringify(variation.components),
+              variation.digest ?? null,
+              variation.how ?? null,
+              variation.because,
+            ),
+        );
+      }
+
       for (const entry of report.notObserved ?? []) {
         statements.push(
           db
@@ -230,6 +265,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         .prepare('SELECT * FROM build_not_observed WHERE project = ? AND build = ? ORDER BY subject')
         .bind(project, id)
         .all<Row>();
+      const variations = await db
+        .prepare('SELECT * FROM build_variations WHERE project = ? AND build = ? ORDER BY subject')
+        .bind(project, id)
+        .all<Row>();
 
       const subjects = subjectRows.results.map((subject) =>
         toSubjectView(subject, decisions.get(text(subject, 'subject', 'a build subject')) ?? null),
@@ -240,6 +279,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         subjects,
         notObserved: skipped.results.map(toNotObserved),
         causes: docket(subjects),
+        variations: variations.results.map(toVariation),
       };
     },
 
@@ -388,6 +428,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
           .run();
         await db
           .prepare('DELETE FROM build_not_observed WHERE project = ? AND build = ?')
+          .bind(project, id)
+          .run();
+        await db
+          .prepare('DELETE FROM build_variations WHERE project = ? AND build = ?')
           .bind(project, id)
           .run();
         await db.prepare('DELETE FROM builds WHERE project = ? AND build = ?').bind(project, id).run();

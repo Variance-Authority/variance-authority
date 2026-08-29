@@ -4,6 +4,7 @@ import type {
   NotObserved,
   ObservationRecord,
   RegionRecord,
+  VariationRecord,
 } from '@variance-authority/report';
 import type { D1Like } from './bindings.js';
 import { ReviewError, number, optionalText, text, type Row } from './review-rows.js';
@@ -215,6 +216,42 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
       ? { signals: JSON.parse(signals) as ObservationRecord['signals'] }
       : {}),
     ...(typeof width === 'number' && typeof height === 'number' ? { size: { width, height } } : {}),
+  };
+}
+
+/**
+ * A stored variation, read back as the record the report wrote.
+ *
+ * Every optional field stays optional. `identical` is the one worth naming: the
+ * column is nullable and `NULL` is read as absent rather than as `false`, because
+ * a pair nothing compared and a pair compared and found to differ are different
+ * claims, and only the second is something a reviewer can act on.
+ *
+ * `how` is narrowed rather than cast. A row holding a word this deployment does
+ * not know is read as *unstated* — the sentence in `because` still says what
+ * happened, and asserting `declared` over an unrecognised value would put "a
+ * person said so" on an inference.
+ */
+export function toVariation(row: Row): VariationRecord {
+  const what = 'a build variation';
+  const parent = optionalText(row, 'parent', what);
+  const identical = row['identical'];
+  const bands = optionalText(row, 'bands', what);
+  const unobserved = optionalText(row, 'unobserved', what);
+  const components = optionalText(row, 'components', what);
+  const digest = optionalText(row, 'digest', what);
+  const how = optionalText(row, 'how', what);
+
+  return {
+    subject: text(row, 'subject', what),
+    because: text(row, 'because', what),
+    ...(parent !== undefined ? { parent } : {}),
+    ...(identical === null || identical === undefined ? {} : { identical: Number(identical) !== 0 }),
+    ...(bands !== undefined ? { bands: JSON.parse(bands) as string[] } : {}),
+    ...(unobserved !== undefined ? { unobserved: JSON.parse(unobserved) as string[] } : {}),
+    ...(components !== undefined ? { components: JSON.parse(components) as string[] } : {}),
+    ...(digest !== undefined ? { digest } : {}),
+    ...(how === 'declared' || how === 'named' ? { how } : {}),
   };
 }
 

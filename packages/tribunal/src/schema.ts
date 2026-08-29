@@ -37,7 +37,7 @@
 import type { D1Like } from './bindings.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** The version `INITIAL` alone leaves a database at. Frozen: it is deployed. */
 /**
@@ -369,6 +369,36 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
     `ALTER TABLE build_subjects ADD COLUMN signals TEXT`,
     `ALTER TABLE build_subjects ADD COLUMN candidate_accessibility TEXT`,
     `UPDATE schema_version SET version = 5`,
+  ],
+  // 5 → 6: what a run read about its own subjects, with no baseline in it.
+  [
+    // A table rather than columns on `build_subjects`, because a variation is
+    // about a *pair*: the row belongs to the subject, but what it says is how
+    // that subject stands against another subject in the same run. A subject can
+    // also be a variation while having no observation at all — a story added
+    // behind a flag is `new`, and the flag's effect is exactly what this row
+    // carries — so the two are not the same set.
+    //
+    // Every optional field is nullable and none of them is defaulted. `identical`
+    // has three states and they are three different claims: `1` the pair renders
+    // to one hash, `0` it does not, `NULL` nothing compared them, because the
+    // parent the declaration named is not in this run. Writing `0` for the third
+    // would report a broken link as a measured difference.
+    `CREATE TABLE build_variations (
+       project    TEXT NOT NULL,
+       build      TEXT NOT NULL,
+       subject    TEXT NOT NULL,
+       parent     TEXT,
+       identical  INTEGER,
+       bands      TEXT,
+       unobserved TEXT,
+       components TEXT,
+       digest     TEXT,
+       how        TEXT,
+       because    TEXT NOT NULL,
+       PRIMARY KEY (project, build, subject)
+     ) STRICT`,
+    `UPDATE schema_version SET version = 6`,
   ],
 ];
 

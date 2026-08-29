@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 
@@ -63,7 +63,9 @@ export function Viewer({
 
       {mode === 'regions' ? (
         <figure className="va-frame">
-          {subject.has.after ? <img src={url('after')} alt={`${subject.subject} after`} /> : null}
+          {subject.has.after ? (
+            <Raster src={url('after')} alt={`${subject.subject} after`} size={subject.size} />
+          ) : null}
           <RegionOverlay subject={subject} />
         </figure>
       ) : null}
@@ -72,11 +74,11 @@ export function Viewer({
         <div className="va-side-by-side">
           <figure>
             <figcaption>baseline</figcaption>
-            <img src={url('before')} alt={`${subject.subject} baseline`} />
+            <Raster src={url('before')} alt={`${subject.subject} baseline`} />
           </figure>
           <figure>
             <figcaption>this build</figcaption>
-            <img src={url('after')} alt={`${subject.subject} candidate`} />
+            <Raster src={url('after')} alt={`${subject.subject} candidate`} size={subject.size} />
           </figure>
         </div>
       ) : null}
@@ -84,9 +86,9 @@ export function Viewer({
       {mode === 'swipe' ? (
         <>
           <figure className="va-frame va-swipe">
-            <img src={url('before')} alt={`${subject.subject} baseline`} />
+            <Raster src={url('before')} alt={`${subject.subject} baseline`} />
             <div className="va-swipe-top" style={{ width: `${String(wipe)}%` }}>
-              <img src={url('after')} alt={`${subject.subject} candidate`} />
+              <Raster src={url('after')} alt={`${subject.subject} candidate`} />
             </div>
           </figure>
           <input
@@ -103,8 +105,8 @@ export function Viewer({
       {mode === 'onion' ? (
         <>
           <figure className="va-frame">
-            <img src={url('before')} alt={`${subject.subject} baseline`} />
-            <img
+            <Raster src={url('before')} alt={`${subject.subject} baseline`} />
+            <Raster
               className="va-overlaid"
               src={url('after')}
               alt={`${subject.subject} candidate`}
@@ -124,7 +126,7 @@ export function Viewer({
 
       {mode === 'diff' ? (
         <figure className="va-frame">
-          <img src={url('diff')} alt={`${subject.subject} difference mask`} />
+          <Raster src={url('diff')} alt={`${subject.subject} difference mask`} />
         </figure>
       ) : null}
 
@@ -142,6 +144,49 @@ export function Viewer({
         )}
       </p>
     </div>
+  );
+}
+
+/**
+ * One stored raster, fetched when it is about to be looked at.
+ *
+ * `loading="lazy"`, because a build page is a docket of every subject and a
+ * reviewer reads one at a time. A route suite's candidates are full-page: this
+ * project's four routes come to nine thousand pixels of height each, and twenty
+ * of them decoded at once is tens of thousands of rows of bitmap in one document
+ * — enough to stall the renderer before the first row of the table can be read.
+ * Nothing above the fold needs any of them.
+ *
+ * `size` reserves the box before the bytes arrive, and is passed only where the
+ * dimensions belong to *this* raster — the candidate. A baseline may have been a
+ * different height (that is frequently the change), and a diff mask is not
+ * measured at all, so those are deferred without a reservation rather than
+ * reserved wrongly. A wrong reservation is worse than none: the page settles at
+ * one height and then jumps.
+ */
+function Raster({
+  src,
+  alt,
+  size,
+  className,
+  style,
+}: {
+  readonly src: string;
+  readonly alt: string;
+  readonly size?: { readonly width: number; readonly height: number } | undefined;
+  readonly className?: string | undefined;
+  readonly style?: CSSProperties | undefined;
+}): ReactElement {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      {...(size === undefined ? {} : { width: size.width, height: size.height })}
+      {...(className === undefined ? {} : { className })}
+      {...(style === undefined ? {} : { style })}
+    />
   );
 }
 

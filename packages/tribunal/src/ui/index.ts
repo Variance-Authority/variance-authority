@@ -18,6 +18,7 @@ export {
   StabilityLine,
   SubjectHistory,
   SubjectPanel,
+  Variations,
   Viewer,
   modesFor,
   type ReviewAppProps,
