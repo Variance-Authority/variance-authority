@@ -130,7 +130,7 @@ wrote, with the images beside it.
 {
   "review": {
     "endpoint": "https://variance.example.com/api",
-    "token": "env:VARIANCE_INGEST_TOKEN"
+    "token": { "env": "VARIANCE_INGEST_TOKEN" }
   }
 }
 ```

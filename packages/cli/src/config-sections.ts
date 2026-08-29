@@ -1,6 +1,7 @@
 import type { Viewport } from '@variance-authority/core';
 import type { BaselineLayout } from '@variance-authority/store';
 import {
+  declaredSecret,
   fail,
   integer,
   kindOf,
@@ -199,7 +200,12 @@ export interface HistoryConfig {
  */
 export interface ReviewConfig {
   readonly endpoint: string;
-  readonly token: string;
+  /**
+   * The ingest token, read when the build is sent rather than when this is
+   * parsed — see {@link declaredSecret}. A function because the value is not in
+   * the config: what the config holds is where to find it.
+   */
+  readonly token: () => string;
 }
 
 export function parseAlone(value: unknown, options: ParseOptions): AloneConfig {
@@ -383,10 +389,11 @@ export function parseReview(value: unknown, options: ParseOptions): ReviewConfig
 
   return {
     endpoint: url(source, 'endpoint', 'review.endpoint', options),
-    // Required, and through `secret`: the ingest route answers 401 without one,
-    // so a config carrying an endpoint and no token describes a push that can
-    // only ever fail — and it would fail at the end of a run, after the work.
-    token: secret(source, 'token', options, 'review.token'),
+    // Required, and through `declaredSecret`: the ingest route answers 401
+    // without one, so a config carrying an endpoint and no token describes a
+    // push that can only ever fail. Declared rather than resolved, because the
+    // job that runs and the job that pushes need not be the same job.
+    token: declaredSecret(source, 'token', options, 'review.token'),
   };
 }
 

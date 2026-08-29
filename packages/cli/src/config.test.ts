@@ -177,6 +177,34 @@ describe('parseConfig', () => {
     expect(error.message).toContain('not set');
   });
 
+  it('parses a review section whose ingest token the environment does not hold yet', () => {
+    // The run and the push need not be the same job, and the run job is given no
+    // ingest secret. Parsing is where the shape is checked; the lookup happens
+    // where the token is spent.
+    delete process.env['VARIANCE_TEST_INGEST_ABSENT'];
+    const config = parseConfig(
+      {
+        ...VALID,
+        review: {
+          endpoint: 'http://tribunal.internal:7789',
+          token: { env: 'VARIANCE_TEST_INGEST_ABSENT' },
+        },
+      },
+      OPTIONS,
+    );
+
+    expect(config.review?.endpoint).toBe('http://tribunal.internal:7789');
+    expect(() => config.review?.token()).toThrow('VARIANCE_TEST_INGEST_ABSENT');
+  });
+
+  it('still refuses a review token declared as the wrong shape', () => {
+    const error = attempt({
+      ...VALID,
+      review: { endpoint: 'http://tribunal.internal:7789', token: { name: 'TOKEN' } },
+    });
+    expect(error.field).toBe('review.token.env');
+  });
+
   it('refuses a token object that names no variable', () => {
     const error = attempt({
       ...VALID,

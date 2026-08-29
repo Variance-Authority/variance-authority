@@ -12,7 +12,10 @@ import type { CliRunReport } from './run.js';
  * Everything else about it is one POST.
  */
 
-const REVIEW: ReviewConfig = { endpoint: 'https://review.example/api', token: 'ingest-token-0123' };
+const REVIEW: ReviewConfig = {
+  endpoint: 'https://review.example/api',
+  token: () => 'ingest-token-0123',
+};
 
 function report(images?: Record<string, string>): CliRunReport {
   return {

@@ -149,7 +149,7 @@ export async function push(options: PushOptions): Promise<PushResult> {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        authorization: `Bearer ${options.review.token}`,
+        authorization: `Bearer ${options.review.token()}`,
       },
       body,
     });

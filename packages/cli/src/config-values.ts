@@ -152,17 +152,61 @@ export function secret(
     fail(`${field}.env`, WRONG_SHAPE + quote(variable), options);
   }
 
-  const held = process.env[variable];
-  if (held === undefined || held.trim() === '') {
+  return held(variable, field, options);
+}
+
+/**
+ * A secret one command needs and the others must not be stopped by.
+ *
+ * Same declarations as {@link secret} and the same refusals, except that the
+ * environment is read when the value is *used* rather than when the file is
+ * parsed. `review.token` is the ingest credential and only `push` sends it — a
+ * suite that runs on one job and pushes on another gives the run job no such
+ * secret, and a config parser that resolved it eagerly would fail the run over a
+ * variable the run has no use for.
+ *
+ * The shape is still checked at parse time, so a config that declares the wrong
+ * thing is refused before anything is collected. What is deferred is only the
+ * lookup, which is the half that depends on where the command is running.
+ */
+export function declaredSecret(
+  source: Record<string, unknown>,
+  key: string,
+  options: ParseOptions,
+  field = key,
+): () => string {
+  const value = source[key];
+
+  if (typeof value === 'string') {
+    if (value.trim() === '') fail(field, `must be a non-empty string, not ${quote(value)}`, options);
+    return () => value;
+  }
+
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    fail(field, WRONG_SHAPE + quote(value), options);
+  }
+
+  const variable = (value as Record<string, unknown>)['env'];
+  if (typeof variable !== 'string' || variable.trim() === '') {
+    fail(`${field}.env`, WRONG_SHAPE + quote(variable), options);
+  }
+
+  return () => held(variable, field, options);
+}
+
+/** The one step {@link secret} and {@link declaredSecret} disagree about when to take. */
+function held(variable: string, field: string, options: ParseOptions): string {
+  const value = process.env[variable];
+  if (value === undefined || value.trim() === '') {
     fail(
       field,
       `names the environment variable ${quote(variable)}, and it is ` +
-        `${held === undefined ? 'not set' : 'empty'}. The config is right and the value is ` +
+        `${value === undefined ? 'not set' : 'empty'}. The config is right and the value is ` +
         'missing, so nothing was substituted here',
       options,
     );
   }
-  return held;
+  return value;
 }
 
 const WRONG_SHAPE =
