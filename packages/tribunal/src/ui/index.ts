@@ -14,6 +14,7 @@ export {
   CoverageLine,
   OriginsPanel,
   RegionOverlay,
+  RegionTable,
   ReviewApp,
   StabilityLine,
   SubjectHistory,

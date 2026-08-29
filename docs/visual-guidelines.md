@@ -49,10 +49,12 @@ standing on its own. Green indicates a positive state only; it does not compete
 with the active orange path. Blue, purple, cyan and rainbow gradients are
 outside the palette.
 
-This governs brand and illustration assets. The review surface in
-[`@variance-authority/tribunal`](../packages/tribunal) is on a light ground with
-its own slate and blue, chosen for a verdict UI before this palette existed, and
-does not follow it.
+This governs brand and illustration assets and the review surface in
+[`@variance-authority/tribunal`](../packages/tribunal) alike. The review surface
+spends the palette on a deep charcoal ground and adds two hues the brand assets
+have no use for: an amber and a red, for the two things only a verdict UI has to
+say — *this was not observed* and *this was refused*. Orange keeps its meaning
+there and is never spent on chrome: it marks the cause, and nothing else.
 
 ## Shape and line grammar
 

@@ -2648,6 +2648,7 @@
         "OriginsPanel": "function",
         "REVIEW_STYLES": "const",
         "RegionOverlay": "function",
+        "RegionTable": "function",
         "ReviewApp": "function",
         "ReviewAppProps": "interface",
         "ReviewClient": "interface",

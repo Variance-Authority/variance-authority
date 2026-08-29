@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useState, type ReactElement } from 'r
 import type { BuildDetail, BuildSummary, Decision, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { ChangelogPage, SubjectHistory } from './history.js';
+import { Mark } from './mark.js';
 import { OriginsPanel } from './origins.js';
 import { ReachPanel } from './reach.js';
 import { briefly, count, element, headline, number, segments, sentence, when } from './text.js';
@@ -71,7 +72,7 @@ import { Viewer } from './viewer.js';
  * one subject at a time and only when asked.
  */
 
-export { RegionOverlay, Viewer, modesFor, type ViewerMode } from './viewer.js';
+export { RegionOverlay, RegionTable, Viewer, modesFor, type ViewerMode } from './viewer.js';
 export { ChangelogEntries, ChangelogPage, ChurnLine, StabilityLine, SubjectHistory } from './history.js';
 export { ReachPanel, crossReach, type Crossing } from './reach.js';
 export {
@@ -150,7 +151,7 @@ export function ReviewApp({ client, reviewer, limit }: ReviewAppProps): ReactEle
   return (
     <div className="va-app">
       <header className="va-topbar">
-        <span className="va-brand" aria-hidden="true" />
+        <Mark />
         <span className="va-topbar-title">
           <strong>Variance Authority</strong>
           <span className="va-topbar-sub">

@@ -44,6 +44,7 @@ export function reviewPage(options: ReviewPageOptions): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#181b1d">
 <title>Variance Authority — review</title>
 <style>/* This document's own reset, which is why it is here and not in
    REVIEW_STYLES: an operator injects that sheet into a page this package did not

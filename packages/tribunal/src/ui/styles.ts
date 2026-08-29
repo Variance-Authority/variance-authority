@@ -24,14 +24,26 @@
  * — which is the review blindness this surface exists to refuse, arriving as a
  * layout instead of as a ranking.
  *
- * Colour is spent through tokens on `:root`, so the dark scheme re-decides values
- * and never rules. A second scheme that could move a box is a second chance to
- * disagree with the region coordinates the run measured.
+ * Colour is spent through tokens on `:root`, so a second scheme re-decides values
+ * and never rules. A scheme that could move a box is a second chance to disagree
+ * with the region coordinates the run measured.
+ *
+ * The ground is dark, and that is a decision rather than a default. A capture is
+ * the only thing on this page whose colour is evidence; every pixel of chrome
+ * around it is the room the evidence is read in, and a room that is brighter than
+ * the exhibit shifts what the exhibit looks like. `prefers-color-scheme: light`
+ * re-decides the same twenty-four values for a reader who asks for it.
+ *
+ * The palette is `docs/visual-guidelines.md` — deep, panel, ivory, quiet, warm,
+ * variance orange, signal green — spent here on a surface that also has to say
+ * *unknown* and *refused*, which brand assets never do. The font tokens name
+ * Inter and JetBrains Mono first and fall back to the system stacks: this sheet is
+ * handed over as text, so it can ask for a face and must not require one.
  */
 export const REVIEW_STYLES = `
-:root, .va-app { --va-bg: #f4f5f8; --va-surface: #ffffff; --va-sunken: #eceef3; --va-line: #e0e3ea; --va-line-firm: #c8cddb; --va-ink: #12151c; --va-ink-2: #4d5566; --va-ink-3: #79839a; --va-accent: #4f46e5; --va-accent-ink: #ffffff; --va-warn: #b45309; --va-warn-bg: #fdf0d5; --va-warn-ink: #713f12; --va-bad: #b91c1c; --va-bad-bg: #fde3e3; --va-bad-ink: #7f1d1d; --va-good: #047857; --va-good-bg: #d6f2e6; --va-good-ink: #064e3b; --va-info-bg: #dde7fd; --va-info-ink: #1e3a8a; --va-cause: #c2410c; --va-collateral: #64748b; --va-shade: rgba(17, 24, 39, 0.08); }
+:root, .va-app { --va-bg: #181b1d; --va-surface: #1e2224; --va-sunken: #181b1d; --va-line: #2f3437; --va-line-firm: #434a4d; --va-ink: #f3f4f6; --va-ink-2: #a8a09b; --va-ink-3: #8f8580; --va-accent: #ff4a19; --va-accent-ink: #181b1d; --va-warn: #e0a458; --va-warn-bg: #2a2118; --va-warn-ink: #f0c48a; --va-bad: #e5695c; --va-bad-bg: #2c1b18; --va-bad-ink: #f3a99e; --va-good: #7fa28c; --va-good-bg: #1a2420; --va-good-ink: #a8c9b5; --va-info-bg: #24282a; --va-info-ink: #d6d0cb; --va-cause: #ff4a19; --va-collateral: #8f8580; --va-shade: rgba(0, 0, 0, 0.45); --va-shade-firm: rgba(24, 27, 29, 0.82); --va-accent-soft: rgba(255, 74, 25, 0.14); --va-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --va-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
 
-.va-app { background: var(--va-bg); color: var(--va-ink); display: flex; flex-direction: column; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; height: 100dvh; line-height: 1.5; overflow: hidden; }
+.va-app { background: var(--va-bg); color: var(--va-ink); color-scheme: dark light; display: flex; flex-direction: column; font-family: var(--va-sans); font-size: 14px; height: 100dvh; line-height: 1.5; overflow: hidden; }
 /* The element reset, every rule of it wrapped in :where() so the whole block
    weighs nothing. Written plainly, a rule like .va-app h2 scores higher than any
    single-class rule below it, and the component that says what its own heading
@@ -45,7 +57,7 @@ export const REVIEW_STYLES = `
 :where(.va-app h2) { font-size: 0.95rem; letter-spacing: -0.005em; }
 :where(.va-app h3) { font-size: 1.05rem; letter-spacing: -0.005em; }
 :where(.va-app p) { margin: 0; }
-:where(.va-app code, .va-commit) { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; font-size: 0.85em; }
+:where(.va-app code, .va-commit) { font-family: var(--va-mono); font-size: 0.85em; }
 .va-num { font-variant-numeric: tabular-nums; }
 
 /* Same reasoning, and this is where it was actually caught: the rail item, the
@@ -66,7 +78,7 @@ export const REVIEW_STYLES = `
 .va-page { flex: 1; margin: 0 auto; max-width: 72rem; min-width: 0; padding: 1.5rem 1.75rem 4rem; }
 
 .va-topbar { align-items: center; background: var(--va-surface); border-bottom: 1px solid var(--va-line); display: flex; flex: none; gap: 0.75rem; padding: 0.7rem 1rem; }
-.va-brand { background: var(--va-accent); border-radius: 8px; flex: none; height: 26px; width: 26px; }
+.va-brand { color: var(--va-ink); flex: none; }
 .va-topbar-title { display: flex; flex-direction: column; line-height: 1.2; }
 .va-topbar-title strong { font-size: 0.95rem; }
 .va-topbar-sub { color: var(--va-ink-3); font-size: 0.78rem; }
@@ -75,7 +87,7 @@ export const REVIEW_STYLES = `
 .va-back { flex: none; }
 
 .va-nav { display: flex; gap: 0.35rem; }
-.va-nav button.va-current { background: var(--va-accent); border-color: var(--va-accent); color: var(--va-accent-ink); cursor: default; }
+.va-nav button.va-current { background: var(--va-accent-soft); border-color: var(--va-accent); color: var(--va-accent); cursor: default; }
 
 .va-pill { border-radius: 999px; flex: none; font-size: 0.75rem; font-weight: 600; padding: 0.15rem 0.6rem; white-space: nowrap; }
 .va-pill.va-warn { background: var(--va-warn-bg); color: var(--va-warn-ink); }
@@ -112,11 +124,11 @@ export const REVIEW_STYLES = `
 .va-rail-count { background: var(--va-sunken); border-radius: 999px; color: var(--va-ink-2); font-size: 0.7rem; letter-spacing: 0; padding: 0 0.4rem; }
 .va-rail-item { align-items: center; background: none; border: 1px solid transparent; border-radius: 8px; display: flex; gap: 0.55rem; margin-bottom: 0.1rem; padding: 0.45rem 0.55rem; text-align: left; width: 100%; }
 .va-rail-item:hover { background: var(--va-sunken); }
-.va-rail-item.va-current { background: var(--va-accent); border-color: var(--va-accent); color: var(--va-accent-ink); }
+.va-rail-item.va-current { background: var(--va-accent-soft); border-color: var(--va-accent); }
 .va-rail-body { min-width: 0; }
 .va-rail-name { display: block; font-size: 0.86rem; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .va-rail-note { color: var(--va-ink-3); display: block; font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.va-rail-item.va-current .va-rail-note { color: var(--va-accent-ink); }
+.va-rail-item.va-current .va-rail-note { color: var(--va-ink-2); }
 .va-dot { border-radius: 50%; flex: none; height: 8px; width: 8px; }
 .va-dot.va-changed { background: var(--va-warn); }
 .va-dot.va-new { background: var(--va-accent); }
@@ -129,8 +141,8 @@ export const REVIEW_STYLES = `
 .va-mark.va-approved { color: var(--va-good); }
 .va-mark.va-rejected { color: var(--va-bad); }
 
-.va-stage { background: var(--va-bg); flex: 1; }
-.va-subject { display: flex; flex: 1; min-height: 0; }
+.va-stage { background: var(--va-bg); flex: 1; min-width: 0; }
+.va-subject { display: flex; flex: 1; min-height: 0; min-width: 0; }
 .va-subject-head { align-items: center; display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.35rem; }
 .va-verdict { border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; padding: 0.15rem 0.55rem; text-transform: uppercase; }
 .va-verdict.va-changed { background: var(--va-warn-bg); color: var(--va-warn-ink); }
@@ -233,34 +245,72 @@ export const REVIEW_STYLES = `
 .va-variation.va-unlinked .va-axis { background: var(--va-bad-bg); color: var(--va-bad-ink); }
 .va-how { color: var(--va-ink-3); font-size: 0.75rem; }
 
-.va-modes { background: var(--va-sunken); border-radius: 9px; display: inline-flex; gap: 0.15rem; margin: 0.85rem 0 0.6rem; padding: 0.2rem; }
-.va-mode { background: none; border: 1px solid transparent; border-radius: 7px; font-size: 0.82rem; padding: 0.2rem 0.65rem; }
-.va-mode.va-current { background: var(--va-surface); border-color: var(--va-line); box-shadow: 0 1px 2px var(--va-shade); font-weight: 600; }
+/* The bar over the stage: what is being compared, how large it is drawn, and
+   which finding is being looked at. Three groups rather than one row of
+   everything, because they are asked in that order and answered independently. */
+.va-viewer-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.85rem 0 0.6rem; }
+.va-modes, .va-zooms { background: var(--va-sunken); border-radius: 9px; display: inline-flex; gap: 0.15rem; padding: 0.2rem; }
+.va-mode { background: none; border: 1px solid transparent; border-radius: 7px; font-family: var(--va-mono); font-size: 0.72rem; letter-spacing: 0.08em; padding: 0.25rem 0.6rem; text-transform: uppercase; }
+.va-mode.va-current { background: var(--va-accent-soft); border-color: var(--va-accent); color: var(--va-accent); font-weight: 650; }
+.va-steps { align-items: center; display: inline-flex; gap: 0.4rem; margin-left: auto; }
+.va-steps button { font-size: 0.9rem; line-height: 1; padding: 0.25rem 0.55rem; }
+.va-steps span { color: var(--va-ink-3); font-family: var(--va-mono); font-size: 0.75rem; }
 
-.va-frame { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 10px; display: inline-block; margin: 0; position: relative; }
-/* height: auto, because a deferred raster carries its own dimensions as
-   attributes, and max-width alone would scale the width and keep the declared
-   height — every candidate squashed to the aspect ratio of nothing. */
-.va-frame img { display: block; height: auto; image-rendering: pixelated; max-width: 100%; }
-/* Pinned to the corner rather than inset: 0 — stretched between top and bottom,
-   an auto height fills the frame, and the candidate would be drawn at the
-   baseline's height whenever the two differ, which is often the change. */
-.va-frame .va-overlaid { left: 0; position: absolute; top: 0; }
-.va-swipe .va-swipe-top { inset: 0 auto 0 0; overflow: hidden; position: absolute; }
-.va-swipe .va-swipe-top img { max-width: none; }
+/* The stage is the pane; the plate is the capture inside it, at whatever
+   magnification was asked for. Two boxes rather than one, because a zoom that
+   grew the pane would push the decision buttons off the screen — the thing a
+   reviewer came here to press. */
+.va-loupe { background: var(--va-sunken); border: 1px solid var(--va-line); border-radius: 10px; max-height: 70vh; max-width: 100%; overflow: auto; overscroll-behavior: contain; position: relative; }
+.va-plate { background: var(--va-surface); margin: 0 auto; position: relative; width: 100%; }
+/* Every layer fills the plate, so the baseline and the candidate are always at
+   one magnification. A wipe between two scales is not a comparison — it reads as
+   a change everywhere the seam happens to fall. height: auto, because a deferred
+   raster carries its own dimensions as attributes and a width alone would keep
+   the declared height, squashing every candidate to the aspect ratio of nothing. */
+.va-plate img { display: block; height: auto; image-rendering: pixelated; width: 100%; }
+/* The baseline sits under the candidate at the corner rather than inset: 0 —
+   stretched between top and bottom it would be drawn at the candidate's height
+   whenever the two differ, which is often the change itself. */
+.va-plate .va-under { left: 0; position: absolute; top: 0; }
+.va-plate-tag { background: var(--va-shade-firm); border-radius: 5px; color: var(--va-ink); font-family: var(--va-mono); font-size: 0.68rem; padding: 0.15rem 0.4rem; pointer-events: none; position: absolute; right: 0.4rem; top: 0.4rem; }
+
+/* The seam is the control, not a slider parked somewhere else on the page: it
+   spans the plate, so the thumb sits over the boundary it moves, and it is a
+   real range input, so it answers to the arrow keys as well as to a drag. */
+.va-seam { -webkit-appearance: none; appearance: none; background: none; border: 0; border-radius: 0; display: block; height: 22px; margin-bottom: -22px; padding: 0; position: sticky; top: 0; width: 100%; z-index: 3; }
+.va-seam::-webkit-slider-thumb { -webkit-appearance: none; background: var(--va-accent); border-radius: 2px; height: 22px; width: 4px; }
+.va-seam::-moz-range-thumb { background: var(--va-accent); border: 0; border-radius: 2px; height: 22px; width: 4px; }
+.va-seam-line { background: var(--va-accent); bottom: 0; pointer-events: none; position: absolute; top: 0; width: 1px; }
+.va-blend { accent-color: var(--va-accent); display: block; margin-top: 0.6rem; width: 100%; }
+
 .va-side-by-side { display: flex; gap: 1rem; }
 .va-side-by-side figure { margin: 0; min-width: 0; }
-.va-side-by-side figcaption { color: var(--va-ink-3); font-size: 0.75rem; letter-spacing: 0.07em; margin-bottom: 0.3rem; text-transform: uppercase; }
+.va-side-by-side figcaption { color: var(--va-ink-3); font-family: var(--va-mono); font-size: 0.68rem; letter-spacing: 0.09em; margin-bottom: 0.3rem; text-transform: uppercase; }
 .va-side-by-side img { border: 1px solid var(--va-line); border-radius: 10px; height: auto; image-rendering: pixelated; max-width: 100%; }
-.va-viewer input[type="range"] { display: block; margin-top: 0.6rem; width: min(28rem, 100%); }
 .va-pixels { color: var(--va-ink-3); font-size: 0.82rem; margin-top: 0.5rem; }
 
 .va-regions { inset: 0; pointer-events: none; position: absolute; }
-.va-region { position: absolute; }
+.va-region { pointer-events: auto; position: absolute; }
 .va-region.va-cause { outline: 2px solid var(--va-cause); }
 .va-region.va-collateral { outline: 1px dashed var(--va-collateral); }
-.va-region-label { background: var(--va-cause); border-radius: 3px; color: #ffffff; font-size: 0.68rem; font-weight: 600; left: 0; padding: 0 0.25rem; position: absolute; top: -1.15rem; white-space: nowrap; }
-.va-region.va-collateral .va-region-label { background: var(--va-collateral); }
+/* Lit from either side: the rectangle and its row are the same finding, and a
+   reviewer joining them by counting down a table is doing the work twice. */
+.va-region.va-lit { background: var(--va-accent-soft); outline-width: 3px; }
+.va-region-label { background: var(--va-cause); border-radius: 3px; color: var(--va-accent-ink); font-family: var(--va-mono); font-size: 0.65rem; font-weight: 600; left: 0; padding: 0 0.25rem; position: absolute; top: -1.15rem; white-space: nowrap; }
+.va-region.va-collateral .va-region-label { background: var(--va-collateral); color: var(--va-bg); }
+
+/* The column a rectangle cannot draw. A box says *here*; only the table says
+   which file to open, which is what lets a reviewer hand the change on rather
+   than decide it themselves. */
+.va-region-table { border-collapse: collapse; font-size: 0.82rem; margin-top: 0.75rem; width: 100%; }
+.va-region-table th { border-bottom: 1px solid var(--va-line-firm); color: var(--va-ink-3); font-family: var(--va-mono); font-size: 0.65rem; font-weight: 600; letter-spacing: 0.09em; padding: 0.3rem 0.5rem; text-align: left; text-transform: uppercase; }
+.va-region-table td { border-bottom: 1px solid var(--va-line); padding: 0.3rem 0.5rem; vertical-align: top; }
+.va-region-table tr.va-lit td { background: var(--va-accent-soft); }
+.va-region-table .va-num-col { text-align: right; }
+.va-region-jump { align-items: baseline; background: none; border: 0; border-radius: 0; display: flex; gap: 0.4rem; padding: 0; text-align: left; }
+.va-region-where { color: var(--va-ink-3); font-size: 0.75rem; }
+.va-dot.va-cause { background: var(--va-cause); }
+.va-dot.va-collateral { background: var(--va-collateral); }
 
 .va-filter { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
 
@@ -309,7 +359,7 @@ export const REVIEW_STYLES = `
   .va-reach .va-quad { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root, .va-app { --va-bg: #0c0f16; --va-surface: #141922; --va-sunken: #1b2130; --va-line: #232a38; --va-line-firm: #343d4e; --va-ink: #e7ecf4; --va-ink-2: #a7b1c4; --va-ink-3: #79839a; --va-accent: #6366f1; --va-accent-ink: #ffffff; --va-warn: #f0b429; --va-warn-bg: #3b2c0a; --va-warn-ink: #fbe0a2; --va-bad: #f87171; --va-bad-bg: #3a1a1a; --va-bad-ink: #fecaca; --va-good: #34d399; --va-good-bg: #0e3229; --va-good-ink: #a7f3d0; --va-info-bg: #1a2a45; --va-info-ink: #c7dbff; --va-cause: #fb923c; --va-collateral: #94a3b8; --va-shade: rgba(0, 0, 0, 0.5); }
+@media (prefers-color-scheme: light) {
+  :root, .va-app { --va-bg: #f3f4f6; --va-surface: #ffffff; --va-sunken: #e9eaec; --va-line: #d8d6d3; --va-line-firm: #b8b3ae; --va-ink: #181b1d; --va-ink-2: #4c4844; --va-ink-3: #756d67; --va-accent: #d83a13; --va-accent-ink: #ffffff; --va-warn: #8a5a12; --va-warn-bg: #f7ecd9; --va-warn-ink: #5c3c08; --va-bad: #b03a2b; --va-bad-bg: #f8e3df; --va-bad-ink: #7a2418; --va-good: #46705a; --va-good-bg: #dfece4; --va-good-ink: #2b4a38; --va-info-bg: #ecebe9; --va-info-ink: #3d3935; --va-cause: #d83a13; --va-collateral: #756d67; --va-shade: rgba(24, 27, 29, 0.10); --va-shade-firm: rgba(243, 244, 246, 0.88); --va-accent-soft: rgba(216, 58, 19, 0.10); }
 }
 `;

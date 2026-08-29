@@ -1,32 +1,65 @@
-import { useMemo, useState, type CSSProperties, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
+import { RegionOverlay, RegionTable } from './regions.js';
 import { count, magnitude, number } from './text.js';
 
 /**
- * Looking at the change: the modes, the region overlay, and which of them a build
- * can actually offer.
+ * Looking at the change: the stage, the modes, and the zoom that makes any of it
+ * mean anything.
  *
  * Apart from [`review.tsx`](./review.tsx) because the two answer different
  * questions and are read in that order. The docket decides *what is worth looking
  * at* and is the part of this surface that refuses the category's habit;
  * everything here is the looking itself, and is reached only once that question
- * has been answered. It is also the only part of the surface with state of its
- * own — a mode and a wipe position — which is why none of it is needed to render
- * a build list.
+ * has been answered.
+ *
+ * Three positions this file exists to hold:
+ *
+ * **Every layer is drawn at one scale.** The plate has a width and each raster
+ * fills it, so the baseline and the candidate are always the same magnification.
+ * A wipe between two images at different scales is not a comparison; it is two
+ * pictures with a line between them, and it reads as a change everywhere the line
+ * happens to be.
+ *
+ * **Fit-to-width is a starting position, not the only one.** A route capture is
+ * 1280 pixels wide and arrives in a pane about half that, so a two-pixel shift is
+ * drawn at one pixel — under the resampler, which is to say not drawn. The whole
+ * reason the sheet refuses smoothing is so that a reviewer can go to 1:1 and see
+ * two pixels; without a zoom that refusal protects nothing.
+ *
+ * **A reviewer is taken to the finding.** The run measured where the differences
+ * are. On nine thousand pixels of route, asking somebody to scroll until they
+ * notice one is asking them to redo the measurement by eye — so the regions are
+ * a list you step through, and the stage scrolls to each.
  */
 
-export type ViewerMode = 'regions' | 'swipe' | 'onion' | 'side-by-side' | 'diff';
+export type ViewerMode = 'regions' | 'wipe' | 'blend' | 'blink' | 'side-by-side' | 'difference';
+
+/** `'fit'` scales the plate to the pane; a number is that multiple of 1:1. */
+type Zoom = 'fit' | 1 | 2 | 4;
+
+const ZOOMS: readonly Zoom[] = ['fit', 1, 2, 4];
 
 /**
- * The comparison, with the region overlay as the default view.
+ * What each mode is called on the button.
  *
- * The other modes are the category's and are kept because they are genuinely
- * useful for a change you already understand. The default is not one of them: a
- * reviewer arriving at a subject should first be told *which boxes moved and who
- * owns them*, because that is the question a screenshot cannot answer and the one
- * that decides whether the change is the one somebody meant to make.
+ * The union members are identifiers and two of them read as identifiers. A
+ * reviewer is not debugging this surface; nothing on it should ask them to
+ * translate.
  */
+const LABELS: Readonly<Record<ViewerMode, string>> = {
+  regions: 'regions',
+  wipe: 'wipe',
+  blend: 'blend',
+  blink: 'blink',
+  'side-by-side': 'side by side',
+  difference: 'difference',
+};
+
+/** Long enough to read either state, short enough that the eye holds both. */
+const BLINK_MS = 700;
+
 export function Viewer({
   client,
   build,
@@ -38,38 +71,129 @@ export function Viewer({
 }): ReactElement {
   const available = useMemo(() => modesFor(subject), [subject]);
   const [mode, setMode] = useState<ViewerMode>(available[0] ?? 'regions');
-  const [wipe, setWipe] = useState(50);
+  const [seam, setSeam] = useState(50);
+  const [blend, setBlend] = useState(50);
+  const [zoom, setZoom] = useState<Zoom>('fit');
+  const [focus, setFocus] = useState<number | null>(null);
+  const [flip, setFlip] = useState(true);
+  const [pull, setPull] = useState(0);
+  const stage = useRef<HTMLDivElement>(null);
+
+  // The alternation, driven here rather than by a keyframe: the stylesheet is
+  // pasted into somebody else's page and is held to hiding nothing, and a reader
+  // who never chose this mode should not have an animation running in it.
+  useEffect(() => {
+    if (mode !== 'blink') return;
+    const timer = setInterval(() => setFlip((was) => !was), BLINK_MS);
+    return () => clearInterval(timer);
+  }, [mode]);
 
   if (available.length === 0) {
     return <p className="va-note">This run kept no images for this subject.</p>;
   }
 
+  const size = subject.size;
   const url = (kind: 'before' | 'after' | 'diff'): string =>
     client.imageUrl(build, subject.subject, kind);
 
+  /**
+   * Centre a region in the pane.
+   *
+   * At fit the plate is smaller than the capture and there is nothing to scroll
+   * to, so this raises the zoom first — the request is *show me this*, and
+   * showing it at a third of size is answering a different question.
+   *
+   * The scroll itself is deferred to the effect below rather than done here.
+   * Raising the zoom changes the plate's height, and a scroll issued against the
+   * old height is clamped to it: from fit to 1:1 the plate shrinks by whatever the
+   * pane was scaling it, and the pane lands short of the region by that factor.
+   */
+  const jump = (index: number): void => {
+    if (subject.regions[index] === undefined || size === undefined) return;
+    setFocus(index);
+    if (zoom === 'fit') setZoom(1);
+    setPull((count) => count + 1);
+  };
+
+  useEffect(() => {
+    if (pull === 0 || focus === null) return;
+    const region = subject.regions[focus];
+    const pane = stage.current;
+    if (region === undefined || pane === null) return;
+    const at = zoom === 'fit' ? 1 : zoom;
+    pane.scrollTo({
+      left: Math.max(0, (region.x + region.width / 2) * at - pane.clientWidth / 2),
+      top: Math.max(0, (region.y + region.height / 2) * at - pane.clientHeight / 2),
+      behavior: 'smooth',
+    });
+    // Deliberately keyed on the count alone: two jumps to the same region are two
+    // requests, and the zoom this reads is already the one the plate was drawn at.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pull]);
+
+  const zoomable = size !== undefined;
+  /**
+   * Fit is a ceiling rather than a stretch. A 390-wide capture in a 700-wide pane
+   * has nothing to gain from being drawn at 700: the run refuses smoothing, so the
+   * only thing an upscale adds is blocks the render never had. Below its own width
+   * the plate shrinks to the pane; at or above it, it stops.
+   */
+  const plate: CSSProperties =
+    size === undefined
+      ? {}
+      : zoom === 'fit'
+        ? { maxWidth: `${String(size.width)}px` }
+        : { width: `${String(size.width * zoom)}px` };
+  const boxes =
+    mode === 'side-by-side' ? null : (
+      <RegionOverlay subject={subject} focus={focus} onFocus={setFocus} />
+    );
+
   return (
     <div className="va-viewer">
-      <p className="va-modes">
-        {available.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={option === mode ? 'va-mode va-current' : 'va-mode'}
-            onClick={() => setMode(option)}
-          >
-            {option}
-          </button>
-        ))}
-      </p>
-
-      {mode === 'regions' ? (
-        <figure className="va-frame">
-          {subject.has.after ? (
-            <Raster src={url('after')} alt={`${subject.subject} after`} size={subject.size} />
-          ) : null}
-          <RegionOverlay subject={subject} />
-        </figure>
-      ) : null}
+      <div className="va-viewer-bar">
+        <p className="va-modes">
+          {available.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={option === mode ? 'va-mode va-current' : 'va-mode'}
+              aria-pressed={option === mode}
+              onClick={() => setMode(option)}
+            >
+              {LABELS[option]}
+            </button>
+          ))}
+        </p>
+        {zoomable ? (
+          <p className="va-zooms">
+            {ZOOMS.map((option) => (
+              <button
+                key={String(option)}
+                type="button"
+                className={option === zoom ? 'va-mode va-current' : 'va-mode'}
+                aria-pressed={option === zoom}
+                onClick={() => setZoom(option)}
+              >
+                {option === 'fit' ? 'fit' : `${String(option)}×`}
+              </button>
+            ))}
+          </p>
+        ) : null}
+        {subject.regions.length > 0 ? (
+          <p className="va-steps">
+            <button type="button" onClick={() => jump(step(focus, subject.regions.length, -1))}>
+              ‹
+            </button>
+            <span className="va-num">
+              {focus === null ? '—' : String(focus + 1)} / {String(subject.regions.length)}
+            </span>
+            <button type="button" onClick={() => jump(step(focus, subject.regions.length, 1))}>
+              ›
+            </button>
+          </p>
+        ) : null}
+      </div>
 
       {mode === 'side-by-side' ? (
         <div className="va-side-by-side">
@@ -79,56 +203,61 @@ export function Viewer({
           </figure>
           <figure>
             <figcaption>this build</figcaption>
-            <Raster src={url('after')} alt={`${subject.subject} candidate`} size={subject.size} />
+            <Raster src={url('after')} alt={`${subject.subject} candidate`} size={size} />
           </figure>
         </div>
-      ) : null}
+      ) : (
+        <div className="va-loupe" ref={stage}>
+          <div className="va-plate" style={plate}>
+            {mode === 'wipe' ? (
+              <input
+                type="range"
+                className="va-seam"
+                min={0}
+                max={100}
+                value={seam}
+                aria-label="wipe between baseline and candidate"
+                onChange={(event) => setSeam(Number(event.target.value))}
+              />
+            ) : null}
+            {mode === 'difference' ? (
+              <Raster src={url('diff')} alt={`${subject.subject} difference mask`} />
+            ) : (
+              <>
+                {subject.has.before ? (
+                  <Raster
+                    className="va-under"
+                    src={url('before')}
+                    alt={`${subject.subject} baseline`}
+                  />
+                ) : null}
+                <Raster
+                  src={url('after')}
+                  alt={`${subject.subject} candidate`}
+                  size={size}
+                  style={over(mode, { seam, blend, flip })}
+                />
+              </>
+            )}
+            {boxes}
+            {mode === 'wipe' ? (
+              <span className="va-seam-line" aria-hidden="true" style={{ left: `${String(seam)}%` }} />
+            ) : null}
+            <span className="va-plate-tag">{showing(mode, { seam, blend, flip })}</span>
+          </div>
+        </div>
+      )}
 
-      {mode === 'swipe' ? (
-        <>
-          <figure className="va-frame va-swipe">
-            <Raster src={url('before')} alt={`${subject.subject} baseline`} />
-            <div className="va-swipe-top" style={{ width: `${String(wipe)}%` }}>
-              <Raster src={url('after')} alt={`${subject.subject} candidate`} />
-            </div>
-          </figure>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={wipe}
-            aria-label="wipe between baseline and candidate"
-            onChange={(event) => setWipe(Number(event.target.value))}
-          />
-        </>
-      ) : null}
-
-      {mode === 'onion' ? (
-        <>
-          <figure className="va-frame">
-            <Raster src={url('before')} alt={`${subject.subject} baseline`} />
-            <Raster
-              className="va-overlaid"
-              src={url('after')}
-              alt={`${subject.subject} candidate`}
-              style={{ opacity: wipe / 100 }}
-            />
-          </figure>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={wipe}
-            aria-label="fade between baseline and candidate"
-            onChange={(event) => setWipe(Number(event.target.value))}
-          />
-        </>
-      ) : null}
-
-      {mode === 'diff' ? (
-        <figure className="va-frame">
-          <Raster src={url('diff')} alt={`${subject.subject} difference mask`} />
-        </figure>
+      {mode === 'blend' ? (
+        <input
+          type="range"
+          className="va-blend"
+          min={0}
+          max={100}
+          value={blend}
+          aria-label="fade between baseline and candidate"
+          onChange={(event) => setBlend(Number(event.target.value))}
+        />
       ) : null}
 
       <p className="va-pixels">
@@ -145,8 +274,45 @@ export function Viewer({
           <> · fonts missing at render: {subject.missingFonts.join(', ')}</>
         )}
       </p>
+
+      <RegionTable subject={subject} focus={focus} onFocus={setFocus} onJump={jump} />
     </div>
   );
+}
+
+/**
+ * How the candidate is revealed, given the mode.
+ *
+ * One layer and one declaration, rather than a wrapper that clips: a clip path
+ * moves the seam without changing the box, so the candidate keeps its own height
+ * whatever the baseline underneath rendered to — which is frequently the change.
+ */
+function over(
+  mode: ViewerMode,
+  at: { readonly seam: number; readonly blend: number; readonly flip: boolean },
+): CSSProperties {
+  if (mode === 'wipe') return { clipPath: `inset(0 0 0 ${String(at.seam)}%)` };
+  if (mode === 'blend') return { opacity: at.blend / 100 };
+  if (mode === 'blink') return { opacity: at.flip ? 1 : 0 };
+  return {};
+}
+
+/** Which reading is on screen, said in the corner where a reviewer is looking. */
+function showing(
+  mode: ViewerMode,
+  at: { readonly seam: number; readonly blend: number; readonly flip: boolean },
+): string {
+  if (mode === 'wipe') return `baseline ◀ ${String(Math.round(at.seam))}% ▶ this build`;
+  if (mode === 'blend') return `${String(Math.round(at.blend))}% this build`;
+  if (mode === 'blink') return at.flip ? 'this build' : 'baseline';
+  if (mode === 'difference') return 'difference mask';
+  return 'this build';
+}
+
+/** The next region to visit, wrapping, from nothing at either end. */
+function step(focus: number | null, total: number, by: 1 | -1): number {
+  if (focus === null) return by === 1 ? 0 : total - 1;
+  return (focus + by + total) % total;
 }
 
 /**
@@ -193,43 +359,6 @@ function Raster({
 }
 
 /**
- * Region rectangles over the candidate, cause and collateral drawn apart.
- *
- * Positioned in percentages of the raster's own dimensions, which the build
- * carries, rather than of the rendered element. Measuring the image in the
- * browser would place every box correctly only after it had loaded, and wrongly
- * for the frame before that — and a box in the wrong place is worse than no box,
- * because it attributes a change to whatever it happens to land on.
- */
-export function RegionOverlay({ subject }: { readonly subject: SubjectView }): ReactElement | null {
-  const size = subject.size;
-  if (size === undefined || subject.regions.length === 0) return null;
-
-  return (
-    <div className="va-regions">
-      {subject.regions.map((region, index) => (
-        <span
-          key={`${String(region.x)}-${String(region.y)}-${String(index)}`}
-          className={region.cause ? 'va-region va-cause' : 'va-region va-collateral'}
-          style={{
-            left: `${String((region.x / size.width) * 100)}%`,
-            top: `${String((region.y / size.height) * 100)}%`,
-            width: `${String((region.width / size.width) * 100)}%`,
-            height: `${String((region.height / size.height) * 100)}%`,
-          }}
-        >
-          <span className="va-region-label">
-            {region.component ?? 'unattributed'}
-            {region.cause ? '' : ' (collateral)'}
-            {region.where === undefined ? '' : ` — ${region.where}`}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/**
  * Which comparisons this build can actually offer.
  *
  * Derived from what the run kept rather than offered unconditionally: a mode
@@ -241,8 +370,12 @@ export function modesFor(subject: SubjectView): readonly ViewerMode[] {
   if (subject.has.after && subject.size !== undefined && subject.regions.length > 0) {
     modes.push('regions');
   }
-  if (subject.has.before && subject.has.after) modes.push('swipe', 'onion', 'side-by-side');
-  if (subject.has.diff) modes.push('diff');
+  if (subject.has.before && subject.has.after) {
+    modes.push('wipe', 'blend', 'blink', 'side-by-side');
+  }
+  if (subject.has.diff) modes.push('difference');
   if (modes.length === 0 && subject.has.after) modes.push('regions');
   return modes;
 }
+
+export { RegionOverlay, RegionTable } from './regions.js';

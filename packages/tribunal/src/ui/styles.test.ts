@@ -21,12 +21,38 @@ const RULES: readonly Rule[] = [...REVIEW_STYLES.replace(/@media[\s\S]*?\n\}/g, 
   /^([^@{}\n]+)\{([^}]*)\}/gm,
 )].map((match) => ({ selector: match[1]!.trim(), body: match[2]!.trim() }));
 
-const DARK = /@media \(prefers-color-scheme: dark\) \{([\s\S]*?)\n\}/.exec(REVIEW_STYLES)?.[1] ?? '';
+const SCHEME =
+  /@media \(prefers-color-scheme: (?:dark|light)\) \{([\s\S]*?)\n\}/.exec(REVIEW_STYLES)?.[1] ??
+  '';
 
 describe('REVIEW_STYLES', () => {
   it('parses into rules, so nothing below passes by reading an empty list', () => {
     expect(RULES.length).toBeGreaterThan(30);
-    expect(DARK).not.toBe('');
+    expect(SCHEME).not.toBe('');
+  });
+
+  it('declares each selector once, so no rule silently reshapes another', () => {
+    // A stylesheet is append-only in practice and the last rule wins, so a name
+    // reused for a second purpose does not conflict — it quietly redresses
+    // whatever already had it. `.va-stage` was the subject column before it was
+    // the pane the plate scrolls in, and the column inherited a border, a corner
+    // radius and a 70vh ceiling on the way past.
+    const counted = new Map<string, number>();
+    for (const rule of RULES) counted.set(rule.selector, (counted.get(rule.selector) ?? 0) + 1);
+
+    expect([...counted].filter(([, times]) => times > 1).map(([selector]) => selector)).toEqual([]);
+  });
+
+  it('lets no column be widened by what is inside it', () => {
+    // A flex child sizes to its content unless it is told not to, and the content
+    // here is a 1280-pixel capture the reviewer asked to see at 1:1. Without this
+    // the columns grow to fit the plate, the app clips at the viewport, and the
+    // panel carrying the findings and the two decision buttons is pushed off the
+    // right edge at exactly the magnification somebody zoomed in to judge.
+    for (const selector of ['.va-subject', '.va-stage']) {
+      expect(RULES.find((rule) => rule.selector === selector)?.body).toContain('min-width: 0');
+    }
+    expect(RULES.find((rule) => rule.selector === '.va-loupe')?.body).toContain('max-width: 100%');
   });
 
   it('draws a cause and its collateral differently, not in two shades', () => {
@@ -52,9 +78,35 @@ describe('REVIEW_STYLES', () => {
     // back into smoothing.
     expect(renderings.length).toBeGreaterThan(1);
     for (const rule of renderings) expect(rule.body).toContain('image-rendering: pixelated');
-    for (const selector of ['.va-frame img', '.va-side-by-side img']) {
+    for (const selector of ['.va-plate img', '.va-side-by-side img']) {
       expect(RULES.find((rule) => rule.selector === selector)?.body).toContain('pixelated');
     }
+  });
+
+  it('keeps every layer of a comparison at one magnification', () => {
+    // Two rasters at two scales is not a comparison. It is two pictures with a
+    // line between them, and it reads as a change everywhere the line falls —
+    // which is what an escape from the plate's width on one layer produced.
+    const plate = RULES.find((rule) => rule.selector === '.va-plate img')?.body;
+
+    expect(plate).toContain('width: 100%');
+    for (const rule of RULES.filter((each) => each.selector.startsWith('.va-plate'))) {
+      expect(rule.body).not.toMatch(/max-width:\s*none/);
+      // And nothing inside the plate clips: the candidate is frequently the
+      // taller of the two, and a crop to the baseline's height would take the
+      // change itself off the bottom of the frame.
+      expect(rule.body).not.toMatch(/overflow:\s*hidden/);
+    }
+  });
+
+  it('rides the seam with the picture rather than parking it underneath', () => {
+    // Sticky inside the scrolling stage, and pulled back over the plate so it
+    // costs no height: the control that moves the boundary stays on the boundary,
+    // whatever the reviewer has scrolled to on nine thousand pixels of route.
+    const seam = RULES.find((rule) => rule.selector === '.va-seam')?.body;
+
+    expect(seam).toContain('position: sticky');
+    expect(seam).toContain('margin-bottom: -22px');
   });
 
   it('hides nothing, so injecting it can never remove a finding', () => {
@@ -101,18 +153,20 @@ describe('REVIEW_STYLES', () => {
     expect(RULES.find((rule) => rule.selector === '.va-body')?.body).toMatch(/min-height: 0/);
   });
 
-  it('re-decides only colour in the dark scheme', () => {
+  it('re-decides only colour in the second scheme', () => {
     // Declarations only — a trailing `;` is what separates one from the selector
     // it sits under, and the sheet writes one on every line.
-    const declarations = [...DARK.matchAll(/([a-z-]+)\s*:\s*([^;{}]+);/g)].map((match) => ({
+    const declarations = [...SCHEME.matchAll(/([a-z-]+)\s*:\s*([^;{}]+);/g)].map((match) => ({
       property: match[1]!,
       value: match[2]!.trim(),
     }));
 
     // Layout, weight and the cause/collateral distinction are decided once. A
     // second scheme that could move a box is a second chance to disagree with
-    // the region coordinates the run measured — so the dark scheme is allowed to
-    // re-decide the palette the rest of the sheet spends, and nothing else.
+    // the region coordinates the run measured — so the alternate scheme is
+    // allowed to re-decide the palette the rest of the sheet spends, and nothing
+    // else. Which scheme is the alternate is a design decision and moves; that
+    // only one of them decides anything but colour does not.
     expect(declarations.length).toBeGreaterThan(5);
     for (const { property, value } of declarations) {
       expect(property).toMatch(/color$|^background$|^--va-/);
