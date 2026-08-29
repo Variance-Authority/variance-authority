@@ -202,6 +202,8 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
   const after = optionalText(row, 'after_key', what);
   const width = row['candidate_width'];
   const height = row['candidate_height'];
+  const wasWide = row['baseline_width'];
+  const wasTall = row['baseline_height'];
 
   return {
     subject: text(row, 'subject', what),
@@ -226,6 +228,9 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
       ? { signals: JSON.parse(signals) as ObservationRecord['signals'] }
       : {}),
     ...(typeof width === 'number' && typeof height === 'number' ? { size: { width, height } } : {}),
+    ...(typeof wasWide === 'number' && typeof wasTall === 'number'
+      ? { baseline: { width: wasWide, height: wasTall } }
+      : {}),
   };
 }
 

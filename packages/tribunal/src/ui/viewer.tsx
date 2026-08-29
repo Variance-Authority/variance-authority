@@ -57,6 +57,9 @@ const LABELS: Readonly<Record<ViewerMode, string>> = {
   difference: 'difference',
 };
 
+/** A raster's own pixels — never a rendered size, which the zoom decides. */
+type Size = { readonly width: number; readonly height: number };
+
 /** Long enough to read either state, short enough that the eye holds both. */
 const BLINK_MS = 700;
 
@@ -79,6 +82,18 @@ export function Viewer({
   const [pull, setPull] = useState(0);
   const [still] = useState(calm);
   const stage = useRef<HTMLDivElement>(null);
+
+  /**
+   * The frame both readings are drawn in.
+   *
+   * The union of the two captures, which is what the comparison itself measured
+   * in — it pads to the union box, so the regions are already in these
+   * coordinates. Drawing each image at its own share of this box is the whole
+   * point: a baseline stretched to the candidate's width is a width change
+   * resampled into a hairline, and a width change is one of the largest things
+   * that can happen to a page.
+   */
+  const box = union(subject.size, subject.baseline);
 
   // The alternation, driven here rather than by a keyframe: the stylesheet is
   // pasted into somebody else's page and is held to hiding nothing, and a reader
@@ -140,28 +155,35 @@ export function Viewer({
    * pane was scaling it, and the pane lands short of the region by that factor.
    */
   const jump = (index: number): void => {
-    if (subject.regions[index] === undefined || size === undefined) return;
+    if (subject.regions[index] === undefined || box === undefined) return;
     setFocus(index);
     if (zoom === 'fit') setZoom(1);
     setPull((count) => count + 1);
   };
 
-  const zoomable = size !== undefined;
+  const zoomable = box !== undefined;
   /**
    * Fit is a ceiling rather than a stretch. A 390-wide capture in a 700-wide pane
    * has nothing to gain from being drawn at 700: the run refuses smoothing, so the
    * only thing an upscale adds is blocks the render never had. Below its own width
    * the plate shrinks to the pane; at or above it, it stops.
+   *
+   * The ratio is declared rather than left to the images, because the images are
+   * taken out of flow the moment there are two of them at different sizes — and a
+   * plate with no height is a plate the region boxes have nothing to sit on.
    */
   const plate: CSSProperties =
-    size === undefined
+    box === undefined
       ? {}
-      : zoom === 'fit'
-        ? { maxWidth: `${String(size.width)}px` }
-        : { width: `${String(size.width * zoom)}px` };
+      : {
+          aspectRatio: `${String(box.width)} / ${String(box.height)}`,
+          ...(zoom === 'fit'
+            ? { maxWidth: `${String(box.width)}px` }
+            : { width: `${String(box.width * zoom)}px` }),
+        };
   const boxes =
     mode === 'side-by-side' ? null : (
-      <RegionOverlay subject={subject} focus={focus} onFocus={setFocus} />
+      <RegionOverlay subject={subject} box={box} focus={focus} onFocus={setFocus} />
     );
 
   return (
@@ -196,6 +218,20 @@ export function Viewer({
           </p>
         ) : null}
         <p className="va-showing">{showing(mode, { seam, blend, flip })}</p>
+        {size === undefined ? null : (
+          <p className="va-measure" title="the candidate’s own pixels, which 1× draws one for one">
+            {number(size.width)} × {number(size.height)}
+            {subject.baseline === undefined ||
+            (subject.baseline.width === size.width && subject.baseline.height === size.height) ? (
+              ''
+            ) : (
+              <span className="va-resized">
+                {' '}
+                · was {number(subject.baseline.width)} × {number(subject.baseline.height)}
+              </span>
+            )}
+          </p>
+        )}
         {subject.regions.length > 0 ? (
           <p className="va-steps">
             <button type="button" onClick={() => jump(step(focus, subject.regions.length, -1))}>
@@ -224,7 +260,7 @@ export function Viewer({
         </div>
       ) : (
         <div className="va-loupe" ref={stage}>
-          <div className="va-plate" style={plate}>
+          <div className={box === undefined ? 'va-plate' : 'va-plate va-boxed'} style={plate}>
             {mode === 'wipe' ? (
               <input
                 type="range"
@@ -237,6 +273,8 @@ export function Viewer({
               />
             ) : null}
             {mode === 'difference' ? (
+              // Already in the union's coordinates: the mask is what the
+              // comparison drew, on the box it padded both captures to.
               <Raster src={url('diff')} alt={`${subject.subject} difference mask`} />
             ) : (
               <>
@@ -245,13 +283,14 @@ export function Viewer({
                     className="va-under"
                     src={url('before')}
                     alt={`${subject.subject} baseline`}
+                    style={share(subject.baseline, box)}
                   />
                 ) : null}
                 <Raster
                   src={url('after')}
                   alt={`${subject.subject} candidate`}
                   size={size}
-                  style={over(mode, { seam, blend, flip })}
+                  style={{ ...share(size, box), ...over(mode, { seam, blend, flip }) }}
                 />
               </>
             )}
@@ -320,6 +359,33 @@ function over(
   if (mode === 'blend') return { opacity: at.blend / 100 };
   if (mode === 'blink') return { opacity: at.flip ? 1 : 0 };
   return {};
+}
+
+/** The box that contains both captures, when either of them is known. */
+function union(
+  candidate: Size | undefined,
+  baseline: Size | undefined,
+): Size | undefined {
+  if (candidate === undefined) return baseline;
+  if (baseline === undefined) return candidate;
+  return {
+    width: Math.max(candidate.width, baseline.width),
+    height: Math.max(candidate.height, baseline.height),
+  };
+}
+
+/**
+ * One layer's share of the plate, as a percentage.
+ *
+ * A percentage rather than a pixel width so that nothing here has to know the
+ * magnification: the plate is sized once and every layer scales with it. Absent
+ * when this layer's own size was never recorded, which leaves the stylesheet's
+ * `width: 100%` — the old behaviour, and the honest one, since a layer nobody
+ * measured cannot be placed against one that was.
+ */
+function share(own: Size | undefined, box: Size | undefined): CSSProperties | undefined {
+  if (own === undefined || box === undefined || own.width === box.width) return undefined;
+  return { width: `${String((own.width / box.width) * 100)}%` };
 }
 
 /**

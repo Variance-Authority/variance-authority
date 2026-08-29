@@ -83,6 +83,7 @@ export async function ingestBuild(
   for (const [index, observation] of report.observations.entries()) {
     const keys = written[index]?.keys ?? {};
     const after = images[observation.subject]?.after;
+    const before = images[observation.subject]?.before;
     statements.push(
       db
         .prepare(
@@ -90,8 +91,9 @@ export async function ingestBuild(
              (project, build, subject, verdict, because, changed_pixels, regions, truncated,
               missing_fonts, findings, signals, before_key, after_key, diff_key,
               candidate_document_digest, candidate_width, candidate_height,
-              candidate_missing_fonts, candidate_accessibility)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              candidate_missing_fonts, candidate_accessibility,
+              baseline_width, baseline_height)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           project,
@@ -118,6 +120,10 @@ export async function ingestBuild(
           after?.height ?? null,
           after === undefined ? null : JSON.stringify(after.missingFonts),
           after?.accessibility === undefined ? null : JSON.stringify(after.accessibility),
+          // Null when the push could not read the baseline's header. Not the
+          // candidate's numbers: a guess here is a width change made invisible.
+          before?.width ?? null,
+          before?.height ?? null,
         ),
     );
   }

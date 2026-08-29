@@ -220,10 +220,102 @@ describe('the stage is a comparison rather than a picture of one', () => {
     // wipe compared geometry that does not correspond — a change everywhere the
     // seam happened to fall.
     const markup = renderToStaticMarkup(<Viewer client={CLIENT} build="7" subject={shifted} />);
-    const plate = /<div class="va-plate"[^>]*>([\s\S]*)<\/div>/.exec(markup)?.[1] ?? '';
+    const plate = /<div class="va-plate[^"]*"[^>]*>([\s\S]*)<\/div>/.exec(markup)?.[1] ?? '';
 
     expect(plate.match(/<img/g)).toHaveLength(2);
     expect(markup).not.toContain('va-swipe-top');
+  });
+
+  it('draws each reading at its own share when the two are not the same size', () => {
+    // The change other tools in this category lose: a page that got wider. Both
+    // layers stretched to one box makes an 80-pixel resize into a hairline at the
+    // edge, and every mode reads as "identical apart from the margin".
+    const resized = renderToStaticMarkup(
+      <Viewer
+        client={CLIENT}
+        build="7"
+        subject={subject({
+          size: { width: 1280, height: 8868 },
+          baseline: { width: 1200, height: 8868 },
+          regions: shifted.regions,
+        })}
+      />,
+    );
+
+    // The plate is the union of the two, and the narrower reading takes its own
+    // share of it — 1200/1280 — rather than being drawn to the frame.
+    expect(resized).toContain('aspect-ratio:1280 / 8868');
+    expect(resized).toContain('width:93.75%');
+  });
+
+  it('does not resize either reading when both are the size the run measured', () => {
+    const same = renderToStaticMarkup(
+      <Viewer
+        client={CLIENT}
+        build="7"
+        subject={subject({
+          size: { width: 1280, height: 8868 },
+          baseline: { width: 1280, height: 8868 },
+          regions: shifted.regions,
+        })}
+      />,
+    );
+
+    // No layer opts out of the frame, because neither has to: the stylesheet
+    // draws both to the plate and the plate is the size they agree on. The
+    // region boxes are percentages too, so this asks the images specifically.
+    for (const tag of same.match(/<img[^>]*>/g) ?? []) expect(tag).not.toContain('width:');
+    expect(same).toContain('aspect-ratio:1280 / 8868');
+  });
+
+  it('says what one to one is, and says when the baseline was another shape', () => {
+    // The number the zoom buttons are relative to, which is otherwise something a
+    // reviewer infers. And when the two differ, the difference is said in words
+    // rather than left to be spotted.
+    const grew = renderToStaticMarkup(
+      <Viewer
+        client={CLIENT}
+        build="7"
+        subject={subject({
+          size: { width: 1280, height: 8868 },
+          baseline: { width: 1200, height: 8868 },
+        })}
+      />,
+    );
+    const steady = renderToStaticMarkup(
+      <Viewer
+        client={CLIENT}
+        build="7"
+        subject={subject({
+          size: { width: 1280, height: 8868 },
+          baseline: { width: 1280, height: 8868 },
+        })}
+      />,
+    );
+
+    expect(grew).toContain('1,280 × 8,868');
+    expect(grew).toContain('was 1,200 × 8,868');
+    expect(steady).toContain('1,280 × 8,868');
+    expect(steady).not.toContain('was ');
+  });
+
+  it('places the boxes in the frame the comparison measured, not the candidate’s', () => {
+    // Regions come from the diff, and a diff pads both captures to their union.
+    // Scaling them by the candidate's width puts every box short by the
+    // difference — and a box in the wrong place attributes a change to whatever
+    // it lands on, which is worse than no box at all.
+    const markup = renderToStaticMarkup(
+      <RegionOverlay
+        subject={subject({
+          size: { width: 100, height: 100 },
+          regions: [{ x: 50, y: 0, width: 10, height: 10, pixels: 4, cause: true }],
+        })}
+        box={{ width: 200, height: 100 }}
+      />,
+    );
+
+    expect(markup).toContain('left:25%');
+    expect(markup).not.toContain('left:50%');
   });
 
   it('offers a magnification only where the run measured the candidate', () => {
@@ -266,7 +358,7 @@ describe('the stage is a comparison rather than a picture of one', () => {
     // land somewhere else, and a box in the wrong place attributes the change to
     // whatever it lands on.
     const markup = renderToStaticMarkup(<Viewer client={CLIENT} build="7" subject={shifted} />);
-    const plate = /<div class="va-plate"[^>]*>([\s\S]*)<\/div>/.exec(markup)?.[1] ?? '';
+    const plate = /<div class="va-plate[^"]*"[^>]*>([\s\S]*)<\/div>/.exec(markup)?.[1] ?? '';
 
     expect(markup).toContain('va-loupe');
     expect(plate).toContain('va-regions');

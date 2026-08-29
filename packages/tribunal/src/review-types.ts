@@ -52,7 +52,19 @@ export interface SubjectImages {
     readonly missingFonts: readonly string[];
     readonly accessibility?: AccessibilitySnapshot;
   };
-  readonly before?: CandidateImage;
+  /**
+   * The baseline this run compared against, with its own dimensions when they
+   * could be read.
+   *
+   * Optional, and absent means *not measured* — never *the same size as the
+   * candidate*. That assumption is the thing this field exists to stop: a
+   * baseline drawn to the candidate's box is a width change resampled out of
+   * existence, on the one screen where somebody decides whether it is allowed.
+   */
+  readonly before?: CandidateImage & {
+    readonly width?: number;
+    readonly height?: number;
+  };
   readonly diff?: CandidateImage;
 }
 
@@ -129,6 +141,15 @@ export interface SubjectView {
    * place for one frame before that.
    */
   readonly size?: { readonly width: number; readonly height: number };
+  /**
+   * The baseline's own dimensions, when the run measured them.
+   *
+   * Separate from {@link SubjectView.size} rather than folded into it, because
+   * the two being different is a finding. A viewer that had only one pair would
+   * have to draw both layers to it, and a capture that grew by 40 pixels of
+   * width would read as identical everywhere except a hairline at the edge.
+   */
+  readonly baseline?: { readonly width: number; readonly height: number };
   /** `true` when the candidate carries the sidecar an approval would promote. */
   readonly approvable: boolean;
   readonly decision: DecisionRecord | null;

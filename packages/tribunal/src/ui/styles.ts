@@ -279,6 +279,12 @@ export const REVIEW_STYLES = `
    stretched between top and bottom it would be drawn at the candidate's height
    whenever the two differ, which is often the change itself. */
 .va-plate .va-under { left: 0; position: absolute; top: 0; }
+/* Both layers leave the flow the moment the two captures are different shapes:
+   the plate's height then comes from the union it declares, not from whichever
+   image happens to be in flow — which would crop the taller one. */
+.va-plate.va-boxed img { left: 0; position: absolute; top: 0; }
+.va-measure { color: var(--va-ink-3); font-family: var(--va-mono); font-size: 0.72rem; margin: 0; }
+.va-measure .va-resized { color: var(--va-accent); }
 .va-showing { color: var(--va-ink-2); font-family: var(--va-mono); font-size: 0.72rem; margin: 0 0 0 0.2rem; }
 
 /* The seam is the control, not a slider parked somewhere else on the page: it

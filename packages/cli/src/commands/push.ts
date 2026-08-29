@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { AccessibilitySnapshot } from '@variance-authority/core';
+import { pngSize } from '@variance-authority/png';
 import type { ReviewConfig } from '../config.js';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
@@ -118,7 +119,14 @@ export async function push(options: PushOptions): Promise<PushResult> {
         withheld.push({ subject, kind, because: bytes.because });
         continue;
       }
-      entry[kind] = { bytes: bytes.value };
+      // The baseline's dimensions, read from its own header rather than assumed
+      // from the candidate's. A capture that changed width *is* the change, and
+      // a viewer handed one size for both layers draws them to the same box and
+      // resamples that change away — at exactly the moment it is largest. Read
+      // here rather than server-side because the bytes are already in hand;
+      // absent when the header does not read, which is not a size of zero.
+      const size = kind === 'before' ? pngSize(bytes.value) : null;
+      entry[kind] = { bytes: bytes.value.toString('base64'), ...size };
       counted[kind] += 1;
     }
 
@@ -186,9 +194,9 @@ export async function push(options: PushOptions): Promise<PushResult> {
 type Sent<Value> = { readonly ok: true; readonly value: Value } | { readonly ok: false; readonly because: string };
 
 /** Base64 of one image, or why it is not going. */
-async function bytesOf(read: (path: string) => Promise<Buffer>, path: string): Promise<Sent<string>> {
+async function bytesOf(read: (path: string) => Promise<Buffer>, path: string): Promise<Sent<Buffer>> {
   try {
-    return { ok: true, value: (await read(path)).toString('base64') };
+    return { ok: true, value: await read(path) };
   } catch (error) {
     return { ok: false, because: `${path} could not be read: ${messageOf(error)}` };
   }
@@ -233,7 +241,7 @@ async function candidate(
   return {
     ok: true,
     value: {
-      bytes: bytes.value,
+      bytes: bytes.value.toString('base64'),
       documentDigest: sidecar.documentDigest,
       width: sidecar.width,
       height: sidecar.height,

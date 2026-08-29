@@ -44,6 +44,25 @@ const SIDECAR = JSON.stringify({
   missingFonts: [],
 });
 
+/**
+ * A PNG's first 24 bytes: signature, then the IHDR length, type and dimensions.
+ *
+ * Only the header, because only the header is read — the codec lives in
+ * `@variance-authority/png` and is tested against real files there. Writing a
+ * whole image here would mean this package installing an encoder to assert that
+ * a push forwards two numbers.
+ */
+function header(width: number, height: number): Buffer {
+  const bytes = Buffer.alloc(24);
+  bytes.writeUInt32BE(0x89504e47, 0);
+  bytes.writeUInt32BE(0x0d0a1a0a, 4);
+  bytes.writeUInt32BE(13, 8);
+  bytes.write('IHDR', 12, 'ascii');
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
+}
+
 /** A disk holding exactly what it is given, and nothing else. */
 function disk(files: Record<string, string>) {
   return async (path: string): Promise<Buffer> => {
@@ -136,6 +155,64 @@ describe('putting a finished run in front of a reviewer', () => {
     expect(images['before']).toEqual({ bytes: Buffer.from('BEFORE', 'utf8').toString('base64') });
     expect(result.images).toEqual({ after: 1, before: 1, diff: 1 });
     expect(result.withheld).toEqual([]);
+  });
+
+  it('measures the baseline it is sending, because its size is sometimes the change', async () => {
+    // The candidate's dimensions come from a sidecar the run wrote. The baseline
+    // has no sidecar — it is a file that arrived from a previous run, possibly a
+    // previous version of this tool — so its size is read from its own header.
+    // Without it a viewer has one pair of numbers for two images and draws both
+    // to it, which turns a page that got 80 pixels wider into a hairline.
+    const service = surface();
+    const baseline = header(1200, 8868);
+
+    await push(
+      options({
+        report: report({ after: 'images/card.after.png', before: 'images/card.before.png' }),
+        deps: {
+          fetch: service.fetch,
+          read: async (path: string): Promise<Buffer> => {
+            if (path === '/out/images/card.before.png') return baseline;
+            if (path === '/out/images/card.after.json') return Buffer.from(SIDECAR, 'utf8');
+            return Buffer.from('AFTER', 'utf8');
+          },
+        },
+      }),
+    );
+
+    const images = (service.sent()['images'] as Record<string, Record<string, unknown>>)[
+      'story:card'
+    ]!;
+
+    expect(images['before']).toMatchObject({ width: 1200, height: 8868 });
+    // And the candidate's own numbers still come from the sidecar, which is a
+    // claim about the *document*, not about the file.
+    expect(images['after']).toMatchObject({ width: 800, height: 600 });
+  });
+
+  it('says nothing about the size of a baseline it could not read as a PNG', async () => {
+    // Absent, not zero, and not the candidate's. A number here that nobody
+    // measured would arrive on the review page next to ones that were, in the
+    // same typeface, and there would be no way to tell them apart.
+    const service = surface();
+
+    await push(
+      options({
+        report: report({ before: 'images/card.before.png' }),
+        deps: {
+          fetch: service.fetch,
+          read: disk({ '/out/images/card.before.png': '<html>404 Not Found</html>' }),
+        },
+      }),
+    );
+
+    const images = (service.sent()['images'] as Record<string, Record<string, unknown>>)[
+      'story:card'
+    ]!;
+
+    expect(images['before']).toEqual({
+      bytes: Buffer.from('<html>404 Not Found</html>', 'utf8').toString('base64'),
+    });
   });
 
   it('withholds a candidate whose sidecar is missing, rather than inventing its digest', async () => {

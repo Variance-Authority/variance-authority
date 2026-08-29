@@ -37,7 +37,7 @@
 import type { D1Like } from './bindings.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /** The version `INITIAL` alone leaves a database at. Frozen: it is deployed. */
 /**
@@ -443,6 +443,16 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
        PRIMARY KEY (project, build, subject)
      ) STRICT`,
     `UPDATE schema_version SET version = 7`,
+  ],
+  // 7 → 8: how large the baseline was, which is sometimes the change itself.
+  [
+    // Nullable, and left null on every row written before this step. A number
+    // backfilled from `candidate_width` would be an invention that reads exactly
+    // like a measurement, and the whole point of the column is to be able to say
+    // the two differ.
+    `ALTER TABLE build_subjects ADD COLUMN baseline_width INTEGER`,
+    `ALTER TABLE build_subjects ADD COLUMN baseline_height INTEGER`,
+    `UPDATE schema_version SET version = 8`,
   ],
 ];
 

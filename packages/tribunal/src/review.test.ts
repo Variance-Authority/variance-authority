@@ -128,6 +128,48 @@ describe('a build is the report a run already wrote', () => {
     expect(detail?.intent).toBe('tighten the toolbar');
   });
 
+  it('keeps the baseline’s own size, and keeps its absence apart from the candidate’s', async () => {
+    // Two claims a reviewer reads at once: the candidate is 2 × 2 because the run
+    // said so, and the baseline was 3 × 5 because the push measured the file. The
+    // second is what makes a resize visible at all — one pair of numbers for two
+    // images means both get drawn to it, and a page that grew is a page that
+    // looks the same.
+    await review.ingest(
+      ingest({
+        images: {
+          'story:todos--populated': {
+            after: {
+              bytes: CANDIDATE,
+              documentDigest: 'deadbeef' as Digest,
+              width: 2,
+              height: 2,
+              missingFonts: [],
+            },
+            before: { bytes: PREVIOUS, width: 3, height: 5 },
+          },
+        },
+      }),
+    );
+
+    expect((await review.build('ci-1001'))?.subjects[0]).toMatchObject({
+      size: { width: 2, height: 2 },
+      baseline: { width: 3, height: 5 },
+    });
+  });
+
+  it('says nothing about a baseline nothing measured, rather than the candidate’s size', async () => {
+    // A push from an older CLI, or a baseline whose bytes were not a readable
+    // PNG. `undefined` is the only honest answer, and the viewer has a different
+    // behaviour for it: draw one layer to the frame, and claim nothing about the
+    // other.
+    await review.ingest(ingest());
+
+    const subject = (await review.build('ci-1001'))?.subjects[0];
+
+    expect(subject?.size).toEqual({ width: 2, height: 2 });
+    expect(subject?.baseline).toBeUndefined();
+  });
+
   it('keeps a coverage list that was never stated apart from an empty one', async () => {
     // The failure this exists to refuse: a build that planned four subjects,
     // failed on one and found the rest clean must not present as clean. And a

@@ -26,3 +26,5 @@ export type { DecodedImage, PngDecoder } from './compare.js';
 
 export { declaredIdentity, foreignDigest, foreignRaster } from './foreign.js';
 export type { DeclaredPainter } from './foreign.js';
+
+export { pngSize } from './size.js';

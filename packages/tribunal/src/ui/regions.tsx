@@ -46,14 +46,24 @@ export interface RegionFocus {
  */
 export function RegionOverlay({
   subject,
+  box,
   focus,
   onFocus,
 }: {
   readonly subject: SubjectView;
+  /**
+   * The frame the percentages are of, when it is not the candidate's own.
+   *
+   * Region coordinates are in the comparison's space, and a comparison pads to
+   * the union of the two captures — so on a subject whose baseline was a
+   * different size, the candidate's dimensions are the wrong denominator and
+   * every box lands short by the difference.
+   */
+  readonly box?: { readonly width: number; readonly height: number } | undefined;
   readonly focus?: number | null;
   readonly onFocus?: ((index: number | null) => void) | undefined;
 }): ReactElement | null {
-  const size = subject.size;
+  const size = box ?? subject.size;
   if (size === undefined || subject.regions.length === 0) return null;
 
   return (

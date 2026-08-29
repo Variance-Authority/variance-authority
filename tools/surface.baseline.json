@@ -1496,6 +1496,7 @@
         "diffImage": "function",
         "foreignDigest": "function",
         "foreignRaster": "function",
+        "pngSize": "function",
         "pngjsDecoder": "const"
       },
       "./difference": {

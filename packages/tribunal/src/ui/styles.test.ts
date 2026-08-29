@@ -195,6 +195,20 @@ describe('REVIEW_STYLES', () => {
     expect(REVIEW_STYLES).not.toContain('va-plate-tag');
   });
 
+  it('takes both layers out of flow only where the plate declares its own box', () => {
+    // Two captures of different sizes cannot both be in flow — whichever is in
+    // flow sets the height, and the other is cropped or overflows. So the plate
+    // declares the union it was given and both layers float on it. Where no size
+    // was recorded there is no union to declare, and the candidate stays in flow
+    // and gives the plate its height, which is the only thing left that can.
+    expect(RULES.find((rule) => rule.selector === '.va-plate.va-boxed img')?.body).toMatch(
+      /position: absolute/,
+    );
+    expect(RULES.find((rule) => rule.selector === '.va-plate img')?.body).not.toMatch(
+      /position: absolute/,
+    );
+  });
+
   it('re-decides only colour in the second scheme', () => {
     // Declarations only — a trailing `;` is what separates one from the selector
     // it sits under, and the sheet writes one on every line.
