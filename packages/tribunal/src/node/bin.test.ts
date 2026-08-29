@@ -14,6 +14,7 @@ import {
   STORAGE_VARIABLE,
   TRUST_NETWORK_VARIABLE,
   authorizeFor,
+  readArguments,
   readConfig,
   start,
   type RunningTribunal,
@@ -83,6 +84,32 @@ describe('what it will not start without', () => {
 
     expect(config.database).toMatch(/^\//);
     expect(config.storage).toMatch(/^\//);
+  });
+});
+
+describe('a flag is not a way to configure this', () => {
+  it('names the variable a flag was reaching for', () => {
+    // What happened without this: the service started, reported success, and
+    // was serving an empty database it had just created in the working
+    // directory — while the operator read a startup line that looked like
+    // confirmation, because it honestly said what the process did.
+    expect(() => readArguments(['--database', './review.db'])).toThrow(DATABASE_VARIABLE);
+    expect(() => readArguments(['--objects=./images'])).toThrow(STORAGE_VARIABLE);
+  });
+
+  it('refuses an argument it has no guess for, rather than ignoring it', () => {
+    expect(() => readArguments(['serve'])).toThrow(/takes no arguments/);
+  });
+
+  it('answers --help with the variables and starts nothing', () => {
+    const usage = readArguments(['--help']);
+
+    expect(usage).toContain(PROJECT_VARIABLE);
+    expect(usage).toContain(TRUST_NETWORK_VARIABLE);
+  });
+
+  it('says nothing at all when nothing was passed', () => {
+    expect(readArguments([])).toBeNull();
   });
 });
 

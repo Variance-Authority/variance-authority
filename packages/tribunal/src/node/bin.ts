@@ -272,9 +272,91 @@ function defaultReviewer(): string {
   }
 }
 
+/**
+ * A flag is not a way to configure this, and saying so is the whole point.
+ *
+ * `process.argv` was read by nothing here, which is defensible — configuration
+ * is an environment, for the reason on the module — and silently accepting the
+ * arguments of the configuration this *is not* is not. `--database ./x.db` on a
+ * process that only reads {@link DATABASE_VARIABLE} starts a service against a
+ * fresh empty file in the working directory, reports success, and prints a
+ * startup line that reads as confirmation because it is honestly reporting what
+ * the process did. The operator's next move is to ask why their builds are
+ * gone.
+ *
+ * So: refuse, and name the variable the flag was reaching for. Returning the
+ * usage text rather than writing it keeps this pure — the refusals above are
+ * testable without binding a port and this one is no different.
+ */
+export function readArguments(argv: readonly string[]): string | null {
+  if (argv.length === 0) return null;
+  if (argv.includes('--help') || argv.includes('-h')) return USAGE;
+
+  const given = argv[0] as string;
+  const flag = given.split('=')[0] as string;
+  const variable = AS_VARIABLE[flag];
+
+  throw new Error(
+    variable === undefined
+      ? `this service takes no arguments and received \`${given}\`. It is configured by ` +
+          `environment, because a service is started by a supervisor, a unit file or a ` +
+          `container, and all three pass one.\n\n${USAGE}`
+      : `\`${flag}\` is ${variable}, and this service is configured by environment rather ` +
+          `than by flags. Accepting the flag and ignoring it would start the service against ` +
+          `the default instead — for ${DATABASE_VARIABLE}, an empty database in the working ` +
+          `directory, reported as a successful start.\n\n${USAGE}`,
+  );
+}
+
+/** The flags somebody reaches for, and what each one actually is. */
+const AS_VARIABLE: Readonly<Record<string, string>> = {
+  '--db': DATABASE_VARIABLE,
+  '--database': DATABASE_VARIABLE,
+  '--objects': STORAGE_VARIABLE,
+  '--storage': STORAGE_VARIABLE,
+  '--port': PORT_VARIABLE,
+  '--host': HOST_VARIABLE,
+  '--project': PROJECT_VARIABLE,
+  '--retention': RETENTION_VARIABLE,
+  '--reviewer': REVIEWER_VARIABLE,
+};
+
+/** Every variable, in the order somebody sets them. */
+const VARIABLES: readonly (readonly [string, string])[] = [
+  [PROJECT_VARIABLE, 'required — scopes every row and every object key'],
+  [INGEST_TOKEN_VARIABLE, 'required — what CI pushes with'],
+  [REVIEW_TOKEN_VARIABLE, 'required — what a person decides with'],
+  [DATABASE_VARIABLE, `the SQLite file (default ${DEFAULT_DATABASE})`],
+  [STORAGE_VARIABLE, `where images are kept (default ${DEFAULT_STORAGE})`],
+  [PORT_VARIABLE, `default ${DEFAULT_PORT}`],
+  [HOST_VARIABLE, `default ${DEFAULT_HOST}; a network bind serves no review page`],
+  [TRUST_NETWORK_VARIABLE, 'confirms a network bind was meant'],
+  [RETENTION_VARIABLE, 'days after which a build is swept'],
+  [REVIEWER_VARIABLE, 'the name a decision is recorded under'],
+];
+
+/**
+ * Built rather than typed out, and padded from the names themselves: a
+ * hand-aligned block goes crooked the first time one of them is renamed.
+ */
+const USAGE = ((widest: number) =>
+  [
+    'variance-authority-tribunal — a process, a port, a file and two tokens.',
+    '',
+    'Configured by environment. There are no flags.',
+    '',
+    ...VARIABLES.map(([name, what]) => `  ${name.padEnd(widest)}  ${what}`),
+    '',
+  ].join('\n'))(Math.max(...VARIABLES.map(([name]) => name.length)));
+
 async function main(): Promise<void> {
   let service: RunningTribunal;
   try {
+    const usage = readArguments(process.argv.slice(2));
+    if (usage !== null) {
+      process.stdout.write(usage);
+      return;
+    }
     service = await start(process.env);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
