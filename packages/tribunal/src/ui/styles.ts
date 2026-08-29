@@ -32,7 +32,7 @@
  * the only thing on this page whose colour is evidence; every pixel of chrome
  * around it is the room the evidence is read in, and a room that is brighter than
  * the exhibit shifts what the exhibit looks like. `prefers-color-scheme: light`
- * re-decides the same twenty-four values for a reader who asks for it.
+ * re-decides the same values for a reader who asks for it.
  *
  * The palette is `docs/visual-guidelines.md` — deep, panel, ivory, quiet, warm,
  * variance orange, signal green — spent here on a surface that also has to say
@@ -41,7 +41,7 @@
  * handed over as text, so it can ask for a face and must not require one.
  */
 export const REVIEW_STYLES = `
-:root, .va-app { --va-bg: #181b1d; --va-surface: #1e2224; --va-sunken: #181b1d; --va-line: #2f3437; --va-line-firm: #434a4d; --va-ink: #f3f4f6; --va-ink-2: #a8a09b; --va-ink-3: #8f8580; --va-accent: #ff4a19; --va-accent-ink: #181b1d; --va-warn: #e0a458; --va-warn-bg: #2a2118; --va-warn-ink: #f0c48a; --va-bad: #e5695c; --va-bad-bg: #2c1b18; --va-bad-ink: #f3a99e; --va-good: #7fa28c; --va-good-bg: #1a2420; --va-good-ink: #a8c9b5; --va-info-bg: #24282a; --va-info-ink: #d6d0cb; --va-cause: #ff4a19; --va-collateral: #8f8580; --va-accent-soft: rgba(255, 74, 25, 0.14); --va-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --va-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+:root, .va-app { --va-bg: #181b1d; --va-surface: #1e2224; --va-sunken: #181b1d; --va-line: #2f3437; --va-line-firm: #434a4d; --va-ink: #f3f4f6; --va-ink-2: #a8a09b; --va-ink-3: #8f8580; --va-accent: #ff4a19; --va-accent-ink: #181b1d; --va-warn: #e0a458; --va-warn-bg: #2a2118; --va-warn-ink: #f0c48a; --va-bad: #e5695c; --va-bad-bg: #2c1b18; --va-bad-ink: #f3a99e; --va-good: #7fa28c; --va-good-bg: #1a2420; --va-good-ink: #a8c9b5; --va-info-bg: #24282a; --va-info-ink: #d6d0cb; --va-cause: #ff4a19; --va-collateral: #8f8580; --va-accent-soft: rgba(255, 74, 25, 0.14); --va-veil: rgba(24, 27, 29, 0.52); --va-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --va-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
 
 .va-app { background: var(--va-bg); color: var(--va-ink); color-scheme: dark light; display: flex; flex-direction: column; font-family: var(--va-sans); font-size: 14px; height: 100dvh; line-height: 1.5; overflow: hidden; }
 /* The element reset, every rule of it wrapped in :where() so the whole block
@@ -193,6 +193,36 @@ export const REVIEW_STYLES = `
 .va-origin-act .va-approve { background: var(--va-good); border-color: var(--va-good); color: #ffffff; }
 .va-origin-act .va-approve:disabled { background: var(--va-sunken); border-color: var(--va-line-firm); color: var(--va-ink-3); }
 .va-collateral { border-top: 1px solid var(--va-line); color: var(--va-ink-3); font-size: 0.84rem; margin-top: 0.75rem; padding-top: 0.65rem; }
+
+/* Looking at the change from the card that decides it. The window is fixed and
+   the same for every crop: sizing each one to its own region would turn the strip
+   into a bar chart of areas, which is the ranking by area this whole surface
+   exists to refuse, drawn in the place a reviewer reads as how big is this. */
+.va-origin-look { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.va-look { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.6rem; }
+.va-sight { background: none; border: 0; color: inherit; cursor: pointer; display: flex; flex-direction: column; font: inherit; gap: 0.3rem; padding: 0; text-align: left; }
+.va-crop { background: var(--va-bg); border: 1px solid var(--va-line); border-radius: 8px; display: block; overflow: hidden; position: relative; }
+.va-sight:hover .va-crop, .va-sight:focus-visible .va-crop { border-color: var(--va-accent); }
+.va-crop-plate { position: absolute; }
+.va-crop-plate img { display: block; height: auto; image-rendering: pixelated; left: 0; position: absolute; top: 0; width: 100%; }
+/* The veil rather than a ring alone: at 3x on a hundred-pixel region the ring is
+   most of the window, and a reviewer looking for the difference is looking for
+   which part of the window is not dimmed. The spread only has to exceed the crop,
+   which is 264px wide and clips it. */
+.va-crop-box { border: 1px solid var(--va-cause); box-shadow: 0 0 0 900px var(--va-veil); position: absolute; }
+.va-crop-part { background: var(--va-bg); border-radius: 5px; bottom: 0.3rem; color: var(--va-ink-3); font-family: var(--va-mono); font-size: 0.65rem; padding: 0.1rem 0.35rem; position: absolute; right: 0.3rem; }
+.va-crop-unplaced { align-items: center; display: flex; justify-content: center; padding: 0.75rem; text-align: center; }
+.va-sight-note { color: var(--va-ink-2); font-family: var(--va-mono); font-size: 0.7rem; max-width: 264px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A subject name that goes somewhere. Underlined rather than coloured, because
+   the accent on this page means cause and a second meaning for it would make the
+   colour say nothing. */
+.va-open { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0; text-align: left; text-decoration: underline; text-decoration-color: var(--va-line-firm); text-underline-offset: 3px; }
+.va-open:hover { text-decoration-color: var(--va-accent); }
+/* The commit does not reach this name, and reaches every render it moved in.
+   Ordinary, and therefore not wearing the alarm's colour: a page that shouts at
+   every component out of node_modules has spent the shout before the one render
+   nothing accounts for arrives. */
+.va-origin-arrival.va-unnamed { background: var(--va-info-bg); border-radius: 6px; color: var(--va-info-ink); padding: 0.35rem 0.55rem; }
 
 /* The third axis: what the commit reaches, crossed with what the run saw. Drawn
    as a grid rather than four counts, because the four cells are one crossing and
@@ -438,6 +468,6 @@ export const REVIEW_STYLES = `
 }
 
 @media (prefers-color-scheme: light) {
-  :root, .va-app { --va-bg: #f3f4f6; --va-surface: #ffffff; --va-sunken: #e9eaec; --va-line: #d8d6d3; --va-line-firm: #b8b3ae; --va-ink: #181b1d; --va-ink-2: #4c4844; --va-ink-3: #756d67; --va-accent: #d83a13; --va-accent-ink: #ffffff; --va-warn: #8a5a12; --va-warn-bg: #f7ecd9; --va-warn-ink: #5c3c08; --va-bad: #b03a2b; --va-bad-bg: #f8e3df; --va-bad-ink: #7a2418; --va-good: #46705a; --va-good-bg: #dfece4; --va-good-ink: #2b4a38; --va-info-bg: #ecebe9; --va-info-ink: #3d3935; --va-cause: #d83a13; --va-collateral: #756d67; --va-accent-soft: rgba(216, 58, 19, 0.10); }
+  :root, .va-app { --va-bg: #f3f4f6; --va-surface: #ffffff; --va-sunken: #e9eaec; --va-line: #d8d6d3; --va-line-firm: #b8b3ae; --va-ink: #181b1d; --va-ink-2: #4c4844; --va-ink-3: #756d67; --va-accent: #d83a13; --va-accent-ink: #ffffff; --va-warn: #8a5a12; --va-warn-bg: #f7ecd9; --va-warn-ink: #5c3c08; --va-bad: #b03a2b; --va-bad-bg: #f8e3df; --va-bad-ink: #7a2418; --va-good: #46705a; --va-good-bg: #dfece4; --va-good-ink: #2b4a38; --va-info-bg: #ecebe9; --va-info-ink: #3d3935; --va-cause: #d83a13; --va-collateral: #756d67; --va-accent-soft: rgba(216, 58, 19, 0.10); --va-veil: rgba(243, 244, 246, 0.55); }
 }
 `;

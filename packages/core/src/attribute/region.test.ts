@@ -318,4 +318,8 @@ describe('attributing a region to the tree', () => {
     expect(attributed!.unattributed).toBe(true);
     expect(attributed!.nearest).toBeUndefined();
   });
+
+  it.todo(
+    'a host node Radix `Slot` merged — `<Button asChild><Link/></Button>` — is filed under `Button`, whose class name landed on it, rather than next/link’s `LinkComponent`, which created it — needs the boundary reader to carry the fiber that supplied a host node’s class name alongside the one that authored it, because a slot is a component like any other from this rung',
+  );
 });

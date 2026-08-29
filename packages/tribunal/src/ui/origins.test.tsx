@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { RegionRecord } from '@variance-authority/report';
 import type { BuildDetail, Cause, ReachView, SubjectView } from '../review-types.js';
 import { createReviewClient } from './client.js';
-import { OriginsPanel, originsOf } from './origins.js';
+import { originsOf } from './grouping.js';
+import { OriginsPanel } from './origins.js';
 
 /**
  * Grouping, held to the one thing a group can get wrong.
@@ -230,10 +231,10 @@ describe('the card says what a reviewer is agreeing to', () => {
     expect(page).toContain('Approve this change (2)');
   });
 
-  it('leads an origin the commit does not reach with that, and not with the pixels', () => {
+  it('leads with the render the commit reaches nothing in, and not with the pixels', () => {
     // The finding no comparison can produce on its own: something moved and
-    // nothing you wrote arrives there. Silence would read as reached, which is
-    // what a reviewer assumes by default.
+    // nothing you wrote arrives anywhere in the picture. Silence would read as
+    // reached, which is what a reviewer assumes by default.
     const page = markup(
       build([subject({ regions: [region({ component: 'Button', fingerprint: 'f1' })] })], {
         reach: {
@@ -245,7 +246,68 @@ describe('the card says what a reviewer is agreeing to', () => {
       }),
     );
 
-    expect(page).toContain('Nothing in this commit reaches');
+    expect(page).toContain('reaches nothing at all in 1 render');
+    expect(page).toContain('story:card');
+    expect(page).toContain('va-alarm');
+  });
+
+  it('does not raise the alarm over a component the graph was never asked about', () => {
+    // The case that made the alarm worthless. `LinkComponent` is next/link's own
+    // function name: it lives in a dependency, so it can never appear among the
+    // components a diff of the repository reaches, whatever the commit did. The
+    // renders it moved in *are* reached — through Button and MainNav — and the
+    // page said *nothing reaches it and it changed anyway* about every one of
+    // them, in the colour reserved for the render nothing accounts for.
+    const page = markup(
+      build([subject({ regions: [region({ component: 'LinkComponent', fingerprint: 'f1' })] })], {
+        reach: {
+          against: 'main',
+          changed: ['app/src/components/ui/button.tsx'],
+          components: [
+            { component: 'Button', trail: ['app/src/components/ui/button.tsx', 'Button'] },
+          ],
+          subjects: {
+            'story:card': { reached: true, through: ['Button', 'MainNav'], because: 'reached' },
+          },
+        },
+      }),
+    );
+
+    expect(page).toContain('reaches nothing called');
+    expect(page).toContain('through Button, MainNav');
+    expect(page).not.toContain('va-alarm');
+  });
+
+  it('separates the two silences behind an unrecorded file', () => {
+    // A blank cell reads as a defect in the tool. It is nearly always a name the
+    // source index does not declare, and the run that resolved one for `Button`
+    // is the evidence that it looked.
+    const page = markup(
+      build(
+        [
+          subject({ subject: 'a', regions: [region({ component: 'Button', fingerprint: 'f1' })] }),
+          subject({
+            subject: 'b',
+            regions: [region({ component: 'LinkComponent', fingerprint: 'f2' })],
+          }),
+        ],
+        { causes: CAUSES },
+      ),
+    );
+
+    expect(page).toContain('not in the scanned source');
+    expect(page).not.toContain('no source index');
+    expect(markup(build([subject({ regions: [region({ component: 'Button' })] })]))).toContain(
+      'no source index',
+    );
+  });
+
+  it('offers the change to be looked at, from the card that decides it', () => {
+    const page = markup(
+      build([subject({ regions: [region({ component: 'Button', fingerprint: 'f1' })] })]),
+    );
+
+    expect(page).toContain('Look at the change');
   });
 
   it('draws the chain when it does reach it', () => {
@@ -264,7 +326,7 @@ describe('the card says what a reviewer is agreeing to', () => {
 
     expect(page).toContain('app/src/ds/tokens.css');
     expect(page).toContain('<strong>Button</strong>');
-    expect(page).not.toContain('Nothing in this commit reaches');
+    expect(page).not.toContain('reaches nothing');
   });
 
   it('says nothing about reach when the run carried no diff', () => {
@@ -274,7 +336,7 @@ describe('the card says what a reviewer is agreeing to', () => {
       build([subject({ regions: [region({ component: 'Button', fingerprint: 'f1' })] })]),
     );
 
-    expect(page).not.toContain('Nothing in this commit reaches');
+    expect(page).not.toContain('reaches nothing');
     expect(page).not.toContain('This commit reaches it');
   });
 });

@@ -156,6 +156,21 @@ function ownershipOf(node: SemanticNode): Ownership {
     props.push(frame.propsDigest);
   }
 
+  // FIXME: what should this name when the author is a slot?
+  //
+  // Radix `Slot` under `asChild` merges the caller's className onto the child's
+  // own host node, so `<Button asChild><Link/></Button>` renders one `<a>` whose
+  // author is next/link's `LinkComponent` and whose every styling decision came
+  // from `Button`. The owner rule then reports a name out of `node_modules` for a
+  // region an edit to `button.tsx` moved, and both halves are individually
+  // correct: `Button` really did author no host node, and `LinkComponent` really
+  // did write the one that moved.
+  //
+  // Open, because the naive fix is worse. Preferring the nearest caller whenever
+  // the author is unfamiliar would credit every container with its children's
+  // changes, which is exactly the enclosure answer the owner rule exists to
+  // refuse. Whether a slot is distinguishable from an ordinary hand-off at this
+  // rung has not been read — `Slot` is a component like any other from here.
   const author = node.provenance?.createdBy;
   if (author !== undefined && author !== stack.at(-1)) {
     // A slotted region received no props of its own: it is markup, handed over

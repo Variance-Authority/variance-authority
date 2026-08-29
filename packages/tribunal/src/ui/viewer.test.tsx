@@ -412,6 +412,61 @@ describe('a region is a row as well as a rectangle', () => {
 
     // Never a blank cell, which reads as a component with an empty name.
     expect(markup).toContain('unattributed');
-    expect(markup).toContain('not recorded');
+    expect(markup).toContain('no source index');
+  });
+
+  it('keeps a run that resolved no files apart from a name no index declares', () => {
+    // Both of these were one cell reading `not recorded`, and the reviewer's next
+    // move differs: one is a run that never looked, the other is a run that
+    // looked and found this name in nothing it scanned — which is what a
+    // component out of a dependency looks like from here. One string for both
+    // spends the tool's credibility on the ordinary case.
+    const markup = renderToStaticMarkup(
+      <RegionTable
+        subject={subject({
+          regions: [
+            {
+              x: 0,
+              y: 0,
+              width: 1,
+              height: 1,
+              pixels: 4,
+              cause: true,
+              component: 'Toggle',
+              file: 'src/ds/components.tsx:41',
+            },
+            { x: 0, y: 0, width: 1, height: 1, pixels: 1, cause: false, component: 'LinkComponent' },
+          ],
+        })}
+        focus={null}
+        onFocus={() => undefined}
+        onJump={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('not in the scanned source');
+    expect(markup).not.toContain('no source index');
+  });
+
+  it('takes the run’s word for whether an index exists, not one render’s', () => {
+    // A capture whose every region belongs to a dependency resolves nothing on
+    // its own, and reading that as *this run has no source index* prints one
+    // silence here and the other on the card that sent the reviewer here — about
+    // the same name, in the same build.
+    const markup = renderToStaticMarkup(
+      <RegionTable
+        subject={subject({
+          regions: [
+            { x: 0, y: 0, width: 1, height: 1, pixels: 1, cause: true, component: 'LinkComponent' },
+          ],
+        })}
+        sourced
+        focus={null}
+        onFocus={() => undefined}
+        onJump={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain('not in the scanned source');
   });
 });

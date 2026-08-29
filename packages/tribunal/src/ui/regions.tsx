@@ -115,11 +115,31 @@ export function RegionOverlay({
  */
 export function RegionTable({
   subject,
+  sourced,
   focus,
   onFocus,
   onJump,
-}: { readonly subject: SubjectView } & RegionFocus): ReactElement | null {
+}: {
+  readonly subject: SubjectView;
+  /**
+   * Whether the *run* resolved any source file at all.
+   *
+   * A property of the run's source index, not of one capture, and the caller who
+   * holds the build is the only one who can say it. Left out, this falls back to
+   * what one render can see on its own, which is strictly weaker: a capture whose
+   * every region belongs to a dependency resolves nothing and would report a run
+   * with no index — the same name then reads two ways on two surfaces, and a
+   * reviewer takes one of them for a bug.
+   */
+  readonly sourced?: boolean | undefined;
+} & RegionFocus): ReactElement | null {
   if (subject.regions.length === 0) return null;
+
+  // A blank cell is the one answer this column must not give: the reviewer's next
+  // move is to open the file, and nothing-at-all reads as a defect in the tool
+  // when the ordinary cause is a component out of a dependency, which no source
+  // index scanned or claimed to.
+  const indexed = sourced ?? subject.regions.some((region) => region.file !== undefined);
 
   return (
     <table className="va-region-table">
@@ -152,7 +172,16 @@ export function RegionTable({
             <td>{region.component ?? <span className="va-note">unattributed</span>}</td>
             <td>
               {region.file === undefined ? (
-                <span className="va-note">not recorded</span>
+                <span
+                  className="va-note"
+                  title={
+                    indexed
+                      ? 'This run resolved files for other components, so this is a name its source index does not declare — a component out of a dependency, or one produced at build time.'
+                      : 'This run resolved no source files at all, so nothing here says where any of these components are declared.'
+                  }
+                >
+                  {indexed ? 'not in the scanned source' : 'no source index'}
+                </span>
               ) : (
                 <code>{region.file}</code>
               )}

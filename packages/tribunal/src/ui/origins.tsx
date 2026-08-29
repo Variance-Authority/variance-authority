@@ -1,152 +1,50 @@
 /**
- * The changes, grouped by what caused them — which is the unit a reviewer acts on.
+ * The changes, drawn: one card per origin, and the decision on it.
  *
- * Nobody approves a screenshot. A person looking at twenty changed renders is
- * looking at *one* edit to `Button` twenty times, and the category ships that as
- * twenty decisions: twenty thumbnails, twenty approve buttons, and no way to say
- * the thing that is actually true — *yes, I meant to restyle the button, and yes,
- * every card that grew by two millimetres grew because of it.*
+ * What a change *is* — which subjects belong to it, what the diff says about it,
+ * what shape it repeats in — is decided in [`grouping.ts`](./grouping.ts) and
+ * only read here. This file is the card: what the reviewer is told, in what
+ * order, and which of it they can act on without leaving.
  *
- * So the review item here is the origin, and a subject is a place it showed up.
- *
- * ## Three records meet on one card, and none of them can carry it alone
- *
- * - **The diff** says the commit reaches this component, and by what chain. An
- *   origin the commit does not reach is the strongest signal on the page: nothing
- *   you wrote arrives here and it moved anyway.
- * - **The fingerprint** says whether they moved *the same way* — the shape with
- *   position and values removed. It does not decide the group and must not: a
- *   shape is a pixel digest, so one restyle lands as one shape on the buttons
- *   that are the same size and another on the one that is not. It answers the
- *   question after the group, which is which of these differences recur — and a
- *   shared shape is the set `variance accept --shape` takes.
- * - **The record** says whether this component moves all the time or has been
- *   still since March. A 2px shift in a component that has caused an approved
- *   change in nineteen of twenty runs is a different decision from the same 2px in
- *   one that has caused none.
- *
- * ## What is not claimed
- *
- * Collateral is **not** attributed to an origin. Deciding which edit pushed which
- * box around is exactly the attribution the semantic tier declined to make, and a
- * group that swallowed it would be inventing the one number nobody measured. What
- * a member carries instead is the list of components that moved *with* it in that
- * subject, which is an observation rather than a claim.
+ * The order is the argument. A card opens with the component, says whether the
+ * commit arrives there, says whether the differences under it look alike, offers
+ * the change to be looked at, and only then offers the two buttons. Every line
+ * above the buttons is a reason to press one of them or to refuse — a surface
+ * that led with the buttons would be a faster way to approve things nobody read.
  */
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { Churn } from '@variance-authority/history';
-import type { BuildDetail, Decision, SubjectView } from '../review-types.js';
+import type { BuildDetail, Decision } from '../review-types.js';
 import type { ReviewClient } from './client.js';
+import { originsOf, scale, shapesOf, type Appearance, type Origin } from './grouping.js';
 import { ChurnLine } from './history.js';
-import { leadOf } from './lead.js';
+import { Look } from './look.js';
 import { count, magnitude, number } from './text.js';
-
-/** One subject an origin showed up in. */
-export interface Appearance {
-  readonly subject: SubjectView;
-  /** Pixels the origin's own cause region moved here. */
-  readonly pixels: number;
-  /** The shape of that region, when the run recorded one. */
-  readonly shape?: string;
-  /** Other components with regions in this subject — observed, not attributed. */
-  readonly alongside: readonly string[];
-}
-
-export interface Origin {
-  readonly component: string;
-  /** Where the component is declared, from the build's own docket. */
-  readonly file?: string;
-  readonly pixels: number;
-  readonly appearances: readonly Appearance[];
-  /** How the commit arrives at this component, when a diff was read. */
-  readonly trail?: readonly string[];
-  /** `undefined` when the run carried no diff, which is not the same as `false`. */
-  readonly reached?: boolean;
-}
-
-export interface Origins {
-  readonly origins: readonly Origin[];
-  /**
-   * Changed subjects no component claimed.
-   *
-   * Their own bucket, never folded into an origin. A subject that moved with
-   * nothing named as its cause is the one case where a reviewer has to open the
-   * picture, and hiding it inside a group would hand them somebody else's edit to
-   * approve it under.
-   */
-  readonly unattributed: readonly SubjectView[];
-}
-
-
-export function originsOf(build: BuildDetail): Origins {
-  const files = new Map(build.causes.map((cause) => [cause.component, cause.file]));
-  const groups = new Map<string, { pixels: number; where: Appearance[] }>();
-  const unattributed: SubjectView[] = [];
-
-  for (const subject of build.subjects) {
-    if (subject.verdict !== 'changed') continue;
-
-    const lead = leadOf(subject);
-    if (lead?.component === undefined) {
-      unattributed.push(subject);
-      continue;
-    }
-
-    const group = groups.get(lead.component) ?? { pixels: 0, where: [] };
-    group.pixels += lead.pixels;
-    group.where.push({
-      subject,
-      pixels: lead.pixels,
-      ...(lead.fingerprint === undefined ? {} : { shape: lead.fingerprint }),
-      alongside: [
-        ...new Set(
-          subject.regions
-            .map((region) => region.component)
-            .filter((name): name is string => name !== undefined && name !== lead.component),
-        ),
-      ].sort(),
-    });
-    groups.set(lead.component, group);
-  }
-
-  const origins = [...groups.entries()]
-    .map(([component, group]): Origin => {
-      const file = files.get(component);
-      const entry = build.reach?.components.find((each) => each.component === component);
-      return {
-        component,
-        pixels: group.pixels,
-        appearances: group.where,
-        ...(file === undefined ? {} : { file }),
-        ...(build.reach === null || build.reach.whole !== undefined
-          ? {}
-          : { reached: entry !== undefined }),
-        ...(entry === undefined ? {} : { trail: entry.trail }),
-      };
-    })
-    .sort((left, right) =>
-      right.pixels === left.pixels
-        ? left.component.localeCompare(right.component)
-        : right.pixels - left.pixels,
-    );
-
-  return { origins, unattributed };
-}
 
 export function OriginsPanel({
   client,
   reviewer,
   build,
   onDecided,
+  onOpen,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: BuildDetail;
   readonly onDecided: () => void;
+  /**
+   * Show one render whole.
+   *
+   * Optional, and the card degrades to text without it: the panel is exported,
+   * and a caller embedding it outside this page has no stage to open into. What
+   * it must never do is render a control that goes nowhere.
+   */
+  readonly onOpen?: ((subject: string) => void) | undefined;
 }): ReactElement {
   const { origins, unattributed } = originsOf(build);
   const subjects = origins.reduce((total, origin) => total + origin.appearances.length, 0);
+  const sourced = build.causes.some((cause) => cause.file !== undefined);
 
   if (origins.length === 0 && unattributed.length === 0) {
     return <p className="va-note">Nothing in this build changed, so there is nothing to approve.</p>;
@@ -173,7 +71,9 @@ export function OriginsPanel({
             reviewer={reviewer}
             build={build.build}
             origin={origin}
+            sourced={sourced}
             onDecided={onDecided}
+            onOpen={onOpen}
           />
         ))}
       </div>
@@ -188,7 +88,7 @@ export function OriginsPanel({
           <ul className="va-reach-list">
             {unattributed.map((subject) => (
               <li key={subject.subject}>
-                <strong>{subject.subject}</strong>{' '}
+                <Named subject={subject.subject} onOpen={onOpen} />{' '}
                 <span className="va-note">{magnitude(subject)}</span>
               </li>
             ))}
@@ -199,18 +99,39 @@ export function OriginsPanel({
   );
 }
 
+/** A subject's name, and the way in when there is one. */
+function Named({
+  subject,
+  onOpen,
+}: {
+  readonly subject: string;
+  readonly onOpen?: ((subject: string) => void) | undefined;
+}): ReactElement {
+  if (onOpen === undefined) return <strong>{subject}</strong>;
+
+  return (
+    <button type="button" className="va-open" onClick={() => onOpen(subject)}>
+      {subject}
+    </button>
+  );
+}
+
 function OriginCard({
   client,
   reviewer,
   build,
   origin,
+  sourced,
   onDecided,
+  onOpen,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: string;
   readonly origin: Origin;
+  readonly sourced: boolean;
   readonly onDecided: () => void;
+  readonly onOpen?: ((subject: string) => void) | undefined;
 }): ReactElement {
   const settled = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
   const open = origin.appearances.filter(
@@ -221,7 +142,7 @@ function OriginCard({
     <section className="va-origin">
       <div className="va-origin-head">
         <h3>{origin.component}</h3>
-        {origin.file === undefined ? null : <code className="va-file">{origin.file}</code>}
+        <Declared file={origin.file} sourced={sourced} />
         <span className="va-origin-pixels va-num">{scale(origin.appearances)}</span>
       </div>
 
@@ -229,10 +150,20 @@ function OriginCard({
       <Shapes appearances={origin.appearances} />
       <Record client={client} component={origin.component} />
 
+      <Look
+        client={client}
+        build={build}
+        component={origin.component}
+        appearances={origin.appearances}
+        onOpen={onOpen}
+      />
+
       <ul className="va-origin-where">
         {origin.appearances.map(({ subject, pixels, alongside }) => (
           <li key={subject.subject}>
-            <span className="va-origin-subject">{subject.subject}</span>
+            <span className="va-origin-subject">
+              <Named subject={subject.subject} onOpen={onOpen} />
+            </span>
             <span className="va-num va-note">{number(pixels)} px</span>
             {alongside.length === 0 ? null : (
               <span className="va-note">
@@ -241,7 +172,13 @@ function OriginCard({
               </span>
             )}
             {subject.decision === null ? null : (
-              <span className={subject.decision.decision === 'approved' ? 'va-mark va-approved' : 'va-mark va-rejected'}>
+              <span
+                className={
+                  subject.decision.decision === 'approved'
+                    ? 'va-mark va-approved'
+                    : 'va-mark va-rejected'
+                }
+              >
                 {subject.decision.decision === 'approved' ? '✓' : '✕'}
               </span>
             )}
@@ -263,76 +200,101 @@ function OriginCard({
 }
 
 /**
- * Whether the commit arrives here, said in three states rather than two.
+ * Where this component is declared, and what it means when nothing says.
+ *
+ * A blank is the one answer this cell must not give. The reviewer's next move on
+ * an origin they do not recognise is to open the file, and *nothing here* reads
+ * as a defect in the tool — when the ordinary cause is that the name belongs to a
+ * dependency, which the source index scans no part of and never claimed to. So
+ * the two silences are separated: a run that resolved files for other components
+ * has said something about this one, and a run that resolved none has not.
+ */
+function Declared({
+  file,
+  sourced,
+}: {
+  readonly file?: string | undefined;
+  readonly sourced: boolean;
+}): ReactElement {
+  if (file !== undefined) return <code className="va-file">{file}</code>;
+
+  return (
+    <span
+      className="va-note"
+      title={
+        sourced
+          ? 'This run resolved files for other components in this build, so this is a name its source index does not declare — a component out of a dependency, or one produced at build time.'
+          : 'This run resolved no source files at all, so nothing here says where any of these components are declared.'
+      }
+    >
+      {sourced ? 'not in the scanned source' : 'no source index'}
+    </span>
+  );
+}
+
+/**
+ * Whether the commit arrives here, said in four states rather than two.
  *
  * A run with no diff read cannot say, and saying nothing is the only honest
  * version of that. Silence would be indistinguishable from *reached*, which is
  * the assumption a reviewer makes by default and the one that costs them.
+ *
+ * The other three are the split this card got wrong. `reached` is computed
+ * against the components the diff can arrive at, so a component the graph carries
+ * nowhere — anything out of `node_modules`, which is most of the host nodes on a
+ * real page — can never be in that set whatever the commit did. Printing *nothing
+ * reaches it and it moved anyway* over every one of those spends the loudest
+ * sentence on the page on the most ordinary fact about it, and by the time a real
+ * orphan appears the sentence has been trained out of the reader.
+ *
+ * So the renders are asked as well as the name. A component the diff does not
+ * know, moving in renders the diff reaches through three components it does, is a
+ * note. A component moving in a render the commit reaches *nothing* in is the
+ * alarm, and it is now the only thing wearing that colour.
  */
 function Arrival({ origin }: { readonly origin: Origin }): ReactElement | null {
   if (origin.reached === undefined) return null;
 
-  if (!origin.reached) {
+  if (origin.reached) {
+    return (
+      <p className="va-origin-arrival">
+        {origin.trail === undefined
+          ? 'This commit reaches it.'
+          : origin.trail.map((step, index) => (
+              <span key={step}>
+                {index === 0 ? null : <span className="va-arrow">→</span>}
+                {index === origin.trail!.length - 1 ? <strong>{step}</strong> : <code>{step}</code>}
+              </span>
+            ))}
+      </p>
+    );
+  }
+
+  const stranded = origin.stranded ?? [];
+  const through = origin.through ?? [];
+
+  if (stranded.length > 0) {
     return (
       <p className="va-origin-arrival va-alarm">
-        Nothing in this commit reaches <strong>{origin.component}</strong>, and it caused a change
-        anyway.
+        This commit reaches nothing at all in {count(stranded.length, 'render')} it moved in —{' '}
+        {stranded.slice(0, 3).join(', ')}
+        {stranded.length > 3 ? `, and ${count(stranded.length - 3, 'other')}` : ''}. Something
+        changed there that the diff cannot account for.
       </p>
     );
   }
 
   return (
-    <p className="va-origin-arrival">
-      {origin.trail === undefined
-        ? 'This commit reaches it.'
-        : origin.trail.map((step, index) => (
-            <span key={step}>
-              {index === 0 ? null : <span className="va-arrow">→</span>}
-              {index === origin.trail!.length - 1 ? <strong>{step}</strong> : <code>{step}</code>}
-            </span>
-          ))}
+    <p className="va-origin-arrival va-unnamed">
+      The commit reaches nothing called <strong>{origin.component}</strong> — the file graph carries
+      no such name, which is what a component out of a dependency looks like from here.{' '}
+      {through.length === 0
+        ? 'It does reach every render this moved in, without naming a component in any of them.'
+        : `It does reach every render this moved in, through ${through.slice(0, 4).join(', ')}${
+            through.length > 4 ? ` and ${count(through.length - 4, 'other')}` : ''
+          } — so either one of those drew this node, or something reaches it that the graph does not model.`}
     </p>
   );
-}
-
-/**
- * What the differences look like, which is the half a component name cannot say.
- *
- * A component groups *what was edited*. A shape groups *what the edit did*, and
- * the two answer different questions: eleven appearances under `Button` with one
- * shape between them is a token that moved every button identically, and eleven
- * with nine shapes is a component whose renders each absorbed the change
- * differently. Both are one review. Only the first has a name a reviewer can
- * carry to another build.
- *
- * So the shared shape is reported where there is one, and where the reviewer's
- * next question is *which of these recur*, the largest cluster is named with the
- * digest `variance accept --shape` takes.
- */
-function shapesOf(appearances: readonly Appearance[]): Map<string, number> {
-  const clusters = new Map<string, number>();
-  for (const each of appearances) {
-    if (each.shape === undefined) continue;
-    clusters.set(each.shape, (clusters.get(each.shape) ?? 0) + 1);
-  }
-  return clusters;
-}
-
-/**
- * How large this change is, counted in what is being decided.
- *
- * A pixel total is the figure this category leads with and the least useful one
- * available: it is one number for every size of change, and on the restyle that
- * moves everything it degenerates to a number nobody can act on. Distinct shapes
- * over the places they landed says the thing the total cannot — *one edit, seven
- * renders* is a different afternoon from *seven edits, seven renders*.
- */
-function scale(appearances: readonly Appearance[]): string {
-  const shapes = shapesOf(appearances).size;
-  const pixels = appearances.reduce((total, each) => total + each.pixels, 0);
-  const places = `${count(appearances.length, 'region')} · ${number(pixels)} px`;
-
-  return shapes === 0 ? places : `${count(shapes, 'change')} · ${places}`;
 }
 
 function Shapes({ appearances }: { readonly appearances: readonly Appearance[] }): ReactElement {
@@ -435,7 +397,13 @@ function Batch({
     setFailed(undefined);
     try {
       for (const { subject } of open) {
-        await client.decide(build, subject.subject, decision, reviewer, `${decision} as one change in ${origin.component}`);
+        await client.decide(
+          build,
+          subject.subject,
+          decision,
+          reviewer,
+          `${decision} as one change in ${origin.component}`,
+        );
       }
       onDecided();
     } catch (error) {

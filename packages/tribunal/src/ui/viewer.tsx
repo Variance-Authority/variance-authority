@@ -58,7 +58,7 @@ const LABELS: Readonly<Record<ViewerMode, string>> = {
 };
 
 /** A raster's own pixels — never a rendered size, which the zoom decides. */
-type Size = { readonly width: number; readonly height: number };
+export type Size = { readonly width: number; readonly height: number };
 
 /** Long enough to read either state, short enough that the eye holds both. */
 const BLINK_MS = 700;
@@ -67,10 +67,13 @@ export function Viewer({
   client,
   build,
   subject,
+  sourced,
 }: {
   readonly client: ReviewClient;
   readonly build: string;
   readonly subject: SubjectView;
+  /** Whether the run resolved any source file — see {@link RegionTable}. */
+  readonly sourced?: boolean | undefined;
 }): ReactElement {
   const available = useMemo(() => modesFor(subject), [subject]);
   const [mode, setMode] = useState<ViewerMode>(available[0] ?? 'regions');
@@ -344,7 +347,13 @@ export function Viewer({
         )}
       </p>
 
-      <RegionTable subject={subject} focus={focus} onFocus={setFocus} onJump={jump} />
+      <RegionTable
+        subject={subject}
+        sourced={sourced}
+        focus={focus}
+        onFocus={setFocus}
+        onJump={jump}
+      />
     </div>
   );
 }
@@ -367,7 +376,7 @@ function over(
 }
 
 /** The box that contains both captures, when either of them is known. */
-function union(
+export function union(
   candidate: Size | undefined,
   baseline: Size | undefined,
 ): Size | undefined {
@@ -388,7 +397,7 @@ function union(
  * `width: 100%` — the old behaviour, and the honest one, since a layer nobody
  * measured cannot be placed against one that was.
  */
-function share(own: Size | undefined, box: Size | undefined): CSSProperties | undefined {
+export function share(own: Size | undefined, box: Size | undefined): CSSProperties | undefined {
   if (own === undefined || box === undefined || own.width === box.width) return undefined;
   return { width: `${String((own.width / box.width) * 100)}%` };
 }

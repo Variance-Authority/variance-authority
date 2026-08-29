@@ -78,13 +78,9 @@ import { Viewer } from './viewer.js';
 export { RegionOverlay, RegionTable, Viewer, modesFor, type ViewerMode } from './viewer.js';
 export { ChangelogEntries, ChangelogPage, ChurnLine, StabilityLine, SubjectHistory } from './history.js';
 export { ReachPanel, crossReach, type Crossing } from './reach.js';
-export {
-  OriginsPanel,
-  originsOf,
-  type Appearance,
-  type Origin,
-  type Origins,
-} from './origins.js';
+export { OriginsPanel } from './origins.js';
+export { originsOf, type Appearance, type Origin, type Origins } from './grouping.js';
+export { Look, frameOf, sightings, type Frame, type Sighting } from './look.js';
 
 export interface ReviewAppProps {
   readonly client: ReviewClient;
@@ -333,13 +329,20 @@ function BuildPage({
         />
 
         {current === undefined ? (
-          <Overview client={client} reviewer={reviewer} build={value} onDecided={load} />
+          <Overview
+            client={client}
+            reviewer={reviewer}
+            build={value}
+            onDecided={load}
+            onOpen={setSelected}
+          />
         ) : (
           <SubjectPanel
             client={client}
             reviewer={reviewer}
             build={value.build}
             subject={current}
+            sourced={value.causes.some((cause) => cause.file !== undefined)}
             onDecided={load}
           />
         )}
@@ -437,11 +440,14 @@ function Overview({
   reviewer,
   build,
   onDecided,
+  onOpen,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: BuildDetail;
   readonly onDecided: () => void;
+  /** Leave the docket for one render — the same selection the rail makes. */
+  readonly onOpen: (subject: string) => void;
 }): ReactElement {
   return (
     <div className="va-stage va-scroll">
@@ -471,6 +477,7 @@ function Overview({
             reviewer={reviewer}
             build={build}
             onDecided={onDecided}
+            onOpen={onOpen}
           />
         </section>
 
@@ -630,12 +637,15 @@ export function SubjectPanel({
   reviewer,
   build,
   subject,
+  sourced,
   onDecided,
 }: {
   readonly client: ReviewClient;
   readonly reviewer: string;
   readonly build: string;
   readonly subject: SubjectView;
+  /** Whether the run resolved any source file — see {@link RegionTable}. */
+  readonly sourced?: boolean | undefined;
   readonly onDecided: () => void;
 }): ReactElement {
   const [busy, setBusy] = useState(false);
@@ -679,7 +689,7 @@ export function SubjectPanel({
           </header>
           <p className="va-because">{subject.because}</p>
 
-          <Viewer client={client} build={build} subject={subject} />
+          <Viewer client={client} build={build} subject={subject} sourced={sourced} />
         </div>
       </div>
 
