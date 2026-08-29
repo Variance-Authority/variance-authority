@@ -182,12 +182,14 @@ flake that was fixed into a flake that never happened.
 [`spec 0002`](specs/0002-history-store.md) is the live list, and two things on it
 are worth knowing up front.
 
-**`lastChanged` and `reach` are not asked by anything.** Both are implemented in
-every backend and served by `packages/server/src/http.ts` and
-`packages/tribunal/src/worker.ts`; the other four reads are asked by `recordRun`.
-*When did this component last move* and *where has it started appearing* are
-questions about the suite rather than about a run, so they do not fit the shape
-everything else here uses — the run asks, the report carries.
+**`lastChanged` is not asked by a run.** It is implemented in every backend and
+served by `packages/server/src/http.ts` and `packages/tribunal/src/worker.ts`;
+the other reads are asked by `recordRun`, and `reach` and `flakiness` are asked
+by the review surface in [`tribunal`](../packages/tribunal) when a reviewer asks
+whether the difference in front of them has happened before. *When did this
+component last move* is a question about the suite rather than about a run, so it
+does not fit the shape everything else here uses — the run asks, the report
+carries.
 
 Half of it is answered elsewhere: *where does this component appear* is a
 question about one commit, and the suite compares itself against itself to

@@ -2626,6 +2626,9 @@
       },
       "./ui": {
         "BuildList": "function",
+        "ChangelogEntries": "function",
+        "ChangelogPage": "function",
+        "ChurnLine": "function",
         "CoverageLine": "function",
         "Docket": "function",
         "REVIEW_STYLES": "const",
@@ -2635,6 +2638,8 @@
         "ReviewClient": "interface",
         "ReviewClientOptions": "interface",
         "ReviewRequestError": "class",
+        "StabilityLine": "function",
+        "SubjectHistory": "function",
         "SubjectPanel": "function",
         "Viewer": "function",
         "ViewerMode": "type",

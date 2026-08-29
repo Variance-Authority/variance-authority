@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { BuildDetail, BuildSummary, Cause, Decision, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
+import { ChangelogPage, SubjectHistory } from './history.js';
 import { Viewer } from './viewer.js';
 
 /**
@@ -34,9 +35,19 @@ import { Viewer } from './viewer.js';
  *
  * Step 2 and step 3 live in [`viewer.tsx`](./viewer.tsx) and are re-exported
  * below: a component that moved file has not moved API, and `./ui` names these.
+ *
+ * ## 4. And then the record, because "is this normal?" is the real question
+ *
+ * A difference is not a decision. The same 2px shift is a bug in a component
+ * nobody has touched since March and a Tuesday in one that moves in nineteen runs
+ * out of twenty, and a before-and-after cannot tell those apart. So the surface
+ * reaches the same history the CLI writes — churn, reach, stability, and the
+ * changelog of what was approved before — from [`history.tsx`](./history.tsx),
+ * one subject at a time and only when asked.
  */
 
 export { RegionOverlay, Viewer, modesFor, type ViewerMode } from './viewer.js';
+export { ChangelogEntries, ChangelogPage, ChurnLine, StabilityLine, SubjectHistory } from './history.js';
 
 export interface ReviewAppProps {
   readonly client: ReviewClient;
@@ -62,6 +73,7 @@ type Loaded<T> = { readonly state: 'loading' } | { readonly state: 'failed'; rea
 export function ReviewApp({ client, reviewer, limit }: ReviewAppProps): ReactElement {
   const [builds, setBuilds] = useState<Loaded<readonly BuildSummary[]>>({ state: 'loading' });
   const [open, setOpen] = useState<string | null>(null);
+  const [changelog, setChangelog] = useState(false);
 
   const load = useCallback(async (): Promise<void> => {
     setBuilds({ state: 'loading' });
@@ -77,6 +89,8 @@ export function ReviewApp({ client, reviewer, limit }: ReviewAppProps): ReactEle
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (changelog) return <ChangelogPage client={client} onBack={() => setChangelog(false)} />;
 
   if (builds.state === 'loading') return <p className="va-note">Loading builds…</p>;
   if (builds.state === 'failed') return <Failure why={builds.why} retry={load} />;
@@ -95,7 +109,19 @@ export function ReviewApp({ client, reviewer, limit }: ReviewAppProps): ReactEle
     );
   }
 
-  return <BuildList builds={builds.value} onOpen={setOpen} />;
+  return (
+    <>
+      <nav className="va-nav">
+        <button type="button" className="va-current" disabled>
+          Builds
+        </button>
+        <button type="button" onClick={() => setChangelog(true)}>
+          Changelog
+        </button>
+      </nav>
+      <BuildList builds={builds.value} onOpen={setOpen} />
+    </>
+  );
 }
 
 export function BuildList({
@@ -352,6 +378,8 @@ export function SubjectPanel({
       <Viewer client={client} build={build} subject={subject} />
 
       <Findings subject={subject} />
+
+      <SubjectHistory client={client} subject={subject} />
 
       {failed === null ? null : <p className="va-failure">{failed}</p>}
 

@@ -71,6 +71,28 @@ export const REVIEW_STYLES = `
 .va-region-label { background: #c2410c; color: #fff; font-size: 0.7rem; left: 0; padding: 0 0.2rem; position: absolute; top: -1.1rem; white-space: nowrap; }
 .va-region.va-collateral .va-region-label { background: #64748b; }
 
+.va-nav { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.va-nav button { background: #f4f4f4; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; font: inherit; padding: 0.25rem 0.75rem; }
+.va-nav button.va-current { background: #333; border-color: #333; color: #fff; cursor: default; }
+
+.va-filter { align-items: center; display: flex; gap: 0.5rem; margin: 0.75rem 0; }
+.va-filter input { border: 1px solid #ccc; border-radius: 3px; font: inherit; padding: 0.2rem 0.4rem; }
+
+.va-changes { list-style: none; margin: 0; padding: 0; }
+.va-change { border-bottom: 1px solid #e5e5e5; padding: 0.75rem 0; }
+.va-change h3 { margin: 0 0 0.25rem; }
+.va-change-meta, .va-fingerprint { color: #666; font-size: 0.9rem; margin: 0.15rem 0; }
+.va-change-subjects { columns: 3 14rem; font-size: 0.9rem; }
+.va-ungrouped { border-top: 2px solid #333; margin-top: 1.5rem; }
+
+/* The three stability states are drawn as three, deliberately: unknown is not
+   clean, and a rate nobody swept for is not a rate of zero. */
+.va-history { margin: 0.5rem 0; }
+.va-ask { background: none; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; font: inherit; font-size: 0.9rem; padding: 0.2rem 0.6rem; }
+.va-stability, .va-churn { font-size: 0.9rem; margin: 0.25rem 0; }
+.va-stability.va-unknown { color: #a56000; }
+.va-stability.va-flaky { color: #a11; }
+
 .va-findings { color: #a56000; font-size: 0.9rem; }
 .va-not-observed .va-failed { color: #a11; font-weight: 600; }
 .va-actions { display: flex; align-items: center; gap: 0.5rem; }
@@ -78,7 +100,14 @@ export const REVIEW_STYLES = `
 .va-actions button:disabled { cursor: not-allowed; opacity: 0.5; }
 
 @media (prefers-color-scheme: dark) {
-  .va-note, .va-branch, .va-counts, .va-because, .va-collateral { color: #999; }
+  .va-note, .va-branch, .va-counts, .va-because, .va-collateral,
+  .va-change-meta, .va-fingerprint { color: #999; }
+  .va-nav button { background: #222; border-color: #444; color: #eee; }
+  .va-nav button.va-current { background: #eee; color: #111; }
+  .va-change { border-bottom-color: #333; }
+  .va-ungrouped { border-top-color: #ccc; }
+  .va-ask { border-color: #444; color: #eee; }
+  .va-filter input { background: #111; border-color: #444; color: #eee; }
   .va-build { border-bottom-color: #333; }
   .va-subject { border-color: #333; }
   .va-docket th { border-bottom-color: #ccc; }

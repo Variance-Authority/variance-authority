@@ -1,7 +1,16 @@
-import { profileById, type Digest, type ProfileId } from '@variance-authority/core';
+import {
+  BANDS as FREQUENCY_BANDS,
+  profileById,
+  type Digest,
+  type ProfileId,
+} from '@variance-authority/core';
 import {
   BANDS,
+  MAX_CURRENT_SUBJECTS,
+  type Approval,
   type Band,
+  type FrequencyBand,
+  type Instability,
   type Observation,
   type RunRecord,
   type TokenValue,
@@ -160,6 +169,7 @@ export async function asRecordRequest(request: Request): Promise<{
   readonly run: RunRecord;
   readonly observations: readonly Observation[];
   readonly tokens: readonly TokenValue[];
+  readonly instabilities: readonly Instability[];
 }> {
   const body = await asRecordBody(request);
 
@@ -171,7 +181,81 @@ export async function asRecordRequest(request: Request): Promise<{
     tokens: array(body['tokens'], '`tokens`').map((row, index) =>
       asTokenValue(row, `tokens[${index}]`),
     ),
+    // Absent is an empty list here and nowhere else in this file, because the
+    // claim it makes is carried by a different field: `run.swept` says whether
+    // anything examined every subject, so "no instabilities" from a caller that
+    // never looked cannot be read as "nothing read differently".
+    instabilities: array(body['instabilities'] ?? [], '`instabilities`').map((row, index) =>
+      asInstability(row, `instabilities[${index}]`),
+    ),
   };
+}
+
+/**
+ * An acceptance, and who made it when the surface that recorded it knows.
+ *
+ * The route this parses is how churn learns that anything shipped. Every
+ * observation is written unapproved — a run has not been reviewed at the moment
+ * it writes — so a deployment that could not take approvals answers *this
+ * component has never changed* about a component that changed forty times.
+ */
+export async function asApprovals(request: Request): Promise<readonly Approval[]> {
+  const body = await asRecordBody(request);
+
+  return array(body['approvals'], '`approvals`').map((row, index) => {
+    const what = `approvals[${index}]`;
+    const source = record(row, what);
+    const by = source['by'];
+
+    if (by !== undefined && by !== null && (typeof by !== 'string' || by === '')) {
+      throw new BadRequest(
+        `${what}.by must be a non-empty string when present; received ${describe(by)}`,
+      );
+    }
+
+    return {
+      project: string(source, 'project', what),
+      subject: string(source, 'subject', what),
+      run: string(source, 'run', what),
+      at: instant(source, 'at', what),
+      ...(typeof by === 'string' ? { by } : {}),
+    };
+  });
+}
+
+/**
+ * The subject list a run asks about before it writes.
+ *
+ * The only validation here that refuses a request for being *large* rather than
+ * malformed, and the reason is that the answer cannot be trimmed: a `previous`
+ * set with a hole in it is a change that did not happen, appended to a store that
+ * does not forget. So a caller naming more than one request may carry is told the
+ * cap rather than answered with the first {@link MAX_CURRENT_SUBJECTS} and left
+ * looking successful.
+ */
+export async function asCurrentRequest(request: Request): Promise<readonly string[]> {
+  const body = await asRecordBody(request);
+
+  const subjects = array(body['subjects'], '`subjects`').map((value, index) => {
+    if (typeof value !== 'string' || value === '') {
+      throw new BadRequest(
+        `subjects[${index}] must be a non-empty string; received ${describe(value)}`,
+      );
+    }
+    return value;
+  });
+
+  const distinct = new Set(subjects).size;
+  if (distinct > MAX_CURRENT_SUBJECTS) {
+    throw new BadRequest(
+      `this request names ${distinct} subjects and one \`current\` request may name ` +
+        `${MAX_CURRENT_SUBJECTS}. The answer is not trimmed to fit — a missing previous row is ` +
+        'indistinguishable from a hash that was never recorded, so the run would append a change ' +
+        'that did not happen — so the request is refused and the caller splits its list',
+    );
+  }
+
+  return subjects;
 }
 
 export function asBand(value: unknown, what: string): Band {
@@ -193,13 +277,77 @@ function asProfile(value: unknown, what: string): ProfileId {
 function asRunRecord(value: unknown): RunRecord {
   const what = '`run`';
   const source = record(value, what);
+  const swept = source['swept'];
+
+  if (swept !== undefined && swept !== null && typeof swept !== 'boolean') {
+    throw new BadRequest(`${what}.swept must be a boolean when present; received ${describe(swept)}`);
+  }
+
   return {
     project: string(source, 'project', what),
     run: string(source, 'run', what),
     commit: string(source, 'commit', what),
     profile: asProfile(source['profile'], what),
     at: instant(source, 'at', what),
+    // Absent stays absent through the whole path: a run that never said what it
+    // examined must not be stored as one that examined nothing, because that
+    // number becomes the denominator of a flake rate.
+    ...(typeof swept === 'boolean' ? { swept } : {}),
   };
+}
+
+/**
+ * One occurrence of a subject failing to read the same way twice.
+ *
+ * `component` and `band` are optional and their absence is meaningful: a
+ * collector that supplied documents without snapshots proved the instability and
+ * gave nobody the means to name it. An empty string is refused rather than
+ * stored, because it would come back as a component named "".
+ */
+function asInstability(value: unknown, what: string): Instability {
+  const source = record(value, what);
+  const component = source['component'];
+  const band = source['band'];
+  const absorbedBy = source['absorbedBy'];
+
+  for (const [key, held] of [
+    ['component', component],
+    ['absorbedBy', absorbedBy],
+  ] as const) {
+    if (held !== undefined && held !== null && (typeof held !== 'string' || held === '')) {
+      throw new BadRequest(
+        `${what}.${key} must be a non-empty string when present; received ${describe(held)}`,
+      );
+    }
+  }
+
+  return {
+    project: string(source, 'project', what),
+    subject: string(source, 'subject', what),
+    ...(typeof component === 'string' ? { component } : {}),
+    ...(band === undefined || band === null ? {} : { band: asFrequencyBand(band, `${what}.band`) }),
+    profile: asProfile(source['profile'], what),
+    commit: string(source, 'commit', what),
+    run: string(source, 'run', what),
+    at: instant(source, 'at', what),
+    ...(typeof absorbedBy === 'string' ? { absorbedBy } : {}),
+  };
+}
+
+/**
+ * A frequency band, checked against `core`'s list rather than this package's.
+ *
+ * The two `Band` types classify different things — one names which part of a
+ * component was hashed, the other how often that kind of thing changes — and an
+ * instability is reported in the second, because that is what a fix is aimed at.
+ */
+function asFrequencyBand(value: unknown, what: string): FrequencyBand {
+  if (typeof value !== 'string' || !FREQUENCY_BANDS.includes(value as FrequencyBand)) {
+    throw new BadRequest(
+      `${what} must be one of ${FREQUENCY_BANDS.join(', ')}; received ${describe(value)}`,
+    );
+  }
+  return value as FrequencyBand;
 }
 
 function asObservation(value: unknown, what: string): Observation {

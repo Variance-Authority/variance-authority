@@ -1,4 +1,23 @@
-import type { BuildDetail, BuildSummary, Decision, DecisionRecord, SweepReport } from '../review.js';
+import {
+  CHURN_PATH,
+  FLAKINESS_PATH,
+  LAST_CHANGED_PATH,
+  REACH_PATH,
+  type Churn,
+  type Flakiness,
+  type Observation,
+  type Reach,
+  type Window,
+} from '@variance-authority/history';
+import type {
+  BuildDetail,
+  BuildSummary,
+  Decision,
+  DecisionRecord,
+  SweepReport,
+  TribunalChangelog,
+  TribunalChangelogQuery,
+} from '../review.js';
 
 /**
  * The review API, as the browser sees it.
@@ -39,6 +58,22 @@ export interface ReviewClientOptions {
 export interface ReviewClient {
   builds(limit?: number): Promise<readonly BuildSummary[]>;
   build(id: string): Promise<BuildDetail>;
+  /** Why the baselines are what they are, grouped by shape. */
+  changelog(query?: TribunalChangelogQuery): Promise<TribunalChangelog>;
+  /**
+   * The three history answers a reviewer needs to place one difference in time.
+   *
+   * They read the same rows `variance` writes and are served on the same paths a
+   * CLI addresses — this deployment is one service, and the review page is a
+   * second reader of the record rather than a second record. Never `Unkept`: a
+   * tribunal that is answering at all has a database, and the sentence about
+   * nobody keeping a record belongs to a pipeline with no service configured.
+   */
+  churn(component: string, window?: Window): Promise<Churn>;
+  reach(component: string, window?: Window): Promise<Reach>;
+  flakiness(subject: string, window?: Window): Promise<Flakiness>;
+  /** The most recent recorded reading of one component in one subject, or `null`. */
+  lastChanged(subject: string, component: string): Promise<Observation | null>;
   decide(
     build: string,
     subject: string,
@@ -98,6 +133,32 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
 
     build: (id) => call<BuildDetail>(`/review/builds/${encode(id)}`),
 
+    changelog: (query = {}) =>
+      call<TribunalChangelog>(
+        `/review/changelog${search({
+          component: query.component,
+          subject: query.subject,
+          since: query.since,
+          limit: query.limit,
+        })}`,
+      ),
+
+    churn: (component, window) =>
+      call<Churn>(`${CHURN_PATH}${search({ component, ...window })}`),
+
+    reach: (component, window) =>
+      call<Reach>(`${REACH_PATH}${search({ component, ...window })}`),
+
+    flakiness: (subject, window) =>
+      call<Flakiness>(`${FLAKINESS_PATH}${search({ subject, ...window })}`),
+
+    async lastChanged(subject, component): Promise<Observation | null> {
+      const body = await call<{ readonly observation: Observation | null }>(
+        `${LAST_CHANGED_PATH}${search({ subject, component })}`,
+      );
+      return body.observation;
+    },
+
     decide: (build, subject, decision, by, note) =>
       call<DecisionRecord>(`/review/builds/${encode(build)}/subjects/${encode(subject)}/decision`, {
         method: 'POST',
@@ -112,6 +173,24 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
     imageUrl: (build, subject, kind) =>
       `${base}/review/builds/${encode(build)}/subjects/${encode(subject)}/${kind}.png`,
   };
+}
+
+/**
+ * A query string from the parameters that were actually given.
+ *
+ * An absent filter is left out rather than sent empty, because on these routes
+ * the two mean different things: `component=` is a component whose name is the
+ * empty string and matches nothing, while no `component` at all is the whole
+ * project. A filter that silently narrows an answer to nothing is the same defect
+ * as an empty list returned for a failure.
+ */
+function search(parameters: Record<string, string | number | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(parameters)) {
+    if (value !== undefined) query.set(key, String(value));
+  }
+  const text = query.toString();
+  return text === '' ? '' : `?${text}`;
 }
 
 /** The server's own sentence, quoted, because it is the one worth reading. */

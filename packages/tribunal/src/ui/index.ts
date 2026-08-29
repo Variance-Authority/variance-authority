@@ -8,10 +8,15 @@
 
 export {
   BuildList,
+  ChangelogEntries,
+  ChangelogPage,
+  ChurnLine,
   CoverageLine,
   Docket,
   RegionOverlay,
   ReviewApp,
+  StabilityLine,
+  SubjectHistory,
   SubjectPanel,
   Viewer,
   modesFor,

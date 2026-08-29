@@ -41,7 +41,7 @@ npm install @variance-authority/tribunal
 | surface | contract | defined by |
 |---|---|---|
 | baselines | `RasterStore` behind `/baseline/*` and `/cache/*` | `raster`, `remote` |
-| history | `HistoryBackend` behind `/v1/*` | `history`, `server` |
+| history | `HistoryBackend` behind `/v1/*` — every path the protocol defines | `history`, `server` |
 | review | builds, subjects, decisions | here |
 
 `variance run` reaches this deployment with **no change to the CLI** —
@@ -385,10 +385,27 @@ reviewer sees, in this order:
    labelled with the component that owns it.
 3. **The comparison** — swipe, onion, side-by-side, difference mask — last, and
    only the modes this build actually kept images for.
+4. **The record**, on request per subject: how often this subject has failed to
+   read the same way twice, how often its cause has caused an approved change,
+   and how many subjects that component reaches. Fetched when a reviewer clicks
+   *Has this changed before?* rather than with the build — a build with three
+   hundred changed subjects would otherwise make nine hundred history requests to
+   draw a page on which one is read.
 
 The docket ranks by cause pixels rather than total area, so a large container
 that only reflowed does not outrank the smaller edit that caused it; `cause` is
 a field on a region rather than something inferred from a component's size.
+
+Step 4 is the question a before-and-after cannot answer. The same 2px shift is a
+bug in a component nobody has touched since March and a Tuesday in one that moves
+in nineteen runs out of twenty. Two numbers are drawn as missing rather than as
+zero, deliberately: a flake rate is **absent** until a run has read every subject
+twice (`RunRecord.swept`), and a coverage that was never stated is unknown rather
+than clean.
+
+The `Changelog` tab is the same evidence at project scale — every approval,
+grouped by the shape that was approved, with the approvals nothing could
+attribute listed rather than dropped.
 
 ## Review invariants
 
@@ -408,6 +425,13 @@ the object still exists rather than answering from the D1 row alone.
 **A coverage list that was never stated is not an empty one.** `undefined` and
 `[]` are stored, returned, and drawn as different values: absent means nothing
 looked, `[]` means inspected and clean. The same distinction holds for findings.
+
+**The review token reads the record and never writes it.** `/v1/churn`,
+`/v1/reach`, `/v1/flakiness`, `/v1/value-journey` and `/v1/last-changed` answer
+either capability, because they derive from rows already recorded and the browser
+drawing a review page holds the review token. `/v1/observations`, `/v1/approvals`
+and `/v1/current` are the ingest token's: the first two write, and the third is a
+run asking what to write against.
 
 **Two tokens, and they may not be equal.** The ingest token lives in CI
 configuration and writes builds, baselines and history; the review token

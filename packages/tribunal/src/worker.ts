@@ -1,13 +1,24 @@
 import type { Digest } from '@variance-authority/core';
 import {
+  APPROVALS_PATH,
   CHURN_PATH,
+  CURRENT_PATH,
+  FLAKINESS_PATH,
   LAST_CHANGED_PATH,
   OBSERVATIONS_PATH,
   REACH_PATH,
   VALUE_JOURNEY_PATH,
 } from '@variance-authority/history';
 import { RasterStoreError, rasterFrom } from '@variance-authority/raster';
-import { HistoryWriteConflict, churnFrom, journeyFrom, lastChangedFrom, reachFrom } from '@variance-authority/server';
+import {
+  HistoryWriteConflict,
+  churnFrom,
+  currentFrom,
+  flakinessFrom,
+  journeyFrom,
+  lastChangedFrom,
+  reachFrom,
+} from '@variance-authority/server';
 import type { TribunalBindings } from './bindings.js';
 import { createD1Backend } from './history.js';
 import { ReviewError, createReviewStore } from './review.js';
@@ -26,8 +37,10 @@ import {
   string,
 } from './worker-http.js';
 import {
+  asApprovals,
   asBand,
   asBuildIngest,
+  asCurrentRequest,
   asDecision,
   asIdentity,
   asKey,
@@ -260,14 +273,31 @@ async function route(
     requires(granted, 'ingest', path);
     requireMethod(request, 'POST');
     const write = await asRecordRequest(request);
-    await surfaces.history.append(write.run, write.observations, write.tokens);
+    await surfaces.history.append(write.run, write.observations, write.tokens, write.instabilities);
     // 204: the write left nothing to say, and the client treats any body on this
     // route as a shape error rather than guessing at it.
     return new Response(null, { status: 204 });
   }
 
-  if (path === LAST_CHANGED_PATH) {
+  if (path === APPROVALS_PATH) {
     requires(granted, 'ingest', path);
+    requireMethod(request, 'POST');
+    await surfaces.history.appendApprovals(await asApprovals(request));
+    return new Response(null, { status: 204 });
+  }
+
+  if (path === CURRENT_PATH) {
+    // A read, and still a POST, and still the ingest capability. Its argument is
+    // a subject list — three hundred subject ids in a query string is a 414 from
+    // a proxy nobody configured — and its caller is a run deciding what to write,
+    // not a person deciding what to ship (`CurrentRequest`).
+    requires(granted, 'ingest', path);
+    requireMethod(request, 'POST');
+    return json(200, await currentFrom(surfaces.history, project, await asCurrentRequest(request)));
+  }
+
+  if (path === LAST_CHANGED_PATH) {
+    readable(granted, path);
     requireMethod(request, 'GET');
     const band = optional(url, 'band');
     return json(200, {
@@ -282,7 +312,7 @@ async function route(
   }
 
   if (path === CHURN_PATH) {
-    requires(granted, 'ingest', path);
+    readable(granted, path);
     requireMethod(request, 'GET');
     return json(
       200,
@@ -291,7 +321,7 @@ async function route(
   }
 
   if (path === VALUE_JOURNEY_PATH) {
-    requires(granted, 'ingest', path);
+    readable(granted, path);
     requireMethod(request, 'GET');
     return json(
       200,
@@ -300,11 +330,20 @@ async function route(
   }
 
   if (path === REACH_PATH) {
-    requires(granted, 'ingest', path);
+    readable(granted, path);
     requireMethod(request, 'GET');
     return json(
       200,
       await reachFrom(surfaces.history, project, required(url, 'component'), windowOf(url)),
+    );
+  }
+
+  if (path === FLAKINESS_PATH) {
+    readable(granted, path);
+    requireMethod(request, 'GET');
+    return json(
+      200,
+      await flakinessFrom(surfaces.history, project, required(url, 'subject'), windowOf(url)),
     );
   }
 
@@ -404,11 +443,30 @@ async function route(
       `no route for ${request.method} ${path}. This deployment answers the baseline routes ` +
       `(${BASELINE_FIND_PATH}, ${BASELINE_DESCRIBE_PATH}, ${BASELINE_PUT_PATH}, ` +
       `${CACHE_FIND_PATH}, ${CACHE_PUT_PATH}), the history routes (${OBSERVATIONS_PATH}, ` +
-      `${LAST_CHANGED_PATH}, ${CHURN_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}) and ` +
-      '/review/builds and /review/changelog. A path from a different API version is a client ' +
-      'and a service that ' +
+      `${APPROVALS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
+      `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}) and /review/builds and ` +
+      '/review/changelog. A path from a different API version is a client and a service that ' +
       'disagree about a recorded shape',
   });
+}
+
+/**
+ * The history routes that answer a question rather than record one.
+ *
+ * Either capability may ask. The split everywhere else in this file is *who is
+ * allowed to write*, and these five write nothing: churn, reach, flakiness, the
+ * value journey and the last change are derived from rows already recorded. A
+ * reviewer looking at a build needs exactly these to know whether the difference
+ * in front of them is the third this week or the first this year, and the browser
+ * that draws that page holds the review token — so refusing them here would mean
+ * a review surface that can approve a change it cannot put in context.
+ *
+ * It stays a rule with a name rather than an omitted check, because the next
+ * history route added is a write far more often than it is a read, and the
+ * default has to be the strict one.
+ */
+function readable(granted: Granted, path: string): void {
+  if (granted !== 'ingest') requires(granted, 'review', path);
 }
 
 /** Re-exported so a Worker entry can recognise a store failure without a second import. */

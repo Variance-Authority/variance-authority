@@ -3,9 +3,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core';
-import type { BuildSummary } from '../review.js';
+import type { Flakiness } from '@variance-authority/history';
+import type { BuildSummary, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
-import { ReviewApp } from './review.js';
+import { ReviewApp, SubjectHistory } from './review.js';
 
 /**
  * The three states `ReviewApp` itself decides between, and the one that matters.
@@ -59,9 +60,49 @@ function clientThat(builds: () => Promise<readonly BuildSummary[]>): ReviewClien
   return {
     builds,
     build: refuse,
+    changelog: refuse,
+    churn: refuse,
+    reach: refuse,
+    flakiness: refuse,
+    lastChanged: refuse,
     decide: refuse,
     sweep: refuse,
     imageUrl: () => '',
+  };
+}
+
+/** A client that answers history and refuses everything a panel must not call. */
+function historyClient(flakiness: () => Promise<Flakiness>): ReviewClient {
+  const refuse = (): never => {
+    throw new Error('a subject panel asks about the record and nothing else');
+  };
+
+  return {
+    builds: refuse,
+    build: refuse,
+    changelog: refuse,
+    churn: refuse,
+    reach: refuse,
+    flakiness,
+    lastChanged: refuse,
+    decide: refuse,
+    sweep: refuse,
+    imageUrl: () => '',
+  };
+}
+
+function subject(): SubjectView {
+  return {
+    subject: 'story:card',
+    verdict: 'changed',
+    because: 'the rendered image differs from the baseline',
+    changedPixels: 12,
+    // No cause attributed, so churn and reach are not asked for — which is why
+    // `historyClient` can refuse them and this still renders.
+    regions: [],
+    has: { before: true, after: true, diff: true },
+    approvable: true,
+    decision: null,
   };
 }
 
@@ -121,5 +162,62 @@ describe('ReviewApp', () => {
       'run-41',
       'run-42',
     ]);
+  });
+});
+
+describe('SubjectHistory', () => {
+  const flakiness: Flakiness = {
+    subject: 'story:card',
+    window: {},
+    runs: 20,
+    sweeps: 20,
+    occurrences: 6,
+    absorbedRuns: 0,
+    rate: 0.3,
+    sweepsSince: 9,
+    causes: [],
+    omittedRuns: 0,
+    omittedOccurrences: 0,
+  };
+
+  it('asks nothing until a reviewer asks, because a build has three hundred of these', async () => {
+    let calls = 0;
+    const client = historyClient(() => {
+      calls += 1;
+      return Promise.resolve(flakiness);
+    });
+
+    await act(async () => {
+      root.render(<SubjectHistory client={client} subject={subject()} />);
+    });
+
+    expect(calls).toBe(0);
+    expect(host.querySelector('.va-ask')?.textContent).toBe('Has this changed before?');
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.va-ask')?.click();
+    });
+
+    expect(calls).toBe(1);
+    expect(host.textContent).toContain('none in the last 9 sweeps');
+  });
+
+  it('reports a record it could not read, rather than a subject with no history', async () => {
+    // The same failure as the build list, one level down: "this has never been
+    // unstable" is the sentence somebody approves on, and it is what an error
+    // swallowed here would say.
+    const client = historyClient(() =>
+      Promise.reject(new Error('GET /v1/flakiness answered 500: no such table')),
+    );
+
+    await act(async () => {
+      root.render(<SubjectHistory client={client} subject={subject()} />);
+    });
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>('.va-ask')?.click();
+    });
+
+    expect(host.textContent).toContain('no such table');
+    expect(host.textContent).not.toContain('never disagreed');
   });
 });
