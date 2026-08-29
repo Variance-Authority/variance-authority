@@ -51,6 +51,14 @@ type Loaded<T> = { readonly state: 'loading' } | { readonly state: 'failed'; rea
   readonly value: T;
 };
 
+/**
+ * The docket, a build, and one subject at a time — the surface, mounted whole.
+ *
+ * Give it a client and the reviewer's name and it is the entire review
+ * experience: builds awaiting decision, causes ranked, regions drawn, and the
+ * approve and reject that write back. It holds no credential of its own, which
+ * is why the name is a prop and not something it asks the server for.
+ */
 export function ReviewApp({ client, reviewer, limit }: ReviewAppProps): ReactElement {
   const [builds, setBuilds] = useState<Loaded<readonly BuildSummary[]>>({ state: 'loading' });
   const [open, setOpen] = useState<string | null>(null);

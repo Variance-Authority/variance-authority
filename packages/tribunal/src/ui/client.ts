@@ -61,6 +61,13 @@ export class ReviewRequestError extends Error {
   }
 }
 
+/**
+ * A review client over `fetch`, pointed at wherever the service is mounted.
+ *
+ * The one dependency {@link ReviewApp} has. Everything non-2xx throws
+ * {@link ReviewRequestError} with the status, so a failure reaches the surface
+ * as a failure rather than as an empty list somebody merges on.
+ */
 export function createReviewClient(options: ReviewClientOptions): ReviewClient {
   const base = options.endpoint.replace(/\/$/, '');
   const send = options.fetch ?? globalThis.fetch.bind(globalThis);

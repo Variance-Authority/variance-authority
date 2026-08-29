@@ -48,6 +48,10 @@
       "types": "./dist/worker-entry.d.ts",
       "default": "./dist/worker-entry.js"
     },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.js"
+    },
     "./ui": {
       "types": "./dist/ui/index.d.ts",
       "default": "./dist/ui/index.js"
@@ -63,6 +67,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "variance-authority-tribunal": "./dist/node/bin.js"
+  },
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
@@ -81,10 +88,14 @@
     "@variance-authority/server": "workspace:^"
   },
   "peerDependencies": {
-    "react": ">=19"
+    "react": ">=19",
+    "react-dom": ">=19"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   },

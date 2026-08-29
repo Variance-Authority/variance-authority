@@ -71,12 +71,28 @@ export interface TribunalRouteOptions {
   readonly tokens: { readonly ingest: string; readonly review: string };
 }
 
+/**
+ * The three method exports a Next.js route file needs.
+ *
+ * `GET`, `POST` and `HEAD` are the same handler; the framework wants them named.
+ * Spread them straight out of a route module — `export const { GET, POST, HEAD }
+ * = createTribunalRoutes(...)`.
+ */
 export interface TribunalRoutes {
   GET(request: Request): Promise<Response>;
   POST(request: Request): Promise<Response>;
   HEAD(request: Request): Promise<Response>;
 }
 
+/**
+ * Mount the service inside an app that already knows who its users are.
+ *
+ * Strips `basePath`, asks `authorize` what this request is allowed, and
+ * **replaces** the authorization header with the token that answer implies —
+ * replaces, so a caller cannot present its own bearer and choose its own
+ * capability. A refusal is answered 401 without the Worker seeing the request,
+ * which keeps the app's session and the deployment's tokens two separate things.
+ */
 export function createTribunalRoutes(
   worker: Tribunal,
   options: TribunalRouteOptions,

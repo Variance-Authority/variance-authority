@@ -102,6 +102,15 @@ export interface TribunalOptions extends TribunalBindings {
   readonly now?: () => Date;
 }
 
+/**
+ * The whole service, as one `fetch` handler.
+ *
+ * Deliberately nothing else. A handler is what a Worker exports, what a Next
+ * route handler is, and what `node:http` can be adapted to in a dozen lines — so
+ * the three deployments differ in their wiring and not in their router. It is
+ * also the reason a `Tribunal` cannot be asked for its own tokens: a value with
+ * one method has nothing to leak when it is logged.
+ */
 export interface Tribunal {
   fetch(request: Request): Promise<Response>;
 }
@@ -126,6 +135,14 @@ const BASELINE_PUT_PATH = '/baseline/put';
 const CACHE_FIND_PATH = '/cache/find';
 const CACHE_PUT_PATH = '/cache/put';
 
+/**
+ * Build the service over a database, a bucket and two tokens.
+ *
+ * Refuses a token under 16 characters and refuses two identical ones, here
+ * rather than on the first request: a deployment whose ingest token also
+ * promotes baselines is a misconfiguration that would otherwise be discovered by
+ * the build log that used it.
+ */
 export function createTribunal(options: TribunalOptions): Tribunal {
   refuseWeakTokens(options);
 
