@@ -99,13 +99,26 @@ surface and the bearers are how the API is exercised.
 
 ## Pointing a run at it
 
+`baselines.kind: "remote"` and the deployment's URL. The ingest token goes here,
+never the review one — a run records candidates and does not decide them.
+
 ```jsonc
 // variance.config.json
 {
+  "project": "todomvc",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "variance/collector.mjs"
+  },
   "baselines": {
     "kind": "remote",
-    "endpoint": "https://<your-worker>/api",
-    "token": "<INGEST_TOKEN>"
-  }
+    "endpoint": "https://variance-tribunal-console.example.workers.dev/api",
+    "token": "the ingest token"
+  },
+  "report": "out/report.json"
 }
 ```
