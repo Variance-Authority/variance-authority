@@ -8,6 +8,7 @@ import {
   normalize as normalizeCapture,
 } from '@variance-authority/core';
 import {
+  acquireFromAgent,
   createHarness,
   fetchModules,
   observeNetwork,
@@ -15,7 +16,6 @@ import {
   type Harness,
   type NetworkObservation,
 } from '@variance-authority/playwright';
-import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { suspenseRefusal } from '@variance-authority/react';
 import { collectStory, harnessPage } from '@variance-authority/storybook';
 import { createStoryRecorder, type StoryExecutionOptions } from './execution.js';
@@ -387,15 +387,6 @@ export function storybookCollector(
           viewport,
           engine,
           ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
-          // The page's whole observed set, narrowed inside the page to the URLs
-          // this story references. Sent whole because the driver cannot know
-          // which of them the story uses, and narrowed there because the page
-          // cannot know what the bytes were. Never reset between stories: one
-          // page serves the whole run, and a story whose asset was fetched
-          // during an earlier story still references it.
-          ...(network !== undefined && Object.keys(network.assets).length > 0
-            ? { assets: { ...network.assets } }
-            : {}),
           // Only the rules that name a selector cross into the page. A
           // fingerprint rule has nothing for a document to resolve, and sending
           // one would put a digest in a browser that cannot use it.
@@ -412,16 +403,13 @@ export function storybookCollector(
           roots,
         };
 
-        const raw = await page.evaluate(
-          ([global, sent]: readonly [string, AcquireRequest]) => {
-            const agent = (globalThis as unknown as Record<string, { acquire(r: AcquireRequest): Promise<string> }>)[
-              global
-            ];
-            if (agent === undefined) throw new Error(`missing page agent ${global}`);
-            return agent.acquire(sent);
-          },
-          [AGENT_GLOBAL, request] as const,
-        );
+        // The page's whole observed set goes in there, narrowed inside the page
+        // to the URLs this story references: the driver cannot know which of
+        // them the story uses, and the page cannot know what the bytes were.
+        // Never reset between stories — one page serves the whole run, and a
+        // story whose asset was fetched during an earlier story still
+        // references it.
+        const raw = await acquireFromAgent(page, network, request);
 
         const acquired = JSON.parse(raw) as Acquired;
 

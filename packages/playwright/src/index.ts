@@ -41,4 +41,5 @@ export type { BlankRule, ImageSize } from './blank.js';
 export { fetchModules } from './modules.js';
 
 export { AGENT_GLOBAL } from './agent.js';
+export { acquireFromAgent } from './acquire.js';
 export type { CaptureRequest, PageAgent } from './agent.js';

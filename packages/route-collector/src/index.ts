@@ -8,6 +8,7 @@ import {
 } from '@variance-authority/core';
 
 import {
+  acquireFromAgent,
   createHarness,
   fetchModules,
   unresizable,
@@ -365,13 +366,6 @@ export function routeCollector(
           viewport: planned.viewport ?? config.viewport,
           engine,
           ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
-          // Sent into the page so the capture records them, because the
-          // environment key is assembled where the capture is. The driver is the
-          // only party that saw the bytes; the page is the only party that
-          // builds the key. Neither can do it alone.
-          ...(network !== undefined && Object.keys(network.assets).length > 0
-            ? { assets: { ...network.assets } }
-            : {}),
           // Only the rules that name a selector cross into the page. A
           // fingerprint rule has nothing for a document to resolve, and sending
           // one would put a digest in a browser that cannot use it.
@@ -389,16 +383,9 @@ export function routeCollector(
           roots,
         };
 
-        const raw = await page.evaluate(
-          ([global, sent]: readonly [string, AcquireRequest]) => {
-            const agent = (globalThis as unknown as Record<string, { acquire(r: AcquireRequest): Promise<string> }>)[
-              global
-            ];
-            if (agent === undefined) throw new Error(`missing page agent ${global}`);
-            return agent.acquire(sent);
-          },
-          [AGENT_GLOBAL, request] as const,
-        );
+        // The assets are its business, not this request's: they are read from
+        // the wire and they keep arriving while the page is being held still.
+        const raw = await acquireFromAgent(page, network, request);
 
         const acquired = JSON.parse(raw) as Acquired;
 
