@@ -42,6 +42,7 @@ import { mergeReports } from './commands/merge.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
+import { formatPush, push } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
 import { doctor, machineProbes, rendererOptionsFor } from './commands/doctor.js';
@@ -238,6 +239,54 @@ export async function dispatch(
       // Reading a record is never a verdict about the project. This exits 0 even
       // when it found nothing, because "no baseline was explained" is an answer
       // and not a failure — the failures already threw.
+      return EXIT_CLEAN;
+    }
+
+    case 'push': {
+      if (config.review === undefined) {
+        throw new OperatorError(
+          'no `review` in the config, so there is no review surface to push to. It takes an ' +
+            '`endpoint` and the deployment\'s **ingest** token — never the review one, which ' +
+            'promotes baselines.',
+        );
+      }
+
+      // The same resolution `run` uses, and deliberately the same one: a build
+      // pushed under an id the history record never heard of is a build nobody
+      // can join to anything. `--branch` is separate because no CI system agrees
+      // on where it lives, and a wrong guess would attribute a decision to the
+      // wrong branch.
+      const identity = identityOf(
+        {
+          ...(parsed.run !== undefined ? { run: parsed.run } : {}),
+          ...(parsed.commit !== undefined ? { commit: parsed.commit } : {}),
+        },
+        process.env,
+      );
+
+      if (identity === undefined) {
+        throw new OperatorError(
+          'this build has no id and no commit. Pass `--run <id> --commit <sha>`, or run this ' +
+            'where GITHUB_RUN_ID, CI_PIPELINE_ID or BITBUCKET_BUILD_NUMBER is set with its ' +
+            'commit. Neither is invented: a build filed under an id nobody chose cannot be ' +
+            'found again, and one with no commit cannot be joined to what shipped.',
+        );
+      }
+
+      const pushed = await push({
+        report: await reportsFor(parsed.reports, config),
+        reportDir: dirname(config.report),
+        review: config.review,
+        build: identity.run,
+        commit: identity.commit,
+        ...(parsed.branch !== undefined ? { branch: parsed.branch } : {}),
+      });
+
+      streams.out(`${formatPush(pushed)}\n`);
+
+      // `0` for "the service has it", not for "the run was clean". The verdict
+      // belongs to the run that wrote the report, and this command reading it a
+      // second time could only disagree with it.
       return EXIT_CLEAN;
     }
 

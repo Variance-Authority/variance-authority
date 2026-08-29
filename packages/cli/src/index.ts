@@ -48,6 +48,7 @@ export type {
   ListSubjects,
   ParseOptions,
   RemoteBaselines,
+  ReviewConfig,
   StorybookSubjects,
   SubjectsConfig,
 } from './config.js';
@@ -106,6 +107,9 @@ export type {
   CandidateReader,
   Refused,
 } from './commands/accept.js';
+
+export { formatPush, push } from './commands/push.js';
+export type { PushDeps, PushOptions, PushResult, Withheld } from './commands/push.js';
 
 export { serve } from './commands/serve.js';
 export type { ServeOptions } from './commands/serve.js';

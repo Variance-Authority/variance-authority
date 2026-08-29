@@ -22,11 +22,13 @@ import {
   parseFonts,
   parseHistory,
   parseRenderer,
+  parseReview,
   parseSubjects,
   parseViewport,
   type AloneConfig,
   type BaselinesConfig,
   type HistoryConfig,
+  type ReviewConfig,
   type RemoteRendererConfig,
   type SubjectsConfig,
 } from './config-sections.js';
@@ -102,6 +104,7 @@ export type {
   LfsBaselines,
   ListSubjects,
   RemoteBaselines,
+  ReviewConfig,
   StorybookSubjects,
   SubjectsConfig,
 } from './config-sections.js';
@@ -180,6 +183,9 @@ export interface Config {
   readonly renderer?: RemoteRendererConfig;
 
   readonly history?: HistoryConfig;
+
+  /** The review surface `variance push` posts a finished run to. */
+  readonly review?: ReviewConfig;
 
   /** Where `run` writes, and where `report`, `accept`, and `serve` read. */
   readonly report: string;
@@ -329,6 +335,7 @@ const TOP_LEVEL = [
   'browser',
   'renderer',
   'history',
+  'review',
   'report',
   'images',
   'intent',
@@ -444,6 +451,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(baselines !== undefined ? { baselines } : {}),
     fonts: parseFonts(root['fonts'], options),
     ...(root['history'] === undefined ? {} : { history: parseHistory(root['history'], options) }),
+    ...(root['review'] === undefined ? {} : { review: parseReview(root['review'], options) }),
     ...(root['source'] === undefined ? {} : { source: parseSource(root['source'], options) }),
     report,
     // Beside the *report* rather than beside the config: `ObservationRecord.images`

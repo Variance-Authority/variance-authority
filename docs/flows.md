@@ -208,13 +208,20 @@ which makes the adapter, not the token, the gate. `authorize` therefore has no
 default, and an operator who wants an open surface writes that line in their own
 repository where the next reader can see it.
 
-**You also cannot get a build in front of a reviewer without writing the upload
-yourself.** Nothing in `packages/cli` or in the shipped action posts to the
-ingest route, and the only thing in the repository that does is the Worker's own
-test suite. The review UI's client speaks to the *review* half of the surface —
-list, detail, decide, image — and never to ingest, so it is not the counterexample
-it looks like. The rung has the same no-caller hole rung 5 is marked for, on its
-write half.
+**A build gets there with `variance push`**, which takes the report the run
+already wrote and posts it with its images. It is a separate command rather than
+the tail of `run`, and the reason is sharding: a sharded suite produces N reports
+and **one** build, so a run that posted its own would file six builds over six
+sixths of the subjects. `push` takes the same report arguments `report` and
+`comment` take, so the merge that already exists is the merge that happens — and
+a build that failed to post can be posted again from the artifact, on a machine
+that never opened a browser.
+
+The config field it reads is `review`, and the token in it is the **ingest** one.
+A candidate whose sidecar cannot be read is withheld rather than sent under an
+invented digest: approving promotes an image keyed by its document digest, so
+bytes with a fabricated key would be an approval that could never settle a later
+run.
 
 **And the docket here leads with causes only when something supplied them.** The
 mechanism is worth stating exactly, because the obvious explanation is wrong: the

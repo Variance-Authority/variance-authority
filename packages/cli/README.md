@@ -98,6 +98,7 @@ variance report  [--config <path>] [--format text|json|html] [--subject <id>] [-
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
+variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
@@ -111,11 +112,52 @@ it wrote; `adjudicate` re-reads it against what you said you were doing;
 diff itself, identifying a category of visual difference so it can be matched
 across subjects) wherever that shape is the whole change, and refuses by name
 any subject where something else moved too; `changelog` reads back why the
-baselines are what they are; `doctor` says what this machine can observe
+baselines are what they are; `push` sends a finished run to a review surface for
+somebody to decide; `doctor` says what this machine can observe
 before a run rather than after one. `serve` exposes the report the last run
 wrote to an MCP client — an agent asks it what changed, which component and
 which file, over stdio, without re-running anything; the tools are
 `@variance-authority/mcp`'s.
+
+### Push: put a build in front of a reviewer
+
+A [`tribunal`](../tribunal/README.md) deployment holds builds, a docket and
+recorded decisions. `push` is what gets a run there — the report the run already
+wrote, with the images beside it.
+
+```jsonc
+// variance.config.json
+{
+  "review": {
+    "endpoint": "https://variance.example.com/api",
+    "token": "env:VARIANCE_INGEST_TOKEN"
+  }
+}
+```
+
+```bash
+npx variance run
+npx variance push --branch "$GITHUB_REF_NAME"
+```
+
+The token is the deployment's **ingest** token, never its review one: review
+promotes a baseline every later run is compared against, and a value that can do
+that has no business in a config a run reads. The build's id and commit come from
+`--run`/`--commit` or from the CI environment, on exactly the terms `run` reads
+them — and neither is invented, because a build filed under an id nobody chose
+cannot be found again.
+
+Separate from `run` on purpose. A sharded suite produces N reports and one build,
+so `push` takes the same report arguments `report` and `comment` take and pushes
+the merge; a service that was down does not turn a correct run red; and a build
+that failed to post can be posted again from the artifact, on a machine that
+never opened a browser.
+
+A candidate whose sidecar cannot be read is **withheld and named**, not sent.
+Approval promotes an image keyed by its document digest, so bytes under an
+invented key would be an approval that could never settle a later run. The
+subject still goes up with its verdict, its regions and its `before`; what it
+loses is the button.
 
 ### Changelog: explain a baseline update
 

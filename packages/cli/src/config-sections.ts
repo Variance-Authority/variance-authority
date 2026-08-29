@@ -176,6 +176,32 @@ export interface HistoryConfig {
   readonly project?: string;
 }
 
+/**
+ * Where a finished run is posted for somebody to decide.
+ *
+ * The tribunal's write half had no caller. A deployment could be stood up, the
+ * two tokens minted and the surface opened, and nothing in this package or in
+ * the shipped action would put a build in front of the reviewer — every adopter
+ * wrote the upload themselves, against a body shape they had to read out of the
+ * Worker's tests. `variance push` is that upload, and this is the address.
+ *
+ * **The token here is the ingest one, and it is the only one this tool will
+ * ever send.** Review promotes a baseline every later run is compared against,
+ * so a value that could approve has no business in a config a run reads. A
+ * deployment that gave one token both capabilities is refused at *its* end, and
+ * this end never asks for the second.
+ *
+ * No `project`, unlike {@link HistoryConfig}. A tribunal deployment holds one
+ * project and scopes every row by the one it was configured with, so a project
+ * named here could only disagree with it — and the disagreement would be
+ * invisible, because the ingest route accepts the build either way and files it
+ * under the deployment's answer.
+ */
+export interface ReviewConfig {
+  readonly endpoint: string;
+  readonly token: string;
+}
+
 export function parseAlone(value: unknown, options: ParseOptions): AloneConfig {
   const root = object(value, 'alone', ['limit'], options);
   if (root['limit'] === undefined) return {};
@@ -349,6 +375,18 @@ export function parseHistory(value: unknown, options: ParseOptions): HistoryConf
     // so that requiring it does not require committing it.
     token: secret(source, 'token', options, 'history.token'),
     ...(project !== undefined ? { project } : {}),
+  };
+}
+
+export function parseReview(value: unknown, options: ParseOptions): ReviewConfig {
+  const source = object(value, 'review', ['endpoint', 'token'], options);
+
+  return {
+    endpoint: url(source, 'endpoint', 'review.endpoint', options),
+    // Required, and through `secret`: the ingest route answers 401 without one,
+    // so a config carrying an endpoint and no token describes a push that can
+    // only ever fail — and it would fail at the end of a run, after the work.
+    token: secret(source, 'token', options, 'review.token'),
   };
 }
 

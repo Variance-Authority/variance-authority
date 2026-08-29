@@ -117,6 +117,17 @@ export type Parsed =
       readonly reports: readonly string[];
       readonly exitZeroOnChanges: boolean;
     }
+  | {
+      readonly command: 'push';
+      readonly config: string;
+      /** `--run <id>` / `--commit <sha>`, or the CI environment they are inside. */
+      readonly run?: string;
+      readonly commit?: string;
+      /** `--branch <name>`: what the reviewer is deciding about. */
+      readonly branch?: string;
+      /** Reports to read instead of the configured one. More than one is merged. */
+      readonly reports: readonly string[];
+    }
   | { readonly command: 'serve'; readonly config: string }
   | { readonly command: 'doctor'; readonly config: string }
   | {
@@ -136,6 +147,7 @@ const COMMANDS = [
   'adjudicate',
   'accept',
   'changelog',
+  'push',
   'serve',
   'doctor',
   'comment',
@@ -161,6 +173,7 @@ const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
   adjudicate: ['--claims', '--exit-zero-on-changes'],
   accept: ['--all', '--shape', '--message-file', '--message'],
   changelog: ['--component', '--subject', '--limit', '--since'],
+  push: ['--run', '--commit', '--branch'],
   serve: [],
   doctor: [],
   comment: ['--body-file', '--run-url', '--marker'],
@@ -172,6 +185,7 @@ export const USAGE = [
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
   'variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]',
+  'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>]              # MCP over stdio',
   'variance doctor  [--config <path>]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
@@ -341,6 +355,23 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(subject !== undefined ? { subject } : {}),
         ...(limit !== undefined ? { limit: Number(limit) } : {}),
         ...(since !== undefined ? { since } : {}),
+      };
+    }
+
+    case 'push': {
+      const runId = flags.values.get('--run');
+      const commit = flags.values.get('--commit');
+      const branch = flags.values.get('--branch');
+
+      return {
+        command: 'push',
+        config,
+        ...(runId !== undefined ? { run: runId } : {}),
+        ...(commit !== undefined ? { commit } : {}),
+        // An empty `--branch` is a workflow interpolating a variable that was
+        // not set — a detached build, not a branch called ''.
+        ...(branch !== undefined && branch !== '' ? { branch } : {}),
+        reports: flags.positionals.map((path) => resolve(path)),
       };
     }
 
