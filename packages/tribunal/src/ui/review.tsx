@@ -1,5 +1,5 @@
 import type { VariationRecord } from '@variance-authority/report';
-import { Fragment, useCallback, useEffect, useState, type ReactElement } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import type { BuildDetail, BuildSummary, Decision, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { ChangelogPage, SubjectHistory } from './history.js';
@@ -333,7 +333,6 @@ function BuildPage({
           <Overview client={client} reviewer={reviewer} build={value} onDecided={load} />
         ) : (
           <SubjectPanel
-            key={current.subject}
             client={client}
             reviewer={reviewer}
             build={value.build}
@@ -636,6 +635,18 @@ export function SubjectPanel({
 }): ReactElement {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const page = useRef<HTMLDivElement>(null);
+
+  // This panel used to be remounted per subject, which threw away the comparison
+  // mode and the magnification along with everything else — sixty re-clicks to
+  // read twenty subjects the same way. Those are the reviewer's working method
+  // and they stay; a failure from the last subject and its scroll position are
+  // not, and are what the remount was really for.
+  useEffect(() => {
+    setBusy(false);
+    setFailed(null);
+    page.current?.scrollTo({ top: 0 });
+  }, [subject.subject]);
 
   const decide = async (decision: Decision): Promise<void> => {
     setBusy(true);
@@ -655,7 +666,7 @@ export function SubjectPanel({
 
   return (
     <section className="va-subject">
-      <div className="va-stage va-scroll">
+      <div className="va-stage va-scroll" ref={page}>
         <div className="va-page">
           <header className="va-subject-head">
             <h3>{subject.subject}</h3>

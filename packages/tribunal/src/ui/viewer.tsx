@@ -77,17 +77,48 @@ export function Viewer({
   const [focus, setFocus] = useState<number | null>(null);
   const [flip, setFlip] = useState(true);
   const [pull, setPull] = useState(0);
+  const [still] = useState(calm);
   const stage = useRef<HTMLDivElement>(null);
 
   // The alternation, driven here rather than by a keyframe: the stylesheet is
   // pasted into somebody else's page and is held to hiding nothing, and a reader
   // who never chose this mode should not have an animation running in it.
   useEffect(() => {
-    if (mode !== 'blink') return;
+    if (mode !== 'blink' || still) return;
     const timer = setInterval(() => setFlip((was) => !was), BLINK_MS);
     return () => clearInterval(timer);
-  }, [mode]);
+  }, [mode, still]);
 
+  // What survives the move to another subject and what does not. Mode and
+  // magnification are the reviewer's; a region number belongs to the picture it
+  // was counted in, and a mode this subject cannot make would render a frame with
+  // no image behind it.
+  useEffect(() => {
+    setFocus(null);
+    setPull(0);
+    setMode((was) => (available.includes(was) ? was : (available[0] ?? 'regions')));
+    stage.current?.scrollTo({ left: 0, top: 0 });
+  }, [available]);
+
+  useEffect(() => {
+    if (pull === 0 || focus === null) return;
+    const region = subject.regions[focus];
+    const pane = stage.current;
+    if (region === undefined || pane === null) return;
+    const at = zoom === 'fit' ? 1 : zoom;
+    pane.scrollTo({
+      left: Math.max(0, (region.x + region.width / 2) * at - pane.clientWidth / 2),
+      top: Math.max(0, (region.y + region.height / 2) * at - pane.clientHeight / 2),
+      behavior: still ? 'auto' : 'smooth',
+    });
+    // Deliberately keyed on the count alone: two jumps to the same region are two
+    // requests, and the zoom this reads is already the one the plate was drawn at.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pull]);
+
+  // Every hook is above this line, and has to be: without a `key` forcing a
+  // remount, moving from a subject with images to one without would otherwise
+  // change how many hooks this component calls.
   if (available.length === 0) {
     return <p className="va-note">This run kept no images for this subject.</p>;
   }
@@ -114,22 +145,6 @@ export function Viewer({
     if (zoom === 'fit') setZoom(1);
     setPull((count) => count + 1);
   };
-
-  useEffect(() => {
-    if (pull === 0 || focus === null) return;
-    const region = subject.regions[focus];
-    const pane = stage.current;
-    if (region === undefined || pane === null) return;
-    const at = zoom === 'fit' ? 1 : zoom;
-    pane.scrollTo({
-      left: Math.max(0, (region.x + region.width / 2) * at - pane.clientWidth / 2),
-      top: Math.max(0, (region.y + region.height / 2) * at - pane.clientHeight / 2),
-      behavior: 'smooth',
-    });
-    // Deliberately keyed on the count alone: two jumps to the same region are two
-    // requests, and the zoom this reads is already the one the plate was drawn at.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pull]);
 
   const zoomable = size !== undefined;
   /**
@@ -180,6 +195,7 @@ export function Viewer({
             ))}
           </p>
         ) : null}
+        <p className="va-showing">{showing(mode, { seam, blend, flip })}</p>
         {subject.regions.length > 0 ? (
           <p className="va-steps">
             <button type="button" onClick={() => jump(step(focus, subject.regions.length, -1))}>
@@ -243,10 +259,19 @@ export function Viewer({
             {mode === 'wipe' ? (
               <span className="va-seam-line" aria-hidden="true" style={{ left: `${String(seam)}%` }} />
             ) : null}
-            <span className="va-plate-tag">{showing(mode, { seam, blend, flip })}</span>
           </div>
         </div>
       )}
+
+      {mode === 'blink' && still ? (
+        <p className="va-note">
+          This display asked for reduced motion, so the two readings do not alternate on their
+          own.{' '}
+          <button type="button" className="va-mode" onClick={() => setFlip((was) => !was)}>
+            show {flip ? 'the baseline' : 'this build'}
+          </button>
+        </p>
+      ) : null}
 
       {mode === 'blend' ? (
         <input
@@ -297,7 +322,20 @@ function over(
   return {};
 }
 
-/** Which reading is on screen, said in the corner where a reviewer is looking. */
+/**
+ * Whether this display has asked for less movement.
+ *
+ * Read once, at mount, so a render is consistent with itself; `matchMedia` is
+ * absent in a static render, where there is no interval and no scroll to suppress
+ * and the answer is therefore no. What it governs is not decoration — blink *is*
+ * the alternation — so the mode is not withdrawn, it is handed over to the
+ * reviewer to step.
+ */
+function calm(): boolean {
+  return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+/** Which reading is on screen, said in the bar where a reviewer is looking. */
 function showing(
   mode: ViewerMode,
   at: { readonly seam: number; readonly blend: number; readonly flip: boolean },

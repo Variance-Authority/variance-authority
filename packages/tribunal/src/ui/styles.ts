@@ -41,7 +41,7 @@
  * handed over as text, so it can ask for a face and must not require one.
  */
 export const REVIEW_STYLES = `
-:root, .va-app { --va-bg: #181b1d; --va-surface: #1e2224; --va-sunken: #181b1d; --va-line: #2f3437; --va-line-firm: #434a4d; --va-ink: #f3f4f6; --va-ink-2: #a8a09b; --va-ink-3: #8f8580; --va-accent: #ff4a19; --va-accent-ink: #181b1d; --va-warn: #e0a458; --va-warn-bg: #2a2118; --va-warn-ink: #f0c48a; --va-bad: #e5695c; --va-bad-bg: #2c1b18; --va-bad-ink: #f3a99e; --va-good: #7fa28c; --va-good-bg: #1a2420; --va-good-ink: #a8c9b5; --va-info-bg: #24282a; --va-info-ink: #d6d0cb; --va-cause: #ff4a19; --va-collateral: #8f8580; --va-shade: rgba(0, 0, 0, 0.45); --va-shade-firm: rgba(24, 27, 29, 0.82); --va-accent-soft: rgba(255, 74, 25, 0.14); --va-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --va-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+:root, .va-app { --va-bg: #181b1d; --va-surface: #1e2224; --va-sunken: #181b1d; --va-line: #2f3437; --va-line-firm: #434a4d; --va-ink: #f3f4f6; --va-ink-2: #a8a09b; --va-ink-3: #8f8580; --va-accent: #ff4a19; --va-accent-ink: #181b1d; --va-warn: #e0a458; --va-warn-bg: #2a2118; --va-warn-ink: #f0c48a; --va-bad: #e5695c; --va-bad-bg: #2c1b18; --va-bad-ink: #f3a99e; --va-good: #7fa28c; --va-good-bg: #1a2420; --va-good-ink: #a8c9b5; --va-info-bg: #24282a; --va-info-ink: #d6d0cb; --va-cause: #ff4a19; --va-collateral: #8f8580; --va-accent-soft: rgba(255, 74, 25, 0.14); --va-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --va-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
 
 .va-app { background: var(--va-bg); color: var(--va-ink); color-scheme: dark light; display: flex; flex-direction: column; font-family: var(--va-sans); font-size: 14px; height: 100dvh; line-height: 1.5; overflow: hidden; }
 /* The element reset, every rule of it wrapped in :where() so the whole block
@@ -69,6 +69,13 @@ export const REVIEW_STYLES = `
 :where(.va-app button.va-current:disabled) { cursor: default; opacity: 1; }
 :where(.va-app input) { background: var(--va-surface); border: 1px solid var(--va-line-firm); border-radius: 7px; color: var(--va-ink); font: inherit; padding: 0.35rem 0.6rem; }
 :where(.va-app ul, .va-app ol) { list-style: none; margin: 0; padding: 0; }
+
+/* The two things the reset above would otherwise have taken away. A surface that
+   reports \`nested-interactive\` and unreachable controls cannot itself leave a
+   keyboard reviewer guessing where they are — and the seam is the case that
+   forces it, being an appearance-stripped range with no border of its own. */
+:where(.va-app a, .va-app button, .va-app summary, .va-app input, .va-app [tabindex]):focus-visible { outline: 2px solid var(--va-accent); outline-offset: 3px; }
+.va-app ::selection { background: var(--va-accent); color: var(--va-accent-ink); }
 
 /* The three panes. \`min-height: 0\` on each, because a flex child defaults to a
    floor of its content and a rail of two hundred subjects would push the shell
@@ -272,7 +279,7 @@ export const REVIEW_STYLES = `
    stretched between top and bottom it would be drawn at the candidate's height
    whenever the two differ, which is often the change itself. */
 .va-plate .va-under { left: 0; position: absolute; top: 0; }
-.va-plate-tag { background: var(--va-shade-firm); border-radius: 5px; color: var(--va-ink); font-family: var(--va-mono); font-size: 0.68rem; padding: 0.15rem 0.4rem; pointer-events: none; position: absolute; right: 0.4rem; top: 0.4rem; }
+.va-showing { color: var(--va-ink-2); font-family: var(--va-mono); font-size: 0.72rem; margin: 0 0 0 0.2rem; }
 
 /* The seam is the control, not a slider parked somewhere else on the page: it
    spans the plate, so the thumb sits over the boundary it moves, and it is a
@@ -359,7 +366,15 @@ export const REVIEW_STYLES = `
   .va-reach .va-quad { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Motion is never how anything here is said, so there is nothing to preserve when
+   a reader has asked for less of it. The blink and the scroll to a region are
+   turned off in the component that starts them, because neither is a CSS
+   animation this could reach; this catches the transitions. */
+@media (prefers-reduced-motion: reduce) {
+  .va-app *, .va-app *::before, .va-app *::after { animation-duration: 1ms; animation-iteration-count: 1; scroll-behavior: auto; transition-duration: 1ms; }
+}
+
 @media (prefers-color-scheme: light) {
-  :root, .va-app { --va-bg: #f3f4f6; --va-surface: #ffffff; --va-sunken: #e9eaec; --va-line: #d8d6d3; --va-line-firm: #b8b3ae; --va-ink: #181b1d; --va-ink-2: #4c4844; --va-ink-3: #756d67; --va-accent: #d83a13; --va-accent-ink: #ffffff; --va-warn: #8a5a12; --va-warn-bg: #f7ecd9; --va-warn-ink: #5c3c08; --va-bad: #b03a2b; --va-bad-bg: #f8e3df; --va-bad-ink: #7a2418; --va-good: #46705a; --va-good-bg: #dfece4; --va-good-ink: #2b4a38; --va-info-bg: #ecebe9; --va-info-ink: #3d3935; --va-cause: #d83a13; --va-collateral: #756d67; --va-shade: rgba(24, 27, 29, 0.10); --va-shade-firm: rgba(243, 244, 246, 0.88); --va-accent-soft: rgba(216, 58, 19, 0.10); }
+  :root, .va-app { --va-bg: #f3f4f6; --va-surface: #ffffff; --va-sunken: #e9eaec; --va-line: #d8d6d3; --va-line-firm: #b8b3ae; --va-ink: #181b1d; --va-ink-2: #4c4844; --va-ink-3: #756d67; --va-accent: #d83a13; --va-accent-ink: #ffffff; --va-warn: #8a5a12; --va-warn-bg: #f7ecd9; --va-warn-ink: #5c3c08; --va-bad: #b03a2b; --va-bad-bg: #f8e3df; --va-bad-ink: #7a2418; --va-good: #46705a; --va-good-bg: #dfece4; --va-good-ink: #2b4a38; --va-info-bg: #ecebe9; --va-info-ink: #3d3935; --va-cause: #d83a13; --va-collateral: #756d67; --va-accent-soft: rgba(216, 58, 19, 0.10); }
 }
 `;

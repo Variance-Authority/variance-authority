@@ -25,6 +25,9 @@ const SCHEME =
   /@media \(prefers-color-scheme: (?:dark|light)\) \{([\s\S]*?)\n\}/.exec(REVIEW_STYLES)?.[1] ??
   '';
 
+const MOTION =
+  /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(REVIEW_STYLES)?.[1] ?? '';
+
 describe('REVIEW_STYLES', () => {
   it('parses into rules, so nothing below passes by reading an empty list', () => {
     expect(RULES.length).toBeGreaterThan(30);
@@ -151,6 +154,45 @@ describe('REVIEW_STYLES', () => {
     // push the shell past the viewport rather than scrolling inside it.
     expect(scroll).toMatch(/min-height: 0/);
     expect(RULES.find((rule) => rule.selector === '.va-body')?.body).toMatch(/min-height: 0/);
+  });
+
+  it('leaves a keyboard reviewer able to see where they are', () => {
+    // The reset above strips the platform's own ring along with everything else,
+    // and this surface reports `nested-interactive` and unreachable controls for
+    // a living. The forcing case is the wipe seam: an appearance-stripped range
+    // with no border of its own, which without this is a control a keyboard
+    // reviewer can hold and cannot find.
+    const ring = RULES.find((rule) => rule.selector.includes(':focus-visible'))?.body;
+
+    expect(ring).toMatch(/outline: 2px solid/);
+    // An outline and not a border, because a border is layout: it would move the
+    // seam by two pixels at the moment it is being used to measure two pixels.
+    // And no radius either — the outline already traces the corner the control
+    // has, so declaring one here reshapes the control on focus.
+    expect(ring).not.toMatch(/border/);
+  });
+
+  it('asks for nothing that moves once a reader has said they want less', () => {
+    // Motion is never how anything here is said, so there is nothing to preserve.
+    // What this block may not do is take away the *state* the motion was carrying
+    // — a reader who asked for less movement did not ask to be shown less — so it
+    // is held to durations and to nothing else.
+    const declarations = [...MOTION.matchAll(/([a-z-]+)\s*:\s*([^;{}]+);/g)].map(
+      (match) => match[1]!,
+    );
+
+    expect(declarations.length).toBeGreaterThan(2);
+    for (const property of declarations) {
+      expect(property).toMatch(/^(animation-|transition-|scroll-behavior$)/);
+    }
+  });
+
+  it('says which reading is on screen in the bar rather than over the picture', () => {
+    // The corner of the plate is not a place at 4×, where the plate is five
+    // thousand pixels wide and its corner is off the edge of the pane. The bar
+    // does not scroll.
+    expect(RULES.some((rule) => rule.selector === '.va-showing')).toBe(true);
+    expect(REVIEW_STYLES).not.toContain('va-plate-tag');
   });
 
   it('re-decides only colour in the second scheme', () => {
