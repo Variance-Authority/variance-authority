@@ -94,9 +94,14 @@ interface PageGlobals {
     readonly fonts?: { readonly ready: Promise<unknown> };
     readonly images: ArrayLike<{
       readonly complete: boolean;
+      readonly currentSrc: string;
+      readonly src: string;
+      loading: string;
       addEventListener(type: string, listener: () => void, options?: { once?: boolean }): void;
     }>;
   };
+  setTimeout(handler: () => void, ms: number): unknown;
+  clearTimeout(handle: unknown): void;
 }
 
 export interface Intervention {
@@ -251,21 +256,92 @@ export const waitForImages: Intervention = {
   trick: 'wait',
   needs: 'layout',
   governs: 'images',
-  because: 'waited for images to decode, since their intrinsic size participates in layout',
+  because:
+    'waited for images to decode, since their intrinsic size participates in layout, and asked ' +
+    'for the ones the browser had deferred',
   settle: async (target) => {
     await target.evaluate(async () => {
       const view = globalThis as unknown as PageGlobals;
-      await Promise.all(
-        Array.from(view.document.images)
-          .filter((image) => !image.complete)
-          .map(
-            (image) =>
-              new Promise<void>((resolve) => {
-                image.addEventListener('load', () => resolve(), { once: true });
-                image.addEventListener('error', () => resolve(), { once: true });
-              }),
-          ),
+      const pending = Array.from(view.document.images).filter((image) => !image.complete);
+
+      const arrived = Promise.all(
+        pending.map(
+          (image) =>
+            new Promise<void>((resolve) => {
+              image.addEventListener('load', () => resolve(), { once: true });
+              image.addEventListener('error', () => resolve(), { once: true });
+            }),
+        ),
       );
+
+      // Asked for, after the listeners are attached and before anything is
+      // awaited. A `loading="lazy"` image outside the viewport has not been
+      // requested and will not be until something scrolls, so waiting on it is
+      // waiting for a decision the browser has already taken the other way.
+      //
+      // This is the same act as pinning an animation, not a different kind of
+      // thing: what the page shows stops depending on where the viewport
+      // happens to be. It matters most for the readings that need it most — a
+      // full-page capture of a long page is exactly the case where most of the
+      // images are deferred, and photographing it without them yields a picture
+      // full of empty boxes whose contents change with the browser's loading
+      // heuristics rather than with the product.
+      const asServed = pending.map((image) => image.loading);
+      for (const image of pending) image.loading = 'eager';
+
+      // Bounded, and it throws when the bound is reached.
+      //
+      // A response can stall: a CDN that never answers, an image endpoint that
+      // deadlocks under its own concurrency, an image the browser deferred and
+      // will not request from where the page is scrolled. None of those fire
+      // `load` and none fire `error`, so an unbounded wait turns one stuck
+      // request into a run that never ends and never says why — not a wrong
+      // answer, no answer.
+      //
+      // Giving up quietly would be worse than the hang in a subtler way: it
+      // photographs a page with holes in it and reports the holes as a change,
+      // inventing a regression out of the network this trick exists to hold
+      // still. Refused instead, naming what it was still waiting for, because
+      // "these two never answered" is a finding about the application.
+      //
+      // The bound is written twice — once as the delay, once in the sentence —
+      // because a settle closure is shipped to the page as source text and a
+      // constant it named would be a `ReferenceError` on the far side.
+      // Held so the loser can be cancelled. A timer left to fire after the
+      // images arrived rejects a promise nothing is waiting on any more, which
+      // the page reports as an unhandled rejection — this trick's own noise,
+      // arriving in the console of every subject it succeeded on.
+      let timer: unknown;
+
+      const expired = new Promise<never>((_, reject) => {
+        timer = view.setTimeout(() => {
+          const stuck = pending.filter((image) => !image.complete);
+          reject(
+            new Error(
+              `${stuck.length} image(s) had not loaded after 15000ms, and neither answered ` +
+                `nor failed: ${stuck.map((image) => image.currentSrc || image.src).join(', ')}`,
+            ),
+          );
+        }, 15000);
+      });
+
+      try {
+        await Promise.race([arrived, expired]);
+      } finally {
+        view.clearTimeout(timer);
+
+        // Put back, because the trick has to be invisible to the tier that
+        // reads the page after it. `loading` is a reflected attribute, so a
+        // document whose deferred images were switched to `eager` and left that
+        // way is a document that no longer matches the one the product served —
+        // and which images were still undecoded when this ran is a question
+        // about the network, so the edit lands in some readings and not others.
+        // Left in, it makes the same page at two widths disagree about its own
+        // markup: this trick filed as a finding against the application.
+        for (let index = 0; index < pending.length; index += 1) {
+          pending[index]!.loading = asServed[index]!;
+        }
+      }
     });
   },
 };

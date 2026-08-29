@@ -220,16 +220,27 @@ export function resolveParents(plan: Plan, names?: NamesConfig): ReadonlyMap<str
 }
 
 /**
- * Subject ids some other subject is a variation of.
+ * Every subject a variation will be measured from or against.
  *
  * Read before anything is collected, so the loop keeps the snapshots it will
  * need and no others. A run of three hundred subjects holds three hundred
  * normalized trees otherwise, to compare four of them.
+ *
+ * Both ends of every link, and that is the point rather than an oversight in the
+ * other direction. A lattice's leaves are the parent of nothing:
+ * `product-card--sale-dark` is the cell where two arms meet, which is the cell an
+ * A/B grammar exists to measure, and a set of parents alone is exactly the set
+ * that omits it. Asking each subject for its own tag instead recovers the ones
+ * that declared a parent and none of the ones a name grammar read, which is the
+ * same omission wearing a coincidence: a named variation survives only when it
+ * happens to be somebody else's parent too.
  */
-export function parentsWanted(plan: Plan, names?: NamesConfig): ReadonlySet<string> {
+export function variationsWanted(plan: Plan, names?: NamesConfig): ReadonlySet<string> {
   const wanted = new Set<string>();
-  for (const link of resolveParents(plan, names).values()) {
-    if (link.ok) wanted.add(link.parent);
+  for (const [subject, link] of resolveParents(plan, names)) {
+    if (!link.ok) continue;
+    wanted.add(link.parent);
+    wanted.add(subject);
   }
   return wanted;
 }

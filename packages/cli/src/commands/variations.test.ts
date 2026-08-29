@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { environmentKey, profileById, type SemanticSnapshot } from '@variance-authority/core';
 import type { Plan, PlannedSubject } from './collector.js';
 import type { NamesConfig } from '../config-names.js';
-import { parentsWanted, resolveParents, variationsOf } from './variations.js';
+import { resolveParents, variationsOf, variationsWanted } from './variations.js';
 
 /**
  * The declaration, and what it is allowed to mean.
@@ -230,7 +230,7 @@ describe('a name read through the configured grammar', () => {
 });
 
 describe('what the run has to hold on to', () => {
-  it('wants only the subjects somebody varies', () => {
+  it('wants both ends of a link and nothing else', () => {
     const plan = planOf(
       planned('fixture:a'),
       planned('fixture:unrelated'),
@@ -238,13 +238,32 @@ describe('what the run has to hold on to', () => {
     );
 
     // The saving this exists for: a 300-subject run holds two trees, not 300.
-    expect([...parentsWanted(plan)]).toEqual(['fixture:a']);
+    expect([...variationsWanted(plan)].sort()).toEqual(['fixture:a', 'fixture:b']);
+  });
+
+  it('wants the leaves of a named lattice, which are the parent of nothing', () => {
+    const names: NamesConfig = {
+      axes: [
+        { axis: 'offer', values: ['control', 'sale'] },
+        { axis: 'scheme', values: ['light', 'dark'] },
+      ],
+    };
+    const plan = planOf(
+      planned('story:card--control'),
+      planned('story:card--sale'),
+      planned('story:card--control-dark'),
+      planned('story:card--sale-dark'),
+    );
+
+    // `sale-dark` is where both arms are on at once — the cell the grammar is
+    // written to measure, and the one nothing is a variation of.
+    expect([...variationsWanted(plan, names)]).toContain('story:card--sale-dark');
   });
 
   it('wants nothing when a declaration resolved to nothing', () => {
     const plan = planOf(planned('fixture:b', ['variance-parent:fixture:gone']));
 
-    expect(parentsWanted(plan).size).toBe(0);
+    expect(variationsWanted(plan).size).toBe(0);
   });
 });
 

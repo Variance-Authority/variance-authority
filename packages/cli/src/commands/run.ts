@@ -13,7 +13,7 @@ import type { SubjectHistory } from './history.js';
 import { customProperties } from './history-rows.js';
 import { recordIfConfigured } from './history-report.js';
 import { compositionOf } from './compose.js';
-import { declaredParent, parentsWanted, variationsOf } from './variations.js';
+import { variationsOf, variationsWanted } from './variations.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
 import { decoderFor } from './resources.js';
@@ -221,7 +221,7 @@ async function observeAll(
   // a suite of three hundred subjects holds three hundred normalized trees to
   // compare four of them otherwise, and the tree is the largest thing this loop
   // touches.
-  const parents = parentsWanted(plan, config.names);
+  const varying = variationsWanted(plan, config.names);
   const retained = new Map<string, SemanticSnapshot>();
 
   // The collector is a single standing world (ADR-0009), so exactly one call may
@@ -304,10 +304,7 @@ async function observeAll(
     // Retained here for the same reason the composition is taken here: the
     // snapshot does not outlive this scope on the path that keeps no history,
     // and a variation is a comparison between two of them.
-    if (
-      collected.snapshot !== undefined &&
-      (parents.has(id) || declaredParent(planned) !== undefined)
-    ) {
+    if (collected.snapshot !== undefined && varying.has(id)) {
       retained.set(id, collected.snapshot);
     }
 
