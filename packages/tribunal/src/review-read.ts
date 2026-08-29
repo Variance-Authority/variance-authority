@@ -1,11 +1,13 @@
 import { identityFrom } from '@variance-authority/raster';
 import type {
   FindingRecord,
+  IgnoreLedger,
   NotObserved,
   ObservationRecord,
   ReachHole,
   ReachedComponent,
   RegionRecord,
+  SensitivityLedger,
   SubjectReach,
   VariationRecord,
 } from '@variance-authority/report';
@@ -15,6 +17,7 @@ import type {
   BuildSummary,
   Cause,
   Coverage,
+  Declarations,
   DecisionRecord,
   ReachView,
   SubjectView,
@@ -199,6 +202,8 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
   const missingFonts = optionalText(row, 'missing_fonts', what);
   const findings = optionalText(row, 'findings', what);
   const signals = optionalText(row, 'signals', what);
+  const ignored = optionalText(row, 'ignored', what);
+  const relaxed = optionalText(row, 'relaxed', what);
   const after = optionalText(row, 'after_key', what);
   const width = row['candidate_width'];
   const height = row['candidate_height'];
@@ -226,6 +231,15 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
     ...(findings !== undefined ? { findings: JSON.parse(findings) as FindingRecord[] } : {}),
     ...(signals !== undefined
       ? { signals: JSON.parse(signals) as ObservationRecord['signals'] }
+      : {}),
+    // Absent stays absent. A row written before step 10, or by a run whose
+    // config declared nothing, says nothing here — and a `{}` invented in its
+    // place would tell a reader a rule absorbed nothing.
+    ...(ignored !== undefined
+      ? { ignored: JSON.parse(ignored) as ObservationRecord['ignored'] }
+      : {}),
+    ...(relaxed !== undefined
+      ? { relaxed: JSON.parse(relaxed) as ObservationRecord['relaxed'] }
       : {}),
     ...(typeof width === 'number' && typeof height === 'number' ? { size: { width, height } } : {}),
     ...(typeof wasWide === 'number' && typeof wasTall === 'number'
@@ -314,6 +328,24 @@ export function toNotObserved(row: Row): NotObserved {
     subject: text(row, 'subject', what),
     kind: text(row, 'kind', what) === 'excluded' ? 'excluded' : 'failed',
     because: text(row, 'because', what),
+  };
+}
+
+/**
+ * The declaration ledgers, read back whole or read back as absent.
+ *
+ * No shape checking beyond the parse, and that is the same trade `toReach` makes:
+ * the column was written from a typed value by `ingest`, and a reader that
+ * re-validated it would be a second opinion about a shape this repository owns.
+ * What it does refuse is turning a missing column into an empty ledger.
+ */
+export function toDeclarations(row: Row): Declarations {
+  const ignores = optionalText(row, 'ignores', 'a build');
+  const sensitivities = optionalText(row, 'sensitivities', 'a build');
+  return {
+    ignores: ignores === undefined ? null : (JSON.parse(ignores) as IgnoreLedger),
+    sensitivities:
+      sensitivities === undefined ? null : (JSON.parse(sensitivities) as SensitivityLedger),
   };
 }
 

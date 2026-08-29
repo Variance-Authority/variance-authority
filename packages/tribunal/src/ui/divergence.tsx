@@ -31,6 +31,7 @@
  */
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { greenBecause } from '@variance-authority/report';
 import type { BuildDetail, BuildSummary, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { shapeOf } from './lead.js';
@@ -44,6 +45,9 @@ export type Shift =
   | 'new'
   | 'again'
   | 'settled'
+  | 'declared'
+  | 'absorbed'
+  | 'unmasked'
   | 'unplaced'
   | 'uncompared'
   | 'dropped'
@@ -91,15 +95,40 @@ export function divergeFrom(now: BuildDetail, prior: BuildDetail): Divergence {
   return { shifts, held };
 }
 
-/** Whether a verdict describes a pair this run actually put side by side. */
+/**
+ * Whether a verdict describes a pair this run actually put side by side.
+ *
+ * `ignored` belongs here and reads as though it does not. A declaration decided
+ * it, but the comparison it decided happened: there was a baseline, there were
+ * differing pixels, and every one of them landed somewhere the operator wrote
+ * down. Filing it with `incomparable` told a reviewer *no baseline was put beside
+ * them here* about subjects that were compared — an absence invented on top of a
+ * measurement, which is the one thing this panel exists not to do.
+ */
 function compared(subject: SubjectView): boolean {
-  return subject.verdict === 'changed' || subject.verdict === 'unchanged';
+  return (
+    subject.verdict === 'changed' ||
+    subject.verdict === 'unchanged' ||
+    subject.verdict === 'ignored'
+  );
 }
 
 function shiftOf(now: SubjectView, earlier: SubjectView | undefined): Shift {
   if (earlier === undefined) return 'new';
   if (!compared(now)) return 'uncompared';
   if (!compared(earlier)) return 'unplaced';
+
+  // A declaration standing over both runs is bookkeeping; one that arrived
+  // between them is a rule that has just taken a subject out of review, and the
+  // subject it took is named. That is the moment a mask starts covering
+  // something, and it is visible exactly once — here.
+  if (now.verdict === 'ignored') return earlier.verdict === 'ignored' ? 'declared' : 'absorbed';
+
+  // The other direction. A subject a rule absorbed there and nothing absorbs
+  // here either stopped differing — which is `settled`, and true whether or not
+  // a rule was watching — or is being reported, which is the rule failing to
+  // cover what it was written for.
+  if (earlier.verdict === 'ignored') return now.verdict === 'unchanged' ? 'settled' : 'unmasked';
 
   if (now.verdict === 'unchanged') return earlier.verdict === 'unchanged' ? 'held' : 'settled';
   if (earlier.verdict === 'unchanged') return 'first';
@@ -145,6 +174,20 @@ const SHIFTS: readonly {
     say: (against) => `${against} compared these and found nothing. This run found a difference.`,
   },
   {
+    shift: 'unmasked',
+    title: 'A rule stopped absorbing these',
+    tone: 'va-shift-alarm',
+    say: (against) =>
+      `${against} reported these green because a declaration absorbed their difference, and this run reports one. Either the rule stopped matching, or something moved outside what it covers — and the second is what a mask over a real regression looks like from the outside.`,
+  },
+  {
+    shift: 'absorbed',
+    title: 'A rule now decides these',
+    tone: 'va-shift-ask',
+    say: (against) =>
+      `${against} put these in front of a reviewer and this run does not: a declaration in the config now takes their difference. That is the intended effect of writing one, and it is also how a subject leaves review without anybody deciding it.`,
+  },
+  {
     shift: 'new',
     title: 'New to this run',
     tone: 'va-shift-quiet',
@@ -162,6 +205,13 @@ const SHIFTS: readonly {
     title: 'No longer moving',
     tone: 'va-shift-good',
     say: (against) => `${against} found a difference in these. This run agrees with the baseline.`,
+  },
+  {
+    shift: 'declared',
+    title: 'Green because a rule says so',
+    tone: 'va-shift-known',
+    say: () =>
+      'Compared, found to differ, and decided by a declaration this config names. Nothing is awaiting review here; what is worth reading is the ledger below, which says what each rule absorbed and what it no longer does.',
   },
   {
     shift: 'unplaced',
@@ -277,8 +327,11 @@ function Crossed({
   const { shifts, held } = divergeFrom(now, earlier);
   const against = `build ${earlier.build}`;
   const known = shifts.filter((each) => each.shift === 'again').length;
-  const fresh = shifts.filter(
-    (each) => each.shift === 'differently' || each.shift === 'first' || each.shift === 'new',
+  // `unmasked` counts here. A subject the earlier run showed nobody, because a
+  // rule absorbed it, is a subject that run did not show you — and it is the one
+  // the headline is least entitled to leave out.
+  const fresh = shifts.filter((each) =>
+    ['differently', 'first', 'new', 'unmasked'].includes(each.shift),
   ).length;
 
   return (
@@ -362,8 +415,59 @@ function ShiftRow({
       {shifted.shift === 'first' && now !== undefined ? (
         <span className="va-note va-num">{number(now.changedPixels)} px</span>
       ) : null}
+      {shifted.shift === 'unmasked' && now !== undefined ? (
+        <span className="va-note va-num">{number(now.changedPixels)} px, reported</span>
+      ) : null}
+      {shifted.shift === 'absorbed' ? <Absorbing now={now} earlier={earlier} /> : null}
     </li>
   );
+}
+
+/**
+ * Which rule took a subject out of review, and what it was worth when it did.
+ *
+ * Both halves are read from the record and neither is invented. Where the build
+ * did not store the per-subject block — an older push, or a service that dropped
+ * it on the way in — the row says the rule is unnamed rather than leaving a
+ * reader to assume the difference was too small to be worth one.
+ */
+function Absorbing({
+  now,
+  earlier,
+}: {
+  readonly now: SubjectView | undefined;
+  readonly earlier: SubjectView | undefined;
+}): ReactElement {
+  const green = now === undefined ? undefined : greenBecause(now);
+  const was = earlier === undefined ? null : (
+    <span className="va-note va-num">{number(earlier.changedPixels)} px before</span>
+  );
+
+  if (green === undefined || green.kind === 'unsaid') {
+    return (
+      <>
+        <span className="va-note">this build does not record which rule</span>
+        {was}
+      </>
+    );
+  }
+  if (green.kind === 'relaxed') {
+    return (
+      <>
+        <span className="va-mark va-ignored">{green.rule} · asserted on {green.level}</span>
+        {was}
+      </>
+    );
+  }
+  if (green.kind === 'absorbed') {
+    return (
+      <>
+        <span className="va-mark va-ignored">{green.rules.join(', ')}</span>
+        <span className="va-note va-num">{number(green.pixels)} px absorbed</span>
+      </>
+    );
+  }
+  return <>{was}</>;
 }
 
 /**

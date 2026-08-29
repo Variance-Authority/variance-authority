@@ -256,3 +256,179 @@ describe('the page is self-contained', () => {
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
   });
 });
+
+describe('every segment of the census bar leads somewhere', () => {
+  /**
+   * The bar draws the run's whole plan and every segment on it is a button. Four
+   * of them used to empty the page: two green verdicts the pane is not built
+   * from, and two kinds of record that are not observations and have no verdict
+   * to be filtered by. A reader who presses *excluded* and is shown nothing has
+   * been answered "none", which is the one thing a coverage bar must never say.
+   */
+  const CENSUS = reportOf({
+    observations: [
+      CHANGED,
+      {
+        subject: 'story:footer',
+        verdict: 'unchanged' as const,
+        because: 'the rendered image matches the baseline',
+        changedPixels: 0,
+        regions: [],
+      },
+      {
+        subject: 'story:clock',
+        verdict: 'ignored' as const,
+        because: 'every differing pixel fell inside an excluded subtree',
+        changedPixels: 0,
+        regions: [],
+        ignored: { pixels: 940, boxes: 1, inert: 0, byRule: { clock: 940 } },
+      },
+    ],
+    notObserved: [
+      { subject: 'story:legacy', kind: 'excluded' as const, because: 'excluded by config' },
+      { subject: 'route/checkout', kind: 'failed' as const, because: 'the browser crashed' },
+    ],
+  });
+
+  it('gives every verdict the bar counts something on the page carrying it', () => {
+    const html = reportHtml(CENSUS);
+    const filters = [...html.matchAll(/data-filter="([^"]+)"/g)].map((match) => match[1]);
+    const carried = new Set(
+      [...html.matchAll(/data-verdict="([^"]+)"/g)].map((match) => match[1]),
+    );
+
+    expect(filters).toHaveLength(5);
+    for (const name of filters) expect(carried).toContain(name);
+  });
+
+  it('names the excluded subjects rather than only counting them', () => {
+    // The count is on the bar and the names are nowhere else in the report: a
+    // reviewer asking which subjects nobody looked at has one place to ask.
+    expect(reportHtml(CENSUS)).toContain('story:legacy');
+    expect(reportHtml(CENSUS)).toContain('excluded by config');
+  });
+
+  it('says which rule made a subject green by declaration', () => {
+    // `ignored` is green that somebody wrote down, and a page that renders it as
+    // green earned by a comparison has hidden the mask rather than reported it.
+    expect(reportHtml(CENSUS)).toContain('absorbed by <code>clock</code>');
+  });
+
+  it('says a green subject was absorbed by something it cannot name', () => {
+    // Absent is not empty. A verdict of `ignored` with no rule recorded is a
+    // report written by something that did not keep them, and both an empty
+    // cell and a zero would be a claim about a rule.
+    const html = reportHtml(
+      reportOf({
+        observations: [
+          {
+            subject: 'story:clock',
+            verdict: 'ignored' as const,
+            because: 'absorbed',
+            changedPixels: 0,
+            regions: [],
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain('did not record which rule');
+  });
+
+  it('folds the settled rows away rather than opening on three hundred of them', () => {
+    // On the page, and not in the way of it. The green half is a destination the
+    // census bar leads to, not the first thing a reviewer scrolls past.
+    const html = reportHtml(CENSUS);
+
+    expect(html).toContain('<section id="Settled" class="hidden"');
+    expect(html).toContain('<div class="entry quiet hidden" data-subject="story:footer"');
+    // A coverage hole is never folded away, whatever else is.
+    expect(html).toContain('<section id="Not-observed"');
+    expect(html).toContain('<div class="entry" data-subject="route/checkout"');
+  });
+});
+
+describe('the declaration ledgers are read, not duck-typed', () => {
+  /**
+   * The audit surface that stops a mask growing over a real regression. Its one
+   * failure mode is a table that decides for itself what *dead* means: `pixels
+   * === 0` calls every rule in a fresh checkout dead, on the run that proves
+   * least about any of them.
+   */
+  const LEDGERS = reportOf({
+    observations: [],
+    ignores: {
+      rules: [
+        {
+          rule: 'clock',
+          reason: 'the clock ticks',
+          pixels: 0,
+          subjects: 3,
+          comparedIn: 0,
+          inertIn: 0,
+          unresolved: false,
+          unwornTags: [],
+          expired: false,
+        },
+        {
+          rule: 'carousel',
+          reason: 'it autoplays',
+          pixels: 0,
+          subjects: 2,
+          comparedIn: 2,
+          inertIn: 2,
+          unresolved: false,
+          unwornTags: [],
+          expired: false,
+        },
+      ],
+      dead: ['carousel'],
+      fullyIgnored: [],
+      totalPixels: 0,
+      vocabulary: [],
+    },
+    sensitivities: {
+      rules: [
+        {
+          rule: 'marketing',
+          reason: 'copy moves weekly',
+          level: 'layout',
+          scoped: 0,
+          absorbed: [],
+          bands: [],
+          unscoped: true,
+        },
+      ],
+      totalAbsorbed: 0,
+    },
+  });
+
+  it('keeps a rule nothing compared apart from a rule that caught nothing', () => {
+    const html = reportHtml(LEDGERS);
+
+    expect(html).toContain('<tr class="untested">');
+    expect(html).toContain('<tr class="dead">');
+  });
+
+  it('marks only the rule somebody has to act on', () => {
+    // `untested` is the absence of evidence. A report that flagged it would ask
+    // an operator to act on a run that measured nothing, which is how an audit
+    // stops being read.
+    const untested = /<tr class="untested">.*?<\/tr>/s.exec(reportHtml(LEDGERS))?.[0] ?? '';
+    const dead = /<tr class="dead">.*?<\/tr>/s.exec(reportHtml(LEDGERS))?.[0] ?? '';
+
+    expect(untested).toContain('mark quiet');
+    expect(dead).toContain('mark warn');
+  });
+
+  it('says no tag was checked rather than letting silence read as a pass', () => {
+    expect(reportHtml(LEDGERS)).toContain('no subject in this run declared a tag');
+  });
+
+  it('carries the sensitivity level, which is the claim the absorption is evidence for', () => {
+    const html = reportHtml(LEDGERS);
+
+    expect(html).toContain('asserts on layout');
+    expect(html).toContain('<tr class="unscoped">');
+  });
+});

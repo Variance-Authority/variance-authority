@@ -4,6 +4,7 @@ import {
   docket,
   latestDecisions,
   summarize,
+  toDeclarations,
   toNotObserved,
   toReach,
   toSubjectView,
@@ -163,6 +164,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         causes: docket(subjects),
         variations: variations.results.map(toVariation),
         reach: reachRow === null ? null : toReach(reachRow, reachSubjects?.results ?? []),
+        declarations: toDeclarations(row),
       };
     },
 

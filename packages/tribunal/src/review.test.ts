@@ -128,6 +128,55 @@ describe('a build is the report a run already wrote', () => {
     expect(detail?.intent).toBe('tighten the toolbar');
   });
 
+  it('carries the declaration ledgers across, because the audit outlives the run', async () => {
+    // The run prints *this rule absorbed nothing* into a terminal and the terminal
+    // is thrown away. A mask that has outlived its cause is only ever found by a
+    // second reading — again, and again — and a service that dropped the ledger
+    // could pose the question and never answer it.
+    await review.ingest(
+      ingest({
+        report: report({
+          ignores: {
+            rules: [
+              {
+                rule: 'clock',
+                reason: 'the header clock ticks',
+                pixels: 0,
+                subjects: 3,
+                comparedIn: 3,
+                inertIn: 3,
+                unresolved: false,
+                unwornTags: [],
+                expired: false,
+              },
+            ],
+            dead: ['clock'],
+            fullyIgnored: [],
+            totalPixels: 0,
+            vocabulary: ['marketing'],
+          },
+        }),
+      }),
+    );
+
+    const detail = await review.build('ci-1001');
+
+    expect(detail?.declarations.ignores?.rules[0]?.rule).toBe('clock');
+    expect(detail?.declarations.ignores?.vocabulary).toEqual(['marketing']);
+    // The other half of the same record is absent, and absent is not empty: this
+    // report named no sensitivities, and answering with a ledger of zero rules
+    // would report an unaudited half as an audited one.
+    expect(detail?.declarations.sensitivities).toBeNull();
+  });
+
+  it('answers with nothing rather than an empty ledger when the run carried none', async () => {
+    await review.ingest(ingest());
+
+    const detail = await review.build('ci-1001');
+
+    expect(detail?.declarations).toEqual({ ignores: null, sensitivities: null });
+  });
+
   it('keeps the baseline’s own size, and keeps its absence apart from the candidate’s', async () => {
     // Two claims a reviewer reads at once: the candidate is 2 × 2 because the run
     // said so, and the baseline was 3 × 5 because the push measured the file. The
@@ -233,6 +282,38 @@ describe('a build is the report a run already wrote', () => {
     }));
 
     expect((await review.build('ci-1001'))?.subjects[0]?.signals?.presentation).toEqual(presentation);
+  });
+
+  it('keeps which declaration decided each green subject, not only that one did', async () => {
+    // The run-level ledger says a rule absorbed 325 pixels somewhere. The
+    // question a settled list asks is which rule absorbed *this* subject, and
+    // for one schema version the store had no column for the answer — so the
+    // service reported `the run did not record which rule` about a run that
+    // recorded it, and the report and the page disagreed about the same build.
+    const ignored = { pixels: 325, boxes: 1, inert: 0, byRule: { 'nav-cart-badge': 325 } };
+    const relaxed = { rule: 'routes-assemble', level: 'layout', bands: ['token'] };
+    const base = report();
+    await review.ingest(ingest({
+      report: {
+        ...base,
+        observations: base.observations.map((entry, index) =>
+          index === 0
+            ? { ...entry, verdict: 'ignored' as const, ignored }
+            : index === 1
+              ? { ...entry, verdict: 'ignored' as const, relaxed }
+              : entry),
+      },
+    }));
+
+    const detail = await review.build('ci-1001');
+    expect(detail?.subjects[0]?.ignored).toEqual(ignored);
+    expect(detail?.subjects[1]?.relaxed).toEqual(relaxed);
+    // Absent stays absent. The two blocks are different claims — a mask over a
+    // subtree, and a level this subject is not asserted on — and a store that
+    // wrote an empty one in place of a missing one would report every relaxed
+    // subject as having had a rule absorb nothing.
+    expect(detail?.subjects[0]).not.toHaveProperty('relaxed');
+    expect(detail?.subjects[1]).not.toHaveProperty('ignored');
   });
 
   it('refuses a report from a writer this deployment does not understand', async () => {

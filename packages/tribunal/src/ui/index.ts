@@ -29,6 +29,8 @@ export {
   type ReviewAppProps,
   type ViewerMode,
 } from './review.js';
+export { DeclarationsPanel } from './declarations.js';
+export { Settled, needsReview } from './settled.js';
 export {
   ReviewRequestError,
   createReviewClient,

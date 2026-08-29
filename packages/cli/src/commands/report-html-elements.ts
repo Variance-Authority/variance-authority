@@ -11,9 +11,29 @@ import type { CauseEntry } from './docket.js';
  * two must agree, which is a property a single function has for free.
  */
 
-export function section(name: string, hint: string, body: string): string {
+/**
+ * One section, and — when it is about one — the verdicts it speaks about.
+ *
+ * `holds` exists for the census bar. Every segment of that bar is a filter, and a
+ * section that stays open under a filter it holds nothing for is the empty pane a
+ * reader reads as *there are none*. Sections whose items carry `data-subject`
+ * need no declaration; the script hides those when every item in them is hidden.
+ * This is for the ones that hold a derived thing instead — a cluster is about
+ * `changed` and has no subject row of its own to be counted.
+ */
+export function section(
+  name: string,
+  hint: string,
+  body: string,
+  holds?: string,
+  /** Starts hidden, and is revealed by pressing the census segment it holds. */
+  quiet?: boolean,
+): string {
   return (
-    `<section id="${text(slug(name))}"><h2>${text(name)}<span class="hint">${text(hint)}</span></h2>${body}</section>`
+    `<section id="${text(slug(name))}"` +
+    (quiet === true ? ' class="hidden"' : '') +
+    (holds === undefined ? '' : ` data-holds="${text(holds)}"`) +
+    `><h2>${text(name)}<span class="hint">${text(hint)}</span></h2>${body}</section>`
   );
 }
 

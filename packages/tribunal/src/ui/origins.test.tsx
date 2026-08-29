@@ -53,6 +53,7 @@ function build(
     coverage: { stated: true, failed: 0, excluded: 0 },
     subjects,
     notObserved: [],
+    declarations: { ignores: null, sensitivities: null },
     causes: extra.causes ?? [],
     variations: [],
     reach: extra.reach ?? null,

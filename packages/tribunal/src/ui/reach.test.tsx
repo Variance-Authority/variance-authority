@@ -62,6 +62,7 @@ function build(subjects: readonly SubjectView[], view: ReachView | null): BuildD
     coverage: { stated: true, failed: 0, excluded: 0 },
     subjects,
     notObserved: [],
+    declarations: { ignores: null, sensitivities: null },
     causes: [],
     variations: [],
     reach: view,

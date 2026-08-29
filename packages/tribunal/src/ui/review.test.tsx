@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { BuildSummary, SubjectView } from '../review.js';
 import { createReviewClient } from './client.js';
-import { CoverageLine, SubjectPanel, Variations } from './review.js';
+import { BuildList, CoverageLine, SubjectPanel, Variations } from './review.js';
 
 /**
  * What is worth testing in a review surface, and what is not.
@@ -206,6 +206,51 @@ describe('the client never reads a failure as an answer', () => {
   it('addresses an image without fetching it', () => {
     expect(CLIENT.imageUrl('ci 1', 'story:card', 'diff')).toBe(
       '/api/review/builds/ci%201/subjects/story%3Acard/diff.png',
+    );
+  });
+});
+
+describe('the counts on a build add up to the build', () => {
+  const listed = (verdicts: BuildSummary['verdicts'], pending: number): string =>
+    renderToStaticMarkup(
+      <BuildList
+        builds={[
+          {
+            project: 'snkr-shop',
+            build: '7',
+            commit: '7fb0870c3ec73ced6d5def786f700b21a62abe45',
+            at: '2026-06-02T10:00:00.000Z',
+            identity: { renderer: 'playwright-chromium', engine: 'chromium@131' } as never,
+            retention: 'durable',
+            verdicts,
+            decided: 0,
+            pending,
+            coverage: summary({ stated: true, failed: 0, excluded: 0 }),
+          },
+        ]}
+        onOpen={() => undefined}
+      />,
+    );
+
+  it('names every verdict the store keeps, including the declared ones', () => {
+    // A twenty-subject build printed as `16 changed · 0 new · 0 incomparable ·
+    // 2 unchanged` is eighteen, and the two it dropped are the two a rule
+    // decided — which is the half of a run somebody would open this page to
+    // audit.
+    const markup = listed(
+      { changed: 16, new: 0, incomparable: 0, ignored: 2, unchanged: 2 },
+      16,
+    );
+
+    expect(markup).toContain('2 ignored');
+    expect(markup).toContain('16 awaiting review');
+  });
+
+  it('prints a verdict nothing landed in rather than dropping the word', () => {
+    // Zero here is a measurement: the run compared, and no declaration decided
+    // anything. Omitting the word would make the line say nothing about it.
+    expect(listed({ changed: 0, new: 0, incomparable: 0, ignored: 0, unchanged: 9 }, 0)).toContain(
+      '0 ignored',
     );
   });
 });

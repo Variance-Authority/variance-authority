@@ -1,4 +1,10 @@
 import { matchesGlob } from '@variance-authority/core';
+import {
+  ignoreShare,
+  ignoreState,
+  type IgnoreLedger,
+  type IgnoreUsage,
+} from '@variance-authority/report';
 import type { IgnoreConfig } from '../config.js';
 import type { CliObservationRecord } from './run-report.js';
 
@@ -20,68 +26,7 @@ import type { CliObservationRecord } from './run-report.js';
  * behaviour on the day a rule expires is a test rather than a wait.
  */
 
-export interface IgnoreUsage {
-  readonly rule: string;
-  readonly reason: string;
-
-  /** Changed pixels this rule absorbed across the run. */
-  readonly pixels: number;
-
-  /** Subjects where it excluded something, whether or not it absorbed anything. */
-  readonly subjects: number;
-
-  /**
-   * Subjects where it excluded something **and a comparison happened**.
-   *
-   * The denominator that stops "absorbed nothing" from being an accusation. A
-   * subject that is `new`, `incomparable`, or settled from a digest compared no
-   * pixels, so an ignore over it had nothing to absorb — which says nothing at
-   * all about whether the rule is still needed. Without this a fresh checkout
-   * reported every ignore in the config as dead.
-   */
-  readonly comparedIn: number;
-
-  /** Subjects where it excluded something and absorbed nothing there. */
-  readonly inertIn: number;
-
-  /** `true` when it never resolved to a place in any subject. */
-  readonly unresolved: boolean;
-
-  /**
-   * Tags the rule names that no subject in this run wears.
-   *
-   * The only defence a tag has. A misspelled *key* is refused by name because
-   * the config's objects are closed; a misspelled *tag* is a legal word that
-   * simply matches nothing, and the rule then silently applies nowhere while the
-   * operator reads their config and believes it applies somewhere. So the words
-   * nothing answered to are named, with the near-misses that were present, and
-   * an empty list is the ordinary case rather than the interesting one.
-   */
-  readonly unwornTags: readonly string[];
-
-  /** `true` when it is past `until` and no longer absorbing. */
-  readonly expired: boolean;
-}
-
-export interface IgnoreLedger {
-  readonly rules: readonly IgnoreUsage[];
-
-  /**
-   * Rules that absorbed nothing anywhere this run.
-   *
-   * The list an operator is meant to act on. Named separately rather than left
-   * to be derived, because a derivation nobody writes is a report nobody reads.
-   */
-  readonly dead: readonly string[];
-
-  /** Subjects whose only differences were absorbed. Green, and not `unchanged`. */
-  readonly fullyIgnored: readonly string[];
-
-  readonly totalPixels: number;
-
-  /** Every tag worn by a subject this run planned, for the near-miss hint. */
-  readonly vocabulary: readonly string[];
-}
+export type { IgnoreLedger, IgnoreUsage };
 
 /**
  * The rules that still absorb, for the collector to resolve.
@@ -226,7 +171,7 @@ export function summarizeLedger(ledger: IgnoreLedger | undefined): readonly stri
 
   if (ledger.totalPixels > 0) {
     lines.push(
-      `IGNORED — ${ledger.totalPixels} pixel(s) absorbed by ${ledger.rules.length} rule(s)` +
+      `IGNORED — ${ledger.totalPixels} pixel(s) absorbed by ${ignoreShare(ledger)}` +
         (ledger.fullyIgnored.length > 0
           ? `; ${ledger.fullyIgnored.length} subject(s) differed only there`
           : ''),
@@ -234,14 +179,18 @@ export function summarizeLedger(ledger: IgnoreLedger | undefined): readonly stri
   }
 
   for (const entry of ledger.rules) {
-    if (entry.expired) {
+    // The reading is `ignoreState`'s, here and on every other surface. What this
+    // adds is the sentence — including the near-miss, which needs the ledger.
+    const state = ignoreState(entry);
+
+    if (state === 'expired') {
       lines.push(
         `  [expired] ${entry.rule} — past its date; the differences it absorbed are being ` +
           'reported again',
       );
       continue;
     }
-    if (entry.unwornTags.length > 0) {
+    if (state === 'unworn') {
       lines.push(
         `  [unworn] ${entry.rule} — no subject in this run carries ` +
           `${entry.unwornTags.map((tag) => `\`${tag}\``).join(', ')}` +
@@ -249,7 +198,7 @@ export function summarizeLedger(ledger: IgnoreLedger | undefined): readonly stri
       );
       continue;
     }
-    if (entry.unresolved) {
+    if (state === 'unresolved') {
       lines.push(
         `  [dead] ${entry.rule} — matched nothing in any subject (${entry.reason}); either it ` +
           'is no longer needed, or its selector stopped matching and something you believe is ' +
@@ -257,14 +206,14 @@ export function summarizeLedger(ledger: IgnoreLedger | undefined): readonly stri
       );
       continue;
     }
-    if (entry.pixels === 0 && entry.comparedIn === 0) {
+    if (state === 'untested') {
       lines.push(
         `  ${entry.rule} — excluded a subtree in ${entry.subjects} subject(s), none of which ` +
           `was compared this run (${entry.reason}); nothing here says whether it is still needed`,
       );
       continue;
     }
-    if (entry.pixels === 0) {
+    if (state === 'dead') {
       lines.push(
         `  [dead] ${entry.rule} — excluded a subtree in ${entry.subjects} subject(s), ` +
           `${entry.comparedIn} of them compared, and absorbed nothing (${entry.reason})`,

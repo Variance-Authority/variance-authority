@@ -3,13 +3,15 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactElement }
 import type { BuildDetail, BuildSummary, Decision, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { Findings } from './findings.js';
+import { DeclarationsPanel } from './declarations.js';
 import { DivergencePanel } from './divergence.js';
+import { SubjectRail } from './rail.js';
+import { Settled, needsReview } from './settled.js';
 import { ChangelogPage, SubjectHistory } from './history.js';
-import { causeOf } from './lead.js';
 import { Mark } from './mark.js';
 import { OriginsPanel } from './origins.js';
 import { ReachPanel } from './reach.js';
-import { briefly, count, number, segments, when } from './text.js';
+import { number, segments, when } from './text.js';
 import { Viewer } from './viewer.js';
 
 /**
@@ -214,6 +216,12 @@ export function BuildList({
  * `unchanged` is the large number and the uninteresting one. What decides whether
  * anybody has to open this build is how many subjects still have nobody's name
  * against them.
+ *
+ * Every verdict the store keeps is named, including `ignored`, which this line
+ * used to leave out. Four words over a five-word vocabulary is a line that does
+ * not add up to the build it describes — twenty subjects reported as eighteen —
+ * and the two it silently dropped are the two that came back green because a
+ * declaration said so, which is the half of a build worth auditing.
  */
 function Verdicts({ build }: { readonly build: BuildSummary }): ReactElement {
   return (
@@ -223,7 +231,8 @@ function Verdicts({ build }: { readonly build: BuildSummary }): ReactElement {
       </span>
       <span className="va-counts">
         {build.verdicts.changed} changed · {build.verdicts.new} new ·{' '}
-        {build.verdicts.incomparable} incomparable · {build.verdicts.unchanged} unchanged
+        {build.verdicts.incomparable} incomparable · {build.verdicts.ignored} ignored ·{' '}
+        {build.verdicts.unchanged} unchanged
       </span>
     </p>
   );
@@ -295,7 +304,11 @@ function BuildPage({
   if (detail.state === 'failed') return <Failure why={detail.why} retry={load} />;
 
   const value = detail.value;
-  const reviewable = value.subjects.filter((subject) => subject.verdict !== 'unchanged');
+  // The report's predicate, so the same run does not describe itself two ways.
+  // `ignored` is green: a declaration decided it, and a rail that carried it
+  // would queue a subject nobody can act on under a count of what is awaiting
+  // review. It is kept on the docket, folded — never dropped.
+  const reviewable = value.subjects.filter((subject) => needsReview(subject.verdict));
   const current = reviewable.find((subject) => subject.subject === selected);
 
   return (
@@ -351,89 +364,6 @@ function BuildPage({
   );
 }
 
-/**
- * Every subject worth a decision, grouped by verdict and readable at a glance.
- *
- * The rail exists so that choosing what to look at costs a glance rather than a
- * scroll: the note under each name is the component the tier blamed and the size
- * of the difference, which is enough to decide whether this one needs opening at
- * all. Sorted largest-first inside each group, for the same reason the docket is.
- */
-function SubjectRail({
-  subjects,
-  causes,
-  variations,
-  selected,
-  onSelect,
-}: {
-  readonly subjects: readonly SubjectView[];
-  readonly causes: number;
-  readonly variations: number;
-  readonly selected: string | null;
-  readonly onSelect: (subject: string | null) => void;
-}): ReactElement {
-  const groups = [...new Set(subjects.map((subject) => subject.verdict))];
-
-  return (
-    <nav className="va-rail va-scroll">
-      <button
-        type="button"
-        className={selected === null ? 'va-rail-item va-current' : 'va-rail-item'}
-        onClick={() => onSelect(null)}
-      >
-        <span className="va-rail-body">
-          <span className="va-rail-name">The docket</span>
-          <span className="va-rail-note">
-            {count(causes, 'cause')} · {count(variations, 'variation')}
-          </span>
-        </span>
-      </button>
-
-      {groups.map((verdict) => {
-        const rows = subjects
-          .filter((each) => each.verdict === verdict)
-          .sort((left, right) => right.changedPixels - left.changedPixels);
-
-        return (
-          <section key={verdict}>
-            <h2 className="va-rail-group">
-              {verdict}
-              <span className="va-rail-count va-num">{rows.length}</span>
-            </h2>
-            <ul>
-              {rows.map((subject) => (
-                <li key={subject.subject}>
-                  <button
-                    type="button"
-                    className={
-                      subject.subject === selected ? 'va-rail-item va-current' : 'va-rail-item'
-                    }
-                    onClick={() => onSelect(subject.subject)}
-                  >
-                    <span className={`va-dot va-${subject.verdict}`} />
-                    <span className="va-rail-body">
-                      <span className="va-rail-name">{subject.subject}</span>
-                      <span className="va-rail-note">
-                        {causeOf(subject) ?? 'no component named'}
-                        {subject.changedPixels > 0 ? ` · ${briefly(subject)}` : ''}
-                      </span>
-                    </span>
-                    {subject.decision === null ? null : (
-                      <span className={`va-mark va-${subject.decision.decision}`}>
-                        {subject.decision.decision === 'approved' ? '✓' : '✗'}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
-    </nav>
-  );
-}
-
 /** Where a build opens: the changes, the variations, and what nothing looked at. */
 function Overview({
   client,
@@ -486,6 +416,16 @@ function Overview({
             <Variations variations={build.variations} />
           </section>
         )}
+
+        <section className="va-card">
+          <h2>Settled</h2>
+          <Settled subjects={build.subjects} ignores={build.declarations.ignores} />
+        </section>
+
+        <section className="va-card">
+          <h2>Declarations</h2>
+          <DeclarationsPanel declarations={build.declarations} />
+        </section>
 
         {build.notObserved.length === 0 ? null : (
           <section className="va-card">

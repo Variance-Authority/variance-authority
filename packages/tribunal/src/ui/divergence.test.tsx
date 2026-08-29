@@ -62,6 +62,7 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     coverage: { stated: true, failed: 0, excluded: 0 },
     subjects,
     notObserved: [],
+    declarations: { ignores: null, sensitivities: null },
     causes: [],
     variations: [],
     reach: null,
@@ -270,5 +271,85 @@ describe('what the earlier run decided is part of the finding', () => {
     );
 
     expect(asked).toEqual(['5']);
+  });
+});
+
+describe('a declaration decided it, and that is not the same as nobody comparing it', () => {
+  const declared = (overrides: Partial<SubjectView> = {}): SubjectView =>
+    subject({
+      verdict: 'ignored',
+      because: 'every differing pixel fell inside an excluded subtree',
+      changedPixels: 0,
+      approvable: false,
+      ...overrides,
+    });
+
+  it('does not file a subject a rule absorbed with the ones nothing compared', () => {
+    // The bug this pair exists for. `ignored` was not in `compared`, so both
+    // directions fell through to the uncompared branches and the page told a
+    // reviewer *no baseline was put beside them here* about two subjects that
+    // were compared, differed, and were decided by a rule they had written.
+    expect(shiftOf(declared(), declared())).toBe('declared');
+    expect(shiftOf(declared(), declared())).not.toBe('uncompared');
+  });
+
+  it('names a subject a rule has just taken out of review', () => {
+    expect(shiftOf(declared(), subject())).toBe('absorbed');
+  });
+
+  it('names a subject a rule has stopped absorbing', () => {
+    expect(shiftOf(subject(), declared())).toBe('unmasked');
+  });
+
+  it('calls a subject that stopped differing settled, whether or not a rule was watching', () => {
+    // Not `unmasked`. The rule did not fail to cover anything; there was nothing
+    // left to cover, and a page that cried about a mask here would be crying on
+    // the run where the underlying difference went away.
+    expect(shiftOf(subject({ verdict: 'unchanged', changedPixels: 0 }), declared())).toBe('settled');
+  });
+
+  it('counts a newly-reported subject as one the earlier run did not show', async () => {
+    const markup = await mount(
+      clientThat(
+        async () => [build('6', []), build('5', [])],
+        async () => build('5', [declared({ regions: shaped('v1:aaa') })]),
+      ),
+      build('6', [subject({ regions: shaped('v1:aaa') })]),
+    );
+
+    expect(markup).toContain('A rule stopped absorbing these');
+    expect(markup).toContain('1 subject here is something that run did not show you');
+  });
+
+  it('names the rule on the row, from the block the build stored', async () => {
+    const markup = await mount(
+      clientThat(
+        async () => [build('6', []), build('5', [])],
+        async () => build('5', [subject()]),
+      ),
+      build('6', [
+        declared({
+          ignored: { pixels: 325, boxes: 1, inert: 0, byRule: { 'nav-cart-badge': 325 } },
+        }),
+      ]),
+    );
+
+    expect(markup).toContain('nav-cart-badge');
+    expect(markup).toContain('325 px absorbed');
+  });
+
+  it('says the rule is unrecorded rather than implying the difference was small', async () => {
+    // A build pushed before the store kept the per-subject block. The verdict
+    // says a declaration absorbed it and the record does not say which one, and
+    // a blank there reads as a difference too small to name.
+    const markup = await mount(
+      clientThat(
+        async () => [build('6', []), build('5', [])],
+        async () => build('5', [subject()]),
+      ),
+      build('6', [declared()]),
+    );
+
+    expect(markup).toContain('does not record which rule');
   });
 });

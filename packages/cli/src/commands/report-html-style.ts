@@ -242,10 +242,30 @@ tr.cause td{border-left:2px solid var(--orange)}
 .net{color:var(--orange)}
 .from{color:var(--warm)}
 
-/* coverage */
-.failed{list-style:none;margin:0;padding:0}
-.failed li{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;
+/* the settled and the unobserved: one compact row each, never a stage */
+.entries{display:flex;flex-direction:column}
+.entry{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;
 border-bottom:1px solid #ffffff0a;font-size:12px}
+.entry code{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38%}
+.entry .why{color:var(--quiet);font-size:11.5px;flex:1;min-width:0}
+.entry .why code{color:var(--warm);max-width:none}
+.why.unsaid{color:var(--warm);font-style:italic}
+.entry .px{color:var(--warm);font-family:var(--mono);font-size:11px;
+font-variant-numeric:tabular-nums;margin-left:auto}
+.dot.unchanged{background:var(--green)}
+.dot.ignored{background:var(--warm)}
+.dot.excluded{background:var(--hairline)}
+
+/* the declaration ledgers: every rule is a row, including the quiet ones */
+.ledger td:first-child{width:22%}
+.ledger td:last-child{width:38%}
+.ledger tr.dead td,.ledger tr.unresolved td,.ledger tr.expired td,
+.ledger tr.unworn td,.ledger tr.unscoped td{border-left:2px solid var(--orange)}
+.ledger .none{color:var(--warm);font-family:var(--mono);font-size:10.5px}
+.ledger em{color:var(--warm);font-style:normal;font-size:9.5px;margin-left:.15rem}
+.note{color:var(--quiet);font-size:11px;margin:.4rem 0 0}
+
+/* coverage */
 .strip{display:flex;flex-wrap:wrap;gap:.3rem;margin:.5rem 0}
 .warnings{margin:.5rem 0;padding-left:1rem;color:var(--quiet);font-size:12px}
 .findings{list-style:none;margin:.5rem 0 0;padding:0;font-size:11.5px;color:var(--quiet)}

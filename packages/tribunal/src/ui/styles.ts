@@ -442,6 +442,31 @@ export const REVIEW_STYLES = `
 .va-tag { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 5px; color: var(--va-ink-2); font-size: 0.72rem; padding: 0.1rem 0.4rem; }
 .va-tag.va-rule { color: var(--va-ink-3); }
 
+/* The declaration ledgers. Every rule is a row, including the ones that absorbed
+   nothing — those are the finding, and a table that hid them would be a table of
+   rules that are working. The rule name is the widest column because it is the
+   thing a reader copies into their config; the reason is the widest prose. */
+.va-ledger { margin-top: 0.5rem; }
+.va-ledger code { font-size: 0.78rem; }
+.va-ledger em { color: var(--va-ink-3); font-size: 0.72rem; font-style: normal; }
+.va-ledger .va-none { color: var(--va-ink-3); }
+.va-ledger .va-ledger-why { color: var(--va-ink-2); width: 38%; }
+.va-ledger .va-tag { margin-right: 0.25rem; }
+/* Marked on the row rather than only on the badge: a reviewer scanning for the
+   one rule that is wrong reads the left edge, not the third column. */
+.va-ledger tr.va-spent td:first-child { border-left: 2px solid var(--va-warn); padding-left: 0.4rem; }
+.va-tag.va-warn { background: var(--va-warn-bg); border-color: transparent; color: var(--va-warn-ink); }
+.va-ledger-head { color: var(--va-ink-2); font-size: 0.8rem; font-weight: 650; margin-top: 0.9rem; }
+.va-ledger-head .va-note { font-weight: 400; margin-left: 0.5rem; }
+
+/* Folded, because on a run of three hundred stories this is three hundred lines
+   of nothing — and present, because a green subject that is green by declaration
+   is the one a mask hides behind. */
+.va-settled > summary { color: var(--va-ink-2); cursor: pointer; font-size: 0.86rem; }
+.va-settled-list { display: grid; gap: 0.3rem; margin-top: 0.6rem; }
+.va-settled-list li { align-items: baseline; display: flex; font-size: 0.84rem; gap: 0.45rem; }
+.va-settled-list strong { font-family: var(--va-mono); font-size: 0.78rem; font-weight: 500; }
+
 .va-not-observed { color: var(--va-ink-2); display: grid; font-size: 0.86rem; gap: 0.35rem; }
 .va-not-observed .va-failed { color: var(--va-bad); font-weight: 600; }
 

@@ -1,4 +1,10 @@
 import type { SensitivityConfig } from '../config.js';
+import {
+  sensitivityShare,
+  sensitivityState,
+  type SensitivityLedger,
+  type SensitivityUsage,
+} from '@variance-authority/report';
 import { scopedTo } from './ignores.js';
 import type { CliObservationRecord } from './run-report.js';
 import type { PlannedSubject } from './collector.js';
@@ -19,34 +25,7 @@ import type { PlannedSubject } from './collector.js';
  * the config — and everything else here is about a different sentence.
  */
 
-export interface SensitivityUsage {
-  readonly rule: string;
-  readonly reason: string;
-  readonly level: string;
-
-  /** Subjects this rule was in scope for, whether or not it absorbed them. */
-  readonly scoped: number;
-
-  /** Subjects whose verdict it decided. */
-  readonly absorbed: readonly string[];
-
-  /** Bands it absorbed, across every subject it decided. */
-  readonly bands: readonly string[];
-
-  /**
-   * `true` when the rule matched no subject this run planned.
-   *
-   * A different failure from absorbing nothing, and worth its own word: a rule
-   * naming `route/*` in a project whose subjects are all `story:*` is a typo,
-   * not a policy that has outlived its cause.
-   */
-  readonly unscoped: boolean;
-}
-
-export interface SensitivityLedger {
-  readonly rules: readonly SensitivityUsage[];
-  readonly totalAbsorbed: number;
-}
+export type { SensitivityLedger, SensitivityUsage };
 
 export function sensitivityLedgerOf(
   rules: readonly SensitivityConfig[],
@@ -97,11 +76,13 @@ export function summarizeSensitivities(ledger: SensitivityLedger | undefined): r
 
   const lines = [
     `SENSITIVITY — ${ledger.totalAbsorbed} subject(s) not asserted on in full, ` +
-      `by ${ledger.rules.length} rule(s)`,
+      `by ${sensitivityShare(ledger)}`,
   ];
 
   for (const entry of ledger.rules) {
-    if (entry.unscoped) {
+    const state = sensitivityState(entry);
+
+    if (state === 'unscoped') {
       lines.push(
         `  [unscoped] ${entry.rule} — asserts on ${entry.level} and matched no subject this ` +
           `run planned (${entry.reason}); check the subjects and tags it names`,
@@ -109,7 +90,7 @@ export function summarizeSensitivities(ledger: SensitivityLedger | undefined): r
       continue;
     }
 
-    if (entry.absorbed.length === 0) {
+    if (state === 'dead') {
       lines.push(
         `  [dead] ${entry.rule} — asserts on ${entry.level} across ${entry.scoped} subject(s) ` +
           `and absorbed nothing (${entry.reason}); nothing here needed relaxing`,

@@ -61,8 +61,8 @@ export async function ingestBuild(
       .prepare(
         `INSERT OR REPLACE INTO builds
            (project, build, "commit", branch, intent, at, at_ms, identity, identity_digest,
-            retention, run_version, says_not_observed)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            retention, run_version, says_not_observed, ignores, sensitivities)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         project,
@@ -77,6 +77,12 @@ export async function ingestBuild(
         report.retention,
         report.runVersion,
         report.notObserved === undefined ? 0 : 1,
+        // Stored whole and stored as absent when absent. A ledger reshaped on the
+        // way in would be a second vocabulary for one fact, and a `'[]'` written
+        // where the report said nothing would turn a build nobody audited into
+        // one that was audited and found clean.
+        report.ignores === undefined ? null : JSON.stringify(report.ignores),
+        report.sensitivities === undefined ? null : JSON.stringify(report.sensitivities),
       ),
   ];
 
@@ -89,11 +95,11 @@ export async function ingestBuild(
         .prepare(
           `INSERT OR REPLACE INTO build_subjects
              (project, build, subject, verdict, because, changed_pixels, regions, truncated,
-              missing_fonts, findings, signals, before_key, after_key, diff_key,
+              missing_fonts, findings, signals, ignored, relaxed, before_key, after_key, diff_key,
               candidate_document_digest, candidate_width, candidate_height,
               candidate_missing_fonts, candidate_accessibility,
               baseline_width, baseline_height)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           project,
@@ -112,6 +118,13 @@ export async function ingestBuild(
           // render was inspected and was clean.
           observation.findings === undefined ? null : JSON.stringify(observation.findings),
           observation.signals === undefined ? null : JSON.stringify(observation.signals),
+          // What decided this subject, when a declaration did. Stored rather
+          // than left to the run-level ledger: the ledger says what a rule took
+          // across the whole run, and the question a settled list asks is which
+          // rule took *this one*. Dropping it made the service report the run as
+          // silent about something the run had written down.
+          observation.ignored === undefined ? null : JSON.stringify(observation.ignored),
+          observation.relaxed === undefined ? null : JSON.stringify(observation.relaxed),
           keys.before ?? null,
           keys.after ?? null,
           keys.diff ?? null,

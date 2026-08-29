@@ -60,6 +60,30 @@ export type {
   SubjectReach,
 } from './reach.js';
 
+export {
+  absorbedBands,
+  greenBecause,
+  ignoreSays,
+  ignoreState,
+  ignoreShare,
+  ignoreTotals,
+  isActionable,
+  sensitivitySays,
+  sensitivityState,
+  sensitivityShare,
+  sensitivityTotals,
+} from './declarations.js';
+export type {
+  Green,
+  GreenSubject,
+  IgnoreLedger,
+  IgnoreState,
+  IgnoreUsage,
+  SensitivityLedger,
+  SensitivityState,
+  SensitivityUsage,
+} from './declarations.js';
+
 export { clusterChanges, describeClustering } from './cluster.js';
 export type { Change, Clustering } from './cluster.js';
 

@@ -71,21 +71,33 @@ $('.subject').forEach(function(card){
 /* One filter over the rail and the pane. A cause is a filter, not a link. */
 var input=document.getElementById('filter'), causes=$('.cause'), keys=$('.key');
 var pinned=null, verdict=null;
+/* Rail rows, subject cards and ledger entries are one population: everything that
+   names a subject. Two loops over two selectors is how the census bar came to have
+   four segments that filtered nothing — a third kind of element was added and the
+   filter did not know about it. The quiet class is the settled and unobserved
+   half: on the page, folded away until somebody asks for it. */
 var apply=function(){
   var q=(input&&input.value||'').toLowerCase();
-  $('.row').forEach(function(row){
-    var id=row.getAttribute('data-subject')||'';
+  var asked=!!(q||pinned||verdict);
+  $('[data-subject]').forEach(function(el){
+    var id=el.getAttribute('data-subject')||'';
     var hit=(!q||id.toLowerCase().indexOf(q)>=0)
       &&(!pinned||pinned.indexOf(id)>=0)
-      &&(!verdict||row.getAttribute('data-verdict')===verdict);
-    row.classList.toggle('hidden',!hit);
+      &&(!verdict||el.getAttribute('data-verdict')===verdict)
+      &&(asked||!el.classList.contains('quiet'));
+    el.classList.toggle('hidden',!hit);
   });
-  $('.subject').forEach(function(card){
-    var id=card.getAttribute('data-subject')||'';
-    var hit=(!q||id.toLowerCase().indexOf(q)>=0)
-      &&(!pinned||pinned.indexOf(id)>=0)
-      &&(!verdict||card.getAttribute('data-verdict')===verdict);
-    card.classList.toggle('hidden',!hit);
+  /* A section holding nothing the filter kept is closed rather than left as a
+     heading over nothing, which reads as an answer of none. */
+  $('section').forEach(function(sec){
+    var items=$('[data-subject]',sec);
+    if(items.length){
+      sec.classList.toggle('hidden',!items.some(function(el){
+        return !el.classList.contains('hidden')}));
+      return;
+    }
+    var holds=sec.getAttribute('data-holds');
+    if(holds) sec.classList.toggle('hidden',!!verdict&&holds.split(' ').indexOf(verdict)<0);
   });
 };
 if(input) input.addEventListener('input',apply);
@@ -105,8 +117,12 @@ keys.forEach(function(button){
     keys.forEach(function(b){b.setAttribute('aria-pressed','false')});
     button.setAttribute('aria-pressed',on?'false':'true');
     verdict=on?null:name; apply();
+    var seat=document.getElementById(name==='failed'||name==='excluded'?'Not-observed':
+      (name==='unchanged'||name==='ignored')?'Settled':'');
+    if(!on&&seat&&!seat.classList.contains('hidden')) seat.scrollIntoView({block:'start'});
   });
 });
+apply();
 
 /* Copy, everywhere a value is worth taking away from the page. */
 document.addEventListener('click',function(e){

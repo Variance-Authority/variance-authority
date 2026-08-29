@@ -1,12 +1,14 @@
 import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core';
 import type {
   FindingRecord,
+  IgnoreLedger,
   NotObserved,
   ObservationRecord,
   ReachHole,
   ReachedComponent,
   RegionRecord,
   RunReport,
+  SensitivityLedger,
   SubjectReach,
   VariationRecord,
 } from '@variance-authority/report';
@@ -129,6 +131,18 @@ export interface SubjectView {
   readonly missingFonts?: readonly string[];
   readonly findings?: readonly FindingRecord[];
   readonly signals?: ObservationRecord['signals'];
+  /**
+   * What the operator's ignores took out of this comparison, as the run wrote it.
+   *
+   * Carried per subject even though the build also carries a ledger, because the
+   * two answer different questions. The ledger says a rule absorbed 647 pixels
+   * somewhere; this says it absorbed them *here*. A settled list built from the
+   * ledger alone can only say a declaration decided this subject, which is the
+   * sentence a reviewer already read in the verdict.
+   */
+  readonly ignored?: ObservationRecord['ignored'];
+  /** The sensitivity that decided this subject, when one did. */
+  readonly relaxed?: ObservationRecord['relaxed'];
   /** Which images this build kept. Absent means the run did not save one. */
   readonly has: { readonly before: boolean; readonly after: boolean; readonly diff: boolean };
   /**
@@ -200,6 +214,31 @@ export interface BuildDetail extends BuildSummary {
    * reaching it.
    */
   readonly reach: ReachView | null;
+
+  /**
+   * What the config declared, and what each declaration did in this run.
+   *
+   * The audit surface, carried across the boundary rather than left in a CI log.
+   * A mask that outlived its cause is only ever found by comparing runs — *this
+   * rule absorbed nothing again* — and a review service that dropped the ledger
+   * could show the question but never the answer.
+   */
+  readonly declarations: Declarations;
+}
+
+/**
+ * The two ledgers as this store holds them.
+ *
+ * `null` is *the report carried none*, and it is deliberately one state rather
+ * than two. On this format a config with no ignores and a writer that never kept
+ * a ledger produce the same absence, so a store that offered two answers would
+ * be inventing the difference. What it must not do is answer with an empty
+ * ledger, which would report an unaudited build as one that was audited and
+ * found clean.
+ */
+export interface Declarations {
+  readonly ignores: IgnoreLedger | null;
+  readonly sensitivities: SensitivityLedger | null;
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { AccessibilitySnapshot, Digest, RenderIdentity } from '@variance-authority/core';
 import type { CompositionReport } from './composition.js';
+import type { IgnoreLedger, SensitivityLedger } from './declarations.js';
 import type { ReachReport } from './reach.js';
 import type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 import type { VariationRecord } from './variation.js';
@@ -166,6 +167,16 @@ export interface RunReport {
    * and could not attribute it, which is a different fact and a louder one.
    */
   readonly reach?: ReachReport;
+
+  /**
+   * What each declaration did, and the audit an ignore is only safe to have
+   * because of — see [`declarations.ts`](./declarations.ts). Kept in the record
+   * because *has this mask grown over a regression?* is asked months later, by
+   * somebody else. Never empty: absent is *the config named no such rule*.
+   */
+  readonly ignores?: IgnoreLedger;
+  /** The same, for rules that relax an assertion rather than remove a region. */
+  readonly sensitivities?: SensitivityLedger;
 }
 
 /**

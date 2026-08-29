@@ -7,6 +7,7 @@ import { SCRIPT } from './report-html-script.js';
 import { presentationImpact, subjects } from './report-html-subjects.js';
 import { accumulated, composition } from './report-html-composition.js';
 import { coverage } from './report-html-coverage.js';
+import { notObserved, settled } from './report-html-settled.js';
 
 /**
  * The run as one HTML page: the third angle on the same docket.
@@ -67,13 +68,15 @@ export function reportHtml(report: CliRunReport): string {
     `</head><body data-status="${text(statusOf(docket))}">`,
     masthead(report, docket),
     '<main>',
-    rail(docket, reviewable),
+    rail(report, docket, reviewable),
     '<div class="pane">',
     clusters(clustering.changes, clustering.ungrouped),
     subjects(reviewable),
     presentationImpact(report.observations),
     composition(report),
     accumulated(report),
+    settled(report.observations),
+    notObserved(report),
     coverage(report, docket),
     '</div>',
     '</main>',
@@ -242,7 +245,11 @@ function census(report: CliRunReport, docket: Docket): string {
  * pane to the subjects it reached, which is the motion the docket exists to make
  * possible.
  */
-function rail(docket: Docket, reviewable: readonly CliObservationRecord[]): string {
+function rail(
+  report: CliRunReport,
+  docket: Docket,
+  reviewable: readonly CliObservationRecord[],
+): string {
   const causes = docket.causes
     .map((entry) => {
       const marker = qualifier(entry);
@@ -260,8 +267,8 @@ function rail(docket: Docket, reviewable: readonly CliObservationRecord[]): stri
     })
     .join('');
 
-  const list = reviewable
-    .map(
+  const list = [
+    ...reviewable.map(
       (entry) =>
         `<a class="row" href="#s-${text(slug(entry.subject))}" data-verdict="${text(entry.verdict)}" ` +
         `data-subject="${text(entry.subject)}">` +
@@ -270,8 +277,14 @@ function rail(docket: Docket, reviewable: readonly CliObservationRecord[]): stri
         markers(entry) +
         `<span class="px">${px(entry.changedPixels)}</span>` +
         '</a>',
-    )
-    .join('');
+    ),
+    ...report.observations
+      .filter((entry) => !needsReview(entry.verdict))
+      .map((entry) => quiet(entry.subject, entry.verdict, '#Settled')),
+    ...(report.notObserved ?? []).map((entry) =>
+      quiet(entry.subject, entry.kind, '#Not-observed'),
+    ),
+  ].join('');
 
   return (
     '<nav class="rail">' +
@@ -281,6 +294,26 @@ function rail(docket: Docket, reviewable: readonly CliObservationRecord[]): stri
     '</nav>'
   );
 }
+/**
+ * A rail row for a subject that is not a finding.
+ *
+ * Present so that every segment of the census bar narrows this list to something,
+ * and `quiet` so that it does not lengthen the rail on arrival — the default view
+ * is what needs review, and three hundred unchanged rows above it would bury the
+ * four that do. It carries no pixel count: `unchanged` is zero by definition and
+ * a subject nobody observed has no number at all, so a column of `0px` here would
+ * be one lie printed twice.
+ */
+function quiet(subject: string, verdict: string, anchor: string): string {
+  return (
+    `<a class="row quiet hidden" href="${anchor}" data-verdict="${text(verdict)}" ` +
+    `data-subject="${text(subject)}">` +
+    `<i class="dot ${text(verdict)}"></i>` +
+    `<code>${text(subject)}</code>` +
+    '</a>'
+  );
+}
+
 /* --- clusters ------------------------------------------------------------- */
 
 /**
@@ -335,7 +368,12 @@ function clusters(changes: readonly Change[], ungrouped: readonly string[]): str
         ungrouped.map((subject) => `<code>${text(subject)}</code>`).join('') +
         '</p>';
 
-  return section('Changes', 'distinct shapes, most settling first', `<ol class="clusters">${rows}</ol>${orphans}`);
+  return section(
+    'Changes',
+    'distinct shapes, most settling first',
+    `<ol class="clusters">${rows}</ol>${orphans}`,
+    'changed',
+  );
 }
 
 /** The rule as it would be pasted, from `docs/ignores.md`. Never invented here. */
