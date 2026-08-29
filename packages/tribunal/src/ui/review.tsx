@@ -1,8 +1,9 @@
 import type { VariationRecord } from '@variance-authority/report';
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { Fragment, useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { BuildDetail, BuildSummary, Cause, Decision, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { ChangelogPage, SubjectHistory } from './history.js';
+import { count, element, headline, number, segments, sentence, when } from './text.js';
 import { Viewer } from './viewer.js';
 
 /**
@@ -22,9 +23,9 @@ import { Viewer } from './viewer.js';
  *
  * So the ordering here is deliberate and is the opposite of the category's:
  *
- * 1. **The docket first.** Components named as *causes*, largest cause first,
- *    with collateral counted rather than listed. One token change across 300
- *    subjects is one item with a count.
+ * 1. **The docket first**, and it is where a build opens. Components named as
+ *    *causes*, largest cause first, with collateral counted rather than listed.
+ *    One token change across 300 subjects is one item with a count.
  * 2. **The regions on the image.** A reviewer sees which box moved and which
  *    component owns it, drawn over the render, cause and collateral distinct.
  * 3. **The image last**, and only then as a comparison.
@@ -37,6 +38,17 @@ import { Viewer } from './viewer.js';
  * Step 2 and step 3 live in [`viewer.tsx`](./viewer.tsx) and are re-exported
  * below: a component that moved file has not moved API, and `./ui` names these.
  *
+ * ## One subject at a time, because the alternative was a mile of page
+ *
+ * A build page that expanded every changed subject came to twenty-seven thousand
+ * pixels of document on twenty subjects, most of it render. That is the same
+ * blindness arriving as a layout: a reviewer who scrolls past a full-page capture
+ * to reach the next subject stops reading them, and a docket that ranks correctly
+ * has bought nothing if the page below it cannot be read. So the build is a rail
+ * of subjects, one open beside it, and the decision and the record in a column
+ * that never moves — three panes that scroll separately and a document that does
+ * not scroll at all.
+ *
  * ## Beside the docket: what the run read that has no baseline in it
  *
  * A docket answers *what changed since last time*. It cannot answer *does this
@@ -47,7 +59,7 @@ import { Viewer } from './viewer.js';
  * rather than leaving it in the file. It is not a verdict and is never counted as
  * one: a variation is a difference somebody meant.
  *
- * ## 4. And then the record, because "is this normal?" is the real question
+ * ## And then the record, because "is this normal?" is the real question
  *
  * A difference is not a decision. The same 2px shift is a bug in a component
  * nobody has touched since March and a Tuesday in one that moves in nineteen runs
@@ -101,37 +113,58 @@ export function ReviewApp({ client, reviewer, limit }: ReviewAppProps): ReactEle
     void load();
   }, [load]);
 
-  if (changelog) return <ChangelogPage client={client} onBack={() => setChangelog(false)} />;
-
-  if (builds.state === 'loading') return <p className="va-note">Loading builds…</p>;
-  if (builds.state === 'failed') return <Failure why={builds.why} retry={load} />;
+  if (changelog) {
+    return (
+      <div className="va-app">
+        <ChangelogPage client={client} onBack={() => setChangelog(false)} />
+      </div>
+    );
+  }
 
   if (open !== null) {
     return (
-      <BuildPage
-        client={client}
-        reviewer={reviewer}
-        build={open}
-        onBack={() => {
-          setOpen(null);
-          void load();
-        }}
-      />
+      <div className="va-app">
+        <BuildPage
+          client={client}
+          reviewer={reviewer}
+          build={open}
+          onBack={() => {
+            setOpen(null);
+            void load();
+          }}
+        />
+      </div>
     );
   }
 
   return (
-    <>
-      <nav className="va-nav">
-        <button type="button" className="va-current" disabled>
-          Builds
-        </button>
-        <button type="button" onClick={() => setChangelog(true)}>
-          Changelog
-        </button>
-      </nav>
-      <BuildList builds={builds.value} onOpen={setOpen} />
-    </>
+    <div className="va-app">
+      <header className="va-topbar">
+        <span className="va-brand" aria-hidden="true" />
+        <span className="va-topbar-title">
+          <strong>Variance Authority</strong>
+          <span className="va-topbar-sub">
+            {builds.state === 'ready' ? (builds.value[0]?.project ?? 'review') : 'review'}
+          </span>
+        </span>
+        <nav className="va-nav va-topbar-meta">
+          <button type="button" className="va-current" disabled>
+            Builds
+          </button>
+          <button type="button" onClick={() => setChangelog(true)}>
+            Changelog
+          </button>
+        </nav>
+      </header>
+
+      <div className="va-body va-scroll">
+        <div className="va-page">
+          {builds.state === 'loading' ? <p className="va-note">Loading builds…</p> : null}
+          {builds.state === 'failed' ? <Failure why={builds.why} retry={load} /> : null}
+          {builds.state === 'ready' ? <BuildList builds={builds.value} onOpen={setOpen} /> : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -148,11 +181,15 @@ export function BuildList({
     <ol className="va-builds">
       {builds.map((build) => (
         <li key={build.build} className="va-build">
-          <button type="button" className="va-build-open" onClick={() => onOpen(build.build)}>
-            <span className="va-build-id">{build.build}</span>
+          <p className="va-build-head">
+            <button type="button" className="va-build-open" onClick={() => onOpen(build.build)}>
+              <span className="va-build-id">{build.build}</span>
+              <span className="va-build-go">Review →</span>
+            </button>
             <code className="va-commit">{build.commit.slice(0, 8)}</code>
             {build.branch === undefined ? null : <span className="va-branch">{build.branch}</span>}
-          </button>
+            <span className="va-when">{when(build.at)}</span>
+          </p>
           <Verdicts build={build} />
           <CoverageLine coverage={build.coverage} />
         </li>
@@ -172,7 +209,7 @@ function Verdicts({ build }: { readonly build: BuildSummary }): ReactElement {
   return (
     <p className="va-verdicts">
       <span className={build.pending > 0 ? 'va-pending' : 'va-settled'}>
-        {build.pending > 0 ? `${build.pending} awaiting review` : 'nothing awaiting review'}
+        {build.pending > 0 ? `${number(build.pending)} awaiting review` : 'nothing awaiting review'}
       </span>
       <span className="va-counts">
         {build.verdicts.changed} changed · {build.verdicts.new} new ·{' '}
@@ -210,6 +247,14 @@ export function CoverageLine({ coverage }: { readonly coverage: BuildSummary['co
   );
 }
 
+/**
+ * A build: the rail, and whatever it is pointing at.
+ *
+ * `selected === null` is the docket, and it is where the page opens. A reviewer
+ * arriving at a build should be told which components caused it before they are
+ * shown a single render — that ordering is the product, and defaulting to the
+ * first changed subject would quietly restore the category's.
+ */
 function BuildPage({
   client,
   reviewer,
@@ -222,6 +267,7 @@ function BuildPage({
   readonly onBack: () => void;
 }): ReactElement {
   const [detail, setDetail] = useState<Loaded<BuildDetail>>({ state: 'loading' });
+  const [selected, setSelected] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -239,56 +285,205 @@ function BuildPage({
   if (detail.state === 'failed') return <Failure why={detail.why} retry={load} />;
 
   const value = detail.value;
+  const reviewable = value.subjects.filter((subject) => subject.verdict !== 'unchanged');
+  const current = reviewable.find((subject) => subject.subject === selected);
 
   return (
-    <article className="va-build-page">
-      <button type="button" className="va-back" onClick={onBack}>
-        ← all builds
-      </button>
-      <h1>{value.build}</h1>
-      <p className="va-subtitle">
-        <code>{value.commit.slice(0, 8)}</code>
-        {value.branch === undefined ? null : <> on {value.branch}</>} · {value.identity.engine} on{' '}
-        {value.identity.platform}
-      </p>
-      {value.intent === undefined ? null : (
-        <p className="va-intent">
-          Declared intent: <em>{value.intent}</em>
-        </p>
-      )}
-      <CoverageLine coverage={value.coverage} />
+    <>
+      <header className="va-topbar">
+        <button type="button" className="va-back" onClick={onBack}>
+          ←
+        </button>
+        <span className="va-topbar-title">
+          <strong>Build {value.build}</strong>
+          <span className="va-topbar-sub">{value.project}</span>
+        </span>
+        <span className={value.pending > 0 ? 'va-pill va-warn' : 'va-pill va-good'}>
+          {value.pending > 0 ? `${number(value.pending)} awaiting review` : 'settled'}
+        </span>
+        <span className="va-topbar-meta">
+          <code className="va-commit">{value.commit.slice(0, 8)}</code>
+          {value.branch === undefined ? null : <span>{value.branch}</span>}
+          <span>{value.identity.engine}</span>
+          <span>{value.identity.platform}</span>
+        </span>
+      </header>
 
-      <Docket causes={value.causes} />
+      <div className="va-body">
+        <SubjectRail
+          subjects={reviewable}
+          causes={value.causes.length}
+          variations={value.variations.length}
+          selected={selected}
+          onSelect={setSelected}
+        />
 
-      <Variations variations={value.variations} />
-
-      <h2>Subjects</h2>
-      {value.subjects
-        .filter((subject) => subject.verdict !== 'unchanged')
-        .map((subject) => (
+        {current === undefined ? (
+          <Overview build={value} />
+        ) : (
           <SubjectPanel
-            key={subject.subject}
+            key={current.subject}
             client={client}
             reviewer={reviewer}
             build={value.build}
-            subject={subject}
+            subject={current}
             onDecided={load}
           />
-        ))}
+        )}
+      </div>
+    </>
+  );
+}
 
-      {value.notObserved.length === 0 ? null : (
-        <>
-          <h2>Not observed</h2>
-          <ul className="va-not-observed">
-            {value.notObserved.map((entry) => (
-              <li key={entry.subject} className={entry.kind === 'failed' ? 'va-failed' : ''}>
-                <strong>{entry.subject}</strong> — {entry.because}
-              </li>
-            ))}
-          </ul>
-        </>
+/**
+ * Every subject worth a decision, grouped by verdict and readable at a glance.
+ *
+ * The rail exists so that choosing what to look at costs a glance rather than a
+ * scroll: the note under each name is the component the tier blamed and the size
+ * of the difference, which is enough to decide whether this one needs opening at
+ * all. Sorted largest-first inside each group, for the same reason the docket is.
+ */
+function SubjectRail({
+  subjects,
+  causes,
+  variations,
+  selected,
+  onSelect,
+}: {
+  readonly subjects: readonly SubjectView[];
+  readonly causes: number;
+  readonly variations: number;
+  readonly selected: string | null;
+  readonly onSelect: (subject: string | null) => void;
+}): ReactElement {
+  const groups = [...new Set(subjects.map((subject) => subject.verdict))];
+
+  return (
+    <nav className="va-rail va-scroll">
+      <button
+        type="button"
+        className={selected === null ? 'va-rail-item va-current' : 'va-rail-item'}
+        onClick={() => onSelect(null)}
+      >
+        <span className="va-rail-body">
+          <span className="va-rail-name">The docket</span>
+          <span className="va-rail-note">
+            {count(causes, 'cause')} · {count(variations, 'variation')}
+          </span>
+        </span>
+      </button>
+
+      {groups.map((verdict) => {
+        const rows = subjects
+          .filter((each) => each.verdict === verdict)
+          .sort((left, right) => right.changedPixels - left.changedPixels);
+
+        return (
+          <section key={verdict}>
+            <h2 className="va-rail-group">
+              {verdict}
+              <span className="va-rail-count va-num">{rows.length}</span>
+            </h2>
+            <ul>
+              {rows.map((subject) => (
+                <li key={subject.subject}>
+                  <button
+                    type="button"
+                    className={
+                      subject.subject === selected ? 'va-rail-item va-current' : 'va-rail-item'
+                    }
+                    onClick={() => onSelect(subject.subject)}
+                  >
+                    <span className={`va-dot va-${subject.verdict}`} />
+                    <span className="va-rail-body">
+                      <span className="va-rail-name">{subject.subject}</span>
+                      <span className="va-rail-note">
+                        {causeOf(subject) ?? 'no component named'}
+                        {subject.changedPixels > 0
+                          ? ` · ${count(subject.changedPixels, 'pixel')}`
+                          : ''}
+                      </span>
+                    </span>
+                    {subject.decision === null ? null : (
+                      <span className={`va-mark va-${subject.decision.decision}`}>
+                        {subject.decision.decision === 'approved' ? '✓' : '✗'}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Where a build opens: the causes, the variations, and what nothing looked at. */
+function Overview({ build }: { readonly build: BuildDetail }): ReactElement {
+  return (
+    <div className="va-stage va-scroll">
+      <div className="va-page">
+        <h1>The docket</h1>
+        <p className="va-subtitle">
+          What caused this build, before a single render. Pick a subject from the rail to look at
+          one.
+        </p>
+
+        {build.intent === undefined ? null : (
+          <p className="va-intent" style={{ marginTop: '0.75rem' }}>
+            Declared intent: <em>{build.intent}</em>
+          </p>
+        )}
+        <CoverageLine coverage={build.coverage} />
+
+        <section className="va-card va-docket" style={{ marginTop: '1.25rem' }}>
+          <Docket causes={build.causes} />
+        </section>
+
+        {build.variations.length === 0 ? null : (
+          <section className="va-card">
+            <Variations variations={build.variations} />
+          </section>
+        )}
+
+        {build.notObserved.length === 0 ? null : (
+          <section className="va-card">
+            <h2>Not observed</h2>
+            <ul className="va-not-observed">
+              {build.notObserved.map((entry) => (
+                <li key={entry.subject} className={entry.kind === 'failed' ? 'va-failed' : ''}>
+                  <strong>{entry.subject}</strong> — <Prose text={entry.because} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Report prose, with its identifiers set as identifiers.
+ *
+ * The sentences on this page were written by the observer, not by this surface,
+ * and they are shown as written — this is the record, and a review page that
+ * paraphrases it is a review page a reviewer cannot check. The only thing done
+ * to them is typographic.
+ */
+export function Prose({ text }: { readonly text: string }): ReactElement {
+  return (
+    <>
+      {segments(text).map((part, index) =>
+        part.code ? (
+          <code key={`${String(index)}-${part.text}`}>{part.text}</code>
+        ) : (
+          <Fragment key={`${String(index)}-${part.text}`}>{part.text}</Fragment>
+        ),
       )}
-    </article>
+    </>
   );
 }
 
@@ -306,16 +501,18 @@ export function Docket({ causes }: { readonly causes: readonly Cause[] }): React
     return <p className="va-note">No component was named as a cause in this build.</p>;
   }
 
+  const widest = Math.max(...causes.map((cause) => cause.pixels), 1);
+
   return (
-    <section className="va-docket">
+    <>
       <h2>Causes</h2>
       <table>
         <thead>
           <tr>
             <th>component</th>
-            <th>file</th>
-            <th>subjects</th>
-            <th>cause pixels</th>
+            <th>declared in</th>
+            <th className="va-right">subjects</th>
+            <th className="va-right">cause pixels</th>
           </tr>
         </thead>
         <tbody>
@@ -323,21 +520,28 @@ export function Docket({ causes }: { readonly causes: readonly Cause[] }): React
             <tr key={cause.component}>
               <td>
                 <strong>{cause.component}</strong>
+                {/* Ranked by cause pixels, and drawn to the same scale, so the
+                    gap between the edit and the next one is visible rather than
+                    arithmetic a reader has to do. */}
+                <span className="va-bar">
+                  <span style={{ width: `${String((cause.pixels / widest) * 100)}%` }} />
+                </span>
               </td>
-              <td>
+              <td className="va-file">
                 <code>{cause.file ?? '—'}</code>
               </td>
-              <td>{cause.subjects.length}</td>
-              <td>{cause.pixels}</td>
+              <td className="va-right va-num">{cause.subjects.length}</td>
+              <td className="va-right va-num">{number(cause.pixels)}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="va-collateral">
-        {causes[0]?.collateralPixels ?? 0} collateral pixels across this build — regions that moved
-        because something else did. Counted, not listed: ranked by area they would outrank the edit.
+        {count(causes[0]?.collateralPixels ?? 0, 'collateral pixel')} across this build — regions
+        that moved because something else did. Counted, not listed: ranked by area they would
+        outrank the edit.
       </p>
-    </section>
+    </>
   );
 }
 
@@ -377,9 +581,9 @@ export function Variations({
   });
 
   return (
-    <section className="va-variations">
+    <>
       <h2>Variations</h2>
-      <p className="va-note">
+      <p className="va-note" style={{ marginBottom: '0.6rem' }}>
         Subjects read against the subject they vary from, in this run. Not verdicts — a variation is
         a difference somebody meant. What is worth reading is a variation that turns out to be no
         difference at all.
@@ -388,14 +592,13 @@ export function Variations({
         {ordered.map((variation) => (
           <li key={variation.subject} className={`va-variation ${STATES[rankOf(variation)] ?? ''}`}>
             <p className="va-variation-head">
+              <span className="va-axis">{axisOf(variation)}</span>
               <strong>{variation.subject}</strong>
               {variation.parent === undefined ? null : (
                 <>
-                  {' '}
                   from <strong>{variation.parent}</strong>
                 </>
-              )}{' '}
-              <span className="va-axis">{axisOf(variation)}</span>
+              )}
               {variation.how === undefined ? (
                 <span className="va-how">how this pair was found is unstated</span>
               ) : (
@@ -408,11 +611,11 @@ export function Variations({
                 <span className="va-how">undecided in {variation.unobserved.join(', ')}</span>
               )}
             </p>
-            <p className="va-because">{variation.because}</p>
+            <p className="va-because"><Prose text={variation.because} /></p>
           </li>
         ))}
       </ul>
-    </section>
+    </>
   );
 }
 
@@ -439,6 +642,15 @@ function axisOf(variation: VariationRecord): string {
   return bands.length === 0 ? 'differs' : bands.join(' · ');
 }
 
+/**
+ * One subject: the render on the left, everything that is not the render on the
+ * right.
+ *
+ * The split is not decoration. A reviewer decides from the defect list, the
+ * record and the sentence explaining the verdict, and on a full-page capture all
+ * three sat nine thousand pixels below the thing they are about. They are a
+ * column now, and it does not move when the picture does.
+ */
 export function SubjectPanel({
   client,
   reviewer,
@@ -473,49 +685,63 @@ export function SubjectPanel({
 
   return (
     <section className="va-subject">
-      <header>
-        <h3>{subject.subject}</h3>
-        <span className={`va-verdict va-${subject.verdict}`}>{subject.verdict}</span>
-        <span className="va-because">{subject.because}</span>
-      </header>
+      <div className="va-stage va-scroll">
+        <div className="va-page">
+          <header className="va-subject-head">
+            <h3>{subject.subject}</h3>
+            <span className={`va-verdict va-${subject.verdict}`}>{subject.verdict}</span>
+          </header>
+          <p className="va-because">{subject.because}</p>
 
-      {subject.decision === null ? null : (
-        <p className="va-decision">
-          {subject.decision.decision} by {subject.decision.by} at {subject.decision.at}
-          {subject.decision.note === undefined ? null : <> — {subject.decision.note}</>}
-        </p>
-      )}
+          <Viewer client={client} build={build} subject={subject} />
+        </div>
+      </div>
 
-      <Viewer client={client} build={build} subject={subject} />
+      <aside className="va-aside va-scroll">
+        <section className="va-card">
+          <h2>Decision</h2>
+          {subject.decision === null ? null : (
+            <p className="va-decision">
+              {subject.decision.decision} by {subject.decision.by} · {when(subject.decision.at)}
+              {subject.decision.note === undefined ? null : <> — {subject.decision.note}</>}
+            </p>
+          )}
+          {failed === null ? null : <p className="va-failure">{failed}</p>}
+          <p className="va-actions">
+            <button
+              type="button"
+              className="va-approve"
+              disabled={busy || !subject.approvable}
+              onClick={() => void decide('approved')}
+              title={
+                subject.approvable
+                  ? 'Make this build’s candidate the baseline'
+                  : 'This run kept no candidate image, so there is nothing to promote. Approving would mean rendering one now, which is recording rather than promoting.'
+              }
+            >
+              Approve
+            </button>
+            <button type="button" disabled={busy} onClick={() => void decide('rejected')}>
+              Reject
+            </button>
+          </p>
+          {subject.approvable ? null : (
+            <p className="va-note" style={{ marginTop: '0.5rem' }}>
+              No candidate was uploaded for this subject, so it cannot be approved here.
+            </p>
+          )}
+        </section>
 
-      <Findings subject={subject} />
+        <section className="va-card">
+          <h2>Findings</h2>
+          <Findings subject={subject} />
+        </section>
 
-      <SubjectHistory client={client} subject={subject} />
-
-      {failed === null ? null : <p className="va-failure">{failed}</p>}
-
-      <p className="va-actions">
-        <button
-          type="button"
-          disabled={busy || !subject.approvable}
-          onClick={() => void decide('approved')}
-          title={
-            subject.approvable
-              ? 'Make this build’s candidate the baseline'
-              : 'This run kept no candidate image, so there is nothing to promote. Approving would mean rendering one now, which is recording rather than promoting.'
-          }
-        >
-          Approve
-        </button>
-        <button type="button" disabled={busy} onClick={() => void decide('rejected')}>
-          Reject
-        </button>
-        {subject.approvable ? null : (
-          <span className="va-note">
-            No candidate was uploaded for this subject, so it cannot be approved here.
-          </span>
-        )}
-      </p>
+        <section className="va-card">
+          <h2>The record</h2>
+          <SubjectHistory client={client} subject={subject} />
+        </section>
+      </aside>
     </section>
   );
 }
@@ -526,29 +752,52 @@ export function SubjectPanel({
  * `[]` means this render was inspected and no defect was found. `undefined` means
  * nothing inspected it. Printing the second as the first tells a reviewer the
  * component is fine on the authority of something that never looked.
+ *
+ * Drawn in three registers rather than one line. The report writes a rule id and
+ * a clause — and the clause is written to *follow a noun the report never
+ * prints*, which is how `label-mismatch reads "SNKR. shop" and is named …` used
+ * to reach this page. So the headline is the defect in a person's words, the
+ * element the clause was written for comes from `where`, and the id goes last,
+ * beside the file, where it belongs: it is the least of the three to a reviewer
+ * and the whole of it to an ignore list.
  */
-function Findings({ subject }: { readonly subject: SubjectView }): ReactElement | null {
+function Findings({ subject }: { readonly subject: SubjectView }): ReactElement {
   if (subject.findings === undefined) {
     return <p className="va-note">This render was not inspected, so no defect list applies.</p>;
   }
-  if (subject.findings.length === 0) return null;
+  if (subject.findings.length === 0) {
+    return <p className="va-note">Inspected, and nothing to report.</p>;
+  }
 
   return (
     <ul className="va-findings">
       {subject.findings.map((finding, index) => (
-        <li key={`${finding.rule}-${finding.path}-${String(index)}`}>
-          <code>{finding.rule}</code> {finding.what}
-          {finding.component === undefined ? null : (
-            <>
-              {' '}
-              — <strong>{finding.component}</strong>
-            </>
-          )}
-          {finding.file === undefined ? null : <> <code>{finding.file}</code></>}
+        <li key={`${finding.rule}-${finding.path}-${String(index)}`} className="va-finding">
+          <p className="va-finding-title">{headline(finding.rule)}</p>
+          <p className="va-finding-where">{element(finding.where) ?? finding.path}</p>
+          <p className="va-finding-what">{sentence(finding.what)}</p>
+          <p className="va-finding-owner">
+            {finding.component === undefined ? null : (
+              <span className="va-tag">{finding.component}</span>
+            )}
+            {finding.file === undefined ? null : <code className="va-tag">{finding.file}</code>}
+            <span className="va-tag va-rule">{finding.rule}</span>
+          </p>
         </li>
       ))}
     </ul>
   );
+}
+
+/**
+ * The component the tier named as this subject's cause.
+ *
+ * The first region marked `cause`, in the order the report gave, and never the
+ * largest: ranking by area names the container that reflowed instead of the edit
+ * that moved it.
+ */
+function causeOf(subject: SubjectView): string | undefined {
+  return subject.regions.find((region) => region.cause === true)?.component;
 }
 
 function Failure({ why, retry }: { readonly why: string; readonly retry: () => void }): ReactElement {

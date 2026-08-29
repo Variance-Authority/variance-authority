@@ -45,7 +45,15 @@ export function reviewPage(options: ReviewPageOptions): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Variance Authority — review</title>
-<style>${REVIEW_STYLES}</style>
+<style>/* This document's own reset, which is why it is here and not in
+   REVIEW_STYLES: an operator injects that sheet into a page this package did not
+   write, and a component stylesheet that reaches out and restyles the document
+   body is a rude guest. This document is ours. Its shell is a hundred dynamic
+   viewport units tall, so a default body margin overflows it by exactly twice
+   the margin — a scrollbar on the one page whose whole claim is that it does
+   not scroll. */
+body { margin: 0; }
+${REVIEW_STYLES}</style>
 </head>
 <body>
 <div id="variance-review"></div>

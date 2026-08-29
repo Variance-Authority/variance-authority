@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { Churn, Flakiness, Reach } from '@variance-authority/history';
 import type { ChangelogChange, ChangelogRow, SubjectView, TribunalChangelog } from '../review.js';
 import type { ReviewClient } from './client.js';
+import { count, when } from './text.js';
 
 /**
  * The two surfaces that read the record rather than the run.
@@ -62,11 +63,19 @@ export function ChangelogPage({
   }, [load]);
 
   return (
-    <article className="va-changelog">
-      <button type="button" className="va-back" onClick={onBack}>
-        ← all builds
-      </button>
-      <h1>Changelog</h1>
+    <>
+      <header className="va-topbar">
+        <button type="button" className="va-back" onClick={onBack}>
+          ←
+        </button>
+        <span className="va-topbar-title">
+          <strong>Changelog</strong>
+          <span className="va-topbar-sub">every approval on record</span>
+        </span>
+      </header>
+
+      <div className="va-body va-scroll">
+        <article className="va-page va-changelog">
       <p className="va-subtitle">
         Why the baselines are what they are: every approval, grouped by the shape that was approved.
       </p>
@@ -104,7 +113,9 @@ export function ChangelogPage({
       {log.state === 'ready' ? (
         <ChangelogEntries log={log.value} {...(applied === '' ? {} : { filter: applied })} />
       ) : null}
-    </article>
+        </article>
+      </div>
+    </>
   );
 }
 
@@ -156,7 +167,7 @@ export function ChangelogEntries({
             {log.ungrouped.map((row: ChangelogRow) => (
               <li key={`${row.build}/${row.subject}`}>
                 <strong>{row.subject}</strong> — {row.by} · <code>{row.commit.slice(0, 8)}</code> ·{' '}
-                {row.at}
+                {when(row.at)}
               </li>
             ))}
           </ul>
@@ -181,7 +192,7 @@ function ChangeEntry({ change }: { readonly change: ChangelogChange }): ReactEle
       <p className="va-change-meta">
         {change.subjects.length} subject{change.subjects.length === 1 ? '' : 's'} ·{' '}
         {change.builds.length} build{change.builds.length === 1 ? '' : 's'} · approved by{' '}
-        {change.by.join(', ')} · {change.at}
+        {change.by.join(', ')} · {when(change.at)}
       </p>
       {change.intent === undefined ? null : (
         <p className="va-intent">
@@ -335,7 +346,11 @@ export function StabilityLine({ flakiness }: { readonly flakiness: Flakiness }):
         </>
       )}
       {flakiness.absorbedRuns === 0 ? null : (
-        <> {flakiness.absorbedRuns} further run(s) moved only in bands this subject declared it does not assert on.</>
+        <>
+          {' '}
+          {count(flakiness.absorbedRuns, 'further run')} moved only in bands this subject declared it
+          does not assert on.
+        </>
       )}
     </p>
   );

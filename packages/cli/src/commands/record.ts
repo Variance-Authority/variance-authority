@@ -205,8 +205,8 @@ function because(observation: Observation, changed: number, strict: number): str
   if (!green || strict <= changed) return observation.because;
 
   return (
-    `${observation.because}; ${strict} pixel(s) do differ under the strict policy ` +
-    '(antialiasing counted), which the default policy forgives'
+    `${observation.because}; ${strict.toLocaleString('en-US')} pixel${strict === 1 ? '' : 's'} do ` +
+    'differ under the strict policy (antialiasing counted), which the default policy forgives'
   );
 }
 

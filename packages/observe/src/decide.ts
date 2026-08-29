@@ -184,8 +184,8 @@ export async function decide(
       subject,
       verdict: wasIgnored ? 'ignored' : 'unchanged',
       because: wasIgnored
-        ? `${subtraction.ignored} pixel(s) differ and all of them fall inside ` +
-          `${boxes.length} excluded region(s); nothing outside them moved`
+        ? `${count(subtraction.ignored, 'pixel')} differ and all of them fall inside ` +
+          `${count(boxes.length, 'excluded region')}; nothing outside them moved`
         : missingFonts.length > 0
           ? `no pixels differ, but the renderer lacked ${missingFonts.join(', ')} on both sides, ` +
             'so both images are of a substituted font'
@@ -269,7 +269,7 @@ export async function decide(
       subject,
       verdict: 'ignored',
       because:
-        `${absorbed} pixel(s) differ and every one of them was absorbed by an ignore; ` +
+        `${count(absorbed, 'pixel')} differ and every one of them was absorbed by an ignore; ` +
         'nothing else moved',
       comparison,
       regions: [],
@@ -419,6 +419,19 @@ function frameDiagnostics(
   ];
 }
 
+/**
+ * `1 pixel`, `8,818 pixels` — a quantity, rather than a template with the plural
+ * left for the reader to apply.
+ *
+ * These sentences are the `because` a person reads on a review page beside the
+ * render they are about, and `8818 pixel(s) differ across 2 region(s)` reads as
+ * output rather than as a finding. Grouped, because six digits of pixels is not a
+ * number anybody parses as a magnitude on sight.
+ */
+function count(value: number, noun: string): string {
+  return `${value.toLocaleString('en-US')} ${noun}${value === 1 ? '' : 's'}`;
+}
+
 function describeChange(
   comparison: RasterComparison,
   isolation: Isolation,
@@ -438,10 +451,14 @@ function describeChange(
 
   const capped =
     isolation.truncated > 0
-      ? ` (+${isolation.truncated} smaller region(s) not listed, ${isolation.truncatedPixels}px)`
+      ? ` (+${count(isolation.truncated, 'smaller region')} not listed, ` +
+        `${isolation.truncatedPixels.toLocaleString('en-US')}px)`
       : '';
 
-  return `${changed} pixel(s) differ across ${isolation.regions.length} region(s)${where}${size}${capped}`;
+  return (
+    `${count(changed, 'pixel')} differ across ` +
+    `${count(isolation.regions.length, 'region')}${where}${size}${capped}`
+  );
 }
 
 /**

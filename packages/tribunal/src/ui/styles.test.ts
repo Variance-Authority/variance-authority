@@ -71,13 +71,52 @@ describe('REVIEW_STYLES', () => {
     expect(hiding.map((rule) => rule.selector)).toEqual([]);
   });
 
+  it('gives the element reset no specificity to spend', () => {
+    // A reset that reaches for a tag scores (0,1,1) once it is scoped to the
+    // app root, which beats every single-class rule in the sheet. The rail item
+    // and the mode pill each declared no border and were drawn with one, and
+    // nothing about the source says so: the sheet reads correctly and the render
+    // simply is not it. :where() is the difference between a default and a rule.
+    const reset = RULES.filter((rule) => /\.va-app\s+[a-z*]/.test(rule.selector));
+
+    expect(reset.length).toBeGreaterThan(5);
+    for (const rule of reset) expect(rule.selector.trim().startsWith(':where(')).toBe(true);
+  });
+
+  it('bounds the shell so the document never grows with the build', () => {
+    // Twenty full-page routes stacked down one document measured at 26,945px of
+    // page. A reviewer who has to scroll past a whole render to reach the next
+    // subject stops reading them, which is the review blindness this project
+    // exists to refuse — arriving as a layout rather than as a ranking.
+    const shell = RULES.find((rule) => rule.selector === '.va-app')?.body;
+    const scroll = RULES.find((rule) => rule.selector === '.va-scroll')?.body;
+
+    expect(shell).toMatch(/height: 100dvh/);
+    expect(shell).toMatch(/overflow: hidden/);
+    // Which only bounds anything if something inside it scrolls instead.
+    expect(scroll).toMatch(/overflow: auto/);
+    // And a flex child floors at its content unless told otherwise, which would
+    // push the shell past the viewport rather than scrolling inside it.
+    expect(scroll).toMatch(/min-height: 0/);
+    expect(RULES.find((rule) => rule.selector === '.va-body')?.body).toMatch(/min-height: 0/);
+  });
+
   it('re-decides only colour in the dark scheme', () => {
-    const properties = [...DARK.matchAll(/([a-z-]+):/g)].map((match) => match[1]!);
+    // Declarations only — a trailing `;` is what separates one from the selector
+    // it sits under, and the sheet writes one on every line.
+    const declarations = [...DARK.matchAll(/([a-z-]+)\s*:\s*([^;{}]+);/g)].map((match) => ({
+      property: match[1]!,
+      value: match[2]!.trim(),
+    }));
 
     // Layout, weight and the cause/collateral distinction are decided once. A
     // second scheme that could move a box is a second chance to disagree with
-    // the region coordinates the run measured.
-    expect(properties.length).toBeGreaterThan(5);
-    for (const property of properties) expect(property).toMatch(/color$|^background$/);
+    // the region coordinates the run measured — so the dark scheme is allowed to
+    // re-decide the palette the rest of the sheet spends, and nothing else.
+    expect(declarations.length).toBeGreaterThan(5);
+    for (const { property, value } of declarations) {
+      expect(property).toMatch(/color$|^background$|^--va-/);
+      expect(value).toMatch(/^(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|transparent)$/i);
+    }
   });
 });
