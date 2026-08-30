@@ -1,4 +1,5 @@
 import type { AccessibilitySnapshot, Digest, RenderIdentity } from '@variance-authority/core';
+import type { FindingRecord } from './finding-record.js';
 import type { CompositionReport } from './composition.js';
 import type { IgnoreLedger, SensitivityLedger } from './declarations.js';
 import type { ReachReport } from './reach.js';
@@ -441,26 +442,6 @@ export type PresentationSignalRecord =
       readonly effects: readonly PresentationEffectRecord[];
     };
 
-/**
- * One defect in a render, flattened for the report.
- *
- * Same fields a `RegionRecord` carries and for the same reason: what, where,
- * whose, which file. The owner chain is dropped — it is an in-memory structure
- * with a props digest per frame, and a report is read by something that wants a
- * sentence.
- */
-export interface FindingRecord {
-  /** e.g. `control-without-name`. Stable, so an ignore list can name one. */
-  readonly rule: string;
-  /** One sentence, naming the thing rather than the rule. */
-  readonly what: string;
-  readonly path: string;
-  /** Landmark phrase, e.g. `main → list item 2 of 3`. */
-  readonly where?: string;
-  readonly component?: string;
-  readonly file?: string;
-}
-
 export interface RegionRecord {
   readonly x: number;
   readonly y: number;
@@ -494,5 +475,6 @@ export interface RegionRecord {
 
 // Re-exported so a reader importing the report's shape gets the shapes its
 // fields are made of, without having to know which file each one was argued in.
+export type { FindingRecord } from './finding-record.js';
 export type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 export type { VariationRecord } from './variation.js';

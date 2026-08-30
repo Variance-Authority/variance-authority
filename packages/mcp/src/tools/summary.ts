@@ -1,3 +1,4 @@
+import { datingOf } from '@variance-authority/report';
 import type { NotObserved, RunReport } from '@variance-authority/report';
 import { presentationSummary } from '../presentation.js';
 import { NO_ARGS, type Tool } from './tool.js';
@@ -399,12 +400,18 @@ function shortfall(report: RunReport): readonly string[] {
 function findingsLine(report: RunReport): readonly string[] {
   const inspected = report.observations.filter((o) => o.findings !== undefined);
   const subjects = inspected.filter((o) => o.findings!.length > 0);
-  const total = subjects.reduce((sum, o) => sum + o.findings!.length, 0);
+  const found = subjects.flatMap((o) => o.findings ?? []);
 
-  if (total > 0) {
+  if (found.length > 0) {
+    // The dating rides the same line rather than waiting for `variance_findings`.
+    // A reader who stops here stops on a count, and a count is the one shape of
+    // this that reads as *you have introduced fourteen defects* whether or not
+    // anything in the run said so.
     return [
-      `findings: ${total} in ${subjects.length} subject(s), found without a baseline — ` +
-        'call variance_findings. These do not affect the verdict.',
+      `findings: ${found.length} in ${subjects.length} subject(s), found without a baseline` +
+        `${datingOf(found)
+          .map((clause) => ` · ${clause}`)
+          .join('')} — call variance_findings. These do not affect the verdict.`,
     ];
   }
 

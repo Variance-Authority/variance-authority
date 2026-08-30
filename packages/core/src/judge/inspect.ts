@@ -85,6 +85,26 @@ export type FindingRule =
   /** A box outside the box that contains it, in one locale and not the other. */
   | 'overflows-container';
 
+/**
+ * The identity of a finding, as a string two runs can be compared on.
+ *
+ * A finding is *the same finding* when the same rule fires on the same node. Not
+ * the same sentence: `what` quotes the text it found, so a copy edit beside a
+ * control with no accessible name would read as the old defect going away and a
+ * new one arriving in the same place. And not the same component either — a
+ * component renders in many places, and every one of them would collapse to one.
+ *
+ * Small on purpose. This is what a baseline carries so that the next run can say
+ * whether a defect it found was already there, and a baseline sidecar rides
+ * beside a PNG in a tracked directory: a mark is a few dozen bytes and a stored
+ * `Finding` is a paragraph. It can only answer membership, which is the only
+ * question the next run is allowed to ask of it — the same restraint
+ * `Described.components` is written under.
+ */
+export function findingMark(finding: { readonly rule: string; readonly path: string }): string {
+  return `${finding.rule}@${finding.path}`;
+}
+
 export interface Finding {
   readonly rule: FindingRule;
 

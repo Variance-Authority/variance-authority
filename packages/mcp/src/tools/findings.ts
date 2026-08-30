@@ -1,3 +1,5 @@
+import { AGE_WORDS, ageOf, anyDated, bandTitle, datingOf } from '@variance-authority/report';
+import type { Age } from '@variance-authority/report';
 import type { Tool } from './tool.js';
 
 /**
@@ -21,14 +23,29 @@ import type { Tool } from './tool.js';
  * Grouped by rule rather than by subject. One missing `alt` in twelve stories is
  * one edit to one component, and listing it twelve times under twelve subject
  * headings is the same fatigue the docket exists to prevent.
+ *
+ * ## Two things an agent cannot act on this list without
+ *
+ * **What kind of defect it is.** Most of these rules are accessibility and the
+ * description used to say all of them were, which is wrong about the two that
+ * are not — a string the locale pass never translated is a content defect, and
+ * a box past its container's edge is a layout one. The band is the same word the
+ * project blocks on, so the heading a reader sees and the policy that stops
+ * their merge are the same word.
+ *
+ * **Whether it is theirs.** A defect the baseline carried too is somebody else's
+ * afternoon, and an agent told twelve defects with no dating will either fix
+ * twelve or fix none. The date is only ever printed from a record; nothing here
+ * infers it from an absence.
  */
 export const findings: Tool = {
   name: 'variance_findings',
   description:
-    'Accessibility defects found in the renders themselves, with no baseline involved: a ' +
-    'control with no accessible name, a skipped heading level, a broken label association. ' +
-    'Grouped by rule, each naming the component and the file. These are present on the ' +
-    'first run and are invisible to any comparison, so they do not affect the verdict.',
+    'Defects found in the renders themselves, with no baseline involved: mostly accessibility ' +
+    '— a control with no accessible name, a skipped heading level, a broken label ' +
+    'association — and some content and layout. Grouped by rule, each naming the band, the ' +
+    'component, the file, and whether the baseline already carried it. These are invisible to ' +
+    'any comparison, so they do not affect the verdict.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -67,35 +84,57 @@ export const findings: Tool = {
       byRule.set(entry.finding.rule, bucket);
     }
 
-    return [...byRule]
-      .map(([rule, entries]) => {
-        // Same finding, same component, several subjects: one edit, so one line
-        // with the subjects counted rather than one line per place it shows up.
-        const places = new Map<string, { what: string; file?: string; subjects: string[] }>();
-        for (const { subject, finding } of entries) {
-          const key = `${finding.component ?? finding.path}\u0000${finding.what}`;
-          const place = places.get(key) ?? {
-            what: finding.what,
-            ...(finding.file !== undefined ? { file: finding.file } : {}),
-            subjects: [],
-          };
-          place.subjects.push(subject);
-          places.set(key, place);
-        }
+    // Printed per place only when something in this report carries a date. On a
+    // report written before the marks were kept, `not dated` on every line is a
+    // column of one repeated word, and the lead sentence has already said it.
+    const dated = anyDated(all.map((entry) => entry.finding));
 
-        return [
-          `${rule} — ${entries.length} occurrence(s)`,
-          ...[...places.values()].map((place) => {
-            const reach =
-              place.subjects.length === 1
-                ? place.subjects[0]
-                : `${place.subjects.length} subjects: ${place.subjects.slice(0, 3).join(', ')}` +
-                  (place.subjects.length > 3 ? ', …' : '');
+    const groups = [...byRule].map(([rule, entries]) => {
+      // Same finding, same component, several subjects: one edit, so one line
+      // with the subjects counted rather than one line per place it shows up.
+      // The age joins the key for the same reason it is drawn on the row: one
+      // rule firing on an element the baseline had and on one it did not is two
+      // findings, and folding them files the new one under the old one's date.
+      const places = new Map<string, { what: string; age: Age; file?: string; subjects: string[] }>();
+      for (const { subject, finding } of entries) {
+        const age = ageOf(finding);
+        const key = `${finding.component ?? finding.path}\u0000${finding.what}\u0000${age}`;
+        const place = places.get(key) ?? {
+          what: finding.what,
+          age,
+          ...(finding.file !== undefined ? { file: finding.file } : {}),
+          subjects: [],
+        };
+        place.subjects.push(subject);
+        places.set(key, place);
+      }
 
-            return `  ${place.what}\n    ${place.file ?? '(no source index)'} — in ${reach}`;
-          }),
-        ].join('\n');
-      })
-      .join('\n\n');
+      const band = entries[0]?.finding.band;
+
+      return [
+        `${band === undefined ? '' : `${bandTitle(band)} · `}${rule} — ` +
+          `${entries.length} occurrence(s)`,
+        ...[...places.values()].map((place) => {
+          const reach =
+            place.subjects.length === 1
+              ? place.subjects[0]
+              : `${place.subjects.length} subjects: ${place.subjects.slice(0, 3).join(', ')}` +
+                (place.subjects.length > 3 ? ', …' : '');
+
+          return (
+            `  ${place.what}${dated ? ` — ${AGE_WORDS[place.age]}` : ''}` +
+            `\n    ${place.file ?? '(no source index)'} — in ${reach}`
+          );
+        }),
+      ].join('\n');
+    });
+
+    const subjects = new Set(all.map((entry) => entry.subject)).size;
+    const lead = [
+      `${all.length} occurrence(s) across ${subjects} subject(s), read without a baseline`,
+      ...datingOf(all.map((entry) => entry.finding)),
+    ].join(' · ');
+
+    return [lead, ...groups].join('\n\n');
   },
 };

@@ -1,4 +1,6 @@
+import { AGE_WHY, AGE_WORDS, ageOf, byBand, findingTotals } from '@variance-authority/report';
 import type {
+  FindingRecord,
   ObservationRecord,
   PresentationEffectEvidence,
   PresentationEffectRecord,
@@ -203,31 +205,55 @@ function regions(entry: ObservationRecord): string {
 }
 
 /**
- * Defects in this render, with no baseline consulted.
+ * Defects in this render, with no baseline consulted — labelled, and dated.
  *
  * The half a comparison structurally cannot produce: a control that never had an
  * accessible name compares equal to itself forever, so approving the first
  * baseline approves the defect. `[]` is *inspected and clean* and absent is
  * *nothing looked* — so an empty array prints a marker rather than nothing at
  * all, which is the only way the two states are distinguishable on a page.
+ *
+ * The block used to be a bare `<ul>` under no heading of any kind, printing rule
+ * slugs and clauses in a run: a reader had to work out both what sort of report
+ * it was and whether any of it was their doing. Both answers are on the record,
+ * and both are read here through the same fold the review page reads them
+ * through — `byBand` for the heading, `ageOf` for the row — because a reviewer
+ * who checks the page against the service should find the same sentence, not a
+ * second wording of it.
  */
 function findings(entry: ObservationRecord): string {
   if (entry.findings === undefined) return '';
   if (entry.findings.length === 0) {
     return '<p class="findings"><span class="mark ok" title="This render was inspected and no defect was found. Absent would mean nothing looked.">inspected</span></p>';
   }
+
+  const groups = byBand(entry.findings)
+    .map(
+      (group) =>
+        `<p class="band-head">${text(group.title)}</p><ul>` +
+        group.findings.map((finding) => row(finding)).join('') +
+        '</ul>',
+    )
+    .join('');
+
   return (
-    '<ul class="findings">' +
-    entry.findings
-      .map(
-        (finding) =>
-          `<li><span class="mark warn">${text(finding.rule)}</span>${text(finding.what)}` +
-          (finding.component === undefined ? '' : `<code>${text(finding.component)}</code>`) +
-          (finding.file === undefined ? '' : `<span class="file">${text(finding.file)}</span>`) +
-          '</li>',
-      )
-      .join('') +
-    '</ul>'
+    '<div class="findings">' +
+    `<p class="findings-why">${text(findingTotals(entry.findings))}</p>` +
+    groups +
+    '</div>'
+  );
+}
+
+/** One defect, with the date last: it qualifies the row rather than naming it. */
+function row(finding: FindingRecord): string {
+  const age = ageOf(finding);
+  return (
+    `<li class="finding ${text(age)}">` +
+    `<span class="mark warn">${text(finding.rule)}</span>${text(finding.what)}` +
+    (finding.component === undefined ? '' : `<code>${text(finding.component)}</code>`) +
+    (finding.file === undefined ? '' : `<span class="file">${text(finding.file)}</span>`) +
+    `<span class="age ${text(age)}" title="${text(AGE_WHY[age])}">${text(AGE_WORDS[age])}</span>` +
+    '</li>'
   );
 }
 

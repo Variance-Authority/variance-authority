@@ -11,7 +11,16 @@ import { alone } from './alone.js';
 import type { Collected, PlannedSubject } from './collector.js';
 import { liveIgnores, scopedTo } from './ignores.js';
 import { images } from './images.js';
-import { diagnosticsOf, findingsField, findingsOf, qualification, recordOf } from './record.js';
+import {
+  dated,
+  diagnosticsOf,
+  findingsField,
+  findingsOf,
+  inherited,
+  marksOf,
+  qualification,
+  recordOf,
+} from './record.js';
 import type { ObserveContext, Outcome } from './run-context.js';
 import type { CliObservationRecord } from './run-report.js';
 import type { Config } from '../config.js';
@@ -44,6 +53,15 @@ export async function observeOne(
   // being someone else's problem. The settled path in particular produces no
   // `Observation` at all, which is how these came to be dropped.
   const diagnostics = diagnosticsOf(collected);
+
+  // Inspection runs once, above every branch, for the same reason diagnostics
+  // do: all three paths out of this function report findings, and one of them —
+  // the settled path — reports them having read no image at all. Hoisting it
+  // also puts the list in the hands of `images`, which writes it onto the
+  // candidate sidecar so that the run *after* this one can say which of these
+  // defects it inherited.
+  const found = await findingsOf(collected.snapshot, collected.source, deps.collector.callSites);
+  const marks = marksOf(found);
 
   // Shape-scoped ignores, flattened to the lookup the comparison actually does.
   // Built per subject rather than once, because a rule may name the subjects it
@@ -88,9 +106,23 @@ export async function observeOne(
         ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
         ...(collected.source !== undefined ? { source: collected.source } : {}),
         ...(collected.presentation !== undefined ? { presentation: collected.presentation } : {}),
-        ...(await images(id, observation, collected.document, renderer, config, deps, null, collected.snapshot)),
+        ...(await images(
+          id,
+          observation,
+          collected.document,
+          renderer,
+          config,
+          deps,
+          null,
+          collected.snapshot,
+          marks,
+        )),
         diagnostics,
-        ...(await findingsField(collected, deps.collector.callSites)),
+        // No `standing` on this path, and none is inferrable. Ephemeral
+        // retention compares two renders made in this run, and the earlier one
+        // arrives as a document rather than a snapshot — so there is nothing to
+        // inspect on the other side, and absent says so.
+        ...findingsField(found),
         ...(await investigate(planned, collected, observation, null, context, collecting)),
       }),
     };
@@ -123,11 +155,13 @@ export async function observeOne(
     // anything. A subject whose document digest matched its baseline has changed
     // nothing and may still contain a control with no name — that is the whole
     // reason inspection is not a comparison.
-    const findings = await findingsOf(
-      collected.snapshot,
-      collected.source,
-      deps.collector.callSites,
-    );
+    //
+    // And this is the one path where *when it arrived* needs no stored evidence.
+    // Settling means this render's document digest is the baseline's, so the
+    // document that would be inspected on the other side is this one: every
+    // defect here is a defect the baseline had, by identity rather than by
+    // lookup. A baseline written before marks existed still gets a true answer.
+    const findings = dated(found, inherited(described, true));
 
     // The exclusions this subject declared, on the path that compares nothing.
     // A settled subject reached its verdict from a digest, so no ignore had
@@ -181,9 +215,22 @@ export async function observeOne(
       ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
       ...(collected.source !== undefined ? { source: collected.source } : {}),
       ...(collected.presentation !== undefined ? { presentation: collected.presentation } : {}),
-      ...(await images(id, observation, collected.document, renderer, config, deps, key, collected.snapshot)),
+      ...(await images(
+        id,
+        observation,
+        collected.document,
+        renderer,
+        config,
+        deps,
+        key,
+        collected.snapshot,
+        marks,
+      )),
       diagnostics,
-      ...(await findingsField(collected, deps.collector.callSites)),
+      // Crossed against the marks the baseline recorded, from the sidecar this
+      // subject already read to try to settle. A baseline that recorded none
+      // leaves every finding undated rather than calling it new.
+      ...findingsField(dated(found, inherited(described, false))),
       ...(await investigate(planned, collected, observation, key, context, collecting)),
     }),
   };

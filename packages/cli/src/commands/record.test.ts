@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Observation } from '@variance-authority/observe';
-import { qualification } from './record.js';
+import type { Described } from '@variance-authority/raster';
+import type { FindingRecord } from '@variance-authority/report';
+import { dated, inherited, marksOf, qualification } from './record.js';
 import { recordOf } from './run.js';
 import { UNREADABLE } from './run-fixture.js';
 
@@ -173,3 +175,89 @@ describe('qualification', () => {
     ).toContain('cross-origin-stylesheet (warn), cross-origin-stylesheet (error)');
   });
 });
+
+/**
+ * Crossing this run's defects against the baseline's, held to the direction that
+ * is safe to be wrong in.
+ *
+ * A finding is read from one render with no baseline consulted, so the list is
+ * identical on the run that introduced a defect and on the two hundred runs
+ * after it. `standing` is the only thing that separates them, and it is only
+ * ever set from evidence: either the document is byte-for-byte the baseline's,
+ * or the baseline recorded what was found in it. Absent stays absent. Guessing
+ * `false` from a missing list is the failure — it prints *you introduced this*
+ * over every inherited defect in a suite, on the first run after an upgrade.
+ */
+
+describe('dated', () => {
+  const one: FindingRecord = {
+    rule: 'control-without-name',
+    band: 'a11y',
+    what: 'a control has no accessible name',
+    path: '0/1/0',
+  };
+  const two: FindingRecord = { ...one, rule: 'nested-interactive', path: '0/2/0' };
+
+  it('leaves the question open when there is no baseline to have asked it of', () => {
+    expect(dated([one], null)).toEqual([one]);
+    expect(dated([one], null)?.[0]).not.toHaveProperty('standing');
+  });
+
+  it('leaves it open when a baseline exists and recorded nothing', () => {
+    // A baseline promoted before `Raster.findingMarks` existed. It is silent, not
+    // empty, and the two are the same bytes on disk — which is exactly why the
+    // reading has to be *unknown* rather than *the baseline had none of these*.
+    expect(dated([one], inherited(described(undefined), false))?.[0]).not.toHaveProperty(
+      'standing',
+    );
+  });
+
+  it('crosses the marks the baseline recorded against the ones found now', () => {
+    const out = dated([one, two], inherited(described(['control-without-name@0/1/0']), false));
+
+    expect(out?.map((finding) => finding.standing)).toEqual([true, false]);
+  });
+
+  it('calls every defect inherited when the document did not change at all', () => {
+    // The settled path. The render was measured against the same document the
+    // baseline was painted from, so whatever inspection finds now it found then —
+    // by identity, with no stored list required and no way to be wrong. It is the
+    // one branch that answers correctly against a baseline written before marks
+    // were kept, which is every baseline in every repository on the day of the
+    // upgrade.
+    const out = dated([one, two], inherited(described(undefined), true));
+
+    expect(out?.map((finding) => finding.standing)).toEqual([true, true]);
+  });
+
+  it('distinguishes two elements the same rule fired on', () => {
+    // `${rule}@${path}` rather than the rule alone. A rule that fired on a control
+    // the baseline had and on one the change added is the case the panel exists to
+    // separate, and keying on the rule would report the new element as inherited.
+    const out = dated([one, two], inherited(described(['nested-interactive@0/2/0']), false));
+
+    expect(out?.map((finding) => finding.standing)).toEqual([false, true]);
+  });
+
+  it('does not read a copy edit beside a defect as the defect moving', () => {
+    // `what` quotes the text it found, so a mark that carried it would say the old
+    // defect went away and a new one arrived in the same place on every wording
+    // change. The mark is the rule and the node, and nothing else.
+    const reworded = { ...one, what: 'this control still has no accessible name' };
+    const out = dated([reworded], inherited(described(marksOf([one])), false));
+
+    expect(out?.[0]?.standing).toBe(true);
+  });
+
+  it('carries nothing through when the run inspected nothing', () => {
+    expect(dated(undefined, inherited(described([]), false))).toBeUndefined();
+  });
+});
+
+/** A baseline sidecar carrying only the field this crossing reads. */
+function described(marks: readonly string[] | undefined): Described {
+  return {
+    documentDigest: 'sha256:baseline',
+    ...(marks === undefined ? {} : { findingMarks: marks }),
+  } as Described;
+}

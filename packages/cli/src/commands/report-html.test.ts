@@ -432,3 +432,37 @@ describe('the declaration ledgers are read, not duck-typed', () => {
     expect(html).toContain('<tr class="unscoped">');
   });
 });
+
+describe('the defect list says what it is a list of, and whose the defect is', () => {
+  const inspected = (findings: readonly Record<string, unknown>[]): string =>
+    reportHtml(reportOf({ observations: [{ ...CHANGED, findings }] as never }));
+
+  const nameless = {
+    rule: 'control-without-name',
+    band: 'a11y',
+    what: 'a control has no accessible name',
+    path: '0/1/0',
+    component: 'Button',
+  };
+
+  it('heads the list with the band rather than shipping a run of rule slugs', () => {
+    // The page used to emit a bare `<ul class="findings">` under no heading of any
+    // kind, so a reader had to infer the subject of the report from the names of
+    // its rules.
+    expect(inspected([nameless])).toContain('Accessibility');
+  });
+
+  it('says the same sentences the review page says, from the same fold', () => {
+    const page = inspected([{ ...nameless, standing: false }]);
+
+    expect(page).toContain('arrived with this change');
+    expect(page).toContain('1 defect read from this render, with no baseline compared');
+  });
+
+  it('never prints an undated defect as one this change introduced', () => {
+    const page = inspected([nameless]);
+
+    expect(page).toContain('none of them can be dated');
+    expect(page).not.toContain('arrived with this change');
+  });
+});

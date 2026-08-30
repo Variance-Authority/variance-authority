@@ -389,6 +389,12 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
   // *collecting*, and the fallback of a missing list is to collect it — the safe
   // direction, and the one every run took before selection existed.
   const components = stringsFrom(described.components);
+
+  // Dropped rather than refused, on the same reasoning as `components` and with
+  // the opposite safe direction: the fallback of a missing list is *this run
+  // cannot say when the defect arrived*, which is what a reader is told when no
+  // baseline recorded one. Refusing here would fail a run over a sentence.
+  const findingMarks = stringsFrom(described.findingMarks);
   const accessibilitySidecar =
     described.accessibility === undefined
       ? undefined
@@ -406,6 +412,7 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
 
   return {
     ...(components !== null ? { components } : {}),
+    ...(findingMarks !== null ? { findingMarks } : {}),
     documentDigest: described.documentDigest,
     comparable: described.comparable,
     storedUnder,

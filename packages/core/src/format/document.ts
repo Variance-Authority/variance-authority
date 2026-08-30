@@ -316,4 +316,29 @@ export interface Raster {
    * Absent means *unknown*, never *no components*.
    */
   readonly components?: readonly ComponentHash[];
+
+  /**
+   * What inspection found in the document that painted this, as marks.
+   *
+   * The field that lets a later run say *this defect was already here* instead of
+   * printing every defect it finds with no indication of when it arrived. A
+   * finding is produced from one render with no baseline consulted — that is the
+   * point of having one — and the consequence is that the list is identical on
+   * the run that introduced a defect and on the two hundred runs after it. A
+   * reviewer reading `a control inside another control` has no way to tell an
+   * inherited condition from something they just wrote, and the two are different
+   * decisions.
+   *
+   * Marks rather than findings, from {@link findingMark}. The sentence, the
+   * landmark phrase and the source line are all rewritten by edits that do not
+   * touch the defect, so storing them would report a defect as new every time the
+   * copy beside it changed — and they are the bulk of the bytes, in a sidecar
+   * that is committed beside every baseline.
+   *
+   * **Absent means nothing inspected it, never that it was clean.** A baseline
+   * written before this existed, or by a collector that supplies no snapshot, has
+   * no list, and a run that read absence as `[]` would announce every standing
+   * defect in the suite as newly introduced on the first run after an upgrade.
+   */
+  readonly findingMarks?: readonly string[];
 }

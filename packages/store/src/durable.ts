@@ -118,6 +118,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
           ...(own.components === undefined
             ? {}
             : { components: own.components.map((hash) => hash.component) }),
+          ...(own.findingMarks === undefined ? {} : { findingMarks: own.findingMarks }),
         };
       }
 
@@ -136,6 +137,9 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
             ...(sidecar.components === undefined
               ? {}
               : { components: sidecar.components.map((hash) => hash.component) }),
+            ...(sidecar.findingMarks === undefined
+              ? {}
+              : { findingMarks: sidecar.findingMarks }),
           };
         }
       }

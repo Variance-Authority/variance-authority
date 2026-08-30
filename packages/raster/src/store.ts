@@ -135,6 +135,21 @@ export interface Described {
    * missing field.
    */
   readonly components?: readonly string[];
+
+  /**
+   * What inspection found in the document that painted this baseline, as marks.
+   *
+   * Carried on `describe` and not only on `find` because the question it answers
+   * is asked on the path that reads no image. A subject that settles on its
+   * document digest never builds a comparison and can still carry a defect —
+   * that is the case inspection exists for — so the run that has to say whether
+   * the defect is standing or newly arrived is exactly the run that declined to
+   * fetch a megabyte of PNG.
+   *
+   * **Absent means nothing inspected it, never that it was clean.** A backend
+   * that dropped this would report every inherited defect in the suite as new.
+   */
+  readonly findingMarks?: readonly string[];
 }
 
 export interface RasterStore {

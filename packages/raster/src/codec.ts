@@ -24,6 +24,12 @@ export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
   }
 
   const components = componentsFrom(sidecar.components);
+
+  // Dropped when it will not parse, never refused. It decides a sentence — did
+  // this defect arrive with the change under review — and the fallback of an
+  // unreadable list is the sentence that says nothing was recorded, which is
+  // what every baseline written before this field said anyway.
+  const findingMarks = stringsFrom(sidecar.findingMarks);
   const accessibility = accessibilityFrom(sidecar.accessibility);
   if (sidecar.accessibility !== undefined && accessibility === null) return null;
 
@@ -35,6 +41,7 @@ export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
     missingFonts,
     ...(accessibility === null ? {} : { accessibility }),
     ...(components !== undefined ? { components } : {}),
+    ...(findingMarks === null ? {} : { findingMarks }),
   };
 }
 

@@ -1,4 +1,5 @@
 import {
+  findingMark,
   formatSource,
   inspect,
   locateSites,
@@ -11,6 +12,7 @@ import {
   type SourceIndex,
 } from '@variance-authority/core';
 import type { Observation } from '@variance-authority/observe';
+import type { Described } from '@variance-authority/raster';
 import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
 import type {
   FindingRecord,
@@ -124,15 +126,64 @@ function signalsField(
 }
 
 /** Spread helper, so `undefined` omits the key rather than setting it. */
-export async function findingsField(
-  collected: {
-    readonly snapshot?: SemanticSnapshot;
-    readonly source?: SourceIndex;
-  },
-  callSites?: CallSiteResolver,
-): Promise<{ findings?: readonly FindingRecord[] }> {
-  const findings = await findingsOf(collected.snapshot, collected.source, callSites);
+export function findingsField(
+  findings: readonly FindingRecord[] | undefined,
+): { findings?: readonly FindingRecord[] } {
   return findings === undefined ? {} : { findings };
+}
+
+/**
+ * What the baseline this render was measured against says about its own defects.
+ *
+ * Two ways to answer, and the cheap one is exact. A run that settled on its
+ * document digest is looking at the *same document* the baseline was painted
+ * from, so whatever inspection finds now, inspection found then — no stored list
+ * required, and no way for the answer to be wrong. Otherwise the marks the
+ * baseline recorded are the only evidence, and a baseline that recorded none
+ * leaves the question unanswered rather than answered *no*.
+ */
+export interface Inherited {
+  /** `true` when this render's document is byte-for-byte the baseline's. */
+  readonly sameDocument: boolean;
+  /** What the baseline recorded, or absent when it recorded nothing. */
+  readonly marks?: readonly string[];
+}
+
+/** The baseline's side of the question, from the sidecar read the run already did. */
+export function inherited(described: Described | null, sameDocument: boolean): Inherited | null {
+  if (described === null) return null;
+  return {
+    sameDocument,
+    ...(described.findingMarks === undefined ? {} : { marks: described.findingMarks }),
+  };
+}
+
+/**
+ * Say, for each defect, whether the baseline carried it too.
+ *
+ * The field is left off rather than set to `false` wherever the answer is not
+ * known: no baseline, or a baseline that recorded no marks. `false` is a claim —
+ * *you introduced this* — and inferring it from a missing list would print that
+ * claim over every standing defect in the suite on the first run after an
+ * upgrade, which is both wrong and exactly the sentence a reviewer acts on.
+ */
+export function dated(
+  findings: readonly FindingRecord[] | undefined,
+  baseline: Inherited | null,
+): readonly FindingRecord[] | undefined {
+  if (findings === undefined || baseline === null) return findings;
+  if (baseline.sameDocument) return findings.map((finding) => ({ ...finding, standing: true }));
+  if (baseline.marks === undefined) return findings;
+
+  const had = new Set(baseline.marks);
+  return findings.map((finding) => ({ ...finding, standing: had.has(findingMark(finding)) }));
+}
+
+/** The marks a baseline promoted from this render would carry. See `Raster.findingMarks`. */
+export function marksOf(
+  findings: readonly FindingRecord[] | undefined,
+): readonly string[] | undefined {
+  return findings?.map(findingMark);
 }
 
 /**
@@ -171,6 +222,11 @@ export async function findingsOf(
 
     return {
       rule: finding.rule,
+      // The band the inspector already decided this under, kept rather than
+      // dropped. It is what a surface can honestly put a heading on: nine of the
+      // eleven rules band `a11y` and two do not, so the alternative to carrying
+      // it is a panel that either mislabels two rules or labels none of them.
+      band: finding.band,
       what: finding.what,
       path: finding.path,
       ...(finding.where !== undefined ? { where: finding.where } : {}),

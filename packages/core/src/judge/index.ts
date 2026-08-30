@@ -31,7 +31,7 @@ export type { Intent, IntentClaim, Policy, Adjudication, Adjudicated } from './i
 export { buildDocket, summarize } from './docket.js';
 export type { Docket, DocketEntry, DocketOptions } from './docket.js';
 
-export { inspect, summarizeFindings } from './inspect.js';
+export { findingMark, inspect, summarizeFindings } from './inspect.js';
 export type { Finding, FindingRule, InspectionReportOptions } from './inspect.js';
 
 export { applyIgnores, summarizeIgnores, validateIgnoreRule } from './ignore.js';

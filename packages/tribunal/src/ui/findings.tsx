@@ -1,14 +1,31 @@
+import { AGE_WHY, AGE_WORDS, ageOf, byBand, findingTotals } from '@variance-authority/report';
 import type { FindingRecord } from '@variance-authority/report';
 import type { ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
 import { element, headline, number, sentence } from './text.js';
 
 /**
- * Findings, and the difference between clean and unexamined.
+ * Findings, and the three things a reader has to be told before the list is one.
  *
- * `[]` means this render was inspected and no defect was found. `undefined` means
- * nothing inspected it. Printing the second as the first tells a reviewer the
- * component is fine on the authority of something that never looked.
+ * **Whether anything looked.** `[]` means this render was inspected and no defect
+ * was found. `undefined` means nothing inspected it. Printing the second as the
+ * first tells a reviewer the component is fine on the authority of something that
+ * never looked.
+ *
+ * **What kind of defect these are.** The rows used to arrive under a bare
+ * *Findings* as rule ids and clauses, and a reader who did not already know what
+ * the inspector checks had to infer the subject of the report from the names of
+ * its rules. The band is on the record, so the list is grouped by it and each
+ * group is headed with the word — `Accessibility` over the nine rules that are,
+ * and not over the two that are not.
+ *
+ * **Whether it is theirs.** A finding is read from one render with no baseline
+ * consulted, so the same list prints on the run that introduced a defect and on
+ * every run after it, and the panel was silent about which. Each row now says
+ * whether the baseline carried it too. *Not dated* is its own answer and is never
+ * drawn as *arrived with this change*: the reading is
+ * [`ageOf`](../../../report/src/findings.ts), shared with the HTML report so the
+ * two surfaces say it in the same words.
  *
  * Drawn in three registers rather than one line. The report writes a rule id and
  * a clause — and the clause is written to *follow a noun the report never
@@ -27,25 +44,61 @@ export function Findings({ subject }: { readonly subject: SubjectView }): ReactE
   }
 
   return (
-    <ul className="va-findings">
-      {occurrences(subject.findings).map(({ key, finding, times }) => (
-        <li key={key} className="va-finding">
-          <p className="va-finding-title">
-            {headline(finding.rule)}
-            {times > 1 ? <span className="va-times">{number(times)} places</span> : null}
-          </p>
-          <p className="va-finding-where">{element(finding.where) ?? finding.path}</p>
-          <p className="va-finding-what">{sentence(finding.what)}</p>
-          <p className="va-finding-owner">
-            {finding.component === undefined ? null : (
-              <span className="va-tag">{finding.component}</span>
-            )}
-            {finding.file === undefined ? null : <code className="va-tag">{finding.file}</code>}
-            <span className="va-tag va-rule">{finding.rule}</span>
-          </p>
-        </li>
+    <>
+      <p className="va-note va-findings-why">{findingTotals(subject.findings)}</p>
+      {byBand(subject.findings).map((group) => (
+        <section key={group.title} className="va-findings-band">
+          <h3 className="va-band-head">{group.title}</h3>
+          <ul className="va-findings">
+            {occurrences(group.findings).map(({ key, finding, times }) => (
+              <Row key={key} finding={finding} times={times} />
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </>
+  );
+}
+
+/**
+ * One defect, dated on the row rather than in a legend.
+ *
+ * The dating is drawn twice: as the phrase, and as the rule the row is ruled
+ * with. A reviewer scanning a panel of fourteen reads the colour before they read
+ * anything, and what they are scanning for is the one that arrived with their
+ * change — so *arrived* is the only state that gets the loud edge, and the two
+ * that are not a claim about this change share the quiet one.
+ */
+function Row({
+  finding,
+  times,
+}: {
+  readonly finding: FindingRecord;
+  readonly times: number;
+}): ReactElement {
+  const age = ageOf(finding);
+
+  return (
+    <li className={`va-finding va-finding-${age}`}>
+      <p className="va-finding-title">
+        {headline(finding.rule)}
+        <span className="va-finding-marks">
+          {times > 1 ? <span className="va-times">{number(times)} places</span> : null}
+          <span className={`va-age va-age-${age}`} title={AGE_WHY[age]}>
+            {AGE_WORDS[age]}
+          </span>
+        </span>
+      </p>
+      <p className="va-finding-where">{element(finding.where) ?? finding.path}</p>
+      <p className="va-finding-what">{sentence(finding.what)}</p>
+      <p className="va-finding-owner">
+        {finding.component === undefined ? null : (
+          <span className="va-tag">{finding.component}</span>
+        )}
+        {finding.file === undefined ? null : <code className="va-tag">{finding.file}</code>}
+        <span className="va-tag va-rule">{finding.rule}</span>
+      </p>
+    </li>
   );
 }
 
@@ -67,8 +120,11 @@ interface Occurrence {
  *
  * Grouped on everything the entry actually shows, which is all of a finding
  * except its path. Two rows a reader cannot tell apart are one finding; `where`
- * stays in the key, so two genuinely different elements stay two rows. Insertion
- * order is kept, because the report's order is the order of the render.
+ * stays in the key, so two genuinely different elements stay two rows, and so
+ * does `standing` — a rule that fired on an element the baseline had and on one
+ * it did not is the case this panel exists to separate, and folding the two would
+ * report the new element under the old one's date. Insertion order is kept,
+ * because the report's order is the order of the render.
  */
 function occurrences(findings: readonly FindingRecord[]): readonly Occurrence[] {
   const seen = new Map<string, Occurrence>();
@@ -79,6 +135,7 @@ function occurrences(findings: readonly FindingRecord[]): readonly Occurrence[] 
       finding.file ?? '',
       finding.where ?? '',
       finding.what,
+      ageOf(finding),
     ].join(' · ');
     const already = seen.get(key);
     if (already === undefined) seen.set(key, { key, finding, times: 1 });

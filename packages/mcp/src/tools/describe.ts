@@ -1,4 +1,10 @@
-import type { FlakinessRecord, RegionRecord, RunReport } from '@variance-authority/report';
+import { AGE_WORDS, ageOf, anyDated, byBand, findingTotals } from '@variance-authority/report';
+import type {
+  FindingRecord,
+  FlakinessRecord,
+  RegionRecord,
+  RunReport,
+} from '@variance-authority/report';
 import { describePresentation } from '../presentation.js';
 import { subjectOf, unobserved } from './subject.js';
 import type { Tool } from './tool.js';
@@ -128,15 +134,7 @@ export const describe: Tool = {
     // them, in which case they are the only thing this tool has to say, and a
     // reader who stopped at "nothing changed" would never reach them.
     if (observation.findings !== undefined && observation.findings.length > 0) {
-      lines.push(
-        '',
-        `${observation.findings.length} finding(s) in this render, independent of the verdict:`,
-        ...observation.findings.map(
-          (finding) =>
-            `  [${finding.rule}] ${finding.what}` +
-            (finding.file !== undefined ? `\n    ${finding.file}` : ''),
-        ),
-      );
+      lines.push('', findingTotals(observation.findings) + ':', ...findingLines(observation.findings));
     }
 
     if (observation.signals?.presentation !== undefined) {
@@ -289,3 +287,29 @@ function regionLine(region: RegionRecord): string {
     .filter((line): line is string => line !== null)
     .join('\n');
 }
+
+/**
+ * The defects under the band each was filed as, dated where the record says.
+ *
+ * The same two questions the review page and the HTML report answer above their
+ * own lists, and the same fold answering them — an agent reading a flat list of
+ * eleven rules has to know which of them the project blocks on and which of them
+ * it inherited, and neither is derivable from the rule name.
+ *
+ * The band heads a group rather than prefixing a row because most renders carry
+ * one band, and a word repeated down a column is a word a reader stops seeing.
+ */
+function findingLines(findings: readonly FindingRecord[]): readonly string[] {
+  const dated = anyDated(findings);
+
+  return byBand(findings).flatMap((group) => [
+    `  ${group.title}`,
+    ...group.findings.map(
+      (finding) =>
+        `    [${finding.rule}] ${finding.what}` +
+        (dated ? ` — ${AGE_WORDS[ageOf(finding)]}` : '') +
+        (finding.file === undefined ? '' : `\n      ${finding.file}`),
+    ),
+  ]);
+}
+

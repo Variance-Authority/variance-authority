@@ -103,3 +103,80 @@ describe('inspected and clean is not the same as never looked at', () => {
     expect(markup).toContain('nothing to report');
   });
 });
+
+describe('the panel says what it is a report of, and whose the defect is', () => {
+  it('heads the accessibility rules with the word, rather than leaving it to the slugs', () => {
+    const markup = renderToStaticMarkup(
+      <Findings subject={subject([{ ...nested('0/1/0'), band: 'a11y' }])} />,
+    );
+
+    expect(markup).toContain('Accessibility');
+  });
+
+  it('does not file the two rules that are not accessibility under it', () => {
+    // `untranslated` and `overflows-container` band `content` and `geometry`. A
+    // panel with one heading over the whole list is wrong about them, which is why
+    // the heading is per band rather than per panel.
+    const markup = renderToStaticMarkup(
+      <Findings
+        subject={subject([
+          { ...nested('0/1/0'), band: 'a11y' },
+          {
+            ...nested('0/2/0'),
+            band: 'geometry',
+            rule: 'overflows-container',
+            what: 'the text is wider than the box holding it',
+          },
+        ])}
+      />,
+    );
+
+    expect(markup).toContain('Accessibility');
+    expect(markup).toContain('Layout');
+  });
+
+  it('says a defect arrived with this change when the baseline did not carry it', () => {
+    const markup = renderToStaticMarkup(
+      <Findings subject={subject([{ ...nested('0/1/0'), standing: false }])} />,
+    );
+
+    expect(markup).toContain('arrived with this change');
+    expect(markup).toContain('va-finding-new');
+  });
+
+  it('says a defect was already there rather than putting it beside a new one', () => {
+    const markup = renderToStaticMarkup(
+      <Findings subject={subject([{ ...nested('0/1/0'), standing: true }])} />,
+    );
+
+    expect(markup).toContain('already in the baseline');
+    expect(markup).not.toContain('va-finding-new');
+  });
+
+  it('refuses to date a finding the record left undated', () => {
+    // The reading that has to survive every future edit to this file. A page that
+    // guessed here would tell a reviewer they introduced every standing defect in
+    // the suite, on the first run after an upgrade.
+    const markup = renderToStaticMarkup(<Findings subject={subject([nested('0/1/0')])} />);
+
+    expect(markup).toContain('not dated');
+    expect(markup).not.toContain('arrived with this change');
+  });
+
+  it('keeps an inherited defect and a new one apart when the same rule fired on both', () => {
+    // Folding by rule and component would report the newly-added control under the
+    // date of the one that was always broken.
+    const markup = renderToStaticMarkup(
+      <Findings
+        subject={subject([
+          { ...nested('0/1/0'), standing: true },
+          { ...nested('0/2/0'), standing: false },
+        ])}
+      />,
+    );
+
+    expect(markup.match(/va-finding-title/g)).toHaveLength(2);
+    expect(markup).toContain('already in the baseline');
+    expect(markup).toContain('arrived with this change');
+  });
+});

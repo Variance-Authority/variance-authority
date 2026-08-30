@@ -56,6 +56,15 @@ export async function images(
   key: BaselineKey | null,
   /** This run's snapshot of the same render, when the collector supplied one. */
   snapshot?: SemanticSnapshot,
+  /**
+   * What inspection found in this render, as marks.
+   *
+   * Handed in rather than derived from `snapshot` here, so that the list a
+   * baseline is later judged against is the same list this run printed. A second
+   * `inspect` call in this file would be a second definition of what a finding
+   * is, and the two would agree until one of them was changed.
+   */
+  findingMarks?: readonly string[],
 ): Promise<{ images?: ObservationRecord['images'] }> {
   const cached = await candidateRaster(deps.store, document, renderer);
   if (cached === null) return {};
@@ -64,8 +73,14 @@ export async function images(
   // describe the snapshot this run collected, and the cache is keyed by the
   // document — so a cache hit is the right *image* and says nothing about whose
   // components it was written beside (ADR-0027, and `withComponents`).
-  const raster: Raster =
-    snapshot === undefined ? cached : { ...cached, components: hashComponents(snapshot) };
+  const raster: Raster = {
+    ...cached,
+    ...(snapshot === undefined ? {} : { components: hashComponents(snapshot) }),
+    // Written on the candidate, which is the file `accept` promotes. That is the
+    // whole path by which a defect found today becomes a defect the next run can
+    // call standing: nothing inspects a baseline, because a baseline is a PNG.
+    ...(findingMarks === undefined ? {} : { findingMarks }),
+  };
 
   const base = join(config.images, encodeURIComponent(id));
   const reportDir = dirname(config.report);
