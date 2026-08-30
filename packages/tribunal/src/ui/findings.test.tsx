@@ -159,7 +159,7 @@ describe('the panel says what it is a report of, and whose the defect is', () =>
     // the suite, on the first run after an upgrade.
     const markup = renderToStaticMarkup(<Findings subject={subject([nested('0/1/0')])} />);
 
-    expect(markup).toContain('not dated');
+    expect(markup).toContain('none of them can be dated to this change');
     expect(markup).not.toContain('arrived with this change');
   });
 
@@ -178,5 +178,68 @@ describe('the panel says what it is a report of, and whose the defect is', () =>
     expect(markup.match(/va-finding-title/g)).toHaveLength(2);
     expect(markup).toContain('already in the baseline');
     expect(markup).toContain('arrived with this change');
+  });
+});
+
+describe('what this change brought comes first, and the rest is shut', () => {
+  it('opens on the arrival and puts the total last, where it cannot lead', () => {
+    // The panel used to open on `42 defects read from this render, with no
+    // baseline compared`, then count the dates as equal clauses. That is a
+    // reviewer's whole afternoon of somebody else's work, offered before their
+    // own, on the one screen where they are trying to finish a change.
+    const markup = renderToStaticMarkup(
+      <Findings
+        subject={subject([
+          { ...nested('0/1/0'), standing: true },
+          { ...nested('0/2/0'), standing: false },
+        ])}
+      />,
+    );
+
+    expect(markup).toMatch(/^<p class="va-findings-lead[^"]*">1 defect arrived with this change/);
+    expect(markup.indexOf('read from this render')).toBeGreaterThan(
+      markup.indexOf('already in the baseline'),
+    );
+  });
+
+  it('folds the inherited defects behind their count rather than listing them', () => {
+    const markup = renderToStaticMarkup(
+      <Findings
+        subject={subject([
+          { ...nested('0/1/0'), standing: false },
+          { ...nested('0/2/0'), standing: true },
+          { ...nested('0/3/0'), standing: true },
+        ])}
+      />,
+    );
+
+    // Shut: `<details>` with no `open`, so three rows are one line until asked.
+    expect(markup).toContain('<details class="va-findings-rest"><summary>2 already in the baseline');
+    expect(markup).not.toContain('<details class="va-findings-rest" open');
+  });
+
+  it('leaves an undated list open, because there is no split to make', () => {
+    // `arrived` is empty here too, and folding on that alone would hide every
+    // defect in the render on the one run with no baseline to inherit from.
+    const markup = renderToStaticMarkup(
+      <Findings
+        subject={subject([
+          nested('0/1/0'),
+          { ...nested('0/2/0'), rule: 'label-mismatch', what: 'the visible words disagree' },
+        ])}
+      />,
+    );
+
+    expect(markup).not.toContain('va-findings-rest');
+    expect(markup.match(/va-finding-title/g)).toHaveLength(2);
+  });
+
+  it('drops the date from a row whose whole list already says it', () => {
+    const markup = renderToStaticMarkup(
+      <Findings subject={subject([{ ...nested('0/1/0'), standing: false }])} />,
+    );
+
+    expect(markup).not.toContain('va-age');
+    expect(markup).toContain('va-finding-new');
   });
 });

@@ -88,13 +88,16 @@ export {
   AGE_WHY,
   AGE_WORDS,
   ageOf,
-  anyDated,
+  arrivalLine,
   bandTitle,
+  byArrival,
   byBand,
-  datingOf,
+  carriedLine,
   findingTotals,
+  methodLine,
+  mixedAges,
 } from './findings.js';
-export type { Age, Grouped } from './findings.js';
+export type { Age, Arrival, Grouped } from './findings.js';
 
 export { clusterChanges, describeClustering } from './cluster.js';
 export type { Change, Clustering } from './cluster.js';

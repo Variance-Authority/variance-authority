@@ -1,4 +1,12 @@
-import { AGE_WORDS, ageOf, anyDated, byBand, findingTotals } from '@variance-authority/report';
+import {
+  AGE_WORDS,
+  ageOf,
+  byArrival,
+  byBand,
+  carriedLine,
+  findingTotals,
+  mixedAges,
+} from '@variance-authority/report';
 import type {
   FindingRecord,
   FlakinessRecord,
@@ -298,9 +306,28 @@ function regionLine(region: RegionRecord): string {
  *
  * The band heads a group rather than prefixing a row because most renders carry
  * one band, and a word repeated down a column is a word a reader stops seeing.
+ *
+ * Above the bands is the split the review page and the HTML report draw: what
+ * this change brought, then — under its own count — what it did not. There is no
+ * folding to do in text, so the separation is an order and a line, and the order
+ * is the part that matters. An agent handed twenty inherited defects first will
+ * either fix twenty or fix none.
  */
 function findingLines(findings: readonly FindingRecord[]): readonly string[] {
-  const dated = anyDated(findings);
+  const { arrived, rest, dated } = byArrival(findings);
+  if (!dated) return bandLines(findings);
+
+  const carried = carriedLine(findings);
+
+  return [
+    ...(arrived.length === 0 ? [] : bandLines(arrived)),
+    ...(carried === undefined ? [] : [`  ${carried} — separate work`, ...bandLines(rest)]),
+  ];
+}
+
+/** One list, banded, dated per row only where the rows disagree. */
+function bandLines(findings: readonly FindingRecord[]): readonly string[] {
+  const dated = mixedAges(findings);
 
   return byBand(findings).flatMap((group) => [
     `  ${group.title}`,

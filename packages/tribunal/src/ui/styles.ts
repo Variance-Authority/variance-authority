@@ -373,8 +373,21 @@ ${DOCKET_STYLES}
 
 /* One finding, in three registers: what it is, where it is, and the sentence
    that explains it. The rule id is last because it is the least of the three to
-   a person and the whole of it to an ignore list. */
-.va-findings-why { margin-bottom: 0.7rem; }
+   a person and the whole of it to an ignore list.
+
+   The lead is the only loud thing in the panel and it is one sentence about this
+   change. The method line that used to open the panel is now the last line in it,
+   at note size: it says why nothing here moved the verdict, which is worth
+   knowing and is worth nobody's first glance. */
+.va-findings-lead { font-size: 0.9rem; font-weight: 650; margin-bottom: 0.7rem; }
+.va-findings-lead.va-findings-mine { color: var(--va-warn-ink); }
+.va-findings-why { border-top: 1px solid var(--va-line); margin-top: 0.9rem; padding-top: 0.5rem; }
+/* Shut by default, and the summary is the whole argument for the fold: a count a
+   reviewer can decide to open, rather than twenty-two rows they have to scroll. */
+.va-findings-rest { margin-top: 1rem; }
+.va-findings-rest > summary { color: var(--va-ink-2); cursor: pointer; font-size: 0.8rem; padding: 0.35rem 0; }
+.va-findings-rest[open] > summary { color: var(--va-ink); }
+.va-findings-rest > .va-note { margin-bottom: 0.7rem; }
 .va-findings-band + .va-findings-band { margin-top: 0.9rem; }
 .va-band-head { color: var(--va-ink-2); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em; margin-bottom: 0.5rem; text-transform: uppercase; }
 .va-findings { display: grid; gap: 0.7rem; }

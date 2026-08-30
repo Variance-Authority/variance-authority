@@ -1,4 +1,11 @@
-import { AGE_WORDS, ageOf, anyDated, bandTitle, datingOf } from '@variance-authority/report';
+import {
+  AGE_WORDS,
+  ageOf,
+  arrivalLine,
+  bandTitle,
+  carriedLine,
+  mixedAges,
+} from '@variance-authority/report';
 import type { Age } from '@variance-authority/report';
 import type { Tool } from './tool.js';
 
@@ -36,7 +43,9 @@ import type { Tool } from './tool.js';
  * **Whether it is theirs.** A defect the baseline carried too is somebody else's
  * afternoon, and an agent told twelve defects with no dating will either fix
  * twelve or fix none. The date is only ever printed from a record; nothing here
- * infers it from an absence.
+ * infers it from an absence — and the rules holding a defect this change brought
+ * are listed before the rules holding only inherited ones, so an agent that reads
+ * the first group and stops has read the part it can act on.
  */
 export const findings: Tool = {
   name: 'variance_findings',
@@ -84,12 +93,21 @@ export const findings: Tool = {
       byRule.set(entry.finding.rule, bucket);
     }
 
-    // Printed per place only when something in this report carries a date. On a
-    // report written before the marks were kept, `not dated` on every line is a
-    // column of one repeated word, and the lead sentence has already said it.
-    const dated = anyDated(all.map((entry) => entry.finding));
+    // Printed per place only where the lines around it disagree. On a report
+    // written before the marks were kept, `not dated` on every line is a column
+    // of one repeated word, and the lead sentence has already said it.
+    const dated = mixedAges(all.map((entry) => entry.finding));
 
-    const groups = [...byRule].map(([rule, entries]) => {
+    // Rules that hold something this change brought, first. The band order is the
+    // report's own and it is a claim about severity; this is a claim about whose
+    // afternoon it is, and it outranks severity for the length of one review.
+    const ranked = [...byRule].sort(
+      (left, right) =>
+        Number(right[1].some(({ finding }) => ageOf(finding) === 'new')) -
+        Number(left[1].some(({ finding }) => ageOf(finding) === 'new')),
+    );
+
+    const groups = ranked.map(([rule, entries]) => {
       // Same finding, same component, several subjects: one edit, so one line
       // with the subjects counted rather than one line per place it shows up.
       // The age joins the key for the same reason it is drawn on the row: one
@@ -130,10 +148,14 @@ export const findings: Tool = {
     });
 
     const subjects = new Set(all.map((entry) => entry.subject)).size;
+    const found = all.map((entry) => entry.finding);
     const lead = [
+      arrivalLine(found),
+      carriedLine(found),
       `${all.length} occurrence(s) across ${subjects} subject(s), read without a baseline`,
-      ...datingOf(all.map((entry) => entry.finding)),
-    ].join(' · ');
+    ]
+      .filter((clause): clause is string => clause !== undefined)
+      .join(' · ');
 
     return [lead, ...groups].join('\n\n');
   },

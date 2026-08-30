@@ -25,9 +25,17 @@
  * defect in a suite as freshly introduced, on the first run after an upgrade, to
  * the person least equipped to check.
  *
- * One fold, many renderers. Four surfaces print these sentences — an HTML report,
- * a review page and two terminal answers — and the part that has to be identical
- * between them is the reading, not the markup.
+ * **Which of them is this reviewer's problem right now?** The two above are
+ * readings; this one is an order, and it is the one the surfaces got wrong for
+ * longest. A panel that opens on a total and then counts the dates as equal
+ * clauses is telling somebody halfway through a button restyle about twenty-two
+ * defects they inherited and cannot fix today, before it tells them about the
+ * twenty they just caused. [`byArrival`](#byArrival) is the split, and every
+ * surface leads with `arrived` and folds the rest behind a count.
+ *
+ * One fold, many renderers. Five surfaces print these sentences — an HTML report,
+ * a review page and three terminal answers — and the part that has to be
+ * identical between them is the reading, not the markup.
  */
 
 import type { Band } from '@variance-authority/core';
@@ -139,64 +147,119 @@ export function byBand(findings: readonly FindingRecord[]): readonly Grouped[] {
   return [...known, ...rest];
 }
 
-/**
- * How many of them are whose, as clauses — nothing about where they came from.
- *
- * Separate from {@link findingTotals} because the opening sentence is the one
- * part of this that is surface-specific: a panel over one render says *read from
- * this render*, and a tool answering across a whole report cannot. The dating is
- * the half that has to read identically everywhere, so it is the half that is
- * shared, and a surface that writes its own opening still cannot write its own
- * arithmetic.
- *
- * Empty when there is nothing to count. The all-undated case is a clause rather
- * than an omission: a list with no dating on it looks exactly like a list of
- * standing defects, and the difference is the whole question.
- */
-export function datingOf(findings: readonly FindingRecord[]): readonly string[] {
-  if (findings.length === 0) return [];
-
-  const parts: string[] = [];
-  const fresh = findings.filter((finding) => ageOf(finding) === 'new').length;
-  const held = findings.filter((finding) => ageOf(finding) === 'standing').length;
-  const undated = findings.length - fresh - held;
-
-  if (fresh > 0) parts.push(`${String(fresh)} arrived with this change`);
-  if (held > 0) parts.push(`${String(held)} already in the baseline`);
-  if (undated === findings.length) {
-    parts.push('nothing recorded what the baseline contained, so none of them can be dated');
-  } else if (undated > 0) {
-    parts.push(`${String(undated)} the baseline does not account for`);
-  }
-
-  return parts;
+/** Two piles and the one fact that says whether the split may be acted on. */
+export interface Arrival {
+  /** Recorded as absent from the baseline: this change is what put them here. */
+  readonly arrived: readonly FindingRecord[];
+  /** Everything the record does not put on this change — carried, or never dated. */
+  readonly rest: readonly FindingRecord[];
+  /** Whether anything in the list carries a date, which is what makes the split a claim. */
+  readonly dated: boolean;
 }
 
 /**
- * Whether any of them carry a date, which decides whether to print one per row.
+ * The defects, split by whether the record puts them on this change.
  *
- * A row that says *not dated* on a report where nothing is dated has spent a
- * line to repeat what {@link datingOf} already said once. A row that says it on a
- * report where its neighbours are dated is carrying the finding.
+ * The one axis a reviewer mid-change is actually working along, and until this
+ * function no surface ordered by it. Every panel led with a total and the method
+ * — *42 defects read from this render, with no baseline compared* — and then
+ * counted the two dates as equal clauses, which hands somebody reviewing a
+ * button restyle twenty-two inherited defects in the same breath as the twenty
+ * they just caused. They cannot act on the twenty-two today. Printing them first
+ * is how a panel teaches a reviewer to stop reading it.
+ *
+ * Two piles, and `undated` is in neither by name. It goes with the rest because
+ * the rest is defined by what it is *not* — not recorded as arriving with this
+ * change — which is exactly true of a finding nothing dated, and stays true when
+ * the record improves. Calling that pile *inherited* would be the guess this
+ * whole axis exists to refuse.
+ *
+ * {@link Arrival.dated} is what decides whether a surface may fold at all. When
+ * nothing carries a date, `arrived` is empty and `rest` is the whole list, and a
+ * renderer that folded on that would hide every defect in the render behind a
+ * summary — on exactly the run where there is no baseline to have inherited them
+ * from.
  */
-export function anyDated(findings: readonly FindingRecord[]): boolean {
-  return findings.some((finding) => ageOf(finding) !== 'undated');
+export function byArrival(findings: readonly FindingRecord[]): Arrival {
+  return {
+    arrived: findings.filter((finding) => ageOf(finding) === 'new'),
+    rest: findings.filter((finding) => ageOf(finding) !== 'new'),
+    dated: findings.some((finding) => ageOf(finding) !== 'undated'),
+  };
 }
 
 /**
- * What the panel says above the list.
+ * The sentence that goes first, which is about this change and nothing else.
  *
- * Leads with the method, because it is the sentence that explains why the list
- * exists at all and why nothing in it moved the verdict: these were read from
- * this render, and no baseline was consulted to find them. Then the dating, which
- * is the part a reviewer acts on — and which says *when it arrived is not
- * recorded* out loud rather than printing a count that quietly means zero.
+ * Three answers, and the third is not a count. A run with no dating on it cannot
+ * say *nothing arrived* — that is a claim about a baseline nobody read — so it
+ * says what it does know, which is that the question has no answer here.
+ */
+export function arrivalLine(findings: readonly FindingRecord[]): string {
+  const { arrived, dated } = byArrival(findings);
+
+  if (arrived.length > 0) return `${plural(arrived.length, 'defect')} arrived with this change`;
+  if (dated) return 'Nothing here arrived with this change';
+  return 'Nothing recorded what the baseline held, so none of them can be dated to this change';
+}
+
+/**
+ * The rest, counted once, for the summary a surface folds them behind.
+ *
+ * `undefined` when there is nothing to fold — either the list is all arrivals, or
+ * nothing is dated and the split would be an invention. The two states are
+ * counted apart even here: *already in the baseline* is a fact about a record
+ * somebody wrote, and *the baseline does not account for* is the absence of one,
+ * and a reviewer deciding whether to open the fold is entitled to know which.
+ */
+export function carriedLine(findings: readonly FindingRecord[]): string | undefined {
+  const { rest, dated } = byArrival(findings);
+  if (!dated || rest.length === 0) return undefined;
+
+  const held = rest.filter((finding) => ageOf(finding) === 'standing').length;
+  const undated = rest.length - held;
+
+  return [
+    held === 0 ? undefined : `${String(held)} already in the baseline`,
+    undated === 0 ? undefined : `${String(undated)} the baseline does not account for`,
+  ]
+    .filter((clause): clause is string => clause !== undefined)
+    .join(', ');
+}
+
+/** Why nothing in the list moved the verdict. Method, so it goes last. */
+export function methodLine(findings: readonly FindingRecord[]): string {
+  return `${plural(findings.length, 'defect')} read from this render, with no baseline compared`;
+}
+
+/**
+ * Whether the rows in one list disagree about their date.
+ *
+ * The gate on drawing a date per row, and it is per *list* rather than per
+ * report. A column of rows all saying `arrived with this change`, under a heading
+ * that already says it, is a word a reader stops seeing — and once a surface
+ * splits arrivals from the rest, every list it draws is uniform unless the fold
+ * happens to hold both a dated and an undated row. That case is the only one
+ * where the row is carrying the finding rather than repeating the heading.
+ */
+export function mixedAges(findings: readonly FindingRecord[]): boolean {
+  return new Set(findings.map(ageOf)).size > 1;
+}
+
+/**
+ * The whole opening, for a surface with one line to spend rather than a panel.
+ *
+ * Same three parts in the same order the panels draw them: what arrived, what was
+ * already here, and last the method — which is the sentence that explains why
+ * none of this moved the verdict, and which used to be first because it explains
+ * the list rather than because anybody needed it before the count.
  */
 export function findingTotals(findings: readonly FindingRecord[]): string {
-  return [
-    `${plural(findings.length, 'defect')} read from this render, with no baseline compared`,
-    ...datingOf(findings),
-  ].join(' · ');
+  if (findings.length === 0) return methodLine(findings);
+
+  return [arrivalLine(findings), carriedLine(findings), methodLine(findings)]
+    .filter((part): part is string => part !== undefined)
+    .join(' · ');
 }
 
 function plural(count: number, noun: string): string {

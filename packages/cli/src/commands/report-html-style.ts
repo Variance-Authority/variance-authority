@@ -273,10 +273,15 @@ font-variant-numeric:tabular-nums;margin-left:auto}
 .findings li{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;padding:.15rem 0 .15rem .4rem;
   border-left:2px solid var(--hairline)}
 .findings li.new{border-left-color:var(--orange)}
-.findings-why{margin:0 0 .4rem}
+.findings-lead{margin:0 0 .4rem;font-size:12px;color:var(--ivory)}
+.findings-lead.mine{color:var(--orange)}
+.findings-why{margin:.5rem 0 0;padding-top:.35rem;border-top:1px solid var(--hairline)}
+.findings-rest{margin-top:.6rem}
+.findings-rest>summary{cursor:pointer;padding:.2rem 0;color:var(--warm)}
+.findings-rest[open]>summary{color:var(--ivory)}
 .band-head{font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
   color:var(--warm);margin:.5rem 0 .25rem}
-.findings-why+.band-head{margin-top:0}
+.findings-lead+.band-head{margin-top:0}
 .age{font-size:10px;margin-left:auto;padding:.05rem .3rem;border-radius:3px;color:var(--quiet);
   background:#ffffff08;white-space:nowrap;cursor:default}
 .age.new{color:var(--orange);background:#ff4a191f}

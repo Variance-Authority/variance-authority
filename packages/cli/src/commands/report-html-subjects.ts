@@ -1,4 +1,14 @@
-import { AGE_WHY, AGE_WORDS, ageOf, byBand, findingTotals } from '@variance-authority/report';
+import {
+  AGE_WHY,
+  AGE_WORDS,
+  ageOf,
+  arrivalLine,
+  byArrival,
+  byBand,
+  carriedLine,
+  methodLine,
+  mixedAges,
+} from '@variance-authority/report';
 import type {
   FindingRecord,
   ObservationRecord,
@@ -217,9 +227,15 @@ function regions(entry: ObservationRecord): string {
  * slugs and clauses in a run: a reader had to work out both what sort of report
  * it was and whether any of it was their doing. Both answers are on the record,
  * and both are read here through the same fold the review page reads them
- * through — `byBand` for the heading, `ageOf` for the row — because a reviewer
- * who checks the page against the service should find the same sentence, not a
- * second wording of it.
+ * through — `byBand` for the heading, `byArrival` for the order — because a
+ * reviewer who checks the page against the service should find the same sentence,
+ * not a second wording of it.
+ *
+ * The order is the load-bearing half. What this change brought is the list; what
+ * it did not bring is a `<details>` with a count on it, shut. A reviewer reading
+ * a report of their own commit cannot act on the defects the baseline already
+ * carried, and a page that prints those at the same size — or first — is a page
+ * they learn to close.
  */
 function findings(entry: ObservationRecord): string {
   if (entry.findings === undefined) return '';
@@ -227,32 +243,60 @@ function findings(entry: ObservationRecord): string {
     return '<p class="findings"><span class="mark ok" title="This render was inspected and no defect was found. Absent would mean nothing looked.">inspected</span></p>';
   }
 
-  const groups = byBand(entry.findings)
-    .map(
-      (group) =>
-        `<p class="band-head">${text(group.title)}</p><ul>` +
-        group.findings.map((finding) => row(finding)).join('') +
-        '</ul>',
-    )
-    .join('');
+  const { arrived, rest, dated } = byArrival(entry.findings);
+  const carried = carriedLine(entry.findings);
+  const why = rest.some((finding) => ageOf(finding) === 'standing') ? 'standing' : 'undated';
 
   return (
     '<div class="findings">' +
-    `<p class="findings-why">${text(findingTotals(entry.findings))}</p>` +
-    groups +
+    `<p class="findings-lead${arrived.length > 0 ? ' mine' : ''}">` +
+    `${text(arrivalLine(entry.findings))}</p>` +
+    (arrived.length === 0 ? '' : bands(arrived)) +
+    (dated ? '' : bands(rest)) +
+    (carried === undefined
+      ? ''
+      : '<details class="findings-rest">' +
+        `<summary>${text(carried)}</summary>` +
+        `<p class="note">${text(AGE_WHY[why])}</p>` +
+        bands(rest) +
+        '</details>') +
+    `<p class="findings-why">${text(methodLine(entry.findings))}</p>` +
     '</div>'
   );
 }
 
-/** One defect, with the date last: it qualifies the row rather than naming it. */
-function row(finding: FindingRecord): string {
+/** One list, banded — the same markup on either side of the fold. */
+function bands(findings: readonly FindingRecord[]): string {
+  const dated = mixedAges(findings);
+
+  return byBand(findings)
+    .map(
+      (group) =>
+        `<p class="band-head">${text(group.title)}</p><ul>` +
+        group.findings.map((finding) => row(finding, dated)).join('') +
+        '</ul>',
+    )
+    .join('');
+}
+
+/**
+ * One defect, worded with its date only where its neighbours disagree about theirs.
+ *
+ * The class stays on every row, because the orange edge is what a reader scans.
+ * The phrase does not: the list is split by date now, so the heading above it has
+ * already said *arrived with this change*, and saying it again on each of twenty
+ * rows is a column of one repeated word.
+ */
+function row(finding: FindingRecord, dated: boolean): string {
   const age = ageOf(finding);
   return (
     `<li class="finding ${text(age)}">` +
     `<span class="mark warn">${text(finding.rule)}</span>${text(finding.what)}` +
     (finding.component === undefined ? '' : `<code>${text(finding.component)}</code>`) +
     (finding.file === undefined ? '' : `<span class="file">${text(finding.file)}</span>`) +
-    `<span class="age ${text(age)}" title="${text(AGE_WHY[age])}">${text(AGE_WORDS[age])}</span>` +
+    (dated
+      ? `<span class="age ${text(age)}" title="${text(AGE_WHY[age])}">${text(AGE_WORDS[age])}</span>`
+      : '') +
     '</li>'
   );
 }

@@ -1,4 +1,14 @@
-import { AGE_WHY, AGE_WORDS, ageOf, byBand, findingTotals } from '@variance-authority/report';
+import {
+  AGE_WHY,
+  AGE_WORDS,
+  ageOf,
+  arrivalLine,
+  byArrival,
+  byBand,
+  carriedLine,
+  methodLine,
+  mixedAges,
+} from '@variance-authority/report';
 import type { FindingRecord } from '@variance-authority/report';
 import type { ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
@@ -19,13 +29,18 @@ import { element, headline, number, sentence } from './text.js';
  * group is headed with the word — `Accessibility` over the nine rules that are,
  * and not over the two that are not.
  *
- * **Whether it is theirs.** A finding is read from one render with no baseline
- * consulted, so the same list prints on the run that introduced a defect and on
- * every run after it, and the panel was silent about which. Each row now says
- * whether the baseline carried it too. *Not dated* is its own answer and is never
- * drawn as *arrived with this change*: the reading is
- * [`ageOf`](../../../report/src/findings.ts), shared with the HTML report so the
- * two surfaces say it in the same words.
+ * **Whether it is theirs, and therefore what comes first.** A finding is read
+ * from one render with no baseline consulted, so the same list prints on the run
+ * that introduced a defect and on every run after it. The panel was silent about
+ * which, then it said both in one breath — *42 defects read from this render ·
+ * 20 arrived with this change · 22 already in the baseline* — which is a sentence
+ * that opens on a number nobody can act on and gives a reviewer twenty-two
+ * afternoons of somebody else's work to scroll past on the way to their own. Now
+ * the defects this change brought lead the panel at full size, and everything the
+ * record does not put on this change is folded behind its count. *Not dated* is
+ * its own answer and is never drawn as *arrived with this change*: the reading is
+ * [`byArrival`](../../../report/src/findings.ts), shared with the HTML report so
+ * the two surfaces say it in the same words and in the same order.
  *
  * Drawn in three registers rather than one line. The report writes a rule id and
  * a clause — and the clause is written to *follow a noun the report never
@@ -43,15 +58,45 @@ export function Findings({ subject }: { readonly subject: SubjectView }): ReactE
     return <p className="va-note">Inspected, and nothing to report.</p>;
   }
 
+  const { arrived, rest, dated } = byArrival(subject.findings);
+  const carried = carriedLine(subject.findings);
+
   return (
     <>
-      <p className="va-note va-findings-why">{findingTotals(subject.findings)}</p>
-      {byBand(subject.findings).map((group) => (
+      <p className={arrived.length > 0 ? 'va-findings-lead va-findings-mine' : 'va-findings-lead'}>
+        {arrivalLine(subject.findings)}
+      </p>
+
+      {arrived.length === 0 ? null : <Bands findings={arrived} />}
+      {dated ? null : <Bands findings={rest} />}
+
+      {carried === undefined ? null : (
+        <details className="va-findings-rest">
+          <summary>{carried}</summary>
+          <p className="va-note">
+            {AGE_WHY[rest.some((each) => ageOf(each) === 'standing') ? 'standing' : 'undated']}
+          </p>
+          <Bands findings={rest} />
+        </details>
+      )}
+
+      <p className="va-note va-findings-why">{methodLine(subject.findings)}</p>
+    </>
+  );
+}
+
+/** One list, banded. The same markup whichever side of the fold it is drawn on. */
+function Bands({ findings }: { readonly findings: readonly FindingRecord[] }): ReactElement {
+  const dated = mixedAges(findings);
+
+  return (
+    <>
+      {byBand(findings).map((group) => (
         <section key={group.title} className="va-findings-band">
           <h3 className="va-band-head">{group.title}</h3>
           <ul className="va-findings">
             {occurrences(group.findings).map(({ key, finding, times }) => (
-              <Row key={key} finding={finding} times={times} />
+              <Row key={key} finding={finding} times={times} dated={dated} />
             ))}
           </ul>
         </section>
@@ -61,20 +106,28 @@ export function Findings({ subject }: { readonly subject: SubjectView }): ReactE
 }
 
 /**
- * One defect, dated on the row rather than in a legend.
+ * One defect, ruled by its date, and worded only when its neighbours differ.
  *
- * The dating is drawn twice: as the phrase, and as the rule the row is ruled
- * with. A reviewer scanning a panel of fourteen reads the colour before they read
- * anything, and what they are scanning for is the one that arrived with their
- * change — so *arrived* is the only state that gets the loud edge, and the two
- * that are not a claim about this change share the quiet one.
+ * The colour is unconditional: a reviewer scanning a panel of fourteen reads the
+ * edge before they read anything, and what they are scanning for is the one that
+ * arrived with their change — so *arrived* is the only state that gets the loud
+ * edge, and the two that are not a claim about this change share the quiet one.
+ *
+ * The phrase is not. The list a row sits in is now split by date, so the heading
+ * above it already said *arrived with this change* once, and repeating it down
+ * fourteen rows is a word a reader stops seeing. `dated` is the one case where
+ * the row is carrying the finding instead of echoing the heading: a fold holding
+ * both a defect the baseline had and one nothing dated.
  */
 function Row({
   finding,
   times,
+  dated,
 }: {
   readonly finding: FindingRecord;
   readonly times: number;
+  /** Whether this list mixes dates, and so whether the row has to name its own. */
+  readonly dated: boolean;
 }): ReactElement {
   const age = ageOf(finding);
 
@@ -84,9 +137,11 @@ function Row({
         <span className="va-finding-said">{headline(finding.rule)}</span>
         <span className="va-finding-marks">
           {times > 1 ? <span className="va-times">{number(times)} places</span> : null}
-          <span className={`va-age va-age-${age}`} title={AGE_WHY[age]}>
-            {AGE_WORDS[age]}
-          </span>
+          {dated ? (
+            <span className={`va-age va-age-${age}`} title={AGE_WHY[age]}>
+              {AGE_WORDS[age]}
+            </span>
+          ) : null}
         </span>
       </p>
       <p className="va-finding-where">{element(finding.where) ?? finding.path}</p>

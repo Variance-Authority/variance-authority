@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { FindingRecord } from './finding-record.js';
-import { AGE_WORDS, ageOf, bandTitle, byBand, findingTotals } from './findings.js';
+import {
+  AGE_WORDS,
+  ageOf,
+  bandTitle,
+  byArrival,
+  byBand,
+  carriedLine,
+  findingTotals,
+  mixedAges,
+} from './findings.js';
 
 /**
  * The two sentences a defect panel has to get right, held to the case where
@@ -101,7 +110,7 @@ describe('a defect nothing dated is not a defect somebody introduced', () => {
       finding({ rule: 'label-mismatch', standing: true }),
     ]);
 
-    expect(line).toContain('1 arrived with this change');
+    expect(line).toContain('1 defect arrived with this change');
     expect(line).toContain('2 already in the baseline');
     expect(line).not.toContain('cannot be dated');
   });
@@ -112,11 +121,67 @@ describe('a defect nothing dated is not a defect somebody introduced', () => {
     // read as the whole list.
     const line = findingTotals([finding({ standing: false }), finding({ rule: 'contrast' })]);
 
-    expect(line).toContain('1 arrived with this change');
+    expect(line).toContain('1 defect arrived with this change');
     expect(line).toContain('1 the baseline does not account for');
   });
 
-  it('leads with the method, because it is why nothing here moved the verdict', () => {
-    expect(findingTotals([finding()])).toMatch(/^1 defect read from this render, with no baseline/);
+  it('leads with what this change brought and leaves the method for last', () => {
+    // The order is the finding. A panel that opens on a total and then counts the
+    // two dates as equal clauses hands a reviewer halfway through a button
+    // restyle every defect the baseline already carried, in the same breath as
+    // the ones they just caused — and they cannot act on those today.
+    const line = findingTotals([
+      finding({ standing: false }),
+      finding({ rule: 'nested-interactive', standing: true }),
+    ]);
+
+    expect(line).toMatch(/^1 defect arrived with this change/);
+    expect(line.indexOf('already in the baseline')).toBeGreaterThan(
+      line.indexOf('arrived with this change'),
+    );
+    expect(line.indexOf('read from this render')).toBeGreaterThan(
+      line.indexOf('already in the baseline'),
+    );
+  });
+
+  it('says nothing arrived rather than opening on the count of what did not', () => {
+    const line = findingTotals([finding({ standing: true }), finding({ standing: true })]);
+
+    expect(line).toMatch(/^Nothing here arrived with this change/);
+  });
+});
+
+describe('the split a surface folds on, and the one case it may not', () => {
+  it('puts what nothing dated with the rest, never with the arrivals', () => {
+    // Absent is not `false`. The rest is the pile defined by what it is *not* —
+    // not recorded as arriving with this change — which stays true of a row
+    // nothing dated, where calling it inherited would not.
+    const split = byArrival([finding({ standing: false }), finding({ rule: 'contrast' })]);
+
+    expect(split.arrived.map((each) => each.rule)).toEqual(['control-without-name']);
+    expect(split.rest.map((each) => each.rule)).toEqual(['contrast']);
+  });
+
+  it('refuses to call a list foldable when nothing in it carries a date', () => {
+    // The load-bearing branch. `arrived` is empty on an undated list too, so a
+    // surface that folded `rest` on that alone would hide every defect in the
+    // render behind a summary — on the one run where there is no baseline to
+    // have inherited them from.
+    expect(byArrival([finding(), finding({ rule: 'contrast' })]).dated).toBe(false);
+    expect(carriedLine([finding(), finding({ rule: 'contrast' })])).toBeUndefined();
+  });
+
+  it('counts the carried and the undated apart under the one summary', () => {
+    expect(
+      carriedLine([finding({ standing: false }), finding({ standing: true }), finding()]),
+    ).toBe('1 already in the baseline, 1 the baseline does not account for');
+  });
+
+  it('holds a row back from repeating a date its whole list shares', () => {
+    // The gate on drawing the phrase per row. Once the list is split, a column of
+    // `arrived with this change` under a heading that says it is a word a reader
+    // stops seeing.
+    expect(mixedAges([finding({ standing: false }), finding({ standing: false })])).toBe(false);
+    expect(mixedAges([finding({ standing: false }), finding({ standing: true })])).toBe(true);
   });
 });

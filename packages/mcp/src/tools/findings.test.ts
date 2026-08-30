@@ -75,7 +75,7 @@ describe('findings, which no comparison could have produced', () => {
     const text = toolByName('variance_summary')!.run(WITH_FINDINGS, {});
 
     expect(text).toContain('2 unchanged');
-    expect(text).toContain('findings: 3 in 2 subject(s)');
+    expect(text).toContain('3 in 2 subject(s)');
     expect(text).toContain('do not affect the verdict');
   });
 
@@ -131,7 +131,7 @@ describe('findings, which no comparison could have produced', () => {
   it('says what kind of defect each rule found, and whose it is', () => {
     const text = toolByName('variance_findings')!.run(WITH_FINDINGS, {});
 
-    expect(text).toContain('1 arrived with this change');
+    expect(text).toContain('1 defect arrived with this change');
     expect(text).toContain('2 already in the baseline');
     expect(text).toContain('Accessibility · heading-level-skipped');
     expect(text).toMatch(/heading level jumps from 2 to 4 at "Billing" — arrived with this change/);
@@ -178,10 +178,21 @@ describe('findings, which no comparison could have produced', () => {
     expect(text).toContain('already in the baseline');
   });
 
-  it('dates the one line the summary spends on findings', () => {
+  it('dates the one line the summary spends on findings, arrivals first', () => {
     const text = toolByName('variance_summary')!.run(WITH_FINDINGS, {});
 
-    expect(text).toContain('findings: 3 in 2 subject(s)');
-    expect(text).toContain('1 arrived with this change');
+    expect(text).toContain('findings: 1 defect arrived with this change');
+    expect(text).toContain('3 in 2 subject(s)');
+  });
+
+  it('lists the rule this change broke before the rules it only inherited', () => {
+    // An agent that reads the first group and stops has read the part it can act
+    // on. Band order is a claim about severity; this is a claim about whose
+    // afternoon it is, and for the length of one review it outranks severity.
+    const text = toolByName('variance_findings')!.run(WITH_FINDINGS, {});
+
+    expect(text.indexOf('heading-level-skipped')).toBeLessThan(
+      text.indexOf('control-without-name'),
+    );
   });
 });
