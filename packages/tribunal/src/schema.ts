@@ -1,20 +1,22 @@
 /**
  * The version this deployment is on, and the one call that puts a database there.
  *
- * The statements themselves are in [`migrations.ts`](./migrations.js) — this is
- * the reading of them: which version they land on, what a fresh database gets,
- * and the batch that applies it. They were one module until the steps outgrew
- * it, and the ten lines at the bottom of this file are the part an operator is
- * usually looking for.
+ * The statements themselves are in [`migrations.ts`](./migrations.js) and
+ * [`migration-steps.ts`](./migration-steps.js) — this is the reading of them:
+ * which version they land on, what a fresh database gets, and the batch that
+ * applies it. They were one module until the steps outgrew it, and the ten lines
+ * at the bottom of this file are the part an operator is usually looking for.
  */
 
 import type { D1Like } from './bindings.js';
-import { INITIAL, MIGRATIONS } from './migrations.js';
+import { MIGRATIONS } from './migration-steps.js';
+import { INITIAL } from './migrations.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 13;
 
-export { INITIAL, INITIAL_VERSION, MIGRATIONS } from './migrations.js';
+export { MIGRATIONS } from './migration-steps.js';
+export { INITIAL, INITIAL_VERSION } from './migrations.js';
 
 /**
  * Every statement, in order — the initial set followed by each step.

@@ -31,6 +31,8 @@ function build(over: Partial<BuildDetail> = {}): BuildDetail {
     causes: [],
     variations: [],
     declarations: { ignores: null, sensitivities: null },
+    movements: [],
+    composition: null,
     reach: {
       against: 'main',
       changed: ['app/tokens.css'],
@@ -200,7 +202,9 @@ describe('how far the edit landed, as a histogram', () => {
       }),
     );
 
-    expect(spread?.undeclared).toEqual(['CardFooter']);
+    expect(spread?.undeclared).toEqual([
+      { component: 'CardFooter', subjects: ['story:card'] },
+    ]);
     expect(spread?.rungs.every((rung) => rung.moved === 0)).toBe(true);
   });
 

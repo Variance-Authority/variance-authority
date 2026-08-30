@@ -65,7 +65,7 @@ export interface ComposeInput {
   readonly observations: readonly CliObservationRecord[];
 
   /**
-   * Files the diff named, from `--since`. Absent when nothing asked.
+   * Files the diff named, from `--since` or `--against`. Absent when neither asked.
    *
    * Absent rather than `[]`, all the way down to `attributeMovement`, because a
    * run that did not ask has not established that nobody edited anything — and
@@ -254,6 +254,7 @@ function movementRecord(
     ...(movement.file === undefined ? {} : { file: movement.file }),
     ...(movement.tokens === undefined ? {} : { tokens: movement.tokens }),
     ...(movement.upstream === undefined ? {} : { upstream: movement.upstream }),
+    ...(movement.through === undefined ? {} : { through: movement.through }),
     alsoIn: movement.alsoIn,
     held: distinct(movement.held.map((site) => site.subject)),
     ...(standing === undefined ? {} : { standing }),

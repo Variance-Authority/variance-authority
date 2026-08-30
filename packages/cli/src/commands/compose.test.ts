@@ -351,7 +351,7 @@ describe('compositionOf — attribution degrades honestly', () => {
     const report = compositionOf({ subjects: SUITE, observations: moved });
 
     expect(report?.movements[0]?.cause).toBe('unexplained');
-    expect(report?.movements[0]?.because).toContain('--since');
+    expect(report?.movements[0]?.because).toContain('--against');
   });
 });
 

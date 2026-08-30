@@ -410,10 +410,17 @@ async function observeAll(
   // the suite compared to itself at one commit. After the record, because the
   // tokens that moved are the record's answer and they are what turns "this
   // component's output changed and nobody edited it" into an explanation.
+  //
+  // The change set comes off the selection rather than off the options, because
+  // there are two flags that read a diff and only one of them narrows. Choosing
+  // between them here read `--since` alone, so an `--against` run walked the
+  // diff, wrote `reach` into the report, and then handed this nothing — and every
+  // movement in it fell to `unexplained` under a sentence asking the reader for
+  // the diff they had already supplied.
   const composition = compositionOf({
     subjects: compositions,
     observations,
-    ...(options.since !== undefined ? { changed: options.since.changed } : {}),
+    ...(selected?.changed !== undefined ? { changed: selected.changed } : {}),
     ...(selected?.source !== undefined ? { source: selected.source } : {}),
     ...(recorded.movedTokens !== undefined ? { tokens: recorded.movedTokens } : {}),
   });

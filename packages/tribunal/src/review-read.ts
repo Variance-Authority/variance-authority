@@ -19,6 +19,8 @@ import type {
   Coverage,
   Declarations,
   DecisionRecord,
+  MovementView,
+  Placement,
   ReachView,
   SubjectView,
 } from './review-types.js';
@@ -323,6 +325,66 @@ export function toReach(row: Row, subjects: readonly Row[]): ReachView {
     ...(opaque === undefined ? {} : { opaque: JSON.parse(opaque) as ReachHole[] }),
   };
 }
+
+/**
+ * One census row, read back as an edge a sentence can be built from.
+ *
+ * No shape checking beyond the parse, for the reason `toReach` gives: the
+ * columns were written from a typed value by `ingest`.
+ */
+export function toPlacement(row: Row): Placement {
+  const what = 'a composition entry';
+  return {
+    component: text(row, 'component', what),
+    subjects: JSON.parse(text(row, 'subjects', what)) as string[],
+    within: JSON.parse(text(row, 'within', what)) as string[],
+    createdBy: JSON.parse(text(row, 'created_by', what)) as string[],
+    renders: JSON.parse(text(row, 'renders', what)) as string[],
+  };
+}
+
+/**
+ * One attributed movement, read back as the run wrote it.
+ *
+ * `cause` is narrowed by comparison against the five rungs rather than cast. It
+ * is the only column here a later schema could widen, and a row carrying a rung
+ * this build does not know is a row it must refuse rather than print.
+ */
+export function toMovement(row: Row): MovementView {
+  const what = 'a movement';
+  const cause = text(row, 'cause', what);
+  if (!RUNGS.includes(cause as MovementView['cause'])) {
+    throw new ReviewError(`${what} carries a cause this build does not know: "${cause}"`);
+  }
+
+  const file = optionalText(row, 'file', what);
+  const tokens = optionalText(row, 'tokens', what);
+  const upstream = optionalText(row, 'upstream', what);
+  const through = optionalText(row, 'through', what);
+  const standing = optionalText(row, 'standing', what);
+
+  return {
+    subject: text(row, 'subject', what),
+    component: text(row, 'component', what),
+    cause: cause as MovementView['cause'],
+    because: text(row, 'because', what),
+    bands: JSON.parse(text(row, 'bands', what)) as string[],
+    held: JSON.parse(text(row, 'held', what)) as string[],
+    ...(file === undefined ? {} : { file }),
+    ...(tokens === undefined ? {} : { tokens: JSON.parse(tokens) as string[] }),
+    ...(upstream === undefined ? {} : { upstream }),
+    ...(through === undefined ? {} : { through: JSON.parse(through) as string[] }),
+    ...(standing === undefined ? {} : { standing: standing === 'flake' ? 'flake' : 'suspect' }),
+  };
+}
+
+const RUNGS: readonly MovementView['cause'][] = [
+  'edited',
+  'token',
+  'upstream',
+  'contradicted',
+  'unexplained',
+];
 
 export function toNotObserved(row: Row): NotObserved {
   const what = 'a not-observed entry';

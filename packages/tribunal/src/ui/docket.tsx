@@ -196,6 +196,7 @@ function Build({
               build={build}
               origin={open}
               crossing={crossing}
+              changes={new Set(origins.map((each) => each.component))}
               go={go}
               onDecided={reload}
             />

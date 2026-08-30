@@ -16,10 +16,25 @@
  *    one worth waking somebody for.
  * 2. **The commit reaches it.** Ordinary work: you edited this, and here is what
  *    it did. Most of a healthy build.
- * 3. **The diff does not name it.** Anything out of a dependency, which is most
- *    of the host nodes on a real page. Not an alarm; the graph was never asked.
- * 4. **No diff was read.** The run carried none, so nothing above applies.
- * 5. **Already decided.** Off the queue, kept on the page.
+ * 3. **Nothing in the run explains it.** The diff was read, the file graph
+ *    walked and the enclosure climbed, and none of the three arrive here. This
+ *    is the band that used to be missing: it was folded into the one below, so a
+ *    component the run had actively failed to explain was shown beside a
+ *    component the run had explained perfectly well and only by a route the
+ *    import graph cannot travel.
+ * 4. **Something you edited hands it what it draws.** The victims. Nothing in
+ *    the commit declares the component; something in the commit draws it, and
+ *    what moved is what it was given.
+ * 5. **A value it reads took a new value.** A token moved, and this read it.
+ * 6. **The diff does not name it, and nothing above was found.** What is left
+ *    when every rung has been tried and none held.
+ * 7. **No diff was read.** The run carried none, so nothing above applies.
+ * 8. **Already decided.** Off the queue, kept on the page.
+ *
+ * Bands three through six are one band as far as the *file graph* is concerned —
+ * every one of them is a component the diff does not name. What separates them is
+ * the run's own attribution, which climbs the other way, and which the store used
+ * to drop at the door.
  *
  * Inside a band, **by component name**, ascending. Not by size: a reviewer works
  * a docket by looking for the name they recognise, and a list whose order changes
@@ -37,7 +52,15 @@ import type { Origin } from './grouping.js';
 import type { Order } from './route.js';
 
 /** Which band a change is read in. */
-export type Lane = 'stranded' | 'reached' | 'unnamed' | 'unread' | 'decided';
+export type Lane =
+  | 'stranded'
+  | 'reached'
+  | 'unexplained'
+  | 'upstream'
+  | 'token'
+  | 'unnamed'
+  | 'unread'
+  | 'decided';
 
 /** One band of the docket, with the sentence that says why it is a band. */
 export interface Group {
@@ -59,9 +82,24 @@ const LANES: readonly { readonly lane: Lane; readonly title: string; readonly wh
     why: 'The commit arrives at the component, by a path the file graph can name. This is the part of the build you asked for.',
   },
   {
+    lane: 'unexplained',
+    title: 'The run explains these with nothing',
+    why: 'No file in the commit declares them, no component the commit edited draws them, and no value they read moved. Three records were asked and none of them arrive here — so either something outside this commit changed, or the render does not read the same way twice.',
+  },
+  {
+    lane: 'upstream',
+    title: 'Something you edited hands these what they draw',
+    why: 'Nothing in the commit declares these components, and they did not change. A component the commit did edit draws each one and hands it what it renders, so what moved here is that edit arriving. The decision belongs to the parent; these are where it landed.',
+  },
+  {
+    lane: 'token',
+    title: 'A value these read took a new value',
+    why: 'Nothing in the commit declares these components. Each reads a custom property whose resolved value moved in this run, which is the whole of the difference — one decision, however many renders it reached.',
+  },
+  {
     lane: 'unnamed',
     title: 'The diff does not name these',
-    why: 'No file in this commit declares the component, which is what anything out of a dependency looks like from here. The commit still reaches the renders they moved in.',
+    why: 'No file in this commit declares the component, and the run recorded no attribution to read instead — either it composed no census, or it predates the one this page reads. The commit still reaches the renders they moved in.',
   },
   {
     lane: 'unread',
@@ -86,7 +124,25 @@ export function laneOf(origin: Origin): Lane {
   if (origin.appearances.every(({ subject }) => subject.decision !== null)) return 'decided';
   if (origin.reached === undefined) return 'unread';
   if (origin.reached) return 'reached';
-  return (origin.stranded ?? []).length > 0 ? 'stranded' : 'unnamed';
+  if ((origin.stranded ?? []).length > 0) return 'stranded';
+
+  // Everything below here is *the diff does not name it*, which was one band and
+  // is four. The reach graph has said all it can — it climbs from a changed file
+  // through its importers, so anything a changed file draws is off it by
+  // construction — and what separates these is the run's own walk in the other
+  // direction. A missing attribution stays in the last band rather than becoming
+  // a rung of its own.
+  switch (origin.cause) {
+    case 'unexplained':
+    case 'contradicted':
+      return 'unexplained';
+    case 'upstream':
+      return 'upstream';
+    case 'token':
+      return 'token';
+    default:
+      return 'unnamed';
+  }
 }
 
 /** How wide a change is: the renders it showed up in. */

@@ -55,6 +55,8 @@ function build(
     subjects,
     notObserved: [],
     declarations: { ignores: null, sensitivities: null },
+    movements: [],
+    composition: null,
     causes: extra.causes ?? [],
     variations: [],
     reach: extra.reach ?? null,

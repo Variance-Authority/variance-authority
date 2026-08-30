@@ -235,6 +235,66 @@ export interface BuildDetail extends BuildSummary {
    * could show the question but never the answer.
    */
   readonly declarations: Declarations;
+
+  /**
+   * Who draws what, over the whole suite.
+   *
+   * `null` when the report carried no composition — a raster-only run has no
+   * boundaries to join. Empty is never written and would say something else
+   * entirely: that the run read its subjects and found no component in them.
+   */
+  readonly composition: readonly Placement[] | null;
+
+  /**
+   * What the run concluded about each thing that moved, in component order.
+   *
+   * The census above is the graph; this is the reading of it. A review page can
+   * derive neither: the run had the diff, the source index that maps a component
+   * to the file declaring it, the props digest each rendering was grouped under,
+   * and the subjects where the same component with the same props held still.
+   * None of those cross the wire, and a page that tried to re-derive the answer
+   * from `composition` and `reach` alone would be guessing at the one question a
+   * reviewer opens a change to ask.
+   *
+   * Empty when the store holds none, which includes a build ingested before this
+   * was carried. So it is read as *no attribution is on record*, and nothing
+   * downstream may turn it into *the run examined this and found no cause*.
+   */
+  readonly movements: readonly MovementView[];
+}
+
+/**
+ * Why one component moved in one subject, as the run decided it.
+ *
+ * `MovementRecord` from the report, minus `alsoIn` — which is the subjects of
+ * every sibling row for the same component, and a stored copy of it is a second
+ * answer able to disagree with the first.
+ *
+ * The pair is the key. A component moves for its own reason in each subject it
+ * moved in: the same `Button` is `edited` on the page whose file the diff names
+ * and `upstream` on the one where a changed parent hands it different props.
+ */
+export interface MovementView {
+  readonly subject: string;
+  readonly component: string;
+  readonly cause: 'edited' | 'token' | 'upstream' | 'contradicted' | 'unexplained';
+  /** One sentence, naming the evidence rather than the category. */
+  readonly because: string;
+  /** Empty means *not known* — a name-only comparison — never *no band*. */
+  readonly bands: readonly string[];
+  /** Subjects where the same component, with the same props, held still. */
+  readonly held: readonly string[];
+
+  /** The file the diff named, on the `edited` rung. */
+  readonly file?: string;
+  /** The custom properties that took a new value, on the `token` rung. */
+  readonly tokens?: readonly string[];
+  /** The edited component that reaches this one, on the `upstream` rung. */
+  readonly upstream?: string;
+  /** Components between `upstream` and this one, outermost first. */
+  readonly through?: readonly string[];
+  /** On an unexplained movement: whether the subject was already proven unstable. */
+  readonly standing?: 'flake' | 'suspect';
 }
 
 /**
@@ -250,6 +310,38 @@ export interface BuildDetail extends BuildSummary {
 export interface Declarations {
   readonly ignores: IgnoreLedger | null;
   readonly sensitivities: SensitivityLedger | null;
+}
+
+/**
+ * Where one component sits in the suite, as the run's census recorded it.
+ *
+ * The other direction from {@link ReachView}, and the page needs both. Reach
+ * climbs: from a file the diff named, through its importers, to the components
+ * an edit could have arrived at. It can therefore never name anything a changed
+ * file *draws* — `ProductCard` renders `Card`, `Card` renders `CardFooter`, and
+ * an upward walk arrives at none of them. That is why a build page could count
+ * the components no rung held and could not say why any of them moved.
+ *
+ * Nothing here is measured for the tribunal. It is `composition.components` from
+ * the report, narrowed to the three edges a sentence needs.
+ */
+export interface Placement {
+  readonly component: string;
+  /** Subjects holding at least one boundary of it, in plan order. */
+  readonly subjects: readonly string[];
+  /** Components that enclose it somewhere in the suite, sorted. */
+  readonly within: readonly string[];
+  /**
+   * Components that mounted it somewhere, sorted.
+   *
+   * Empty on a production build, where React keeps no `_debugOwner` — and empty
+   * is **not** *nothing mounted it*. The report's own field carries the same
+   * ambiguity and the store does not resolve it, because resolving it here would
+   * be a claim about a build this service never saw.
+   */
+  readonly createdBy: readonly string[];
+  /** Components it encloses somewhere, sorted. */
+  readonly renders: readonly string[];
 }
 
 /**

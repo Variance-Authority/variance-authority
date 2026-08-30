@@ -97,6 +97,9 @@ export function Declared({
  * version of that. Silence would be indistinguishable from *reached*, which is
  * the assumption a reviewer makes by default and the one that costs them.
  *
+ * The last of the five is now conditional: it is a reconstruction, and it stands
+ * down where the run recorded a conclusion of its own. See the branch below.
+ *
  * The rest is the split this card got wrong twice. `reached` is computed against
  * the components the diff can arrive at, so a component the graph carries nowhere
  * — anything out of `node_modules`, which is most of the host nodes on a real
@@ -146,6 +149,20 @@ export function Arrival({ origin }: { readonly origin: Origin }): ReactElement |
     );
   }
 
+  // The run's own conclusion supersedes the rest of this, and `Because` has
+  // already printed it directly above. What follows is a reconstruction from the
+  // reach record alone — and on a component the import walk merely climbed past,
+  // it reads *this comes from a dependency* about a file named at the top of this
+  // same page. The one thing it says that the conclusion does not is the gap in
+  // the record, so that is what survives.
+  if (origin.cause !== undefined) {
+    return unlisted.length === 0 ? null : (
+      <p className="va-reaches va-unnamed">
+        <Unlisted renders={unlisted.length} />
+      </p>
+    );
+  }
+
   return (
     <p className="va-reaches va-unnamed">
       The commit reaches nothing called <strong>{origin.component}</strong> — the file graph carries
@@ -158,12 +175,27 @@ export function Arrival({ origin }: { readonly origin: Origin }): ReactElement |
       {unlisted.length === 0 ? null : (
         <>
           {' '}
-          {count(unlisted.length, 'render')} it moved in{' '}
-          {unlisted.length === 1 ? 'has' : 'have'} no reach recorded at all, so nothing above
-          applies to {unlisted.length === 1 ? 'it' : 'them'}.
+          <Unlisted renders={unlisted.length} />
         </>
       )}
     </p>
+  );
+}
+
+/**
+ * The renders the reach record has no row for.
+ *
+ * Not *the commit does not reach these*. Nobody wrote them down, and a page that
+ * folded the two together would report a gap in its own record as a finding about
+ * the commit.
+ */
+function Unlisted({ renders }: { readonly renders: number }): ReactElement {
+  return (
+    <>
+      {count(renders, 'render')} it moved in {renders === 1 ? 'has' : 'have'} no reach recorded at
+      all, so nothing the commit reaches was ever weighed against{' '}
+      {renders === 1 ? 'it' : 'them'}.
+    </>
   );
 }
 

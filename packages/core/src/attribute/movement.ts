@@ -21,9 +21,11 @@ import type { Composition, ComponentEntry, Site } from './composition.js';
  * 2. **A token.** A custom property this component's own nodes resolve through
  *    took a new value in this run. The component's code is untouched and its
  *    output legitimately moved.
- * 3. **An ancestor.** A component enclosing it was edited. Its props are not
- *    recoverable in detail, but *something upstream changed* is a better sentence
- *    than silence and points at a real file.
+ * 3. **An ancestor.** A component that reaches it was edited, and it is reached
+ *    by climbing — the caller that wrote the element, or, on a build where React
+ *    kept no owner, the enclosure graph of the subject it moved in until an
+ *    edited name appears. Its props are not recoverable in detail, but *this
+ *    moved on what it was given* is the sentence, and it names a real file.
  * 4. **A contradiction.** The same component, with the same props, rendered
  *    somewhere else in this same run and rendered *differently*. That is not an
  *    explanation — it is proof the explanation is not in the component's own
@@ -66,7 +68,7 @@ export interface Moved {
 /** What a run can put beside a movement to explain it. */
 export interface Evidence {
   /**
-   * Files in the change set, from `--since`. Absent when nothing asked.
+   * Files in the change set, from whichever flag read a diff. Absent when none did.
    *
    * Absent and empty are different answers and are kept different: a run with no
    * `--since` has not established that nobody edited anything, and reading its
@@ -96,6 +98,16 @@ export interface Movement {
   readonly file?: string;
   readonly tokens?: readonly string[];
   readonly upstream?: string;
+
+  /**
+   * Components between `upstream` and this one, outermost first.
+   *
+   * Empty when the edited component draws it directly, and present only on the
+   * `upstream` rung. A reviewer sent to `ProductCard` for a `CardFooter` that
+   * moved has one question — *how does that reach this* — and the answer is two
+   * names the run already holds.
+   */
+  readonly through?: readonly string[];
 
   /**
    * Other subjects in which this same component moved in this run.
@@ -167,8 +179,16 @@ export function attributeMovement(
       .map(([component]) => component),
   );
 
+  const enclosures = enclosuresOf(composition);
+
   const movements = moved.map((each) =>
-    attributeOne(each, byComponent.get(each.component), movedIn, edited, evidence, composition),
+    attributeOne(each, byComponent.get(each.component), {
+      movedIn,
+      edited,
+      evidence,
+      composition,
+      enclosures,
+    }),
   );
 
   const unexplained = movements.filter((movement) => movement.cause === 'unexplained');
@@ -182,14 +202,17 @@ export function attributeMovement(
   };
 }
 
-function attributeOne(
-  moved: Moved,
-  entry: ComponentEntry | undefined,
-  movedIn: ReadonlyMap<string, readonly string[]>,
-  edited: ReadonlySet<string>,
-  evidence: Evidence,
-  composition: Composition,
-): Movement {
+/** Everything the run assembled, gathered so one movement can be asked about. */
+interface Bench {
+  readonly movedIn: ReadonlyMap<string, readonly string[]>;
+  readonly edited: ReadonlySet<string>;
+  readonly evidence: Evidence;
+  readonly composition: Composition;
+  readonly enclosures: Enclosures;
+}
+
+function attributeOne(moved: Moved, entry: ComponentEntry | undefined, bench: Bench): Movement {
+  const { movedIn, edited, evidence, composition, enclosures } = bench;
   const alsoIn = (movedIn.get(moved.component) ?? []).filter(
     (subject) => subject !== moved.subject,
   );
@@ -213,22 +236,14 @@ function attributeOne(
     };
   }
 
-  // `createdBy` first, and it is not a tie-break. The component that *wrote the
-  // element* is the one whose edit changed this component's inputs; the one it
-  // happens to sit inside may be a presentational wrapper that knows nothing
-  // about it. On `examples/todomvc` every `Chip` sits within a `Stack` and is
-  // created by `TodoFooter`, so a run consulting only `within` would fail to
-  // connect an edit to `TodoFooter` with the chips it moved — and report five
-  // unexplained movements instead of one caller.
-  const upstream =
-    (entry?.createdBy ?? []).find((name) => edited.has(name)) ??
-    (entry?.within ?? []).find((name) => edited.has(name));
-  if (upstream !== undefined) {
+  const ancestor = editedAncestor(moved, entry, edited, enclosures);
+  if (ancestor !== undefined) {
     return {
       ...base,
       cause: 'upstream',
-      upstream,
-      because: `\`${upstream}\` mounts it and was edited; its own file was not`,
+      upstream: ancestor.name,
+      ...(ancestor.through.length === 0 ? {} : { through: ancestor.through }),
+      because: becauseUpstream(ancestor),
     };
   }
 
@@ -252,12 +267,134 @@ function attributeOne(
   return { ...base, cause: 'unexplained', because: unexplainedBecause(base, evidence) };
 }
 
+/**
+ * Who encloses what, in each subject separately.
+ *
+ * Keyed on the pair because the constraint is the whole point. `ComponentEntry.within`
+ * is folded over the suite, so `Card` is enclosed by `CartCard` and by `ProductCard`
+ * at once, and a walk that reads it hands a reviewer the cart as the reason a
+ * product story moved. A site knows which subject it was read in, so the graph
+ * can be built the way the question is asked.
+ */
+type Enclosures = ReadonlyMap<string, readonly string[]>;
+
+const IN = '\u0000';
+
+function enclosuresOf(composition: Composition): Enclosures {
+  const graph = new Map<string, string[]>();
+
+  for (const entry of composition.components) {
+    for (const group of entry.classes) {
+      for (const rendering of group.renderings) {
+        for (const site of rendering.sites) {
+          if (site.within === undefined) continue;
+          const key = `${site.subject}${IN}${entry.component}`;
+          const holders = graph.get(key);
+          if (holders === undefined) graph.set(key, [site.within]);
+          else if (!holders.includes(site.within)) holders.push(site.within);
+        }
+      }
+    }
+  }
+
+  for (const holders of graph.values()) holders.sort();
+  return graph;
+}
+
+/** An edited component above a moved one, and the components in between. */
+interface Ancestor {
+  readonly name: string;
+  /** Outermost first, and empty when the edited component draws it directly. */
+  readonly through: readonly string[];
+}
+
+/**
+ * The nearest edited component above this one, in the subject it moved in.
+ *
+ * `createdBy` first, and it is not a tie-break. The component that *wrote the
+ * element* is the one whose edit changed this component's inputs; the one it
+ * happens to sit inside may be a presentational wrapper that knows nothing about
+ * it. On `examples/todomvc` every `Chip` sits within a `Stack` and is created by
+ * `TodoFooter`, so a run consulting only enclosure would fail to connect an edit
+ * to `TodoFooter` with the chips it moved — and report five unexplained movements
+ * instead of one caller. It is absent on a production build, which is why the
+ * enclosure walk is not a fallback but the other half.
+ *
+ * And that walk climbs rather than looking once. The rung has always said
+ * *ancestor* and checked a parent, and a React tree is mostly components that
+ * draw one wrapper each: `ProductCard` was edited, `ProductCard` draws `Card`,
+ * `Card` draws `CardFooter`, and one look up arrives at `Card`, whose file nobody
+ * touched. That is the shape of every unexplained movement this ladder used to
+ * produce over an edit it was holding the graph for.
+ */
+function editedAncestor(
+  moved: Moved,
+  entry: ComponentEntry | undefined,
+  edited: ReadonlySet<string>,
+  enclosures: Enclosures,
+): Ancestor | undefined {
+  const wrote = (entry?.createdBy ?? []).find((name) => edited.has(name));
+  if (wrote !== undefined) return { name: wrote, through: [] };
+
+  // Breadth-first, so the answer is the *nearest* edit and not whichever one the
+  // recursion reached first. `seen` is written as a rung is built: an enclosure
+  // graph folded over a suite can close a loop, and a component reached twice on
+  // one rung would otherwise queue twice.
+  const seen = new Set([moved.component]);
+  const step = (from: Ancestor | null): Ancestor[] => {
+    const child = from === null ? moved.component : from.name;
+    const rung: Ancestor[] = [];
+    for (const holder of enclosures.get(`${moved.subject}${IN}${child}`) ?? []) {
+      if (seen.has(holder)) continue;
+      seen.add(holder);
+      rung.push({ name: holder, through: from === null ? [] : [from.name, ...from.through] });
+    }
+    return rung;
+  };
+
+  let rung = step(null);
+  while (rung.length > 0) {
+    const arrived = rung.find((each) => edited.has(each.name));
+    if (arrived !== undefined) return arrived;
+    rung = rung.flatMap(step);
+  }
+
+  return undefined;
+}
+
+/**
+ * The upstream sentence, which is the one a reviewer acts on.
+ *
+ * It says three things and the third is the reason the first two are worth
+ * printing: an edited component reaches this one, this one's own file is not in
+ * the change set, and therefore what moved here is what it was handed. Every
+ * rung above this has already been tried, so *its own code* and *a token it
+ * reads* are both ruled out by the time this speaks.
+ */
+function becauseUpstream(ancestor: Ancestor): string {
+  const reaches =
+    ancestor.through.length === 0 ? 'mounts it' : `reaches it through ${chain(ancestor.through)}`;
+
+  return (
+    `\`${ancestor.name}\` was edited and ${reaches}; nothing edited its own file, ` +
+    `so it moved on what it was given`
+  );
+}
+
+/** The components in between, named while there are few enough to be worth naming. */
+function chain(through: readonly string[]): string {
+  const named = through.map((name) => `\`${name}\``);
+  if (named.length === 1) return named[0] ?? '';
+  if (named.length > 3) return `${named.slice(0, 3).join(', ')} and ${String(named.length - 3)} more`;
+  return `${named.slice(0, -1).join(', ')} and ${named[named.length - 1] ?? ''}`;
+}
+
 function unexplainedBecause(
   movement: { readonly component: string; readonly held: readonly Site[] },
   evidence: Evidence,
 ): string {
   if (evidence.changed === undefined) {
-    return 'nothing was asked about what changed, so nothing here explains it — run with `--since` to reach the first rung';
+    return 'nothing was asked about what changed, so nothing here explains it — run with `--against` to reach the first rung';
   }
 
   if (movement.held.length === 0) {

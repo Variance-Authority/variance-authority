@@ -56,6 +56,10 @@ export const DOCKET_STYLES = `
 .va-band-stranded { border-left-color: var(--va-bad); }
 .va-band-stranded h3 { color: var(--va-bad-ink); }
 .va-band-reached { border-left-color: var(--va-accent); }
+.va-band-unexplained { border-left-color: var(--va-warn); }
+.va-band-unexplained h3 { color: var(--va-warn-ink); }
+.va-band-upstream { border-left-color: var(--va-collateral); }
+.va-band-token { border-left-color: var(--va-collateral); }
 .va-band-unnamed { border-left-color: var(--va-line-firm); }
 .va-band-unread { border-left-color: var(--va-warn); }
 .va-band-decided { border-left-color: var(--va-good); }
@@ -99,6 +103,20 @@ export const DOCKET_STYLES = `
 .va-reaches.va-reached { background: var(--va-info-bg); color: var(--va-info-ink); }
 .va-reaches.va-alarm { background: var(--va-bad-bg); color: var(--va-bad-ink); }
 .va-reaches.va-unnamed { background: var(--va-info-bg); color: var(--va-info-ink); }
+
+/* The run's own conclusion, above the file graph's. Left-marked rather than
+   filled: it sits directly over the reach block, and two filled panels in a row
+   read as one panel with a seam in it. The colour is the rung — the two that
+   say *the run found nothing* borrow the alarm, and the three that explain
+   something do not, because an explanation is not a finding. */
+.va-attributed { border-left: 3px solid var(--va-line-firm); font-size: 0.92rem; margin-top: 0.9rem; padding-left: 0.7rem; }
+.va-attributed code { font-size: 0.86em; }
+.va-attributed-edited { border-left-color: var(--va-accent); }
+.va-attributed-upstream { border-left-color: var(--va-collateral); }
+.va-attributed-token { border-left-color: var(--va-collateral); }
+.va-attributed-contradicted { border-left-color: var(--va-bad); }
+.va-attributed-unexplained { border-left-color: var(--va-bad); }
+.va-attributed-go { color: var(--va-accent); font-weight: 600; white-space: nowrap; }
 
 /* What the last run said, beside the change rather than nine thousand pixels
    below it. Warm rather than red: *you have seen this* is not an alarm, it is
@@ -162,4 +180,12 @@ export const DOCKET_STYLES = `
 .va-rung-bar { background: var(--va-collateral); border-radius: 3px; display: block; height: 0.6rem; min-width: 2px; }
 .va-rung-moved { background: var(--va-cause); border-radius: 3px; display: block; height: 100%; }
 .va-rung-num { font-size: 0.78rem; }
+/* The movement the bars cannot hold, which is the one part of the spread they
+   are silent about. A list and not a sentence, because each row carries its own
+   reason and a paragraph of them is a paragraph nobody finishes. */
+.va-unheld { background: var(--va-bad-bg); border-radius: 7px; color: var(--va-bad-ink); font-size: 0.85rem; margin-top: 0.7rem; max-width: 34rem; padding: 0.5rem 0.7rem; }
+.va-unheld ul { display: grid; gap: 0.25rem; margin-top: 0.4rem; }
+.va-unheld li { align-items: baseline; column-gap: 0.45rem; display: flex; flex-wrap: wrap; }
+.va-unheld-name { font-weight: 600; }
+.va-unheld-why { opacity: 0.78; }
 `;

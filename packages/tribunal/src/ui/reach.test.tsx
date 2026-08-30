@@ -63,6 +63,8 @@ function build(subjects: readonly SubjectView[], view: ReachView | null): BuildD
     subjects,
     notObserved: [],
     declarations: { ignores: null, sensitivities: null },
+    movements: [],
+    composition: null,
     causes: [],
     variations: [],
     reach: view,

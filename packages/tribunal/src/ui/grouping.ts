@@ -38,7 +38,8 @@
  * panel that renders it is long enough on its own.
  */
 
-import type { BuildDetail, SubjectView } from '../review-types.js';
+import type { BuildDetail, MovementView, SubjectView } from '../review-types.js';
+import { attributionsOf, rungAcross, type Rung } from './attribution.js';
 import { leadOf } from './lead.js';
 
 /** One subject an origin showed up in. */
@@ -50,6 +51,14 @@ export interface Appearance {
   readonly shape?: string;
   /** Other components with regions in this subject — observed, not attributed. */
   readonly alongside: readonly string[];
+  /**
+   * Why the run says it moved *here*, when the run said.
+   *
+   * Per appearance rather than per origin, because that is the grain the answer
+   * has: one `Button` is `edited` on the page whose file the diff names and
+   * `upstream` on the page where an edited parent hands it a different label.
+   */
+  readonly movement?: MovementView;
 }
 
 export interface Origin {
@@ -62,6 +71,15 @@ export interface Origin {
   readonly trail?: readonly string[];
   /** `undefined` when the run carried no diff, which is not the same as `false`. */
   readonly reached?: boolean;
+  /**
+   * The rung the run put this component on, folded over its appearances.
+   *
+   * `undefined` is *nothing is on record* and never a sixth rung. It is what a
+   * build ingested before attributions were carried answers for everything, and
+   * a band that read it as `unexplained` would print a missing input as the
+   * loudest finding on the page.
+   */
+  readonly cause?: Rung;
   /**
    * What the commit *does* reach in the renders this origin showed up in.
    *
@@ -110,6 +128,7 @@ export interface Origins {
 
 export function originsOf(build: BuildDetail): Origins {
   const files = new Map(build.causes.map((cause) => [cause.component, cause.file]));
+  const attributed = attributionsOf(build);
   const groups = new Map<string, { pixels: number; where: Appearance[] }>();
   const unattributed: SubjectView[] = [];
 
@@ -124,10 +143,12 @@ export function originsOf(build: BuildDetail): Origins {
 
     const group = groups.get(lead.component) ?? { pixels: 0, where: [] };
     group.pixels += lead.pixels;
+    const movement = attributed.at(lead.component, subject.subject);
     group.where.push({
       subject,
       pixels: lead.pixels,
       ...(lead.fingerprint === undefined ? {} : { shape: lead.fingerprint }),
+      ...(movement === undefined ? {} : { movement }),
       alongside: [
         ...new Set(
           subject.regions
@@ -145,10 +166,16 @@ export function originsOf(build: BuildDetail): Origins {
     .map(([component, group]): Origin => {
       const file = files.get(component);
       const entry = reach?.components.find((each) => each.component === component);
+      // Folded over the renders this origin showed up in, not over every render
+      // in the build. A component that also moved somewhere this docket does not
+      // group it under moved there for its own reason, and letting that vote
+      // would band this change by a page the reviewer is not looking at.
+      const cause = rungAcross(group.where.flatMap((each) => each.movement ?? []));
       return {
         component,
         pixels: group.pixels,
         appearances: group.where,
+        ...(cause === undefined ? {} : { cause }),
         ...(file === undefined ? {} : { file }),
         ...(reach === null ? {} : { reached: entry !== undefined, ...around(reach, group.where) }),
         ...(entry === undefined ? {} : { trail: entry.trail }),

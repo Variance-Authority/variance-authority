@@ -43,6 +43,7 @@ import {
   SinceLast,
   Spread,
 } from './change-story.js';
+import { Because } from './because.js';
 import type { ReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
 import { distanceFrom } from './distance.js';
@@ -61,6 +62,7 @@ export function ChangePanel({
   build,
   origin,
   crossing,
+  changes,
   go,
   onDecided,
 }: {
@@ -69,6 +71,8 @@ export function ChangePanel({
   readonly build: BuildDetail;
   readonly origin: Origin;
   readonly crossing: Crossing;
+  /** Every component with a change page on this build, so a link goes somewhere. */
+  readonly changes: ReadonlySet<string>;
   readonly go: (route: Route) => void;
   readonly onDecided: () => void;
 }): ReactElement {
@@ -109,6 +113,13 @@ export function ChangePanel({
           <Spread origin={origin} />
         </p>
 
+        {/* Second, before anything about the blast radius: why. A reviewer who
+            has just read *what* moved asks one question, and the two lines that
+            answer it belong under the question rather than three sections down
+            past the collateral. */}
+        <Because origin={origin} build={build.build} changes={changes} go={go} />
+        <Arrival origin={origin} />
+
         <WhatMoved component={origin.component} across={across} far={far} />
         <MovedElsewhere
           component={origin.component}
@@ -116,7 +127,6 @@ export function ChangePanel({
           build={build.build}
           go={go}
         />
-        <Arrival origin={origin} />
         <SinceLast crossing={crossing} origin={origin} />
         <Recurrence client={client} component={origin.component} />
         <Shapes appearances={origin.appearances} />
@@ -138,6 +148,9 @@ export function ChangePanel({
               reviewer={reviewer}
               build={build.build}
               appearance={appearance}
+              apart={
+                appearance.movement !== undefined && appearance.movement.cause !== origin.cause
+              }
               was={crossing.state === 'ready' ? crossing.of(appearance.subject.subject) : undefined}
               against={crossing.state === 'ready' ? crossing.earlier.build : undefined}
               go={go}
@@ -158,6 +171,7 @@ function Where({
   reviewer,
   build,
   appearance,
+  apart,
   was,
   against,
   go,
@@ -167,6 +181,8 @@ function Where({
   readonly reviewer: string;
   readonly build: string;
   readonly appearance: Appearance;
+  /** This render moved for a different reason than the change as a whole. */
+  readonly apart: boolean;
   readonly was?: Shifted | undefined;
   readonly against?: string | undefined;
   readonly go: (route: Route) => void;
@@ -199,6 +215,13 @@ function Where({
         {subject.subject}
       </Go>
       <span className="va-where-size va-num va-note">{number(pixels)} px</span>
+      {apart && appearance.movement !== undefined ? (
+        <span className="va-mark va-note" title={appearance.movement.because}>
+          {appearance.movement.upstream === undefined
+            ? appearance.movement.cause
+            : `from ${appearance.movement.upstream}`}
+        </span>
+      ) : null}
       {was === undefined || was.shift !== 'again' ? null : (
         <span className="va-mark va-known">
           same as {against === undefined ? 'the last run' : `build ${against}`}

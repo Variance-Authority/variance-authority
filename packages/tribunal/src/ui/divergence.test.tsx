@@ -64,6 +64,8 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     subjects,
     notObserved: [],
     declarations: { ignores: null, sensitivities: null },
+    movements: [],
+    composition: null,
     causes: [],
     variations: [],
     reach: null,

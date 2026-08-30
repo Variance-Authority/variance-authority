@@ -24,8 +24,11 @@
 
 import type { ReactElement } from 'react';
 import type { BuildDetail } from '../review-types.js';
+import { attributionsOf } from './attribution.js';
+import { Marked } from './because.js';
 import type { Crossing } from './crossing.js';
-import { spreadOf, type Depth } from './distance.js';
+import { spreadOf, type Depth, type Unplaced } from './distance.js';
+import { heldBy, type Enclosure, type Holding } from './holding.js';
 import { count, number } from './text.js';
 
 /** How many paths are printed before the rest become a count. */
@@ -135,12 +138,7 @@ function Spread({ build }: { readonly build: BuildDetail }): ReactElement | null
           <Rung key={rung.depth} rung={rung} widest={widest} />
         ))}
       </ul>
-      {spread.undeclared.length === 0 ? null : (
-        <p className="va-moved-lost">
-          {count(spread.undeclared.length, 'component')} moved that no file in this commit declares,
-          so no rung above holds them: {spread.undeclared.join(', ')}.
-        </p>
-      )}
+      <Undeclared build={build} moved={spread.undeclared} />
       {spread.throughUnread === 0 ? null : (
         <p className="va-note">
           {count(spread.throughUnread, 'component')} reached only through a file the scan could not
@@ -150,6 +148,118 @@ function Spread({ build }: { readonly build: BuildDetail }): ReactElement | null
       )}
     </div>
   );
+}
+
+/**
+ * The movement the histogram cannot hold, and the reason for each of it.
+ *
+ * Depth is measured from an edited file, so a component no changed file declares
+ * has nothing to be measured from and drops out of every bar above. This said *no
+ * rung above holds them* and stopped there, which restates the axis instead of
+ * answering the question — and it was answerable twice over, because the run had
+ * already climbed the other direction and written a sentence per movement.
+ *
+ * So the run's own sentence is what this prints. The census walk in
+ * [`holding.ts`](./holding.js) is kept underneath it and used only where the
+ * store holds no attribution — a build ingested before they were carried, or a
+ * run that composed no census — and every state it can return still gets its own
+ * clause, because a component nothing draws and a component nobody measured are
+ * different facts.
+ */
+function Undeclared({
+  build,
+  moved,
+}: {
+  readonly build: BuildDetail;
+  readonly moved: readonly Unplaced[];
+}): ReactElement | null {
+  if (moved.length === 0) return null;
+  const held = heldBy(build);
+  const attributed = attributionsOf(build);
+
+  return (
+    <div className="va-unheld">
+      <p>
+        {count(moved.length, 'component')} moved that no file in this commit declares, so the depth
+        above has nothing to measure them from. What the run concluded instead:
+      </p>
+      <ul>
+        {moved.map((each) => {
+          const recorded = attributed.about(each.component)[0];
+          return (
+            <li key={each.component} title={each.subjects.join('\n')}>
+              <span className="va-unheld-name">{each.component}</span>
+              <span className="va-unheld-why">
+                {recorded === undefined ? (
+                  drawnBy(held(each.component, each.subjects))
+                ) : (
+                  <Marked say={recorded.because} />
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Who draws it, as the clause that follows its name. */
+function drawnBy(holding: Holding): string {
+  switch (holding.kind) {
+    case 'unrecorded':
+      return 'this run recorded no composition, so nothing here knows what draws it';
+    case 'unlisted':
+      return 'the run drew no boundary under this name, so nothing here knows what draws it';
+    case 'outermost':
+      return 'nothing in the suite draws it — wherever it appears, it is the outermost component';
+    case 'enclosed':
+      return `drawn by ${listing(holding.within)}, and the commit reaches none of them`;
+    case 'unmeasured':
+      return `drawn by ${listing(holding.within)}, and no diff was read to place them against`;
+    case 'through':
+      return chains(holding.by);
+  }
+}
+
+/**
+ * The chains, one clause each, grouped by the path they take.
+ *
+ * Two holders that draw a component the same way are one sentence — *MainNav and
+ * NavItem draw it* — because the reviewer is being told a route, and printing
+ * the route twice under two names is the same route twice.
+ */
+function chains(by: readonly Enclosure[]): string {
+  const routes = new Map<string, { through: readonly string[]; holders: string[] }>();
+  for (const each of by) {
+    const route = routes.get(each.through.join(' > ')) ?? { through: each.through, holders: [] };
+    route.holders.push(each.holder);
+    routes.set(each.through.join(' > '), route);
+  }
+
+  return [...routes.values()]
+    .map(({ through, holders }) => {
+      const draws = holders.length === 1 ? 'draws' : 'draw';
+      const [first, ...rest] = [...through, 'it'];
+      const tail = rest.map((name) => `which draws ${name}`).join(', ');
+      return `${listing(holders)} ${draws} ${first ?? 'it'}${tail === '' ? '' : `, ${tail}`}`;
+    })
+    .join('; ');
+}
+
+/**
+ * Names as a reader would say them, and a count once there are too many to say.
+ *
+ * The cap is on the enclosure list, which is suite-wide: a `Card` inside forty
+ * things would otherwise put forty names in a sentence whose point is that none
+ * of them is the one the reviewer wants.
+ */
+function listing(names: readonly string[], cap = 3): string {
+  if (names.length > cap) {
+    return `${names.slice(0, cap).join(', ')} and ${count(names.length - cap, 'other')}`;
+  }
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1] ?? ''}`;
 }
 
 /** One depth: everything the commit reaches there, and how much of it moved. */

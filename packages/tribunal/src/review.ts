@@ -6,6 +6,8 @@ import {
   summarize,
   toDeclarations,
   toNotObserved,
+  toMovement,
+  toPlacement,
   toReach,
   toSubjectView,
   toVariation,
@@ -143,6 +145,19 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         .prepare('SELECT * FROM build_reach WHERE project = ? AND build = ?')
         .bind(project, id)
         .first<Row>();
+      const census = await db
+        .prepare(
+          'SELECT * FROM build_composition WHERE project = ? AND build = ? ORDER BY component',
+        )
+        .bind(project, id)
+        .all<Row>();
+      const attributed = await db
+        .prepare(
+          `SELECT * FROM build_movements WHERE project = ? AND build = ?
+           ORDER BY component, subject`,
+        )
+        .bind(project, id)
+        .all<Row>();
       const reachSubjects =
         reachRow === null
           ? undefined
@@ -164,6 +179,11 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         causes: docket(subjects),
         variations: variations.results.map(toVariation),
         reach: reachRow === null ? null : toReach(reachRow, reachSubjects?.results ?? []),
+        // No rows is `null`, not `[]`. A run that produced no semantic snapshots
+        // has no graph to join, and an empty list would say the opposite — that
+        // the suite was read and found to contain no component at all.
+        composition: census.results.length === 0 ? null : census.results.map(toPlacement),
+        movements: attributed.results.map(toMovement),
         declarations: toDeclarations(row),
       };
     },
@@ -317,6 +337,14 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
           .run();
         await db
           .prepare('DELETE FROM build_variations WHERE project = ? AND build = ?')
+          .bind(project, id)
+          .run();
+        await db
+          .prepare('DELETE FROM build_composition WHERE project = ? AND build = ?')
+          .bind(project, id)
+          .run();
+        await db
+          .prepare('DELETE FROM build_movements WHERE project = ? AND build = ?')
           .bind(project, id)
           .run();
         await db

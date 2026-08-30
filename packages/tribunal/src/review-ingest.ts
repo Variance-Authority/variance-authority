@@ -219,6 +219,68 @@ export async function ingestBuild(
     }
   }
 
+  // The census, which is the only record in a report that answers *what draws
+  // this*. `reach` answers the mirror question and cannot answer this one: it
+  // walks importers, so a component a changed file renders is off its graph in
+  // the one direction it never goes.
+  //
+  // Narrowed to four columns of the report's own `ComponentRecord`. The rest —
+  // instance counts, variant counts, the token list — is a census a reader opens
+  // the report for; what a review page needs is the edges.
+  for (const entry of report.composition?.components ?? []) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO build_composition
+             (project, build, component, subjects, within, created_by, renders)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          project,
+          build.build,
+          entry.component,
+          JSON.stringify(entry.subjects),
+          JSON.stringify(entry.within),
+          JSON.stringify(entry.createdBy),
+          JSON.stringify(entry.renders),
+        ),
+    );
+  }
+
+  // The attribution, which is the part of the census a reviewer actually reads.
+  // The rows above say `Card` draws `CardFooter`; these say the run climbed that
+  // edge, found `ProductCard` in the diff, and concluded `CardFooter` moved on
+  // what it was handed. Dropping them left the page to re-derive a worse answer
+  // from the graph alone — without the props digests, the control group or the
+  // source index the run had used — and to print *nothing declares this* about
+  // components the run had already attributed to an edited parent.
+  for (const entry of report.composition?.movements ?? []) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO build_movements
+             (project, build, subject, component, cause, because, bands, held,
+              file, tokens, upstream, through, standing)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          project,
+          build.build,
+          entry.subject,
+          entry.component,
+          entry.cause,
+          entry.because,
+          JSON.stringify(entry.bands),
+          JSON.stringify(entry.held),
+          entry.file ?? null,
+          entry.tokens === undefined ? null : JSON.stringify(entry.tokens),
+          entry.upstream ?? null,
+          entry.through === undefined ? null : JSON.stringify(entry.through),
+          entry.standing ?? null,
+        ),
+    );
+  }
+
   for (const entry of report.notObserved ?? []) {
     statements.push(
       db

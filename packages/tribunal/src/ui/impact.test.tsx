@@ -48,6 +48,8 @@ function build(over: Partial<BuildDetail> = {}): BuildDetail {
     causes: [],
     variations: [],
     declarations: { ignores: null, sensitivities: null },
+    movements: [],
+    composition: null,
     reach: {
       against: 'main',
       changed: ['app/tokens.css', 'ui/button.tsx'],
@@ -57,6 +59,15 @@ function build(over: Partial<BuildDetail> = {}): BuildDetail {
       ],
     },
     ...over,
+  };
+}
+
+/** A subject whose only movement is a component no changed file declares. */
+function lost(): SubjectView {
+  return {
+    ...build().subjects[0]!,
+    subject: 'story:product-card--sale',
+    moved: [{ component: 'CardFooter', bands: ['content'], cause: true }],
   };
 }
 
@@ -120,17 +131,57 @@ describe('how far the edit landed', () => {
   });
 
   it('names what moved that the diff declares nowhere, off the axis', () => {
+    const html = draw(ALONE, { subjects: [lost()] });
+
+    expect(html).toContain('1 component moved that no file in this commit declares');
+    expect(html).toContain('CardFooter');
+  });
+
+  it('says why it moved, which is the component the commit changed that draws it', () => {
+    // The reach walk climbs, so it can never arrive at something a changed file
+    // draws. Left at the count, the page states an absence and calls it a
+    // finding — the census is the record that turns it back into a reason.
     const html = draw(ALONE, {
-      subjects: [
+      subjects: [lost()],
+      reach: {
+        against: 'main',
+        changed: ['app/src/components/ProductCard.tsx'],
+        components: [
+          { component: 'ProductCard', trail: ['app/src/components/ProductCard.tsx', 'ProductCard'] },
+        ],
+      },
+      composition: [
         {
-          ...build().subjects[0]!,
-          moved: [{ component: 'CardFooter', bands: ['content'], cause: true }],
+          component: 'CardFooter',
+          subjects: ['story:product-card--sale'],
+          within: ['Card'],
+          createdBy: [],
+          renders: [],
+        },
+        {
+          component: 'Card',
+          subjects: ['story:product-card--sale'],
+          within: ['ProductCard'],
+          createdBy: [],
+          renders: ['CardFooter'],
+        },
+        {
+          component: 'ProductCard',
+          subjects: ['story:product-card--sale'],
+          within: [],
+          createdBy: [],
+          renders: ['Card'],
         },
       ],
     });
 
-    expect(html).toContain('1 component moved that no file in this commit declares');
-    expect(html).toContain('CardFooter');
+    expect(html).toContain('ProductCard draws Card, which draws it');
+  });
+
+  it('says the census is missing rather than printing a component with no reason', () => {
+    // A raster-only run has no boundaries to join, and a row that fell silent
+    // would read as *nothing draws it* — which is the opposite claim.
+    expect(draw(ALONE, { subjects: [lost()] })).toContain('recorded no composition');
   });
 
   it('names the depth when the movement is further out than the edit', () => {

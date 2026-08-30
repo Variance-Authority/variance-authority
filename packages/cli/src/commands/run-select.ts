@@ -33,6 +33,17 @@ export interface Selection {
   readonly whole?: string;
 
   /**
+   * The files the diff named, whichever flag asked for them.
+   *
+   * Carried here because the union of the two flags belongs in one place. The
+   * composition phase used to compute its own, read `--since` alone, and so
+   * handed the movement ladder nothing on an `--against` run — a run that had
+   * walked the diff, written `reach` into the report, and then attributed every
+   * movement in it to nothing under a sentence asking for the diff it had.
+   */
+  readonly changed: readonly string[];
+
+  /**
    * The index the narrowing was computed from, handed on rather than rebuilt.
    *
    * The composition phase needs the same map — component name to the file that
@@ -137,7 +148,12 @@ export async function selectionFor(
         });
 
   if (options.since === undefined) {
-    return { source, skipped: new Map(), ...(reach === undefined ? {} : { reach }) };
+    return {
+      source,
+      changed: diff.changed,
+      skipped: new Map(),
+      ...(reach === undefined ? {} : { reach }),
+    };
   }
 
   const answer = affectedSubjects({
@@ -152,6 +168,7 @@ export async function selectionFor(
 
   return {
     source,
+    changed: diff.changed,
     ...(reach === undefined ? {} : { reach }),
     skipped: new Map(
       answer.skipped.map((entry) => [

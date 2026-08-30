@@ -163,6 +163,22 @@ export interface Depth {
   readonly moved: number;
 }
 
+/**
+ * A component that moved and that no file in this commit declares.
+ *
+ * The subjects come with it because they are what makes the *why* answerable.
+ * The census that knows which components enclose this one knows it over the
+ * whole suite, so an unconstrained walk out of `CardFooter` arrives at the cart
+ * as readily as at the product page. Held to the subjects it actually moved in,
+ * it arrives at the one the commit changed. [`holding.ts`](./holding.js) does
+ * that walk.
+ */
+export interface Unplaced {
+  readonly component: string;
+  /** Subjects this build recorded it moving in, in report order. */
+  readonly subjects: readonly string[];
+}
+
 export interface Spread {
   readonly rungs: readonly Depth[];
   /**
@@ -174,7 +190,7 @@ export interface Spread {
    * is entirely off the graph reads as a build that stayed inside its own diff —
    * which is the reassurance this surface exists to withhold.
    */
-  readonly undeclared: readonly string[];
+  readonly undeclared: readonly Unplaced[];
   /**
    * Components reached only through a file the scan could not read.
    *
@@ -203,12 +219,24 @@ export function spreadOf(build: BuildDetail): Spread | null {
   const reach = build.reach !== null && build.reach.whole === undefined ? build.reach : null;
   if (reach === null) return null;
 
-  const moved = new Set<string>();
+  // Where, and not only whether. The name alone answers the histogram's question;
+  // the subjects are what a walk up the composition has to be held to.
+  const moved = new Map<string, string[]>();
+  const note = (component: string, subject: string): void => {
+    const where = moved.get(component);
+    if (where === undefined) moved.set(component, [subject]);
+    else if (!where.includes(subject)) where.push(subject);
+  };
+
   for (const subject of build.subjects) {
     if (subject.verdict !== 'changed') continue;
-    for (const entry of subject.moved ?? []) if (entry.cause) moved.add(entry.component);
+    for (const entry of subject.moved ?? []) {
+      if (entry.cause) note(entry.component, subject.subject);
+    }
     for (const region of subject.regions) {
-      if (region.cause === true && region.component !== undefined) moved.add(region.component);
+      if (region.cause === true && region.component !== undefined) {
+        note(region.component, subject.subject);
+      }
     }
   }
 
@@ -233,7 +261,10 @@ export function spreadOf(build: BuildDetail): Spread | null {
     rungs: [...rungs.entries()]
       .map(([depth, rung]) => ({ depth, ...rung }))
       .sort((left, right) => left.depth - right.depth),
-    undeclared: [...moved].filter((component) => !named.has(component)).sort(),
+    undeclared: [...moved]
+      .filter(([component]) => !named.has(component))
+      .map(([component, subjects]) => ({ component, subjects }))
+      .sort((left, right) => left.component.localeCompare(right.component)),
     throughUnread,
   };
 }

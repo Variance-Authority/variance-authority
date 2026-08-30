@@ -185,6 +185,16 @@ export interface MovementRecord {
   readonly tokens?: readonly string[];
   readonly upstream?: string;
 
+  /**
+   * Components between `upstream` and this one, outermost first.
+   *
+   * Present only on the `upstream` rung, and absent when the edited component
+   * draws this one directly. A reviewer sent to `ProductCard` because a
+   * `CardFooter` moved has exactly one question next — *how does that reach
+   * this* — and the answer is a couple of names the run already walked.
+   */
+  readonly through?: readonly string[];
+
   /** Other subjects this same component moved in. The "one cause, N subjects" fold. */
   readonly alsoIn: readonly string[];
 
