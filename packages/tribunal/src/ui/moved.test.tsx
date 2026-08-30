@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import type { RegionRecord } from '@variance-authority/report';
 import type { SubjectView } from '../review-types.js';
 import type { Appearance } from './grouping.js';
-import { MovedHere, MovedLead, WhatMoved } from './moved.js';
-import { senseAcross, senseOfSubject, senses } from './sense.js';
+import { MovedElsewhere, MovedHere, MovedLead, WhatMoved } from './moved.js';
+import { movedElsewhere, senseAcross, senseOfSubject, senses, type Across } from './sense.js';
 
 /**
  * The semantic tier, held to the two ways a page built on it goes wrong.
@@ -218,5 +218,167 @@ describe('the render’s own card', () => {
 
     expect(html).toContain('A region names Card');
     expect(html).toContain('not edited');
+  });
+});
+
+/**
+ * The gap between the two tiers, which is the reviewer's problem and not a
+ * presentation detail.
+ *
+ * A render is filed under the component its leading *region* resolved to, and a
+ * change page lists the renders filed under it. So a commit touching a button and
+ * the price string in the card around it files every card under whichever drew
+ * the larger box — and the button's page is silent about the rest. Approving
+ * there decides what is on the page; the silence is renders left open under a
+ * name nobody looking for this change would open.
+ */
+describe('the renders this change moved in that another change owns', () => {
+  const here = new Set(['story:product-card--control']);
+
+  const others: readonly SubjectView[] = [
+    subject({
+      subject: 'story:product-card--sale-dark',
+      regions: [region({ component: 'CardFooter' })],
+      moved: [{ component: 'Button', bands: ['token'], cause: true }],
+    }),
+    subject({
+      subject: 'route/sneakers@1280',
+      regions: [region({ component: 'Shell', cause: false })],
+      moved: [{ component: 'Button', bands: ['geometry'], cause: true }],
+    }),
+    subject({
+      subject: 'story:cart-card--item',
+      regions: [region({ component: 'Button' })],
+      moved: [{ component: 'Button', bands: ['geometry'], cause: false }],
+    }),
+    subject({
+      subject: 'story:product-card--control',
+      regions: [region({ component: 'Button' })],
+      moved: [{ component: 'Button', bands: ['token'], cause: true }],
+    }),
+  ];
+
+  it('names them, with the change each one was filed under', () => {
+    const found = movedElsewhere('Button', others, here);
+
+    expect(found).toEqual([
+      { subject: 'story:product-card--sale-dark', filedUnder: 'CardFooter', drawn: false },
+      { subject: 'route/sneakers@1280', drawn: false },
+    ]);
+  });
+
+  it('leaves out the renders already listed on the page', () => {
+    // The caller's list is the definition of *already shown*. Re-deriving it here
+    // would be a second opinion about the same question, and the two would drift.
+    expect(movedElsewhere('Button', others, new Set()).map((each) => each.subject)).toContain(
+      'story:product-card--control',
+    );
+  });
+
+  it('leaves out a render where the component was only pushed', () => {
+    // `cart-card--item` has Button moving with `cause: false`: its box was shoved
+    // by somebody else's edit. Listing it would put the collateral this ranking
+    // exists to demote back on the page as work.
+    expect(movedElsewhere('Button', others, here).map((each) => each.subject)).not.toContain(
+      'story:cart-card--item',
+    );
+  });
+
+  it('says a decision here does not carry to them', () => {
+    const html = draw(
+      <MovedElsewhere
+        component="Button"
+        found={movedElsewhere('Button', others, here)}
+        build="9"
+        go={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('2 further renders');
+    expect(html).toContain('under CardFooter');
+    expect(html).toContain('no component named the cause');
+    expect(html).toContain('Deciding this change does not decide them.');
+  });
+
+  it('draws nothing when every render it moved in is already on the page', () => {
+    expect(
+      draw(<MovedElsewhere component="Button" found={[]} build="9" go={() => undefined} />),
+    ).toBe('');
+  });
+});
+
+describe('how far a passenger is from the change', () => {
+  const beside = (...names: readonly string[]): Across =>
+    senseAcross('Button', [
+      appearance({
+        moved: [
+          { component: 'Button', bands: ['token'], cause: true },
+          ...names.map((component) => ({ component, bands: ['geometry'] as const, cause: false })),
+        ],
+        regions: [region({ component: 'Button' })],
+      }),
+    ]);
+
+  it('puts the distance on the rows the graph places, and on no others', () => {
+    const html = draw(
+      <WhatMoved
+        component="Button"
+        across={beside('Card', 'Portal')}
+        far={(name) => (name === 'Card' ? { kind: 'importer', hops: 1 } : { kind: 'unreached' })}
+      />,
+    );
+
+    expect(html).toContain('imports it');
+    expect(html.match(/va-moved-far/g)).toHaveLength(1);
+  });
+
+  it('says once, at the foot, what it could not place', () => {
+    // Not on the rows. Nine rows carrying the same three words is a column a
+    // reader stops seeing after the second one, and it reads as a property of
+    // each component rather than of the graph.
+    const html = draw(
+      <WhatMoved
+        component="Button"
+        across={beside('Card', 'Portal', 'Overlay')}
+        far={(name) => (name === 'Card' ? { kind: 'importer', hops: 1 } : { kind: 'unreached' })}
+      />,
+    );
+
+    expect(html).toContain('arrives at 2 others');
+    expect(html).toContain('not something this build measured');
+  });
+
+  it('does not call an unplaced list *the others* when it placed none of them', () => {
+    const html = draw(
+      <WhatMoved component="Button" across={beside('Card')} far={() => ({ kind: 'unreached' })} />,
+    );
+
+    expect(html).toContain('arrives at any of these');
+  });
+
+  it('holds its tongue entirely when the run carried no diff to walk', () => {
+    // `unknown` is the whole page's condition, not a fact about this list, and a
+    // list that repeated it would be reporting on the run from inside a component.
+    const html = draw(
+      <WhatMoved component="Button" across={beside('Card')} far={() => ({ kind: 'unknown' })} />,
+    );
+
+    expect(html).not.toContain('va-moved-far');
+    expect(html).not.toContain('this build measured');
+  });
+
+  it('says nothing per row when the build carried no diff', () => {
+    const across = senseAcross('Button', [
+      appearance({
+        moved: [
+          { component: 'Button', bands: ['token'], cause: true },
+          { component: 'Card', bands: ['geometry'], cause: false },
+        ],
+        regions: [region({ component: 'Button' })],
+      }),
+    ]);
+
+    expect(draw(<WhatMoved component="Button" across={across} far={() => ({ kind: 'unknown' })} />))
+      .not.toContain('va-moved-far');
   });
 });

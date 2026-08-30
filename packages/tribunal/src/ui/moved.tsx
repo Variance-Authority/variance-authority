@@ -20,7 +20,10 @@
 
 import type { ReactElement } from 'react';
 import type { SubjectView } from '../review-types.js';
-import { senseOfSubject, senses, type Across, type Sensed } from './sense.js';
+import { howFar, placed, type Distance, type Ruler } from './distance.js';
+import type { Route } from './route.js';
+import { senseOfSubject, senses, type Across, type Elsewhere, type Sensed } from './sense.js';
+import { Go } from './shell.js';
 import { count } from './text.js';
 
 /** How many render names are listed before the rest become a count. */
@@ -71,9 +74,12 @@ export function MovedLead({
 export function WhatMoved({
   component,
   across,
+  far,
 }: {
   readonly component: string;
   readonly across: Across;
+  /** How far each passenger is from this change, when a diff was read. */
+  readonly far?: Ruler | undefined;
 }): ReactElement | null {
   const quiet =
     across.missedIn.length === 0 &&
@@ -105,9 +111,15 @@ export function WhatMoved({
               <li key={other.component}>
                 <span className="va-moved-name">{other.component}</span>{' '}
                 <span className="va-note">{senses(other.bands)}</span>
+                <Far component={other.component} far={far} />
               </li>
             ))}
           </ul>
+          <Unplaced
+            anchor={component}
+            components={across.alongside.map((other) => other.component)}
+            far={far}
+          />
         </>
       )}
 
@@ -133,7 +145,16 @@ export function WhatMoved({
  * own hashes held still was pushed, and calling that a change is the ranking this
  * project exists to correct.
  */
-export function MovedHere({ subject }: { readonly subject: SubjectView }): ReactElement {
+export function MovedHere({
+  subject,
+  anchor,
+  far,
+}: {
+  readonly subject: SubjectView;
+  /** The change this render is filed under, which `far` measures from. */
+  readonly anchor?: string | undefined;
+  readonly far?: Ruler | undefined;
+}): ReactElement {
   const sense = senseOfSubject(subject);
 
   if (!sense.measured) {
@@ -158,9 +179,16 @@ export function MovedHere({ subject }: { readonly subject: SubjectView }): React
     <>
       <ul className="va-moved-list">
         {sense.moved.map((entry) => (
-          <Moved key={entry.component} entry={entry} />
+          <Moved key={entry.component} entry={entry} anchor={anchor} far={far} />
         ))}
       </ul>
+      {anchor === undefined ? null : (
+        <Unplaced
+          anchor={anchor}
+          components={sense.moved.map((entry) => entry.component)}
+          far={far}
+        />
+      )}
       {sense.pushed.length === 0 ? null : (
         <p className="va-note">
           A region names {sense.pushed.join(', ')}, whose own hashes held still: pushed by
@@ -172,13 +200,25 @@ export function MovedHere({ subject }: { readonly subject: SubjectView }): React
 }
 
 /** One component, its bands, and whether the picture found it. */
-function Moved({ entry }: { readonly entry: Sensed }): ReactElement {
+function Moved({
+  entry,
+  anchor,
+  far,
+}: {
+  readonly entry: Sensed;
+  readonly anchor?: string | undefined;
+  readonly far?: Ruler | undefined;
+}): ReactElement {
   return (
     <li className={entry.cause ? 'va-moved-row' : 'va-moved-row va-moved-passenger'}>
       <span className="va-moved-name">{entry.component}</span>
       <span className="va-note">
         {entry.presence === undefined ? senses(entry.bands) : entry.presence}
       </span>
+      {/* Distance to itself is not a measurement. The row the rest are measured
+          from would otherwise carry `same file`, which is true of every component
+          and its own declaration and says nothing about this one. */}
+      {entry.component === anchor ? null : <Far component={entry.component} far={far} />}
       {entry.drawn ? null : (
         <span
           className="va-mark va-alarm"
@@ -201,5 +241,121 @@ function Renders({ subjects }: { readonly subjects: readonly string[] }): ReactE
       {named.join(', ')}
       {rest === 0 ? '' : ` and ${count(rest, 'other')}`}
     </span>
+  );
+}
+
+/**
+ * The renders this change moved in that the docket files under another name.
+ *
+ * The gap between the two tiers, printed. A subject belongs to whichever
+ * component its leading *region* resolved to, and a commit that edits a button
+ * and a price string in the same card files every card under whichever of the two
+ * drew the larger box — so the button's page can list seven renders of the twelve
+ * its hashes moved in, and be silent about five.
+ *
+ * Silent is the problem. Approving here decides the renders here; the five stay
+ * open under a name nobody looking for this change would open. So they are named,
+ * with the change they were filed under, and with the one sentence that keeps a
+ * reviewer from assuming the button is finished.
+ */
+export function MovedElsewhere({
+  component,
+  found,
+  build,
+  go,
+}: {
+  readonly component: string;
+  readonly found: readonly Elsewhere[];
+  readonly build: string;
+  readonly go: (route: Route) => void;
+}): ReactElement | null {
+  if (found.length === 0) return null;
+
+  return (
+    <section className="va-moved">
+      <h2>Also moved, filed elsewhere</h2>
+      <p className="va-moved-lost">
+        <strong>{component}</strong>’s hashes moved in {count(found.length, 'further render')}, where
+        a larger difference took the name. Deciding this change does not decide them.
+      </p>
+      <ul className="va-moved-list">
+        {found.map((each) => (
+          <li key={each.subject} className="va-moved-row">
+            <Go
+              to={{ page: 'subject', build, subject: each.subject }}
+              go={go}
+              className="va-moved-name"
+            >
+              {each.subject}
+            </Go>
+            <span className="va-note">
+              {each.filedUnder === undefined ? 'no component named the cause' : `under ${each.filedUnder}`}
+            </span>
+            {each.drawn ? null : (
+              <span
+                className="va-mark va-alarm"
+                title="No region in that render carries this component either, so its picture is not a picture of this change."
+              >
+                no region
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** How far a component is from the change, when the records place it. */
+function Far({
+  component,
+  far,
+}: {
+  readonly component: string;
+  readonly far?: Ruler | undefined;
+}): ReactElement | null {
+  const said = distanceOf(far, component);
+  if (said === undefined) return null;
+
+  return <span className="va-moved-far">{said}</span>;
+}
+
+function distanceOf(far: Ruler | undefined, component: string): string | undefined {
+  const distance = far?.(component);
+  return distance === undefined ? undefined : howFar(distance);
+}
+
+/**
+ * What the list could not place, said once instead of on every row.
+ *
+ * A reader who sees a distance on two rows and nothing on the other seven will
+ * read the silence as *near*, which is the one thing it does not mean. So the
+ * absence is stated — as a fact about the graph, not about the components, and
+ * without claiming they are unrelated. Nothing at all when the run carried no
+ * diff: `unknown` is the whole page's condition and the page says it elsewhere.
+ */
+function Unplaced({
+  anchor,
+  components,
+  far,
+}: {
+  readonly anchor: string;
+  readonly components: readonly string[];
+  readonly far?: Ruler | undefined;
+}): ReactElement | null {
+  if (far === undefined) return null;
+
+  const distances = components.map((component): Distance => far(component));
+  const lost = distances.filter((distance) => distance.kind === 'unreached').length;
+  if (lost === 0) return null;
+
+  const some = distances.some((distance) => placed(distance));
+
+  return (
+    <p className="va-note">
+      Nothing the commit walked arrives at {some ? count(lost, 'other') : 'any of these'}, and no
+      file is recorded for them either, so how far they are from <strong>{anchor}</strong> is not
+      something this build measured.
+    </p>
   );
 }

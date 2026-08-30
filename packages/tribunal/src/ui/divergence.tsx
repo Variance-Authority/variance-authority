@@ -48,7 +48,7 @@ const SHIFTS: readonly {
     title: 'Moved again, and not the same way',
     tone: 'va-shift-alarm',
     say: (against) =>
-      `These differed in ${against} too, and the shape of the difference has changed since. Whatever is moving here is still moving.`,
+      `These differed in ${against} too, but not in the same way: the difference itself changed between the two runs, so neither reading has settled.`,
   },
   {
     shift: 'unsaid',

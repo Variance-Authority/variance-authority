@@ -273,14 +273,47 @@ describe('the rail is scanned, not read', () => {
     expect(page).toContain('href="/builds/4"');
   });
 
-  it('leaves a render nothing claimed in its own band, never inside a change', () => {
+  it('leaves a render no region claimed in its own band, never inside a change', () => {
     // A difference with no component named as its cause has no change to be
     // decided under, and filing it in somebody else's group would hand a reviewer
     // an unrelated edit to approve it beneath.
     const page = rail(build([subject({ subject: 'route:/checkout', regions: [] })]));
 
-    expect(page).toContain('Nothing named the cause');
+    expect(page).toContain('No region named the cause');
     expect(page).toContain('route:/checkout');
+  });
+
+  it('names what the hashes blamed in a render the regions could not', () => {
+    // The band used to say nothing had named these, which was false on every
+    // build carrying component hashes — and false in the expensive direction. A
+    // region is resolved from the box the pixels drew, so it fails exactly when
+    // an edit reflows its neighbours into one blob. What is missing is the box.
+    const page = rail(
+      build([
+        subject({
+          subject: 'route:/checkout',
+          regions: [],
+          moved: [
+            { component: 'Button', bands: ['token'], cause: true },
+            { component: 'CardFooter', bands: ['content'], cause: true },
+            { component: 'LinkComponent', bands: ['geometry'], cause: true },
+            { component: 'Shell', bands: ['geometry'], cause: false },
+          ],
+        }),
+      ]),
+    );
+
+    expect(page).toContain('hashes name Button, CardFooter');
+    expect(page).toContain('+1');
+    expect(page).not.toContain('Shell');
+  });
+
+  it('falls back to the region count rather than claiming an empty list', () => {
+    // Absent is not empty. A baseline with no hashes has not established that
+    // nothing caused this, and a row printing an empty blame list would say it had.
+    expect(rail(build([subject({ subject: 'route:/checkout', regions: [] })]))).toContain(
+      '0 regions',
+    );
   });
 
   it('says so plainly when the build holds nothing to decide', () => {

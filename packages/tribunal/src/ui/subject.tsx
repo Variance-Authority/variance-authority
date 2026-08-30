@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { Decision, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
+import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
 import { SubjectHistory } from './history.js';
 import { MovedHere } from './moved.js';
@@ -32,6 +33,8 @@ export function SubjectPanel({
   reviewer,
   build,
   subject,
+  anchor,
+  far,
   sourced,
   onDecided,
 }: {
@@ -39,6 +42,10 @@ export function SubjectPanel({
   readonly reviewer: string;
   readonly build: string;
   readonly subject: SubjectView;
+  /** The change this render is filed under, which distances are measured from. */
+  readonly anchor?: string | undefined;
+  /** How far each component here is from that change, when a diff was read. */
+  readonly far?: Ruler | undefined;
   /** Whether the run resolved any source file — see {@link RegionTable}. */
   readonly sourced?: boolean | undefined;
   readonly onDecided: () => void;
@@ -125,7 +132,7 @@ export function SubjectPanel({
 
         <section className="va-card">
           <h2>What moved</h2>
-          <MovedHere subject={subject} />
+          <MovedHere subject={subject} anchor={anchor} far={far} />
         </section>
 
         <section className="va-card">

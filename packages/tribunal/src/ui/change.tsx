@@ -45,10 +45,11 @@ import {
 } from './change-story.js';
 import type { ReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
+import { distanceFrom } from './distance.js';
 import type { Appearance, Origin } from './grouping.js';
 import { Look } from './look.js';
-import { MovedLead, WhatMoved } from './moved.js';
-import { senseAcross } from './sense.js';
+import { MovedElsewhere, MovedLead, WhatMoved } from './moved.js';
+import { movedElsewhere, senseAcross } from './sense.js';
 import { Go, messageOf } from './shell.js';
 import type { Route } from './route.js';
 import type { Shifted } from './shift.js';
@@ -73,6 +74,12 @@ export function ChangePanel({
 }): ReactElement {
   const sourced = build.causes.some((cause) => cause.file !== undefined);
   const across = senseAcross(origin.component, origin.appearances);
+  const far = distanceFrom(build, origin.component);
+  const elsewhere = movedElsewhere(
+    origin.component,
+    build.subjects,
+    new Set(origin.appearances.map(({ subject }) => subject.subject)),
+  );
   const settled = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
   const open = origin.appearances.filter(
     ({ subject }) => subject.decision === null && subject.approvable,
@@ -102,7 +109,13 @@ export function ChangePanel({
           <Spread origin={origin} />
         </p>
 
-        <WhatMoved component={origin.component} across={across} />
+        <WhatMoved component={origin.component} across={across} far={far} />
+        <MovedElsewhere
+          component={origin.component}
+          found={elsewhere}
+          build={build.build}
+          go={go}
+        />
         <Arrival origin={origin} />
         <SinceLast crossing={crossing} origin={origin} />
         <Recurrence client={client} component={origin.component} />

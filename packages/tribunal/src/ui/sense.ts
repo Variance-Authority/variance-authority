@@ -34,6 +34,7 @@
 
 import type { SubjectView } from '../review-types.js';
 import type { Appearance } from './grouping.js';
+import { causeOf } from './lead.js';
 
 /** One component the hashes say moved, held against what the picture found. */
 export interface Sensed {
@@ -232,4 +233,61 @@ function ordered(bands: Iterable<string>): readonly string[] {
   const known = ORDER.filter((band) => present.has(band));
   const rest = [...present].filter((band) => !ORDER.includes(band)).sort();
   return [...known, ...rest];
+}
+
+/** A render this component moved in that some other change owns. */
+export interface Elsewhere {
+  readonly subject: string;
+  /** The change the docket filed this render under, when a region named one. */
+  readonly filedUnder?: string;
+  /** A region here carries this component, so its picture is a picture of it. */
+  readonly drawn: boolean;
+}
+
+/**
+ * The renders a change moved in and does not appear on.
+ *
+ * A subject is filed under the component its **leading region** resolved to, and
+ * a render has exactly one of those — so a commit that edits a button and a
+ * price string files every card under whichever of the two happened to own the
+ * larger differing box. The button's page then lists seven renders of the twelve
+ * it moved in, and says nothing at all about the other five.
+ *
+ * That is the reviewer's problem and not a presentation detail: pressing approve
+ * on this page decides the renders on this page. The five it never mentioned
+ * stay open, under a name the person looking for this change would not think to
+ * open. Naming them is the difference between a docket and a docket that can be
+ * finished.
+ *
+ * `here` is the set already listed, passed in rather than derived, because the
+ * caller's list is the definition of *already shown* and re-deriving it here
+ * would be a second opinion about the same question.
+ */
+export function movedElsewhere(
+  component: string,
+  subjects: readonly SubjectView[],
+  here: ReadonlySet<string>,
+): readonly Elsewhere[] {
+  const found: Elsewhere[] = [];
+
+  for (const subject of subjects) {
+    if (subject.verdict !== 'changed') continue;
+    if (here.has(subject.subject)) continue;
+    // Caused, not merely moved. A render where this component's box was pushed
+    // by somebody else's edit is not a render of this change, and listing it
+    // would put the collateral the ranking exists to demote back on the page.
+    const moved = (subject.moved ?? []).some(
+      (entry) => entry.component === component && entry.cause,
+    );
+    if (!moved) continue;
+
+    const under = causeOf(subject);
+    found.push({
+      subject: subject.subject,
+      ...(under === undefined ? {} : { filedUnder: under }),
+      drawn: subject.regions.some((region) => region.component === component),
+    });
+  }
+
+  return found;
 }

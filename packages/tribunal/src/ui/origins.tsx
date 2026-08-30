@@ -35,6 +35,7 @@ import { originsOf, shapesOf, type Origin } from './grouping.js';
 import { docketOf, ORDERS, type Group } from './order.js';
 import type { Order, Route } from './route.js';
 import { Go } from './shell.js';
+import { senseOfSubject } from './sense.js';
 import { count, magnitude, number } from './text.js';
 
 export function OriginsPanel({
@@ -254,11 +255,18 @@ function RowMark({
 }
 
 /**
- * The changed renders no component claimed.
+ * The changed renders no *region* claimed — which is not the same as unexplained.
  *
  * Their own band and never folded into one: a difference with nothing named as
  * its cause has no change to be approved under, and putting it in somebody else's
  * group would hand a reviewer an unrelated edit to approve it beneath.
+ *
+ * The band used to say nothing had named these. That was false on every build
+ * carrying component hashes, and false in the direction that costs the most: a
+ * region is named by resolving the box the pixels drew, so it fails exactly when
+ * an edit reflows its neighbours and the difference merges into one blob. The
+ * hashes are still there, still per component, and they usually name the cause
+ * outright. What is missing is a *box*, not a name — so the name is on the row.
  */
 function Unattributed({
   subjects,
@@ -272,11 +280,10 @@ function Unattributed({
   return (
     <section className="va-band va-band-orphan">
       <h3>
-        Nothing named the cause <span className="va-num">{number(subjects.length)}</span>
+        No region named the cause <span className="va-num">{number(subjects.length)}</span>
       </h3>
       <p className="va-note">
-        No component claimed these, so there is no change to decide them under. They are the renders
-        that have to be opened.
+        The difference here fit no component’s box, so there is no change to decide these under.
       </p>
       <ul>
         {subjects.map((subject) => (
@@ -288,14 +295,38 @@ function Unattributed({
               title={magnitude(subject)}
             >
               <span className="va-row-name">{subject.subject}</span>
-              <span className="va-row-spread va-note">
-                {count(subject.regions.length, 'region')}
-              </span>
+              <Blamed subject={subject} />
               <span className="va-row-size va-num">{number(subject.changedPixels)} px</span>
             </Go>
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * What the hashes name in a render the regions could not.
+ *
+ * Falls back to the region count when the baseline carried no hashes, because
+ * absent is not empty: a run that never measured this has not established that
+ * nothing caused the difference, and a row printing an empty list would say it
+ * had.
+ */
+function Blamed({ subject }: { readonly subject: SubjectView }): ReactElement {
+  const sense = senseOfSubject(subject);
+  const causes = sense.moved.filter((entry) => entry.cause).map((entry) => entry.component);
+
+  if (causes.length === 0) {
+    return (
+      <span className="va-row-spread va-note">{count(subject.regions.length, 'region')}</span>
+    );
+  }
+
+  return (
+    <span className="va-row-spread va-note" title={causes.join(', ')}>
+      hashes name {causes.slice(0, 2).join(', ')}
+      {causes.length > 2 ? ` +${String(causes.length - 2)}` : ''}
+    </span>
   );
 }

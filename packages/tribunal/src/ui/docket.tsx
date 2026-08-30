@@ -29,7 +29,10 @@ import type { BuildDetail } from '../review-types.js';
 import { ChangePanel } from './change.js';
 import type { ReviewClient } from './client.js';
 import { useCrossing, type Crossing } from './crossing.js';
+import { distanceFrom } from './distance.js';
+import { Impact } from './impact.js';
 import { originsOf } from './grouping.js';
+import { causeOf } from './lead.js';
 import { OriginsPanel } from './origins.js';
 import { SubjectRail } from './rail.js';
 import type { Order, Route } from './route.js';
@@ -118,6 +121,9 @@ function Build({
     route.page === 'subject'
       ? build.subjects.find((each) => each.subject === route.subject)
       : undefined;
+  // Anchored on the change this render is filed under: on a page with no single
+  // change, distance has nothing to be measured from.
+  const anchor = subject === undefined ? undefined : causeOf(subject);
 
   return (
     <div className="va-app">
@@ -179,6 +185,7 @@ function Build({
               reviewer={reviewer}
               build={build.build}
               subject={subject}
+              {...(anchor === undefined ? {} : { anchor, far: distanceFrom(build, anchor) })}
               sourced={build.causes.some((cause) => cause.file !== undefined)}
               onDecided={reload}
             />
@@ -284,17 +291,18 @@ function Opening({
         <p className="va-subtitle">
           {origins.length === 0
             ? 'Every subject matched its baseline, or was settled by a rule you wrote.'
-            : 'Pick one from the left. A change is a component and everywhere it moved — the decision is the change, and the renders are where it showed up.'}
+            : 'A change is a component and every render it moved in. One decision covers all of them.'}
         </p>
 
         {unattributed.length === 0 ? null : (
           <p className="va-note">
-            {count(unattributed.length, 'render')} moved with no component named as the cause. Those
-            are at the bottom of the rail, and they are the ones that have to be opened.
+            {count(unattributed.length, 'render')} moved with no component named as the cause by a
+            region.
           </p>
         )}
 
         <Since crossing={crossing} />
+        <Impact build={build} crossing={crossing} />
 
         <p className="va-opening-links">
           <Go to={{ page: 'run', build: build.build }} go={go} className="va-mode">

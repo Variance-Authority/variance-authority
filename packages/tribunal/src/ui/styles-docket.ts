@@ -130,7 +130,7 @@ export const DOCKET_STYLES = `
    subject of the page, not a note beside it. What follows is detail, and the
    only part that raises its voice is a component the picture lost: the hashes
    name it and no region does, which is the one state a reviewer cannot see. */
-.va-moved-lead em { font-style: normal; font-weight: 600; }
+.va-decide-lead em { font-style: normal; font-weight: 600; }
 .va-moved-lost { background: var(--va-bad-bg); border-radius: 7px; color: var(--va-bad-ink); font-size: 0.9rem; margin-top: 0.7rem; padding: 0.5rem 0.7rem; }
 .va-moved h3 { font-size: 0.72rem; letter-spacing: 0.06em; margin-top: 1rem; text-transform: uppercase; }
 .va-moved-with { display: grid; gap: 0.15rem; margin-top: 0.35rem; }
@@ -141,4 +141,25 @@ export const DOCKET_STYLES = `
    and not by consequence, so without this a passenger reads level with a cause. */
 .va-moved-passenger .va-moved-name { color: var(--va-ink-3); font-weight: 400; }
 .va-moved-name { font-weight: 600; }
+/* How far a passenger is from the change, in the import graph. A chip and not a
+   sentence, and only on the rows the records place: a column that says the same
+   thing on every row is read once and skipped after. */
+.va-moved-far { background: var(--va-sunken); border-radius: 5px; color: var(--va-ink-3); font-size: 0.74rem; padding: 0.05rem 0.35rem; }
+
+/* The commit, its files, and how far out it landed — the build page's own
+   section, above the docket rather than beside it, because it is true of every
+   change on the page and nothing on it is decided. */
+.va-impact { border-top: 1px solid var(--va-line); display: grid; gap: 1rem; margin-top: 1.4rem; padding-top: 1.1rem; }
+.va-impact-commit { align-items: baseline; display: flex; flex-wrap: wrap; font-size: 0.9rem; }
+.va-impact-files ul { display: grid; gap: 0.1rem; margin-top: 0.35rem; }
+.va-impact-files li { font-size: 0.82rem; }
+.va-impact-depth h2 { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.va-rungs { display: grid; gap: 0.3rem; margin-top: 0.5rem; max-width: 34rem; }
+.va-rung { align-items: center; display: grid; gap: 0.6rem; grid-template-columns: 7.5rem 1fr auto; }
+.va-rung-at { font-size: 0.8rem; text-align: right; }
+/* The bar is the reached count and the fill is the moved count inside it, so the
+   two are read as a share rather than as two lengths a reader has to divide. */
+.va-rung-bar { background: var(--va-collateral); border-radius: 3px; display: block; height: 0.6rem; min-width: 2px; }
+.va-rung-moved { background: var(--va-cause); border-radius: 3px; display: block; height: 100%; }
+.va-rung-num { font-size: 0.78rem; }
 `;

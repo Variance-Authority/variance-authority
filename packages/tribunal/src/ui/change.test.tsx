@@ -313,15 +313,17 @@ describe('what the last run said, beside the change rather than nine thousand pi
   const moved = (overrides: Partial<SubjectView> = {}): SubjectView =>
     subject({ regions: [region({ component: 'Button', fingerprint: 'f1' })], ...overrides });
 
-  it('says the docket has been delivered twice when nobody decided it last time', () => {
+  it('says the same difference arrived undecided, in the words that carry it', () => {
     // The sentence a reviewer skips work on, and the one this whole crossing
     // exists to print. It is worth reading beside the change and worth nothing at
-    // the bottom of a page about twenty other subjects.
+    // the bottom of a page about twenty other subjects — and it is worth nothing
+    // at all in the trade's own dialect, which is what *the second delivery of
+    // the same docket* was.
     const now = build([moved()]);
     const page = card(now, against(now, build([moved()])));
 
     expect(page).toContain('carried the same difference in build 4');
-    expect(page).toContain('second delivery of the same docket');
+    expect(page).toContain('none of them was decided there');
   });
 
   it('does not say it twice when somebody did decide it', () => {
@@ -332,11 +334,11 @@ describe('what the last run said, beside the change rather than nine thousand pi
 
     const page = card(now, against(now, earlier));
 
-    expect(page).toContain('it was decided there');
-    expect(page).not.toContain('second delivery');
+    expect(page).toContain('every one was decided there');
+    expect(page).not.toContain('none of them');
   });
 
-  it('names a difference that is still moving rather than calling it seen', () => {
+  it('names a difference that changed since, rather than calling it seen', () => {
     const now = build([moved()]);
     const earlier = build([
       subject({ regions: [region({ component: 'Button', fingerprint: 'f9' })] }),
@@ -344,7 +346,7 @@ describe('what the last run said, beside the change rather than nine thousand pi
 
     const page = card(now, against(now, earlier));
 
-    expect(page).toContain('the shape of the difference has changed since');
+    expect(page).toContain('the difference itself changed between the two builds');
   });
 
   it('says nothing at all when there is no earlier run to say it against', () => {

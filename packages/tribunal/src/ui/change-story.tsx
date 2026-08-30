@@ -206,16 +206,16 @@ export function SinceLast({
           {seen.length === rows.length ? 'Every one of these' : count(seen.length, 'of these')}{' '}
           carried the same difference in {against}
           {undecided === 0
-            ? ', and it was decided there.'
+            ? ', and every one was decided there.'
             : undecided === seen.length
-              ? ', and nobody decided it. This is the second delivery of the same docket.'
+              ? ', and none of them was decided there.'
               : `, and ${number(undecided)} of them went undecided there.`}{' '}
         </>
       )}
       {moved === 0 ? null : (
         <>
-          {count(moved, 'render')} differed in {against} too, and the shape of the difference has
-          changed since — whatever is moving is still moving.{' '}
+          {count(moved, 'render')} differed in {against} too, but not in the same way: the
+          difference itself changed between the two builds.{' '}
         </>
       )}
       {first === 0 ? null : (
