@@ -56,6 +56,8 @@ export const DOCKET_STYLES = `
 .va-band-stranded { border-left-color: var(--va-bad); }
 .va-band-stranded h3 { color: var(--va-bad-ink); }
 .va-band-reached { border-left-color: var(--va-accent); }
+.va-band-contradicted { border-left-color: var(--va-warn); }
+.va-band-contradicted h3 { color: var(--va-warn-ink); }
 .va-band-unexplained { border-left-color: var(--va-warn); }
 .va-band-unexplained h3 { color: var(--va-warn-ink); }
 .va-band-upstream { border-left-color: var(--va-collateral); }

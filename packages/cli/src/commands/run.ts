@@ -414,9 +414,12 @@ async function observeAll(
   // The change set comes off the selection rather than off the options, because
   // there are two flags that read a diff and only one of them narrows. Choosing
   // between them here read `--since` alone, so an `--against` run walked the
-  // diff, wrote `reach` into the report, and then handed this nothing — and every
-  // movement in it fell to `unexplained` under a sentence asking the reader for
-  // the diff they had already supplied.
+  // diff, wrote `reach` into the report, and then handed this nothing. `edited`
+  // and `upstream` are the two rungs that read a change set, so both were
+  // unreachable and every movement fell past them — to `contradicted` where the
+  // same props had already rendered more than one way, and to `unexplained`
+  // otherwise, under a sentence asking the reader for the diff they had
+  // supplied.
   const composition = compositionOf({
     subjects: compositions,
     observations,

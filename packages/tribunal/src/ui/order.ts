@@ -16,22 +16,26 @@
  *    one worth waking somebody for.
  * 2. **The commit reaches it.** Ordinary work: you edited this, and here is what
  *    it did. Most of a healthy build.
- * 3. **Nothing in the run explains it.** The diff was read, the file graph
+ * 3. **It renders more than one way from the same props.** Held at one commit
+ *    with its inputs equal, it did not settle. An answer, not an absence: the
+ *    change is not in its own code and not in what it was handed, and every
+ *    comparison underneath it is worth less until that is dealt with.
+ * 4. **Nothing in the run explains it.** The diff was read, the file graph
  *    walked and the enclosure climbed, and none of the three arrive here. This
  *    is the band that used to be missing: it was folded into the one below, so a
  *    component the run had actively failed to explain was shown beside a
  *    component the run had explained perfectly well and only by a route the
  *    import graph cannot travel.
- * 4. **Something you edited hands it what it draws.** The victims. Nothing in
+ * 5. **Something you edited hands it what it draws.** The victims. Nothing in
  *    the commit declares the component; something in the commit draws it, and
  *    what moved is what it was given.
- * 5. **A value it reads took a new value.** A token moved, and this read it.
- * 6. **The diff does not name it, and nothing above was found.** What is left
+ * 6. **A value it reads took a new value.** A token moved, and this read it.
+ * 7. **The diff does not name it, and nothing above was found.** What is left
  *    when every rung has been tried and none held.
- * 7. **No diff was read.** The run carried none, so nothing above applies.
- * 8. **Already decided.** Off the queue, kept on the page.
+ * 8. **No diff was read.** The run carried none, so nothing above applies.
+ * 9. **Already decided.** Off the queue, kept on the page.
  *
- * Bands three through six are one band as far as the *file graph* is concerned —
+ * Bands three through seven are one band as far as the *file graph* is concerned —
  * every one of them is a component the diff does not name. What separates them is
  * the run's own attribution, which climbs the other way, and which the store used
  * to drop at the door.
@@ -55,6 +59,7 @@ import type { Order } from './route.js';
 export type Lane =
   | 'stranded'
   | 'reached'
+  | 'contradicted'
   | 'unexplained'
   | 'upstream'
   | 'token'
@@ -80,6 +85,11 @@ const LANES: readonly { readonly lane: Lane; readonly title: string; readonly wh
     lane: 'reached',
     title: 'You edited these',
     why: 'The commit arrives at the component, by a path the file graph can name. This is the part of the build you asked for.',
+  },
+  {
+    lane: 'contradicted',
+    title: 'These render two ways from the same props',
+    why: 'Held at this one commit with their inputs equal, each of these produced more than one rendering. That is a finding rather than a gap: whatever moved is not in the component’s own code and not in what a parent handed it, and every comparison drawn underneath one of these is worth less until it settles.',
   },
   {
     lane: 'unexplained',
@@ -134,8 +144,14 @@ export function laneOf(origin: Origin): Lane {
   // a rung of its own.
   switch (origin.cause) {
     case 'unexplained':
-    case 'contradicted':
       return 'unexplained';
+    // Not folded in with the one above, which it used to be. `unexplained` says
+    // three records were asked and none of them arrive; `contradicted` says one
+    // of them answered — the component disagreed with itself at fixed props —
+    // and printing that under *none of them arrive here* is the page telling a
+    // reviewer the run found nothing about a render it had pinned.
+    case 'contradicted':
+      return 'contradicted';
     case 'upstream':
       return 'upstream';
     case 'token':

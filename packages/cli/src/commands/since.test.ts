@@ -125,4 +125,13 @@ describe('narrowing a run to what a diff could have changed', () => {
       }),
     ).rejects.toThrow(/where your components are declared/);
   });
+
+  // Both flags at once, naming two different revisions. `selectionFor` now
+  // narrows by `--since` and explains by `--against` — it used to resolve them
+  // by precedence and drop the `--against` ref without a word — and nothing here
+  // holds it to that, because `--against` needs a relations scanner this fixture
+  // does not offer.
+  it.todo(
+    'narrows by `--since` and explains by `--against` when both name a ref, so the change set the movement ladder reads is the one the operator asked to be explained against — needs `runWith` to accept an `--against` ref and a relations scanner, because that flag refuses without a file graph and these fixtures have nowhere to hand it one',
+  );
 });

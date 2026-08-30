@@ -33,13 +33,17 @@ export interface Selection {
   readonly whole?: string;
 
   /**
-   * The files the diff named, whichever flag asked for them.
+   * The files the explaining diff named, resolved once for every phase that
+   * needs them.
    *
-   * Carried here because the union of the two flags belongs in one place. The
-   * composition phase used to compute its own, read `--since` alone, and so
-   * handed the movement ladder nothing on an `--against` run — a run that had
-   * walked the diff, written `reach` into the report, and then attributed every
-   * movement in it to nothing under a sentence asking for the diff it had.
+   * The composition phase used to compute its own and read `--since` alone, so
+   * an `--against` run — one that had walked the diff and written `reach` into
+   * the report — handed the movement ladder nothing, and every movement in it
+   * fell past the two rungs that read a change set.
+   *
+   * This is `--against`'s set when `--against` was asked for, because the
+   * ladder's question is *what did this commit change*, which is the question
+   * that flag asks. `--since` stands in when it is the only one given.
    */
   readonly changed: readonly string[];
 
@@ -81,8 +85,14 @@ export async function selectionFor(
   options: RunOptions,
 ): Promise<Selection | undefined> {
   const { config, deps, renderer } = context;
-  const diff = options.since ?? options.against;
-  if (diff === undefined) return undefined;
+
+  // Two flags, two questions, and given both they are two refs. `--since` asks
+  // which subjects are worth running; `--against` asks what to blame when one of
+  // them moves. Collapsing them to a precedence dropped the `--against` ref
+  // without a word, and the report then said it had explained the run against
+  // the ref it had narrowed by.
+  const explains = options.against ?? options.since;
+  if (explains === undefined) return undefined;
 
   const asked = options.since === undefined ? '`--against`' : '`--since`';
   const scan = deps.scanSource;
@@ -118,10 +128,19 @@ export async function selectionFor(
       ? await deps.scanRelations(config.source.dirs)
       : undefined;
 
-  const changedDirs =
-    config.source.changes !== undefined && deps.changedProjects !== undefined
-      ? await deps.changedProjects(diff.ref)
+  const dirsFor = async (ref: string): Promise<readonly string[] | undefined> =>
+    config.source?.changes !== undefined && deps.changedProjects !== undefined
+      ? await deps.changedProjects(ref)
       : undefined;
+
+  const changedDirs = await dirsFor(explains.ref);
+  // The same call again only when the two flags name two different revisions —
+  // which projects a diff touched is a question about a ref, and answering it
+  // for the wrong one narrows the suite by a diff nobody asked to narrow by.
+  const narrowDirs =
+    options.since === undefined || options.since.ref === explains.ref
+      ? changedDirs
+      : await dirsFor(options.since.ref);
 
   if (options.against !== undefined && relations === undefined) {
     throw new OperatorError(
@@ -139,8 +158,8 @@ export async function selectionFor(
     relations === undefined
       ? undefined
       : reachOf({
-          against: diff.ref,
-          changed: diff.changed,
+          against: explains.ref,
+          changed: explains.changed,
           relations,
           roots: config.source.dirs,
           baselines,
@@ -150,7 +169,7 @@ export async function selectionFor(
   if (options.since === undefined) {
     return {
       source,
-      changed: diff.changed,
+      changed: explains.changed,
       skipped: new Map(),
       ...(reach === undefined ? {} : { reach }),
     };
@@ -163,12 +182,12 @@ export async function selectionFor(
     roots: config.source.dirs,
     baselines,
     ...(relations === undefined ? {} : { relations }),
-    ...(changedDirs === undefined ? {} : { changedDirs }),
+    ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
   });
 
   return {
     source,
-    changed: diff.changed,
+    changed: explains.changed,
     ...(reach === undefined ? {} : { reach }),
     skipped: new Map(
       answer.skipped.map((entry) => [

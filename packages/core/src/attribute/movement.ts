@@ -179,7 +179,7 @@ export function attributeMovement(
       .map(([component]) => component),
   );
 
-  const enclosures = enclosuresOf(composition);
+  const graph = graphOf(composition);
 
   const movements = moved.map((each) =>
     attributeOne(each, byComponent.get(each.component), {
@@ -187,7 +187,7 @@ export function attributeMovement(
       edited,
       evidence,
       composition,
-      enclosures,
+      graph,
     }),
   );
 
@@ -208,11 +208,11 @@ interface Bench {
   readonly edited: ReadonlySet<string>;
   readonly evidence: Evidence;
   readonly composition: Composition;
-  readonly enclosures: Enclosures;
+  readonly graph: Graph;
 }
 
 function attributeOne(moved: Moved, entry: ComponentEntry | undefined, bench: Bench): Movement {
-  const { movedIn, edited, evidence, composition, enclosures } = bench;
+  const { movedIn, edited, evidence, composition, graph } = bench;
   const alsoIn = (movedIn.get(moved.component) ?? []).filter(
     (subject) => subject !== moved.subject,
   );
@@ -236,7 +236,7 @@ function attributeOne(moved: Moved, entry: ComponentEntry | undefined, bench: Be
     };
   }
 
-  const ancestor = editedAncestor(moved, entry, edited, enclosures);
+  const ancestor = editedAncestor(moved, edited, graph);
   if (ancestor !== undefined) {
     return {
       ...base,
@@ -268,37 +268,53 @@ function attributeOne(moved: Moved, entry: ComponentEntry | undefined, bench: Be
 }
 
 /**
- * Who encloses what, in each subject separately.
+ * Who encloses what and who wrote what, in each subject separately.
  *
  * Keyed on the pair because the constraint is the whole point. `ComponentEntry.within`
- * is folded over the suite, so `Card` is enclosed by `CartCard` and by `ProductCard`
- * at once, and a walk that reads it hands a reviewer the cart as the reason a
- * product story moved. A site knows which subject it was read in, so the graph
- * can be built the way the question is asked.
+ * and `ComponentEntry.createdBy` are both folded over the suite, so `Card` is enclosed by
+ * `CartCard` and by `ProductCard` at once, and a walk that reads either hands a
+ * reviewer the cart as the reason a product story moved. A site knows which
+ * subject it was read in, so the graph can be built the way the question is
+ * asked — and it has to be built that way for *both* edges, because the creator
+ * is consulted first and an unconstrained answer there is never reached by the
+ * constrained walk underneath it.
  */
 type Enclosures = ReadonlyMap<string, readonly string[]>;
 
+interface Graph {
+  /** Who this component sits inside, per subject. */
+  readonly within: Enclosures;
+  /** Whose JSX wrote this component's element, per subject. */
+  readonly wrote: Enclosures;
+}
+
 const IN = '\u0000';
 
-function enclosuresOf(composition: Composition): Enclosures {
-  const graph = new Map<string, string[]>();
+function graphOf(composition: Composition): Graph {
+  const within = new Map<string, string[]>();
+  const wrote = new Map<string, string[]>();
+
+  const add = (graph: Map<string, string[]>, key: string, name: string): void => {
+    const names = graph.get(key);
+    if (names === undefined) graph.set(key, [name]);
+    else if (!names.includes(name)) names.push(name);
+  };
 
   for (const entry of composition.components) {
     for (const group of entry.classes) {
       for (const rendering of group.renderings) {
         for (const site of rendering.sites) {
-          if (site.within === undefined) continue;
           const key = `${site.subject}${IN}${entry.component}`;
-          const holders = graph.get(key);
-          if (holders === undefined) graph.set(key, [site.within]);
-          else if (!holders.includes(site.within)) holders.push(site.within);
+          if (site.within !== undefined) add(within, key, site.within);
+          if (site.createdBy !== undefined) add(wrote, key, site.createdBy);
         }
       }
     }
   }
 
-  for (const holders of graph.values()) holders.sort();
-  return graph;
+  for (const names of within.values()) names.sort();
+  for (const names of wrote.values()) names.sort();
+  return { within, wrote };
 }
 
 /** An edited component above a moved one, and the components in between. */
@@ -311,7 +327,7 @@ interface Ancestor {
 /**
  * The nearest edited component above this one, in the subject it moved in.
  *
- * `createdBy` first, and it is not a tie-break. The component that *wrote the
+ * The creator first, and it is not a tie-break. The component that *wrote the
  * element* is the one whose edit changed this component's inputs; the one it
  * happens to sit inside may be a presentational wrapper that knows nothing about
  * it. On `examples/todomvc` every `Chip` sits within a `Stack` and is created by
@@ -319,6 +335,11 @@ interface Ancestor {
  * to `TodoFooter` with the chips it moved — and report five unexplained movements
  * instead of one caller. It is absent on a production build, which is why the
  * enclosure walk is not a fallback but the other half.
+ *
+ * Read off the per-subject graph and not off the entry. The entry's `createdBy`
+ * is the suite's whole set, so an edit to whoever writes this component on one
+ * page answers for every page it appears on — the same unconstrained answer the
+ * walk below refuses, arriving one line earlier and winning.
  *
  * And that walk climbs rather than looking once. The rung has always said
  * *ancestor* and checked a parent, and a React tree is mostly components that
@@ -329,11 +350,11 @@ interface Ancestor {
  */
 function editedAncestor(
   moved: Moved,
-  entry: ComponentEntry | undefined,
   edited: ReadonlySet<string>,
-  enclosures: Enclosures,
+  graph: Graph,
 ): Ancestor | undefined {
-  const wrote = (entry?.createdBy ?? []).find((name) => edited.has(name));
+  const here = `${moved.subject}${IN}${moved.component}`;
+  const wrote = (graph.wrote.get(here) ?? []).find((name) => edited.has(name));
   if (wrote !== undefined) return { name: wrote, through: [] };
 
   // Breadth-first, so the answer is the *nearest* edit and not whichever one the
@@ -344,7 +365,7 @@ function editedAncestor(
   const step = (from: Ancestor | null): Ancestor[] => {
     const child = from === null ? moved.component : from.name;
     const rung: Ancestor[] = [];
-    for (const holder of enclosures.get(`${moved.subject}${IN}${child}`) ?? []) {
+    for (const holder of graph.within.get(`${moved.subject}${IN}${child}`) ?? []) {
       if (seen.has(holder)) continue;
       seen.add(holder);
       rung.push({ name: holder, through: from === null ? [] : [from.name, ...from.through] });

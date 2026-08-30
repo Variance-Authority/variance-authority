@@ -193,4 +193,19 @@ describe('what the run concluded survives the ingest', () => {
     expect(found).toHaveLength(1);
     expect(found[0]?.cause).toBe('edited');
   });
+
+  it('drops a pair the second reading no longer names', async () => {
+    // The case above only proves the key that comes back is overwritten. This is
+    // the one that does not: a run re-pushed after the ladder was fixed
+    // attributes fewer pairs, and under `INSERT OR REPLACE` alone the rows it
+    // dropped survive — so the page answers a question about `CardFooter` from
+    // an analysis that no longer exists, and nothing on it says which reading
+    // the reviewer is looking at.
+    await ingest([movement(), movement({ subject: 'story:cart-card--item' })]);
+    await ingest([movement()]);
+
+    const found = (await review.build('9'))?.movements ?? [];
+
+    expect(found.map((each) => each.subject)).toEqual(['story:product-card--sale']);
+  });
 });

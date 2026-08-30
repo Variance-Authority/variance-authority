@@ -175,6 +175,18 @@ describe('the band a change is read under', () => {
     expect(laneOf(origin)).toBe('unnamed');
   });
 
+  it('keeps a component that disagreed with itself out of the band for shrugs', () => {
+    // `contradicted` is an answer: the same props rendered more than one way at
+    // one commit. The band it used to share says *three records were asked and
+    // none of them arrive here*, which is the opposite of what the run found.
+    const origin = originOf(
+      build([footer], [movement({ cause: 'contradicted', upstream: undefined, through: undefined })]),
+      'CardFooter',
+    );
+
+    expect(laneOf(origin)).toBe('contradicted');
+  });
+
   it('gives the run’s own failure to explain a band of its own', () => {
     const origin = originOf(
       build([footer], [movement({ cause: 'unexplained', upstream: undefined })]),

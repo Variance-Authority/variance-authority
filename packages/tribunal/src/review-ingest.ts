@@ -56,7 +56,34 @@ export async function ingestBuild(
     });
   }
 
+  // The build's own rows, cleared before they are rewritten.
+  //
+  // Every table below is written with `INSERT OR REPLACE`, which replaces a row
+  // whose key comes back and leaves one that does not. A second ingest of the
+  // same build is not a rarity — it is what happens every time a run is
+  // re-pushed after the tool that produced it was fixed — and under replace
+  // alone the reading that was wrong survives beside the reading that replaced
+  // it, for every subject, component or pair the new report no longer names. A
+  // reviewer then reads an attribution from a version of the analysis that no
+  // longer exists, with nothing on the page to say so.
+  //
+  // Same `batch` as the inserts, so there is no instant where the build is on
+  // the page with its rows gone. `builds` is one row per build and is not
+  // cleared: `INSERT OR REPLACE` on a single known key is already exact.
+  // `decisions` is nobody's to clear here — a person put their name on those,
+  // and re-pushing a run is not them taking it back.
   const statements = [
+    ...[
+      'build_subjects',
+      'build_not_observed',
+      'build_variations',
+      'build_composition',
+      'build_movements',
+      'build_reach_subjects',
+      'build_reach',
+    ].map((table) =>
+      db.prepare(`DELETE FROM ${table} WHERE project = ? AND build = ?`).bind(project, build.build),
+    ),
     db
       .prepare(
         `INSERT OR REPLACE INTO builds

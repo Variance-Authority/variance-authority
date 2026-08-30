@@ -48,6 +48,18 @@ export interface Site {
   readonly path: NodePath;
   readonly depth: number;
   readonly within?: string;
+
+  /**
+   * The component whose JSX wrote this element, here.
+   *
+   * On the entry beside it, `createdBy` is a set folded over the whole suite —
+   * every component that ever wrote one of these, anywhere. That is the right
+   * shape for *who mounts this* and the wrong one for *who mounted this here*,
+   * and the ladder asks the second: an edit to a component that writes a `Chip`
+   * on the footer explains nothing about a `Chip` the sidebar wrote. Kept per
+   * site so the question can be asked where it was answered.
+   */
+  readonly createdBy?: string;
 }
 
 /** One rendering of one component, and everywhere it occurred. */
@@ -223,6 +235,7 @@ export function composeSubjects(subjects: readonly SubjectComposition[]): Compos
         path: instance.path,
         depth: instance.depth,
         ...(instance.within === undefined ? {} : { within: instance.within }),
+        ...(instance.createdBy === undefined ? {} : { createdBy: instance.createdBy }),
       });
       byProps.set(instance.rendering, rendering);
       entry.classes.set(key, byProps);

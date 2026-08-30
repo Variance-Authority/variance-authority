@@ -123,6 +123,87 @@ describe('the ancestor rung climbs, and only inside the subject that moved', () 
     expect(attribution.movements[0]?.upstream).toBeUndefined();
   });
 
+  /**
+   * The same `CardFooter`, written by a different component on each page.
+   *
+   * `createdBy` is what a development build knows and enclosure does not: whose
+   * JSX produced the element. Folded onto the entry it is the suite's whole set —
+   * `['CartCard', 'ProductCard']` for this one name — and it is consulted
+   * *before* the walk that refuses a cross-subject answer, so an unconstrained
+   * read there wins over the constrained one underneath it and nothing further
+   * down can catch it.
+   */
+  const WRITTEN = composeSubjects([
+    {
+      subject: 'story:product-card--sale',
+      instances: [
+        instance({ component: 'ProductCard', path: '0', depth: 0, renders: ['Card'] }),
+        instance({
+          component: 'Card',
+          path: '0/0',
+          depth: 1,
+          within: 'ProductCard',
+          renders: ['CardFooter'],
+        }),
+        instance({
+          component: 'CardFooter',
+          path: '0/0/1',
+          depth: 2,
+          within: 'Card',
+          createdBy: 'ProductCard',
+          props: 'v1:footer',
+        }),
+      ],
+    },
+    {
+      subject: 'story:cart-card--item',
+      instances: [
+        instance({ component: 'CartCard', path: '0', depth: 0, renders: ['Card'] }),
+        instance({
+          component: 'Card',
+          path: '0/0',
+          depth: 1,
+          within: 'CartCard',
+          renders: ['CardFooter'],
+        }),
+        instance({
+          component: 'CardFooter',
+          path: '0/0/1',
+          depth: 2,
+          within: 'Card',
+          createdBy: 'CartCard',
+          props: 'v1:footer',
+        }),
+      ],
+    },
+  ]);
+
+  it('refuses a creator that wrote it on some other page', () => {
+    const attribution = attributeMovement(FOOTER, WRITTEN, {
+      changed: ['src/cart-card.tsx'],
+      declaredIn: DECLARED,
+    });
+
+    expect(attribution.movements[0]?.cause).toBe('unexplained');
+    expect(attribution.movements[0]?.upstream).toBeUndefined();
+  });
+
+  it('takes the creator over the enclosure when it wrote it here', () => {
+    // `ProductCard` both writes this footer and encloses it two rungs up. The
+    // creator is the closer relationship and the sentence says so: it mounts it,
+    // rather than reaching it through a wrapper that knows nothing about it.
+    const attribution = attributeMovement(FOOTER, WRITTEN, {
+      changed: ['src/product-card.tsx'],
+      declaredIn: DECLARED,
+    });
+
+    expect(attribution.movements[0]).toMatchObject({
+      cause: 'upstream',
+      upstream: 'ProductCard',
+    });
+    expect(attribution.movements[0]?.through).toBeUndefined();
+  });
+
   it('takes the nearest edit when two of them are above it', () => {
     const attribution = attributeMovement(FOOTER, NESTED, {
       changed: ['src/ds/card.tsx', 'src/product-card.tsx'],
