@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { RegionRecord } from '@variance-authority/report';
-import type { BuildDetail, Cause, ReachView, SubjectView } from '../review-types.js';
+import type { BuildDetail, Cause, Placement, ReachView, SubjectView } from '../review-types.js';
 import { ChangePanel } from './change.js';
 import { createReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
@@ -42,7 +42,11 @@ function subject(overrides: Partial<SubjectView> = {}): SubjectView {
 
 function build(
   subjects: readonly SubjectView[],
-  extra: { readonly causes?: readonly Cause[]; readonly reach?: ReachView | null } = {},
+  extra: {
+    readonly causes?: readonly Cause[];
+    readonly reach?: ReachView | null;
+    readonly composition?: readonly Placement[] | null;
+  } = {},
 ): BuildDetail {
   return {
     project: 'snkr-shop',
@@ -59,7 +63,7 @@ function build(
     notObserved: [],
     declarations: { ignores: null, sensitivities: null },
     movements: [],
-    composition: null,
+    composition: extra.composition ?? null,
     causes: extra.causes ?? [],
     variations: [],
     reach: extra.reach ?? null,
@@ -77,7 +81,11 @@ const CAUSES: readonly Cause[] = [
 ];
 
 /** The change this build's first origin describes, drawn. */
-function card(detail: BuildDetail, crossing: Crossing = NO_CROSSING): string {
+function card(
+  detail: BuildDetail,
+  crossing: Crossing = NO_CROSSING,
+  changes: ReadonlySet<string> = new Set(),
+): string {
   const origin = originsOf(detail).origins[0];
   if (origin === undefined) throw new Error('this build holds no change to draw');
 
@@ -88,6 +96,7 @@ function card(detail: BuildDetail, crossing: Crossing = NO_CROSSING): string {
       build={detail}
       origin={origin}
       crossing={crossing}
+      changes={changes}
       go={() => undefined}
       onDecided={() => undefined}
     />,
@@ -367,5 +376,64 @@ describe('what the last run said, beside the change rather than nine thousand pi
     const page = card(build([moved()]));
 
     expect(page).not.toContain('carried the same difference');
+  });
+});
+
+describe('an edit of its own, and a prop somebody else wrote', () => {
+  // The complaint, end to end. One revision restyles `ui/button.tsx` and adds an
+  // `aria-label` to the button `ProductCard` mounts, and the page unioned the
+  // two: *Button moved in what it announces, its layout and its style values*,
+  // over a byline naming `button.tsx`. A reviewer sent to that file for a
+  // renamed control finds nothing in it that could have done it.
+  const place = (
+    component: string,
+    subjects: readonly string[],
+    within: readonly string[] = [],
+  ): Placement => ({ component, subjects, within, createdBy: [], renders: [] });
+
+  const CENSUS: readonly Placement[] = [
+    place('Button', ['story:card', 'story:plain'], ['ProductCard']),
+    place('ProductCard', ['story:card']),
+  ];
+
+  const REACHED: ReachView = {
+    against: 'main',
+    changed: ['app/src/components/ProductCard.tsx', 'app/src/components/ui/button.tsx'],
+    components: [
+      { component: 'Button', trail: ['app/src/components/ui/button.tsx', 'Button'] },
+      { component: 'ProductCard', trail: ['app/src/components/ProductCard.tsx', 'ProductCard'] },
+    ],
+  };
+
+  const mixed = (): BuildDetail =>
+    build(
+      [
+        subject({
+          subject: 'story:card',
+          regions: [region({ component: 'Button', fingerprint: 'f1' })],
+          moved: [{ component: 'Button', bands: ['a11y', 'token'], cause: true }],
+        }),
+        subject({
+          subject: 'story:plain',
+          regions: [region({ component: 'Button', fingerprint: 'f2' })],
+          moved: [{ component: 'Button', bands: ['token'], cause: true }],
+        }),
+      ],
+      { causes: CAUSES, composition: CENSUS, reach: REACHED },
+    );
+
+  it('leaves the parent’s band out of the sentence about this component', () => {
+    const page = card(mixed());
+
+    expect(page).toContain('moved in <em>its style values</em>');
+    expect(page).not.toContain('what it announces, its style values');
+  });
+
+  it('names the parent that owns it, with the partition that found it', () => {
+    const page = card(mixed(), NO_CROSSING, new Set(['ProductCard']));
+
+    expect(page).toContain('what it announces');
+    expect(page).toContain('/builds/4/changes/ProductCard');
+    expect(page).toContain('1 render it draws');
   });
 });

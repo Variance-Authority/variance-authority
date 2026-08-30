@@ -21,8 +21,16 @@
 import type { ReactElement } from 'react';
 import type { SubjectView } from '../review-types.js';
 import { howFar, placed, type Distance, type Ruler } from './distance.js';
+import type { Handed } from './handed.js';
 import type { Route } from './route.js';
-import { senseOfSubject, senses, type Across, type Elsewhere, type Sensed } from './sense.js';
+import {
+  senseOf,
+  senseOfSubject,
+  senses,
+  type Across,
+  type Elsewhere,
+  type Sensed,
+} from './sense.js';
 import { Go } from './shell.js';
 import { count } from './text.js';
 
@@ -40,25 +48,98 @@ const NAMED = 4;
 export function MovedLead({
   component,
   across,
+  handed,
 }: {
   readonly component: string;
   readonly across: Across;
+  /** Bands a parent owns, subtracted here and named by {@link HandedTo}. */
+  readonly handed: readonly Handed[];
 }): ReactElement | null {
-  if (across.bands.length === 0) {
-    // Not a shrug. A change whose own hashes held still in every render is
-    // collateral wearing a name — the largest differing area resolved here, and
-    // the edit is somewhere else on the page.
-    return across.measured === 0 ? null : (
+  const given = new Set(handed.map((each) => each.band));
+  const own = across.bands.filter((band) => !given.has(band));
+
+  if (own.length > 0) {
+    return (
       <>
-        Nothing in <strong>{component}</strong>’s own hashes moved: every render here was pushed by
-        something else on the page.{' '}
+        <strong>{component}</strong> moved in <em>{senses(own)}</em>.{' '}
       </>
     );
   }
 
+  if (across.measured === 0) return null;
+
+  // Two different nothings. Everything this component moved in belongs to
+  // somebody above it, which the lines under this name — against a component
+  // whose own hashes held still in every render, which is collateral wearing a
+  // name because the largest differing area happened to resolve here.
+  return given.size > 0 ? (
+    <>
+      Nothing of <strong>{component}</strong>’s own moved.{' '}
+    </>
+  ) : (
+    <>
+      Nothing in <strong>{component}</strong>’s own hashes moved: every render here was pushed by
+      something else on the page.{' '}
+    </>
+  );
+}
+
+/**
+ * The bands this component was handed, each under the name that owns it.
+ *
+ * Directly under the lead, because it is the other half of the same sentence:
+ * the lead now says less than the hashes did, and this is where the rest went.
+ * The count is the evidence and not decoration — *moved in the 6 renders
+ * ProductCard draws, still in the other 10* is the partition [`handed.ts`](./handed.ts)
+ * found, and it is the whole reason the band is filed here rather than on the
+ * component's own line.
+ *
+ * The holder is the link when the docket has a page for it. A reviewer reading
+ * *what it announces is `ProductCard`’s* has exactly one next move.
+ */
+export function HandedTo({
+  handed,
+  build,
+  changes,
+  go,
+}: {
+  readonly handed: readonly Handed[];
+  readonly build: string;
+  /** Components with a change page of their own, so a link goes somewhere. */
+  readonly changes: ReadonlySet<string>;
+  readonly go: (route: Route) => void;
+}): ReactElement | null {
+  if (handed.length === 0) return null;
+
   return (
     <>
-      <strong>{component}</strong> moved in <em>{senses(across.bands)}</em>.{' '}
+      {handed.map(({ band, holders, moved, held }) => (
+        <p key={band} className="va-handed">
+          <em>{senseOf(band)}</em> is{' '}
+          {holders.map((holder, index) => (
+            <span key={holder}>
+              {index === 0 ? null : ' and '}
+              {changes.has(holder) ? (
+                <Go
+                  to={{ page: 'change', build, change: holder }}
+                  go={go}
+                  className="va-handed-go"
+                  title={`The decision belongs to ${holder}, which is a change on this build`}
+                >
+                  {holder}
+                </Go>
+              ) : (
+                <strong>{holder}</strong>
+              )}
+            </span>
+          ))}
+          ’s.{' '}
+          <span className="va-note">
+            Moved in {count(moved, 'render')} {holders.length === 1 ? 'it draws' : 'they draw'},
+            still in the other {held}.
+          </span>
+        </p>
+      ))}
     </>
   );
 }

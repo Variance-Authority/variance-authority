@@ -121,6 +121,14 @@ export const DOCKET_STYLES = `
 .va-attributed-unexplained { border-left-color: var(--va-bad); }
 .va-attributed-go { color: var(--va-accent); font-weight: 600; white-space: nowrap; }
 
+/* A band this change did not move on its own. Directly under the lead and
+   marked in the collateral colour, which is what it is: the sense moved here,
+   the decision is one file up, and the two belong on one screen without the
+   second looking like a second change. */
+.va-handed { color: var(--va-ink-2); font-size: 0.95rem; margin-top: 0.35rem; }
+.va-handed em { color: var(--va-ink); font-style: normal; font-weight: 600; }
+.va-handed-go { color: var(--va-accent); font-weight: 600; white-space: nowrap; }
+
 /* What the last run said, beside the change rather than nine thousand pixels
    below it. Warm rather than red: *you have seen this* is not an alarm, it is
    the sentence a reviewer skips work on. */

@@ -200,11 +200,11 @@ export function senseAcross(component: string, appearances: readonly Appearance[
 
   return {
     measured: appearances.length - unmeasured.length,
-    bands: ordered(bands),
+    bands: loudestFirst(bands),
     missedIn,
     unmeasured,
     alongside: [...others.entries()]
-      .map(([name, seen]) => ({ component: name, bands: ordered(seen) }))
+      .map(([name, seen]) => ({ component: name, bands: loudestFirst(seen) }))
       .sort((left, right) => left.component.localeCompare(right.component)),
   };
 }
@@ -228,7 +228,7 @@ const ORDER: readonly string[] = ['a11y', 'geometry', 'token', 'content', 'textu
  * about them, and alphabetically because that is an order rather than an
  * accident of iteration.
  */
-function ordered(bands: Iterable<string>): readonly string[] {
+export function loudestFirst(bands: Iterable<string>): readonly string[] {
   const present = new Set(bands);
   const known = ORDER.filter((band) => present.has(band));
   const rest = [...present].filter((band) => !ORDER.includes(band)).sort();

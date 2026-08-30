@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { RegionRecord } from '@variance-authority/report';
 import type { SubjectView } from '../review-types.js';
 import type { Appearance } from './grouping.js';
-import { MovedElsewhere, MovedHere, MovedLead, WhatMoved } from './moved.js';
+import { HandedTo, MovedElsewhere, MovedHere, MovedLead, WhatMoved } from './moved.js';
 import { movedElsewhere, senseAcross, senseOfSubject, senses, type Across } from './sense.js';
 
 /**
@@ -150,7 +150,7 @@ describe('the lead sentence, which is what the page was missing', () => {
   it('says what moved before anything about how much of it did', () => {
     const across = senseAcross('Button', [{ ...appearance({}), subject: SALE }]);
 
-    expect(draw(<MovedLead component="Button" across={across} />)).toContain(
+    expect(draw(<MovedLead component="Button" across={across} handed={[]} />)).toContain(
       'what it announces, its layout and its style values',
     );
   });
@@ -160,7 +160,7 @@ describe('the lead sentence, which is what the page was missing', () => {
       appearance({ subject: 'a', regions: [region({ component: 'Button' })], moved: [] }),
     ]);
 
-    expect(draw(<MovedLead component="Button" across={across} />)).toContain(
+    expect(draw(<MovedLead component="Button" across={across} handed={[]} />)).toContain(
       'pushed by something else',
     );
   });
@@ -168,7 +168,82 @@ describe('the lead sentence, which is what the page was missing', () => {
   it('says nothing at all when no render here compared hashes', () => {
     const across = senseAcross('Button', [appearance({ subject: 'a' })]);
 
-    expect(draw(<MovedLead component="Button" across={across} />)).toBe('');
+    expect(draw(<MovedLead component="Button" across={across} handed={[]} />)).toBe('');
+  });
+
+  it('leaves a band a parent owns out of the sentence about this component', () => {
+    // The complaint this exists for: `button.tsx` restyles a button, a card adds
+    // an `aria-label` to the one it mounts, and the lead told a reviewer to look
+    // for a renamed control in the button's own file.
+    const across = senseAcross('Button', [{ ...appearance({}), subject: SALE }]);
+    const handed = [{ band: 'a11y', holders: ['ProductCard'], moved: 6, held: 10 }];
+
+    const html = draw(<MovedLead component="Button" across={across} handed={handed} />);
+
+    expect(html).toContain('its layout and its style values');
+    expect(html).not.toContain('what it announces');
+  });
+
+  it('keeps *all of it was handed down* apart from *none of it moved*', () => {
+    const across = senseAcross('Button', [
+      appearance({ subject: 'a', moved: [{ component: 'Button', bands: ['a11y'], cause: true }] }),
+    ]);
+    const handed = [{ band: 'a11y', holders: ['ProductCard'], moved: 1, held: 3 }];
+
+    expect(draw(<MovedLead component="Button" across={across} handed={handed} />)).toContain(
+      'Nothing of <strong>Button</strong>’s own moved',
+    );
+    expect(draw(<MovedLead component="Button" across={across} handed={[]} />)).toContain(
+      'what it announces',
+    );
+  });
+});
+
+describe('the band a parent handed down', () => {
+  const go = (): void => {};
+
+  it('names the holder and the partition that found it', () => {
+    const html = draw(
+      <HandedTo
+        handed={[{ band: 'a11y', holders: ['ProductCard'], moved: 6, held: 10 }]}
+        build="9"
+        changes={new Set(['ProductCard'])}
+        go={go}
+      />,
+    );
+
+    expect(html).toContain('what it announces');
+    expect(html).toContain('ProductCard');
+    expect(html).toContain('6 renders it draws');
+    expect(html).toContain('still in the other 10');
+  });
+
+  it('links the holder only when the docket has a page for it', () => {
+    const handed = [{ band: 'a11y', holders: ['ProductCard'], moved: 6, held: 10 }];
+
+    expect(
+      draw(<HandedTo handed={handed} build="9" changes={new Set()} go={go} />),
+    ).not.toContain('href');
+    expect(
+      draw(<HandedTo handed={handed} build="9" changes={new Set(['ProductCard'])} go={go} />),
+    ).toContain('/builds/9/changes/ProductCard');
+  });
+
+  it('names both holders when the partition fits two, and draws nothing on none', () => {
+    // Naming one of two is a route a reviewer would check and find half of.
+    const html = draw(
+      <HandedTo
+        handed={[{ band: 'a11y', holders: ['CartCard', 'ProductCard'], moved: 4, held: 6 }]}
+        build="9"
+        changes={new Set()}
+        go={go}
+      />,
+    );
+
+    expect(html).toContain('CartCard');
+    expect(html).toContain('ProductCard');
+    expect(html).toContain('they draw');
+    expect(draw(<HandedTo handed={[]} build="9" changes={new Set()} go={go} />)).toBe('');
   });
 });
 

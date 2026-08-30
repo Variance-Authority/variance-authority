@@ -48,8 +48,9 @@ import type { ReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
 import { distanceFrom } from './distance.js';
 import type { Appearance, Origin } from './grouping.js';
+import { handedTo } from './handed.js';
 import { Look } from './look.js';
-import { MovedElsewhere, MovedLead, WhatMoved } from './moved.js';
+import { HandedTo, MovedElsewhere, MovedLead, WhatMoved } from './moved.js';
 import { movedElsewhere, senseAcross } from './sense.js';
 import { Go, messageOf } from './shell.js';
 import type { Route } from './route.js';
@@ -78,6 +79,7 @@ export function ChangePanel({
 }): ReactElement {
   const sourced = build.causes.some((cause) => cause.file !== undefined);
   const across = senseAcross(origin.component, origin.appearances);
+  const handed = handedTo(build)(origin.component);
   const far = distanceFrom(build, origin.component);
   const elsewhere = movedElsewhere(
     origin.component,
@@ -109,9 +111,14 @@ export function ChangePanel({
         </header>
 
         <p className="va-decide-lead">
-          <MovedLead component={origin.component} across={across} />
+          <MovedLead component={origin.component} across={across} handed={handed} />
           <Spread origin={origin} />
         </p>
+
+        {/* What the lead just stopped saying, and who owns it. A band a parent
+            hands down is decided in the parent's file, so it is named before the
+            reviewer looks at a crop and goes hunting for it in this one. */}
+        <HandedTo handed={handed} build={build.build} changes={changes} go={go} />
 
         {/* Second, and before a word of prose: the differences themselves, one
             per shape. Everything under this is the page reasoning about a change
