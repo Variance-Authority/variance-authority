@@ -81,7 +81,7 @@ function Row({
   return (
     <li className={`va-finding va-finding-${age}`}>
       <p className="va-finding-title">
-        {headline(finding.rule)}
+        <span className="va-finding-said">{headline(finding.rule)}</span>
         <span className="va-finding-marks">
           {times > 1 ? <span className="va-times">{number(times)} places</span> : null}
           <span className={`va-age va-age-${age}`} title={AGE_WHY[age]}>

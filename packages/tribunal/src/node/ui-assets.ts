@@ -14,7 +14,12 @@ import { REVIEW_STYLES } from '../ui/styles.js';
  * page agents do.
  *
  * What is left here is the page that loads it: a document, the stylesheet inlined,
- * and the configuration the entry reads. The configuration goes in a
+ * and the configuration the entry reads. The script src is **absolute**, and that
+ * is not a style choice — this same document is served at every address in
+ * [`ui/route.ts`](../ui/route.ts), and a relative `ui/review.js` resolves against
+ * the one it was fetched from. On `/builds/7/changes/Button` it asks for
+ * `/builds/7/changes/ui/review.js`, gets the router's 404, and renders a blank
+ * page with an error in a console nobody opened. The configuration goes in a
  * `application/json` script rather than into the bundle, because the endpoint and
  * the reviewer are properties of a *deployment* and the bundle is built once for
  * all of them.
@@ -59,7 +64,7 @@ ${REVIEW_STYLES}</style>
 <body>
 <div id="variance-review"></div>
 <script type="application/json" id="variance-config">${safely(configuration)}</script>
-<script type="module" src="ui/review.js"></script>
+<script type="module" src="/ui/review.js"></script>
 </body>
 </html>
 `;

@@ -40,6 +40,7 @@
  * Inter and JetBrains Mono first and fall back to the system stacks: this sheet is
  * handed over as text, so it can ask for a face and must not require one.
  */
+import { DOCKET_STYLES } from './styles-docket.js';
 import { STAGE_STYLES } from './styles-stage.js';
 
 /**
@@ -138,7 +139,7 @@ export const REVIEW_STYLES = `
 
 /* The rail: every reviewable subject at a glance, so the reviewer chooses which
    render to open instead of scrolling through all of them. */
-.va-rail { background: var(--va-surface); border-right: 1px solid var(--va-line); flex: none; padding: 0.6rem; width: 20rem; }
+.va-rail { background: var(--va-surface); border-right: 1px solid var(--va-line); display: flex; flex-direction: column; flex: none; min-height: 0; padding: 0.6rem; width: 21rem; }
 .va-rail-group { align-items: center; color: var(--va-ink-3); display: flex; font-size: 0.7rem; font-weight: 700; gap: 0.4rem; letter-spacing: 0.09em; padding: 0.9rem 0.55rem 0.35rem; text-transform: uppercase; }
 .va-rail-count { background: var(--va-sunken); border-radius: 999px; color: var(--va-ink-2); font-size: 0.7rem; letter-spacing: 0; padding: 0 0.4rem; }
 .va-rail-item { align-items: center; background: none; border: 1px solid transparent; border-radius: 8px; display: flex; gap: 0.55rem; margin-bottom: 0.1rem; padding: 0.45rem 0.55rem; text-align: left; width: 100%; }
@@ -350,6 +351,7 @@ export const REVIEW_STYLES = `
 .va-how { color: var(--va-ink-3); font-size: 0.75rem; }
 
 ${STAGE_STYLES}
+${DOCKET_STYLES}
 
 .va-filter { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
 
@@ -378,7 +380,12 @@ ${STAGE_STYLES}
 .va-findings { display: grid; gap: 0.7rem; }
 .va-finding { border-left: 2px solid var(--va-line-firm); padding-left: 0.7rem; }
 .va-finding-new { border-left-color: var(--va-warn); }
-.va-finding-title { align-items: baseline; display: flex; font-size: 0.88rem; font-weight: 650; gap: 0.5rem; justify-content: space-between; }
+/* The headline is an item and the marks may wrap under it. Left as a bare text
+   node beside two flex-none badges it became an anonymous item with nothing
+   holding its width, and "a control inside another control" read down the rail
+   one word to a line. */
+.va-finding-title { align-items: baseline; display: flex; flex-wrap: wrap; font-size: 0.88rem; font-weight: 650; gap: 0.5rem; justify-content: space-between; }
+.va-finding-said { flex: 1 1 9rem; }
 .va-finding-marks { align-items: baseline; display: flex; flex: none; gap: 0.45rem; }
 .va-times { color: var(--va-accent); flex: none; font-family: var(--va-mono); font-size: 0.72rem; font-weight: 500; }
 .va-age { border-radius: 5px; color: var(--va-ink-3); flex: none; font-size: 0.7rem; font-weight: 500; padding: 0.1rem 0.4rem; white-space: nowrap; }

@@ -2676,6 +2676,7 @@
         "ChurnLine": "function",
         "CoverageLine": "function",
         "DeclarationsPanel": "function",
+        "Order": "type",
         "Origin": "interface",
         "Origins": "interface",
         "OriginsPanel": "function",
@@ -2687,6 +2688,7 @@
         "ReviewClient": "interface",
         "ReviewClientOptions": "interface",
         "ReviewRequestError": "class",
+        "Route": "type",
         "Settled": "function",
         "StabilityLine": "function",
         "SubjectHistory": "function",
@@ -2695,9 +2697,12 @@
         "Viewer": "function",
         "ViewerMode": "type",
         "createReviewClient": "function",
+        "hrefOf": "function",
+        "isPagePath": "function",
         "modesFor": "function",
         "needsReview": "function",
-        "originsOf": "function"
+        "originsOf": "function",
+        "parseRoute": "function"
       },
       "./next": {
         "TribunalRouteOptions": "interface",

@@ -2,16 +2,9 @@
  * This run against the run before it — which is a different question from this
  * run against its baseline, and the one nobody in the category asks.
  *
- * A build page compares a candidate to a baseline and stops. So a difference that
- * arrived on Tuesday, went undecided, and arrived again on Wednesday is drawn on
- * Wednesday exactly as it was on Tuesday: eighteen thumbnails, no memory, and a
- * reviewer re-reading a docket they already read. The second reading costs the
- * same as the first, which is why the fourth one does not happen.
- *
- * The shape digest is what makes the answer exact rather than approximate. Two
- * runs whose leading regions carry the same fingerprint are carrying *the same
- * difference*, not a similar one, and that licenses the only sentence worth
- * printing here: **you have seen this, and it has not moved since.**
+ * [`shift.ts`](./shift.ts) does the crossing. What is decided here is how it
+ * reads: which states open the section, what each one is worth saying, and how
+ * much of the earlier run travels onto a row.
  *
  * ## The decision on the earlier run is part of the finding
  *
@@ -21,123 +14,20 @@
  * and this is its second delivery. Same shape, three different afternoons — so the
  * earlier decision is carried onto the row rather than summarised away.
  *
- * ## Absent is not equal
+ * ## Ranked by what it costs to miss
  *
- * A run that recorded no shape for its leading region said nothing, and two runs
- * that both said nothing did not agree. Those get their own state and their own
- * sentence, because folding them into *the same difference again* would be a
- * confident claim about a pair nothing measured — on the one screen where the
- * claim tells somebody they can skip looking.
+ * Not by how many subjects land in a state. *The same difference again* is
+ * usually the largest group and the least urgent one, and it is not allowed to
+ * open the section and push the two states above it under the fold.
  */
 
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { greenBecause } from '@variance-authority/report';
-import type { BuildDetail, BuildSummary, SubjectView } from '../review-types.js';
+import type { BuildDetail, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
-import { shapeOf } from './lead.js';
+import { useCrossing, type Crossing } from './crossing.js';
+import type { Divergence, Shift, Shifted } from './shift.js';
 import { count, number, when } from './text.js';
-
-/** What became of one subject between the two runs. */
-export type Shift =
-  | 'differently'
-  | 'unsaid'
-  | 'first'
-  | 'new'
-  | 'again'
-  | 'settled'
-  | 'declared'
-  | 'absorbed'
-  | 'unmasked'
-  | 'unplaced'
-  | 'uncompared'
-  | 'dropped'
-  | 'held';
-
-export interface Shifted {
-  readonly subject: string;
-  readonly shift: Shift;
-  /** This run's reading. Absent only when the subject was dropped. */
-  readonly now?: SubjectView;
-  /** The earlier run's reading, including whatever was decided about it. */
-  readonly earlier?: SubjectView;
-}
-
-export interface Divergence {
-  readonly shifts: readonly Shifted[];
-  /** Subjects both runs compared and neither found a difference in. */
-  readonly held: number;
-}
-
-/**
- * The two runs crossed, one row per subject either of them named.
- *
- * Union rather than intersection: a subject the earlier run had and this one does
- * not is a suite that shrank, and an intersection would report that as nothing
- * having happened.
- */
-export function divergeFrom(now: BuildDetail, prior: BuildDetail): Divergence {
-  const before = new Map(prior.subjects.map((subject) => [subject.subject, subject]));
-  const shifts: Shifted[] = [];
-  let held = 0;
-
-  for (const subject of now.subjects) {
-    const earlier = before.get(subject.subject);
-    before.delete(subject.subject);
-    const shift = shiftOf(subject, earlier);
-    if (shift === 'held') held += 1;
-    else shifts.push({ subject: subject.subject, shift, now: subject, ...(earlier === undefined ? {} : { earlier }) });
-  }
-
-  for (const earlier of before.values()) {
-    shifts.push({ subject: earlier.subject, shift: 'dropped', earlier });
-  }
-
-  return { shifts, held };
-}
-
-/**
- * Whether a verdict describes a pair this run actually put side by side.
- *
- * `ignored` belongs here and reads as though it does not. A declaration decided
- * it, but the comparison it decided happened: there was a baseline, there were
- * differing pixels, and every one of them landed somewhere the operator wrote
- * down. Filing it with `incomparable` told a reviewer *no baseline was put beside
- * them here* about subjects that were compared — an absence invented on top of a
- * measurement, which is the one thing this panel exists not to do.
- */
-function compared(subject: SubjectView): boolean {
-  return (
-    subject.verdict === 'changed' ||
-    subject.verdict === 'unchanged' ||
-    subject.verdict === 'ignored'
-  );
-}
-
-function shiftOf(now: SubjectView, earlier: SubjectView | undefined): Shift {
-  if (earlier === undefined) return 'new';
-  if (!compared(now)) return 'uncompared';
-  if (!compared(earlier)) return 'unplaced';
-
-  // A declaration standing over both runs is bookkeeping; one that arrived
-  // between them is a rule that has just taken a subject out of review, and the
-  // subject it took is named. That is the moment a mask starts covering
-  // something, and it is visible exactly once — here.
-  if (now.verdict === 'ignored') return earlier.verdict === 'ignored' ? 'declared' : 'absorbed';
-
-  // The other direction. A subject a rule absorbed there and nothing absorbs
-  // here either stopped differing — which is `settled`, and true whether or not
-  // a rule was watching — or is being reported, which is the rule failing to
-  // cover what it was written for.
-  if (earlier.verdict === 'ignored') return now.verdict === 'unchanged' ? 'settled' : 'unmasked';
-
-  if (now.verdict === 'unchanged') return earlier.verdict === 'unchanged' ? 'held' : 'settled';
-  if (earlier.verdict === 'unchanged') return 'first';
-
-  const here = shapeOf(now);
-  const there = shapeOf(earlier);
-  if (here === undefined || there === undefined) return 'unsaid';
-  return here === there ? 'again' : 'differently';
-}
 
 /**
  * The order the states are read in, and what each one is worth saying.
@@ -244,35 +134,18 @@ export function DivergencePanel({
   readonly client: ReviewClient;
   readonly build: BuildDetail;
 }): ReactElement | null {
-  const [earlier, setEarlier] = useState<
-    | { readonly state: 'loading' }
-    | { readonly state: 'none' }
-    | { readonly state: 'failed'; readonly why: string }
-    | { readonly state: 'ready'; readonly value: BuildDetail }
-  >({ state: 'loading' });
+  return <DivergenceOf crossing={useCrossing(client, build)} />;
+}
 
-  const load = useCallback(async (): Promise<void> => {
-    try {
-      const builds = await client.builds();
-      const previous = previousOf(builds, build.build);
-      if (previous === undefined) {
-        setEarlier({ state: 'none' });
-        return;
-      }
-      setEarlier({ state: 'ready', value: await client.build(previous.build) });
-    } catch (error) {
-      // Reported, never swallowed. An empty section here reads as *nothing has
-      // changed since the last run*, which is the sentence somebody merges on.
-      setEarlier({ state: 'failed', why: error instanceof Error ? error.message : String(error) });
-    }
-  }, [client, build.build]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (earlier.state === 'loading') return null;
-  if (earlier.state === 'none') {
+/**
+ * The crossing as a section, from a reading somebody else paid for.
+ *
+ * Separate from the fetch so the build page can load the previous run once and
+ * spend it on both this and the line under each change.
+ */
+export function DivergenceOf({ crossing }: { readonly crossing: Crossing }): ReactElement | null {
+  if (crossing.state === 'loading') return null;
+  if (crossing.state === 'none') {
     return (
       <section className="va-card">
         <h2>Since the last run</h2>
@@ -283,48 +156,29 @@ export function DivergencePanel({
       </section>
     );
   }
-  if (earlier.state === 'failed') {
+  if (crossing.state === 'failed') {
     return (
       <section className="va-card">
         <h2>Since the last run</h2>
         <p className="va-failure">
           The earlier run could not be read, so nothing on this page says which of these differences
-          you have already seen: {earlier.why}
+          you have already seen: {crossing.why}
         </p>
       </section>
     );
   }
 
-  return <Crossed now={build} earlier={earlier.value} />;
-}
-
-/**
- * The run before this one, as the store lists them.
- *
- * By position rather than by clock. Two runs pushed from one machine can carry
- * the same timestamp to the millisecond — both example builds here do — and
- * picking on `at` would compare a build against itself or against its own
- * successor. The listing is newest first and breaks a tied clock by arrival, so
- * position is a total order where the timestamp is not. The build it lands on is
- * named on the page, because a reader who disagrees with the pick can only say so
- * if they can see it.
- */
-function previousOf(
-  builds: readonly BuildSummary[],
-  build: string,
-): BuildSummary | undefined {
-  const at = builds.findIndex((each) => each.build === build);
-  return at === -1 ? undefined : builds[at + 1];
+  return <Crossed earlier={crossing.earlier} divergence={crossing.divergence} />;
 }
 
 function Crossed({
-  now,
   earlier,
+  divergence,
 }: {
-  readonly now: BuildDetail;
   readonly earlier: BuildDetail;
+  readonly divergence: Divergence;
 }): ReactElement {
-  const { shifts, held } = divergeFrom(now, earlier);
+  const { shifts, held } = divergence;
   const against = `build ${earlier.build}`;
   const known = shifts.filter((each) => each.shift === 'again').length;
   // `unmasked` counts here. A subject the earlier run showed nobody, because a

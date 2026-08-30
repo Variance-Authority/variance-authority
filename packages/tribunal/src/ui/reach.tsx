@@ -298,8 +298,9 @@ function Unplaced({ crossing }: { readonly crossing: Crossing }): ReactElement |
       )}
       {crossing.incomparable === 0 ? null : (
         <>
-          {count(crossing.incomparable, 'subject')} was new or could not be compared, so there is no
-          moved-or-still to cross.
+          {count(crossing.incomparable, 'subject')}{' '}
+          {crossing.incomparable === 1 ? 'was' : 'were'} new or could not be compared, so there is
+          no moved-or-still to cross.
         </>
       )}
     </p>

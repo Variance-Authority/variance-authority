@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { createTribunalRoutes } from '../next.js';
 import type { Tribunal } from '../worker.js';
+import { isPagePath } from '../ui/route.js';
 import { reviewPage, uiAsset } from './ui-assets.js';
 
 /**
@@ -132,15 +133,22 @@ export function createRequestListener(
 /**
  * The surface and its bundle, ahead of the API.
  *
- * Only two paths, and both are exact: a prefix match would shadow a future route
- * the day one is added, and this file must not be the reason a request never
- * reached the router.
+ * Which paths are pages is not decided here. [`ui/route.ts`](../ui/route.ts)
+ * holds the table, the browser reads it to turn a path into a view, and this
+ * reads the same table to decide who gets the document — because the alternative
+ * is two lists, and they drift in the worst direction: a link the client renders
+ * happily and the server answers with a 404.
+ *
+ * Still no prefix match. Every pattern is anchored and none of them shares a
+ * first segment with an API route; `serve.test.ts` holds the two apart rather
+ * than trusting the reading, since this file must not be the reason a request
+ * never reached the router.
  */
 async function pageOrAsset(request: Request, reviewer?: string): Promise<Response | null> {
   const path = new URL(request.url).pathname;
   if (request.method !== 'GET' && request.method !== 'HEAD') return null;
 
-  if (path === '/' || path === '/index.html') {
+  if (isPagePath(path)) {
     return new Response(reviewPage({ endpoint: '', ...(reviewer === undefined ? {} : { reviewer }) }), {
       headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
     });

@@ -309,6 +309,14 @@ function Sighted({
  * wrong invisibly. A baseline stretched to the candidate's width turns a width
  * change into a hairline, and at 3× on a 130-pixel region the hairline is off
  * screen entirely.
+ *
+ * Nothing here is `loading="lazy"`, and that is the point rather than an
+ * oversight. The plate is the whole capture, translated so the region lands in a
+ * 264px window — on a mobile route that is a 17,000px offset, which puts the
+ * element's box far outside the viewport and leaves a lazy image deferred
+ * forever. The crop drew an empty frame with a red ring on it and looked like a
+ * picture of a difference nobody could see. The deferral this file argues for is
+ * the reveal: nothing is requested until somebody presses the button.
  */
 function Crop({
   client,
@@ -343,7 +351,6 @@ function Crop({
             className="va-under"
             src={url('before')}
             alt=""
-            loading="lazy"
             decoding="async"
             style={share(subject.baseline, box)}
           />
@@ -352,7 +359,6 @@ function Crop({
           <img
             src={url('after')}
             alt=""
-            loading="lazy"
             decoding="async"
             style={{
               ...share(subject.size, box),

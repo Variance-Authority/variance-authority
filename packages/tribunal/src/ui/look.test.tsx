@@ -227,6 +227,21 @@ describe('the strip is revealed, and both readings stay mounted', () => {
     expect(host.textContent).toContain('3 further shapes');
   });
 
+  it('asks for the raster outright, because the plate is nowhere near the viewport', () => {
+    // A mobile route capture is 390 by 8868, and centring a region near its foot
+    // puts the plate 17,000px above the window. A lazy image there is never in
+    // view, so it is never fetched — and the crop draws its red ring over a
+    // frame of nothing. The reveal is the deferral; the load is not deferred
+    // again on top of it.
+    show([appearance()]);
+    press('Look at the change');
+
+    expect([...host.querySelectorAll('img')].map((each) => each.getAttribute('loading'))).toEqual([
+      null,
+      null,
+    ]);
+  });
+
   it('offers no flip when the run kept no baseline to flip to', () => {
     show([
       appearance({

@@ -4,7 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { BuildDetail, BuildSummary, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
-import { DivergencePanel, divergeFrom } from './divergence.js';
+import { DivergencePanel } from './divergence.js';
+import { divergeFrom } from './shift.js';
 
 /**
  * Two runs crossed, held to the one thing that makes the crossing worth anything:

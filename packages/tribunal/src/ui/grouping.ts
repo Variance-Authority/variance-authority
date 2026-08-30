@@ -40,7 +40,6 @@
 
 import type { BuildDetail, SubjectView } from '../review-types.js';
 import { leadOf } from './lead.js';
-import { count, number } from './text.js';
 
 /** One subject an origin showed up in. */
 export interface Appearance {
@@ -84,6 +83,16 @@ export interface Origin {
    * every third-party component on the page as well.
    */
   readonly stranded?: readonly string[];
+  /**
+   * Renders this origin showed up in that the reach record says nothing about.
+   *
+   * Split out of {@link Origin.stranded}, and the split is not pedantry. A report
+   * that carried component-level reach and no per-subject block put every one of
+   * its renders in the unreached pile, and the panel spent its loudest sentence —
+   * *the commit reaches nothing at all in this render* — on the ordinary fact
+   * that nobody wrote the row down. Absent is not empty.
+   */
+  readonly unlisted?: readonly string[];
 }
 
 export interface Origins {
@@ -161,21 +170,28 @@ export function originsOf(build: BuildDetail): Origins {
  * question is not *does the commit know this name* but *does the commit arrive in
  * the pictures where this name moved*, and those have different answers exactly
  * when the answer matters.
+ *
+ * Three piles, not two. A render the reach record has no row for is not a render
+ * the commit fails to reach — it is a render nobody asked about — and folding
+ * those together is how a report with no per-subject block ends up printing the
+ * page's loudest sentence over every change in the build.
  */
 function around(
   reach: NonNullable<BuildDetail['reach']>,
   appearances: readonly Appearance[],
-): { through: readonly string[]; stranded: readonly string[] } {
+): { through: readonly string[]; stranded: readonly string[]; unlisted: readonly string[] } {
   const through = new Set<string>();
   const stranded: string[] = [];
+  const unlisted: string[] = [];
 
   for (const { subject } of appearances) {
     const entry = reach.subjects?.[subject.subject];
-    if (entry?.reached === true) for (const name of entry.through) through.add(name);
+    if (entry === undefined) unlisted.push(subject.subject);
+    else if (entry.reached) for (const name of entry.through) through.add(name);
     else stranded.push(subject.subject);
   }
 
-  return { through: [...through].sort(), stranded };
+  return { through: [...through].sort(), stranded, unlisted };
 }
 
 /**
@@ -195,21 +211,4 @@ export function shapesOf(appearances: readonly Appearance[]): Map<string, number
     clusters.set(each.shape, (clusters.get(each.shape) ?? 0) + 1);
   }
   return clusters;
-}
-
-/**
- * How large this change is, counted in what is being decided.
- *
- * A pixel total is the figure this category leads with and the least useful one
- * available: it is one number for every size of change, and on the restyle that
- * moves everything it degenerates to a number nobody can act on. Distinct shapes
- * over the places they landed says the thing the total cannot — *one edit, seven
- * renders* is a different afternoon from *seven edits, seven renders*.
- */
-export function scale(appearances: readonly Appearance[]): string {
-  const shapes = shapesOf(appearances).size;
-  const pixels = appearances.reduce((total, each) => total + each.pixels, 0);
-  const places = `${count(appearances.length, 'region')} · ${number(pixels)} px`;
-
-  return shapes === 0 ? places : `${count(shapes, 'change')} · ${places}`;
 }

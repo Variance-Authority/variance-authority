@@ -1,0 +1,127 @@
+/**
+ * The two panes a build is worked in: the docket rail, and the change beside it.
+ *
+ * Its own module for the same reason [`styles-stage.ts`](./styles-stage.ts) is:
+ * the sheet is one string handed to an operator, and the number of rules a person
+ * has to hold at once to change one of them is a real cost. What is decided here
+ * is *where a reviewer's eye goes first*, which is a layout question with a
+ * correct answer — the band headings and the row a change occupies, above the
+ * fold, in a column that does not grow with the build.
+ *
+ * The rule that matters most is the least visible one: nothing in this block
+ * scrolls the document. The rail scrolls through the changes, the stage scrolls
+ * through the one that is open, and the page itself is fixed to the viewport. A
+ * surface where the document scrolls is a report; a surface where the panes
+ * scroll is a place a reviewer navigates.
+ */
+export const DOCKET_STYLES = `
+/* The trail, which is the whole navigation. Five of the seven pages are *about*
+   the page above them, and a trail says that where a menu would assert they are
+   peers. */
+.va-crumbs { align-items: center; display: flex; gap: 0.3rem; min-width: 0; }
+.va-crumb { color: var(--va-ink-3); font-size: 0.8rem; text-decoration: none; white-space: nowrap; }
+.va-crumb:hover { color: var(--va-accent); }
+.va-crumb-sep { color: var(--va-line-firm); font-size: 0.8rem; }
+
+/* Changes or subjects: the two ways to work a build, as two addresses rather
+   than as a piece of component state. */
+.va-switch { background: var(--va-sunken); border-radius: 9px; display: flex; flex: none; gap: 0.15rem; margin-bottom: 0.5rem; padding: 0.2rem; }
+.va-switch .va-mode { flex: 1; text-align: center; text-decoration: none; }
+.va-switch .va-mode.va-on { background: var(--va-accent-soft); color: var(--va-accent); font-weight: 650; }
+.va-switch .va-mode.va-off { color: var(--va-ink-3); cursor: not-allowed; }
+
+.va-rail-head { align-items: center; display: flex; flex: none; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.15rem 0.5rem; }
+.va-rail-tally { color: var(--va-ink-3); font-size: 0.76rem; margin-right: auto; }
+.va-rail-empty { padding: 0.6rem 0.15rem; }
+/* The scrolling half. \`min-height: 0\` is what keeps it scrolling rather than
+   pushing the rail past the bottom of the window — a flex child's default
+   minimum is its content, and a build of forty changes would take the viewport
+   with it. */
+.va-rail-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+/* The orders. Small, and deliberately not a select: four addresses a reader can
+   middle-click, which a select cannot be. */
+.va-sorting { display: inline-flex; gap: 0.1rem; }
+.va-sort { border-radius: 6px; color: var(--va-ink-3); font-family: var(--va-mono); font-size: 0.66rem; letter-spacing: 0.06em; padding: 0.15rem 0.4rem; text-decoration: none; text-transform: uppercase; }
+.va-sort:hover { background: var(--va-sunken); color: var(--va-ink); }
+.va-sort.va-on { background: var(--va-accent-soft); color: var(--va-accent); }
+
+/* A band, and the sentence that says why its rows are together. The left edge
+   carries the band's meaning: an alarm is red, a decision is green, and the
+   ordinary work you asked for is the accent. */
+.va-band { border-left: 2px solid var(--va-line-firm); margin: 0 0 0.9rem 0.15rem; padding-left: 0.7rem; }
+.va-band h3 { align-items: center; display: flex; font-size: 0.76rem; font-weight: 700; gap: 0.4rem; letter-spacing: 0.05em; margin-bottom: 0.15rem; text-transform: uppercase; }
+.va-band h3 .va-num { background: var(--va-sunken); border-radius: 999px; color: var(--va-ink-2); font-size: 0.7rem; letter-spacing: 0; padding: 0 0.4rem; }
+.va-band > .va-note { font-size: 0.74rem; margin-bottom: 0.35rem; }
+.va-band-stranded { border-left-color: var(--va-bad); }
+.va-band-stranded h3 { color: var(--va-bad-ink); }
+.va-band-reached { border-left-color: var(--va-accent); }
+.va-band-unnamed { border-left-color: var(--va-line-firm); }
+.va-band-unread { border-left-color: var(--va-warn); }
+.va-band-decided { border-left-color: var(--va-good); }
+.va-band-orphan { border-left-color: var(--va-warn); }
+
+/* One change, in a row a reviewer scans a column of. The name is the only thing
+   at full contrast; everything else on the row is there to be skipped. */
+.va-row { margin-bottom: 0.1rem; }
+.va-row-link { align-items: baseline; border: 1px solid transparent; border-radius: 8px; column-gap: 0.5rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 0.35rem 0.5rem; row-gap: 0.05rem; text-decoration: none; }
+.va-row-link:hover { background: var(--va-sunken); }
+.va-row.va-here .va-row-link { background: var(--va-accent-soft); border-color: var(--va-accent); }
+.va-row-name { font-size: 0.88rem; font-weight: 550; grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.va-row-spread { font-size: 0.74rem; grid-area: 2 / 1; }
+.va-row-size { color: var(--va-ink-3); font-size: 0.74rem; grid-area: 2 / 2; text-align: right; }
+.va-row .va-mark { font-size: 0.68rem; grid-area: 1 / 2; justify-self: end; }
+
+/* The page with nothing open: four sentences and two links, and no encyclopedia.
+   Everything a reader could want past this has an address of its own. */
+.va-opening { max-width: 44rem; }
+.va-opening h1 { margin-bottom: 0.3rem; }
+.va-opening-links { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.4rem; }
+
+/* The change itself. The two buttons are in the head, level with the component
+   name: every line below them is a reason to press one or to refuse, and a
+   reviewer who has read them should not scroll back past the reasons to act. */
+.va-decide { max-width: 62rem; }
+.va-decide-head { align-items: flex-start; border-bottom: 1px solid var(--va-line); display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: space-between; padding-bottom: 0.8rem; }
+.va-decide-head h1 { margin: 0; }
+.va-decide-lead { font-size: 1rem; margin-top: 0.8rem; }
+.va-decide-act { align-items: center; display: flex; flex-wrap: wrap; gap: 0.55rem; }
+.va-decide-act button { font-weight: 600; }
+.va-decide-act .va-approve { background: var(--va-good); border-color: var(--va-good); color: #ffffff; }
+.va-decide-act .va-approve:disabled { background: var(--va-sunken); border-color: var(--va-line-firm); color: var(--va-ink-3); }
+.va-decide h2 { font-size: 0.78rem; letter-spacing: 0.08em; margin-top: 1.6rem; text-transform: uppercase; }
+
+/* Whether the commit arrives, in the three colours the three answers deserve.
+   The alarm is spent on one of them and must stay that way: a page that shouted
+   over every component out of a dependency trained the alarm out of its readers
+   inside a build. */
+.va-reaches { border-radius: 7px; font-size: 0.9rem; margin-top: 0.9rem; padding: 0.5rem 0.7rem; }
+.va-reaches.va-reached { background: var(--va-info-bg); color: var(--va-info-ink); }
+.va-reaches.va-alarm { background: var(--va-bad-bg); color: var(--va-bad-ink); }
+.va-reaches.va-unnamed { background: var(--va-info-bg); color: var(--va-info-ink); }
+
+/* What the last run said, beside the change rather than nine thousand pixels
+   below it. Warm rather than red: *you have seen this* is not an alarm, it is
+   the sentence a reviewer skips work on. */
+.va-since { border-radius: 7px; font-size: 0.9rem; margin-top: 0.7rem; padding: 0.5rem 0.7rem; }
+.va-since.va-known { background: var(--va-warn-bg); color: var(--va-warn-ink); }
+.va-collateral-note { margin-top: 1.6rem; }
+
+/* Where it showed up: one row per render, each decidable on its own, because a
+   batch that could only be taken whole would be a batch nobody could refuse
+   part of. */
+.va-where { display: grid; gap: 0.15rem; margin-top: 0.5rem; }
+.va-where-row { align-items: baseline; border-radius: 8px; column-gap: 0.6rem; display: grid; grid-template-columns: minmax(6rem, 15rem) auto auto minmax(0, 1fr) auto; padding: 0.35rem 0.5rem; }
+.va-where-row:hover { background: var(--va-sunken); }
+.va-where-subject { font-size: 0.88rem; font-weight: 550; grid-column: 1; overflow: hidden; text-overflow: ellipsis; text-decoration: none; white-space: nowrap; }
+.va-where-size { grid-column: 2; text-align: right; }
+.va-where-row .va-mark { grid-column: 3; }
+.va-where-with { grid-column: 4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.va-where-row .va-note { font-size: 0.76rem; }
+.va-where-act { display: flex; gap: 0.25rem; grid-column: 5; justify-self: end; }
+.va-where-row > .va-mark:last-child { grid-column: 5; justify-self: end; }
+.va-where-act button { border-radius: 6px; font-size: 0.8rem; line-height: 1; padding: 0.2rem 0.5rem; }
+.va-where-act .va-approve:not(:disabled) { border-color: var(--va-good); color: var(--va-good-ink); }
+.va-mark.va-known { background: var(--va-warn-bg); border-radius: 999px; color: var(--va-warn-ink); font-size: 0.68rem; padding: 0.05rem 0.4rem; }
+.va-mark.va-alarm { background: var(--va-bad-bg); border-radius: 999px; color: var(--va-bad-ink); font-size: 0.68rem; padding: 0.05rem 0.4rem; }
+`;

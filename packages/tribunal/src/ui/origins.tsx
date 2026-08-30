@@ -1,446 +1,301 @@
 /**
- * The changes, drawn: one card per origin, and the decision on it.
+ * The docket: every change in the build, banded, in a rail beside the one open.
  *
- * What a change *is* — which subjects belong to it, what the diff says about it,
- * what shape it repeats in — is decided in [`grouping.ts`](./grouping.ts) and
- * only read here. This file is the card: what the reviewer is told, in what
- * order, and which of it they can act on without leaving.
+ * This was a stack of cards. Each carried a component, a file path, a ratio and a
+ * fingerprint, and a reviewer arriving at a build of eleven changes met eleven of
+ * them stacked vertically — the second one below the fold, the divergence panel
+ * that would have told them they had already seen four of these nine thousand
+ * pixels further down. A page cannot be both the index and the entry, and when it
+ * tries the index wins the top of the screen and says nothing.
  *
- * The order is the argument. A card opens with the component, says whether the
- * commit arrives there, says whether the differences under it look alike, offers
- * the change to be looked at, and only then offers the two buttons. Every line
- * above the buttons is a reason to press one of them or to refuse — a surface
- * that led with the buttons would be a faster way to approve things nobody read.
+ * So the list stopped carrying the story. A row says which change it is, how far
+ * it went, and the single thing about it a reviewer would want before opening it:
+ * that nothing reaches it, that build 5 showed it to them already, that it is
+ * done. Everything else moved to [`change.tsx`](./change.tsx), where there is room
+ * to say it beside the picture.
+ *
+ * ## The bands are the order
+ *
+ * A list of changes sorted by pixels answers *which of these is biggest*, and
+ * nobody has ever needed to know that. The first band is the changes nothing in
+ * the commit reaches — the ones that are either a real regression or a gap in the
+ * graph, and either way the ones worth the reviewer's first hour. Then the ones
+ * they asked for, then the ones the diff cannot name, then what is already
+ * decided. Within a band, alphabetical: a reviewer looking for `Button` should
+ * find it where `Button` goes, not wherever this run's pixel counts put it.
+ *
+ * The other orders exist because a band is a claim and a reviewer is allowed to
+ * disbelieve it. [`order.ts`](./order.ts) holds them all.
  */
 
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import type { Churn } from '@variance-authority/history';
-import type { BuildDetail, Decision } from '../review-types.js';
-import type { ReviewClient } from './client.js';
-import { originsOf, scale, shapesOf, type Appearance, type Origin } from './grouping.js';
-import { ChurnLine } from './history.js';
-import { Look } from './look.js';
+import type { ReactElement } from 'react';
+import type { BuildDetail, SubjectView } from '../review-types.js';
+import type { Crossing } from './crossing.js';
+import { originsOf, shapesOf, type Origin } from './grouping.js';
+import { docketOf, ORDERS, type Group } from './order.js';
+import type { Order, Route } from './route.js';
+import { Go } from './shell.js';
 import { count, magnitude, number } from './text.js';
 
 export function OriginsPanel({
-  client,
-  reviewer,
   build,
-  onDecided,
-  onOpen,
+  crossing,
+  order,
+  selected,
+  go,
 }: {
-  readonly client: ReviewClient;
-  readonly reviewer: string;
   readonly build: BuildDetail;
-  readonly onDecided: () => void;
-  /**
-   * Show one render whole.
-   *
-   * Optional, and the card degrades to text without it: the panel is exported,
-   * and a caller embedding it outside this page has no stage to open into. What
-   * it must never do is render a control that goes nowhere.
-   */
-  readonly onOpen?: ((subject: string) => void) | undefined;
+  readonly crossing: Crossing;
+  readonly order: Order;
+  /** The change on the stage, so the rail can say which row it is. */
+  readonly selected?: string | undefined;
+  readonly go: (route: Route) => void;
 }): ReactElement {
   const { origins, unattributed } = originsOf(build);
-  const subjects = origins.reduce((total, origin) => total + origin.appearances.length, 0);
-  const sourced = build.causes.some((cause) => cause.file !== undefined);
+  const renders = origins.reduce((total, origin) => total + origin.appearances.length, 0);
 
   if (origins.length === 0 && unattributed.length === 0) {
-    return <p className="va-note">Nothing in this build changed, so there is nothing to approve.</p>;
+    return (
+      <div className="va-rail-empty va-note">
+        Nothing in this build changed, so there is nothing to approve.
+      </div>
+    );
   }
 
   return (
     <>
-      <h2>The changes</h2>
-      <p className="va-subtitle">
-        {count(origins.length, 'change')} across {count(subjects, 'subject')}. The decision is the
-        change; the subjects are where it showed up.
-      </p>
-      <p className="va-collateral">
-        {count(build.causes[0]?.collateralPixels ?? 0, 'collateral pixel')} moved with them —
-        regions that shifted because something else did. Counted, not split between the changes:
-        deciding which edit pushed which box around is the one attribution nothing here measured.
-      </p>
-
-      <div className="va-origins">
-        {origins.map((origin) => (
-          <OriginCard
-            key={origin.component}
-            client={client}
-            reviewer={reviewer}
-            build={build.build}
-            origin={origin}
-            sourced={sourced}
-            onDecided={onDecided}
-            onOpen={onOpen}
-          />
-        ))}
+      <div className="va-rail-head">
+        <p className="va-rail-tally">
+          {count(origins.length, 'change')} · {count(renders, 'render')}
+        </p>
+        <Sorting order={order} build={build.build} go={go} />
       </div>
 
-      {unattributed.length === 0 ? null : (
-        <section className="va-origin va-orphan">
-          <h3>Moved with nothing named as the cause</h3>
-          <p className="va-note">
-            No component claimed these, so there is no change to approve them under. They are the
-            renders that have to be opened.
-          </p>
-          <ul className="va-reach-list">
-            {unattributed.map((subject) => (
-              <li key={subject.subject}>
-                <Named subject={subject.subject} onOpen={onOpen} />{' '}
-                <span className="va-note">{magnitude(subject)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <div className="va-rail-list va-scroll">
+        {docketOf(origins, order).map((group) => (
+          <Band
+            key={group.lane + group.title}
+            group={group}
+            build={build.build}
+            crossing={crossing}
+            selected={selected}
+            go={go}
+          />
+        ))}
+
+        {unattributed.length === 0 ? null : (
+          <Unattributed subjects={unattributed} build={build.build} go={go} />
+        )}
+      </div>
     </>
   );
 }
 
-/** A subject's name, and the way in when there is one. */
-function Named({
-  subject,
-  onOpen,
+/** The order picker: four addresses, one of which is the one you are at. */
+function Sorting({
+  order,
+  build,
+  go,
 }: {
-  readonly subject: string;
-  readonly onOpen?: ((subject: string) => void) | undefined;
+  readonly order: Order;
+  readonly build: string;
+  readonly go: (route: Route) => void;
 }): ReactElement {
-  if (onOpen === undefined) return <strong>{subject}</strong>;
-
   return (
-    <button type="button" className="va-open" onClick={() => onOpen(subject)}>
-      {subject}
-    </button>
+    <div className="va-sorting" role="group" aria-label="Order the changes">
+      {ORDERS.map(({ order: each, label, why }) => (
+        <Go
+          key={each}
+          to={{ page: 'build', build, order: each }}
+          go={go}
+          className={each === order ? 'va-sort va-on' : 'va-sort'}
+          title={why}
+        >
+          {label}
+        </Go>
+      ))}
+    </div>
   );
 }
 
-function OriginCard({
-  client,
-  reviewer,
+/** One band, with the sentence that says why its rows are together. */
+function Band({
+  group,
   build,
-  origin,
-  sourced,
-  onDecided,
-  onOpen,
+  crossing,
+  selected,
+  go,
 }: {
-  readonly client: ReviewClient;
-  readonly reviewer: string;
+  readonly group: Group;
   readonly build: string;
-  readonly origin: Origin;
-  readonly sourced: boolean;
-  readonly onDecided: () => void;
-  readonly onOpen?: ((subject: string) => void) | undefined;
+  readonly crossing: Crossing;
+  readonly selected?: string | undefined;
+  readonly go: (route: Route) => void;
 }): ReactElement {
-  const settled = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
-  const open = origin.appearances.filter(
-    ({ subject }) => subject.decision === null && subject.approvable,
-  );
-
   return (
-    <section className="va-origin">
-      <div className="va-origin-head">
-        <h3>{origin.component}</h3>
-        <Declared file={origin.file} sourced={sourced} />
-        <span className="va-origin-pixels va-num">{scale(origin.appearances)}</span>
-      </div>
-
-      <Arrival origin={origin} />
-      <Shapes appearances={origin.appearances} />
-      <Record client={client} component={origin.component} />
-
-      <Look
-        client={client}
-        build={build}
-        component={origin.component}
-        appearances={origin.appearances}
-        onOpen={onOpen}
-      />
-
-      <ul className="va-origin-where">
-        {origin.appearances.map(({ subject, pixels, alongside }) => (
-          <li key={subject.subject}>
-            <span className="va-origin-subject">
-              <Named subject={subject.subject} onOpen={onOpen} />
-            </span>
-            <span className="va-num va-note">{number(pixels)} px</span>
-            {alongside.length === 0 ? null : (
-              <span className="va-note">
-                moved alongside {alongside.slice(0, 3).join(', ')}
-                {alongside.length > 3 ? ` and ${count(alongside.length - 3, 'other')}` : ''}
-              </span>
-            )}
-            {subject.decision === null ? null : (
-              <span
-                className={
-                  subject.decision.decision === 'approved'
-                    ? 'va-mark va-approved'
-                    : 'va-mark va-rejected'
-                }
-              >
-                {subject.decision.decision === 'approved' ? '✓' : '✕'}
-              </span>
-            )}
-          </li>
+    <section className={`va-band va-band-${group.lane}`}>
+      <h3>
+        {group.title} <span className="va-num">{number(group.changes.length)}</span>
+      </h3>
+      <p className="va-note">{group.why}</p>
+      <ul>
+        {group.changes.map((origin) => (
+          <Row
+            key={origin.component}
+            origin={origin}
+            build={build}
+            crossing={crossing}
+            open={origin.component === selected}
+            go={go}
+          />
         ))}
       </ul>
-
-      <Batch
-        client={client}
-        reviewer={reviewer}
-        build={build}
-        origin={origin}
-        open={open}
-        settled={settled}
-        onDecided={onDecided}
-      />
     </section>
   );
 }
 
 /**
- * Where this component is declared, and what it means when nothing says.
+ * One change, in a row a reviewer can scan a column of.
  *
- * A blank is the one answer this cell must not give. The reviewer's next move on
- * an origin they do not recognise is to open the file, and *nothing here* reads
- * as a defect in the tool — when the ordinary cause is that the name belongs to a
- * dependency, which the source index scans no part of and never claimed to. So
- * the two silences are separated: a run that resolved files for other components
- * has said something about this one, and a run that resolved none has not.
+ * Three facts and at most one mark. The fingerprint is not one of them — it is an
+ * identity, not a finding, and it was on the third line of every card in the
+ * version of this surface that told nobody anything. What replaces it is the
+ * count of distinct shapes, which is the part of the same record a reviewer can
+ * act on: one shape across eleven renders is one decision, and nine shapes across
+ * eleven is a component whose renders each absorbed the edit their own way.
  */
-function Declared({
-  file,
-  sourced,
-}: {
-  readonly file?: string | undefined;
-  readonly sourced: boolean;
-}): ReactElement {
-  if (file !== undefined) return <code className="va-file">{file}</code>;
-
-  return (
-    <span
-      className="va-note"
-      title={
-        sourced
-          ? 'This run resolved files for other components in this build, so this is a name its source index does not declare — a component out of a dependency, or one produced at build time.'
-          : 'This run resolved no source files at all, so nothing here says where any of these components are declared.'
-      }
-    >
-      {sourced ? 'not in the scanned source' : 'no source index'}
-    </span>
-  );
-}
-
-/**
- * Whether the commit arrives here, said in four states rather than two.
- *
- * A run with no diff read cannot say, and saying nothing is the only honest
- * version of that. Silence would be indistinguishable from *reached*, which is
- * the assumption a reviewer makes by default and the one that costs them.
- *
- * The other three are the split this card got wrong. `reached` is computed
- * against the components the diff can arrive at, so a component the graph carries
- * nowhere — anything out of `node_modules`, which is most of the host nodes on a
- * real page — can never be in that set whatever the commit did. Printing *nothing
- * reaches it and it moved anyway* over every one of those spends the loudest
- * sentence on the page on the most ordinary fact about it, and by the time a real
- * orphan appears the sentence has been trained out of the reader.
- *
- * So the renders are asked as well as the name. A component the diff does not
- * know, moving in renders the diff reaches through three components it does, is a
- * note. A component moving in a render the commit reaches *nothing* in is the
- * alarm, and it is now the only thing wearing that colour.
- */
-function Arrival({ origin }: { readonly origin: Origin }): ReactElement | null {
-  if (origin.reached === undefined) return null;
-
-  if (origin.reached) {
-    return (
-      <p className="va-origin-arrival">
-        {origin.trail === undefined
-          ? 'This commit reaches it.'
-          : origin.trail.map((step, index) => (
-              <span key={step}>
-                {index === 0 ? null : <span className="va-arrow">→</span>}
-                {index === origin.trail!.length - 1 ? <strong>{step}</strong> : <code>{step}</code>}
-              </span>
-            ))}
-      </p>
-    );
-  }
-
-  const stranded = origin.stranded ?? [];
-  const through = origin.through ?? [];
-
-  if (stranded.length > 0) {
-    return (
-      <p className="va-origin-arrival va-alarm">
-        This commit reaches nothing at all in {count(stranded.length, 'render')} it moved in —{' '}
-        {stranded.slice(0, 3).join(', ')}
-        {stranded.length > 3 ? `, and ${count(stranded.length - 3, 'other')}` : ''}. Something
-        changed there that the diff cannot account for.
-      </p>
-    );
-  }
-
-  return (
-    <p className="va-origin-arrival va-unnamed">
-      The commit reaches nothing called <strong>{origin.component}</strong> — the file graph carries
-      no such name, which is what a component out of a dependency looks like from here.{' '}
-      {through.length === 0
-        ? 'It does reach every render this moved in, without naming a component in any of them.'
-        : `It does reach every render this moved in, through ${through.slice(0, 4).join(', ')}${
-            through.length > 4 ? ` and ${count(through.length - 4, 'other')}` : ''
-          } — so either one of those drew this node, or something reaches it that the graph does not model.`}
-    </p>
-  );
-}
-
-function Shapes({ appearances }: { readonly appearances: readonly Appearance[] }): ReactElement {
-  const clusters = shapesOf(appearances);
-
-  if (clusters.size === 0) {
-    return (
-      <p className="va-note">
-        The run recorded no shape for these differences, so nothing here says the{' '}
-        {count(appearances.length, 'appearance')} look alike — only that one component caused them.
-      </p>
-    );
-  }
-
-  const [shape, largest] = [...clusters.entries()].sort((left, right) => right[1] - left[1])[0]!;
-
-  if (clusters.size === 1 && largest === appearances.length) {
-    return (
-      <p className="va-note">
-        The same difference in every one of them — shape <code>{shape}</code>, which is what{' '}
-        <code>variance accept --shape</code> takes.
-      </p>
-    );
-  }
-
-  return (
-    <p className="va-note">
-      The largest, <code>{shape}</code>, is {number(largest)} of the{' '}
-      {count(appearances.length, 'appearance')}. One component absorbing a change several ways is
-      ordinary — the shapes are which of them recur.
-    </p>
-  );
-}
-
-/** The record for this component, asked on mount: there are few origins by design. */
-function Record({
-  client,
-  component,
-}: {
-  readonly client: ReviewClient;
-  readonly component: string;
-}): ReactElement | null {
-  const [churn, setChurn] = useState<Churn | null>(null);
-
-  const load = useCallback(async (): Promise<void> => {
-    try {
-      setChurn(await client.churn(component));
-    } catch {
-      // A missing record is a silence this card can afford. Everything above it
-      // is a reading of this build, and none of it becomes less true because the
-      // history service did not answer.
-      setChurn(null);
-    }
-  }, [client, component]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // `0 of 0 runs` on every card is the shape of an answer with none of the
-  // substance, and this card is a reading of *this* build — history is an
-  // addition where there is history, not a line that has to be filled.
-  if (churn === null || churn.runs === 0) return null;
-
-  return <ChurnLine component={component} churn={churn} />;
-}
-
-/**
- * One decision, applied to every subject the change showed up in.
- *
- * The store keeps a row per subject and this does not change that: what is shared
- * is the *act*, not the record. A group decision as a stored entity would be a
- * second thing that can disagree with the rows under it, and the note is what
- * carries the reviewer's reason to each one.
- */
-function Batch({
-  client,
-  reviewer,
-  build,
+function Row({
   origin,
+  build,
+  crossing,
   open,
-  settled,
-  onDecided,
+  go,
 }: {
-  readonly client: ReviewClient;
-  readonly reviewer: string;
-  readonly build: string;
   readonly origin: Origin;
-  readonly open: readonly Appearance[];
-  readonly settled: number;
-  readonly onDecided: () => void;
+  readonly build: string;
+  readonly crossing: Crossing;
+  readonly open: boolean;
+  readonly go: (route: Route) => void;
 }): ReactElement {
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState<string | undefined>(undefined);
-
-  const blocked = origin.appearances.length - open.length - settled;
-
-  const decide = async (decision: Decision): Promise<void> => {
-    setBusy(true);
-    setFailed(undefined);
-    try {
-      for (const { subject } of open) {
-        await client.decide(
-          build,
-          subject.subject,
-          decision,
-          reviewer,
-          `${decision} as one change in ${origin.component}`,
-        );
-      }
-      onDecided();
-    } catch (error) {
-      // Reported rather than swallowed, and the ones already written stay
-      // written: a batch that rolled itself back would undo decisions a reviewer
-      // made, to tidy up a network error.
-      setFailed(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const shapes = shapesOf(origin.appearances).size;
+  const decided = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
 
   return (
-    <div className="va-origin-act">
-      <button
-        type="button"
-        className="va-approve"
-        disabled={busy || open.length === 0}
-        onClick={() => void decide('approved')}
-        title={`Promote the candidate in every subject ${origin.component} moved`}
+    <li className={open ? 'va-row va-here' : 'va-row'}>
+      <Go
+        to={{ page: 'change', build, change: origin.component }}
+        go={go}
+        className="va-row-link"
+        title={origin.file ?? origin.component}
       >
-        Approve this change{open.length === 0 ? '' : ` (${number(open.length)})`}
-      </button>
-      <button
-        type="button"
-        disabled={busy || open.length === 0}
-        onClick={() => void decide('rejected')}
-      >
-        Reject
-      </button>
-      {settled === 0 ? null : <span className="va-note">{number(settled)} already decided</span>}
-      {blocked === 0 ? null : (
-        <span className="va-note">
-          {count(blocked, 'subject')} kept no candidate and cannot be approved here
+        <span className="va-row-name">{origin.component}</span>
+        <span className="va-row-spread va-note">
+          {count(origin.appearances.length, 'render')}
+          {shapes > 1 ? ` · ${count(shapes, 'shape')}` : ''}
         </span>
-      )}
-      {failed === undefined ? null : <p className="va-failure">{failed}</p>}
-    </div>
+        <span className="va-row-size va-num">{number(origin.pixels)} px</span>
+        <RowMark origin={origin} crossing={crossing} decided={decided} />
+      </Go>
+    </li>
+  );
+}
+
+/**
+ * The one thing worth knowing before opening this change, or nothing.
+ *
+ * At most one, and in this order, because a row with four badges on it is a row
+ * nobody reads. Already-decided outranks everything: there is no work here. Then
+ * *you have seen this*, which is the row a reviewer can skip. Then the strandings,
+ * which is the row they cannot.
+ */
+function RowMark({
+  origin,
+  crossing,
+  decided,
+}: {
+  readonly origin: Origin;
+  readonly crossing: Crossing;
+  readonly decided: number;
+}): ReactElement | null {
+  if (decided === origin.appearances.length) {
+    return <span className="va-mark va-approved">decided</span>;
+  }
+
+  if (crossing.state === 'ready') {
+    const again = origin.appearances.filter(
+      ({ subject }) => crossing.of(subject.subject)?.shift === 'again',
+    ).length;
+    if (again === origin.appearances.length) {
+      return (
+        <span className="va-mark va-known" title={`Every render of this was in build ${crossing.earlier.build} too, with the same difference`}>
+          seen in {crossing.earlier.build}
+        </span>
+      );
+    }
+  }
+
+  if ((origin.stranded ?? []).length > 0) {
+    return (
+      <span className="va-mark va-alarm" title="The commit reaches nothing at all in some of these renders">
+        unreached
+      </span>
+    );
+  }
+
+  if (decided > 0) {
+    return (
+      <span className="va-mark va-note">
+        {number(decided)}/{number(origin.appearances.length)}
+      </span>
+    );
+  }
+
+  return null;
+}
+
+/**
+ * The changed renders no component claimed.
+ *
+ * Their own band and never folded into one: a difference with nothing named as
+ * its cause has no change to be approved under, and putting it in somebody else's
+ * group would hand a reviewer an unrelated edit to approve it beneath.
+ */
+function Unattributed({
+  subjects,
+  build,
+  go,
+}: {
+  readonly subjects: readonly SubjectView[];
+  readonly build: string;
+  readonly go: (route: Route) => void;
+}): ReactElement {
+  return (
+    <section className="va-band va-band-orphan">
+      <h3>
+        Nothing named the cause <span className="va-num">{number(subjects.length)}</span>
+      </h3>
+      <p className="va-note">
+        No component claimed these, so there is no change to decide them under. They are the renders
+        that have to be opened.
+      </p>
+      <ul>
+        {subjects.map((subject) => (
+          <li key={subject.subject} className="va-row">
+            <Go
+              to={{ page: 'subject', build, subject: subject.subject }}
+              go={go}
+              className="va-row-link"
+              title={magnitude(subject)}
+            >
+              <span className="va-row-name">{subject.subject}</span>
+              <span className="va-row-spread va-note">
+                {count(subject.regions.length, 'region')}
+              </span>
+              <span className="va-row-size va-num">{number(subject.changedPixels)} px</span>
+            </Go>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

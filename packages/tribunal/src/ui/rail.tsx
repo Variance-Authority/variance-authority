@@ -41,7 +41,7 @@ export function SubjectRail({
   const groups = [...new Set(subjects.map((subject) => subject.verdict))];
 
   return (
-    <nav className="va-rail va-scroll">
+    <div className="va-rail-list va-scroll">
       <button
         type="button"
         className={selected === null ? 'va-rail-item va-current' : 'va-rail-item'}
@@ -96,6 +96,6 @@ export function SubjectRail({
           </section>
         );
       })}
-    </nav>
+    </div>
   );
 }

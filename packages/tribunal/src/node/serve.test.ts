@@ -207,6 +207,40 @@ describe('the surface is a document and one script', () => {
     expect(asset.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
   });
 
+  it('serves the same document at every address the surface renders', async () => {
+    // The reason deep links were impossible before: the client can push a URL,
+    // and a reload of that URL has to come back with the page. A build page that
+    // 404s on refresh is a report with a scrollbar, not a service.
+    await serve();
+
+    for (const path of [
+      '/builds/7',
+      '/builds/7?order=name',
+      '/builds/7/changes/Button',
+      '/builds/7/subjects/route%2Fcart%401280',
+      '/builds/7/run',
+      '/changelog',
+    ]) {
+      const page = await fetch(`${service.url}${path}`);
+      expect([path, page.status]).toEqual([path, 200]);
+      // Absolute, because this document is served seven segments deep. A
+      // relative src asks for `/builds/7/changes/ui/review.js`.
+      expect(await page.text()).toContain('src="/ui/review.js"');
+    }
+  });
+
+  it('leaves the API its own paths', async () => {
+    // One table decides both, so the disjointness is a property of the table —
+    // but a page pattern that grew a segment would take the ingest down, and
+    // that failure is worth catching here rather than in somebody's CI.
+    await serve();
+
+    for (const path of ['/review/builds', '/review/changelog', '/baseline/find', '/cache/find']) {
+      const answered = await fetch(`${service.url}${path}`);
+      expect([path, answered.headers.get('content-type')]).toEqual([path, 'application/json; charset=utf-8']);
+    }
+  });
+
   it('serves no page at all when the surface is switched off', async () => {
     await serve({ ui: false });
 
