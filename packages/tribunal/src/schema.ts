@@ -12,7 +12,7 @@ import type { D1Like } from './bindings.js';
 import { INITIAL, MIGRATIONS } from './migrations.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export { INITIAL, INITIAL_VERSION, MIGRATIONS } from './migrations.js';
 

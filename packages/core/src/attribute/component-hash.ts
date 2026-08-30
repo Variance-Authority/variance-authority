@@ -269,3 +269,82 @@ export function bandsBetween(
 
   return BANDS.filter((band) => moved.has(band));
 }
+
+/**
+ * Which bands moved, kept per component instead of folded into one list.
+ *
+ * {@link bandsBetween} answers *what kind of change is in this subject*, which is
+ * the question a sensitivity level asks. It cannot answer the one a reviewer
+ * asks — *what changed, and where* — because the fold is lossy in exactly the
+ * place attribution lives: a subject reporting `content, geometry, token` has
+ * told you a colour and a string and a size all moved somewhere in it, and left
+ * you to guess which of the forty components on the page owns which.
+ *
+ * Unfolded, the same two sidecars say `Button — geometry, token` and
+ * `CardFooter — a11y, content`, and that is a sentence a page can print beside a
+ * picture. It is also the record that survives when the raster tier loses the
+ * name: a difference that reflowed its neighbours merges into one blob whose box
+ * fits no component, so the region resolves to the document root and the edit
+ * arrives unattributed — while the hashes, which never looked at a pixel, still
+ * hold the component that moved and the sense in which it moved.
+ *
+ * `cause` repeats the {@link causesBetween} predicate rather than being derived
+ * from `bands`, and the repetition is the point: `structure` and `geometry` both
+ * map to the `geometry` band, so a component that edited its own tree and one
+ * that was merely pushed by a neighbour are indistinguishable *after* the band
+ * mapping. Losing that here would make every reflowed container a culprit.
+ */
+export interface ComponentBands {
+  readonly component: string;
+  /** Non-empty: a component whose digests all matched has no entry at all. */
+  readonly bands: readonly Band[];
+  /** Its own content moved, as opposed to only its rect. `causesBetween`'s test. */
+  readonly cause: boolean;
+  /** Set only when the component is on one side alone, which `bands` cannot say. */
+  readonly presence?: 'added' | 'removed';
+}
+
+/**
+ * Every component whose hashes differ, with the bands it differs in.
+ *
+ * One-sided components contribute `geometry` and nothing else, which is
+ * {@link bandsBetween}'s rule and must stay identical to it: a component that is
+ * simply not there did not rename anything, and inflating the answer would put
+ * an `a11y` claim on a page for a component nobody can look at. `presence` is
+ * what carries the rest of that meaning, so no reader has to infer *appeared*
+ * from a lone `geometry`.
+ *
+ * `(unattributed)` is excluded for the reason {@link causesBetween} excludes it:
+ * it is a bucket for nodes whose provenance chain broke, so it collects
+ * unrelated parts of a page under one name and nothing downstream could act on
+ * it. The broken chain is reported where it means something, not here as a
+ * component that moved.
+ */
+export function movedBandsBetween(
+  before: readonly ComponentHash[],
+  after: readonly ComponentHash[],
+): readonly ComponentBands[] {
+  const previous = new Map(before.map((entry) => [entry.component, entry]));
+  const present = new Set(after.map((entry) => entry.component));
+  const moved: ComponentBands[] = [];
+
+  for (const entry of after) {
+    if (entry.component === UNATTRIBUTED) continue;
+    const was = previous.get(entry.component);
+    if (was === undefined) {
+      moved.push({ component: entry.component, bands: ['geometry'], cause: true, presence: 'added' });
+      continue;
+    }
+    const bands = movedBands(was, entry);
+    if (bands.length === 0) continue;
+    moved.push({ component: entry.component, bands, cause: ownContentMoved(was, entry) });
+  }
+
+  for (const entry of before) {
+    if (entry.component === UNATTRIBUTED) continue;
+    if (present.has(entry.component)) continue;
+    moved.push({ component: entry.component, bands: ['geometry'], cause: true, presence: 'removed' });
+  }
+
+  return moved.sort((left, right) => left.component.localeCompare(right.component));
+}

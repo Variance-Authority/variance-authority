@@ -482,4 +482,18 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
     `ALTER TABLE build_subjects ADD COLUMN relaxed TEXT`,
     `UPDATE schema_version SET version = 10`,
   ],
+  // 10 → 11: which component moved, and in which band.
+  [
+    // `regions` is the raster tier's answer, and it loses the name exactly where
+    // a reviewer needs it: a difference that reflows its neighbours merges into
+    // one blob, the blob fits no component, and the region resolves to the
+    // document root. The semantic tier never lost it — it compares digests, not
+    // pixels — but the store had no column for it, so the service could report
+    // only what the picture happened to be able to say.
+    //
+    // Null keeps meaning the run wrote nothing — here, a baseline with no
+    // component hashes. `'[]'` is both sides read and every digest matched.
+    `ALTER TABLE build_subjects ADD COLUMN moved TEXT`,
+    `UPDATE schema_version SET version = 11`,
+  ],
 ];

@@ -90,6 +90,12 @@ export function recordOf(
     because: because(observation, changed, strict) + qualification(diagnostics),
     changedPixels: changed,
     ...signalsField(observation.signals, options.presentation),
+    // Carried whole, including when it is empty. `[]` is the comparison saying
+    // both sides had hashes and none of them moved, which is the sentence a
+    // subject with pixels and no named cause has to be readable against; absent
+    // is the baseline having nothing to compare, and printing that as `[]` would
+    // credit a claim to something that never looked.
+    ...(observation.moved !== undefined ? { moved: observation.moved } : {}),
     regions: regions.map((region) => regionRecordOf(region, options.source)),
     ...(truncated !== undefined && truncated.truncated > 0
       ? { truncated: { regions: truncated.truncated, pixels: truncated.truncatedPixels } }

@@ -1,4 +1,9 @@
-import type { AccessibilitySnapshot, Digest, RenderIdentity } from '@variance-authority/core';
+import type {
+  AccessibilitySnapshot,
+  ComponentBands,
+  Digest,
+  RenderIdentity,
+} from '@variance-authority/core';
 import type { FindingRecord } from './finding-record.js';
 import type { CompositionReport } from './composition.js';
 import type { IgnoreLedger, SensitivityLedger } from './declarations.js';
@@ -267,6 +272,20 @@ export interface ObservationRecord {
     readonly bands: readonly string[];
   };
 
+  /**
+   * Every component whose hashes moved here, and the bands it moved in.
+   *
+   * A region is a box the pixels drew, named from where that box landed, so it
+   * fails where a change is most worth explaining: an edit that reflows its
+   * neighbours merges into one blob, the blob fits no component, and the name
+   * that comes back is the document root. These entries never looked at a pixel,
+   * so they still say `Button — geometry, token` where the only region is called
+   * `Anonymous`, and a component here that no region names is a difference lost.
+   *
+   * **Absent is not empty.** Omitted means no baseline hashes were there to
+   * compare; `[]` means both sides were read and every digest matched.
+   */
+  readonly moved?: readonly ComponentBands[];
   readonly regions: readonly RegionRecord[];
   /** Regions found but not recorded, with their pixels. Never silently dropped. */
   readonly truncated?: { readonly regions: number; readonly pixels: number };

@@ -2,6 +2,7 @@ import {
   hashComponents,
   type AccessibilitySnapshot,
   type AttributedRegion,
+  type ComponentBands,
   type ComponentHash,
   type Diagnostic,
   type Band,
@@ -135,6 +136,22 @@ export interface Observation {
    * means *unknown*, and a caller must not read it as "nothing caused this".
    */
   readonly causes?: readonly string[];
+
+  /**
+   * The same comparison unfolded: every component whose hashes moved, and how.
+   *
+   * `causes` names them; this says in what sense each one differs — a colour is
+   * `token`, a size is `geometry`, a string is `content`, an accessible name is
+   * `a11y`. It is a superset, because a component pushed by a neighbour without
+   * editing itself is a movement and not a cause, and it carries `cause` per
+   * entry so nothing downstream has to re-derive the distinction from bands that
+   * cannot express it.
+   *
+   * Present and absent under exactly the same condition as `causes`, which is
+   * why one function produces both. Absent means no baseline hashes, not "no
+   * component moved".
+   */
+  readonly moved?: readonly ComponentBands[];
 
   /**
    * What this comparison could not do, or did under a condition worth stating.

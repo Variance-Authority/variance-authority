@@ -2,7 +2,6 @@ import {
   absorbsEntirely,
   attributeRegions,
   bandsBetween,
-  causesBetween,
   relaxes,
   excludedBoxes,
   fingerprintOfMask,
@@ -16,6 +15,7 @@ import {
 import type { Diagnostic, SemanticSnapshot } from '@variance-authority/core';
 import { compareRasters } from '@variance-authority/png';
 import type { RasterComparison } from '@variance-authority/raster';
+import { attributionOf } from './attribution.js';
 import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
 
 /**
@@ -48,15 +48,7 @@ export async function decide(
   });
   const missingFonts = [...new Set([...before.missingFonts, ...after.missingFonts])];
 
-  // Both sides, or nothing. A comparison against a baseline that carries no
-  // hashes cannot tell a cause from a passenger, and inventing an empty list
-  // would report every component as collateral — a confident wrong ordering
-  // rather than an absent one.
-  const causes =
-    before.components !== undefined && after.components !== undefined
-      ? causesBetween(before.components, after.components)
-      : undefined;
-  const causesField = causes === undefined ? {} : { causes };
+  const attribution = attributionOf(before.components, after.components);
 
   const diagnostics = frameDiagnostics(options.snapshot, after);
   const diagnosticsField = diagnostics.length === 0 ? {} : { diagnostics };
@@ -100,7 +92,7 @@ export async function decide(
       rendered,
       missingFonts,
       signals,
-      ...causesField,
+      ...attribution,
       ...diagnosticsField,
     };
   }
@@ -161,7 +153,7 @@ export async function decide(
       missingFonts,
       signals,
       ...ignoredField,
-      ...causesField,
+      ...attribution,
       ...diagnosticsField,
     };
   }
@@ -196,7 +188,7 @@ export async function decide(
       missingFonts,
       signals,
       ...ignoredField,
-      ...causesField,
+      ...attribution,
       ...diagnosticsField,
     };
   }
@@ -217,7 +209,7 @@ export async function decide(
       missingFonts,
       signals,
       ...ignoredField,
-      ...causesField,
+      ...attribution,
       ...diagnosticsField,
     };
   }
@@ -277,7 +269,7 @@ export async function decide(
       missingFonts,
       signals,
       ...ignoredHere,
-      ...causesField,
+      ...attribution,
       ...diagnosticsField,
     };
   }
@@ -308,7 +300,7 @@ export async function decide(
     missingFonts,
     signals,
     ...ignoredHere,
-    ...causesField,
+    ...attribution,
     ...diagnosticsField,
   };
 }

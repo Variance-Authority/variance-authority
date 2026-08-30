@@ -124,4 +124,21 @@ export const DOCKET_STYLES = `
 .va-where-act .va-approve:not(:disabled) { border-color: var(--va-good); color: var(--va-good-ink); }
 .va-mark.va-known { background: var(--va-warn-bg); border-radius: 999px; color: var(--va-warn-ink); font-size: 0.68rem; padding: 0.05rem 0.4rem; }
 .va-mark.va-alarm { background: var(--va-bad-bg); border-radius: 999px; color: var(--va-bad-ink); font-size: 0.68rem; padding: 0.05rem 0.4rem; }
+
+/* What moved, in the sense the hashes recorded. The lead sentence is emphasis
+   inside the existing lead paragraph and gets no box of its own — it is the
+   subject of the page, not a note beside it. What follows is detail, and the
+   only part that raises its voice is a component the picture lost: the hashes
+   name it and no region does, which is the one state a reviewer cannot see. */
+.va-moved-lead em { font-style: normal; font-weight: 600; }
+.va-moved-lost { background: var(--va-bad-bg); border-radius: 7px; color: var(--va-bad-ink); font-size: 0.9rem; margin-top: 0.7rem; padding: 0.5rem 0.7rem; }
+.va-moved h3 { font-size: 0.72rem; letter-spacing: 0.06em; margin-top: 1rem; text-transform: uppercase; }
+.va-moved-with { display: grid; gap: 0.15rem; margin-top: 0.35rem; }
+.va-moved-with li { align-items: baseline; column-gap: 0.5rem; display: flex; flex-wrap: wrap; font-size: 0.88rem; }
+.va-moved-list { display: grid; gap: 0.3rem; }
+.va-moved-row { align-items: baseline; column-gap: 0.5rem; display: flex; flex-wrap: wrap; font-size: 0.85rem; }
+/* Pushed rather than edited, and dimmed to say so. The list is ordered by name
+   and not by consequence, so without this a passenger reads level with a cause. */
+.va-moved-passenger .va-moved-name { color: var(--va-ink-3); font-weight: 400; }
+.va-moved-name { font-weight: 600; }
 `;

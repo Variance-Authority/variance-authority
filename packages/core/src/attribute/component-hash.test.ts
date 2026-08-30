@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { hashComponents, movedBands, UNATTRIBUTED, type ComponentHash } from './component-hash.js';
+import {
+  hashComponents,
+  movedBands,
+  movedBandsBetween,
+  UNATTRIBUTED,
+  type BandDigests,
+  type ComponentHash,
+} from './component-hash.js';
 import { CHROMIUM_PROFILE, JSDOM_PROFILE } from '../format/profile.js';
 import type { Rect } from '../format/capture.js';
 import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
@@ -219,5 +226,103 @@ describe('a broken provenance chain', () => {
 
     expect(hashes.map((hash) => hash.component)).toEqual([UNATTRIBUTED]);
     expect(of(hashes, UNATTRIBUTED).instances).toBe(1);
+  });
+});
+
+describe('every component that moved, and in which band', () => {
+  /**
+   * Built from digest literals rather than from trees, on purpose.
+   *
+   * The property here is the mapping — which pairs of digests produce which
+   * bands, and which of those the comparison calls a cause — and driving it
+   * through `hashComponents` would make every assertion also a claim about what
+   * a particular tag digests to. The trees above already test that.
+   */
+  function hash(component: string, digests: Partial<BandDigests> = {}): ComponentHash {
+    return {
+      component,
+      instances: 1,
+      structure: 'v1:s',
+      semantics: 'v1:a',
+      text: 'v1:t',
+      style: 'v1:y',
+      geometry: 'v1:g',
+      ...digests,
+    };
+  }
+
+  it('names the bands per component and says nothing about the ones that held', () => {
+    const moved = movedBandsBetween(
+      [hash('Button'), hash('Card'), hash('Nav')],
+      [hash('Button', { style: 'v1:other' }), hash('Card', { text: 'v1:other' }), hash('Nav')],
+    );
+
+    expect(moved).toEqual([
+      { component: 'Button', bands: ['token'], cause: true },
+      { component: 'Card', bands: ['content'], cause: true },
+    ]);
+  });
+
+  it('reports a pushed component, and does not call it a cause', () => {
+    // The whole reason this is not `causesBetween` with extra fields. A box that
+    // moved because a neighbour grew belongs on the page — a reviewer reading
+    // *why did this card reflow* needs to see it — and it must not be ranked as
+    // an edit, because nobody edited it.
+    expect(movedBandsBetween([hash('Card')], [hash('Card', { geometry: 'v1:elsewhere' })])).toEqual([
+      { component: 'Card', bands: ['geometry'], cause: false },
+    ]);
+  });
+
+  it('keeps `cause` when the band mapping has folded the two apart', () => {
+    // `structure` and `geometry` both land in the `geometry` band, so after the
+    // mapping an edited tree and a shoved rect are the same word. A surface
+    // deriving cause from bands would report every restructure as collateral.
+    const edited = movedBandsBetween([hash('Card')], [hash('Card', { structure: 'v1:other' })]);
+
+    expect(edited).toEqual([{ component: 'Card', bands: ['geometry'], cause: true }]);
+  });
+
+  it('says which side a component was on when it is on one side only', () => {
+    // `bands` cannot carry this: there is no second digest to compare against,
+    // and reporting `[]` would read as *nothing moved* about a component that
+    // either arrived or left.
+    expect(movedBandsBetween([hash('Old')], [hash('New')])).toEqual([
+      { component: 'New', bands: ['geometry'], cause: true, presence: 'added' },
+      { component: 'Old', bands: ['geometry'], cause: true, presence: 'removed' },
+    ]);
+  });
+
+  it('leaves the unattributed bucket out of both sides', () => {
+    // It is not a component. Its digests move whenever any unowned node anywhere
+    // in the subject moves, so it would be reported as a cause on every run.
+    const moved = movedBandsBetween(
+      [hash(UNATTRIBUTED)],
+      [hash(UNATTRIBUTED, { text: 'v1:other' })],
+    );
+
+    expect(moved).toEqual([]);
+  });
+
+  it('orders by component name, so two runs of one build agree', () => {
+    const names = movedBandsBetween(
+      [hash('Nav'), hash('Button'), hash('Card')],
+      [hash('Nav', { style: 'v1:o' }), hash('Button', { style: 'v1:o' }), hash('Card', { style: 'v1:o' })],
+    ).map((entry) => entry.component);
+
+    expect(names).toEqual(['Button', 'Card', 'Nav']);
+  });
+
+  it('carries a geometry-blind profile without inventing a still box', () => {
+    // No `geometry` digest on either side is *unobserved*, not *unchanged*, and
+    // the band must not appear. It appearing would put a reflow claim on a jsdom
+    // run that measured no boxes at all.
+    const flat = (component: string, style: string): ComponentHash => {
+      const { geometry: _unused, ...rest } = hash(component, { style });
+      return rest;
+    };
+
+    expect(movedBandsBetween([flat('Button', 'v1:y')], [flat('Button', 'v1:o')])).toEqual([
+      { component: 'Button', bands: ['token'], cause: true },
+    ]);
   });
 });

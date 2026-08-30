@@ -204,6 +204,7 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
   const signals = optionalText(row, 'signals', what);
   const ignored = optionalText(row, 'ignored', what);
   const relaxed = optionalText(row, 'relaxed', what);
+  const moved = optionalText(row, 'moved', what);
   const after = optionalText(row, 'after_key', what);
   const width = row['candidate_width'];
   const height = row['candidate_height'];
@@ -241,6 +242,7 @@ export function toSubjectView(row: Row, decision: DecisionRecord | null): Subjec
     ...(relaxed !== undefined
       ? { relaxed: JSON.parse(relaxed) as ObservationRecord['relaxed'] }
       : {}),
+    ...(moved !== undefined ? { moved: JSON.parse(moved) as ObservationRecord['moved'] } : {}),
     ...(typeof width === 'number' && typeof height === 'number' ? { size: { width, height } } : {}),
     ...(typeof wasWide === 'number' && typeof wasTall === 'number'
       ? { baseline: { width: wasWide, height: wasTall } }

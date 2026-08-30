@@ -13,6 +13,7 @@ import type { Decision, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { Findings } from './findings.js';
 import { SubjectHistory } from './history.js';
+import { MovedHere } from './moved.js';
 import { messageOf } from './shell.js';
 import { when } from './text.js';
 import { Viewer } from './viewer.js';
@@ -120,6 +121,11 @@ export function SubjectPanel({
               No candidate was uploaded for this subject, so it cannot be approved here.
             </p>
           )}
+        </section>
+
+        <section className="va-card">
+          <h2>What moved</h2>
+          <MovedHere subject={subject} />
         </section>
 
         <section className="va-card">

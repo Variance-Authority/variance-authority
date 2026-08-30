@@ -316,6 +316,32 @@ describe('a build is the report a run already wrote', () => {
     expect(detail?.subjects[1]).not.toHaveProperty('ignored');
   });
 
+  it('keeps which components moved, and in which band, per render', async () => {
+    // The half a region list cannot carry. A region is a box resolved back to a
+    // name, so an edit that reflows its neighbours arrives as one blob under the
+    // document root — and the store dropping this column is the difference
+    // between a page that says *Button moved in its layout and its style
+    // values* and one that says *487 px*.
+    const moved = [
+      { component: 'Toggle', bands: ['token', 'geometry'], cause: true },
+      { component: 'Stack', bands: ['geometry'], cause: false },
+    ];
+    const base = report();
+    await review.ingest(ingest({
+      report: {
+        ...base,
+        observations: base.observations.map((entry, index) =>
+          index === 0 ? { ...entry, moved } : entry),
+      },
+    }));
+
+    const detail = await review.build('ci-1001');
+    expect(detail?.subjects[0]?.moved).toEqual(moved);
+    // Absent is not empty here either: no column means the baseline carried no
+    // hashes, and `[]` would say both revisions were read and nothing moved.
+    expect(detail?.subjects[1]).not.toHaveProperty('moved');
+  });
+
   it('refuses a report from a writer this deployment does not understand', async () => {
     await expect(
       review.ingest({

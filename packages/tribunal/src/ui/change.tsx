@@ -47,6 +47,8 @@ import type { ReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
 import type { Appearance, Origin } from './grouping.js';
 import { Look } from './look.js';
+import { MovedLead, WhatMoved } from './moved.js';
+import { senseAcross } from './sense.js';
 import { Go, messageOf } from './shell.js';
 import type { Route } from './route.js';
 import type { Shifted } from './shift.js';
@@ -70,6 +72,7 @@ export function ChangePanel({
   readonly onDecided: () => void;
 }): ReactElement {
   const sourced = build.causes.some((cause) => cause.file !== undefined);
+  const across = senseAcross(origin.component, origin.appearances);
   const settled = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
   const open = origin.appearances.filter(
     ({ subject }) => subject.decision === null && subject.approvable,
@@ -95,9 +98,11 @@ export function ChangePanel({
         </header>
 
         <p className="va-decide-lead">
+          <MovedLead component={origin.component} across={across} />
           <Spread origin={origin} />
         </p>
 
+        <WhatMoved component={origin.component} across={across} />
         <Arrival origin={origin} />
         <SinceLast crossing={crossing} origin={origin} />
         <Recurrence client={client} component={origin.component} />

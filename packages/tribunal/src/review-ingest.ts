@@ -95,11 +95,11 @@ export async function ingestBuild(
         .prepare(
           `INSERT OR REPLACE INTO build_subjects
              (project, build, subject, verdict, because, changed_pixels, regions, truncated,
-              missing_fonts, findings, signals, ignored, relaxed, before_key, after_key, diff_key,
-              candidate_document_digest, candidate_width, candidate_height,
+              missing_fonts, findings, signals, ignored, relaxed, moved, before_key, after_key,
+              diff_key, candidate_document_digest, candidate_width, candidate_height,
               candidate_missing_fonts, candidate_accessibility,
               baseline_width, baseline_height)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           project,
@@ -125,6 +125,10 @@ export async function ingestBuild(
           // silent about something the run had written down.
           observation.ignored === undefined ? null : JSON.stringify(observation.ignored),
           observation.relaxed === undefined ? null : JSON.stringify(observation.relaxed),
+          // The semantic tier's own list of who moved, kept beside the raster
+          // tier's regions rather than folded into them. `null` is a baseline
+          // with no hashes; `'[]'` is both sides compared and nothing moved.
+          observation.moved === undefined ? null : JSON.stringify(observation.moved),
           keys.before ?? null,
           keys.after ?? null,
           keys.diff ?? null,

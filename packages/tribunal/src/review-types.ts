@@ -143,6 +143,17 @@ export interface SubjectView {
   readonly ignored?: ObservationRecord['ignored'];
   /** The sensitivity that decided this subject, when one did. */
   readonly relaxed?: ObservationRecord['relaxed'];
+  /**
+   * Which components moved here per their hashes, and in which bands.
+   *
+   * The half of the record {@link SubjectView.regions} cannot carry. A region is
+   * named from where its box landed, so an edit that reflowed its neighbours
+   * arrives as one blob attributed to the document root; these entries compared
+   * digests and never saw a pixel, so they still hold the component and the
+   * sense. Absent means the baseline carried no hashes — never that nothing
+   * moved.
+   */
+  readonly moved?: ObservationRecord['moved'];
   /** Which images this build kept. Absent means the run did not save one. */
   readonly has: { readonly before: boolean; readonly after: boolean; readonly diff: boolean };
   /**

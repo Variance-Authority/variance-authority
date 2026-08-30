@@ -365,3 +365,45 @@ describe('what the run leaves for the next one', () => {
     expect(cached?.components).toBeUndefined();
   });
 });
+
+describe('what the cause list drops, and the band record keeps', () => {
+  it('reports the enclosure that only moved, and does not call it a cause', async () => {
+    // `causes` is a ranking input, so it is deliberately just the names that
+    // caused something. A reviewer reading *why did this reflow* needs the other
+    // half — and the run has always had it, one band at a time, and threw it
+    // away at this boundary.
+    // The shell is a wrapper: it holds a taller button and so it is taller, and
+    // nobody touched its file.
+    const grown = (padding: string, width: number, height: number): SemanticSnapshot => {
+      const snapshot = snapshotOf(padding, width);
+      return { ...snapshot, root: { ...snapshot.root, rect: { x: 0, y: 0, width: 100, height } } };
+    };
+
+    const observation = await observeAgainstBaseline(documentFor('page'), KEY, {
+      renderer: rendererPainting(image(46)),
+      store: storeHolding(rasterOf(documentFor('page'), image(30), grown('4px', 30, 60))),
+      snapshot: grown('8px', 46, 72),
+    });
+
+    expect(observation.moved).toEqual([
+      { component: 'Button', bands: ['geometry', 'token'], cause: true },
+      { component: 'Shell', bands: ['geometry'], cause: false },
+    ]);
+    // And the ranking input it is a superset of still holds only the one name.
+    expect(observation.causes).toEqual(['Button']);
+  });
+
+  it('is absent under exactly the condition `causes` is absent under', async () => {
+    // The two travel together or a surface has to reason about four states. An
+    // empty list here would say *both revisions were read and nothing moved*
+    // about a comparison that read one.
+    const observation = await observeAgainstBaseline(documentFor('page'), KEY, {
+      renderer: rendererPainting(image(46)),
+      store: storeHolding(rasterOf(documentFor('page'), image(30))),
+      snapshot: snapshotOf('8px', 46),
+    });
+
+    expect(observation.causes).toBeUndefined();
+    expect(observation.moved).toBeUndefined();
+  });
+});
