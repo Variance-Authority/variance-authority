@@ -256,9 +256,16 @@ function Switch({
 /**
  * The stage with nothing open: a short reading of the build, and where to go.
  *
- * Four sentences and two links. Everything a reader could want past that has an
- * address, and putting it here instead is how the previous version of this page
- * came to be read top to bottom by nobody.
+ * Everything a reader could want past this has an address, and putting it here
+ * instead is how the previous version of this page came to be read top to bottom
+ * by nobody.
+ *
+ * Under the heading there used to be a definition — *a change is a component and
+ * every render it moved in, one decision covers all of them* — printed on every
+ * build of every project, in the position a reader gives their second glance to.
+ * It is true and it is the same sentence every time, which makes it the most
+ * expensive line on the page. The heading already counts the changes; the tally,
+ * the commits and the diff below are about this build.
  */
 function Opening({
   build,
@@ -289,11 +296,7 @@ function Opening({
             ? 'Nothing in this build changed'
             : `${count(origins.length, 'change')} to work through`}
         </h1>
-        <p className="va-subtitle">
-          {origins.length === 0
-            ? 'Every subject matched its baseline, or was settled by a rule you wrote.'
-            : 'A change is a component and every render it moved in. One decision covers all of them.'}
-        </p>
+        {origins.length === 0 ? <Still verdicts={build.verdicts} /> : null}
 
         {unattributed.length === 0 ? null : (
           <p className="va-note">
@@ -316,6 +319,31 @@ function Opening({
       </div>
     </div>
   );
+}
+
+/**
+ * What a build with no changes did instead, counted.
+ *
+ * *Every subject matched its baseline, or was settled by a rule you wrote* was
+ * the line here, and the `or` is the whole problem: the two halves are different
+ * builds — one where the suite is green and one where a ledger is absorbing
+ * differences — and the store knows which. A reader who wrote an ignore rule last
+ * week and wants to know whether it is still swallowing something was being told
+ * the two possibilities they already knew about.
+ *
+ * Zeroes are dropped rather than printed, because a clean build reads as *41
+ * unchanged* and not as a row of noughts to scan past.
+ */
+function Still({ verdicts }: { readonly verdicts: BuildDetail['verdicts'] }): ReactElement | null {
+  const said = [
+    verdicts.unchanged === 0 ? undefined : `${number(verdicts.unchanged)} unchanged`,
+    verdicts.ignored === 0 ? undefined : `${number(verdicts.ignored)} settled by a rule`,
+    verdicts.new === 0 ? undefined : `${count(verdicts.new, 'new subject')}`,
+    verdicts.incomparable === 0 ? undefined : `${count(verdicts.incomparable, 'incomparable')}`,
+  ].filter((clause): clause is string => clause !== undefined);
+
+  if (said.length === 0) return null;
+  return <p className="va-subtitle">{said.join(' · ')}</p>;
 }
 
 /** The build against the one before it, in one line, on the page it opens on. */

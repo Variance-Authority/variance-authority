@@ -180,8 +180,10 @@ function Undeclared({
   return (
     <div className="va-unheld">
       <p>
-        {count(moved.length, 'component')} moved that no file in this commit declares, so the depth
-        above has nothing to measure them from. What the run concluded instead:
+        {/* The clause after the dash is a cap, not an explanation: these are not
+            in the bars, and a reader who is not told that reads the histogram as
+            the whole of the movement. */}
+        {count(moved.length, 'component')} no file in this commit declares — not in the bars above:
       </p>
       <ul>
         {moved.map((each) => {

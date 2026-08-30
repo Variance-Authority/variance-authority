@@ -113,10 +113,21 @@ export function ChangePanel({
           <Spread origin={origin} />
         </p>
 
-        {/* Second, before anything about the blast radius: why. A reviewer who
-            has just read *what* moved asks one question, and the two lines that
-            answer it belong under the question rather than three sections down
-            past the collateral. */}
+        {/* Second, and before a word of prose: the differences themselves, one
+            per shape. Everything under this is the page reasoning about a change
+            the reviewer can now see, and a decision made without seeing it is the
+            failure this whole surface exists to prevent. */}
+        <Look
+          client={client}
+          build={build.build}
+          component={origin.component}
+          appearances={origin.appearances}
+          onOpen={(subject) => go({ page: 'subject', build: build.build, subject })}
+        />
+
+        {/* Then why. A reviewer who has just read *what* moved and looked at it
+            asks one question, and the two lines that answer it belong under the
+            question rather than three sections down past the collateral. */}
         <Because origin={origin} build={build.build} changes={changes} go={go} />
         <Arrival origin={origin} />
 
@@ -130,14 +141,6 @@ export function ChangePanel({
         <SinceLast crossing={crossing} origin={origin} />
         <Recurrence client={client} component={origin.component} />
         <Shapes appearances={origin.appearances} />
-
-        <Look
-          client={client}
-          build={build.build}
-          component={origin.component}
-          appearances={origin.appearances}
-          onOpen={(subject) => go({ page: 'subject', build: build.build, subject })}
-        />
 
         <h2>Where it showed up</h2>
         <ul className="va-where">

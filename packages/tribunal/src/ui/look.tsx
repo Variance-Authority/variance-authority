@@ -24,17 +24,33 @@
  * two differences nothing characterised have not been shown to match, and folding
  * them together would hide one behind a picture of the other.
  *
- * ## Revealed, not drawn on arrival
+ * ## The difference is the first layer
  *
- * A route candidate here is 1280 × 9000 and costs about 46MB of bitmap to decode.
- * Four cards, two layers, three crops each is a page that stalls before its first
- * row is readable — the cost [`viewer.tsx`](./viewer.tsx) defers with
- * `loading="lazy"` and that a 260px window does nothing to reduce, since the crop
- * magnifies the full raster rather than fetching a tile of it. The strip is
- * therefore behind a button, and the button is the sentence: *look at it*.
+ * The strip opens on the mask the comparison drew. A crop of the candidate is a
+ * picture of the component, and a reviewer reading one against a baseline they
+ * remember is redoing by eye the comparison the run already did to the pixel. The
+ * two readings are one press behind it and stay mounted once asked for, so moving
+ * between the three is a repaint rather than a fetch.
+ *
+ * ## Deferred by the window, not by a button
+ *
+ * A route candidate here is 1280 × 9000 and costs about 46MB of bitmap to decode,
+ * and a change with six shapes asks for six of them. That cost is why the strip
+ * used to sit behind a *look at the change* button — which priced every difference
+ * on the page at a click, and there is no reviewer who does not want to see the
+ * difference. It also capped the strip at three, so a change with six shapes drew
+ * half of itself and counted the rest.
+ *
+ * So the deferral moved to where the cost is. Each crop asks for its raster when
+ * its own window comes near the viewport, and only for the layer being shown.
+ * `loading="lazy"` cannot do that job here: the plate is the whole capture
+ * translated so the region lands in a 264px window, which on a mobile route is a
+ * 17,000px offset — the browser sees a box far outside the viewport and defers it
+ * forever, leaving a red ring over an empty frame. What is watched instead is the
+ * window, which is 264 × 176 and sitting exactly where the reviewer is looking.
  */
 
-import { useState, type CSSProperties, type ReactElement } from 'react';
+import { useCallback, useState, type CSSProperties, type ReactElement } from 'react';
 import type { RegionRecord } from '@variance-authority/report';
 import type { ReviewClient } from './client.js';
 import type { Appearance } from './grouping.js';
@@ -66,8 +82,22 @@ const PAD = 20;
 const FURTHEST = 0.25;
 const CLOSEST = 8;
 
-/** How many shapes are drawn before the rest are counted instead. */
-const SHOWN = 3;
+/**
+ * The three readings, in the order they are offered and preferred.
+ *
+ * `diff` first because it is the answer rather than the evidence for it. The
+ * names are the stage's, so a reviewer who opens the full render finds the same
+ * three words on the same three things.
+ */
+type Layer = 'diff' | 'after' | 'before';
+
+const LAYERS: readonly Layer[] = ['diff', 'after', 'before'];
+
+const SAY: Readonly<Record<Layer, string>> = {
+  diff: 'difference',
+  after: 'this build',
+  before: 'baseline',
+};
 
 /** Where the plate sits inside the window, and at what magnification. */
 export interface Frame {
@@ -151,13 +181,14 @@ export function sightings(appearances: readonly Appearance[]): readonly Sighting
 }
 
 /**
- * The strip, and the one control that matters on it.
+ * The strip, and the one control on it.
  *
- * The flip is card-level rather than per crop, because the question a reviewer
- * asks is *did all of these move the same way* and answering it means flipping
- * them together. Both layers stay mounted and the top one's opacity switches, so
- * the flip does not go through a frame of nothing — a flash reads as a third
- * state, and on a difference of twenty pixels it is the loudest thing on screen.
+ * The switch is card-level rather than per crop, because the question a reviewer
+ * asks is *did all of these move the same way* and answering it means moving them
+ * together. A layer that has been asked for once stays mounted and switches
+ * opacity, so returning to it does not go through a frame of nothing — a flash
+ * reads as a third state, and on a difference of twenty pixels it is the loudest
+ * thing on screen.
  */
 export function Look({
   client,
@@ -172,55 +203,48 @@ export function Look({
   readonly appearances: readonly Appearance[];
   readonly onOpen?: ((subject: string) => void) | undefined;
 }): ReactElement | null {
-  const [open, setOpen] = useState(false);
-  const [showing, setShowing] = useState<'before' | 'after'>('after');
+  // Every layer ever asked for, most recent first. A list rather than one
+  // selection: what is showing and what is loaded are different questions, and
+  // unmounting the layer somebody just left is how a flip becomes a fetch.
+  const [asked, setAsked] = useState<readonly Layer[]>([]);
 
-  const found = sightings(appearances).filter(
-    ({ appearance }) => appearance.subject.has.after || appearance.subject.has.before,
+  const found = sightings(appearances).filter(({ appearance }) =>
+    LAYERS.some((layer) => appearance.subject.has[layer]),
   );
-  if (found.length === 0) return null;
 
-  const drawn = found.slice(0, SHOWN);
-  const flippable = drawn.some(({ appearance }) => appearance.subject.has.before);
+  const offered = LAYERS.filter((layer) =>
+    found.some(({ appearance }) => appearance.subject.has[layer]),
+  );
+  const first = offered[0];
+  if (first === undefined) return null;
 
-  if (!open) {
-    return (
-      <p className="va-origin-look">
-        <button type="button" className="va-mode" onClick={() => setOpen(true)}>
-          Look at the change
-        </button>
-        <span className="va-note">
-          {found.length === 1
-            ? 'one difference, cropped to where it was measured'
-            : `${count(found.length, 'distinct difference')}, cropped to where they were measured`}
-        </span>
-      </p>
-    );
-  }
+  const showing = asked[0] ?? first;
+  const mounted = new Set<Layer>([first, ...asked]);
+  const look = (layer: Layer): void =>
+    setAsked((was) => [layer, ...was.filter((each) => each !== layer)]);
 
   return (
     <>
-      <p className="va-origin-look">
-        <span className="va-note">
-          Showing {showing === 'after' ? 'this build' : 'the baseline'}
-          {drawn.length < found.length ? `, ${number(drawn.length)} of ${number(found.length)}` : ''}
-        </span>
-        {flippable ? (
-          <button
-            type="button"
-            className="va-mode"
-            onClick={() => setShowing((was) => (was === 'after' ? 'before' : 'after'))}
-          >
-            show {showing === 'after' ? 'the baseline' : 'this build'}
-          </button>
-        ) : null}
-        <button type="button" className="va-mode" onClick={() => setOpen(false)}>
-          hide
-        </button>
-      </p>
+      {offered.length === 1 ? null : (
+        <p className="va-origin-look">
+          <span className="va-modes">
+            {offered.map((layer) => (
+              <button
+                key={layer}
+                type="button"
+                className={layer === showing ? 'va-mode va-current' : 'va-mode'}
+                aria-pressed={layer === showing}
+                onClick={() => look(layer)}
+              >
+                {SAY[layer]}
+              </button>
+            ))}
+          </span>
+        </p>
+      )}
 
       <div className="va-look">
-        {drawn.map((sighting) => (
+        {found.map((sighting) => (
           <Sighted
             key={sighting.appearance.subject.subject}
             client={client}
@@ -228,17 +252,11 @@ export function Look({
             component={component}
             sighting={sighting}
             showing={showing}
+            mounted={mounted}
             onOpen={onOpen}
           />
         ))}
       </div>
-
-      {drawn.length < found.length ? (
-        <p className="va-note">
-          {count(found.length - drawn.length, 'further shape')} under this change — open a subject
-          from the list to see one.
-        </p>
-      ) : null}
     </>
   );
 }
@@ -250,18 +268,30 @@ function Sighted({
   component,
   sighting,
   showing,
+  mounted,
   onOpen,
 }: {
   readonly client: ReviewClient;
   readonly build: string;
   readonly component: string;
   readonly sighting: Sighting;
-  readonly showing: 'before' | 'after';
+  readonly showing: Layer;
+  readonly mounted: ReadonlySet<Layer>;
   readonly onOpen?: ((subject: string) => void) | undefined;
 }): ReactElement {
   const { appearance, at, shared } = sighting;
   const subject = appearance.subject;
-  const box = union(subject.size, subject.baseline);
+
+  const body = (
+    <Crop
+      client={client}
+      build={build}
+      subject={subject}
+      at={at}
+      showing={showing}
+      mounted={mounted}
+    />
+  );
 
   const caption = (
     <span className="va-sight-note">
@@ -269,15 +299,6 @@ function Sighted({
       {shared === 1 ? '' : ` · ${count(shared, 'place')}`}
     </span>
   );
-
-  const body =
-    box === undefined ? (
-      <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
-        <span className="va-note">This run did not record the capture&rsquo;s size.</span>
-      </span>
-    ) : (
-      <Crop client={client} build={build} subject={subject} at={at} box={box} showing={showing} />
-    );
 
   if (onOpen === undefined) {
     return (
@@ -302,40 +323,80 @@ function Sighted({
 }
 
 /**
- * Both readings, at one magnification, with the measured region ringed.
+ * Whether this crop's window has come near the viewport.
+ *
+ * A renderer without the observer is told yes at once. A deferral nothing can
+ * lift is a permanently empty frame, which is the exact failure `loading="lazy"`
+ * had here — and a static render has no scroll to wait for.
+ */
+function useSeen(): readonly [(node: HTMLSpanElement | null) => (() => void) | undefined, boolean] {
+  const [seen, setSeen] = useState(() => typeof IntersectionObserver === 'undefined');
+
+  const watch = useCallback((node: HTMLSpanElement | null) => {
+    if (node === null || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
+      },
+      // A screen ahead of the scroll, so the crop is decoded by the time it is
+      // reached rather than arriving after it.
+      { rootMargin: '600px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return [watch, seen];
+}
+
+/**
+ * The readings that have been asked for, at one magnification, region ringed.
  *
  * The layers are placed exactly as the stage places them — each at its own share
  * of the union box — because that is the one part of this that is easy to get
  * wrong invisibly. A baseline stretched to the candidate's width turns a width
  * change into a hairline, and at 3× on a 130-pixel region the hairline is off
- * screen entirely.
- *
- * Nothing here is `loading="lazy"`, and that is the point rather than an
- * oversight. The plate is the whole capture, translated so the region lands in a
- * 264px window — on a mobile route that is a 17,000px offset, which puts the
- * element's box far outside the viewport and leaves a lazy image deferred
- * forever. The crop drew an empty frame with a red ring on it and looked like a
- * picture of a difference nobody could see. The deferral this file argues for is
- * the reveal: nothing is requested until somebody presses the button.
+ * screen entirely. The mask is the exception and needs no share: the comparison
+ * drew it on the box it padded both captures to.
  */
 function Crop({
   client,
   build,
   subject,
   at,
-  box,
   showing,
+  mounted,
 }: {
   readonly client: ReviewClient;
   readonly build: string;
   readonly subject: Appearance['subject'];
   readonly at: RegionRecord;
-  readonly box: Size;
-  readonly showing: 'before' | 'after';
+  readonly showing: Layer;
+  readonly mounted: ReadonlySet<Layer>;
 }): ReactElement {
-  const frame = frameOf(at, box, WINDOW);
-  const url = (kind: 'before' | 'after'): string => client.imageUrl(build, subject.subject, kind);
+  const [watch, seen] = useSeen();
+  const box = union(subject.size, subject.baseline);
 
+  if (box === undefined) {
+    return (
+      <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
+        <span className="va-note">This run did not record the capture&rsquo;s size.</span>
+      </span>
+    );
+  }
+
+  // Said rather than drawn empty. The switch is card-level, so a render the run
+  // kept no baseline for is asked for one, and a blank window under a red ring
+  // reads as a difference nobody can see rather than an image nobody kept.
+  if (!subject.has[showing]) {
+    return (
+      <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
+        <span className="va-note">No {SAY[showing]} was kept for this render.</span>
+      </span>
+    );
+  }
+
+  const frame = frameOf(at, box, WINDOW);
   const plate: CSSProperties = {
     height: `${String(box.height * frame.scale)}px`,
     left: `${String(frame.left)}px`,
@@ -344,30 +405,19 @@ function Crop({
   };
 
   return (
-    <span className="va-crop" style={boxOf(WINDOW)}>
+    <span className="va-crop" style={boxOf(WINDOW)} ref={watch}>
       <span className="va-crop-plate" style={plate}>
-        {subject.has.before ? (
-          <img
-            className="va-under"
-            src={url('before')}
-            alt=""
-            decoding="async"
-            style={share(subject.baseline, box)}
-          />
-        ) : null}
-        {subject.has.after ? (
-          <img
-            src={url('after')}
-            alt=""
-            decoding="async"
-            style={{
-              ...share(subject.size, box),
-              // Mounted whichever way it is showing, so the flip is one repaint
-              // and never a frame of the plate's own background.
-              opacity: showing === 'after' || !subject.has.before ? 1 : 0,
-            }}
-          />
-        ) : null}
+        {seen
+          ? LAYERS.filter((layer) => mounted.has(layer) && subject.has[layer]).map((layer) => (
+              <img
+                key={layer}
+                src={client.imageUrl(build, subject.subject, layer)}
+                alt=""
+                decoding="async"
+                style={{ ...spread(layer, subject, box), opacity: layer === showing ? 1 : 0 }}
+              />
+            ))
+          : null}
         <span
           className="va-crop-box"
           style={{
@@ -381,6 +431,16 @@ function Crop({
       {frame.whole ? null : <span className="va-crop-part">part of it</span>}
     </span>
   );
+}
+
+/** One layer's share of the plate. The mask already spans it; the readings may not. */
+function spread(
+  layer: Layer,
+  subject: Appearance['subject'],
+  box: Size,
+): CSSProperties | undefined {
+  if (layer === 'diff') return undefined;
+  return share(layer === 'after' ? subject.size : subject.baseline, box);
 }
 
 /** The window's own dimensions, written where a stylesheet cannot know them. */

@@ -188,12 +188,24 @@ describe('the card says what a reviewer is agreeing to', () => {
     expect(page).toContain('href="/builds/4/subjects/story%3Acard"');
   });
 
-  it('offers the change to be looked at, from the page that decides it', () => {
-    const page = card(
-      build([subject({ regions: [region({ component: 'Button', fingerprint: 'f1' })] })]),
-    );
+  it('draws the difference on arrival, one crop per shape, with nothing to press', () => {
+    // A reviewer cannot approve what they have not seen, and they will not open
+    // four renders to see four differences. The strip used to be behind a *look
+    // at the change* button and capped at three; both were a cost argument
+    // answered in the reviewer's time.
+    const seen = (name: string, fingerprint: string): SubjectView =>
+      subject({
+        subject: name,
+        size: { width: 400, height: 300 },
+        regions: [region({ component: 'Button', fingerprint })],
+      });
 
-    expect(page).toContain('Look at the change');
+    const page = card(build([seen('a', 'f1'), seen('b', 'f2'), seen('c', 'f2')]));
+
+    expect(page).not.toContain('Look at the change');
+    expect(page.match(/va-crop-plate/g)).toHaveLength(2);
+    expect(page).toContain('/subjects/a/diff.png');
+    expect(page).toContain('/subjects/b/diff.png');
   });
 });
 

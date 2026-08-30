@@ -14,17 +14,16 @@
  * 1. **Nothing reaches these.** The commit arrives at no component at all in some
  *    render each of these moved in — the one finding here no other tool
  *    produces, and the one worth waking somebody for.
- * 2. **You edited these.** The commit arrives at the component. Most of a
- *    healthy build.
+ * 2. **Edited.** The commit declares the component. Most of a healthy build.
  * 3. **Same props, two renderings.** Held at one commit with its inputs equal,
  *    it did not settle. An answer, not an absence.
  * 4. **Nothing explains these.** The diff was read, the file graph walked and
  *    the enclosure climbed, and none of the three arrive here.
- * 5. **You edited their owner.** The dominoes. Nothing in the commit declares
- *    the component; something in the commit draws it and hands it what it
- *    renders. The row names that owner.
- * 6. **Their token moved.** A custom property took a new value, and this reads
- *    it. The row names the property.
+ * 5. **Owner edited.** The dominoes. Nothing in the commit declares the
+ *    component; something in the commit draws it and hands it what it renders.
+ *    The row names that owner.
+ * 6. **Token moved.** A custom property took a new value, and this reads it.
+ *    The row names the property.
  * 7. **Not in the diff.** No file in the commit declares it and the run recorded
  *    no attribution to read instead.
  * 8. **No diff read.** The run carried none, so nothing above applies.
@@ -82,16 +81,22 @@ export interface Group {
  * The nine headings, each the shortest true claim about its rows.
  *
  * None of them explains itself, and the two that name a relation — `upstream`
- * and `token` — say *whose* and *which* without saying who or which, because
- * that answer is per row and every row carries it.
+ * and `token` — say *that* an owner or a token moved without saying which,
+ * because that answer is per row and every row carries it.
+ *
+ * Nobody is addressed. `Edited` and `Owner edited` were *you edited these* and
+ * *you edited their owner*, which puts a person in a heading whose subject is a
+ * commit — and a reviewer reading somebody else's branch is not the *you* in it.
+ * The pair is also the docket's whole distinction, so they are two words each and
+ * they rhyme: a change the commit declares, and a change it arrived at.
  */
 const LANES: readonly { readonly lane: Lane; readonly title: string }[] = [
   { lane: 'stranded', title: 'Nothing reaches these' },
-  { lane: 'reached', title: 'You edited these' },
+  { lane: 'reached', title: 'Edited' },
   { lane: 'contradicted', title: 'Same props, two renderings' },
   { lane: 'unexplained', title: 'Nothing explains these' },
-  { lane: 'upstream', title: 'You edited their owner' },
-  { lane: 'token', title: 'Their token moved' },
+  { lane: 'upstream', title: 'Owner edited' },
+  { lane: 'token', title: 'Token moved' },
   { lane: 'unnamed', title: 'Not in the diff' },
   { lane: 'unread', title: 'No diff read' },
   { lane: 'decided', title: 'Already decided' },
@@ -175,7 +180,7 @@ export const ORDERS: readonly { readonly order: Order; readonly label: string; r
     {
       order: 'story',
       label: 'Story',
-      why: 'Banded by what it costs to be wrong: what the commit reaches nothing in, then what you edited, then what the diff cannot name.',
+      why: 'Banded by what it costs to be wrong: what the commit reaches nothing in, then what it declares, then what the diff cannot name.',
     },
     { order: 'name', label: 'A–Z', why: FLAT.name.why },
     { order: 'size', label: 'Largest', why: FLAT.size.why },

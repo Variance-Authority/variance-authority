@@ -133,7 +133,9 @@ describe('how far the edit landed', () => {
   it('names what moved that the diff declares nowhere, off the axis', () => {
     const html = draw(ALONE, { subjects: [lost()] });
 
-    expect(html).toContain('1 component moved that no file in this commit declares');
+    expect(html).toContain('1 component no file in this commit declares');
+    // The cap stays stated: these are not counted in the bars above it.
+    expect(html).toContain('not in the bars above');
     expect(html).toContain('CardFooter');
   });
 

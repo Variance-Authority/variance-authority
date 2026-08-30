@@ -217,7 +217,7 @@ describe('the rail is scanned, not read', () => {
       ),
     );
 
-    expect(page.indexOf('Nothing reaches these')).toBeLessThan(page.indexOf('You edited these'));
+    expect(page.indexOf('Nothing reaches these')).toBeLessThan(page.indexOf('Edited'));
     expect(page.indexOf('Orphan')).toBeLessThan(page.indexOf('Button'));
   });
 

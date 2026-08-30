@@ -171,48 +171,52 @@ function press(label: string): void {
   act(() => button.click());
 }
 
-describe('the strip is revealed, and both readings stay mounted', () => {
-  it('draws no raster until somebody asks to look', () => {
-    // A route candidate here is 1280 by 9000 and costs about 46MB of bitmap. Four
-    // cards of three crops, two layers each, is a page that stalls before its
-    // first row can be read — and the crop magnifies the whole raster, so a 264px
-    // window reduces none of it.
-    show([appearance()]);
+/**
+ * A stub observer, so the deferral can be watched rather than assumed.
+ *
+ * jsdom implements none, which is the branch that draws outright — real, and the
+ * one a static render takes. The stub is what proves the other branch exists.
+ */
+function observed(): { readonly reach: () => void } {
+  const callbacks: ((entries: readonly { isIntersecting: boolean }[]) => void)[] = [];
 
-    expect(host.querySelectorAll('img')).toHaveLength(0);
-    expect(host.textContent).toContain('Look at the change');
-  });
+  class Stub {
+    constructor(callback: (entries: readonly { isIntersecting: boolean }[]) => void) {
+      callbacks.push(callback);
+    }
+    observe(): void {}
+    disconnect(): void {}
+  }
 
-  it('flips between the two readings without unmounting either', () => {
-    // A flip that swapped the src goes through a frame of nothing, and on a
-    // difference of twenty pixels a flash is the loudest thing on screen.
-    show([appearance()]);
-    press('Look at the change');
+  (globalThis as unknown as Record<string, unknown>)['IntersectionObserver'] = Stub;
 
-    const images = (): readonly HTMLImageElement[] => [...host.querySelectorAll('img')];
-    expect(images()).toHaveLength(2);
-    expect(images().map((each) => each.style.opacity)).toEqual(['', '1']);
-
-    press('show the baseline');
-
-    expect(images()).toHaveLength(2);
-    expect(images()[1]?.style.opacity).toBe('0');
-  });
-
-  it('draws each layer at its own share of the union box', () => {
-    // A baseline stretched to the candidate's width turns a width change into a
-    // hairline, and at 3x on a hundred-pixel region the hairline is off screen.
-    show([
-      appearance({
-        subject: subject({ baseline: { width: 640, height: 9000 } }),
+  return {
+    reach: () =>
+      act(() => {
+        for (const callback of callbacks) callback([{ isIntersecting: true }]);
       }),
-    ]);
-    press('Look at the change');
+  };
+}
 
-    expect([...host.querySelectorAll('img')][0]?.style.width).toBe('50%');
+afterEach(() => {
+  delete (globalThis as unknown as Record<string, unknown>)['IntersectionObserver'];
+});
+
+describe('every shape is drawn, and the difference is what is drawn first', () => {
+  it('opens on the mask the comparison drew, not on a picture of the component', () => {
+    // A crop of the candidate is a picture of the component. Reading one against
+    // a remembered baseline is redoing by eye what the run did to the pixel.
+    show([appearance()]);
+
+    const images = [...host.querySelectorAll('img')];
+    expect(images).toHaveLength(1);
+    expect(images[0]?.src).toContain('/diff');
   });
 
-  it('counts the shapes it did not draw rather than dropping them', () => {
+  it('draws one crop for every shape, with no cap counting the rest away', () => {
+    // Six shapes is six differences, and a strip that drew three of them and
+    // said *3 further shapes* asked the reviewer to click through for the half
+    // it had already decided not to show.
     show(
       Array.from({ length: 6 }, (_, index) =>
         appearance({
@@ -221,36 +225,93 @@ describe('the strip is revealed, and both readings stay mounted', () => {
         }),
       ),
     );
-    press('Look at the change');
 
-    expect(host.querySelectorAll('.va-sight')).toHaveLength(3);
-    expect(host.textContent).toContain('3 further shapes');
+    expect(host.querySelectorAll('.va-sight')).toHaveLength(6);
+    expect(host.textContent).not.toContain('further shape');
+  });
+
+  it('keeps the layer it moved off mounted, so going back is a repaint', () => {
+    // A switch that swapped the src goes through a frame of nothing, and on a
+    // difference of twenty pixels a flash is the loudest thing on screen.
+    show([appearance()]);
+    press('baseline');
+
+    const images = (): readonly HTMLImageElement[] => [...host.querySelectorAll('img')];
+    expect(images()).toHaveLength(2);
+    expect(images().map((each) => each.style.opacity)).toEqual(['0', '1']);
+
+    press('difference');
+
+    expect(images()).toHaveLength(2);
+    expect(images().map((each) => each.style.opacity)).toEqual(['1', '0']);
+  });
+
+  it('draws each layer at its own share of the union box', () => {
+    // A baseline stretched to the candidate's width turns a width change into a
+    // hairline, and at 3x on a hundred-pixel region the hairline is off screen.
+    show([appearance({ subject: subject({ baseline: { width: 640, height: 9000 } }) })]);
+    press('baseline');
+
+    expect([...host.querySelectorAll('img')][1]?.style.width).toBe('50%');
+  });
+
+  it('offers only the readings the run kept', () => {
+    show([appearance({ subject: subject({ has: { before: false, after: true, diff: false } }) })]);
+
+    expect(host.querySelectorAll('.va-mode')).toHaveLength(0);
+    expect(host.querySelectorAll('img')).toHaveLength(1);
+  });
+
+  it('says a reading was never kept rather than drawing a ring over nothing', () => {
+    // The switch is card-level, so one render with no baseline is asked for one
+    // while the others answer. An empty window under a red ring reads as a
+    // difference nobody can see rather than an image nobody kept.
+    show([
+      appearance({ subject: subject({ subject: 'kept' }) }),
+      appearance({
+        subject: subject({ subject: 'lost', has: { before: false, after: true, diff: true } }),
+        shape: 'v1:b',
+      }),
+    ]);
+    press('baseline');
+
+    expect(host.textContent).toContain('No baseline was kept for this render');
+    expect(host.querySelectorAll('.va-crop-unplaced')).toHaveLength(1);
+  });
+});
+
+describe('the raster is deferred by the window, not by a button', () => {
+  it('asks for nothing until the crop\u2019s own window comes near the viewport', () => {
+    // A route candidate here is 1280 by 9000 and costs about 46MB of bitmap, and
+    // six shapes ask for six of them.
+    const seen = observed();
+    show([appearance()]);
+
+    expect(host.querySelectorAll('img')).toHaveLength(0);
+    expect(host.querySelectorAll('.va-crop')).toHaveLength(1);
+
+    seen.reach();
+
+    expect(host.querySelectorAll('img')).toHaveLength(1);
+  });
+
+  it('draws outright where nothing can ever tell it the window arrived', () => {
+    // No observer, and a static render has no scroll to wait for. A deferral
+    // nothing can lift is a permanently empty frame.
+    show([appearance()]);
+
+    expect(host.querySelectorAll('img')).toHaveLength(1);
   });
 
   it('asks for the raster outright, because the plate is nowhere near the viewport', () => {
     // A mobile route capture is 390 by 8868, and centring a region near its foot
     // puts the plate 17,000px above the window. A lazy image there is never in
-    // view, so it is never fetched — and the crop draws its red ring over a
-    // frame of nothing. The reveal is the deferral; the load is not deferred
-    // again on top of it.
+    // view, so it is never fetched \u2014 and the crop draws its red ring over a
+    // frame of nothing. What is watched is the window, which is 264 by 176.
     show([appearance()]);
-    press('Look at the change');
 
     expect([...host.querySelectorAll('img')].map((each) => each.getAttribute('loading'))).toEqual([
       null,
-      null,
     ]);
-  });
-
-  it('offers no flip when the run kept no baseline to flip to', () => {
-    show([
-      appearance({
-        subject: subject({ has: { before: false, after: true, diff: false } }),
-      }),
-    ]);
-    press('Look at the change');
-
-    expect(host.textContent).not.toContain('show the baseline');
-    expect(host.querySelectorAll('img')).toHaveLength(1);
   });
 });
