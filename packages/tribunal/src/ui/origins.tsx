@@ -31,7 +31,7 @@
 import type { ReactElement } from 'react';
 import type { BuildDetail, SubjectView } from '../review-types.js';
 import type { Crossing } from './crossing.js';
-import { originsOf, shapesOf, type Origin } from './grouping.js';
+import { originsOf, shapesOf, sourceOf, type Origin } from './grouping.js';
 import { docketOf, ORDERS, type Group } from './order.js';
 import type { Order, Route } from './route.js';
 import { Go } from './shell.js';
@@ -119,7 +119,7 @@ function Sorting({
   );
 }
 
-/** One band, with the sentence that says why its rows are together. */
+/** One band: the claim, the count, the rows. */
 function Band({
   group,
   build,
@@ -138,7 +138,6 @@ function Band({
       <h3>
         {group.title} <span className="va-num">{number(group.changes.length)}</span>
       </h3>
-      <p className="va-note">{group.why}</p>
       <ul>
         {group.changes.map((origin) => (
           <Row
@@ -158,12 +157,17 @@ function Band({
 /**
  * One change, in a row a reviewer can scan a column of.
  *
- * Three facts and at most one mark. The fingerprint is not one of them — it is an
+ * Four facts and at most one mark. The fingerprint is not one of them — it is an
  * identity, not a finding, and it was on the third line of every card in the
  * version of this surface that told nobody anything. What replaces it is the
  * count of distinct shapes, which is the part of the same record a reviewer can
  * act on: one shape across eleven renders is one decision, and nine shapes across
  * eleven is a component whose renders each absorbed the edit their own way.
+ *
+ * The fourth fact is the source, and it is fourth rather than absent because the
+ * band above it no longer says anything about where these came from. `CardFooter`
+ * sat under *something you edited hands these what they draw* for a build and a
+ * half with `ProductCard` in the store the whole time.
  */
 function Row({
   origin,
@@ -196,8 +200,33 @@ function Row({
         </span>
         <span className="va-row-size va-num">{number(origin.pixels)} px</span>
         <RowMark origin={origin} crossing={crossing} decided={decided} />
+        <Source origin={origin} />
       </Go>
     </li>
+  );
+}
+
+/**
+ * Where the change came from, by name.
+ *
+ * Nothing is derived here and nothing is phrased: [`sourceOf`](./grouping.js)
+ * reads the owner, the file or the token off the movement the run wrote, and
+ * this prints the list. A row with no source line is a row the run recorded
+ * nothing for and the docket has no file for either — which is a fact about the
+ * record, and is drawn as the empty space it is rather than as a sentence
+ * apologising for it.
+ */
+function Source({ origin }: { readonly origin: Origin }): ReactElement | null {
+  const names = sourceOf(origin);
+  if (names.length === 0) return null;
+
+  const say = names.join(', ');
+  // Ellipsised at the rail's width, so the full text has to be somewhere. This
+  // is the one thing a `title` is for: the same string, not a different one.
+  return (
+    <span className="va-row-from" title={say}>
+      {say}
+    </span>
   );
 }
 
@@ -280,11 +309,8 @@ function Unattributed({
   return (
     <section className="va-band va-band-orphan">
       <h3>
-        No region named the cause <span className="va-num">{number(subjects.length)}</span>
+        No region named these <span className="va-num">{number(subjects.length)}</span>
       </h3>
-      <p className="va-note">
-        The difference here fit no component’s box, so there is no change to decide these under.
-      </p>
       <ul>
         {subjects.map((subject) => (
           <li key={subject.subject} className="va-row">

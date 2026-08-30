@@ -217,9 +217,7 @@ describe('the rail is scanned, not read', () => {
       ),
     );
 
-    expect(page.indexOf('Nothing you wrote reaches these')).toBeLessThan(
-      page.indexOf('You edited these'),
-    );
+    expect(page.indexOf('Nothing reaches these')).toBeLessThan(page.indexOf('You edited these'));
     expect(page.indexOf('Orphan')).toBeLessThan(page.indexOf('Button'));
   });
 
@@ -235,7 +233,7 @@ describe('the rail is scanned, not read', () => {
     );
 
     expect(page).toContain('Already decided');
-    expect(page).not.toContain('This run read no diff');
+    expect(page).not.toContain('No diff read');
   });
 
   it('separates a name the diff cannot reach from a render it reaches nothing in', () => {
@@ -254,13 +252,13 @@ describe('the rail is scanned, not read', () => {
       }),
     );
 
-    expect(page).toContain('The diff does not name these');
-    expect(page).not.toContain('Nothing you wrote reaches these');
+    expect(page).toContain('Not in the diff');
+    expect(page).not.toContain('Nothing reaches these');
   });
 
   it('says nothing about reach when the run carried no diff, rather than guessing', () => {
     expect(rail(build([subject({ regions: [region({ component: 'Button' })] })]))).toContain(
-      'This run read no diff',
+      'No diff read',
     );
   });
 
@@ -281,7 +279,7 @@ describe('the rail is scanned, not read', () => {
     // an unrelated edit to approve it beneath.
     const page = rail(build([subject({ subject: 'route:/checkout', regions: [] })]));
 
-    expect(page).toContain('No region named the cause');
+    expect(page).toContain('No region named these');
     expect(page).toContain('route:/checkout');
   });
 

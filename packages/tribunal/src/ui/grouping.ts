@@ -222,6 +222,48 @@ function around(
 }
 
 /**
+ * The names the run put on this change's cause, for the row to print.
+ *
+ * The rail used to carry a paragraph per band saying what the band meant — *a
+ * component the commit did edit draws each one and hands it what it renders* —
+ * while the name of the component that did the drawing sat in the record,
+ * unprinted, and the file a component is declared in sat in a `title` attribute
+ * nobody hovers. That is backwards twice: the definition is identical on every
+ * build, and the name is the only part that is about this one.
+ *
+ * So the paragraph is gone and this stands where it stood. Per rung, because
+ * each rung recorded a different kind of evidence and there is no general one:
+ * `edited` has the file the diff named, `token` has the custom properties that
+ * took new values, `upstream` has the edited component that reaches this one and
+ * the chain it reaches through.
+ *
+ * Folded over the appearances rather than read off the first, and the difference
+ * is the case worth having. One `CardFooter` can be handed its change by
+ * `ProductCard` on the product page and by `CartCard` on the cart, and a row
+ * printing whichever render came back first would name a page the reviewer is
+ * not looking at.
+ */
+export function sourceOf(origin: Origin): readonly string[] {
+  const found = new Set<string>();
+
+  for (const { movement } of origin.appearances) {
+    if (movement === undefined) continue;
+    if (movement.cause === 'edited' && movement.file !== undefined) found.add(movement.file);
+    if (movement.cause === 'token') for (const token of movement.tokens ?? []) found.add(token);
+    if (movement.cause === 'upstream' && movement.upstream !== undefined) {
+      found.add([movement.upstream, ...(movement.through ?? [])].join(' → '));
+    }
+  }
+
+  // Where the component is declared, when no movement named anything — which is
+  // most of what the `title` attribute was hiding, and is the answer a reviewer
+  // opening an unattributed row is about to go looking for anyway.
+  if (found.size === 0 && origin.file !== undefined) found.add(origin.file);
+
+  return [...found].sort();
+}
+
+/**
  * What the differences look like, which is the half a component name cannot say.
  *
  * A component groups *what was edited*. A shape groups *what the edit did*, and

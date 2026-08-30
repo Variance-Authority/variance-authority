@@ -77,6 +77,7 @@ export const DOCKET_STYLES = `
 .va-row-spread { font-size: 0.74rem; grid-area: 2 / 1; }
 .va-row-size { color: var(--va-ink-3); font-size: 0.74rem; grid-area: 2 / 2; text-align: right; }
 .va-row .va-mark { font-size: 0.68rem; grid-area: 1 / 2; justify-self: end; }
+.va-row-from { color: var(--va-ink-3); font-family: var(--va-mono); font-size: 0.7rem; grid-area: 3 / 1 / 4 / 3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The page with nothing open: four sentences and two links, and no encyclopedia.
    Everything a reader could want past this has an address of its own. */

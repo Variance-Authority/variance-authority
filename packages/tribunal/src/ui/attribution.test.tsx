@@ -5,7 +5,7 @@ import type { BuildDetail, MovementView, ReachView, SubjectView } from '../revie
 import { attributionsOf, rungAcross } from './attribution.js';
 import { Because } from './because.js';
 import { Arrival } from './change-story.js';
-import { originsOf, type Origin } from './grouping.js';
+import { originsOf, sourceOf, type Origin } from './grouping.js';
 import { laneOf } from './order.js';
 
 /**
@@ -211,6 +211,85 @@ describe('the band a change is read under', () => {
     const origin = originOf(build([footer], [movement()], null), 'CardFooter');
 
     expect(laneOf(origin)).toBe('unread');
+  });
+});
+
+describe('the row names what the run named', () => {
+  const footer = subject('story:product-card--sale', 'CardFooter');
+
+  it('names the parent that handed it the change, and the chain to it', () => {
+    // The band over this row used to read *a component the commit did edit draws
+    // each one and hands it what it renders* — one paragraph, identical on every
+    // build, above a record that held the word `ProductCard` the whole time.
+    expect(sourceOf(originOf(build([footer], [movement()]), 'CardFooter'))).toEqual([
+      'ProductCard → Card',
+    ]);
+  });
+
+  it('names both parents when the same component was handed a change by two', () => {
+    // The reason this folds over the appearances rather than reading the first.
+    // A row that named `CartCard` here would be sending a reviewer to the cart
+    // page to look for an edit that landed on the product page as well.
+    const detail = build(
+      [footer, subject('story:cart-card--item', 'CardFooter')],
+      [
+        movement(),
+        movement({ subject: 'story:cart-card--item', upstream: 'CartCard', through: ['Card'] }),
+      ],
+    );
+
+    expect(sourceOf(originOf(detail, 'CardFooter'))).toEqual([
+      'CartCard → Card',
+      'ProductCard → Card',
+    ]);
+  });
+
+  it('drops the chain when the parent draws it directly', () => {
+    const detail = build([footer], [movement({ upstream: 'ProductCard', through: undefined })]);
+
+    expect(sourceOf(originOf(detail, 'CardFooter'))).toEqual(['ProductCard']);
+  });
+
+  it('names the file on the rung that has one, which was in a hover attribute', () => {
+    const detail = build(
+      [footer],
+      [movement({ cause: 'edited', file: 'app/src/components/ui/card.tsx', upstream: undefined })],
+    );
+
+    expect(sourceOf(originOf(detail, 'CardFooter'))).toEqual(['app/src/components/ui/card.tsx']);
+  });
+
+  it('names the properties that took new values on the token rung', () => {
+    const detail = build(
+      [footer],
+      [movement({ cause: 'token', tokens: ['--brand-600', '--radius-lg'], upstream: undefined })],
+    );
+
+    expect(sourceOf(originOf(detail, 'CardFooter'))).toEqual(['--brand-600', '--radius-lg']);
+  });
+
+  it('falls back to where the docket says it is declared when nothing was recorded', () => {
+    const detail = {
+      ...build([footer], []),
+      causes: [
+        {
+          component: 'CardFooter',
+          file: 'app/src/components/ui/card.tsx',
+          subjects: ['story:product-card--sale'],
+          pixels: 974,
+          collateralPixels: 0,
+        },
+      ],
+    };
+
+    expect(sourceOf(originOf(detail, 'CardFooter'))).toEqual(['app/src/components/ui/card.tsx']);
+  });
+
+  it('answers an empty list rather than a placeholder when neither record has a name', () => {
+    // Absent is not empty and is not a sentence either. The row draws the space,
+    // which is what *the run recorded nothing and the docket has no file* looks
+    // like — not a line of prose apologising for it.
+    expect(sourceOf(originOf(build([footer], []), 'CardFooter'))).toEqual([]);
   });
 });
 
