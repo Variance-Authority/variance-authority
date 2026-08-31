@@ -1,4 +1,5 @@
 import type { CanonicalValue } from '../format/canonical.js';
+import type { Rect } from '../format/capture.js';
 import type { Digest } from '../format/hash.js';
 import type { SemanticNode } from '../format/snapshot.js';
 
@@ -295,6 +296,15 @@ export interface Shape {
    */
   readonly wiring: CanonicalValue;
 
+  /**
+   * The box this boundary's root node occupies. Not part of any digest.
+   *
+   * Beside the digests rather than inside `geometry`, which is the whole subtree:
+   * this is the only thing on the record that can say a control grew eight pixels
+   * rather than merely stopped being what it was. `null` where nothing was laid out.
+   */
+  readonly box: Rect | null;
+
   /** Child boundaries encountered, in document order. Not part of any digest. */
   readonly renders: readonly string[];
   /** Nodes this boundary owns, counting its own root. Not part of any digest. */
@@ -450,6 +460,7 @@ export function shapeOf(boundary: Boundary, layout: boolean, rename?: Rename): S
     style,
     geometry,
     wiring,
+    box: node.rect ?? null,
     renders,
     nodes,
     tokens: [...tokens].sort(),

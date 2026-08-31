@@ -13,10 +13,11 @@ import type { Decision, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import type { Ruler } from './distance.js';
 import { Findings } from './findings.js';
+import { glanceOf, type Blamed, type Glance } from './glance.js';
 import { SubjectHistory } from './history.js';
 import { MovedHere } from './moved.js';
 import { messageOf } from './shell.js';
-import { when } from './text.js';
+import { count, number, when } from './text.js';
 import { Viewer } from './viewer.js';
 
 /**
@@ -89,7 +90,8 @@ export function SubjectPanel({
             <h3>{subject.subject}</h3>
             <span className={`va-verdict va-${subject.verdict}`}>{subject.verdict}</span>
           </header>
-          <p className="va-because">{subject.because}</p>
+          <Glanced subject={subject} />
+          <p className="va-said">{subject.because}</p>
 
           <Viewer client={client} build={build} subject={subject} sourced={sourced} />
         </div>
@@ -147,4 +149,126 @@ export function SubjectPanel({
       </aside>
     </section>
   );
+}
+
+/**
+ * The three measurements, before the sentence that used to carry them.
+ *
+ * A reviewer arriving here has one question — *what changed* — and the line that
+ * answered it was prose: pixels, then a name, then a resize, then a caveat, in
+ * one two-hundred-character sentence with the interesting part in the middle.
+ * Read once. Skipped on the second subject, because the shape of it is the same
+ * every time and a reader who has parsed it twice stops looking for where the
+ * numbers moved.
+ *
+ * Three cells instead, each a number over its unit. Nothing to read in order,
+ * because these are three answers to one question and a reviewer takes them at a
+ * glance or not at all. The sentence stays underneath and stays quiet: it is the
+ * run's own words, it carries the collection's complaints, and demoting it is
+ * not the same as dropping it.
+ *
+ * `null` for a subject with nothing to measure. An unchanged render would get
+ * three cells reading `—`, which is a page insisting it has something to say.
+ */
+function Glanced({ subject }: { readonly subject: SubjectView }): ReactElement | null {
+  const at = glanceOf(subject);
+  if (at.pixels === 0 && at.grew === undefined && at.blamed.length === 0) return null;
+
+  return (
+    <div className="va-glance">
+      <Cause at={at} />
+      {at.grew === undefined ? null : (
+        <p className="va-glance-cell">
+          <b>
+            {at.grew.by > 0 ? '+' : ''}
+            {number(at.grew.by)} px
+          </b>
+          <span>{at.grew.axis}</span>
+          <small>
+            {number(at.grew.from.width)}×{number(at.grew.from.height)} →{' '}
+            {number(at.grew.to.width)}×{number(at.grew.to.height)}
+          </small>
+        </p>
+      )}
+      {at.pixels === 0 ? null : (
+        <p className="va-glance-cell">
+          <b>{number(at.pixels)} px</b>
+          <span>{count(at.regions, 'region')}</span>
+          {at.landedIn === undefined ? null : <small>drawn over {at.landedIn}</small>}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Who moved, per the hashes — which is not who the regions are named after.
+ *
+ * The distinction this cell exists for. A region is named from where its box
+ * landed, so an edit that pushed its container reports under the container;
+ * these entries compared digests and never saw a pixel. On the subject that
+ * prompted this, the prose said `Card` and the hashes say `Button`, and only one
+ * of those is a file anybody edited.
+ *
+ * A cause no region names is marked rather than left implicit. That is the two
+ * tiers disagreeing about where a change is, and it is the state a reviewer
+ * should distrust the picture in.
+ */
+function Cause({ at }: { readonly at: Glance }): ReactElement | null {
+  if (!at.measured) return null;
+  if (at.blamed.length === 0) {
+    return (
+      <p className="va-glance-cell va-glance-none">
+        <b>nothing owned it</b>
+        <span>every digest matched</span>
+      </p>
+    );
+  }
+
+  const shown = at.blamed.slice(0, 2);
+
+  return (
+    <p className="va-glance-cell va-glance-cause">
+      <b>
+        {shown.map((each) => each.component).join(', ')}
+        {at.blamed.length > shown.length ? ` +${number(at.blamed.length - shown.length)}` : ''}
+      </b>
+      <span>{sense(shown)}</span>
+      {shown[0]?.grew === undefined || shown.length > 1 ? null : (
+        <small>{sized(shown[0].grew)}</small>
+      )}
+      {shown.every((each) => each.drawn) ? null : (
+        <small className="va-glance-off" title="the hashes name it; no region does">
+          no region carries it
+        </small>
+      )}
+    </p>
+  );
+}
+
+/**
+ * A box delta, on the axes that moved.
+ *
+ * Both axes get the cross form and one gets a word, because *+36 x +8 px* with a
+ * zero in it is a reader working out which number is the one that changed.
+ */
+function sized({ width, height }: { readonly width: number; readonly height: number }): string {
+  const w = `${width > 0 ? '+' : ''}${number(width)}`;
+  const h = `${height > 0 ? '+' : ''}${number(height)}`;
+  if (width === 0) return `${h} px tall`;
+  if (height === 0) return `${w} px wide`;
+  return `${w} × ${h} px`;
+}
+
+/**
+ * The bands, once each, in the order they were found.
+ *
+ * A component present on one side only says that instead: `added` and `removed`
+ * are not bands and a list that folded them in would report a control that did
+ * not exist before as having changed its geometry.
+ */
+function sense(blamed: readonly Blamed[]): string {
+  const presence = [...new Set(blamed.map((each) => each.presence).filter(Boolean))];
+  if (presence.length > 0) return presence.join(', ');
+  return [...new Set(blamed.flatMap((each) => each.bands))].join(' · ');
 }

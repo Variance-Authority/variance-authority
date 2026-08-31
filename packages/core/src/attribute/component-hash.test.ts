@@ -326,3 +326,150 @@ describe('every component that moved, and in which band', () => {
     ]);
   });
 });
+
+describe('how much bigger it got', () => {
+  /**
+   * The gap this closes. A digest says a component is not what it was and can
+   * never say by how much — so a run that reported `Button — geometry, token`
+   * on a control whose height went from 36 to 44 said the same thing it would
+   * have said about a lost shadow, and the reviewer looking for the eight pixels
+   * their page grew by had nothing on the record to find them in.
+   */
+
+  const box = (width: number, height: number): Rect => ({ x: 0, y: 0, width, height });
+
+  const sized = (width: number, height: number, color = 'rgb(0, 0, 0)'): Spec => ({
+    tag: 'div',
+    owner: 'Card',
+    rect: box(400, 200),
+    children: [
+      {
+        tag: 'button',
+        owner: 'Button',
+        style: { color },
+        rect: box(width, height),
+        children: [{ tag: 'span', text: 'Remove' }],
+      },
+    ],
+  });
+
+  it('keeps a box per instance, and only where boxes were measured', () => {
+    const [button] = hashComponents(snapshotOf(sized(122, 36), true)).filter(
+      (entry) => entry.component === 'Button',
+    );
+
+    expect(button?.boxes).toEqual([box(122, 36)]);
+    // A profile that measures nothing must not answer with a list of nulls,
+    // which is a measurement nobody took written as one somebody did.
+    expect(
+      hashComponents(snapshotOf(sized(122, 36))).some((entry) => 'boxes' in entry),
+    ).toBe(false);
+  });
+
+  it('names the delta a padding edit produced', () => {
+    // `h-9 px-3` to `h-11 px-5`, which is the edit this was built for: eight
+    // pixels of height and eight of padding on each side.
+    const grown = movedBandsBetween(
+      hashComponents(snapshotOf(sized(122, 36), true)),
+      hashComponents(snapshotOf(sized(158, 44), true)),
+    );
+
+    expect(grown.find((entry) => entry.component === 'Button')?.grew).toEqual({
+      width: 36,
+      height: 8,
+    });
+  });
+
+  it('says nothing about a component whose box held still', () => {
+    // `absent is not zero`, and here the absence is load-bearing: a colour edit
+    // that moved no box would otherwise print `0 × 0 px` beside it, which reads
+    // as a measurement rather than as the nothing it is.
+    const recoloured = movedBandsBetween(
+      hashComponents(snapshotOf(sized(122, 36), true)),
+      hashComponents(snapshotOf(sized(122, 36, 'rgb(79, 70, 229)'), true)),
+    );
+
+    const button = recoloured.find((entry) => entry.component === 'Button');
+    expect(button?.bands).toEqual(['token']);
+    expect(button && 'grew' in button).toBe(false);
+  });
+
+  it('refuses an answer when the two sides count different instances', () => {
+    // Instances pair by document order, which is the only order either side has.
+    // A component that gained one shifted every index after the insertion, so
+    // the deltas that fall out measure one instance against a different one —
+    // and the count moving is already reported as `structure`.
+    const twice: Spec = {
+      tag: 'div',
+      owner: 'Card',
+      rect: box(400, 200),
+      children: [
+        { tag: 'button', owner: 'Button', rect: box(122, 36), children: [] },
+        { tag: 'button', owner: 'Button', rect: box(122, 36), children: [] },
+      ],
+    };
+
+    const grown = movedBandsBetween(
+      hashComponents(snapshotOf(sized(122, 36), true)),
+      hashComponents(snapshotOf(twice, true)),
+    );
+
+    const button = grown.find((entry) => entry.component === 'Button');
+    expect(button?.bands).toContain('geometry');
+    expect(button && 'grew' in button).toBe(false);
+  });
+
+  it('refuses an answer when two instances disagree about the delta', () => {
+    // One button grew and one did not is a real finding and it is not this one.
+    // Printing the first, or the largest, would be the page choosing a
+    // representative instance without saying it had chosen.
+    const pair = (first: number, second: number): Spec => ({
+      tag: 'div',
+      owner: 'Card',
+      rect: box(400, 200),
+      children: [
+        { tag: 'button', owner: 'Button', rect: box(122, first), children: [] },
+        { tag: 'button', owner: 'Button', rect: box(122, second), children: [] },
+      ],
+    });
+
+    const grown = movedBandsBetween(
+      hashComponents(snapshotOf(pair(36, 36), true)),
+      hashComponents(snapshotOf(pair(44, 36), true)),
+    );
+
+    expect(grown.find((entry) => entry.component === 'Button')?.grew).toBeUndefined();
+  });
+
+  it('agrees with itself when every instance grew the same', () => {
+    const pair = (height: number): Spec => ({
+      tag: 'div',
+      owner: 'Card',
+      rect: box(400, 200),
+      children: [
+        { tag: 'button', owner: 'Button', rect: box(122, height), children: [] },
+        { tag: 'button', owner: 'Button', rect: box(122, height), children: [] },
+      ],
+    });
+
+    expect(
+      movedBandsBetween(
+        hashComponents(snapshotOf(pair(36), true)),
+        hashComponents(snapshotOf(pair(44), true)),
+      ).find((entry) => entry.component === 'Button')?.grew,
+    ).toEqual({ width: 0, height: 8 });
+  });
+
+  it('leaves a baseline written before boxes existed unanswered rather than still', () => {
+    // The compatibility case, and the one that fails towards a wrong sentence:
+    // a missing list read as an empty one makes every component on an old
+    // baseline agree with itself about a size neither side recorded.
+    const after = hashComponents(snapshotOf(sized(158, 44), true));
+    const before = hashComponents(snapshotOf(sized(122, 36), true)).map((entry) => {
+      const { boxes: _dropped, ...rest } = entry;
+      return rest;
+    });
+
+    expect(movedBandsBetween(before, after).find((e) => e.component === 'Button')?.grew).toBeUndefined();
+  });
+});

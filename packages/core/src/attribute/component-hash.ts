@@ -1,5 +1,6 @@
 import { BANDS, type Band } from '../compare/band.js';
 import type { CanonicalValue } from '../format/canonical.js';
+import type { Rect } from '../format/capture.js';
 import type { Digest } from '../format/hash.js';
 import { digestValue } from '../format/hash.js';
 import type { ComponentHash, SemanticSnapshot } from '../format/snapshot.js';
@@ -60,6 +61,7 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
       text: CanonicalValue[];
       style: CanonicalValue[];
       geometry: CanonicalValue[];
+      boxes: (Rect | null)[];
     }
   >();
 
@@ -72,12 +74,14 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
       text: [],
       style: [],
       geometry: [],
+      boxes: [],
     };
     entry.structure.push(shape.structure);
     entry.semantics.push(shape.semantics);
     entry.text.push(shape.text);
     entry.style.push(shape.style);
     entry.geometry.push(shape.geometry);
+    entry.boxes.push(shape.box);
     accumulated.set(boundary.component, entry);
   }
 
@@ -90,6 +94,10 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
       text: digestValue(entry.text),
       style: digestValue(entry.style),
       ...(layout ? { geometry: digestValue(entry.geometry) } : {}),
+      // Under a profile with no layout every entry is `null`, and a list of
+      // nulls is a measurement nobody took written as one they did. Absent
+      // instead, which is the same rule `geometry` above obeys.
+      ...(layout ? { boxes: entry.boxes } : {}),
     }))
     // Code-unit order, not `localeCompare`. The doc above promises byte-identical
     // output for an unchanged subject, and a locale-aware comparison makes that a
@@ -302,6 +310,21 @@ export interface ComponentBands {
   readonly cause: boolean;
   /** Set only when the component is on one side alone, which `bands` cannot say. */
   readonly presence?: 'added' | 'removed';
+
+  /**
+   * How much bigger its own box got, when every instance agrees on the answer.
+   *
+   * The band a reviewer actually wanted. `geometry` says a rect under here is
+   * not the rect it was; this says the control is eight pixels taller and
+   * thirty-six wider, which is the padding somebody edited, arriving as a
+   * measurement rather than as a guess about which property produced it.
+   *
+   * Absent for four different reasons and they are one reason: nobody can say.
+   * No boxes on one side, a different number of instances, instances that
+   * disagree about the delta, or a box that did not change size. Present is
+   * always non-zero on at least one axis.
+   */
+  readonly grew?: { readonly width: number; readonly height: number };
 }
 
 /**
@@ -337,7 +360,13 @@ export function movedBandsBetween(
     }
     const bands = movedBands(was, entry);
     if (bands.length === 0) continue;
-    moved.push({ component: entry.component, bands, cause: ownContentMoved(was, entry) });
+    const grew = grewBetween(was.boxes, entry.boxes);
+    moved.push({
+      component: entry.component,
+      bands,
+      cause: ownContentMoved(was, entry),
+      ...(grew === undefined ? {} : { grew }),
+    });
   }
 
   for (const entry of before) {
@@ -347,4 +376,42 @@ export function movedBandsBetween(
   }
 
   return moved.sort((left, right) => left.component.localeCompare(right.component));
+}
+
+/**
+ * One size delta both sides agree on, or nothing.
+ *
+ * Instances are paired by document order, which is the only order either side
+ * has. That pairing is sound exactly while the counts match: a component that
+ * gained an instance shifted every index after the insertion, and the deltas
+ * that fell out would be measurements of one instance against a different one.
+ * So a changed count answers nothing rather than answering wrongly — the count
+ * itself already moved `structure`, and the reviewer is told that instead.
+ *
+ * Instances that disagree also answer nothing. Three buttons where one grew and
+ * two did not is a real finding and it is not *this* one, and printing the first
+ * or the largest would be the page picking a representative and not saying so.
+ *
+ * Position is deliberately not read. Everything below a control that got taller
+ * moved down, and a delta drawn from `x`/`y` would name every one of them.
+ */
+function grewBetween(
+  before: readonly (Rect | null)[] | undefined,
+  after: readonly (Rect | null)[] | undefined,
+): { readonly width: number; readonly height: number } | undefined {
+  if (before === undefined || after === undefined) return undefined;
+  if (before.length === 0 || before.length !== after.length) return undefined;
+
+  let agreed: { width: number; height: number } | undefined;
+  for (const [index, was] of before.entries()) {
+    const now = after[index];
+    if (was === null || was === undefined || now === null || now === undefined) return undefined;
+
+    const width = now.width - was.width;
+    const height = now.height - was.height;
+    if (agreed === undefined) agreed = { width, height };
+    else if (agreed.width !== width || agreed.height !== height) return undefined;
+  }
+
+  return agreed === undefined || (agreed.width === 0 && agreed.height === 0) ? undefined : agreed;
 }

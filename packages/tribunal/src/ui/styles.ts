@@ -170,6 +170,22 @@ export const REVIEW_STYLES = `
 .va-verdict.va-incomparable { background: var(--va-bad-bg); color: var(--va-bad-ink); }
 .va-verdict.va-unstable { background: var(--va-bad-bg); color: var(--va-bad-ink); }
 .va-because { color: var(--va-ink-2); font-size: 0.88rem; }
+
+/* The three measurements a reviewer takes in before reading anything: who moved,
+   how much the canvas grew, and how much of it differs. The sentence underneath
+   said all three in one clause each and was skipped by the second subject, so the
+   numbers are set large and the units small and the prose stands down. Accent on
+   the component name only, because that is the one answer the picture cannot give
+   — a region is named from where its box landed, not from what moved it. */
+.va-glance { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 1.6rem; margin: 0.55rem 0 0.35rem; }
+.va-glance-cell { display: flex; flex-direction: column; gap: 0.12rem; margin: 0; }
+.va-glance-cell b { color: var(--va-ink); font-family: var(--va-mono); font-size: 1.4rem; font-weight: 650; letter-spacing: -0.02em; line-height: 1.15; }
+.va-glance-cell span { color: var(--va-ink-3); font-family: var(--va-mono); font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.va-glance-cell small { color: var(--va-ink-2); font-family: var(--va-mono); font-size: 0.72rem; }
+.va-glance-cause b { color: var(--va-cause); font-family: var(--va-sans); font-size: 1.45rem; letter-spacing: -0.01em; }
+.va-glance-none b { color: var(--va-ink-2); font-size: 1.05rem; }
+.va-glance-off { background: var(--va-warn-bg); border-radius: 4px; color: var(--va-warn-ink); margin-top: 0.15rem; padding: 0.05rem 0.35rem; width: fit-content; }
+.va-said { color: var(--va-ink-3); font-size: 0.78rem; margin: 0.1rem 0 0; max-width: 74ch; }
 .va-intent { color: var(--va-ink-2); font-size: 0.88rem; }
 .va-subtitle { color: var(--va-ink-3); font-size: 0.88rem; margin-top: 0.2rem; }
 

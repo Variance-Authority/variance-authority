@@ -385,9 +385,18 @@ describe('what the cause list drops, and the band record keeps', () => {
       snapshot: grown('8px', 46, 72),
     });
 
+    // The delta beside the band, which is what makes the record readable: the
+    // button gained sixteen pixels of padding and the shell gained twelve of
+    // height because it holds one — a wrapper's growth is its child's, and both
+    // sentences are on the row without a reviewer measuring anything.
     expect(observation.moved).toEqual([
-      { component: 'Button', bands: ['geometry', 'token'], cause: true },
-      { component: 'Shell', bands: ['geometry'], cause: false },
+      {
+        component: 'Button',
+        bands: ['geometry', 'token'],
+        cause: true,
+        grew: { width: 16, height: 0 },
+      },
+      { component: 'Shell', bands: ['geometry'], cause: false, grew: { width: 0, height: 12 } },
     ]);
     // And the ranking input it is a superset of still holds only the one name.
     expect(observation.causes).toEqual(['Button']);

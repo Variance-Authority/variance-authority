@@ -267,6 +267,22 @@ export interface ComponentHash {
    * false `unchanged` this system must never produce.
    */
   readonly geometry?: Digest;
+
+  /**
+   * The box each instance occupies, in document order. Never hashed.
+   *
+   * A digest can say a component is not what it was and can never say by how
+   * much. That is the gap a reviewer falls into: `Button — geometry, token` is
+   * true of a control that lost a shadow and of one that grew eight pixels and
+   * pushed the page down, and only the second explains why the subject is a
+   * different height. Four numbers per instance close it.
+   *
+   * Absent for a baseline written before this existed and for a profile with no
+   * layout — the same absence, and both mean *nobody measured*, never *it did
+   * not move*. A `null` entry is a boundary the browser laid out nothing for,
+   * kept in place so the list stays parallel to the instances it counts.
+   */
+  readonly boxes?: readonly (Rect | null)[];
 }
 
 export interface StyleProvenanceEntry {
