@@ -223,7 +223,12 @@ export async function selectionFor(
   const journey =
     journal === undefined
       ? undefined
-      : unenteredSubjects({ planned: surviving, whole: journal.whole, entered: journal.entered });
+      : unenteredSubjects({
+          planned: surviving,
+          whole: journal.whole,
+          entered: journal.entered,
+          unread: journal.unread,
+        });
 
   const because = (entry: { readonly because: string }): string =>
     `not affected by the diff against ${ref}: ${entry.because}`;

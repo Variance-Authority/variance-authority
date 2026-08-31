@@ -245,7 +245,22 @@ A changed file selects by how the **snapshot** — the persisted coverage file
 that entered the changed region. A test file selects itself: nothing enters a
 test, so its own edit is the only thing that can run it. A precondition selects
 every test it governs, which is what declaring one is for. A file the snapshot
-never recorded selects nothing.
+never recorded selects nothing, and `narrowByExecution` returns it under
+`unread` so a caller can tell that from *nothing entered it*.
+
+The unit of a change is the **line**, in the coordinates of the diff's own base
+revision, which is the side the snapshot is indexed by. A hunk header is not the
+change: the context lines printed around an edit are unchanged, and charging
+them selects the tests that entered the lines a reader was shown rather than the
+lines that moved. Within a hunk, each changed line is answered by the narrowest
+recorded region containing it, and the selection is the union over lines — one
+commit that edits an import and a click handler selects everything the module
+selects, not what the handler selects. A run of additions replacing a run of
+removals is charged to the removed lines, however far the two counts differ; an
+addition replacing nothing is charged to the regions on both sides of the gap it
+opens. A line no region covers widens to the whole module. A deleted file is
+read from its `--- a/` path, since its hunks are entirely old lines and the
+snapshot still holds every crossing it had.
 
 ## Record what a driven page executed
 

@@ -158,6 +158,7 @@ describe('narrowing a run to what a diff could have changed', () => {
         readJourney: async () => ({
           whole: ['fixture:a', 'fixture:b'],
           entered: ['fixture:a'],
+          unread: [],
         }),
       });
 
@@ -174,7 +175,7 @@ describe('narrowing a run to what a diff could have changed', () => {
       const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
         since: { ref: 'origin/main', changed: ['src/Button.tsx'], diff: DIFF },
         scanSource: async () => SOURCE,
-        readJourney: async () => ({ whole: ['fixture:a', 'fixture:b'], entered: [] }),
+        readJourney: async () => ({ whole: ['fixture:a', 'fixture:b'], entered: [], unread: [] }),
       });
 
       expect(report.warnings?.join('\n')).toContain(
@@ -190,7 +191,7 @@ describe('narrowing a run to what a diff could have changed', () => {
       const { report } = await runWith(CONFIG, BOTH, stored(['Clock']), {
         since: { ref: 'origin/main', changed: ['src/Button.tsx'], diff: DIFF },
         scanSource: async () => SOURCE,
-        readJourney: async () => ({ whole: [], entered: [] }),
+        readJourney: async () => ({ whole: [], entered: [], unread: [] }),
       });
 
       expect(report.notObserved?.map((entry) => entry.because)).toEqual([
@@ -212,7 +213,7 @@ describe('narrowing a run to what a diff could have changed', () => {
         scanSource: async () => SOURCE,
         readJourney: async () => {
           asked = true;
-          return { whole: ['fixture:a', 'fixture:b'], entered: [] };
+          return { whole: ['fixture:a', 'fixture:b'], entered: [], unread: [] };
         },
       });
 

@@ -84,6 +84,7 @@ describe('narrowByExecution', () => {
     expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual({
       whole: testFiles,
       entered: ['test/alpha.test.ts'],
+      unread: [],
     });
   });
 
@@ -100,6 +101,7 @@ describe('narrowByExecution', () => {
     expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(partial)), diff)).toEqual({
       whole: ['test/aaa.test.ts', 'test/beta.test.ts'],
       entered: ['test/alpha.test.ts'],
+      unread: [],
     });
   });
 });
@@ -167,6 +169,129 @@ describe('selectTestFiles', () => {
     expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual(
       [],
     );
+  });
+
+  it('names a changed file it has no measurement of instead of answering for it', () => {
+    // The silence above, said out loud. `[]` and *nobody entered this* are the
+    // same empty list, and only one of them licenses a caller to skip a suite.
+    const diff = `--- a/README.md
++++ b/README.md
+@@ -1,1 +1,1 @@
+-# Old
++# New`;
+
+    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual({
+      whole: testFiles,
+      entered: [],
+      unread: ['README.md'],
+    });
+  });
+
+  it('counts a changed precondition as measured rather than unread', () => {
+    const diff = `--- a/vitest.config.ts
++++ b/vitest.config.ts
+@@ -3,1 +3,1 @@
+-    environment: 'node',
++    environment: 'jsdom',`;
+
+    expect(
+      narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff).unread,
+    ).toEqual([]);
+  });
+
+  it('unions two hunks in one file rather than letting the deeper one erase the other', () => {
+    // The regression that skipped two of three subjects over a change to what
+    // they render. An added import matches the module root — crossed by every
+    // test in the bundle — and a line inside a branch matches the branch. Asked
+    // for the innermost region of the *file* rather than of each hunk, the root
+    // is dropped for containing the branch, and `alpha ∪ beta` comes back as
+    // `alpha`.
+    const diff = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -1,2 +1,3 @@
++import { added } from './added.js';
+@@ -4,1 +5,1 @@
+-    return 'A';
++    return 'Alpha';`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
+      'test/alpha.test.ts',
+      'test/beta.test.ts',
+    ]);
+  });
+
+  it('charges a hunk’s context lines to nobody', () => {
+    // The edit is one line inside the branch; the six around it are printed so a
+    // human can find the place. Counted as changed, they reach the module root
+    // and `beta` — which never entered the branch — is selected by an edit it
+    // could not have run. This is the whole distance between *the effect every
+    // subject mounts* and *the handler one subject clicks*.
+    const diff = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -2,5 +2,5 @@
+ const value = read();
+ if (value) {
+-    return 'A';
++    return 'Alpha';
+ }
+ return 'B';`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
+      'test/alpha.test.ts',
+    ]);
+  });
+
+  it('charges an inserted line to the regions on both sides of the gap', () => {
+    // A pure insertion has no old line of its own. Which region the new text
+    // joins is knowable from the old file only as *one of these two*, and the
+    // union of them is the honest answer.
+    const diff = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -4,1 +4,2 @@
+     return 'A';
++    // reviewed
+`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
+      'test/alpha.test.ts',
+    ]);
+  });
+
+  it('charges three lines replacing one to the region the one was in', () => {
+    // A run’s removals and additions have no correspondence in count, and the
+    // extra additions are not a separate insertion after them. Read as one,
+    // guarding an `onClick` with a confirmation charges the two lines below the
+    // handler — the component body — and the two subjects that never clicked it
+    // are selected by an edit they cannot reach.
+    const diff = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -4,1 +4,3 @@
+-    return 'A';
++    if (ready) {
++      return 'Alpha';
++    }`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
+      'test/alpha.test.ts',
+    ]);
+  });
+
+  it('answers for a deleted file out of the coordinates it still has', () => {
+    // `+++ /dev/null` is the whole header a deletion offers on the new side, and
+    // its hunks are entirely old lines — the side the journal is indexed by. Read
+    // off `+++` alone the commit changed no file at all, so removing a module
+    // every test crosses contributed nothing to the selection.
+    const diff = `diff --git a/src/decide.ts b/src/decide.ts
+deleted file mode 100644
+--- a/src/decide.ts
++++ /dev/null
+@@ -1,8 +0,0 @@
+-export const decide = () => 'A';`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
+      'test/alpha.test.ts',
+      'test/beta.test.ts',
+    ]);
   });
 
   it('widens to the module when a changed line has no recorded region', () => {
