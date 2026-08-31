@@ -129,6 +129,24 @@ export const DOCKET_STYLES = `
 .va-handed em { color: var(--va-ink); font-style: normal; font-weight: 600; }
 .va-handed-go { color: var(--va-accent); font-weight: 600; white-space: nowrap; }
 
+/* The three counts, side by side rather than in a sentence. A sentence has to
+   pick an order and an emphasis; these are three answers of equal standing to
+   three questions a reviewer asks in the same breath. */
+.va-tally { align-items: baseline; color: var(--va-ink-2); display: flex; flex-wrap: wrap; font-size: 0.9rem; gap: 0.15rem 1.1rem; margin: 0.2rem 0 0.9rem; }
+.va-tally strong { color: var(--va-ink); font-size: 1rem; }
+.va-tally > .va-note { margin-left: auto; }
+
+/* What happened to the things that draw this one — the question an author of a
+   leaf actually has. The list is ordered worst first, so the row that needs a
+   look is the one under the summary. */
+.va-consumers { margin: 1.1rem 0; }
+.va-consumers-tally { color: var(--va-ink-2); font-size: 0.92rem; margin: 0 0 0.5rem; }
+.va-consumers-own { color: var(--va-bad-ink); font-weight: 600; }
+.va-consumers-list { display: grid; gap: 0.3rem; list-style: none; margin: 0; padding: 0; }
+.va-consumers-list li { align-items: baseline; border-left: 3px solid var(--va-collateral); display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.15rem 0 0.15rem 0.6rem; }
+.va-consumer-name { color: var(--va-ink); font-weight: 600; }
+.va-consumer-moved { border-left-color: var(--va-bad); }
+
 /* What the last run said, beside the change rather than nine thousand pixels
    below it. Warm rather than red: *you have seen this* is not an alarm, it is
    the sentence a reviewer skips work on. */

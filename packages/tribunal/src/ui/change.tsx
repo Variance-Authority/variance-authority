@@ -41,10 +41,11 @@ import {
   Recurrence,
   Shapes,
   SinceLast,
-  Spread,
+  Tally,
 } from './change-story.js';
 import { Because } from './because.js';
 import type { ReviewClient } from './client.js';
+import { Consumers, consumersOf } from './consumers.js';
 import type { Crossing } from './crossing.js';
 import { distanceFrom } from './distance.js';
 import type { Appearance, Origin } from './grouping.js';
@@ -80,6 +81,7 @@ export function ChangePanel({
   const sourced = build.causes.some((cause) => cause.file !== undefined);
   const across = senseAcross(origin.component, origin.appearances);
   const handed = handedTo(build)(origin.component);
+  const consumers = consumersOf(build)(origin.component);
   const far = distanceFrom(build, origin.component);
   const elsewhere = movedElsewhere(
     origin.component,
@@ -110,10 +112,11 @@ export function ChangePanel({
           />
         </header>
 
-        <p className="va-decide-lead">
-          <MovedLead component={origin.component} across={across} handed={handed} />
-          <Spread origin={origin} />
-        </p>
+        <MovedLead component={origin.component} across={across} handed={handed} />
+
+        {/* The three counts, split. They answer three different questions and
+            they are three different numbers. */}
+        <Tally origin={origin} elsewhere={elsewhere.length} open={open.length} />
 
         {/* What the lead just stopped saying, and who owns it. A band a parent
             hands down is decided in the parent's file, so it is named before the
@@ -132,13 +135,23 @@ export function ChangePanel({
           onOpen={(subject) => go({ page: 'subject', build: build.build, subject })}
         />
 
+        {/* Then the consequence. Editing a leaf and being told the leaf moved is
+            not news — the reviewer wrote it. What they cannot know without being
+            told is what happened to everything that draws it. */}
+        <Consumers found={consumers} build={build.build} changes={changes} go={go} />
+
         {/* Then why. A reviewer who has just read *what* moved and looked at it
             asks one question, and the two lines that answer it belong under the
             question rather than three sections down past the collateral. */}
         <Because origin={origin} build={build.build} changes={changes} go={go} />
         <Arrival origin={origin} />
 
-        <WhatMoved component={origin.component} across={across} far={far} />
+        <WhatMoved
+          component={origin.component}
+          across={across}
+          far={far}
+          except={new Set(consumers.map((each) => each.component))}
+        />
         <MovedElsewhere
           component={origin.component}
           found={elsewhere}

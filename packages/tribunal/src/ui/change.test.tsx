@@ -125,8 +125,9 @@ describe('the card says what a reviewer is agreeing to', () => {
       ]),
     );
 
-    expect(page).toContain('One difference');
-    expect(page).toContain('in 2 renders');
+    expect(page).toContain('<strong>1 difference</strong> to review');
+    expect(page).toContain('<strong>2 renders</strong> to know about');
+    expect(page).toContain('<strong>2 renders</strong> to accept');
   });
 
   it('counts collateral for the build and never splits it between the changes', () => {
@@ -161,7 +162,7 @@ describe('the card says what a reviewer is agreeing to', () => {
       ]),
     );
 
-    expect(page).toContain('2 distinct differences');
+    expect(page).toContain('<strong>2 differences</strong> to review');
     expect(page).toContain('is 2 of the 3 renders');
     expect(page).toContain('Approve this change (3)');
   });

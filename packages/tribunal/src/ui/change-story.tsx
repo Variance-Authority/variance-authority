@@ -26,34 +26,67 @@ import type { Shifted } from './shift.js';
 import { count, number } from './text.js';
 
 /**
- * How far this change went, said in renders and shapes rather than in pixels.
+ * Three counts, because the reviewer asks three questions and they differ.
  *
- * The number this used to lead with was a pixel total, which is the least useful
- * figure available: it is one number for every size of change, and on the restyle
- * that moves everything it degenerates into a quantity nobody can act on. Renders
- * are what is being decided, and distinct shapes say whether deciding them once
- * is honest.
+ * *2 distinct differences, in 7 renders* is two of them run together, and the
+ * third — how many of those a press of the button actually settles — was in the
+ * button's own label, at the other end of the header. The three come apart on
+ * every change of any size: a component moves in twelve renders, five of which
+ * the docket filed under somebody else; the twelve carry two distinct shapes, so
+ * there are two pictures to look at rather than twelve; and seven are open here,
+ * because the rest are decided or belong to the other change.
+ *
+ * Kept as three cells with the reviewer's own words on them rather than folded
+ * into a sentence. A sentence has to pick an order and an emphasis, and these
+ * are three answers of equal standing.
+ *
+ * The pixel total rides along, muted. It is the least useful figure available —
+ * one number for every size of change — and it is the one somebody eventually
+ * asks for.
  */
-export function Spread({ origin }: { readonly origin: Origin }): ReactElement {
+export function Tally({
+  origin,
+  elsewhere,
+  open,
+}: {
+  readonly origin: Origin;
+  /** Renders it moved in that another change owns, and is decided under. */
+  readonly elsewhere: number;
+  /** Renders here a press settles: undecided, and approvable. */
+  readonly open: number;
+}): ReactElement {
   const shapes = shapesOf(origin.appearances).size;
-  const where = count(origin.appearances.length, 'render');
-
-  if (shapes === 0) {
-    return (
-      <>
-        <strong>{where}</strong> moved, and this run recorded no shape for any of them — so nothing
-        says whether they moved the same way. {number(origin.pixels)} px in total.
-      </>
-    );
-  }
+  const know = origin.appearances.length + elsewhere;
 
   return (
-    <>
-      <strong>
-        {shapes === 1 ? 'One difference' : count(shapes, 'distinct difference')}, in {where}
-      </strong>
-      . {number(origin.pixels)} px in total.
-    </>
+    <p className="va-tally">
+      <span title="Every render this component moved in, wherever the docket filed it.">
+        <strong>{count(know, 'render')}</strong> to know about
+      </span>
+      <span title="Distinct shapes among the renders on this page — how many pictures there are to look at, rather than how many renders carry them.">
+        {shapes === 0 ? (
+          <>
+            <strong>no shape</strong> was recorded, so nothing says whether these moved the same way
+          </>
+        ) : (
+          <>
+            <strong>{count(shapes, 'difference')}</strong> to review
+          </>
+        )}
+      </span>
+      <span title="Renders on this page that are open and approvable — what pressing approve settles.">
+        {open === 0 ? (
+          <>
+            <strong>nothing</strong> left to accept
+          </>
+        ) : (
+          <>
+            <strong>{count(open, 'render')}</strong> to accept
+          </>
+        )}
+      </span>
+      <span className="va-note">{number(origin.pixels)} px</span>
+    </p>
   );
 }
 

@@ -60,9 +60,9 @@ export function MovedLead({
 
   if (own.length > 0) {
     return (
-      <>
-        <strong>{component}</strong> moved in <em>{senses(own)}</em>.{' '}
-      </>
+      <p className="va-decide-lead">
+        <strong>{component}</strong> moved in <em>{senses(own)}</em>.
+      </p>
     );
   }
 
@@ -73,14 +73,14 @@ export function MovedLead({
   // whose own hashes held still in every render, which is collateral wearing a
   // name because the largest differing area happened to resolve here.
   return given.size > 0 ? (
-    <>
-      Nothing of <strong>{component}</strong>’s own moved.{' '}
-    </>
+    <p className="va-decide-lead">
+      Nothing of <strong>{component}</strong>’s own moved.
+    </p>
   ) : (
-    <>
+    <p className="va-decide-lead">
       Nothing in <strong>{component}</strong>’s own hashes moved: every render here was pushed by
-      something else on the page.{' '}
-    </>
+      something else on the page.
+    </p>
   );
 }
 
@@ -156,16 +156,26 @@ export function WhatMoved({
   component,
   across,
   far,
+  except,
 }: {
   readonly component: string;
   readonly across: Across;
   /** How far each passenger is from this change, when a diff was read. */
   readonly far?: Ruler | undefined;
+  /**
+   * Names a section above already accounted for, left out of the list here.
+   *
+   * A consumer that reflowed is in both piles by construction — it draws this
+   * component, and it moved in the same renders. Above it is placed against the
+   * ones that held still, which is what makes it readable; here it would be a
+   * name in an alphabetised list with a band beside it, saying the same thing
+   * with the comparison removed.
+   */
+  readonly except?: ReadonlySet<string> | undefined;
 }): ReactElement | null {
+  const alongside = across.alongside.filter((other) => except?.has(other.component) !== true);
   const quiet =
-    across.missedIn.length === 0 &&
-    across.alongside.length === 0 &&
-    across.unmeasured.length === 0;
+    across.missedIn.length === 0 && alongside.length === 0 && across.unmeasured.length === 0;
   if (quiet) return null;
 
   return (
@@ -181,14 +191,14 @@ export function WhatMoved({
         </p>
       )}
 
-      {across.alongside.length === 0 ? null : (
+      {alongside.length === 0 ? null : (
         <>
           {/* Only under the paragraph above. With nothing between them the two
               headings stack, and a heading whose whole job is to separate is
               noise when there is nothing on the other side of it. */}
           {across.missedIn.length === 0 ? null : <h3>Moving beside it</h3>}
           <ul className="va-moved-with">
-            {across.alongside.map((other) => (
+            {alongside.map((other) => (
               <li key={other.component}>
                 <span className="va-moved-name">{other.component}</span>{' '}
                 <span className="va-note">{senses(other.bands)}</span>
@@ -198,7 +208,7 @@ export function WhatMoved({
           </ul>
           <Unplaced
             anchor={component}
-            components={across.alongside.map((other) => other.component)}
+            components={alongside.map((other) => other.component)}
             far={far}
           />
         </>
