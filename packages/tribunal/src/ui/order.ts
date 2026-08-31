@@ -14,25 +14,32 @@
  * 1. **Nothing reaches these.** The commit arrives at no component at all in some
  *    render each of these moved in — the one finding here no other tool
  *    produces, and the one worth waking somebody for.
- * 2. **Edited.** The commit declares the component. Most of a healthy build.
- * 3. **Same props, two renderings.** Held at one commit with its inputs equal,
+ * 2. **Same props, two renderings.** Held at one commit with its inputs equal,
  *    it did not settle. An answer, not an absence.
- * 4. **Nothing explains these.** The diff was read, the file graph walked and
+ * 3. **Nothing explains these.** The diff was read, the file graph walked and
  *    the enclosure climbed, and none of the three arrive here.
- * 5. **Owner edited.** The dominoes. Nothing in the commit declares the
- *    component; something in the commit draws it and hands it what it renders.
- *    The row names that owner.
- * 6. **Token moved.** A custom property took a new value, and this reads it.
- *    The row names the property.
- * 7. **Not in the diff.** No file in the commit declares it and the run recorded
+ * 4. **The commit's own causes**, one band each — the file that was edited, or
+ *    the property that took a new value. [`cause.ts`](./cause.ts) resolves them.
+ * 5. **Not in the diff.** No file in the commit declares it and the run recorded
  *    no attribution to read instead.
- * 8. **No diff read.** The run carried none, so nothing above applies.
- * 9. **Already decided.** Off the queue, kept on the page.
+ * 6. **No diff read.** The run carried none, so nothing above applies.
+ * 7. **Already decided.** Off the queue, kept on the page.
  *
- * Bands three through seven are one band as far as the *file graph* is concerned —
- * every one of them is a component the diff does not name. What separates them is
- * the run's own attribution, which climbs the other way, and which the store used
- * to drop at the door.
+ * ## Band four used to be three bands, and they were the run's ladder
+ *
+ * *Edited*, *Owner edited* and *Token moved* were three headings, and they sorted
+ * a build by how many hops the run needed to explain each change. Nobody has that
+ * question. A reviewer edited three files and wants to know what each of the
+ * three did, and under the ladder the answer to that was spread across three
+ * headings with the file names in a hover title.
+ *
+ * So the heading is the cause. `Button` under `ui/button.tsx`; `CardFooter` under
+ * `ProductCard.tsx`, because `ProductCard` draws it. Three files in, three
+ * headings out — and the rung each change came in on is still on its row, where
+ * it explains one component instead of naming a category.
+ *
+ * The bands above and below stay as they were, and that is the ranking's whole
+ * point: a change with no cause in the commit must not be filed under one.
  *
  * Inside a band, **by component name**, ascending. Not by size: a reviewer works
  * a docket by looking for the name they recognise, and a list whose order changes
@@ -55,6 +62,8 @@
  * the arrangement travels with the link.
  */
 
+import type { BuildDetail } from '../review-types.js';
+import { rootsOf, type Root, type Rooted } from './cause.js';
 import type { Origin } from './grouping.js';
 import type { Order } from './route.js';
 
@@ -74,7 +83,16 @@ export type Lane =
 export interface Group {
   readonly lane: Lane;
   readonly title: string;
-  readonly changes: readonly Origin[];
+  readonly changes: readonly Rooted[];
+  /**
+   * The cause in the commit this band *is*, when it is one.
+   *
+   * Present on the bands that came out of [`cause.ts`](./cause.ts), where the
+   * heading is a path or a property rather than a claim about a rung. Absent on
+   * the rest, and the absence is what a heading renderer switches on: a file is
+   * drawn as a file, and `Nothing reaches these` is drawn as a sentence.
+   */
+  readonly root?: Root;
 }
 
 /**
@@ -194,18 +212,65 @@ export const ORDERS: readonly { readonly order: Order; readonly label: string; r
  * is a heading a reader has to check. The three flat orders return one group, so
  * every renderer downstream draws the same shape whichever arrangement it got.
  */
-export function docketOf(origins: readonly Origin[], order: Order): readonly Group[] {
+export function docketOf(
+  build: BuildDetail,
+  origins: readonly Origin[],
+  order: Order,
+): readonly Group[] {
   const sorted = [...origins].sort(BY[order]);
 
   if (order !== 'story') {
     // `why` stays on `FLAT` — it is the sort button's hover text, which a reader
     // asks for, and not a paragraph the page prints at them.
     const flat = FLAT[order];
-    return sorted.length === 0 ? [] : [{ lane: 'reached', title: flat.title, changes: sorted }];
+    return sorted.length === 0
+      ? []
+      : [{ lane: 'reached', title: flat.title, changes: sorted.map((origin) => ({ origin })) }];
   }
 
-  return LANES.map((band) => ({
+  // Only the three rungs a commit is the top of are rooted. The rest are the
+  // findings this docket ranks *above* the commit — nothing reaches it, nothing
+  // explains it, the run read no diff — and a heading naming a file the reviewer
+  // edited is the wrong thing to file those under, because the point of each of
+  // them is that no file the reviewer edited accounts for it.
+  const rootable = sorted.filter((origin) => ROOTED.has(laneOf(origin)));
+  const { roots, loose } = rootsOf(rootable, build);
+  const rest = new Set(loose);
+
+  const banded = LANES.map((band) => ({
     ...band,
-    changes: sorted.filter((origin) => laneOf(origin) === band.lane),
-  })).filter((band) => band.changes.length > 0);
+    changes: sorted
+      .filter((origin) => laneOf(origin) === band.lane)
+      .filter((origin) => !ROOTED.has(band.lane) || rest.has(origin))
+      .map((origin) => ({ origin })),
+  }));
+
+  const causes: Group[] = roots.map((root) => ({
+    lane: LANE_OF_ROOT[root.kind],
+    title: root.name,
+    changes: root.changes,
+    root,
+  }));
+
+  // The alarm bands keep the top, the commit's own causes come next, and what is
+  // settled or unreadable stays at the bottom. `ALARM` is the split point rather
+  // than a second list of names, so a lane added to `LANES` lands somewhere by
+  // construction instead of silently vanishing from the page.
+  const before = banded.filter((band) => ALARM.has(band.lane));
+  const after = banded.filter((band) => !ALARM.has(band.lane));
+
+  return [...before, ...causes, ...after].filter((band) => band.changes.length > 0);
 }
+
+/** The rungs a cause in the commit sits at the top of. */
+const ROOTED: ReadonlySet<Lane> = new Set<Lane>(['reached', 'upstream', 'token']);
+
+/** The bands that outrank the commit's own causes, because nothing in it explains them. */
+const ALARM: ReadonlySet<Lane> = new Set<Lane>(['stranded', 'contradicted', 'unexplained']);
+
+/** Which band a root is drawn in, so its colour still says how it was reached. */
+const LANE_OF_ROOT: Record<Root['kind'], Lane> = {
+  file: 'reached',
+  token: 'token',
+  component: 'upstream',
+};

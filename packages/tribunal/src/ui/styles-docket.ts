@@ -67,6 +67,21 @@ export const DOCKET_STYLES = `
 .va-band-decided { border-left-color: var(--va-good); }
 .va-band-orphan { border-left-color: var(--va-warn); }
 
+/* A heading that is a path or a property, not a claim, so it overrides the
+   band's uppercase: a name a reviewer uppercases is a name they cannot grep. */
+.va-band h3.va-root, .va-root { flex-wrap: wrap; font-family: var(--va-mono); font-size: 0.78rem; font-weight: 600; gap: 0.15rem; letter-spacing: 0; text-transform: none; }
+.va-root .va-root-in { color: var(--va-ink-3); font-weight: 400; }
+.va-root .va-root-name { color: var(--va-ink); }
+.va-root-component .va-root-name { font-family: var(--va-sans); font-weight: 700; }
+
+/* The same cause on the change page: one line under the name, and the other
+   changes it made. */
+.va-from { align-items: baseline; display: flex; flex-wrap: wrap; font-size: 0.8rem; gap: 0.3rem; margin-top: 0.2rem; }
+.va-from-mark { color: var(--va-ink-3); font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; }
+.va-from .va-root { font-size: 0.8rem; }
+.va-from-go { color: var(--va-accent); text-decoration: none; }
+.va-from-go:hover { text-decoration: underline; }
+
 /* One change, in a row a reviewer scans a column of. The name is the only thing
    at full contrast; everything else on the row is there to be skipped. */
 .va-row { margin-bottom: 0.1rem; }
@@ -161,6 +176,11 @@ export const DOCKET_STYLES = `
 /* What a band claim is made of. At the foot, because it is the same sentence for
    all of them and a reviewer needs it once — and not behind a disclosure,
    because the complaint that produced it was a page hiding its sources. */
+.va-held { border-left: 2px solid var(--va-good); color: var(--va-ink-2); font-size: 0.86rem; margin: 0.6rem 0 0; padding-left: 0.7rem; }
+.va-held-mark { color: var(--va-good); font-weight: 600; }
+.va-held-none { border-left-color: var(--va-ink-3); }
+.va-held-none .va-held-mark { color: var(--va-ink-2); }
+.va-held-go { color: inherit; text-decoration: underline; text-decoration-style: dotted; }
 .va-evidence { border-top: 1px solid var(--va-line); color: var(--va-ink-3); font-size: 0.8rem; margin-top: 1.6rem; padding-top: 0.6rem; }
 .va-evidence em { color: var(--va-ink-2); font-style: normal; }
 

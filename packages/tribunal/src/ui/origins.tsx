@@ -33,6 +33,7 @@ import type { BuildDetail, SubjectView } from '../review-types.js';
 import type { Crossing } from './crossing.js';
 import { originsOf, shapesOf, sourceOf, type Origin } from './grouping.js';
 import { docketOf, ORDERS, type Group } from './order.js';
+import { RootHeading } from './root.js';
 import type { Order, Route } from './route.js';
 import { Go } from './shell.js';
 import { senseOfSubject } from './sense.js';
@@ -73,7 +74,7 @@ export function OriginsPanel({
       </div>
 
       <div className="va-rail-list va-scroll">
-        {docketOf(origins, order).map((group) => (
+        {docketOf(build, origins, order).map((group) => (
           <Band
             key={group.lane + group.title}
             group={group}
@@ -135,14 +136,14 @@ function Band({
 }): ReactElement {
   return (
     <section className={`va-band va-band-${group.lane}`}>
-      <h3>
-        {group.title} <span className="va-num">{number(group.changes.length)}</span>
-      </h3>
+      <RootHeading group={group} />
       <ul>
-        {group.changes.map((origin) => (
+        {group.changes.map(({ origin, of }) => (
           <Row
             key={origin.component}
             origin={origin}
+            {...(of === undefined ? {} : { of })}
+            {...(group.root === undefined ? {} : { from: group.root.name })}
             build={build}
             crossing={crossing}
             open={origin.component === selected}
@@ -171,12 +172,18 @@ function Band({
  */
 function Row({
   origin,
+  of,
+  from,
   build,
   crossing,
   open,
   go,
 }: {
   readonly origin: Origin;
+  /** Renders this band's cause accounts for, when it does not account for all. */
+  readonly of?: number;
+  /** The cause the heading above already names, so the row does not repeat it. */
+  readonly from?: string;
   readonly build: string;
   readonly crossing: Crossing;
   readonly open: boolean;
@@ -195,12 +202,14 @@ function Row({
       >
         <span className="va-row-name">{origin.component}</span>
         <span className="va-row-spread va-note">
-          {count(origin.appearances.length, 'render')}
+          {of === undefined
+            ? count(origin.appearances.length, 'render')
+            : `${number(of)} of ${count(origin.appearances.length, 'render')}`}
           {shapes > 1 ? ` · ${count(shapes, 'shape')}` : ''}
         </span>
         <span className="va-row-size va-num">{number(origin.pixels)} px</span>
         <RowMark origin={origin} crossing={crossing} decided={decided} />
-        <Source origin={origin} />
+        <Source origin={origin} {...(from === undefined ? {} : { from })} />
       </Go>
     </li>
   );
@@ -216,8 +225,18 @@ function Row({
  * record, and is drawn as the empty space it is rather than as a sentence
  * apologising for it.
  */
-function Source({ origin }: { readonly origin: Origin }): ReactElement | null {
-  const names = sourceOf(origin);
+function Source({
+  origin,
+  from,
+}: {
+  readonly origin: Origin;
+  readonly from?: string;
+}): ReactElement | null {
+  // Minus what the heading over it already said. Under `ui/button.tsx`, an
+  // `edited` row's source *is* `ui/button.tsx`, and printing it again spends the
+  // row's third line saying the band's name back to the reader. The rows that
+  // still have something to say — the chain an owner reaches through — keep it.
+  const names = sourceOf(origin).filter((name) => name !== from);
   if (names.length === 0) return null;
 
   const say = names.join(', ');

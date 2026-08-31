@@ -45,9 +45,11 @@ import {
   Tally,
 } from './change-story.js';
 import { Because } from './because.js';
+import { causesOf, namesDeclaration, UnderRoot } from './root.js';
 import { AlsoCarries, carriedWith } from './carried.js';
 import type { ReviewClient } from './client.js';
 import { Consumers, consumersOf } from './consumers.js';
+import { HeldStill, controlsFor } from './control.js';
 import type { Crossing } from './crossing.js';
 import { distanceFrom } from './distance.js';
 import type { Appearance, Origin } from './grouping.js';
@@ -95,6 +97,7 @@ export function ChangePanel({
     build.subjects,
     new Set(origin.appearances.map(({ subject }) => subject.subject)),
   );
+  const causes = causesOf(build, origin);
   const settled = origin.appearances.filter(({ subject }) => subject.decision !== null).length;
   const open = origin.appearances.filter(
     ({ subject }) => subject.decision === null && subject.approvable,
@@ -106,7 +109,21 @@ export function ChangePanel({
         <header className="va-decide-head">
           <div>
             <h1>{origin.component}</h1>
-            <Declared file={origin.file} sourced={sourced} />
+            {/* What in the commit this hangs from, above where it is declared.
+                A reviewer arriving here asks *why is this on my docket* before
+                *where does this live*, and the answer to the first is a file
+                they edited while the answer to the second usually is not. */}
+            <UnderRoot
+              bands={causes}
+              component={origin.component}
+              {...(origin.file === undefined ? {} : { declared: origin.file })}
+              build={build.build}
+              go={go}
+            />
+            {/* Only when the cause line above is not already carrying it. */}
+            {namesDeclaration(causes, origin.file) ? null : (
+              <Declared file={origin.file} sourced={sourced} />
+            )}
           </div>
           <Batch
             client={client}
@@ -161,6 +178,12 @@ export function ChangePanel({
             asks one question, and the two lines that answer it belong under the
             question rather than three sections down past the collateral. */}
         <Because origin={origin} build={build.build} changes={changes} go={go} />
+
+        {/* And the other arm. The sentence above names what explains the change;
+            this names where the same component under the same inputs was read and
+            did not take it, which is the only line on the page derived from
+            renders that did not move. */}
+        <HeldStill controls={controlsFor(origin)} build={build.build} go={go} />
         <Arrival origin={origin} />
 
         <WhatMoved
