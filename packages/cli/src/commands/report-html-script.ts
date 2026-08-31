@@ -117,7 +117,7 @@ keys.forEach(function(button){
     keys.forEach(function(b){b.setAttribute('aria-pressed','false')});
     button.setAttribute('aria-pressed',on?'false':'true');
     verdict=on?null:name; apply();
-    var seat=document.getElementById(name==='failed'||name==='excluded'?'Not-observed':
+    var seat=document.getElementById(name==='failed'||name==='excluded'||name==='unreached'?'Not-observed':
       (name==='unchanged'||name==='ignored')?'Settled':'');
     if(!on&&seat&&!seat.classList.contains('hidden')) seat.scrollIntoView({block:'start'});
   });

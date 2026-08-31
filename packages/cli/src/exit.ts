@@ -146,7 +146,7 @@ export interface ReviewableReport {
    * from a pass. So absence is treated as an open question, not as a clean run —
    * see {@link exitFor}.
    */
-  readonly notObserved?: readonly { readonly kind: 'excluded' | 'failed' }[];
+  readonly notObserved?: readonly { readonly kind: 'excluded' | 'failed' | 'unreached' }[];
 }
 
 /**

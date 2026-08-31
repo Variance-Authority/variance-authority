@@ -17,7 +17,9 @@
  *   That is a flake, an input from outside the repository, or a hole in the scan,
  *   and only the record separates them — so the record is read without waiting to
  *   be asked.
- * - **untouched, and still** — counted, never listed.
+ * - **untouched, and still** — counted, never listed. On a narrowed run it reads
+ *   *untouched, not rendered* instead, because those subjects were ruled out
+ *   before any browser opened them and were never compared to anything.
  *
  * ## A refusal is drawn instead of the grid, not beside it
  *
@@ -51,11 +53,23 @@ export interface Crossing {
   readonly reachedStill: readonly SubjectView[];
   readonly unreachedMoved: readonly SubjectView[];
   readonly unreachedStill: number;
+  /**
+   * Out of reach and never rendered, because the run worked that out first.
+   *
+   * Apart from `unreachedStill` and never added to it. Those were opened and
+   * found identical; these were never opened at all, and a page that summed them
+   * would report a comparison for eighteen subjects no browser ever loaded.
+   */
+  readonly unreachedSkipped: number;
   readonly unplaced: number;
   readonly incomparable: number;
 }
 
-export function crossReach(subjects: readonly SubjectView[], reach: ReachView): Crossing {
+export function crossReach(
+  subjects: readonly SubjectView[],
+  reach: ReachView,
+  notObserved: BuildDetail['notObserved'] = [],
+): Crossing {
   const placed = reach.subjects;
   const reachedMoved: SubjectView[] = [];
   const reachedStill: SubjectView[] = [];
@@ -82,7 +96,15 @@ export function crossReach(subjects: readonly SubjectView[], reach: ReachView): 
     }
   }
 
-  return { reachedMoved, reachedStill, unreachedMoved, unreachedStill, unplaced, incomparable };
+  return {
+    reachedMoved,
+    reachedStill,
+    unreachedMoved,
+    unreachedStill,
+    unreachedSkipped: notObserved.filter((entry) => entry.kind === 'unreached').length,
+    unplaced,
+    incomparable,
+  };
 }
 
 /** How many unexplained subjects read their own record without being asked. */
@@ -134,7 +156,7 @@ function Crossed({
   readonly build: BuildDetail;
   readonly reach: ReachView;
 }): ReactElement {
-  const crossing = crossReach(build.subjects, reach);
+  const crossing = crossReach(build.subjects, reach, build.notObserved);
 
   return (
     <>
@@ -157,12 +179,25 @@ function Crossed({
           title="reached, and still"
           note="The commit arrives and changed no pixel of it."
         />
-        <Cell
-          tone="va-quiet"
-          n={crossing.unreachedStill}
-          title="untouched, and still"
-          note="Out of the commit's reach, and unchanged."
-        />
+        {crossing.unreachedSkipped === 0 ? (
+          <Cell
+            tone="va-quiet"
+            n={crossing.unreachedStill}
+            title="untouched, and still"
+            note="Out of the commit's reach, and unchanged."
+          />
+        ) : (
+          // The run narrowed to what the diff can arrive at, so these were never
+          // opened. Drawn as *not rendered* rather than *unchanged*: nothing
+          // compared them, and the quadrant that says otherwise would be the one
+          // place on the page claiming a result for work nobody did.
+          <Cell
+            tone="va-quiet"
+            n={crossing.unreachedSkipped}
+            title="untouched, not rendered"
+            note="Out of the commit's reach, so this run never opened them."
+          />
+        )}
       </div>
 
       {crossing.unreachedMoved.length === 0 ? null : (

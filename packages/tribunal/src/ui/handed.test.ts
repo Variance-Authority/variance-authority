@@ -88,7 +88,7 @@ function build(over: Partial<BuildDetail> = {}): BuildDetail {
     verdicts: { changed: 6 } as BuildDetail['verdicts'],
     decided: 0,
     pending: 6,
-    coverage: { stated: true, failed: 0, excluded: 0 },
+    coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
     subjects: READ,
     notObserved: [],
     causes: [],

@@ -51,7 +51,7 @@ function build(
     verdicts: { changed: 1, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0 },
     decided: 0,
     pending: 1,
-    coverage: { stated: true, failed: 0, excluded: 0 },
+    coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
     subjects,
     notObserved: [],
     declarations: { ignores: null, sensitivities: null },

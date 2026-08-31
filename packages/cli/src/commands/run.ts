@@ -253,11 +253,13 @@ async function observeAll(
   await pool(concurrencyOf(config), plan.subjects, async (planned, index) => {
     const id = planned.subject.id;
 
+    // `unreached`, not `excluded`: nobody configured this. The run derived from
+    // the diff and the stored baselines that the change cannot arrive here.
     const ruledOut = selected?.skipped.get(id);
     if (ruledOut !== undefined) {
       slots[index] = {
         kind: 'not-observed',
-        entry: { subject: id, kind: 'excluded', because: ruledOut },
+        entry: { subject: id, kind: 'unreached', because: ruledOut },
       };
       return;
     }

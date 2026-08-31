@@ -52,7 +52,7 @@ function stored(components: readonly string[]) {
 }
 
 describe('narrowing a run to what a diff could have changed', () => {
-  it('excludes a subject whose baseline names no component the diff touched', async () => {
+  it('leaves a subject whose baseline names no component the diff touched unreached', async () => {
     const { report } = await runWith(CONFIG, COLLECTOR, stored(['Clock']), {
       since: { ref: 'origin/main', changed: ['src/Button.tsx'] },
       scanSource: async () => SOURCE,
@@ -61,7 +61,11 @@ describe('narrowing a run to what a diff could have changed', () => {
     // In the artifact, not missing from it, and carrying the reason.
     expect(report.observations).toEqual([]);
     expect(report.notObserved?.[0]?.subject).toBe('fixture:a');
-    expect(report.notObserved?.[0]?.kind).toBe('excluded');
+    // `unreached`, not `excluded`. Nobody configured this: the run read the diff
+    // against the stored baselines and concluded the change cannot arrive here.
+    // Filing it as a decision reports one that was never made, and hides the
+    // only reasoning that distinguishes this tool from a suite runner.
+    expect(report.notObserved?.[0]?.kind).toBe('unreached');
     expect(report.notObserved?.[0]?.because).toContain('not affected by the diff against origin/main');
   });
 

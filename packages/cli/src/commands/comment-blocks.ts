@@ -298,6 +298,16 @@ export function coverageBlocks(
           `${count(docket.excluded, 'subject')} excluded by configuration and not listed; ` +
             'an exclusion is a decision that was already made.',
         ]),
+    // Stated as work avoided rather than coverage lost, because that is what it
+    // is: the run read the diff and every stored baseline and concluded these
+    // could not have moved. A comment that filed them beside the exclusions
+    // would report the reasoning as a gap.
+    ...(docket.unreached === 0
+      ? []
+      : [
+          `${count(docket.unreached, 'subject')} not rendered because this change cannot ` +
+            'reach them.',
+        ]),
   ];
 }
 

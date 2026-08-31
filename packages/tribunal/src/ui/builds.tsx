@@ -89,7 +89,7 @@ export function BuildList({
             <span className="va-when">{when(build.at)}</span>
           </p>
           <Verdicts build={build} />
-          <CoverageLine coverage={build.coverage} />
+          <CoverageLine build={build} />
         </li>
       ))}
     </ol>
@@ -125,20 +125,25 @@ function Verdicts({ build }: { readonly build: BuildSummary }): ReactElement {
 }
 
 /**
- * What the run said about the subjects it did not observe — including that it
- * said nothing.
+ * How much of the suite this run looked at, and what happened to the rest.
  *
- * The three states are not two. A run that stated its coverage and skipped
- * nothing is clean; a run that stated it and failed on fifty is not; and a run
- * that never said is **unknown**, which must not be drawn as the first. That is
- * the collapse `RunReport.notObserved` exists to prevent, and drawing `0 failed`
- * for a silent writer would reintroduce it at the last possible moment.
+ * **The denominator is the line.** A run that narrowed twenty subjects to two
+ * has done the most expensive thinking in the product, and a page reading
+ * `2 subjects` reports a suite of two. `2 of 20 observed` is the same fact with
+ * the eighteen still in it.
+ *
+ * The states are not two. A run that stated its coverage and skipped nothing is
+ * clean; a run that stated it and failed on fifty is not; and a run that never
+ * said is **unknown**, which must not be drawn as the first. That is the collapse
+ * `RunReport.notObserved` exists to prevent, and drawing `0 failed` for a silent
+ * writer would reintroduce it at the last possible moment.
+ *
+ * `unreached` is drawn without alarm and without apology. It is not a hole, and
+ * it is not somebody's standing decision either — it is the run having read the
+ * diff against every stored baseline and concluded the change cannot arrive.
  */
-export function CoverageLine({
-  coverage,
-}: {
-  readonly coverage: BuildSummary['coverage'];
-}): ReactElement {
+export function CoverageLine({ build }: { readonly build: BuildSummary }): ReactElement {
+  const { coverage } = build;
   if (!coverage.stated) {
     return (
       <p className="va-coverage va-unknown">
@@ -146,12 +151,21 @@ export function CoverageLine({
       </p>
     );
   }
-  if (coverage.failed === 0 && coverage.excluded === 0) {
-    return <p className="va-coverage">Every planned subject was observed.</p>;
-  }
+
+  const seen = Object.values(build.verdicts).reduce((sum, n) => sum + n, 0);
+  const planned = seen + coverage.failed + coverage.excluded + coverage.unreached;
+
   return (
     <p className={coverage.failed > 0 ? 'va-coverage va-incomplete' : 'va-coverage'}>
-      {coverage.failed} failed to render · {coverage.excluded} excluded by configuration
+      <span className="va-num">{seen}</span> of <span className="va-num">{planned}</span> observed
+      {coverage.unreached === 0 ? null : (
+        <>
+          {' · '}
+          <span className="va-num">{coverage.unreached}</span> not reached by this change
+        </>
+      )}
+      {coverage.failed === 0 ? null : <> · {coverage.failed} failed to render</>}
+      {coverage.excluded === 0 ? null : <> · {coverage.excluded} excluded by configuration</>}
     </p>
   );
 }

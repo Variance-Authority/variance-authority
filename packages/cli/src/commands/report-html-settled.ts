@@ -120,7 +120,8 @@ function pixels(entry: CliObservationRecord): string {
  * The subjects with no observation, and the two opposite reasons for that.
  *
  * `failed` is a hole in this run's coverage; `excluded` is a decision somebody
- * already made and wrote down. They are in one section because a reader arrives
+ * already made and wrote down; `unreached` is the run having proved the change
+ * cannot arrive. They are in one section because a reader arrives
  * here asking *what did this run not look at*, and on one list rather than two
  * because the census bar has already separated them and pressing either chip
  * narrows this to it.
@@ -153,6 +154,6 @@ export function notObserved(report: CliRunReport): string {
     'Not observed',
     'what this run did not look at, and why',
     `<div class="entries">${rows}</div>`,
-    'failed excluded',
+    'failed excluded unreached',
   );
 }

@@ -22,8 +22,22 @@ import { BuildList, CoverageLine, SubjectPanel, Variations } from './review.js';
 
 const CLIENT = createReviewClient({ endpoint: '/api', token: 'unused-in-a-static-render' });
 
-function summary(coverage: BuildSummary['coverage']): BuildSummary['coverage'] {
-  return coverage;
+function summary(
+  coverage: BuildSummary['coverage'],
+  observed: Partial<BuildSummary['verdicts']> = { unchanged: 3 },
+): BuildSummary {
+  return {
+    project: 'snkr-shop',
+    build: '9',
+    commit: 'a'.repeat(40),
+    at: '2026-08-31T00:00:00.000Z',
+    identity: { engine: 'chromium' } as BuildSummary['identity'],
+    retention: 'durable',
+    verdicts: { changed: 0, new: 0, incomparable: 0, ignored: 0, unchanged: 0, ...observed },
+    decided: 0,
+    pending: 0,
+    coverage,
+  };
 }
 
 function subject(overrides: Partial<SubjectView> = {}): SubjectView {
@@ -40,36 +54,59 @@ function subject(overrides: Partial<SubjectView> = {}): SubjectView {
   };
 }
 
-describe('coverage is drawn as three states, not two', () => {
+describe('coverage is drawn as a share of the suite, not a count', () => {
   it('says a silent report is unknown rather than clean', () => {
     // The collapse `RunReport.notObserved` exists to prevent, arriving at the
     // last possible moment. `0 failed` for a writer that never said what it
     // skipped is a claim its writer did not make.
     const markup = renderToStaticMarkup(
-      <CoverageLine coverage={summary({ stated: false, failed: 0, excluded: 0 })} />,
+      <CoverageLine build={summary({ stated: false, failed: 0, excluded: 0, unreached: 0 })} />,
     );
 
     expect(markup).toContain('coverage is unknown');
-    expect(markup).not.toContain('Every planned subject');
+    expect(markup).not.toContain('observed');
   });
 
-  it('says clean only when the report claimed it', () => {
+  it('counts a whole suite against itself rather than reading as a suite of three', () => {
     const markup = renderToStaticMarkup(
-      <CoverageLine coverage={summary({ stated: true, failed: 0, excluded: 0 })} />,
+      <CoverageLine build={summary({ stated: true, failed: 0, excluded: 0, unreached: 0 })} />,
     );
 
-    expect(markup).toContain('Every planned subject was observed');
+    expect(text(markup)).toContain('3 of 3 observed');
+  });
+
+  it('keeps the eighteen a narrowing skipped in the denominator', () => {
+    // The line the narrowing exists to produce. `2 observed` describes a suite
+    // of two; the eighteen this change cannot reach are the work, and dropping
+    // them from the sentence throws away the only reasoning that saved a render.
+    const markup = renderToStaticMarkup(
+      <CoverageLine
+        build={summary({ stated: true, failed: 0, excluded: 0, unreached: 18 }, { changed: 2 })}
+      />,
+    );
+
+    expect(text(markup)).toContain('2 of 20 observed');
+    expect(text(markup)).toContain('18 not reached by this change');
+    // Nothing failed, so nothing is wrong. A narrowing drawn in the alarm colour
+    // teaches a reviewer to read the strongest thing the tool does as a defect.
+    expect(markup).not.toContain('va-incomplete');
   });
 
   it('marks a run that failed to render subjects as incomplete', () => {
     const markup = renderToStaticMarkup(
-      <CoverageLine coverage={summary({ stated: true, failed: 50, excluded: 2 })} />,
+      <CoverageLine build={summary({ stated: true, failed: 50, excluded: 2, unreached: 0 })} />,
     );
 
     expect(markup).toContain('va-incomplete');
-    expect(markup).toContain('50 failed to render');
+    expect(text(markup)).toContain('50 failed to render');
+    expect(text(markup)).toContain('2 excluded by configuration');
   });
 });
+
+/** The sentence as a reader receives it, with the numbers' markup taken back out. */
+function text(markup: string): string {
+  return markup.replace(/<[^>]+>/g, '');
+}
 
 describe('a variation that reaches nothing is the one worth reading', () => {
   const lattice: readonly VariationRecord[] = [
@@ -225,7 +262,7 @@ describe('the counts on a build add up to the build', () => {
             verdicts,
             decided: 0,
             pending,
-            coverage: summary({ stated: true, failed: 0, excluded: 0 }),
+            coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
           },
         ]}
         onOpen={() => undefined}

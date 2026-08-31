@@ -217,10 +217,11 @@ describe('formatReport, json', () => {
 });
 
 describe('readCliRunReport', () => {
-  it('refuses a notObserved entry whose kind is neither excluded nor failed', async () => {
+  it('refuses a notObserved entry whose kind is none of the three', async () => {
     // Guessing `excluded` would turn a coverage hole into a decision somebody
     // made; guessing `failed` would turn every deliberate exclusion permanently
-    // red. Neither guess is available.
+    // red; guessing `unreached` would credit the run with reasoning it never
+    // did. No guess is available.
     const directory = await mkdtemp(join(tmpdir(), 'variance-cli-'));
     const path = join(directory, 'report.json');
 
@@ -233,7 +234,9 @@ describe('readCliRunReport', () => {
       'utf8',
     );
 
-    await expect(readCliRunReport(path)).rejects.toThrow(/neither "excluded" nor "failed"/);
+    await expect(readCliRunReport(path)).rejects.toThrow(
+      /none of "excluded", "failed" or "unreached"/,
+    );
   });
 
   it('preserves an absent notObserved list as absent, never as empty', async () => {

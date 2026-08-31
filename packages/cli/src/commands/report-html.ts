@@ -209,6 +209,7 @@ function census(report: CliRunReport, docket: Docket): string {
     ['failed', docket.failed.length],
     ['ignored', counted.get('ignored') ?? 0],
     ['excluded', docket.excluded],
+    ['unreached', docket.unreached],
     ['unchanged', counted.get('unchanged') ?? 0],
   ];
   const total = segments.reduce((sum, [, n]) => sum + n, 0);

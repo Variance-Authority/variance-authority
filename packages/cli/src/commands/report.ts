@@ -1,4 +1,4 @@
-import { toolByName } from '@variance-authority/mcp/tools';
+import { notObservedSentence, toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import type { CliRunReport } from './run.js';
 import { reportHtml } from './report-html.js';
@@ -119,9 +119,7 @@ function asText(options: ReportOptions): string {
       return [
         `[not observed] ${skipped.subject}`,
         skipped.because,
-        skipped.kind === 'excluded'
-          ? 'This was excluded by configuration, not by a failure.'
-          : 'The run meant to observe this and could not. It is not a pass.',
+        notObservedSentence(skipped.kind),
       ].join('\n');
     }
 

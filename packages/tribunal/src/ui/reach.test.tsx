@@ -59,7 +59,7 @@ function build(subjects: readonly SubjectView[], view: ReachView | null): BuildD
     verdicts: { changed: 1, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0 },
     decided: 0,
     pending: 1,
-    coverage: { stated: true, failed: 0, excluded: 0 },
+    coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
     subjects,
     notObserved: [],
     declarations: { ignores: null, sensitivities: null },
@@ -125,6 +125,21 @@ describe('the crossing seats a subject on both axes or on neither', () => {
     expect(crossing.incomparable).toBe(2);
     expect(crossing.reachedStill).toEqual([]);
     expect(crossing.unreachedStill).toBe(0);
+  });
+
+  it('keeps a subject nothing rendered out of the quadrant that says it did not move', () => {
+    // A narrowed run never opens what the diff cannot reach. Counting those as
+    // *untouched, and still* claims a comparison for subjects no browser loaded,
+    // and counting them as nothing leaves the page reading `0` beside a coverage
+    // line that just said eighteen — the same build answering itself twice.
+    const crossing = crossReach(subjects, view, [
+      { subject: 'route/home', kind: 'unreached', because: 'its baseline records none of it' },
+      { subject: 'story:legacy', kind: 'excluded', because: 'excluded by config' },
+      { subject: 'story:modal', kind: 'failed', because: 'the renderer crashed' },
+    ]);
+
+    expect(crossing.unreachedSkipped).toBe(1);
+    expect(crossing.unreachedStill).toBe(1);
   });
 });
 

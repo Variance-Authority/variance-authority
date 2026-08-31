@@ -1223,6 +1223,7 @@
         "Tool": "interface",
         "ToolInvocation": "interface",
         "diffState": "function",
+        "notObservedSentence": "function",
         "sourceTestToolByName": "function",
         "stringArg": "function",
         "toolByName": "function"

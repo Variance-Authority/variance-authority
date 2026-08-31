@@ -188,14 +188,14 @@ export interface RunReport {
 /**
  * Why a subject is in the report without an observation.
  *
- * Two kinds, kept apart because they mean opposite things about whether anyone
- * should act. `excluded` is a decision the operator already made and wrote down;
- * `failed` is a hole in this run's coverage. Collapsing them would either make
- * every configured exclusion permanently red — which ends with the exclusion list
- * being deleted rather than read — or make a browser that crashed on subject 41
- * look like a subject somebody chose to skip.
+ * Three kinds, because they mean different things about whether anyone should
+ * act. `excluded` is a decision the operator made and wrote down; `failed` is a
+ * hole in coverage, and collapsing the two makes every exclusion permanently red
+ * or a crash on subject 41 look chosen. `unreached` is neither: the run read the
+ * diff against what each baseline records having rendered and concluded this
+ * change cannot arrive. Calling that a decision reports one nobody made.
  */
-export type NotObservedKind = 'excluded' | 'failed';
+export type NotObservedKind = 'excluded' | 'failed' | 'unreached';
 
 export interface NotObserved {
   readonly subject: string;

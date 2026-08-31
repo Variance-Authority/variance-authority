@@ -101,6 +101,7 @@ export async function summarize(db: D1Like, project: string, row: Row): Promise<
     stated: number(row, 'says_not_observed', 'a build') !== 0,
     failed: countOf(skipped.results, 'failed'),
     excluded: countOf(skipped.results, 'excluded'),
+    unreached: countOf(skipped.results, 'unreached'),
   };
 
   const branch = optionalText(row, 'branch', 'a build');
@@ -395,11 +396,17 @@ const RUNGS: readonly MovementView['cause'][] = [
   'unexplained',
 ];
 
+// Named, not defaulted-to-`failed`. The stored word is the run's conclusion, and
+// anything the reader does not recognise is a hole in this reader — which is
+// what `failed` says — rather than in the run.
+const NOT_OBSERVED: readonly NotObserved['kind'][] = ['excluded', 'unreached', 'failed'];
+
 export function toNotObserved(row: Row): NotObserved {
   const what = 'a not-observed entry';
+  const kind = text(row, 'kind', what);
   return {
     subject: text(row, 'subject', what),
-    kind: text(row, 'kind', what) === 'excluded' ? 'excluded' : 'failed',
+    kind: NOT_OBSERVED.find((known) => known === kind) ?? 'failed',
     because: text(row, 'because', what),
   };
 }

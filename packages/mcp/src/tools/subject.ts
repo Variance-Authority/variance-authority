@@ -60,8 +60,25 @@ export function unobserved(entry: NotObserved): string {
   return [
     `[not observed] ${entry.subject}`,
     entry.because,
-    entry.kind === 'excluded'
-      ? 'This was excluded by configuration, not by a failure.'
-      : 'The run meant to observe this and could not. It is not a pass.',
+    notObservedSentence(entry.kind),
   ].join('\n');
+}
+
+/**
+ * What the reader should do about a subject nobody looked at.
+ *
+ * One sentence per kind, and the three are different instructions. `failed` is
+ * work; `excluded` is a decision already on the record; `unreached` is the run
+ * having proved the change cannot arrive here, which is the only one of the
+ * three that is evidence rather than an absence of it.
+ */
+export function notObservedSentence(kind: NotObserved['kind']): string {
+  switch (kind) {
+    case 'excluded':
+      return 'This was excluded by configuration, not by a failure.';
+    case 'unreached':
+      return 'The change under review cannot reach this subject, so it was not rendered.';
+    default:
+      return 'The run meant to observe this and could not. It is not a pass.';
+  }
 }

@@ -44,7 +44,7 @@ function build(subjects: readonly SubjectView[]): BuildDetail {
     verdicts: { changed: 1 } as BuildDetail['verdicts'],
     decided: 0,
     pending: 1,
-    coverage: { stated: true, failed: 0, excluded: 0 },
+    coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
     subjects,
     notObserved: [],
     causes: [],

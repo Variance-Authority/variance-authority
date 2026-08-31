@@ -165,13 +165,14 @@ function checkNotObserved(path: string, value: unknown): void {
     if (typeof row.subject !== 'string' || typeof row.because !== 'string') {
       throw new Error(`${path}: notObserved[${index}] has no \`subject\` and \`because\``);
     }
-    if (row.kind !== 'excluded' && row.kind !== 'failed') {
+    if (row.kind !== 'excluded' && row.kind !== 'failed' && row.kind !== 'unreached') {
       // Not defaulted. Guessing `excluded` would turn a coverage hole into a
-      // decision somebody made, and guessing `failed` would turn every deliberate
-      // exclusion into a permanently red build.
+      // decision somebody made, guessing `failed` would turn every deliberate
+      // exclusion into a permanently red build, and guessing `unreached` would
+      // credit the run with reasoning it never did.
       throw new Error(
         `${path}: notObserved[${index}].kind is ${JSON.stringify(row.kind)}, ` +
-          'which is neither "excluded" nor "failed"',
+          'which is none of "excluded", "failed" or "unreached"',
       );
     }
   });

@@ -85,6 +85,7 @@ export type { StateDifference };
 // server over another subject writes tools against the same interface, and the
 // first thing any tool does with a model's argument is refuse it or narrow it.
 export { NO_ARGS, stringArg };
+export { notObservedSentence } from './tools/subject.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */

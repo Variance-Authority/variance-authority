@@ -1,5 +1,5 @@
 import type { Diagnostic } from '@variance-authority/core';
-import type { ObservationRecord, RunReport } from '@variance-authority/report';
+import type { NotObserved, ObservationRecord, RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 
 /**
@@ -20,21 +20,11 @@ import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 /**
  * Why a subject is in the report without an observation.
  *
- * Two kinds, kept apart because they mean opposite things about whether anyone
- * should act. `excluded` is a decision the operator already made and wrote down;
- * `failed` is a hole in this run's coverage. Collapsing them would either make
- * every configured exclusion permanently red — which ends with the exclusion list
- * being deleted rather than read — or make a browser that crashed on subject 41
- * look like a subject somebody chose to skip.
+ * Re-exported rather than restated. Two declarations of a closed vocabulary are
+ * two things that can gain a third word separately, and the run writes through
+ * this one while every reader downstream checks the other.
  */
-export type NotObservedKind = 'excluded' | 'failed';
-
-export interface NotObserved {
-  readonly subject: string;
-  readonly kind: NotObservedKind;
-  /** One sentence, ready to print, naming what was not looked at and why. */
-  readonly because: string;
-}
+export type { NotObserved, NotObservedKind } from '@variance-authority/report';
 
 /**
  * The one exclusion that is not a decision: a subject another shard was to take.
@@ -167,13 +157,14 @@ export async function readCliRunReport(path: string): Promise<CliRunReport> {
     if (typeof row.subject !== 'string' || typeof row.because !== 'string') {
       throw new Error(`${path}: notObserved[${index}] has no \`subject\` and \`because\``);
     }
-    if (row.kind !== 'excluded' && row.kind !== 'failed') {
+    if (row.kind !== 'excluded' && row.kind !== 'failed' && row.kind !== 'unreached') {
       // Not defaulted. Guessing `excluded` would turn a coverage hole into a
-      // decision somebody made, and guessing `failed` would turn every deliberate
-      // exclusion into a permanently red build.
+      // decision somebody made, guessing `failed` would turn every deliberate
+      // exclusion into a permanently red build, and guessing `unreached` would
+      // credit the run with reasoning it never did.
       throw new Error(
         `${path}: notObserved[${index}].kind is ${JSON.stringify(row.kind)}, ` +
-          'which is neither "excluded" nor "failed"',
+          'which is none of "excluded", "failed" or "unreached"',
       );
     }
     return { subject: row.subject, kind: row.kind, because: row.because };

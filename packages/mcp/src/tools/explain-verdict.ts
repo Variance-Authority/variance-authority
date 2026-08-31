@@ -1,3 +1,4 @@
+import type { NotObserved } from '@variance-authority/report';
 import { subjectOf, unobserved } from './subject.js';
 import type { Tool } from './tool.js';
 
@@ -44,12 +45,7 @@ export const explain: Tool = {
       return [
         unobserved(located.entry),
         '',
-        located.entry.kind === 'excluded'
-          ? 'Nothing was compared, so nothing is known about this subject. There is no code ' +
-            'change to make here; if it should be watched, change the exclusion.'
-          : 'Nothing was compared, so nothing is known about this subject — an absent ' +
-            'observation is not an unchanged one. Fix whatever stopped the run from seeing ' +
-            'it before treating any part of this run as a pass for this subject.',
+        nothingCompared(located.entry.kind),
       ].join('\n');
     }
 
@@ -87,3 +83,25 @@ export const explain: Tool = {
     }
   },
 };
+
+/** What an agent should do about a subject nothing was compared for. */
+function nothingCompared(kind: NotObserved['kind']): string {
+  switch (kind) {
+    case 'excluded':
+      return (
+        'Nothing was compared, so nothing is known about this subject. There is no code ' +
+        'change to make here; if it should be watched, change the exclusion.'
+      );
+    case 'unreached':
+      return (
+        'Nothing was compared, and nothing needed to be: the run resolved that this ' +
+        'change cannot reach this subject. There is no code change to make here.'
+      );
+    default:
+      return (
+        'Nothing was compared, so nothing is known about this subject — an absent ' +
+        'observation is not an unchanged one. Fix whatever stopped the run from seeing ' +
+        'it before treating any part of this run as a pass for this subject.'
+      );
+  }
+}

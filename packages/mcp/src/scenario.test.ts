@@ -190,10 +190,11 @@ describe('the three states of coverage', () => {
 });
 
 describe('reading a coverage list off disk', () => {
-  it('refuses an entry whose kind is neither excluded nor failed', async () => {
-    // Not defaulted, in either direction. Guessing `excluded` would turn a
+  it('refuses an entry whose kind is none of the three', async () => {
+    // Not defaulted, in any direction. Guessing `excluded` would turn a
     // coverage hole into a decision somebody made; guessing `failed` would turn
-    // every deliberate exclusion permanently red. A summary that claims a run is
+    // every deliberate exclusion permanently red; guessing `unreached` would
+    // credit the run with reasoning it never did. A summary that claims a run is
     // clean is only as trustworthy as the field it claims it from.
     const directory = await mkdtemp(join(tmpdir(), 'va-mcp-scenario-'));
     try {
@@ -204,7 +205,9 @@ describe('reading a coverage list off disk', () => {
         'utf8',
       );
 
-      await expect(readRunReport(path)).rejects.toThrow(/neither "excluded" nor "failed"/);
+      await expect(readRunReport(path)).rejects.toThrow(
+        /none of "excluded", "failed" or "unreached"/,
+      );
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

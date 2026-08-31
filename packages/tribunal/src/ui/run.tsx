@@ -51,7 +51,7 @@ export function RunPage({
             Declared intent: <em>{build.intent}</em>
           </p>
         )}
-        <CoverageLine coverage={build.coverage} />
+        <CoverageLine build={build} />
 
         <section className="va-card">
           <ReachPanel client={client} build={build} />

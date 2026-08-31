@@ -80,6 +80,14 @@ export interface Docket {
   readonly reviewable: number;
   readonly failed: readonly NotObserved[];
   readonly excluded: number;
+  /**
+   * Subjects this change provably cannot reach.
+   *
+   * Counted apart from `excluded` because it is the opposite kind of fact. An
+   * exclusion is a standing decision that survives the commit; this is a
+   * conclusion about *this* diff, and next week's diff reaches them again.
+   */
+  readonly unreached: number;
   /** Font family → how many subjects were rendered without it. */
   readonly missingFonts: ReadonlyMap<string, number>;
 }
@@ -217,6 +225,7 @@ export function docketOf(report: CliRunReport): Docket {
     reviewable,
     failed: notObserved.filter((entry) => entry.kind === 'failed'),
     excluded: notObserved.filter((entry) => entry.kind === 'excluded').length,
+    unreached: notObserved.filter((entry) => entry.kind === 'unreached').length,
     missingFonts,
   };
 }

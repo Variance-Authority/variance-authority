@@ -47,7 +47,7 @@ export const summarize: Tool = {
     }
 
     const header = [
-      `${report.observations.length} subject(s) observed, ${report.retention} run at ${report.at}`,
+      `${observedOf(report)}, ${report.retention} run at ${report.at}`,
       `rendered by ${describeIdentity(report)}`,
       // The coverage state joins the verdict counts rather than only appearing in
       // the section below, because that section is as long as the hole is and the
@@ -365,16 +365,36 @@ function coverage(report: RunReport): readonly string[] {
 
   const failed = entries.filter((entry) => entry.kind === 'failed');
   const excluded = entries.filter((entry) => entry.kind === 'excluded');
+  const unreached = entries.filter((entry) => entry.kind === 'unreached');
 
   // Every entry is named, however many there are. A count alone leaves an agent
   // unable to act, and a capped list reads as complete coverage — the failure
   // `truncated` exists to prevent, applied to the list that matters most.
   return [
     `not observed: ${entries.length} subject(s) — ` +
-      `${failed.length} the run could not see, ${excluded.length} excluded by configuration`,
+      `${failed.length} the run could not see, ${excluded.length} excluded by configuration, ` +
+      `${unreached.length} not reached by this change`,
     ...failed.map(coverageLine),
     ...excluded.map(coverageLine),
+    ...unreached.map(coverageLine),
   ];
+}
+
+/**
+ * How many subjects were observed, and how many there were to observe.
+ *
+ * The denominator is the point. A run that narrowed twenty subjects to two opens
+ * with `2 subject(s) observed` and reads as a suite of two — the eighteen it
+ * reasoned its way out of rendering are the work, and a bare numerator throws
+ * them away. Absent when the report never counted what it skipped, because
+ * `2 of 2` over a report that did not say is a denominator invented to fill the
+ * slot.
+ */
+function observedOf(report: RunReport): string {
+  const seen = report.observations.length;
+  const planned = seen + (report.notObserved?.length ?? 0);
+  const of = report.notObserved === undefined || planned === seen ? '' : ` of ${planned}`;
+  return `${seen}${of} subject(s) observed`;
 }
 
 function coverageLine(entry: NotObserved): string {

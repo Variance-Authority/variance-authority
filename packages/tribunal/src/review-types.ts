@@ -119,6 +119,8 @@ export interface Coverage {
   readonly stated: boolean;
   readonly failed: number;
   readonly excluded: number;
+  /** Subjects the run proved this change cannot reach, so never rendered. */
+  readonly unreached: number;
 }
 
 export interface SubjectView {

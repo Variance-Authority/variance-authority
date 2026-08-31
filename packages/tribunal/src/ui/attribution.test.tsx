@@ -82,7 +82,7 @@ function build(
     verdicts: { changed: subjects.length, unchanged: 0, new: 0, incomparable: 0, unstable: 0, ignored: 0 },
     decided: 0,
     pending: subjects.length,
-    coverage: { stated: true, failed: 0, excluded: 0 },
+    coverage: { stated: true, failed: 0, excluded: 0, unreached: 0 },
     subjects,
     notObserved: [],
     causes: [],

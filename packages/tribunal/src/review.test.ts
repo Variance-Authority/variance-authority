@@ -234,8 +234,34 @@ describe('a build is the report a run already wrote', () => {
     const stated = await review.build('ci-1001');
     const silent = await review.build('ci-1002');
 
-    expect(stated?.coverage).toEqual({ stated: true, failed: 1, excluded: 1 });
-    expect(silent?.coverage).toEqual({ stated: false, failed: 0, excluded: 0 });
+    expect(stated?.coverage).toEqual({ stated: true, failed: 1, excluded: 1, unreached: 0 });
+    expect(silent?.coverage).toEqual({ stated: false, failed: 0, excluded: 0, unreached: 0 });
+  });
+
+  it('reads a narrowing back as a narrowing rather than as a failure', async () => {
+    // A run that skipped eighteen of twenty because the diff cannot reach them
+    // is the strongest thing this tool says about work it did not do. A reader
+    // that recognised `excluded` and answered `failed` to everything else would
+    // turn that into eighteen red subjects, and the build would present as the
+    // worst run of the week for having been the cheapest.
+    await review.ingest({
+      ...ingest(),
+      report: {
+        ...report(),
+        notObserved: [
+          { subject: 'route/home', kind: 'unreached', because: 'its baseline records none of it' },
+          { subject: 'story:legacy', kind: 'excluded', because: 'excluded by config' },
+        ],
+      },
+    });
+
+    const detail = await review.build('ci-1001');
+
+    expect(detail?.coverage).toEqual({ stated: true, failed: 0, excluded: 1, unreached: 1 });
+    expect(detail?.notObserved.map((entry) => entry.kind).sort()).toEqual([
+      'excluded',
+      'unreached',
+    ]);
   });
 
   it('keeps findings that were never collected apart from a clean render', async () => {

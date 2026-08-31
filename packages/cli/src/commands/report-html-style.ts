@@ -69,6 +69,7 @@ border-radius:3px;padding:.1rem .4rem;white-space:nowrap}
 .seg.failed{background:#c0392b}
 .seg.ignored{background:var(--warm)}
 .seg.excluded{background:var(--charcoal);box-shadow:inset 0 0 0 1px var(--hairline)}
+.seg.unreached{background:var(--charcoal);box-shadow:inset 0 0 0 1px var(--hairline)}
 .seg.unchanged{background:var(--green)}
 .keys{display:flex;flex-wrap:wrap;gap:.9rem;margin-top:.4rem}
 .key{background:none;border:0;padding:0;cursor:pointer;font:inherit;font-size:11px;
@@ -81,6 +82,7 @@ color:var(--quiet);display:flex;align-items:center;gap:.35rem}
 .key.failed b{color:#e5705f}
 .key.ignored i{background:var(--warm)}
 .key.excluded i{background:var(--hairline)}
+.key.unreached i{background:var(--hairline)}
 .key.unchanged i{background:var(--green)}
 .key[aria-pressed=true]{color:var(--orange)}
 
@@ -255,6 +257,7 @@ font-variant-numeric:tabular-nums;margin-left:auto}
 .dot.unchanged{background:var(--green)}
 .dot.ignored{background:var(--warm)}
 .dot.excluded{background:var(--hairline)}
+.dot.unreached{background:var(--hairline)}
 
 /* the declaration ledgers: every rule is a row, including the quiet ones */
 .ledger td:first-child{width:22%}
