@@ -38,12 +38,14 @@ import {
   Arrival,
   Collateral,
   Declared,
+  Evidence,
   Recurrence,
   Shapes,
   SinceLast,
   Tally,
 } from './change-story.js';
 import { Because } from './because.js';
+import { AlsoCarries, carriedWith } from './carried.js';
 import type { ReviewClient } from './client.js';
 import { Consumers, consumersOf } from './consumers.js';
 import type { Crossing } from './crossing.js';
@@ -82,6 +84,11 @@ export function ChangePanel({
   const across = senseAcross(origin.component, origin.appearances);
   const handed = handedTo(build)(origin.component);
   const consumers = consumersOf(build)(origin.component);
+  const carrying = carriedWith(
+    build,
+    origin.component,
+    origin.appearances.map(({ subject }) => subject.subject),
+  );
   const far = distanceFrom(build, origin.component);
   const elsewhere = movedElsewhere(
     origin.component,
@@ -117,6 +124,16 @@ export function ChangePanel({
         {/* The three counts, split. They answer three different questions and
             they are three different numbers. */}
         <Tally origin={origin} elsewhere={elsewhere.length} open={open.length} />
+
+        {/* What a press of the button up there settles that is not this change.
+            A decision is taken on the whole picture. */}
+        <AlsoCarries
+          carrying={carrying}
+          renders={origin.appearances.length}
+          build={build.build}
+          changes={changes}
+          go={go}
+        />
 
         {/* What the lead just stopped saying, and who owns it. A band a parent
             hands down is decided in the parent's file, so it is named before the
@@ -174,6 +191,7 @@ export function ChangePanel({
               apart={
                 appearance.movement !== undefined && appearance.movement.cause !== origin.cause
               }
+              also={carrying.at(appearance.subject.subject)}
               was={crossing.state === 'ready' ? crossing.of(appearance.subject.subject) : undefined}
               against={crossing.state === 'ready' ? crossing.earlier.build : undefined}
               go={go}
@@ -183,6 +201,7 @@ export function ChangePanel({
         </ul>
 
         <Collateral build={build} />
+        <Evidence />
       </div>
     </div>
   );
@@ -195,6 +214,7 @@ function Where({
   build,
   appearance,
   apart,
+  also,
   was,
   against,
   go,
@@ -206,12 +226,19 @@ function Where({
   readonly appearance: Appearance;
   /** This render moved for a different reason than the change as a whole. */
   readonly apart: boolean;
+  /** Other components that moved on their own here, which a press also settles. */
+  readonly also: readonly string[];
   readonly was?: Shifted | undefined;
   readonly against?: string | undefined;
   readonly go: (route: Route) => void;
   readonly onDecided: () => void;
 }): ReactElement {
-  const { subject, pixels, alongside } = appearance;
+  const { subject, pixels } = appearance;
+  // Minus the names the mark beside it already carries. `alongside` is every
+  // component the regions put in this render, causes and pushed together, and
+  // printing `also CardFooter` next to `alongside CardFooter` spends the row's
+  // width saying one name twice under two words that do not mean the same thing.
+  const alongside = appearance.alongside.filter((name) => !also.includes(name));
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | undefined>(undefined);
 
@@ -238,6 +265,14 @@ function Where({
         {subject.subject}
       </Go>
       <span className="va-where-size va-num va-note">{number(pixels)} px</span>
+      {/* Approving this row promotes the whole picture, and these moved in it on
+          their own. The row is where the single ✓ is, so the names belong here
+          and not only in the summary above. */}
+      {also.length === 0 ? null : (
+        <span className="va-mark va-carries-mark" title="Approving this render accepts these here too">
+          also {also.join(', ')}
+        </span>
+      )}
       {apart && appearance.movement !== undefined ? (
         <span className="va-mark va-note" title={appearance.movement.because}>
           {appearance.movement.upstream === undefined

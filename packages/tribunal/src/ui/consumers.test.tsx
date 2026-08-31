@@ -146,38 +146,51 @@ describe('what the components drawing this one did', () => {
 });
 
 describe('the summary a reviewer reads first', () => {
-  const markup = (subjects: readonly SubjectView[] = SUBJECTS, changes = new Set(['Card'])) =>
+  const markup = (subjects: readonly SubjectView[] = SUBJECTS, changes = new Set(['LinkComponent'])) =>
     renderToStaticMarkup(
-      <Consumers found={consumersOf(build({ subjects }))('Button')} build="9" changes={changes} go={() => {}} />,
+      <Consumers
+        found={consumersOf(build({ subjects }))('Button')}
+        build="9"
+        changes={changes}
+        go={() => {}}
+      />,
     );
 
-  it('counts the three states in the words they are ranked by', () => {
+  it('names the one that moved rather than counting the piles', () => {
+    // *2 held still, 2 pushed, 1 moved on its own* was three numbers and no
+    // names, and the question is which.
     const page = markup();
 
-    expect(page).toContain('<strong>3 components draw it</strong>');
-    expect(page).toContain('1 held still');
-    expect(page).toContain('1 pushed');
-    expect(page).toContain('1 moved on its own');
+    expect(page).toContain('LinkComponent moved in a way this change does not explain');
+    expect(page).toContain('Only their box moved: <span title="Card"><span>Card</span>');
+    expect(page).toContain('Unchanged: <span title="EmptyCart"><span>EmptyCart</span>');
   });
 
-  it('names the bands only for the one this change does not explain', () => {
+  it('gives a row to the exception and none to the components that did nothing', () => {
     const page = markup();
 
-    expect(page).toContain('moved in <em>its layout and its style values</em> — 1 of 1');
-    expect(page).toContain('pushed, not changed — 2 of 3');
-    expect(page).toContain('held still in all 1');
+    expect(page.match(/<li/g)).toHaveLength(1);
+    expect(page).toContain('<em>its layout and its style values</em> — 1 of 1');
+  });
+
+  it('says nothing moved on its own, which is what the page was opened to learn', () => {
+    const calm = SUBJECTS.map((subject) =>
+      subject.subject === 'nav@1280'
+        ? read('nav@1280', [{ component: 'LinkComponent', bands: ['geometry'], cause: false }])
+        : subject,
+    );
+
+    const page = markup(calm);
+
+    expect(page).toContain('Nothing of the 3 components that draw it moved on its own');
+    expect(page).not.toContain('<li');
   });
 
   it('links a consumer that has a change page and not one that has none', () => {
-    const page = markup();
-
-    expect(page).toContain('href="/builds/9/changes/Card"');
-    expect(page).not.toContain('href="/builds/9/changes/LinkComponent"');
-    expect(page).toContain('<span class="va-consumer-name">LinkComponent</span>');
-  });
-
-  it('marks the row that moved on its own and no other', () => {
-    expect(markup().match(/va-consumer-moved/g)).toHaveLength(1);
+    expect(markup()).toContain('href="/builds/9/changes/LinkComponent"');
+    expect(markup(SUBJECTS, new Set())).toContain(
+      '<span class="va-consumer-name">LinkComponent</span>',
+    );
   });
 
   it('renders nothing when the census places it inside nothing', () => {
@@ -193,11 +206,50 @@ describe('the summary a reviewer reads first', () => {
     ).toBe('');
   });
 
-  it('says how many renders nothing was read in rather than omitting them', () => {
+  it('keeps the renders nobody read attached to the name they belong to', () => {
+    // *Unchanged* over a consumer with two renders read and one not is true of
+    // the two and silent about the third, and the count is what separates it
+    // from a clean three.
     const unread = SUBJECTS.map((subject) =>
       subject.subject === 'grid@1280' ? read('grid@1280') : subject,
     );
 
-    expect(markup(unread)).toContain('· 1 not read');
+    expect(markup(unread)).toContain('Card (1 not read)');
+  });
+
+  it('keeps a consumer nothing was ever read for out of the unchanged pile', () => {
+    // *Unchanged in every render* about a component whose hashes nobody compared
+    // is the reassurance this surface must never give.
+    const blind = SUBJECTS.map((subject) =>
+      subject.subject === 'cart@1280' ? read('cart@1280') : subject,
+    );
+
+    const page = markup(blind);
+
+    expect(page).not.toContain('Unchanged: <span title="EmptyCart">');
+    expect(page).toContain('Nothing compared hashes for <span title="EmptyCart"><span>EmptyCart</span></span>, so no render says what it did');
+  });
+
+  it('caps a list of names and says how many it did not print', () => {
+    // A button in three thousand shots has more consumers than fit on a line,
+    // and a list that stops without saying so reads as the whole set.
+    const many = Array.from({ length: 12 }, (_, index) => `Holder${index}`);
+    const census = [
+      place('Button', ['grid@1280'], { within: many }),
+      ...many.map((name) => place(name, ['grid@1280'])),
+    ];
+    const page = renderToStaticMarkup(
+      <Consumers
+        found={consumersOf(build({ composition: census, subjects: [read('grid@1280', [])] }))(
+          'Button',
+        )}
+        build="9"
+        changes={new Set()}
+        go={() => {}}
+      />,
+    );
+
+    expect(page).toContain('and 4 more');
+    expect(page).toContain('title="Holder0, Holder1, Holder10, Holder11, Holder2');
   });
 });

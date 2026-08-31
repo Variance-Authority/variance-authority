@@ -438,3 +438,61 @@ describe('an edit of its own, and a prop somebody else wrote', () => {
     expect(page).toContain('1 render it draws');
   });
 });
+
+describe('what a press of the button settles that is not this change', () => {
+  // A decision is taken on the whole picture. Two of these three renders hold a
+  // `CardFooter` that moved on its own and has an approve button of its own,
+  // and pressing this one presses that one by proxy.
+  const detail = build([
+    subject({
+      subject: 'story:button--primary',
+      regions: [{ x: 0, y: 0, width: 8, height: 8, pixels: 100, component: 'Button', cause: true }],
+      moved: [{ component: 'Button', bands: ['token'], cause: true }],
+    }),
+    subject({
+      subject: 'story:product-card--sale',
+      regions: [{ x: 0, y: 0, width: 8, height: 8, pixels: 100, component: 'Button', cause: true }],
+      moved: [
+        { component: 'Button', bands: ['token'], cause: true },
+        { component: 'Card', bands: ['geometry'], cause: false },
+        { component: 'CardFooter', bands: ['a11y', 'content'], cause: true },
+      ],
+    }),
+    subject({
+      subject: 'route/sneakers@1280',
+      regions: [{ x: 0, y: 0, width: 8, height: 8, pixels: 100, component: 'Button', cause: true }],
+      moved: [
+        { component: 'Button', bands: ['token'], cause: true },
+        { component: 'CardFooter', bands: ['a11y'], cause: true },
+      ],
+    }),
+  ]);
+
+  it('says how many renders carry another change, and links it', () => {
+    const page = card(detail, NO_CROSSING, new Set(['CardFooter']));
+
+    expect(page).toContain('<strong>2 of 3 renders</strong> also carry');
+    expect(page).toContain('href="/builds/4/changes/CardFooter"');
+    expect(page).toContain('approving here accepts those in the same renders');
+  });
+
+  it('marks the rows a single ✓ would settle two changes in', () => {
+    const page = card(detail, NO_CROSSING, new Set(['CardFooter']));
+
+    expect(page.match(/also CardFooter/g)).toHaveLength(2);
+  });
+
+  it('leaves a container that only reflowed off the warning', () => {
+    // `Card` moved in one of them with `cause` false. Naming it would put every
+    // framework wrapper on the alarm and make the two real names unfindable.
+    expect(card(detail, NO_CROSSING, new Set(['CardFooter']))).not.toContain('also Card,');
+  });
+
+  it('says what a band claim is made of rather than asserting it', () => {
+    const page = card(detail, NO_CROSSING, new Set());
+
+    expect(page).toContain('Each band is a digest comparison');
+    expect(page).toContain('the role, name and state of every node in it');
+    expect(page).toContain('keeps the digests and not the values');
+  });
+});

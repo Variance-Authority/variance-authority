@@ -216,7 +216,7 @@ export function senseAcross(component: string, appearances: readonly Appearance[
  * tier — a surface that pulled the ordering across would tie the words on a page
  * to a library it does not otherwise need.
  */
-const ORDER: readonly string[] = ['a11y', 'geometry', 'token', 'content', 'texture'];
+export const ORDER: readonly string[] = ['a11y', 'geometry', 'token', 'content', 'texture'];
 
 /**
  * The known bands in their own order, then anything this build has not heard of.
@@ -291,3 +291,22 @@ export function movedElsewhere(
 
   return found;
 }
+
+/**
+ * What each band is read from, for the reviewer who asks how the page knows.
+ *
+ * *What it announces moved* is a claim, and until this line existed the page made
+ * it with nothing behind it. It is a digest comparison: the run hashes the role,
+ * name and state of every node inside a component boundary, the baseline sidecar
+ * keeps that hash, and a later run's hash disagrees. Which is a real answer, and
+ * also a short one — the values are not stored, so the band says *these differ*
+ * and cannot say what the name became. Printing the first half without the second
+ * lets a reviewer read a precision into it that is not there.
+ */
+export const READS: Readonly<Record<string, string>> = {
+  a11y: 'the role, name and state of every node in it',
+  geometry: 'its nodes’ boxes, and the layout properties they compute to',
+  token: 'the style properties it declares, and the tokens behind them',
+  content: 'the text its nodes carry',
+  texture: 'the pixels themselves, after the other four agreed',
+};

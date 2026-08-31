@@ -117,18 +117,37 @@ function read(
   return [{ component, renders, still, pushed, moved, bands: loudestFirst(bands), unread }];
 }
 
-/** Moved on its own, then pushed, then still. The alarm is at the top. */
+/** Moved on its own, then only-shifted, then unchanged. */
 function worstFirst(left: Consumer, right: Consumer): number {
   const rank = (each: Consumer): number => (each.moved > 0 ? 0 : each.pushed > 0 ? 1 : 2);
   return rank(left) - rank(right) || left.component.localeCompare(right.component);
 }
 
 /**
- * The consumers, worst first, under the count that answers the question.
+ * How many names a line will carry before it stops being a line a reviewer reads.
  *
- * The summary line is the answer and the rows are the working. *2 held still, 2
- * pushed, 1 moved on its own* is what a reviewer came to the page for; which
- * card and in how many renders is what they open next.
+ * A button in three thousand shots has more consumers than fit anywhere, and the
+ * ones being elided here are the two states nobody needs a name for. What is
+ * never elided is the pile above: a consumer that moved on its own gets a row of
+ * its own however many of them there are, because that pile is the review.
+ */
+const NAMES = 8;
+
+/**
+ * What the things drawing this one did — the exceptions named, the rest counted.
+ *
+ * The first draft gave every consumer a row and led with *2 held still, 2 pushed,
+ * 1 moved on its own*, which is three numbers and no names: the reviewer's
+ * question is **which**, and a count answers it only if they then read five rows
+ * and sort them back into three piles themselves. It also spent a row each on
+ * consumers that did nothing, which is the pile with the least to say and, at any
+ * real scale, the largest.
+ *
+ * So the shape is inverted. A consumer that moved in a way this change does not
+ * explain gets a row, its bands and its render count — that is the review. The
+ * ones that only shifted and the ones that held still are named on one line each
+ * and nothing more, because *`MainNav` was drawn eight times and is unchanged* is
+ * a fact worth having and not a fact worth eight lines of screen.
  */
 export function Consumers({
   found,
@@ -144,78 +163,131 @@ export function Consumers({
 }): ReactElement | null {
   if (found.length === 0) return null;
 
-  const moved = found.filter((each) => each.moved > 0).length;
-  const pushed = found.filter((each) => each.moved === 0 && each.pushed > 0).length;
-  const still = found.length - moved - pushed;
+  const moved = found.filter((each) => each.moved > 0);
+  const shifted = found.filter((each) => each.moved === 0 && each.pushed > 0);
+  const still = found.filter((each) => each.moved === 0 && each.pushed === 0 && each.renders > 0);
+  const unread = found.filter((each) => each.renders === 0);
 
   return (
     <section className="va-consumers">
       <h2>Consumers</h2>
+
       <p className="va-consumers-tally">
-        <strong>
-          {count(found.length, 'component')} {found.length === 1 ? 'draws' : 'draw'} it
-        </strong>
-        {still === 0 ? null : <span> — {number(still)} held still</span>}
-        {pushed === 0 ? null : <span> — {number(pushed)} pushed</span>}
-        {moved === 0 ? null : (
-          <span className="va-consumers-own"> — {number(moved)} moved on its own</span>
+        {moved.length === 0 ? (
+          <strong>
+            Nothing of the {count(found.length, 'component')} that draw it moved on its own.
+          </strong>
+        ) : (
+          <strong className="va-consumers-own">
+            {names(moved)} moved in {moved.length === 1 ? 'a way' : 'ways'} this change does not
+            explain.
+          </strong>
         )}
       </p>
-      <ul className="va-consumers-list">
-        {found.map((each) => (
-          <li key={each.component} className={each.moved > 0 ? 'va-consumer-moved' : undefined}>
-            {changes.has(each.component) ? (
-              <Go
-                to={{ page: 'change', build, change: each.component }}
-                go={go}
-                className="va-consumer-name"
-              >
-                {each.component}
-              </Go>
-            ) : (
-              <span className="va-consumer-name">{each.component}</span>
-            )}
-            <span className="va-note">
-              <Did each={each} />
-            </span>
-          </li>
-        ))}
-      </ul>
+
+      {moved.length === 0 ? null : (
+        <ul className="va-consumers-list">
+          {moved.map((each) => (
+            <li key={each.component} className="va-consumer-moved">
+              <Name each={each} build={build} changes={changes} go={go} />
+              <span className="va-note">
+                <em>{senses(each.bands)}</em> — {number(each.moved)} of {number(each.renders)}
+                {each.unread === 0 ? null : <> · {number(each.unread)} not read</>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* The other three piles, one line each. Named, because *2 pushed* sends a
+          reviewer looking for which two, and counted rather than listed because
+          at scale these are the hundreds. */}
+      <p className="va-consumers-rest">
+        {shifted.length === 0 ? null : (
+          <span>
+            Only their box moved: <Named of={shifted} />.{' '}
+          </span>
+        )}
+        {still.length === 0 ? null : (
+          <span>
+            Unchanged: <Named of={still} />.{' '}
+          </span>
+        )}
+        {unread.length === 0 ? null : (
+          <span className="va-alarm-text">
+            Nothing compared hashes for <Named of={unread} unread={false} />, so no render says
+            what {unread.length === 1 ? 'it' : 'they'} did.
+          </span>
+        )}
+      </p>
     </section>
   );
 }
 
-/**
- * One consumer's state, as few words as the four cases allow.
- *
- * *Pushed, not changed* is three words carrying the finding: its rect moved and
- * its own content did not, so what a reviewer is looking at there is this edit
- * arriving rather than a second one to decide.
- */
-function Did({ each }: { readonly each: Consumer }): ReactElement {
-  const rest =
-    each.unread === 0 ? null : <> · {number(each.unread)} not read</>;
-
-  if (each.moved > 0) {
-    return (
-      <>
-        moved in <em>{senses(each.bands)}</em> — {number(each.moved)} of {number(each.renders)}
-        {rest}
-      </>
-    );
-  }
-  if (each.pushed > 0) {
-    return (
-      <>
-        pushed, not changed — {number(each.pushed)} of {number(each.renders)}
-        {rest}
-      </>
-    );
+function Name({
+  each,
+  build,
+  changes,
+  go,
+}: {
+  readonly each: Consumer;
+  readonly build: string;
+  readonly changes: ReadonlySet<string>;
+  readonly go: (route: Route) => void;
+}): ReactElement {
+  if (!changes.has(each.component)) {
+    return <span className="va-consumer-name">{each.component}</span>;
   }
   return (
-    <>
-      held still in all {number(each.renders)}
-      {rest}
-    </>
+    <Go
+      to={{ page: 'change', build, change: each.component }}
+      go={go}
+      className="va-consumer-name"
+      title={`${each.component} is a change on this build, with a decision of its own`}
+    >
+      {each.component}
+    </Go>
   );
+}
+
+/**
+ * The names, capped, with the remainder said rather than dropped — and with the
+ * renders nobody read carried on the name they belong to.
+ *
+ * *Unchanged* over a consumer with two renders read and one not is true of the
+ * two and says nothing about the third, and a reader has no way to tell that
+ * from a clean three. The count goes on the name because that is the only place
+ * it stays attached once the pile is a line.
+ */
+function Named({
+  of,
+  unread = true,
+}: {
+  readonly of: readonly Consumer[];
+  /** Off where the sentence around it already says nothing was read. */
+  readonly unread?: boolean;
+}): ReactElement {
+  const shown = of.slice(0, NAMES);
+  const rest = of.length - shown.length;
+  return (
+    <span title={of.map((each) => each.component).join(', ')}>
+      {shown.map((each, index) => (
+        <span key={each.component}>
+          {index === 0 ? '' : ', '}
+          {each.component}
+          {!unread || each.unread === 0 ? null : ` (${number(each.unread)} not read)`}
+        </span>
+      ))}
+      {rest === 0 ? null : ` and ${number(rest)} more`}
+    </span>
+  );
+}
+
+/** The same, in a sentence that starts with them. */
+function names(of: readonly Consumer[]): string {
+  const shown = of.slice(0, NAMES).map((each) => each.component);
+  const rest = of.length - shown.length;
+  if (rest > 0) return `${shown.join(', ')} and ${number(rest)} more`;
+  if (shown.length === 1) return shown[0] ?? '';
+  return `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1] ?? ''}`;
 }

@@ -22,6 +22,7 @@ import type { ReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
 import { shapesOf, type Appearance, type Origin } from './grouping.js';
 import { ChurnLine } from './history.js';
+import { ORDER, READS, senseOf } from './sense.js';
 import type { Shifted } from './shift.js';
 import { count, number } from './text.js';
 
@@ -400,6 +401,36 @@ export function Collateral({ build }: { readonly build: BuildDetail }): ReactEle
     <p className="va-note va-collateral-note">
       {count(pixels, 'collateral pixel')} moved in this build alongside the changes — regions that
       shifted because something else did. Counted for the build, never split between the changes.
+    </p>
+  );
+}
+
+/**
+ * What a band claim is made of, said once on the page that makes them.
+ *
+ * Asked directly, about `what it announces`: *how do you know?* The page had no
+ * answer on it. It knows because two digests disagree, and the digest is over the
+ * role, name and state of every node inside the boundary — which is enough to
+ * assert the band and not enough to say what the name became, because the
+ * baseline sidecar stores the hash and not the value.
+ *
+ * At the foot rather than beside every band, because it is the same sentence for
+ * all of them and a reviewer needs it once. Not behind a disclosure: the whole
+ * complaint that produced it was a page processing its results and hiding what
+ * they were made from.
+ */
+export function Evidence(): ReactElement {
+  return (
+    <p className="va-evidence">
+      Each band is a digest comparison —{' '}
+      {ORDER.filter((band) => band !== 'texture').map((band, index) => (
+        <span key={band}>
+          {index === 0 ? '' : '; '}
+          <em>{senseOf(band)}</em> over {READS[band]}
+        </span>
+      ))}
+      . The baseline keeps the digests and not the values, so a band names which of them differ and
+      not what they became.
     </p>
   );
 }

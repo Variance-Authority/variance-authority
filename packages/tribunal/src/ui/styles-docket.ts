@@ -146,6 +146,23 @@ export const DOCKET_STYLES = `
 .va-consumers-list li { align-items: baseline; border-left: 3px solid var(--va-collateral); display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.15rem 0 0.15rem 0.6rem; }
 .va-consumer-name { color: var(--va-ink); font-weight: 600; }
 .va-consumer-moved { border-left-color: var(--va-bad); }
+.va-consumers-rest { color: var(--va-ink-3); font-size: 0.85rem; margin: 0.5rem 0 0; }
+.va-consumers-rest span[title] { color: var(--va-ink-2); }
+.va-alarm-text { color: var(--va-bad-ink); }
+
+/* What a press of Approve settles that is not the change it is under. Directly
+   under the counts, because it is a correction to one of them: the seven renders
+   to accept are seven whole pictures, and four of them hold somebody else's
+   undecided difference. */
+.va-carries { background: var(--va-bad-bg); border-radius: 6px; color: var(--va-ink-2); font-size: 0.88rem; margin: 0 0 0.9rem; padding: 0.4rem 0.6rem; }
+.va-carries-go { color: var(--va-accent); font-weight: 600; white-space: nowrap; }
+.va-carries-mark { background: var(--va-bad-bg); border-radius: 999px; color: var(--va-bad-ink); font-size: 0.68rem; padding: 0.05rem 0.4rem; }
+
+/* What a band claim is made of. At the foot, because it is the same sentence for
+   all of them and a reviewer needs it once — and not behind a disclosure,
+   because the complaint that produced it was a page hiding its sources. */
+.va-evidence { border-top: 1px solid var(--va-line); color: var(--va-ink-3); font-size: 0.8rem; margin-top: 1.6rem; padding-top: 0.6rem; }
+.va-evidence em { color: var(--va-ink-2); font-style: normal; }
 
 /* What the last run said, beside the change rather than nine thousand pixels
    below it. Warm rather than red: *you have seen this* is not an alarm, it is
