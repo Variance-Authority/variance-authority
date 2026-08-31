@@ -20,7 +20,8 @@ import type { Churn } from '@variance-authority/history';
 import type { BuildDetail } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
-import { shapesOf, type Appearance, type Origin } from './grouping.js';
+import { shapesOf, type Origin } from './grouping.js';
+import { partedBy } from './parted.js';
 import { ChurnLine } from './history.js';
 import { ORDER, READS, senseOf } from './sense.js';
 import type { Shifted } from './shift.js';
@@ -308,41 +309,66 @@ function brief(shape: string): string {
 }
 
 /**
- * Which of these differences are the same difference.
+ * Where this change's renders stopped agreeing with each other.
  *
- * A shape is a pixel digest with position and values removed, so one restyle
- * lands as one shape on the buttons that are the same size and another on the one
- * that is not. That is why it does not decide the group — and why it is worth
- * printing under a group it did not decide: a single shape across every render is
- * a set `variance accept --shape` can take by name in the next run.
+ * A change is approved once and lands many times, and the count above reads as
+ * one thing having happened seven times. On a component with two shapes it is
+ * two things: two renders moved by 6,418 pixels and five by about 3,500, and a
+ * reviewer pressing approve is signing off on both under one name.
+ *
+ * So the groups are drawn, largest first, with what each one is worth in pixels
+ * and the name its renders share when that name is theirs alone. The digest goes
+ * beside each group rather than in the prose, because `variance accept --shape`
+ * takes exactly that set in the next run and a reviewer who has decided one of
+ * the two groups is holding the argument for it.
  */
-export function Shapes({
-  appearances,
-}: {
-  readonly appearances: readonly Appearance[];
-}): ReactElement {
-  const clusters = shapesOf(appearances);
-  if (clusters.size === 0) return <></>;
+export function Shapes({ origin }: { readonly origin: Origin }): ReactElement | null {
+  const { shapes, unshaped } = partedBy(origin);
+  if (shapes.length === 0) return null;
 
-  const [shape, largest] = [...clusters.entries()].sort((left, right) => right[1] - left[1])[0]!;
-
-  if (clusters.size === 1 && largest === appearances.length) {
+  const only = shapes.length === 1 && unshaped.length === 0 ? shapes[0] : undefined;
+  if (only !== undefined) {
     return (
       <p className="va-note">
-        The same difference in every one of them. <code>variance accept --shape {shape}</code> takes
-        exactly this set.
+        The same difference in every one of the {count(origin.appearances.length, 'render')}.{' '}
+        <code title={only.shape}>variance accept --shape {brief(only.shape)}</code> takes exactly
+        this set.
       </p>
     );
   }
 
   return (
-    <p className="va-note">
-      The largest of the {count(clusters.size, 'shape')} is {number(largest)} of the{' '}
-      {count(appearances.length, 'render')} — <code title={shape}>{brief(shape)}</code>, which{' '}
-      <code>variance accept --shape</code> takes by name. One component absorbing a change several
-      ways is ordinary; the shapes are which of them recur.
-    </p>
+    <section className="va-parted">
+      <h2>
+        {count(shapes.length, 'shape')} over {count(origin.appearances.length, 'render')}
+      </h2>
+      <ul>
+        {shapes.map((each) => (
+          <li key={each.shape}>
+            <p className="va-parted-head">
+              <span className="va-num">{span(each.least, each.most)} px</span>
+              {each.only === undefined ? null : <span className="va-parted-only">{each.only}</span>}
+              <code className="va-parted-take" title={each.shape}>
+                --shape {brief(each.shape)}
+              </code>
+            </p>
+            <p className="va-parted-in va-note">{each.renders.join(', ')}</p>
+          </li>
+        ))}
+      </ul>
+      {unshaped.length === 0 ? null : (
+        <p className="va-note">
+          {count(unshaped.length, 'render')} recorded no shape, so they are not known to match
+          anything here: {unshaped.join(', ')}.
+        </p>
+      )}
+    </section>
   );
+}
+
+/** One figure when the group is flat, two when the renders differ in size. */
+function span(least: number, most: number): string {
+  return least === most ? number(least) : `${number(least)}–${number(most)}`;
 }
 
 /**

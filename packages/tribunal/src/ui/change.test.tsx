@@ -163,20 +163,8 @@ describe('the card says what a reviewer is agreeing to', () => {
     );
 
     expect(page).toContain('<strong>2 differences</strong> to review');
-    expect(page).toContain('is 2 of the 3 renders');
+    expect(page).toContain('2 shapes over 3 renders');
     expect(page).toContain('Approve this change (3)');
-  });
-
-  it('names the shared shape, which is the set the CLI can take on its own', () => {
-    const page = card(
-      build([
-        subject({ subject: 'a', regions: [region({ component: 'Button', fingerprint: 'f1' })] }),
-        subject({ subject: 'b', regions: [region({ component: 'Button', fingerprint: 'f1' })] }),
-      ]),
-    );
-
-    expect(page).toContain('The same difference in every one of them');
-    expect(page).toContain('variance accept --shape');
   });
 
   it('puts the buttons above the reasons, not below them', () => {

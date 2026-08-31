@@ -200,7 +200,7 @@ export function ChangePanel({
         />
         <SinceLast crossing={crossing} origin={origin} />
         <Recurrence client={client} component={origin.component} />
-        <Shapes appearances={origin.appearances} />
+        <Shapes origin={origin} />
 
         <h2>Where it showed up</h2>
         <ul className="va-where">

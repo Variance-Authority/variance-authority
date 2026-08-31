@@ -200,6 +200,20 @@ export const DOCKET_STYLES = `
 .va-since.va-known { background: var(--va-warn-bg); color: var(--va-warn-ink); }
 .va-collateral-note { margin-top: 1.6rem; }
 
+/* Where the renders stopped agreeing. Directly above the list they divide, so a
+   reviewer reads the groups and then finds them in order — and the sizes are the
+   left column in both, which is what makes the two readable as one list. */
+.va-parted { margin: 1.4rem 0 0.6rem; }
+.va-parted h2 { margin-bottom: 0.4rem; }
+.va-parted ul { display: grid; gap: 0.5rem; list-style: none; margin: 0; padding: 0; }
+.va-parted li { border-left: 3px solid var(--va-line); padding: 0.1rem 0 0.1rem 0.7rem; }
+.va-parted li:first-child { border-left-color: var(--va-collateral); }
+.va-parted-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0; }
+.va-parted-head .va-num { color: var(--va-ink); font-family: var(--va-mono); font-size: 0.95rem; }
+.va-parted-only { color: var(--va-ink-2); font-size: 0.85rem; font-weight: 600; }
+.va-parted-take { background: var(--va-sunken); border-radius: 5px; color: var(--va-ink-3); font-size: 0.74rem; margin-left: auto; padding: 0.1rem 0.4rem; }
+.va-parted-in { font-size: 0.8rem; margin: 0.15rem 0 0; overflow-wrap: anywhere; }
+
 /* Where it showed up: one row per render, each decidable on its own, because a
    batch that could only be taken whole would be a batch nobody could refuse
    part of. */
