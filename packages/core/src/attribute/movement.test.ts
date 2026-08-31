@@ -283,6 +283,80 @@ describe('attributing a movement', () => {
     expect(attribution.flakes).toEqual([]);
   });
 
+  it('refuses a control whose hashes moved where no region named it', () => {
+    // The movements are the *causal* regions, so a component whose digests moved
+    // and whose box the pixels attributed to something else is not among them.
+    // Read as a control, that render says the component held still in the one
+    // place it demonstrably did not — and on the example that was every entry in
+    // the list, all thirty-two of them.
+    const attribution = attributeMovement(moved, composition, {
+      changed: ['docs/readme.md'],
+      declaredIn: new Map([['Chip', ['src/ds/chip.tsx']]]),
+      hashesMoved: new Map([
+        ['story:page--default', new Set(['Chip'])],
+        ['story:ds-chip--done', new Set(['Chip'])],
+      ]),
+    });
+
+    expect(attribution.movements[0]?.held).toEqual([]);
+    expect(attribution.movements[0]?.because).toContain('every other render of it');
+  });
+
+  it('keeps a control the hashes agree held still', () => {
+    const attribution = attributeMovement(moved, composition, {
+      changed: ['docs/readme.md'],
+      declaredIn: new Map([['Chip', ['src/ds/chip.tsx']]]),
+      hashesMoved: new Map([
+        ['story:page--default', new Set(['Chip'])],
+        ['story:ds-chip--done', new Set(['Footer'])],
+      ]),
+    });
+
+    expect(attribution.movements[0]?.held.map((site) => site.subject)).toEqual([
+      'story:ds-chip--done',
+    ]);
+  });
+
+  it('refuses a control in a subject whose hashes nobody read', () => {
+    // Absent from a present map is *no baseline digests were there to compare*.
+    // Unmeasured is not unchanged, and a control group is exactly the claim that
+    // cannot be made from a render nobody looked at.
+    const attribution = attributeMovement(moved, composition, {
+      changed: ['docs/readme.md'],
+      declaredIn: new Map([['Chip', ['src/ds/chip.tsx']]]),
+      hashesMoved: new Map([['story:page--default', new Set(['Chip'])]]),
+    });
+
+    expect(attribution.movements[0]?.held).toEqual([]);
+  });
+
+  it('falls back to the movements when the run compared no hashes at all', () => {
+    // An absent map is a run that never read digests — a raster-only tier. It
+    // still has the movements, and the control group it can build from them is
+    // weaker rather than unavailable.
+    const attribution = attributeMovement(moved, composition, {
+      changed: ['docs/readme.md'],
+      declaredIn: new Map([['Chip', ['src/ds/chip.tsx']]]),
+    });
+
+    expect(attribution.movements[0]?.held.map((site) => site.subject)).toEqual([
+      'story:ds-chip--done',
+    ]);
+  });
+
+  it('keeps *nothing to compare against* apart from *they all moved*', () => {
+    // Two empty control groups, opposite findings. `Footer` renders once in this
+    // suite and has no comparison at all; `Chip` renders twice and moved in both,
+    // which is the comparison, made, and answering.
+    const alone = attributeMovement(
+      [{ subject: 'story:page--default', component: 'Footer', bands: [] }],
+      composition,
+      { changed: ['docs/readme.md'] },
+    );
+
+    expect(alone.movements[0]?.because).toContain('renders nowhere else in this run');
+  });
+
   it('will not produce a confident unexplained from a run that never asked', () => {
     // No `--since`, so the first rung is unreachable and nothing has established
     // that nobody edited anything. The movement still lands in `suspects` — it

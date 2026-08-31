@@ -208,6 +208,21 @@ export interface MovementRecord {
   readonly held: readonly string[];
 
   /**
+   * Renders of this component with the same props, other than this one, that the
+   * run read.
+   *
+   * The denominator `held` is a numerator of. Without it an empty control group
+   * is two opposite findings wearing one shape — nothing to compare against, or a
+   * comparison made in every render and answering the same way — and a reader
+   * that guesses picks the wrong one on any suite where the change reached
+   * everything.
+   *
+   * Optional because a report written before this was carried has no answer, and
+   * `0` is an answer.
+   */
+  readonly compared?: number;
+
+  /**
    * For an unexplained movement only: whether the subject was already proven
    * unstable in this run.
    *

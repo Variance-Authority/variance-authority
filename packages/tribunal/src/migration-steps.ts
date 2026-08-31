@@ -288,4 +288,18 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
      ) STRICT`,
     `UPDATE schema_version SET version = 13`,
   ],
+  // 13 → 14: the denominator the control group is a numerator of.
+  [
+    // `held` alone is two opposite findings under one shape. Empty because the
+    // component renders nowhere else with these inputs is a suite with nothing to
+    // say; empty because it renders in four other places and moved in all four is
+    // the suite saying the loudest thing it can — the change reached everything
+    // this component draws. The page had to guess, and on any run where the edit
+    // landed everywhere it guessed the weak one.
+    //
+    // Nullable, and null is *the run never said*: reports written before this
+    // carry no answer, and `0` is an answer.
+    `ALTER TABLE build_movements ADD COLUMN compared INTEGER`,
+    `UPDATE schema_version SET version = 14`,
+  ],
 ];

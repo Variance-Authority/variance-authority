@@ -278,6 +278,34 @@ describe('compositionOf — what moved, and where it was read from', () => {
 describe('compositionOf — attribution degrades honestly', () => {
   const moved = [observation({ subject: 'story:page--default', regions: [causedByIcon] })] as const;
 
+  it('builds the control group from the hashes, not from the movements it reports', () => {
+    // `causesBetween` contributes only the regions that *caused* a change, so a
+    // component whose digests moved inside a box the pixels attributed elsewhere
+    // never reaches the movement list. Read as a control group, that render comes
+    // back as the one place this component held still — about the one place it is
+    // known to have moved.
+    const at = (moved: CliObservationRecord['moved']): readonly string[] | undefined =>
+      compositionOf({
+        subjects: SUITE,
+        observations: [
+          observation({
+            subject: 'story:page--default',
+            regions: [causedByIcon],
+            moved: [{ component: 'Icon', bands: ['geometry'], cause: true }],
+          }),
+          observation({ subject: 'story:ds-button--danger', ...(moved === undefined ? {} : { moved }) }),
+        ],
+        changed: ['docs/readme.md'],
+        source: SOURCE,
+      })?.movements[0]?.held;
+
+    expect(at([{ component: 'Icon', bands: ['geometry'], cause: false }])).toEqual([]);
+    expect(at([])).toEqual(['story:ds-button--danger']);
+    // No `moved` at all: no baseline digests were there to compare, and a render
+    // nobody read cannot be a control for anything.
+    expect(at(undefined)).toEqual([]);
+  });
+
   it('reaches the `edited` rung only when a change set and an index are both there', () => {
     const report = compositionOf({
       subjects: SUITE,
@@ -405,10 +433,11 @@ describe('compositionOf — the standing an unexplained movement gets', () => {
     });
 
     expect(report?.movements[0]?.alsoIn).toEqual(['story:ds-button--danger']);
-    // Both sites moved, so the control group is empty and the sentence says the
-    // weaker thing rather than the confident one.
+    // Both sites moved, so the control group is empty — and empty here is the
+    // strong reading, not the weak one. The suite had something to compare
+    // against and the comparison came back the same way in every render.
     expect(report?.movements[0]?.held).toEqual([]);
-    expect(report?.movements[0]?.because).toContain('nowhere else');
+    expect(report?.movements[0]?.because).toContain('every other render of it');
   });
 });
 

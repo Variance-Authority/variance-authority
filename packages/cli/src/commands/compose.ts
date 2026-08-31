@@ -191,10 +191,23 @@ function evidenceFrom(input: ComposeInput): Evidence {
       .map((record) => record.subject),
   );
 
+  // Only subjects whose hashes were actually compared. A record with `moved`
+  // omitted had no baseline digests to read, and entering it here as an empty
+  // set would offer every component in it as a control that held still.
+  const hashesMoved = new Map<string, ReadonlySet<string>>(
+    input.observations
+      .filter((record) => record.moved !== undefined)
+      .map((record) => [
+        record.subject,
+        new Set((record.moved ?? []).map((entry) => entry.component)),
+      ]),
+  );
+
   return {
     ...(input.changed === undefined ? {} : { changed: input.changed }),
     ...(input.source === undefined ? {} : { declaredIn }),
     ...(input.tokens === undefined ? {} : { tokens: input.tokens }),
+    ...(hashesMoved.size === 0 ? {} : { hashesMoved }),
     unstable,
   };
 }
@@ -257,6 +270,7 @@ function movementRecord(
     ...(movement.through === undefined ? {} : { through: movement.through }),
     alsoIn: movement.alsoIn,
     held: distinct(movement.held.map((site) => site.subject)),
+    compared: movement.compared,
     ...(standing === undefined ? {} : { standing }),
   };
 }

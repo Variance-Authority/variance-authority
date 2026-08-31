@@ -287,8 +287,8 @@ export async function ingestBuild(
         .prepare(
           `INSERT OR REPLACE INTO build_movements
              (project, build, subject, component, cause, because, bands, held,
-              file, tokens, upstream, through, standing)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              compared, file, tokens, upstream, through, standing)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           project,
@@ -299,6 +299,7 @@ export async function ingestBuild(
           entry.because,
           JSON.stringify(entry.bands),
           JSON.stringify(entry.held),
+          entry.compared ?? null,
           entry.file ?? null,
           entry.tokens === undefined ? null : JSON.stringify(entry.tokens),
           entry.upstream ?? null,

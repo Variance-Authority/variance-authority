@@ -42,6 +42,16 @@ export function optionalText(row: Row, column: string, what: string): string | u
   return value;
 }
 
+export function optionalNumber(row: Row, column: string, what: string): number | undefined {
+  const value = row[column];
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new ReviewError(`${what} has a \`${column}\` that is neither a number nor null`);
+  }
+  return value;
+}
+
 export function number(row: Row, column: string, what: string): number {
   const value = row[column];
   if (typeof value === 'bigint') return Number(value);

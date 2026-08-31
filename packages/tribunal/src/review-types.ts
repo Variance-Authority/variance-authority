@@ -285,6 +285,17 @@ export interface MovementView {
   /** Subjects where the same component, with the same props, held still. */
   readonly held: readonly string[];
 
+  /**
+   * Renders of this component with the same props, other than this one, that the
+   * run read — the pool `held` was drawn from.
+   *
+   * Absent is *the run never said*, from a build ingested before this was
+   * carried, and it is the reason `held: []` cannot be drawn as a finding on its
+   * own: without the denominator, *nothing to compare against* and *compared in
+   * four renders and moved in all four* are the same empty list.
+   */
+  readonly compared?: number;
+
   /** The file the diff named, on the `edited` rung. */
   readonly file?: string;
   /** The custom properties that took a new value, on the `token` rung. */

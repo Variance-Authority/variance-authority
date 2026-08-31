@@ -1,5 +1,7 @@
 import type { Band } from '../compare/band.js';
 import type { Composition, ComponentEntry, Site } from './composition.js';
+import { becauseUpstream, unexplainedBecause } from './because.js';
+import { heldSites } from './control.js';
 
 /**
  * Why a component moved — and what it means when nothing here can say.
@@ -85,6 +87,24 @@ export interface Evidence {
 
   /** Subjects that failed to read the same way twice in this run. */
   readonly unstable?: ReadonlySet<string>;
+
+  /**
+   * Every component whose hashes moved, by subject — the whole reading, not the
+   * causes.
+   *
+   * The control group is read from this and not from the movements, because the
+   * movements are a *filtered* set: they come from regions the pixels named as
+   * causes, so a component whose hashes moved and whose box no region named is
+   * absent from them. Filtering the control group by the movements alone hands
+   * back exactly those renders as *held still*, which is the one claim that
+   * makes a control group worse than no control group.
+   *
+   * **Absent is not empty**, twice over. An absent map is a run that never
+   * compared hashes, and the control group falls back to the movements with a
+   * weaker guarantee. A subject *missing from* a present map had no hashes read
+   * there — nobody measured it, so it cannot be a control for anything.
+   */
+  readonly hashesMoved?: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 export interface Movement {
@@ -119,15 +139,28 @@ export interface Movement {
   readonly alsoIn: readonly string[];
 
   /**
-   * Sites of this component, with the same props, that this run did not report
-   * moving.
+   * Sites of this component, with the same props, whose hashes this run read and
+   * found unmoved.
    *
    * The control group, and the reason an unexplained movement is worth
    * reporting rather than shrugging at. Empty means there was no control — the
-   * component appears nowhere else with these inputs — which weakens the finding
-   * and is why it is a list rather than a flag.
+   * component appears nowhere else with these inputs, or it moved in every one
+   * of them — which weakens the finding and is why it is a list rather than a
+   * flag.
    */
   readonly held: readonly Site[];
+
+  /**
+   * Sites of this component with the same props, other than this one, that the
+   * run read — the pool `held` was drawn from.
+   *
+   * The denominator, and without it `held: []` is two opposite findings under one
+   * shape. Zero is *nothing to compare against*; four with an empty `held` is a
+   * comparison that was made, in four renders, and came back the same way in all
+   * of them — the statement that nothing rendered under those props escaped
+   * whatever moved here.
+   */
+  readonly compared: number;
 }
 
 export interface Attribution {
@@ -203,7 +236,7 @@ export function attributeMovement(
 }
 
 /** Everything the run assembled, gathered so one movement can be asked about. */
-interface Bench {
+export interface Bench {
   readonly movedIn: ReadonlyMap<string, readonly string[]>;
   readonly edited: ReadonlySet<string>;
   readonly evidence: Evidence;
@@ -216,8 +249,8 @@ function attributeOne(moved: Moved, entry: ComponentEntry | undefined, bench: Be
   const alsoIn = (movedIn.get(moved.component) ?? []).filter(
     (subject) => subject !== moved.subject,
   );
-  const held = heldSites(moved, entry, movedIn);
-  const base = { ...moved, alsoIn, held };
+  const { held, considered } = heldSites(moved, entry, bench);
+  const base = { ...moved, alsoIn, held, compared: considered };
 
   const file = (evidence.declaredIn?.get(moved.component) ?? []).find((each) =>
     (evidence.changed ?? []).includes(each),
@@ -264,7 +297,7 @@ function attributeOne(moved: Moved, entry: ComponentEntry | undefined, bench: Be
     };
   }
 
-  return { ...base, cause: 'unexplained', because: unexplainedBecause(base, evidence) };
+  return { ...base, cause: 'unexplained', because: unexplainedBecause(base, considered, evidence) };
 }
 
 /**
@@ -318,7 +351,7 @@ function graphOf(composition: Composition): Graph {
 }
 
 /** An edited component above a moved one, and the components in between. */
-interface Ancestor {
+export interface Ancestor {
   readonly name: string;
   /** Outermost first, and empty when the edited component draws it directly. */
   readonly through: readonly string[];
@@ -381,78 +414,6 @@ function editedAncestor(
   }
 
   return undefined;
-}
-
-/**
- * The upstream sentence, which is the one a reviewer acts on.
- *
- * It says three things and the third is the reason the first two are worth
- * printing: an edited component reaches this one, this one's own file is not in
- * the change set, and therefore what moved here is what it was handed. Every
- * rung above this has already been tried, so *its own code* and *a token it
- * reads* are both ruled out by the time this speaks.
- */
-function becauseUpstream(ancestor: Ancestor): string {
-  const reaches =
-    ancestor.through.length === 0 ? 'mounts it' : `reaches it through ${chain(ancestor.through)}`;
-
-  return (
-    `\`${ancestor.name}\` was edited and ${reaches}; nothing edited its own file, ` +
-    `so it moved on what it was given`
-  );
-}
-
-/** The components in between, named while there are few enough to be worth naming. */
-function chain(through: readonly string[]): string {
-  const named = through.map((name) => `\`${name}\``);
-  if (named.length === 1) return named[0] ?? '';
-  if (named.length > 3) return `${named.slice(0, 3).join(', ')} and ${String(named.length - 3)} more`;
-  return `${named.slice(0, -1).join(', ')} and ${named[named.length - 1] ?? ''}`;
-}
-
-function unexplainedBecause(
-  movement: { readonly component: string; readonly held: readonly Site[] },
-  evidence: Evidence,
-): string {
-  if (evidence.changed === undefined) {
-    return 'nothing was asked about what changed, so nothing here explains it — run with `--against` to reach the first rung';
-  }
-
-  if (movement.held.length === 0) {
-    return 'no file, token or ancestor explains it, and it renders nowhere else in this run to compare against';
-  }
-
-  return (
-    `no file, token or ancestor explains it, and the same component with the same props held in ` +
-    `${movement.held.length} other place(s) in this run`
-  );
-}
-
-/**
- * Sites of the same component that this run did not report moving.
- *
- * Restricted to props classes this subject actually participates in, because a
- * component rendered with different inputs elsewhere is not a control for this
- * one — it is a different question that happens to share a name.
- */
-function heldSites(
-  moved: Moved,
-  entry: ComponentEntry | undefined,
-  movedIn: ReadonlyMap<string, readonly string[]>,
-): readonly Site[] {
-  if (entry === undefined) return [];
-
-  const alsoMoved = new Set(movedIn.get(moved.component) ?? []);
-
-  return entry.classes
-    .filter((group) =>
-      group.renderings.some((rendering) =>
-        rendering.sites.some((site) => site.subject === moved.subject),
-      ),
-    )
-    .flatMap((group) => group.renderings)
-    .flatMap((rendering) => rendering.sites)
-    .filter((site) => !alsoMoved.has(site.subject));
 }
 
 /**

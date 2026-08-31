@@ -145,6 +145,22 @@ describe('what the run concluded survives the ingest', () => {
     expect(only && 'standing' in only).toBe(false);
   });
 
+  it('carries the pool the control group was drawn from, and keeps zero from absent', async () => {
+    // `held: []` with `compared: 4` is *compared in four renders and moved in all
+    // four*; `held: []` with nothing is *the run never said*. They are opposite
+    // findings, and a store that answered the second with `0` would print the
+    // strongest sentence the page has about a build that never measured it.
+    await ingest([movement({ held: [], compared: 4 })]);
+    expect((await review.build('9'))?.movements[0]?.compared).toBe(4);
+
+    await ingest([movement({ held: [], compared: 0 })]);
+    expect((await review.build('9'))?.movements[0]?.compared).toBe(0);
+
+    await ingest([movement({ held: [] })]);
+    const [only] = (await review.build('9'))?.movements ?? [];
+    expect(only && 'compared' in only).toBe(false);
+  });
+
   it('keeps a name-only comparison saying *not known* rather than *no band*', async () => {
     await ingest([movement({ bands: [] })]);
 

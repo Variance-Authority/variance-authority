@@ -12,7 +12,14 @@ import type {
   VariationRecord,
 } from '@variance-authority/report';
 import type { D1Like } from './bindings.js';
-import { ReviewError, number, optionalText, text, type Row } from './review-rows.js';
+import {
+  ReviewError,
+  number,
+  optionalNumber,
+  optionalText,
+  text,
+  type Row,
+} from './review-rows.js';
 import type {
   BuildSummary,
   Cause,
@@ -362,6 +369,7 @@ export function toMovement(row: Row): MovementView {
   const upstream = optionalText(row, 'upstream', what);
   const through = optionalText(row, 'through', what);
   const standing = optionalText(row, 'standing', what);
+  const compared = optionalNumber(row, 'compared', what);
 
   return {
     subject: text(row, 'subject', what),
@@ -370,6 +378,7 @@ export function toMovement(row: Row): MovementView {
     because: text(row, 'because', what),
     bands: JSON.parse(text(row, 'bands', what)) as string[],
     held: JSON.parse(text(row, 'held', what)) as string[],
+    ...(compared === undefined ? {} : { compared }),
     ...(file === undefined ? {} : { file }),
     ...(tokens === undefined ? {} : { tokens: JSON.parse(tokens) as string[] }),
     ...(upstream === undefined ? {} : { upstream }),
