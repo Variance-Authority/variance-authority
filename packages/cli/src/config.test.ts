@@ -357,6 +357,40 @@ describe('blank rules', () => {
   });
 });
 
+/**
+ * `source`, which is the only section that decides what is *not* observed.
+ *
+ * Every value in it is arranged so that a wrong or missing one widens a run, so
+ * the refusals here matter more than elsewhere: a setting silently ignored is a
+ * suite silently narrowed.
+ */
+describe('parseConfig source', () => {
+  it('accepts what a change reaching nothing rendered should do', () => {
+    const config = parseConfig(
+      withField('source', { dirs: ['src'], relations: true, unrendered: 'narrow' }),
+      OPTIONS,
+    );
+
+    expect(config.source).toEqual({ dirs: ['src'], relations: true, unrendered: 'narrow' });
+  });
+
+  it('leaves it absent rather than defaulting it into the config', () => {
+    // The default lives with the rule it governs. Written in here it would be
+    // two defaults, and the day they disagreed the config would be the one
+    // nobody read.
+    expect(parseConfig(withField('source', { dirs: ['src'] }), OPTIONS).source).toEqual({
+      dirs: ['src'],
+    });
+  });
+
+  it('refuses a value that is neither', () => {
+    const error = attempt(withField('source', { dirs: ['src'], unrendered: 'skip' }));
+
+    expect(error.field).toBe('source.unrendered');
+    expect(error.message).toContain('whole, narrow');
+  });
+});
+
 function attempt(value: unknown): ConfigError {
   try {
     parseConfig(value, OPTIONS);

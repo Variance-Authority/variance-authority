@@ -42,6 +42,21 @@ import { componentsReached, many, refused, within } from './reach.js';
  *   imports, and none of those name themselves in any subject;
  * - a run that cannot list its changed files at all does not narrow.
  *
+ * ## One state this cannot resolve, and so states instead
+ *
+ * A diff can reach components **no baseline records**, and that is two facts
+ * wearing one shape. `Button` nothing has a story for is a component this suite
+ * does not watch, and skipping every subject is the right and cheap answer.
+ * `RootLayout` is rendered by every page in the app and appears in no client
+ * fiber tree, because it is a server component — and skipping every subject
+ * reports success over a stylesheet that repainted the shop.
+ *
+ * Nothing here can tell them apart, and nothing here is going to: an observation
+ * surface narrower than the source tree is the ordinary state of a repository,
+ * not a defect to be inferred around. So the run **narrows and says so**, naming
+ * what it reached and could not match, and `unrendered: 'whole'` is where an
+ * operator who knows those components are painted says the run must widen.
+ *
  * The last three are reported, not assumed. A run that quietly declined to narrow
  * would look like a selector that decided nothing was affected, and those are
  * opposite facts.
@@ -102,6 +117,17 @@ export interface AffectedInput {
   readonly baselines: ReadonlyMap<string, readonly string[] | undefined>;
 
   /**
+   * What a change reaching only components no baseline records should do.
+   *
+   * `narrow` by default: a suite watches less than it builds, and a change
+   * landing outside what it watches is the ordinary reason to run nothing.
+   * `whole` is the operator's statement that their subjects render those
+   * components without recording them — which a server component, and for now
+   * anything outside the browser, always does.
+   */
+  readonly unrendered?: 'whole' | 'narrow';
+
+  /**
    * The file graph, when one was built.
    *
    * Absent is the declaration-only selector, which is what a repository with no
@@ -127,6 +153,19 @@ export interface Affected {
    * narrowing" produce the same run and mean opposite things about the next one.
    */
   readonly whole?: string;
+
+  /**
+   * Components this diff reached that no baseline records, when that was every
+   * one of them.
+   *
+   * Present only when the narrowing then ruled out every subject in the suite,
+   * which is the one zero worth a sentence: either nothing here watches what
+   * changed, or something here renders it without recording it, and the run
+   * cannot see which. Absent is the ordinary case and includes the ordinary
+   * partial one — a component nobody rendered beside one they did is what a real
+   * scan looks like.
+   */
+  readonly unwatched?: readonly string[];
 
   /** One sentence for the report, whichever way it went. */
   readonly because: string;
@@ -165,6 +204,19 @@ export function affectedSubjects(input: AffectedInput): Affected {
   if ('whole' in narrowing) return everything(narrowing.whole);
   const { touched, how } = narrowing;
 
+  // The state the baselines are needed to see, and the only one this cannot
+  // resolve on its own. Carried to the caller either way — as a widening when the
+  // operator has said those components are painted, and otherwise as the sentence
+  // under a run that observed nothing.
+  const unseen = unrenderedIn(touched, baselines);
+  if (unseen !== undefined && input.unrendered === 'whole') {
+    return everything(
+      `this diff reaches ${many(unseen.length, 'component')} no baseline records ` +
+        `(${sample(unseen)}), and \`source.unrendered\` says this suite paints that surface ` +
+        'without recording it',
+    );
+  }
+
   const observe: string[] = [];
   const skipped: { subject: string; because: string }[] = [];
 
@@ -192,6 +244,7 @@ export function affectedSubjects(input: AffectedInput): Affected {
   return {
     observe,
     skipped,
+    ...(unseen === undefined ? {} : { unwatched: unseen }),
     because:
       `${observe.length} of ${many(planned.length, 'subject')} observed: ${how}, and the rest of the ` +
       'suite records none of them',
@@ -286,6 +339,34 @@ function byRelation(
   if (refused(reach)) return { whole: reach.whole };
 
   return { touched: new Set(reach.components.map((entry) => entry.component)), how: reach.how };
+}
+
+/**
+ * The reached components, when no baseline records a single one of them.
+ *
+ * **Only when none is.** One component nobody rendered beside one they did is the
+ * ordinary state of a real scan — `const Comp = asChild ? Slot : 'button'` is a
+ * component to an index and to nothing else — and answering on that would put the
+ * sentence under every run that touched a file importing one.
+ *
+ * `undefined` too when the baselines record nothing at all. A suite whose
+ * subjects are new, or whose baselines predate the component list, observes every
+ * one of them for that reason already, and a line about what nobody rendered
+ * belongs under a run that ruled something out.
+ */
+function unrenderedIn(
+  touched: ReadonlySet<string>,
+  baselines: ReadonlyMap<string, readonly string[] | undefined>,
+): readonly string[] | undefined {
+  let recorded = 0;
+
+  for (const components of baselines.values()) {
+    if (components === undefined) continue;
+    recorded += components.length;
+    if (components.some((component) => touched.has(component))) return undefined;
+  }
+
+  return recorded === 0 ? undefined : [...touched].sort();
 }
 
 /** The first three of a list, with a mark when there are more. */

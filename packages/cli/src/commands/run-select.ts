@@ -206,6 +206,7 @@ export async function selectionFor(
     roots: config.source.dirs,
     baselines,
     ...(relations === undefined ? {} : { relations }),
+    ...(config.source.unrendered === undefined ? {} : { unrendered: config.source.unrendered }),
     ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
   });
 
@@ -253,18 +254,39 @@ export async function selectionFor(
  * over a diff the file graph could not narrow is a build with no probes in it,
  * and a line reading *`0` by what they entered* is the only thing on the page
  * that says so.
+ *
+ * The other zero is the whole suite, and it gets a line of its own. A run that
+ * ruled out every subject because the diff reached components no baseline
+ * records has either found a corner nobody watches or gone blind to a server
+ * component, and the two are one shape from inside the selector — so the names it
+ * could not match are printed rather than left to be inferred from an empty
+ * report.
  */
 function notesFor(
   ref: string,
-  answer: { readonly skipped: readonly unknown[]; readonly whole?: string },
+  answer: {
+    readonly skipped: readonly unknown[];
+    readonly whole?: string;
+    readonly unwatched?: readonly string[];
+  },
   journey: { readonly skipped: readonly unknown[]; readonly whole?: string } | undefined,
 ): readonly string[] {
   const ruled = answer.skipped.length + (journey?.skipped.length ?? 0);
+  const unwatched = answer.unwatched ?? [];
 
   return [
     ...(answer.whole === undefined
       ? []
       : [`\`--since ${ref}\` did not narrow this run: ${answer.whole}`]),
+    ...(unwatched.length === 0
+      ? []
+      : [
+          `\`--since ${ref}\` ruled out every subject: it reaches ${many(unwatched.length, 'component')} ` +
+            `no baseline records (${unwatched.slice(0, 3).join(', ')}${unwatched.length > 3 ? ', …' : ''}) — ` +
+            'either nothing here watches that surface, or something here paints it without ' +
+            'recording it, which is what a server component always does. `source.unrendered: ' +
+            '"whole"` is the second.',
+        ]),
     ...(journey?.whole === undefined
       ? []
       : [`\`--since ${ref}\` was not narrowed by execution: ${journey.whole}`]),

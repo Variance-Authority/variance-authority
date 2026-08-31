@@ -49,6 +49,7 @@ report to be missing from. So every uncertainty resolves toward observing:
 | The subject has no baseline | Observed. It is new; nothing is known about it |
 | Its baseline records no component list | Observed. Absent is *unknown*, never *renders nothing* |
 | A changed file under `source.dirs` declares no component | **The whole suite runs.** A stylesheet, a token file or a shared helper moves subjects without naming itself in any of them. This is the row [a file graph retires](#the-expensive-row-and-what-retires-it) |
+| The diff reaches components and **no baseline records any of them** | Narrowed, and **named**: the run prints what it reached and could not match. The one row that does not resolve toward observing, and the one [`source.unrendered` controls](#a-change-nothing-has-been-seen-rendering) |
 | The diff touched nothing under `source.dirs` | The whole suite runs, and says so |
 | `git` could not list the diff | The run refuses. An empty diff read as "nothing changed" would narrow to nothing and report success |
 | `--since` with no `source.dirs` | The run refuses, for the same reason |
@@ -83,6 +84,50 @@ own statement about where your components live.
 
 That is why a diff touching `README.md` does not widen anything, and a diff
 touching `src/tokens.css` widens everything.
+
+## A change nothing has been seen rendering
+
+`RootLayout` renders every page in the app and appears in no client fiber tree,
+because it is a server component. No baseline records it, and a change to the
+global stylesheet reaches exactly that one name:
+
+```
+globals.css ← layout.tsx ← RootLayout
+```
+
+Every subject records none of it, so every subject is ruled out — and that is two
+facts wearing one shape:
+
+- **nothing here watches that surface.** A `Button` no story renders is the
+  ordinary reason to run nothing, and running nothing is the whole point of
+  `--since`.
+- **something here paints it without recording it.** A server component. Then the
+  skip is a green run over a stylesheet that repainted the shop.
+
+Nothing in the selector separates them: both are components declared in files no
+subject imports. An observation surface narrower than the source tree is the
+ordinary state of a repository, not a defect to infer around — so the run narrows,
+and **says which components it could not match**:
+
+```
+`--since HEAD~1` ruled out every subject: it reaches 1 component no baseline
+records (RootLayout), so either nothing here watches it or something here renders
+it without recording it
+```
+
+The rule is the intersection and not the difference. One unrendered component
+*beside one that is* rendered is what a real scan looks like — `const Comp =
+asChild ? Slot : "button"` is a component to an index and to nothing else — and a
+sentence on the difference would print under every run touching a file that
+imports a component written that way.
+
+```json
+{ "source": { "dirs": ["src"], "relations": true, "unrendered": "whole" } }
+```
+
+`whole` is your statement that your subjects paint those components without
+recording them, and the run observes everything when it reaches only them. A
+server tree is always that, and for now so is anything outside the browser.
 
 ## The expensive row, and what retires it
 

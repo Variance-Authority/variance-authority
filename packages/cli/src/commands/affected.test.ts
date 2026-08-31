@@ -357,3 +357,140 @@ describe('a project a monorepo tool called affected', () => {
     expect(answer.whole).toContain('named no changed file');
   });
 });
+
+/**
+ * A change the suite has never been seen rendering.
+ *
+ * Two facts wear this shape and the selector cannot tell them apart. A `Button`
+ * nothing has a story for is a component this suite does not watch, and skipping
+ * every subject is the right and cheap answer. `RootLayout` is rendered by every
+ * page and appears in no client fiber tree, because it is a server component —
+ * and skipping every subject reports success over a stylesheet that repainted the
+ * shop.
+ *
+ * So the assertion here is never *which one it guessed*. It is that the run
+ * narrows, names what it could not match, and takes the operator's word for the
+ * rest.
+ */
+
+const SERVER = relationsOfFiles([
+  { file: 'src/app/globals.css' },
+  {
+    file: 'src/app/layout.tsx',
+    declares: ['RootLayout'],
+    edges: [{ to: 'src/app/globals.css', kind: 'asset' }],
+  },
+  { file: 'src/ds/Button.tsx', declares: ['Button', 'Comp'] },
+]);
+
+const RENDERED = baselines([
+  ['story:button', ['Button']],
+  ['story:clock', ['Clock']],
+]);
+
+describe('choosing what to observe when nothing has rendered what changed', () => {
+  it('narrows, and names what no baseline records', () => {
+    const answer = affectedSubjects({
+      planned: ['story:button', 'story:clock'],
+      changed: ['src/app/globals.css'],
+      source: SOURCE,
+      roots: ROOTS,
+      baselines: RENDERED,
+      relations: SERVER,
+    });
+
+    // The zero is legitimate and the sentence is what makes it readable. An
+    // empty report and a suite nobody looked at are the same artifact otherwise.
+    expect(answer.observe).toEqual([]);
+    expect(answer.unwatched).toEqual(['RootLayout']);
+  });
+
+  it('runs everything when the operator says those components are painted here', () => {
+    // The control, and the reason there is one. A server component is rendered
+    // by every page in the app and recorded by none of them, and no amount of
+    // looking at names will tell this from a corner nobody watches.
+    const answer = affectedSubjects({
+      planned: ['story:button', 'story:clock'],
+      changed: ['src/app/globals.css'],
+      source: SOURCE,
+      roots: ROOTS,
+      baselines: RENDERED,
+      relations: SERVER,
+      unrendered: 'whole',
+    });
+
+    expect(answer.observe).toEqual(['story:button', 'story:clock']);
+    expect(answer.whole).toContain('1 component no baseline records (RootLayout)');
+  });
+
+  it('says nothing when one reached component is recorded and another is not', () => {
+    // `const Comp = asChild ? Slot : 'button'` is a component to an index and to
+    // nothing else. A sentence printed on any unrecorded name would appear under
+    // every run touching a file that imports a component written that way.
+    const answer = affectedSubjects({
+      planned: ['story:button', 'story:clock'],
+      changed: ['src/ds/Button.tsx'],
+      source: SOURCE,
+      roots: ROOTS,
+      baselines: RENDERED,
+      relations: SERVER,
+    });
+
+    expect(answer.observe).toEqual(['story:button']);
+    expect(answer.unwatched).toBeUndefined();
+  });
+
+  it('widens for it too, rather than narrowing on the half it matched', () => {
+    // `unrendered: 'whole'` is a claim about what this suite paints without
+    // recording, and it is not answerable one component at a time: if `Comp` is
+    // painted here, every subject records none of it and every subject is a
+    // subject the run cannot rule out.
+    const answer = affectedSubjects({
+      planned: ['story:button', 'story:clock'],
+      changed: ['src/ds/Button.tsx'],
+      source: SOURCE,
+      roots: ROOTS,
+      baselines: RENDERED,
+      relations: SERVER,
+      unrendered: 'whole',
+    });
+
+    expect(answer.observe).toEqual(['story:button']);
+    expect(answer.whole).toBeUndefined();
+  });
+
+  it('says nothing when no baseline records any component at all', () => {
+    // A first run observes everything because nothing is known, and a line about
+    // what nobody rendered belongs under a run that ruled something out.
+    const answer = affectedSubjects({
+      planned: ['story:button'],
+      changed: ['src/app/globals.css'],
+      source: SOURCE,
+      roots: ROOTS,
+      baselines: baselines([['story:button', undefined]]),
+      relations: SERVER,
+    });
+
+    expect(answer.observe).toEqual(['story:button']);
+    expect(answer.unwatched).toBeUndefined();
+  });
+
+  it('reaches the same state with no graph to walk', () => {
+    // The declaration selector takes the shorter road: `layout.tsx` declares
+    // `RootLayout` itself, so it narrows to a set nobody recorded without a graph
+    // having said anything.
+    const answer = affectedSubjects({
+      planned: ['story:button', 'story:clock'],
+      changed: ['src/app/layout.tsx'],
+      source: indexOf(
+        new Map([['src/app/layout.tsx', 'export default function RootLayout() { return null }']]),
+      ),
+      roots: ROOTS,
+      baselines: RENDERED,
+      unrendered: 'whole',
+    });
+
+    expect(answer.observe).toEqual(['story:button', 'story:clock']);
+    expect(answer.whole).toContain('no baseline records (RootLayout)');
+  });
+});

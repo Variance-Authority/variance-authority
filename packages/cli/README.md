@@ -561,6 +561,7 @@ downloaded, so the run's inputs are the ones in the repository.
   "source": {
     "dirs": ["src"],
     "relations": true,
+    "unrendered": "whole",
     "changes": { "tool": "turbo", "task": "build" }
   },
 
@@ -587,13 +588,19 @@ is the third: the collector discovers the subject list itself, which is what a
 — a page that stops being discovered stops being watched. `baselines` is
 `directory`, `lfs` or `remote`.
 
-`source` is the only thing `--since` can narrow against, and it is three settings
+`source` is the only thing `--since` can narrow against, and it is four settings
 in one. `dirs` names where components are declared *and* declares the scope: a
 changed file inside it that reaches no component forces a whole run, a changed
 file outside it was never claimed to affect a render. `relations: true` reads
 what imports what, so `tokens.css` is answered by walking to the components that
 rest on it rather than by running the suite — it costs one scan of the tree,
-which is cached by content and by tree shape and so is paid once. `changes` asks
+which is cached by content and by tree shape and so is paid once. `unrendered`
+answers the case where the walk succeeds and lands nowhere: a change reaching
+only components no baseline records narrows like any other, and the run names
+what it could not match — either nothing here watches that surface, or something
+here paints it without recording it, which a server component always does. Set it
+to `"whole"` for the second, and the run observes everything instead. `changes`
+asks
 `nx` or `turbo` what a diff affects and folds their answer in as **more changed
 input**, never as a second opinion: it is the one edge a specifier scan cannot
 see, since a workspace package imports its neighbour's built output. `turbo`

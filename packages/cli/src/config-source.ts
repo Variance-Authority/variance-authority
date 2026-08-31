@@ -29,6 +29,21 @@ export interface SourceConfig {
    */
   readonly relations?: boolean;
 
+  /**
+   * What a change reaching only components no baseline records should do.
+   *
+   * `narrow` — the default — rules those subjects out, and names the components
+   * it could not match. A suite watches less than it builds, and a change landing
+   * outside what it watches is the ordinary reason to run nothing.
+   *
+   * `whole` is the operator declaring that their subjects render those components
+   * without recording them, and the run observes everything rather than reporting
+   * success over them. A server component is in no client fiber tree and is
+   * always that; for now, so is anything outside the browser
+   * ([`docs/selecting.md`](../../../docs/selecting.md)).
+   */
+  readonly unrendered?: 'whole' | 'narrow';
+
   /** A monorepo tool whose affected-project answer seeds the selection. */
   readonly changes?: ChangeConfig;
 }
@@ -41,6 +56,7 @@ export interface ChangeConfig {
 }
 
 const CHANGE_TOOLS = ['nx', 'turbo'];
+const UNRENDERED = ['whole', 'narrow'];
 
 /**
  * Where components are declared, for selection only.
@@ -50,7 +66,7 @@ const CHANGE_TOOLS = ['nx', 'turbo'];
  * *which directories hold components* is answerable without one.
  */
 export function parseSource(value: unknown, options: ParseOptions): SourceConfig {
-  const root = object(value, 'source', ['dirs', 'relations', 'changes'], options);
+  const root = object(value, 'source', ['dirs', 'relations', 'unrendered', 'changes'], options);
   const dirs = root['dirs'];
 
   if (!Array.isArray(dirs) || dirs.length === 0 || dirs.some((dir) => typeof dir !== 'string')) {
@@ -67,9 +83,20 @@ export function parseSource(value: unknown, options: ParseOptions): SourceConfig
     throw new ConfigError(options.source, 'source.relations', 'must be true or false');
   }
 
+  const unrendered = root['unrendered'];
+  if (unrendered !== undefined && (typeof unrendered !== 'string' || !UNRENDERED.includes(unrendered))) {
+    throw new ConfigError(
+      options.source,
+      'source.unrendered',
+      `must be one of ${UNRENDERED.join(', ')} — what a change reaching only components no ` +
+        'baseline records should do',
+    );
+  }
+
   return {
     dirs: dirs as readonly string[],
     ...(relations === undefined ? {} : { relations }),
+    ...(unrendered === undefined ? {} : { unrendered: unrendered as NonNullable<SourceConfig['unrendered']> }),
     ...(root['changes'] === undefined ? {} : { changes: parseChanges(root['changes'], options) }),
   };
 }
