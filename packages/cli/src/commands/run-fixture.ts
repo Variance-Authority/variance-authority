@@ -14,6 +14,7 @@ import {
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
+import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import {
   run,
@@ -313,8 +314,13 @@ export async function runWith(
     intent?: string;
     renderer?: Renderer;
     flakes?: boolean;
-    since?: { readonly ref: string; readonly changed: readonly string[] };
+    since?: {
+      readonly ref: string;
+      readonly changed: readonly string[];
+      readonly diff?: string;
+    };
     scanSource?: (dirs: readonly string[]) => Promise<SourceIndex>;
+    readJourney?: (diff: string) => Promise<ExecutionNarrowing | undefined>;
   } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {
   const written: Written = { artifacts: new Map(), reports: [] };
@@ -327,6 +333,7 @@ export async function runWith(
     ...(options.since !== undefined ? { since: options.since } : {}),
     deps: {
       ...(options.scanSource !== undefined ? { scanSource: options.scanSource } : {}),
+      ...(options.readJourney !== undefined ? { readJourney: options.readJourney } : {}),
       collector,
       store,
       renderer: async () => options.renderer ?? fakeRenderer(),

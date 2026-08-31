@@ -23,6 +23,8 @@ import {
   readCliRunReport,
   relationsFor,
   run,
+  diffSince,
+  journeyAgainst,
   scanSourceDirs,
   storeFor,
   writeArtifactToDisk,
@@ -108,10 +110,16 @@ export async function dispatch(
       // happened by then, and a run that narrowed itself and could not say why is
       // the one shape this is worth avoiding.
       const dirs = effective.source?.dirs ?? [];
+      const sinceDiff =
+        parsed.since === undefined ? undefined : await diffSince(parsed.since, dirs);
       const since =
         parsed.since === undefined
           ? undefined
-          : { ref: parsed.since, changed: await changedSince(parsed.since, dirs) };
+          : {
+              ref: parsed.since,
+              changed: await changedSince(parsed.since, dirs),
+              ...(sinceDiff === undefined ? {} : { diff: sinceDiff }),
+            };
       const againstRef =
         parsed.against ?? (effective.source?.relations === true ? parsed.since : undefined);
       const against =
@@ -147,6 +155,7 @@ export async function dispatch(
             writeReport: writeCliRunReport,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) => relationsFor(process.cwd(), dirs),
+            readJourney: async (diff) => journeyAgainst(process.cwd(), diff),
             ...(effective.source?.changes === undefined
               ? {}
               : {

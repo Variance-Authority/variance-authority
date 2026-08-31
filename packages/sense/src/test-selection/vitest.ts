@@ -5,6 +5,7 @@ import { digestString } from '@variance-authority/core';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
+import { priorMap, type TransformingContext } from './probes.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { mergeCoverage } from './merge.js';
 import {
@@ -16,6 +17,7 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
+import { sourceLines } from './source-lines.js';
 import {
   testCoverageFile,
   type CoverageModule,
@@ -40,7 +42,11 @@ interface VitePlugin {
   readonly enforce: 'post';
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
-  readonly transform: (code: string, id: string) => { code: string; map: null } | null;
+  readonly transform: (
+    this: TransformingContext,
+    code: string,
+    id: string,
+  ) => { code: string; map: null } | null;
 }
 
 interface Journal {
@@ -106,6 +112,7 @@ function selectionPlugin(
     transform(code, id) {
       const file = cleanId(id);
       if (!include(file)) return null;
+      const lineOf = sourceLines(code, priorMap(this), file);
 
       const done = instrument(code, file);
       if (done === undefined) {
@@ -122,7 +129,7 @@ function selectionPlugin(
         file: projectPath(root, file),
         sourceDigest: done.sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block)),
+        blocks: done.blocks.map((block) => coverageBlock(code, block, lineOf)),
       });
       return { code: done.code, map: null };
     },

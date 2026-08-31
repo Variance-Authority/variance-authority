@@ -74,6 +74,7 @@ export {
   type ExecutionJournal,
   type InstrumentingPlugin,
   type TestSelectionProbeOptions,
+  type TransformingContext,
 } from './probes.js';
 
 

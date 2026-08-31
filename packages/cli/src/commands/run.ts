@@ -79,7 +79,9 @@ export type { ComposeInput } from './compose.js';
 export {
   changedSince,
   decoderFor,
+  diffSince,
   historyFor,
+  journeyAgainst,
   relationsFor,
   renderCacheRoot,
   scanSourceDirs,
@@ -239,7 +241,7 @@ async function observeAll(
   // A run that declined to narrow says so. "We could not rule anything out" and
   // "nothing needed ruling out" produce the same run and mean opposite things
   // about the next one.
-  const selection = selected?.whole === undefined ? [] : [selected.whole];
+  const selection = selected?.notes ?? [];
 
   // After selection, because the saving is in not asking: a subject ruled out is
   // a subject nothing looks up. A store on a disk has no such method and this is

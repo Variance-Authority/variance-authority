@@ -20,6 +20,7 @@ import {
   writeInstrumentedModules,
   type CapturedModule,
 } from './instrumented-modules.js';
+import { sourceLines, type TransformSourceMap } from './source-lines.js';
 
 /**
  * Where a page hands its journal over.
@@ -69,15 +70,47 @@ export interface TestSelectionProbeOptions {
   readonly modulesFile?: string;
 }
 
+/**
+ * What a bundler hands the transform hook as `this`.
+ *
+ * One method, because one question is asked of it: what did the text arriving
+ * here look like before every plugin that ran first. Named rather than imported
+ * for the reason the plugin shape below is — a package that has to install Vite
+ * to describe two hooks has made Vite a dependency of the recipe.
+ */
+export interface TransformingContext {
+  readonly getCombinedSourcemap: () => TransformSourceMap;
+}
+
 /** The subset of Vite's plugin surface this uses, so nothing here needs Vite. */
 export interface InstrumentingPlugin {
   readonly name: string;
   readonly enforce: 'post';
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
-  readonly transform: (code: string, id: string) => { code: string; map: null } | null;
+  readonly transform: (
+    this: TransformingContext,
+    code: string,
+    id: string,
+  ) => { code: string; map: null } | null;
   readonly buildEnd: () => Promise<void>;
   readonly closeBundle: () => Promise<void>;
+}
+
+/**
+ * The map from the file on disk to the text this hook received, when there is one.
+ *
+ * A bundler that keeps no chain throws rather than answering, and a build with
+ * no prior transform has nothing to answer with. Both mean *the text is the
+ * file*, which is what the fallback in `sourceLines` already does.
+ */
+export function priorMap(context: TransformingContext): TransformSourceMap | undefined {
+  try {
+    const map = context.getCombinedSourcemap();
+    return typeof map?.mappings === 'string' ? map : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
@@ -131,6 +164,7 @@ export function testSelectionProbes(
     transform(code, id) {
       const source = cleanId(id);
       if (source === RESOLVED_COLLECTOR || !include(source)) return null;
+      const lineOf = sourceLines(code, priorMap(this), source);
 
       // Instrumented under its repository-relative name, which is what the page
       // then reports. A journal that named absolute paths would be a journal
@@ -153,7 +187,7 @@ export function testSelectionProbes(
         file,
         sourceDigest: done.sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block)),
+        blocks: done.blocks.map((block) => coverageBlock(code, block, lineOf)),
       });
       persist();
 

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { decodeTestCoverage, encodeTestCoverage, openTestCoverage } from './format.js';
 import { readTestCoverage, testCoverageFile, type TestCoverage } from './index.js';
-import { selectTestFilesFromView } from './select.js';
+import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
 
 const testFiles = ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'];
 const coverage: TestCoverage = {
@@ -69,6 +69,40 @@ const coverage: TestCoverage = {
     },
   ],
 };
+
+describe('narrowByExecution', () => {
+  const diff = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -4,1 +4,1 @@
+-    return 'A';
++    return 'Alpha';`;
+
+  it('answers who it speaks for beside who the diff reached', () => {
+    // The selection alone is a licence to exclude, and it does not carry the one
+    // fact that makes an exclusion honest: whether this snapshot ever observed
+    // the thing being excluded, and observed it whole.
+    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual({
+      whole: testFiles,
+      entered: ['test/alpha.test.ts'],
+    });
+  });
+
+  it('leaves a partial observation out of `whole` while it stays in `entered`', () => {
+    // An upper bound cannot justify an exclusion and is perfectly good grounds
+    // for running something. The two lists are asymmetric on purpose.
+    const partial: TestCoverage = {
+      ...coverage,
+      tests: coverage.tests.map((test) =>
+        test.file === 'test/alpha.test.ts' ? { ...test, complete: false } : test,
+      ),
+    };
+
+    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(partial)), diff)).toEqual({
+      whole: ['test/aaa.test.ts', 'test/beta.test.ts'],
+      entered: ['test/alpha.test.ts'],
+    });
+  });
+});
 
 describe('selectTestFiles', () => {
   it('keeps the default snapshot outside the repository and keys it by root', () => {

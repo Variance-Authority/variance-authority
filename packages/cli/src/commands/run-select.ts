@@ -18,6 +18,14 @@
  * baseline recorded when it was painted. Fetching that twice would be two disk
  * walks for one answer, and — worse — would let the sentence a run prints about a
  * subject disagree with the reason it skipped one.
+ *
+ * ## Two grounds under `--since`, and the second one needs the diff itself
+ *
+ * The paths are enough to ask what a commit *could* have moved. They are not
+ * enough to ask what it moved *at the line*, and that is the question the
+ * execution journal answers — see [`journey.ts`](./journey.ts). It reads hunk
+ * ranges, so `--since` fetches the diff text beside the file list when a journal
+ * is there to read it against.
  */
 
 import type { SourceIndex } from '@variance-authority/core';
@@ -25,12 +33,24 @@ import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects } from './affected.js';
 import type { Plan } from './collector.js';
-import { reachOf } from './reach.js';
+import { unenteredSubjects } from './journey.js';
+import { many, reachOf } from './reach.js';
 import type { ObserveContext, RunOptions } from './run-context.js';
 
 export interface Selection {
   readonly skipped: ReadonlyMap<string, string>;
-  readonly whole?: string;
+
+  /**
+   * What the run should say out loud about the narrowing itself.
+   *
+   * One entry per ground that declined to rule anything out, plus the tally when
+   * one of them did. *We could not narrow* and *nothing needed narrowing*
+   * produce the same run and mean opposite things about the next one, and with
+   * two grounds there are two ways to be in either state — so which ground was
+   * consulted, and what each of them concluded, is printed rather than inferred
+   * from a count of subjects.
+   */
+  readonly notes: readonly string[];
 
   /**
    * The files the explaining diff named, resolved once for every phase that
@@ -171,12 +191,16 @@ export async function selectionFor(
       source,
       changed: explains.changed,
       skipped: new Map(),
+      notes: [],
       ...(reach === undefined ? {} : { reach }),
     };
   }
 
+  const { ref, diff } = options.since;
+  const planned = plan.subjects.map((each) => each.subject.id);
+
   const answer = affectedSubjects({
-    planned: plan.subjects.map((planned) => planned.subject.id),
+    planned,
     changed: options.since.changed,
     source,
     roots: config.source.dirs,
@@ -185,18 +209,66 @@ export async function selectionFor(
     ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
   });
 
+  // Only what survived the structural ground. A journal recorded before a
+  // subject existed must not be allowed to rule out a subject the diff plainly
+  // reaches, and the two grounds only ever remove.
+  const surviving = planned.filter(
+    (subject) => !answer.skipped.some((entry) => entry.subject === subject),
+  );
+
+  // Absent all the way down: no diff text, no reader, or a reader that found no
+  // snapshot. Each of those is *the journal was not consulted*, which narrows
+  // nothing and is not an error — the probes are a build the operator opts into.
+  const journal = diff === undefined ? undefined : await deps.readJourney?.(diff);
+  const journey =
+    journal === undefined
+      ? undefined
+      : unenteredSubjects({ planned: surviving, whole: journal.whole, entered: journal.entered });
+
+  const because = (entry: { readonly because: string }): string =>
+    `not affected by the diff against ${ref}: ${entry.because}`;
+
   return {
     source,
     changed: explains.changed,
     ...(reach === undefined ? {} : { reach }),
-    skipped: new Map(
-      answer.skipped.map((entry) => [
-        entry.subject,
-        `not affected by the diff against ${options.since?.ref ?? 'the ref'}: ${entry.because}`,
-      ]),
-    ),
-    ...(answer.whole !== undefined
-      ? { whole: `\`--since ${options.since.ref}\` did not narrow this run: ${answer.whole}` }
-      : {}),
+    skipped: new Map([
+      ...answer.skipped.map((entry): [string, string] => [entry.subject, because(entry)]),
+      ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
+    ]),
+    notes: notesFor(ref, answer, journey),
   };
+}
+
+/**
+ * What the run prints about its own narrowing.
+ *
+ * The tally names both grounds and prints a zero for either of them, because the
+ * interesting number is the one that is zero: a journal that ruled out nothing
+ * over a diff the file graph could not narrow is a build with no probes in it,
+ * and a line reading *`0` by what they entered* is the only thing on the page
+ * that says so.
+ */
+function notesFor(
+  ref: string,
+  answer: { readonly skipped: readonly unknown[]; readonly whole?: string },
+  journey: { readonly skipped: readonly unknown[]; readonly whole?: string } | undefined,
+): readonly string[] {
+  const ruled = answer.skipped.length + (journey?.skipped.length ?? 0);
+
+  return [
+    ...(answer.whole === undefined
+      ? []
+      : [`\`--since ${ref}\` did not narrow this run: ${answer.whole}`]),
+    ...(journey?.whole === undefined
+      ? []
+      : [`\`--since ${ref}\` was not narrowed by execution: ${journey.whole}`]),
+    ...(ruled === 0
+      ? []
+      : [
+          `\`--since ${ref}\` ruled out ${many(ruled, 'subject')}: ` +
+            `${answer.skipped.length} by what the diff declares and reaches, ` +
+            `${journey?.skipped.length ?? 0} by what the last run recorded entering.`,
+        ]),
+  ];
 }

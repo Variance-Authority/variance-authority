@@ -118,8 +118,19 @@ export function coverageModule(
   };
 }
 
-/** One block as coverage records it: ordinals and offsets become lines. */
-export function coverageBlock(source: string, block: Block): CoverageBlock {
+/**
+ * One block as coverage records it: ordinals and offsets become lines.
+ *
+ * `lineOf` is how the offsets get back to the file the author edited. Absent, it
+ * counts newlines in whatever text the block was cut from — right for a
+ * transform that moved nothing, and a different number line for one that did.
+ * The seams supply the bundler's own map; see `source-lines.ts`.
+ */
+export function coverageBlock(
+  source: string,
+  block: Block,
+  lineOf: (offset: number) => number = (offset) => lineAt(source, offset),
+): CoverageBlock {
   return {
     ordinal: block.ordinal,
     kind: block.kind,
@@ -127,8 +138,8 @@ export function coverageBlock(source: string, block: Block): CoverageBlock {
     digest: block.digest,
     name: block.name,
     path: block.path,
-    startLine: lineAt(source, block.start),
-    endLine: lineAt(source, block.end > block.start ? block.end - 1 : block.end),
+    startLine: lineOf(block.start),
+    endLine: lineOf(block.end > block.start ? block.end - 1 : block.end),
     source: block.end > block.start,
     testFiles: [],
   };

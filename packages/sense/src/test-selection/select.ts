@@ -1,5 +1,40 @@
 import type { TestCoverageView } from './format.js';
 
+/**
+ * What one snapshot can say about one diff: who it speaks for, and who the diff
+ * reached.
+ *
+ * `selectTestFilesFromView` answers the second half alone, and an empty answer
+ * from it has two readings that are opposite facts — *this diff reached nobody*,
+ * and *this snapshot recorded nobody*. A caller that narrows a suite on the
+ * first while holding the second skips every subject it has, silently, because a
+ * subject that was never run is not in the report to be missing from.
+ *
+ * So `whole` is returned beside it. It is the tests whose observation was
+ * complete, and only those: an upper-bound contribution cannot justify excluding
+ * anything, and a test absent from the snapshot entirely is unknown rather than
+ * untouched.
+ */
+export interface ExecutionNarrowing {
+  /** Recorded tests whose observation was whole, so absence from `entered` is evidence. */
+  readonly whole: readonly string[];
+  /** Recorded tests that entered a region this diff changed. */
+  readonly entered: readonly string[];
+}
+
+/** Both halves of the question, from one pass over the same columns. */
+export function narrowByExecutionFromView(
+  coverage: TestCoverageView,
+  diff: string,
+): ExecutionNarrowing {
+  const whole: string[] = [];
+  for (let test = 0; test < coverage.testPath.length; test += 1) {
+    if (coverage.testComplete[test] === 1) whole.push(coverage.string(coverage.testPath[test]!));
+  }
+
+  return { whole: whole.sort(codeUnitOrder), entered: selectTestFilesFromView(coverage, diff) };
+}
+
 /** Query the binary columns without materializing the coverage graph. */
 export function selectTestFilesFromView(
   coverage: TestCoverageView,

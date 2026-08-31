@@ -4,7 +4,11 @@ import { resolve } from 'node:path';
 import { digestString, type FileRecord } from '@variance-authority/core';
 import { deviationFromView } from './deviation.js';
 import { decodeTestCoverage, openTestCoverage } from './format.js';
-import { selectTestFilesFromView } from './select.js';
+import {
+  narrowByExecutionFromView,
+  selectTestFilesFromView,
+  type ExecutionNarrowing,
+} from './select.js';
 
 export {
   coveringTests,
@@ -18,6 +22,7 @@ export {
   type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
+export type { ExecutionNarrowing };
 
 export interface CoverageBlock {
   readonly ordinal: number;
@@ -133,6 +138,19 @@ export async function readTestCoverage(file: string): Promise<TestCoverage> {
  */
 export async function selectTestFiles(file: string, diff: string): Promise<readonly string[]> {
   return selectTestFilesFromView(openTestCoverage(await readFile(file)), diff);
+}
+
+/**
+ * The same query, plus the tests the snapshot is entitled to speak for.
+ *
+ * Read this rather than `selectTestFiles` whenever the answer will *exclude*
+ * something. See `ExecutionNarrowing`.
+ */
+export async function narrowByExecution(
+  file: string,
+  diff: string,
+): Promise<ExecutionNarrowing> {
+  return narrowByExecutionFromView(openTestCoverage(await readFile(file)), diff);
 }
 
 /** Compare per-test execution slices with the static code each test can reach. */

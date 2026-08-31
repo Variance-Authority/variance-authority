@@ -7,6 +7,7 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
+import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
 import { createRemoteStore } from '@variance-authority/remote';
 import { createDurableStore, createLfsStore } from '@variance-authority/store';
@@ -189,6 +190,94 @@ export async function changedSince(
         '(a shallow CI clone often needs `fetch-depth: 0`).',
     );
   }
+}
+
+/**
+ * The same diff again, as text — because the second ground reads lines.
+ *
+ * `changedSince` answers *which files*, which is everything the structural
+ * selector needs and nothing the execution journal can use: a journal is indexed
+ * by region, and a region is a line range. So this fetches the hunks, with the
+ * paths brought into the run's coordinates exactly as the file list is — the two
+ * must name one file the same way or the journal answers about a module nobody
+ * changed.
+ *
+ * `undefined` rather than a throw. A repository that cannot produce a diff has
+ * already refused the file list a moment earlier with a sentence naming the ref;
+ * failing twice for one cause would replace that sentence with this one. And the
+ * journal only ever *removes* subjects, so its absence is a wider run, never a
+ * quieter one.
+ */
+export async function diffSince(
+  ref: string,
+  roots: readonly string[] = [],
+): Promise<string | undefined> {
+  const run = promisify(execFile);
+  const here = process.cwd();
+  const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
+
+  try {
+    const { stdout } = await run('git', ['diff', `${ref}...HEAD`], {
+      cwd: repository,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+
+    return inCoordinates(stdout, here, repository);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Rewrite the two header lines a hunk reader looks at, and leave the rest alone. */
+function inCoordinates(diff: string, here: string, repository: string): string {
+  return diff
+    .split('\n')
+    .map((line) => {
+      for (const mark of ['--- a/', '+++ b/']) {
+        if (!line.startsWith(mark)) continue;
+        const path = line.slice(mark.length);
+        return `${mark}${relative(here, join(repository, path))}`;
+      }
+      return line;
+    })
+    .join('\n');
+}
+
+/**
+ * What the last run recorded entering, read against this diff.
+ *
+ * Absent when no snapshot has been written for this repository — the ordinary
+ * state of a project whose build carries no probes, and the reason this narrows
+ * nothing rather than refusing. A snapshot that exists and cannot be read is the
+ * other case entirely: something wrote it, and a run that silently ignored it
+ * would look identical to one that never had it.
+ */
+export async function journeyAgainst(
+  root: string,
+  diff: string,
+): Promise<ExecutionNarrowing | undefined> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  const file = selection.testCoverageFile(root);
+
+  try {
+    return await selection.narrowByExecution(file, diff);
+  } catch (error) {
+    if (isMissing(error)) return undefined;
+    throw new OperatorError(
+      `the recorded execution journal at ${file} could not be read: ${messageOf(error)}. ` +
+        'Delete it and run once without `--since` to record a new one; a run that ignored it ' +
+        'would look exactly like a run that never had one.',
+      { cause: error },
+    );
+  }
+}
+
+function isMissing(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'ENOENT'
+  );
 }
 
 /**

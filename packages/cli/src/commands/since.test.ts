@@ -130,6 +130,97 @@ describe('narrowing a run to what a diff could have changed', () => {
     ).rejects.toThrow(/where your components are declared/);
   });
 
+  /**
+   * The second ground. The structural one answers *this subject contains
+   * `Button`* about both of these, because it is true of both — and the last run
+   * recorded only one of them ever entering the lines this diff changed.
+   */
+  describe('and what the last run recorded entering', () => {
+    const TWO: Plan = {
+      ...PLAN,
+      subjects: [
+        { subject: { id: 'fixture:a', kind: 'fixture' } },
+        { subject: { id: 'fixture:b', kind: 'fixture' } },
+      ],
+    };
+
+    const BOTH = collectorOf(TWO, (subject): Collected => ({
+      ok: true,
+      document: documentFor(subject.subject.id),
+    }));
+
+    const DIFF = ['--- a/src/Button.tsx', '+++ b/src/Button.tsx', '@@ -9,1 +9,1 @@'].join('\n');
+
+    it('rules out a subject the diff reaches and the journal says it never entered', async () => {
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx'], diff: DIFF },
+        scanSource: async () => SOURCE,
+        readJourney: async () => ({
+          whole: ['fixture:a', 'fixture:b'],
+          entered: ['fixture:a'],
+        }),
+      });
+
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+      expect(report.notObserved?.[0]?.subject).toBe('fixture:b');
+      expect(report.notObserved?.[0]?.kind).toBe('unreached');
+      expect(report.notObserved?.[0]?.because).toContain('every region it entered');
+    });
+
+    it('counts the two grounds apart', async () => {
+      // The question an operator asks after seeing a run halve: which half of
+      // this was the file graph, and which half was the journal. A single total
+      // answers neither, and the interesting number is whichever one is zero.
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx'], diff: DIFF },
+        scanSource: async () => SOURCE,
+        readJourney: async () => ({ whole: ['fixture:a', 'fixture:b'], entered: [] }),
+      });
+
+      expect(report.warnings?.join('\n')).toContain(
+        'ruled out 2 subjects: 0 by what the diff declares and reaches, ' +
+          '2 by what the last run recorded entering',
+      );
+    });
+
+    it('never asks the journal about a subject the diff already ruled out', async () => {
+      // The grounds only remove, and they remove in order. A journal recorded
+      // before `fixture:b` existed must not be able to speak for it, and a run
+      // that let it would report the same skip under two reasons.
+      const { report } = await runWith(CONFIG, BOTH, stored(['Clock']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx'], diff: DIFF },
+        scanSource: async () => SOURCE,
+        readJourney: async () => ({ whole: [], entered: [] }),
+      });
+
+      expect(report.notObserved?.map((entry) => entry.because)).toEqual([
+        expect.stringContaining('this diff touched none of them'),
+        expect.stringContaining('this diff touched none of them'),
+      ]);
+      expect(report.warnings?.join('\n')).toContain('was not narrowed by execution');
+    });
+
+    it('leaves the journal unread when git could not produce a diff', async () => {
+      // `changed` without `diff` is a repository this run could list and not
+      // read. The journal is indexed by line and has nothing to answer with, and
+      // asking it anyway would answer from an empty hunk list — which reads as
+      // *this diff reached nobody*.
+      let asked = false;
+
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx'] },
+        scanSource: async () => SOURCE,
+        readJourney: async () => {
+          asked = true;
+          return { whole: ['fixture:a', 'fixture:b'], entered: [] };
+        },
+      });
+
+      expect(asked).toBe(false);
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a', 'fixture:b']);
+    });
+  });
+
   // Both flags at once, naming two different revisions. `selectionFor` now
   // narrows by `--since` and explains by `--against` — it used to resolve them
   // by precedence and drop the `--against` ref without a word — and nothing here

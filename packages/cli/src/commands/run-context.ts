@@ -2,6 +2,7 @@ import type { HistoryStore } from '@variance-authority/history';
 import type { Relations, SourceIndex } from '@variance-authority/core';
 import type { PngDecoder } from '@variance-authority/png';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
+import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import type { Collector } from './collector.js';
 import type { RunIdentity } from './history.js';
@@ -86,6 +87,16 @@ export interface RunDeps {
    * make claims about.
    */
   changedProjects?(base: string): Promise<readonly string[]>;
+
+  /**
+   * What the last run recorded entering, read against this diff.
+   *
+   * Injected for the same reason as `scanSource`: it opens a binary snapshot out
+   * of a user cache, and a rule that reads a cache is a rule no test can make
+   * claims about. `undefined` from it is *no journal*, which is the ordinary
+   * answer for a build nobody put probes in — see [`journey.ts`](./journey.ts).
+   */
+  readJourney?(diff: string): Promise<ExecutionNarrowing | undefined>;
 }
 
 export interface RunOptions {
@@ -137,6 +148,15 @@ export interface RunOptions {
     readonly changed: readonly string[];
     /** The ref they were computed against, for the sentence. */
     readonly ref: string;
+
+    /**
+     * The diff itself, when one could be read — hunk headers and all.
+     *
+     * The paths answer *which files*; only the text answers *which lines*, and
+     * the execution journal is indexed by line. Absent means the second ground
+     * is not consulted, which narrows nothing.
+     */
+    readonly diff?: string;
   };
 
   /**

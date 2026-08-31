@@ -2218,6 +2218,7 @@
         "ExecutionCrossing": "interface",
         "ExecutionIndex": "interface",
         "ExecutionModule": "interface",
+        "ExecutionNarrowing": "interface",
         "ExecutionTest": "interface",
         "SourceTestRange": "interface",
         "SourceTestTarget": "type",
@@ -2227,6 +2228,7 @@
         "coveringTests": "function",
         "coveringTestsInFile": "function",
         "deviationOfTests": "function",
+        "narrowByExecution": "function",
         "readTestCoverage": "function",
         "selectTestFiles": "function",
         "testCoverageFile": "function"
@@ -2242,6 +2244,7 @@
         "ObservedSubject": "interface",
         "RecordExecutionOptions": "interface",
         "TestSelectionProbeOptions": "interface",
+        "TransformingContext": "interface",
         "drainExecution": "function",
         "executionCollectorSource": "function",
         "preconditionOf": "function",
