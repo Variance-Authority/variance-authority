@@ -31,6 +31,7 @@
 import type { ReactElement } from 'react';
 import type { BuildDetail, SubjectView } from '../review-types.js';
 import type { Crossing } from './crossing.js';
+import { unforeseen } from './foreseen.js';
 import { originsOf, shapesOf, sourceOf, type Origin } from './grouping.js';
 import { docketOf, ORDERS, type Group } from './order.js';
 import { RootHeading } from './root.js';
@@ -73,11 +74,14 @@ export function OriginsPanel({
         <Sorting order={order} build={build.build} go={go} />
       </div>
 
+      <Unreached build={build} go={go} />
+
       <div className="va-rail-list va-scroll">
         {docketOf(build, origins, order).map((group) => (
           <Band
             key={group.lane + group.title}
             group={group}
+            detail={build}
             build={build.build}
             crossing={crossing}
             selected={selected}
@@ -90,6 +94,48 @@ export function OriginsPanel({
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * Whether anything moved that the commit cannot reach.
+ *
+ * The empty case is printed, and it is the only place on this surface where an
+ * empty list is worth a sentence: *nothing moved outside what you edited* is the
+ * strongest thing a build can say, a reviewer cannot derive it from a docket of
+ * changes that are all accounted for, and its absence is what makes the other
+ * case legible when it happens.
+ *
+ * Silent when the run walked no diff. Then there is no prediction to have kept.
+ */
+function Unreached({
+  build,
+  go,
+}: {
+  readonly build: BuildDetail;
+  readonly go: (route: Route) => void;
+}): ReactElement | null {
+  const loose = unforeseen(build);
+  if (loose === null) return null;
+
+  if (loose.length === 0) {
+    return <p className="va-foreseen va-note">Everything that moved is under a file this commit changed.</p>;
+  }
+
+  return (
+    <p className="va-foreseen va-note va-foreseen-off">
+      <span className="va-num">{number(loose.length)}</span> moved with nothing in this commit
+      above{' '}
+      {loose.slice(0, 3).map((subject, index) => (
+        <span key={subject}>
+          {index === 0 ? '— ' : ', '}
+          <Go to={{ page: 'subject', build: build.build, subject }} go={go} className="va-from-go">
+            {subject}
+          </Go>
+        </span>
+      ))}
+      {loose.length > 3 ? ` and ${number(loose.length - 3)} more` : ''}
+    </p>
   );
 }
 
@@ -123,12 +169,14 @@ function Sorting({
 /** One band: the claim, the count, the rows. */
 function Band({
   group,
+  detail,
   build,
   crossing,
   selected,
   go,
 }: {
   readonly group: Group;
+  readonly detail: BuildDetail;
   readonly build: string;
   readonly crossing: Crossing;
   readonly selected?: string | undefined;
@@ -136,7 +184,7 @@ function Band({
 }): ReactElement {
   return (
     <section className={`va-band va-band-${group.lane}`}>
-      <RootHeading group={group} />
+      <RootHeading group={group} detail={detail} go={go} />
       <ul>
         {group.changes.map(({ origin, of }) => (
           <Row

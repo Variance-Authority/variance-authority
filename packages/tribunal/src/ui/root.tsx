@@ -26,6 +26,7 @@
 import type { ReactElement } from 'react';
 import type { BuildDetail } from '../review-types.js';
 import type { Root } from './cause.js';
+import { foreseenBy } from './foreseen.js';
 import { originsOf, type Origin } from './grouping.js';
 import { docketOf, type Group } from './order.js';
 import type { Route } from './route.js';
@@ -40,7 +41,15 @@ import { count, number } from './text.js';
  * a reviewer wants before they open it — while a band with no root counts changes,
  * because a finding the commit does not account for had no blast radius to have.
  */
-export function RootHeading({ group }: { readonly group: Group }): ReactElement {
+export function RootHeading({
+  group,
+  detail,
+  go,
+}: {
+  readonly group: Group;
+  readonly detail: BuildDetail;
+  readonly go: (route: Route) => void;
+}): ReactElement {
   if (group.root === undefined) {
     return (
       <h3>
@@ -50,10 +59,85 @@ export function RootHeading({ group }: { readonly group: Group }): ReactElement 
   }
 
   return (
-    <h3 className={`va-root va-root-${group.root.kind}`} title={group.title}>
-      <Path root={group.root} />
-      <span className="va-num">{number(group.root.renders)}</span>
-    </h3>
+    <>
+      <h3 className={`va-root va-root-${group.root.kind}`} title={group.title}>
+        <Path root={group.root} />
+        <span className="va-num">{number(group.root.renders)}</span>
+      </h3>
+      {group.root.kind !== 'file' ? null : (
+        <Prediction detail={detail} file={group.root.name} go={go} />
+      )}
+    </>
+  );
+}
+
+/**
+ * What editing this file was going to do, beside what it did.
+ *
+ * Drawn only for a file, because only a file makes the prediction: the reach walk
+ * starts at a path the diff named. A property or an owner the commit never
+ * touched has no set of subjects it was expected to arrive at, and a line under
+ * one would be a number invented to fill the same slot.
+ */
+function Prediction({
+  detail,
+  file,
+  go,
+}: {
+  readonly detail: BuildDetail;
+  readonly file: string;
+  readonly go: (route: Route) => void;
+}): ReactElement | null {
+  const seen = foreseenBy(detail, file);
+  if (seen === null || seen.reached === 0) return null;
+
+  const gaps = (
+    [
+      ['still', seen.still],
+      ['excluded', seen.excluded],
+      ['never compared', seen.uncompared],
+    ] as const
+  ).filter(([, subjects]) => subjects.length > 0);
+
+  return (
+    <p className="va-foreseen va-note">
+      <span className="va-num">{number(seen.reached)}</span> reached
+      {gaps.length === 0 ? <> · all moved</> : null}
+      {gaps.map(([what, subjects]) => (
+        <span key={what}>
+          {' · '}
+          <span className="va-num">{number(subjects.length)}</span> {what}:{' '}
+          <Named subjects={subjects} build={detail.build} go={go} />
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/** The subjects themselves, up to three, and a count of any it did not print. */
+function Named({
+  subjects,
+  build,
+  go,
+}: {
+  readonly subjects: readonly string[];
+  readonly build: string;
+  readonly go: (route: Route) => void;
+}): ReactElement {
+  const shown = subjects.slice(0, 3);
+
+  return (
+    <>
+      {shown.map((subject, index) => (
+        <span key={subject}>
+          {index === 0 ? '' : ', '}
+          <Go to={{ page: 'subject', build, subject }} go={go} className="va-from-go">
+            {subject}
+          </Go>
+        </span>
+      ))}
+      {subjects.length > shown.length ? ` and ${number(subjects.length - shown.length)} more` : ''}
+    </>
   );
 }
 

@@ -82,6 +82,15 @@ export const DOCKET_STYLES = `
 .va-from-go { color: var(--va-accent); text-decoration: none; }
 .va-from-go:hover { text-decoration: underline; }
 
+/* The prediction under a root, and the same claim about the whole build. It sits
+   between a heading and the rows it explains, so it is quieter than both. */
+.va-foreseen { color: var(--va-ink-3); font-size: 0.72rem; line-height: 1.5; margin: 0.1rem 0 0.4rem; }
+.va-foreseen .va-num { color: var(--va-ink-2); font-family: var(--va-mono); }
+.va-foreseen .va-from-go { color: var(--va-ink-2); font-family: var(--va-mono); text-decoration: none; }
+.va-foreseen .va-from-go:hover { color: var(--va-accent); text-decoration: underline; }
+.va-foreseen-off { color: var(--va-warn-ink); }
+.va-rail-head + .va-foreseen { margin: -0.2rem 0 0.5rem; }
+
 /* One change, in a row a reviewer scans a column of. The name is the only thing
    at full contrast; everything else on the row is there to be skipped. */
 .va-row { margin-bottom: 0.1rem; }
