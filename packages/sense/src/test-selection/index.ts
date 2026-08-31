@@ -3,6 +3,12 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString, type FileRecord } from '@variance-authority/core';
 import { deviationFromView } from './deviation.js';
+import {
+  journeyDivergences,
+  type JourneyDivergence,
+  type JourneyDivergenceOptions,
+  type JourneyRegion,
+} from './divergence.js';
 import { decodeTestCoverage, openTestCoverage } from './format.js';
 import {
   narrowByExecutionFromView,
@@ -23,6 +29,8 @@ export {
   type SourceTestRange,
 } from './reverse.js';
 export type { ExecutionNarrowing };
+export { journeyDivergences };
+export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 
 export interface CoverageBlock {
   readonly ordinal: number;
@@ -151,6 +159,20 @@ export async function narrowByExecution(
   diff: string,
 ): Promise<ExecutionNarrowing> {
   return narrowByExecutionFromView(openTestCoverage(await readFile(file)), diff);
+}
+
+/**
+ * Read the snapshot and answer which modules its observers crossed differently.
+ *
+ * The file reader beside {@link journeyDivergences}, which takes the decoded
+ * snapshot. Callers that already hold one — a run that just wrote it — should
+ * use that rather than paying for a second decode.
+ */
+export async function journeysApart(
+  file: string,
+  options: JourneyDivergenceOptions = {},
+): Promise<readonly JourneyDivergence[]> {
+  return journeyDivergences(await readTestCoverage(file), options);
 }
 
 /** Compare per-test execution slices with the static code each test can reach. */

@@ -337,6 +337,43 @@ Crossings here name **test files** and carry no call-stack depth. That is the
 recorded granularity, not a limit of this reader; see
 [Where the index comes from](#where-the-index-comes-from).
 
+## See where two observers parted
+
+`journeyDivergences` answers a question no static reading of the same code can:
+**one file, two observers, and not the same path through it.** Three stories
+mount `CartCard`, one of them clicks Remove, and the `onClick` body is a region
+the other two have never been inside — same file, same import graph, same props.
+
+```ts
+import { journeysApart, testCoverageFile } from '@variance-authority/sense/test-selection';
+
+const apart = await journeysApart(testCoverageFile(process.cwd()), {
+  observers: subjectsThisRunPainted,
+});
+
+for (const module of apart) {
+  for (const region of module.parted) {
+    console.log(module.file, region.name, region.startLine, region.entered, region.missed);
+  }
+}
+```
+
+    app/src/components/CartCard.tsx  CartCard/onClick  51
+      entered  story:cart-card--removing
+      missed   story:cart-card--item, story:cart-card--verbose
+
+The pool per module is whoever entered a region with source of its own, which is
+not whoever loaded the file: a module root is crossed on import, so every subject
+in a bundle crosses every module in it. `observers` narrows further to the
+subjects a run actually painted — the snapshot accumulates, and without it a
+subject deleted two commits ago stays a party to every parting it was recorded
+in. An observation recorded `complete: false` is dropped from the pool rather
+than counted as having missed, for the reason `narrowByExecution` states.
+
+`unentered` is the weaker sibling finding: regions with source of their own that
+**no** observer entered. Not *these two renders disagree* but *this run never
+went here at all*.
+
 ## Measure test-file deviation
 
 Deviation compares what a test file can statically reach with what it enters in
