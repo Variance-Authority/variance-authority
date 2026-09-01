@@ -168,6 +168,15 @@ across runs kept by a service you deploy.
 claim is measured; [`docs/flakiness.md`](docs/flakiness.md) is the position
 underneath it, including the four causes of variance nothing here absorbs.
 
+Better than telling a race apart is not running one. Where a suite can reach
+inside the subject, it does: the application announces the decision it made —
+including the decision *not* to show something, which no screen can be asked
+about — and the test waits for that announcement instead of for a paint.
+[`@variance-authority/event`](packages/event) is the instrument;
+[`@variance-authority/wire`](packages/wire) is the medium it shares with
+execution tracing, so one cookie both settles the wait and records which code
+that execution entered.
+
 ## Evidence, with its limits attached
 
 The repository includes a head-to-head case against Playwright's real

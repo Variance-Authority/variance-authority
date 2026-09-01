@@ -2,6 +2,8 @@
 
 # @variance-authority/wire
 
+> Distributed tracing for one test run, collapsed to a cookie.
+>
 > One id per execution, one address to answer on, and nothing written down.
 
 **Requires:** nothing on the announcing side. A driver listens, a participant
