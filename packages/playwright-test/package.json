@@ -48,7 +48,8 @@
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/react": "workspace:^",
     "@variance-authority/sense": "workspace:^",
-    "@variance-authority/store": "workspace:^"
+    "@variance-authority/store": "workspace:^",
+    "@variance-authority/wire": "workspace:^"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.49 <2"

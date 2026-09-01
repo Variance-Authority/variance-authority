@@ -44,6 +44,7 @@ import {
   type VarianceEventFixtures,
   type VarianceEventWorkerFixtures,
 } from './events.js';
+import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
 import type { AcquireRequest } from './page-agent.js';
 
 /**
@@ -136,7 +137,7 @@ export interface VarianceFixtures extends VarianceEventFixtures {
   readonly variance: (locator: Locator, options?: VarianceOptions) => Promise<Observation>;
 }
 
-export interface VarianceWorkerFixtures extends VarianceEventWorkerFixtures {
+export interface VarianceWorkerFixtures extends VarianceEventWorkerFixtures, VarianceWireFixtures {
   /**
    * Record what each spec executed, for the next run's `--since`.
    *
@@ -215,6 +216,7 @@ export const varianceFixtures: Fixtures<
   PlaywrightTestArgs,
   PlaywrightWorkerArgs
 > = {
+  ...varianceWireFixtures,
   ...varianceEventFixtures,
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
@@ -225,13 +227,14 @@ export const varianceFixtures: Fixtures<
   // and a process that wrote the shared index per assertion would spend the run
   // contending for a lock it holds for microseconds of work.
   varianceRecorder: [
-    async ({ varianceExecution }, use) => {
+    async ({ varianceExecution, varianceWire }, use) => {
       if (varianceExecution === false) {
         await use(undefined);
         return;
       }
       const recorder = createExecutionRecorder(
         varianceExecution === true ? {} : varianceExecution,
+        varianceWire,
       );
       await use(recorder);
       await recorder.close();

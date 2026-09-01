@@ -1,0 +1,105 @@
+// The claim under test is that the driver's end reads an execution off the
+// address it minted rather than out of a body it was handed, that it answers a
+// participant honestly enough for one to know it lost a report, and that a
+// listener holds nothing open once the run it belonged to is over.
+
+import { afterEach, describe, expect, it } from 'vitest';
+import { WIRE_SINK } from './index.js';
+import { listen, wireCarrierSource, WIRE_REPORT, type Wire } from './listen.js';
+
+const listening: Wire[] = [];
+
+afterEach(async () => {
+  for (const wire of listening.splice(0)) await wire.close();
+});
+
+async function open(): Promise<Wire> {
+  const wire = await listen();
+  listening.push(wire);
+  return wire;
+}
+
+describe('listen', () => {
+  it('hands out one address per execution, on loopback', async () => {
+    const wire = await open();
+    expect(wire.addressFor('journey-one')).not.toBe(wire.addressFor('journey-two'));
+    expect(wire.addressFor('journey-one')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/journey-one$/);
+  });
+
+  it('reads back an execution whose id would not survive a path', async () => {
+    const wire = await open();
+    const taken: (string | undefined)[] = [];
+    wire.on('events', (journey) => taken.push(journey));
+
+    const response = await fetch(`${wire.addressFor('a/b c')}/events`, {
+      method: 'POST',
+      body: '{}',
+    });
+
+    expect(response.status).toBe(204);
+    expect(taken).toEqual(['a/b c']);
+  });
+
+  it('refuses a body it cannot read rather than losing the run', async () => {
+    const wire = await open();
+    const taken: unknown[] = [];
+    wire.on('journeys', (_journey, body) => taken.push(body));
+
+    const response = await fetch(`${wire.addressFor('journey-one')}/journeys`, {
+      method: 'POST',
+      body: 'from a later version',
+    });
+
+    // A refusal rather than a crash, because whoever sent it is the subject and
+    // an acknowledged report that cannot be read is one the sender must be told
+    // about.
+    expect(response.status).toBe(404);
+    expect(taken).toEqual([]);
+  });
+
+  it('refuses an instrument nothing here is listening for', async () => {
+    const wire = await open();
+    const response = await fetch(`${wire.addressFor('journey-one')}/journeys`, {
+      method: 'POST',
+      body: '{}',
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it('gives one instrument up without taking the other down', async () => {
+    const wire = await open();
+    const taken: unknown[] = [];
+    const give = wire.on('events', (_journey, body) => taken.push(body));
+    wire.on('journeys', (_journey, body) => taken.push(body));
+    give();
+
+    const announced = await fetch(`${wire.addressFor('journey-one')}/events`, {
+      method: 'POST',
+      body: '{}',
+    });
+    const accounted = await fetch(`${wire.addressFor('journey-one')}/journeys`, {
+      method: 'POST',
+      body: '{}',
+    });
+
+    expect([announced.status, accounted.status]).toEqual([404, 204]);
+  });
+
+  it('stops answering when it closes', async () => {
+    const wire = await listen();
+    const address = wire.addressFor('journey-one');
+    await wire.close();
+
+    await expect(fetch(`${address}/events`, { method: 'POST', body: '{}' })).rejects.toThrow();
+  });
+});
+
+describe('wireCarrierSource', () => {
+  it('is source a realm with no module graph can evaluate', () => {
+    const source = wireCarrierSource();
+    expect(source).not.toContain('import ');
+    expect(source).not.toContain('require(');
+    expect(source).toContain(WIRE_SINK);
+    expect(source).toContain(WIRE_REPORT);
+  });
+});

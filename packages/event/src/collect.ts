@@ -7,14 +7,12 @@
  */
 
 export { createEventLog, type EventLog, type RecordedEvent, type WaitOptions } from './log.js';
-export { eventCollectorSource, EVENT_REPORT } from './page.js';
+export { eventCollectorSource } from './page.js';
 export {
   collectEvents,
-  EVENT_COOKIE,
   EVENT_HEAD_VARIABLE,
   EVENT_VARIABLE,
   type EventCollector,
   type EventCollectorOptions,
   type HeadEventReport,
 } from './head.js';
-export { receiveEvents, type EventReceiver, type ReceiverOptions } from './receive.js';

@@ -12,27 +12,28 @@
  * this side leaves them a return address. Not said, the page still answers and
  * heads are simply silent, which is the same bargain journeys make.
  *
- * One listener per worker and one address per execution. A worker runs its tests
- * one at a time, but a *head* does not: it is serving several workers at once,
- * and the address is what keeps one worker's announcement out of another's log
- * without either of them knowing the other exists.
+ * The listener is the worker's, not this file's: announcements and coverage
+ * accounts are two things said about the same execution, so they arrive on one
+ * medium ([`wire.ts`](./wire.ts)) under one id, and this end reads only which of
+ * the two was speaking. A page reports through a function this worker exposed
+ * and a head reports through a socket; nothing below routes on which.
  */
 
 import type { Fixtures, Page, PlaywrightTestArgs, PlaywrightWorkerArgs } from '@playwright/test';
 import type { AnnouncedEvent } from '@variance-authority/event';
 import {
-  EVENT_COOKIE,
-  EVENT_REPORT,
   EVENT_VARIABLE,
   createEventLog,
   eventCollectorSource,
-  receiveEvents,
   type EventLog,
   type HeadEventReport,
 } from '@variance-authority/event/collect';
-import { JOURNEY_COOKIE, mintJourney } from '@variance-authority/sense/journey';
+import { mintJourney } from '@variance-authority/sense/journey';
+import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
+import { WIRE_REPORT, wireCarrierSource, type Wire } from '@variance-authority/wire/listen';
 import type { ExecutionRecorder } from './execution.js';
 import { ownerOf } from './execution.js';
+import type { VarianceWireFixtures } from './wire.js';
 
 export interface VarianceEventsOptions {
   /**
@@ -55,11 +56,8 @@ export interface VarianceEventsOptions {
 export interface VarianceEventWorkerFixtures {
   /** How this project listens. The defaults need no configuration. */
   readonly varianceEvents: VarianceEventsOptions;
-  /**
-   * The worker's listener, and the desk that routes what arrives to whichever
-   * test is waiting for it. Undefined when no head is expected.
-   */
-  readonly varianceEventDesk: EventDesk | undefined;
+  /** The desk that routes what arrives to whichever test is waiting for it. */
+  readonly varianceEventDesk: EventDesk;
 }
 
 export interface VarianceEventFixtures {
@@ -81,12 +79,14 @@ export interface VarianceEventFixtures {
   readonly events: EventLog;
 }
 
-/** Where a head answers, and who is listening for it right now. */
+/** Where an announcement answers, and who is listening for it right now. */
 export interface EventDesk {
-  readonly endpointFor: (journey: string) => string;
+  /** Where a head serving this execution should report. */
+  readonly addressFor: (journey: string) => string;
   /** Take this execution's announcements until the returned call gives it up. */
   readonly open: (journey: string, log: EventLog) => () => void;
-  readonly close: () => Promise<void>;
+  /** Route one announcement, for a realm the driver is inside rather than beside. */
+  readonly take: (journey: string, report: HeadEventReport) => void;
 }
 
 interface RecorderFixture {
@@ -99,21 +99,16 @@ interface RecorderFixture {
  */
 export const varianceEventFixtures: Fixtures<
   VarianceEventFixtures,
-  VarianceEventWorkerFixtures & RecorderFixture,
+  VarianceEventWorkerFixtures & RecorderFixture & VarianceWireFixtures,
   PlaywrightTestArgs,
   PlaywrightWorkerArgs
 > = {
   varianceEvents: [{}, { scope: 'worker', option: true }],
 
   varianceEventDesk: [
-    async ({ varianceEvents }, use) => {
-      if (!expectsHeads(varianceEvents)) {
-        await use(undefined);
-        return;
-      }
-      const desk = await openDesk();
+    async ({ varianceWire }, use) => {
+      const desk = openDesk(varianceWire);
       await use(desk);
-      await desk.close();
     },
     { scope: 'worker' },
   ],
@@ -122,7 +117,11 @@ export const varianceEventFixtures: Fixtures<
   // fixture rather than two lines in each of the two places that want it. Two
   // minters means two cookies under one name, so whichever wrote last decides
   // what the heads report under and the other half quietly attributes nothing.
-  varianceJourney: async ({ page, varianceEvents, varianceRecorder }, use, testInfo) => {
+  varianceJourney: async (
+    { page, varianceEvents, varianceEventDesk, varianceRecorder },
+    use,
+    testInfo,
+  ) => {
     const origin = varianceEvents.origin ?? testInfo.project.use.baseURL;
     const joined =
       varianceRecorder === undefined
@@ -133,22 +132,24 @@ export const varianceEventFixtures: Fixtures<
       return;
     }
     const journey = mintJourney();
-    await page.context().addCookies([{ name: JOURNEY_COOKIE, value: journey, url: origin }]);
+    await page.context().addCookies([
+      { name: JOURNEY_COOKIE, value: journey, url: origin },
+      { name: RETURN_COOKIE, value: varianceEventDesk.addressFor(journey), url: origin },
+    ]);
     await use(journey);
   },
 
-  events: async ({ page, varianceEvents, varianceJourney, varianceEventDesk }, use, testInfo) => {
+  events: async ({ page, varianceJourney, varianceEventDesk }, use, testInfo) => {
     const log = createEventLog();
-    await listen(page, log);
-
-    const origin = varianceEvents.origin ?? testInfo.project.use.baseURL;
-    const give =
-      varianceEventDesk === undefined || varianceJourney === undefined || origin === undefined
-        ? undefined
-        : await address(page, varianceEventDesk, varianceJourney, origin, log);
+    // A page with no execution of its own still has one here. A worker runs its
+    // tests one at a time, so a key nothing else can mint is enough to route by,
+    // and the page and a head reach the same desk by the same rule.
+    const here = varianceJourney ?? `\u0000${testInfo.testId}`;
+    const give = varianceEventDesk.open(here, log);
+    await listen(page, varianceEventDesk, here);
 
     await use(log);
-    give?.();
+    give();
     log.close('the test ended');
   },
 };
@@ -157,37 +158,22 @@ function expectsHeads(options: VarianceEventsOptions): boolean {
   return options.heads ?? process.env[EVENT_VARIABLE] !== undefined;
 }
 
-/** Leave this execution's return address where every same-origin head will find it. */
-async function address(
-  page: Page,
-  desk: EventDesk,
-  journey: string,
-  origin: string,
-  log: EventLog,
-): Promise<() => void> {
-  const give = desk.open(journey, log);
-  await page
-    .context()
-    .addCookies([{ name: EVENT_COOKIE, value: desk.endpointFor(journey), url: origin }]);
-  return give;
-}
-
 /**
- * The worker's listener, with a desk in front of it.
+ * A desk in front of the worker's listener.
  *
- * A report names its execution by the address it arrived on, so routing is a
- * lookup and nothing else. What arrives for an execution nobody has open is
+ * An announcement names its execution by the address it arrived on, so routing
+ * is a lookup and nothing else. What arrives for an execution nobody has open is
  * **not** given to whoever is here now — that is the pass for the wrong reason
  * this whole mechanism exists to refuse — but it is not silently dropped either:
  * it is remarked on, because a head that is plainly talking while a test hears
  * nothing is a wire problem, and the person reading the failure needs to be told
  * which half was alive.
  */
-async function openDesk(): Promise<EventDesk> {
+function openDesk(wire: Wire): EventDesk {
   const logs = new Map<string, EventLog>();
   const unclaimed = new Map<string, number>();
 
-  const receiver = await receiveEvents((journey, report) => {
+  const take = (journey: string, report: HeadEventReport): void => {
     const log = logs.get(journey);
     if (log !== undefined) {
       log.record(report.head, report);
@@ -196,15 +182,21 @@ async function openDesk(): Promise<EventDesk> {
     const count = (unclaimed.get(report.head) ?? 0) + 1;
     unclaimed.set(report.head, count);
     for (const open of logs.values()) open.remark(report.head, stray(report, count));
+  };
+
+  wire.on('events', (journey, body) => {
+    if (journey === undefined) return;
+    const report = body as HeadEventReport;
+    if (report.version === 1) take(journey, report);
   });
 
   return {
-    endpointFor: receiver.endpointFor,
+    addressFor: wire.addressFor,
     open: (journey, log) => {
       logs.set(journey, log);
       return () => logs.delete(journey);
     },
-    close: receiver.close,
+    take,
   };
 }
 
@@ -217,13 +209,30 @@ function stray(report: HeadEventReport, count: number): string {
   );
 }
 
-/** Put the sink in the page and take what it says. */
-async function listen(page: Page, log: EventLog): Promise<void> {
-  await page.exposeFunction(EVENT_REPORT, (event: AnnouncedEvent) => {
-    log.record('page', event);
+/**
+ * Put the sink in the page and take what it says.
+ *
+ * The page reaches the same desk a head reaches, by the same rule — it simply
+ * gets there through a function this worker exposed instead of through a socket.
+ * A document that has no execution cookie yet says so, and `here` is what the
+ * report is filed under: the test that is running is the one that installed it.
+ */
+async function listen(page: Page, desk: EventDesk, here: string): Promise<void> {
+  await page.exposeFunction(WIRE_REPORT, (said: Reported) => {
+    if (said.participant !== 'events') return;
+    const report = said.body as AnnouncedEvent;
+    desk.take(said.journey ?? here, { version: 1, head: 'page', ...report });
   });
-  // After the channel rather than before, and it would work either way: the
-  // page's sink holds what it cannot yet report. The order here is the cheaper
-  // one, not the correct one.
+  // After the channel rather than before, and it would work either way: both
+  // sinks hold what they cannot yet report. The order here is the cheaper one,
+  // not the correct one.
+  await page.addInitScript(wireCarrierSource());
   await page.addInitScript(eventCollectorSource());
+}
+
+/** One report, as the page's carrier hands it over. */
+interface Reported {
+  readonly journey?: string;
+  readonly participant: string;
+  readonly body: unknown;
 }

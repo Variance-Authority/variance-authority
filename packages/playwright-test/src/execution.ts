@@ -25,12 +25,14 @@ import {
   type ObservedSubject,
 } from '@variance-authority/sense/journal';
 import {
-  JOURNEY_COOKIE,
-  JOURNEY_DIRECTORY_VARIABLE,
+  journeyReportFrom,
   mintJourney,
   stitchJourneys,
+  type JourneyReport,
 } from '@variance-authority/sense/journey';
 import type { CoveragePrecondition } from '@variance-authority/sense/test-selection';
+import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
+import { listen, type Wire } from '@variance-authority/wire/listen';
 import { relative, resolve, sep } from 'node:path';
 
 /** Where the index and the block inventory live, when the defaults are wrong. */
@@ -50,18 +52,12 @@ export interface ExecutionRecording {
    * Empty is the default and the ordinary case: a suite driving one application
    * has one instrumented realm, the page, and nothing can be missing from it.
    * Naming a head is a promise that the service is running
-   * `collectJourneys()` from `@variance-authority/sense/journey` and was pointed
-   * at the same run directory. A named head that reports nothing all run retires
-   * every observation the run made — the setup is extra, and a run half of whose
-   * evidence never arrived must not narrow the next one.
+   * `collectJourneys()` from `@variance-authority/sense/journey`. A named head
+   * that reports nothing all run retires every observation the run made — the
+   * setup is extra, and a run half of whose evidence never arrived must not
+   * narrow the next one.
    */
   readonly heads?: readonly string[];
-  /**
-   * Where heads report. Defaults to `VARIANCE_AUTHORITY_JOURNEYS`, which is also
-   * how the service was told, so one variable in `webServer.env` configures both
-   * ends.
-   */
-  readonly journeys?: string;
   /**
    * The origin the journey cookie is scoped to. Defaults to the project's
    * `baseURL`. Same-origin is the filter, so this is also the whole of the
@@ -113,15 +109,34 @@ export function ownerOf(root: string, testInfo: TestInfo): string {
  */
 export function createExecutionRecorder(
   recording: ExecutionRecording = {},
+  wire?: Wire,
 ): ExecutionRecorder {
   const root = resolve(recording.root ?? process.cwd());
   const owners = new Map<string, Accumulated>();
   const heads = recording.heads ?? [];
-  const journeys = recording.journeys ?? process.env[JOURNEY_DIRECTORY_VARIABLE];
   const minted = new Map<string, string>();
   const failed = new Set<string>();
+  const reports: JourneyReport[] = [];
   let seen = false;
   let instrumentation: string | undefined;
+  let owned: Wire | undefined;
+  let taking: Wire | undefined;
+
+  // The medium is opened on the first execution that could use it, and only when
+  // a head was named: a suite with one realm has nothing to reach it from
+  // another process, and a listener nobody can find is a port for nothing.
+  const takeReports = async (): Promise<Wire> => {
+    const open = wire ?? (owned ??= await listen());
+    if (taking !== open) {
+      taking = open;
+      open.on('journeys', (journey, body) => {
+        if (journey === undefined) return;
+        const report = journeyReportFrom(journey, body);
+        if (report !== undefined) reports.push(report);
+      });
+    }
+    return open;
+  };
 
   return {
     note: async (page, owner) => {
@@ -152,9 +167,16 @@ export function createExecutionRecorder(
         );
         return undefined;
       }
+      const open = await takeReports();
       const journey = mintJourney();
       minted.set(journey, owner);
-      await page.context().addCookies([{ name: JOURNEY_COOKIE, value: journey, url }]);
+      // Both at one site, because they are one fact: this is the execution, and
+      // this is where it answers. Written apart, whichever half a later mint
+      // overwrote would leave a head reporting under an id nobody claims.
+      await page.context().addCookies([
+        { name: JOURNEY_COOKIE, value: journey, url },
+        { name: RETURN_COOKIE, value: open.addressFor(journey), url },
+      ]);
       return journey;
     },
 
@@ -173,91 +195,92 @@ export function createExecutionRecorder(
     },
 
     close: async () => {
-      if (!seen && heads.length === 0) {
-        process.stderr.write(
-          'variance-authority: execution recording is on and the page under test has no ' +
-            'collector — build the application with `testSelectionProbes()` from ' +
-            '`@variance-authority/sense/journal`, or the next `--since` will run ' +
-            'every spec\n',
-        );
-        return;
-      }
-
-      // Every spec this worker ran, whether or not the page had anything to
-      // drain: a suite may instrument only its services, and the spec files are
-      // still the owners those services report against.
-      const everyOwner = new Set([...owners.keys(), ...minted.values()]);
-      const preconditions = new Map<string, readonly CoveragePrecondition[]>();
-      const incomplete = new Set<string>(failed);
-      for (const owner of everyOwner) {
-        const precondition = await preconditionOf(root, owner);
-        if (precondition !== undefined) preconditions.set(owner, [precondition]);
-      }
-
-      // Every head first: what they add up to decides whether the page's own
-      // observations may be believed whole, so it cannot be settled afterwards.
-      const stitched = await stitchJourneys({
-        ...(journeys === undefined ? {} : { directory: journeys }),
-        heads,
-        owners: minted,
-        preconditions,
-        incomplete,
-      });
-      if (heads.length > 0 && journeys === undefined) {
-        process.stderr.write(
-          `variance-authority: ${heads.join(', ')} named as heads and ` +
-            `${JOURNEY_DIRECTORY_VARIABLE} is not set, so nothing told them where to report; ` +
-            'this run recorded nothing a later `--since` may narrow by\n',
-        );
-      } else if (!stitched.complete) {
-        process.stderr.write(`variance-authority: ${stitched.because}\n`);
-      }
-
-      const subjects: ObservedSubject[] = [];
-      for (const [owner, accumulated] of owners) {
-        subjects.push({
-          owner,
-          complete: accumulated.complete && stitched.complete,
-          journal: {
-            instrumentation: instrumentation!,
-            modules: [...accumulated.hits].map(([file, ordinals]) => ({
-              file,
-              hits: [...ordinals],
-            })),
-          },
-          ...(preconditions.has(owner) ? { preconditions: preconditions.get(owner)! } : {}),
-        });
-      }
-
-      // One record per run. The page's crossings and every head's describe the
-      // same executions of the same subjects, so a second call naming those
-      // subjects reads to the merge as a second run and retires what the first
-      // wrote. They are joined here and written once, against every inventory
-      // the run drove.
-      const joined = joinObservations([subjects, ...stitched.heads.values()]);
-      if (joined.length === 0) return;
-      const record = await recordExecution({
-        root,
-        subjects: joined,
-        // A run whose page carried no collector has no page inventory: every
-        // ordinal in it came from a head, and asking for a build nothing
-        // instrumented would decline a run that went fine.
-        ...(seen
-          ? {
-              ...(recording.label === undefined ? {} : { label: recording.label }),
-              ...(recording.modulesFile === undefined
-                ? {}
-                : { modulesFile: recording.modulesFile }),
-            }
-          : { modulesFile: [] }),
-        ...(recording.coverageFile === undefined ? {} : { coverageFile: recording.coverageFile }),
-        ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
-      });
-      if (!record.recorded) {
-        process.stderr.write(
-          `variance-authority: recorded no test execution — ${record.because}\n`,
-        );
+      try {
+        await contribute();
+      } finally {
+        // Only a listener this recorder opened for itself: one it was handed
+        // belongs to the worker, and closing somebody else's channel would take
+        // the announcements down with the accounts.
+        await owned?.close();
       }
     },
   };
+
+  async function contribute(): Promise<void> {
+    if (!seen && heads.length === 0) {
+      process.stderr.write(
+        'variance-authority: execution recording is on and the page under test has no ' +
+          'collector — build the application with `testSelectionProbes()` from ' +
+          '`@variance-authority/sense/journal`, or the next `--since` will run ' +
+          'every spec\n',
+      );
+      return;
+    }
+
+    // Every spec this worker ran, whether or not the page had anything to
+    // drain: a suite may instrument only its services, and the spec files are
+    // still the owners those services report against.
+    const everyOwner = new Set([...owners.keys(), ...minted.values()]);
+    const preconditions = new Map<string, readonly CoveragePrecondition[]>();
+    const incomplete = new Set<string>(failed);
+    for (const owner of everyOwner) {
+      const precondition = await preconditionOf(root, owner);
+      if (precondition !== undefined) preconditions.set(owner, [precondition]);
+    }
+
+    // Every head first: what they add up to decides whether the page's own
+    // observations may be believed whole, so it cannot be settled afterwards.
+    const stitched = stitchJourneys({
+      reports,
+      heads,
+      owners: minted,
+      preconditions,
+      incomplete,
+    });
+    if (!stitched.complete) {
+      process.stderr.write(`variance-authority: ${stitched.because}\n`);
+    }
+
+    const subjects: ObservedSubject[] = [];
+    for (const [owner, accumulated] of owners) {
+      subjects.push({
+        owner,
+        complete: accumulated.complete && stitched.complete,
+        journal: {
+          instrumentation: instrumentation!,
+          modules: [...accumulated.hits].map(([file, ordinals]) => ({
+            file,
+            hits: [...ordinals],
+          })),
+        },
+        ...(preconditions.has(owner) ? { preconditions: preconditions.get(owner)! } : {}),
+      });
+    }
+
+    // One record per run. The page's crossings and every head's describe the
+    // same executions of the same subjects, so a second call naming those
+    // subjects reads to the merge as a second run and retires what the first
+    // wrote. They are joined here and written once, against every inventory
+    // the run drove.
+    const joined = joinObservations([subjects, ...stitched.heads.values()]);
+    if (joined.length === 0) return;
+    const record = await recordExecution({
+      root,
+      subjects: joined,
+      // A run whose page carried no collector has no page inventory: every
+      // ordinal in it came from a head, and asking for a build nothing
+      // instrumented would decline a run that went fine.
+      ...(seen
+        ? {
+            ...(recording.label === undefined ? {} : { label: recording.label }),
+            ...(recording.modulesFile === undefined ? {} : { modulesFile: recording.modulesFile }),
+          }
+        : { modulesFile: [] }),
+      ...(recording.coverageFile === undefined ? {} : { coverageFile: recording.coverageFile }),
+      ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
+    });
+    if (!record.recorded) {
+      process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);
+    }
+  }
 }

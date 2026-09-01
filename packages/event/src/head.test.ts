@@ -6,34 +6,43 @@
 
 import { setTimeout as after } from 'node:timers/promises';
 import { afterEach, describe, expect, it } from 'vitest';
+import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
+import { installCarrier, listen, type Wire } from '@variance-authority/wire/listen';
 import {
-  EVENT_COOKIE,
   EVENT_HEAD_VARIABLE,
   EVENT_VARIABLE,
   collectEvents,
   type EventCollector,
   type HeadEventReport,
 } from './head.js';
-import { receiveEvents, type EventReceiver } from './receive.js';
 import { vae, vaEnd, vaStart } from './index.js';
 
 interface Heard {
-  readonly journey: string;
+  readonly journey: string | undefined;
   readonly report: HeadEventReport;
 }
 
 const opened: EventCollector[] = [];
-const listening: EventReceiver[] = [];
+const listening: Wire[] = [];
+const uninstalled: (() => void)[] = [];
 
 /** A driver listening on loopback, and everything it has been told so far. */
 async function driver(): Promise<{
   heard: Heard[];
-  endpointFor: (journey: string) => string;
+  /** The `Cookie` header a request driven by this execution carries. */
+  carrying: (journey: string) => string;
+  wire: Wire;
 }> {
   const heard: Heard[] = [];
-  const receiver = await receiveEvents((journey, report) => heard.push({ journey, report }));
-  listening.push(receiver);
-  return { heard, endpointFor: receiver.endpointFor };
+  const wire = await listen();
+  listening.push(wire);
+  wire.on('events', (journey, body) => heard.push({ journey, report: body as HeadEventReport }));
+  return {
+    heard,
+    carrying: (journey) =>
+      `${JOURNEY_COOKIE}=${journey}; ${RETURN_COOKIE}=${wire.addressFor(journey)}`,
+    wire,
+  };
 }
 
 function collect(head = 'api'): EventCollector {
@@ -49,8 +58,9 @@ async function settled(heard: readonly Heard[], count: number): Promise<readonly
 }
 
 afterEach(async () => {
+  for (const give of uninstalled.splice(0)) give();
   for (const collector of opened.splice(0)) collector.close();
-  for (const receiver of listening.splice(0)) await receiver.close();
+  for (const wire of listening.splice(0)) await wire.close();
   delete process.env[EVENT_VARIABLE];
   delete process.env[EVENT_HEAD_VARIABLE];
 });
@@ -60,7 +70,7 @@ describe('collectEvents', () => {
     const collector = collectEvents({ head: 'api' });
     expect(collector.collecting).toBe(false);
     expect(
-      collector.enter('http://127.0.0.1:1/a-journey', () => vae('checkout', 'upsell', 'decided')),
+      collector.enter(`${JOURNEY_COOKIE}=a-journey`, () => vae('checkout', 'upsell', 'decided')),
     ).toBeUndefined();
   });
 
@@ -69,19 +79,19 @@ describe('collectEvents', () => {
     process.env[EVENT_HEAD_VARIABLE] = 'pricing';
     const collector = collectEvents();
     opened.push(collector);
-    const { heard, endpointFor } = await driver();
+    const { heard, carrying } = await driver();
 
     expect(collector.head).toBe('pricing');
-    collector.enter(endpointFor('a-journey'), () => vae('checkout', 'upsell', 'decided'));
+    collector.enter(carrying('a-journey'), () => vae('checkout', 'upsell', 'decided'));
 
     expect((await settled(heard, 1))[0]?.report.head).toBe('pricing');
   });
 
   it('answers the driver that owns the execution it was serving', async () => {
     const collector = collect();
-    const { heard, endpointFor } = await driver();
+    const { heard, carrying } = await driver();
 
-    collector.enter(endpointFor('journey-one'), () => vae('checkout', 'upsell', 'decided'));
+    collector.enter(carrying('journey-one'), () => vae('checkout', 'upsell', 'decided'));
 
     expect(await settled(heard, 1)).toEqual([
       {
@@ -98,12 +108,13 @@ describe('collectEvents', () => {
     ]);
   });
 
-  it('takes the address off the cookie the request already carried', async () => {
+  it('finds the address among the cookies an application already sets', async () => {
     const collector = collect();
-    const { heard, endpointFor } = await driver();
-    const header = `session=abc; ${EVENT_COOKIE}=${endpointFor('journey-one')}; theme=dark`;
+    const { heard, carrying } = await driver();
 
-    collector.enter(header, () => vae('checkout', 'upsell', 'decided'));
+    collector.enter(`session=abc; ${carrying('journey-one')}; theme=dark`, () =>
+      vae('checkout', 'upsell', 'decided'),
+    );
 
     expect((await settled(heard, 1))[0]?.journey).toBe('journey-one');
   });
@@ -112,14 +123,14 @@ describe('collectEvents', () => {
     // The reason an execution is on the wire at all: without it, one test's wait
     // is satisfied by another test's decision and both pass for the wrong reason.
     const collector = collect();
-    const { heard, endpointFor } = await driver();
+    const { heard, carrying } = await driver();
 
     await Promise.all([
-      collector.enter(endpointFor('journey-one'), async () => {
+      collector.enter(carrying('journey-one'), async () => {
         await after(5);
         vae('checkout', 'upsell', 'decided');
       }),
-      collector.enter(endpointFor('journey-two'), async () => {
+      collector.enter(carrying('journey-two'), async () => {
         vae('checkout', 'upsell', 'decided');
         await after(10);
         vae('checkout', 'upsell', 'shown');
@@ -141,9 +152,9 @@ describe('collectEvents', () => {
 
   it('stays inside an execution across an await', async () => {
     const collector = collect();
-    const { heard, endpointFor } = await driver();
+    const { heard, carrying } = await driver();
 
-    await collector.enter(endpointFor('journey-one'), async () => {
+    await collector.enter(carrying('journey-one'), async () => {
       await after(1);
       vae('checkout', 'upsell', 'decided');
     });
@@ -156,6 +167,7 @@ describe('collectEvents', () => {
     const { heard } = await driver();
 
     collector.enter(undefined, () => vae('checkout', 'upsell', 'decided'));
+    collector.enter(`${JOURNEY_COOKIE}=journey-one`, () => vae('checkout', 'upsell', 'decided'));
     vae('checkout', 'upsell', 'decided');
 
     await after(50);
@@ -166,9 +178,9 @@ describe('collectEvents', () => {
     // The cookie is written by whoever is talking to the service. A process that
     // posts wherever it is told is a way to reach whatever that process can reach.
     const collector = collect();
-    const { heard, endpointFor } = await driver();
+    const { heard, carrying } = await driver();
 
-    collector.enter(endpointFor('journey-one').replace('127.0.0.1', 'example.com'), () =>
+    collector.enter(carrying('journey-one').replace('127.0.0.1', 'example.com'), () =>
       vae('checkout', 'upsell', 'decided'),
     );
 
@@ -178,9 +190,9 @@ describe('collectEvents', () => {
 
   it('carries the phase a process was bounded with', async () => {
     const collector = collect();
-    const { heard, endpointFor } = await driver();
+    const { heard, carrying } = await driver();
 
-    collector.enter(endpointFor('journey-one'), () => {
+    collector.enter(carrying('journey-one'), () => {
       vaStart('checkout', 'payment', 'authorizing');
       vaEnd('checkout', 'payment', 'authorizing');
     });
@@ -192,12 +204,12 @@ describe('collectEvents', () => {
     // The observer may not break the subject. A refused connection is the
     // driver's problem, and it surfaces there as a wait that times out.
     const collector = collect();
-    const { endpointFor } = await driver();
-    const endpoint = endpointFor('journey-one');
-    for (const receiver of listening.splice(0)) await receiver.close();
+    const { carrying } = await driver();
+    const header = carrying('journey-one');
+    for (const wire of listening.splice(0)) await wire.close();
 
     await expect(
-      collector.enter(endpoint, async () => {
+      collector.enter(header, async () => {
         vae('checkout', 'upsell', 'decided');
         await after(50);
       }),
@@ -206,46 +218,40 @@ describe('collectEvents', () => {
 
   it('gives the global back when it closes', async () => {
     const collector = collectEvents({ enabled: true, head: 'api' });
-    const { heard, endpointFor } = await driver();
+    const { heard, carrying } = await driver();
     collector.close();
 
-    collector.enter(endpointFor('journey-one'), () => vae('checkout', 'upsell', 'decided'));
+    collector.enter(carrying('journey-one'), () => vae('checkout', 'upsell', 'decided'));
 
     await after(50);
     expect(heard).toEqual([]);
   });
 });
 
-describe('receiveEvents', () => {
-  it('hands out one address per execution', async () => {
-    const { endpointFor } = await driver();
-    expect(endpointFor('journey-one')).not.toBe(endpointFor('journey-two'));
-    expect(endpointFor('journey-one')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/journey-one$/);
-  });
-
-  it('reads back an execution whose id would not survive a path', async () => {
+describe('a driver the head is running inside', () => {
+  it('takes the same announcement without a hop', async () => {
+    // A suite that starts its server in-process configures nothing extra and
+    // loses nothing: the report is a call, and the socket is never touched.
     const collector = collect();
-    const { heard, endpointFor } = await driver();
+    const { heard, wire } = await driver();
+    uninstalled.push(installCarrier(wire.carrier));
 
-    collector.enter(endpointFor('a/b c'), () => vae('checkout', 'upsell', 'decided'));
+    collector.enter(`${JOURNEY_COOKIE}=journey-one`, () =>
+      vae('checkout', 'upsell', 'decided'),
+    );
 
-    expect((await settled(heard, 1))[0]?.journey).toBe('a/b c');
+    expect((await settled(heard, 1))[0]?.journey).toBe('journey-one');
   });
 
-  it('drops a body it cannot read rather than losing the run', async () => {
-    const { heard, endpointFor } = await driver();
+  it('is preferred over an address, so a realm never talks to itself over a socket', async () => {
+    const collector = collect();
+    const near = await driver();
+    const far = await driver();
+    uninstalled.push(installCarrier(near.wire.carrier));
 
-    await fetch(endpointFor('journey-one'), { method: 'POST', body: 'from a later version' });
+    collector.enter(far.carrying('journey-one'), () => vae('checkout', 'upsell', 'decided'));
 
-    await after(50);
-    expect(heard).toEqual([]);
-  });
-
-  it('stops answering when it closes', async () => {
-    const receiver = await receiveEvents(() => {});
-    const endpoint = receiver.endpointFor('journey-one');
-    await receiver.close();
-
-    await expect(fetch(endpoint, { method: 'POST', body: '{}' })).rejects.toThrow();
+    expect((await settled(near.heard, 1))[0]?.journey).toBe('journey-one');
+    expect(far.heard).toEqual([]);
   });
 });

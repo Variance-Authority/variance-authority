@@ -4,10 +4,6 @@
 
 > Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a readable checkout for `scanRelations`, or source text plus a
 file/module id for the pure readers and transform. Resolution of bare specifiers
 also requires the checkout's installed dependencies and any `tsconfig.json` path
@@ -342,45 +338,62 @@ the subject's *name* never leaves the driver.
 The service wraps whatever it already has around a request:
 
 ```ts
-import { collectJourneys, journeyOf } from '@variance-authority/sense/journey';
+import { collectJourneys } from '@variance-authority/sense/journey';
 
 const journeys = collectJourneys({ head: 'api' });
 
 export function handled<Result>(cookie: string | undefined, run: () => Result): Result {
-  return journeys.enter(journeyOf(cookie), run);
+  return journeys.enter(cookie, run);
 }
 ```
 
 `head` is the `label` that service's build gave `testSelectionProbes()` — an
-ordinal means something only against the inventory that minted it — and
-`directory` is where its reports land. Both default to the environment,
-`VARIANCE_AUTHORITY_HEAD` and `VARIANCE_AUTHORITY_JOURNEYS`, so one `env` block
-configures a service that names neither. **Told no directory, `collectJourneys`
-installs nothing and `enter` is the identity**, which is what lets the call above
-ship to production rather than being conditional on a build flag.
+ordinal means something only against the inventory that minted it — and it
+defaults to `VARIANCE_AUTHORITY_HEAD`, as `enabled` defaults to whether
+`VARIANCE_AUTHORITY_JOURNEYS` is set, so one `env` block configures a service
+that names neither. **Told neither, `collectJourneys` installs nothing and
+`enter` is the identity**, which is what lets the call above ship to production
+rather than being conditional on a build flag.
+
+`enter` takes the request's `Cookie` header, and where the account goes from
+there is [`@variance-authority/wire`](../wire/README.md)'s business: the header
+carries the execution and the way home together, so the same call serves a
+service in another process and a server the suite started inside itself. Nothing
+in the head writes a file. A request carrying neither is one the run did not
+drive; its crossings join the process's rather than the nearest subject's.
 
 A journey's scope ends when what the body returned *settles*, not when the body
 returns. A handler that returns a promise is still inside its journey while that
 promise is pending, which is the only arrangement under which the code after an
-`await` is attributed at all. `flush` writes what has accumulated without ending
-anything; `close` restores the global and writes the rest.
+`await` is attributed at all. `flush` reports what has accumulated without ending
+anything; `close` restores the global and reports the rest.
 
 The driver mints and the driver joins, because it is the only participant holding
 `journey -> subject`:
 
 ```ts
 import { joinObservations, recordExecution } from '@variance-authority/sense/journal';
-import { mintJourney, stitchJourneys } from '@variance-authority/sense/journey';
+import {
+  journeyReportFrom,
+  mintJourney,
+  stitchJourneys,
+  type JourneyReport,
+} from '@variance-authority/sense/journey';
+import { listen } from '@variance-authority/wire/listen';
+
+const reports: JourneyReport[] = [];
+const wire = await listen();
+wire.on('journeys', (journey, body) => {
+  const report = journey === undefined ? undefined : journeyReportFrom(journey, body);
+  if (report !== undefined) reports.push(report);
+});
 
 const owners = new Map<string, string>();
 const journey = mintJourney(); // one per attempt: a flake and its retry are two
 owners.set(journey, 'checkout.spec.ts');
+// Drive the subject with `wire.addressFor(journey)` on the return cookie.
 
-const stitched = await stitchJourneys({
-  directory: process.env['VARIANCE_AUTHORITY_JOURNEYS']!,
-  heads: ['api'],
-  owners,
-});
+const stitched = stitchJourneys({ reports, heads: ['api'], owners });
 
 await recordExecution({
   root: process.cwd(),
@@ -397,19 +410,20 @@ that one call reads. Two builds of overlapping source can answer the same ordina
 differently; where their inventories disagree about a file, that file is recorded
 as not instrumented, so unknown widens where a guess would skip.
 
-`stitchJourneys` takes the run `directory`, the `heads` this run declares, the
-`owners` map holding `journey -> subject`, and two carriers for the driver's own
-knowledge: `preconditions`, the inputs each subject's observation depended on,
-and `incomplete`, the subjects the runner already knows did not finish. A subject
-the run failed contributes its crossings and can never justify an exclusion.
+`stitchJourneys` takes the `reports` this run was told, the `heads` it declares,
+the `owners` map holding `journey -> subject`, and two carriers for the driver's
+own knowledge: `preconditions`, the inputs each subject's observation depended
+on, and `incomplete`, the subjects the runner already knows did not finish. A
+subject the run failed contributes its crossings and can never justify an
+exclusion.
 
 `mintJourney` produces a UUID and nothing else. Same-origin is the whole of the
 filter on who ever sees it, the browser enforces that, cookies ignore ports, and
 a bare UUID has no character an engine encodes differently. Reports for journeys
 no subject claimed are counted in `unclaimed` rather than attributed: that is
-traffic this run did not drive, and a health check is not a subject.
-`readJourneyReports` reads a run directory directly, for a driver that wants the
-reports before anything is joined.
+traffic this run did not drive, and a health check is not a subject. An account
+a head could not deliver is counted on the next one it does deliver, and a head
+that lost all of them is silent — which the section below answers.
 
 ### What a service pays, and what happens without one
 
@@ -418,7 +432,7 @@ Two facts about the setup, and they point in opposite directions.
 **Most systems need none of it.** A Storybook preview and a Vitest file are each
 one process, and the realm that executes is the realm that is watched. They
 declare no heads, so nothing can be missing, and the `heads` list is empty by
-default: no cookie is minted, no report directory is read, and no code path above
+default: no cookie is minted, nothing is listening, and no code path above
 runs. This is machinery for a product that spans processes, and a product that
 does not spans nothing to trace.
 

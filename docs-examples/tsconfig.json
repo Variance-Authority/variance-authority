@@ -33,6 +33,9 @@
       "path": "../packages/event"
     },
     {
+      "path": "../packages/wire"
+    },
+    {
       "path": "../packages/core"
     },
     {

@@ -4,10 +4,6 @@
 
 > Announce what the code decided, so a test waits for the decision instead of guessing when it was made.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** application source you can add a line to, and a driver that
 installs a listener for the run. Nothing is announced where no listener is
 installed, so a production bundle carries the calls and says nothing.
@@ -118,9 +114,11 @@ A wait resolves against announcements **already heard** before it subscribes, so
 else would be a race with a stopwatch in it.
 
 `eventCollectorSource()` returns the source a driver evaluates in the page before
-navigation, and `EVENT_REPORT` is the name it calls back on. Neither needs a
-build step: the page's sink appears underneath an application that already
-announces, and it holds what it hears until the channel exists.
+navigation; it reports through the carrier
+[`@variance-authority/wire`](../wire/README.md) puts in the same page, in either
+evaluation order. Neither needs a build step: the page's sink appears underneath
+an application that already announces, and it holds what it hears until the
+carrier exists.
 
 ## A service that announces too
 
@@ -152,18 +150,18 @@ worth something for the length of one execution and nothing afterwards: there is
 no report directory, no file to clean up, and no artifact to mistake for evidence
 later.
 
-The channel is the cookie the driver already sets. Beside the journey it leaves a
-**return address** — a loopback URL that belongs to one execution — and a head
-answers to it as it announces. `enter` takes the request's `Cookie` header, or
-the address itself where a service has an accessor of its own; a request the run
-did not drive carries neither, and announces to nobody.
+The channel is the cookie the driver already sets, and it is not this package's:
+[`@variance-authority/wire`](../wire/README.md) carries announcements and
+coverage accounts on one medium under one execution id, and only reports which of
+the two was speaking. `enter` takes the request's `Cookie` header, or the pairs a
+service's own accessor holds joined the same way; a request the run did not drive
+carries neither, and announces to nobody.
 
-Only loopback `http` addresses are accepted, and only when
-`VARIANCE_AUTHORITY_EVENTS` says this process is under a run. A cookie is written
-by whoever is talking to the service, and a process that posts wherever a cookie
-says is a hole rather than an instrument. Every send that fails is swallowed, for
-the reason the sink swallows a throw: that failure belongs to the driver, where
-it reads as a wait that times out and prints what it did hear.
+That the address is a cookie is why the wire refuses everything but loopback
+`http`, and none of it is installed unless `VARIANCE_AUTHORITY_EVENTS` says this
+process is under a run. Every send that fails is swallowed, for the reason the
+sink swallows a throw: that failure belongs to the driver, where it reads as a
+wait that times out and prints what it did hear.
 
 `EventCollectorOptions` takes `head`, the name this service announces under, and
 `enabled`, whether to install a sink at all. They default to
@@ -173,11 +171,10 @@ driver too, so one environment block configures both ends. Not under a run,
 `collecting` is false, nothing is installed, and the call costs an `if`. `close`
 gives the global back.
 
-`receiveEvents(onReport)` is the other end of the wire. It listens on an
-ephemeral loopback port, hands out one address per execution through
-`endpointFor`, and calls back with the execution and the `HeadEventReport`, in
-the order a head said them. `ReceiverOptions` takes `host`, defaulting to
-`127.0.0.1`. The execution is in the address rather than in the body, so a head
+`listen()`, from `@variance-authority/wire/listen`, is the other end. It hands
+out one address per execution and calls back with the execution and the
+`HeadEventReport`, in the order a head said them, for whoever asked to hear
+`'events'`. The execution is in the address rather than in the body, so a head
 repeats nothing it was told and a report cannot claim an execution by writing one
 down.
 

@@ -982,22 +982,17 @@
         "vae": "function"
       },
       "./collect": {
-        "EVENT_COOKIE": "const",
         "EVENT_HEAD_VARIABLE": "const",
-        "EVENT_REPORT": "const",
         "EVENT_VARIABLE": "const",
         "EventCollector": "interface",
         "EventCollectorOptions": "interface",
         "EventLog": "interface",
-        "EventReceiver": "interface",
         "HeadEventReport": "interface",
-        "ReceiverOptions": "interface",
         "RecordedEvent": "interface",
         "WaitOptions": "interface",
         "collectEvents": "function",
         "createEventLog": "function",
-        "eventCollectorSource": "function",
-        "receiveEvents": "function"
+        "eventCollectorSource": "function"
       }
     }
   },
@@ -1511,6 +1506,7 @@
         "VarianceOptions": "interface",
         "VarianceRuntime": "interface",
         "VarianceSession": "interface",
+        "VarianceWireFixtures": "interface",
         "VarianceWorkerFixtures": "interface",
         "acquire": "function",
         "assertUnchanged": "function",
@@ -1521,7 +1517,8 @@
         "ownerOf": "function",
         "toBeUnchanged": "function",
         "varianceFixtures": "const",
-        "varianceMatchers": "const"
+        "varianceMatchers": "const",
+        "varianceWireFixtures": "const"
       }
     }
   },
@@ -2322,8 +2319,9 @@
       },
       "./journey": {
         "JOURNEY_COOKIE": "const",
-        "JOURNEY_DIRECTORY_VARIABLE": "const",
         "JOURNEY_HEAD_VARIABLE": "const",
+        "JOURNEY_VARIABLE": "const",
+        "JourneyAccount": "interface",
         "JourneyCollector": "interface",
         "JourneyCollectorOptions": "interface",
         "JourneyReport": "interface",
@@ -2331,8 +2329,8 @@
         "StitchedJourneys": "interface",
         "collectJourneys": "function",
         "journeyOf": "function",
+        "journeyReportFrom": "function",
         "mintJourney": "function",
-        "readJourneyReports": "function",
         "stitchJourneys": "function"
       },
       "./vitest": {
@@ -2853,6 +2851,51 @@
         "resetCaptures": "function",
         "snapshotValue": "function",
         "writeCapture": "function"
+      }
+    }
+  },
+  "@variance-authority/wire": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./listen": {
+          "types": "./dist/listen.d.ts",
+          "default": "./dist/listen.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "Channel": "interface",
+        "JOURNEY_COOKIE": "const",
+        "Participant": "type",
+        "RETURN_COOKIE": "const",
+        "WIRE_SINK": "const",
+        "WireCarrier": "type",
+        "channelFrom": "function"
+      },
+      "./listen": {
+        "ListenOptions": "interface",
+        "WIRE_REPORT": "const",
+        "Wire": "interface",
+        "WireHandler": "type",
+        "installCarrier": "function",
+        "listen": "function",
+        "wireCarrierSource": "function"
       }
     }
   }

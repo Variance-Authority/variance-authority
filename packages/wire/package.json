@@ -1,7 +1,7 @@
 {
-  "name": "@variance-authority/event",
+  "name": "@variance-authority/wire",
   "version": "0.0.0-beta.1",
-  "description": "Announce what the code decided, so a test waits for the decision instead of guessing when it was made.",
+  "description": "The address a process under test answers on, so what it reports reaches the run that started it and nothing is written down.",
   "keywords": [
     "variance-authority",
     "flaky-tests",
@@ -16,24 +16,21 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Variance-Authority/variance-authority.git",
-    "directory": "packages/event"
+    "directory": "packages/wire"
   },
   "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "engines": {
     "node": ">=22"
   },
   "type": "module",
-  "dependencies": {
-    "@variance-authority/wire": "workspace:^"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./collect": {
-      "types": "./dist/collect.d.ts",
-      "default": "./dist/collect.js"
+    "./listen": {
+      "types": "./dist/listen.d.ts",
+      "default": "./dist/listen.js"
     }
   },
   "main": "./dist/index.js",

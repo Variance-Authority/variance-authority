@@ -2634,6 +2634,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/case-journey-tracing@workspace:cases/journey-tracing-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-journey-tracing@workspace:cases/journey-tracing-case"
+  dependencies:
+    "@playwright/test": "npm:^1.49.0"
+    "@variance-authority/event": "workspace:^"
+    "@variance-authority/playwright-test": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
+    vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/case-playwright-additive@workspace:cases/playwright-additive-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/case-playwright-additive@workspace:cases/playwright-additive-case"
@@ -2719,6 +2731,8 @@ __metadata:
 "@variance-authority/event@workspace:^, @variance-authority/event@workspace:packages/event":
   version: 0.0.0-use.local
   resolution: "@variance-authority/event@workspace:packages/event"
+  dependencies:
+    "@variance-authority/wire": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -2931,6 +2945,7 @@ __metadata:
     "@variance-authority/react": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     "@variance-authority/store": "workspace:^"
+    "@variance-authority/wire": "workspace:^"
   peerDependencies:
     "@playwright/test": ">=1.49 <2"
   languageName: unknown
@@ -3052,6 +3067,7 @@ __metadata:
   resolution: "@variance-authority/sense@workspace:packages/sense"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/wire": "workspace:^"
     oxc-parser: "npm:^0.144.0"
     oxc-resolver: "npm:^11.24.2"
   peerDependencies:
@@ -3157,6 +3173,12 @@ __metadata:
     jsdom: "npm:^30.0.1"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/wire@workspace:^, @variance-authority/wire@workspace:packages/wire":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/wire@workspace:packages/wire"
   languageName: unknown
   linkType: soft
 

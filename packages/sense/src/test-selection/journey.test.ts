@@ -6,14 +6,17 @@ import { executionCollectorSource, testSelectionProbes } from './probes.js';
 import { joinObservations, recordExecution } from './journal.js';
 import {
   JOURNEY_COOKIE,
-  JOURNEY_DIRECTORY_VARIABLE,
   JOURNEY_HEAD_VARIABLE,
+  JOURNEY_VARIABLE,
   collectJourneys,
   journeyOf,
+  journeyReportFrom,
   mintJourney,
-  readJourneyReports,
   stitchJourneys,
+  type JourneyReport,
 } from './journey.js';
+import { RETURN_COOKIE } from '@variance-authority/wire';
+import { listen, type Wire } from '@variance-authority/wire/listen';
 import { selectTestFiles } from './index.js';
 
 /**
@@ -48,11 +51,36 @@ function evaluate(transformed: string): Currency {
   return (globalThis as unknown as Record<string, unknown>)['__head_test_currency'] as Currency;
 }
 
-afterEach(() => {
+const listening: Wire[] = [];
+
+afterEach(async () => {
+  for (const wire of listening.splice(0)) await wire.close();
   const global = globalThis as unknown as Record<string, unknown>;
   delete global['__head_test_currency'];
   delete global['__VA__'];
 });
+
+/** What a head answers to, and everything it has said so far. */
+interface Driver {
+  readonly reports: JourneyReport[];
+  /** The `Cookie` header a request driven by this journey carries. */
+  readonly carrying: (journey: string) => string;
+}
+
+async function driver(): Promise<Driver> {
+  const reports: JourneyReport[] = [];
+  const wire = await listen();
+  listening.push(wire);
+  wire.on('journeys', (journey, body) => {
+    const report = journey === undefined ? undefined : journeyReportFrom(journey, body);
+    if (report !== undefined) reports.push(report);
+  });
+  return {
+    reports,
+    carrying: (journey) =>
+      `theme=dark; ${JOURNEY_COOKIE}=${journey}; ${RETURN_COOKIE}=${wire.addressFor(journey)}`,
+  };
+}
 
 async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-journey-'));
@@ -68,7 +96,6 @@ function diffAt(file: string, line: number): string {
 }
 
 interface Head {
-  readonly directory: string;
   readonly modulesFile: string;
   readonly coverageFile: string;
   readonly currency: Currency;
@@ -87,7 +114,6 @@ async function head(root: string, label = 'build'): Promise<Head> {
   )!;
   await plugin.buildEnd();
   return {
-    directory: resolve(root, 'journeys'),
     modulesFile,
     coverageFile: resolve(root, 'coverage.bin'),
     currency: evaluate(transformed.code),
@@ -97,8 +123,8 @@ async function head(root: string, label = 'build'): Promise<Head> {
 describe('a head reports what each journey entered', () => {
   it('keeps two journeys apart while they interleave inside one module', async () => {
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
-      const collector = collectJourneys({ head: 'api', directory });
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
       const parts = await head(root);
       const german = mintJourney();
       const english = mintJourney();
@@ -106,14 +132,14 @@ describe('a head reports what each journey entered', () => {
       // Both start before either finishes: `currency('de')` runs to its await,
       // yields, and `currency('en')` enters the same module underneath it.
       const [first, second] = await Promise.all([
-        collector.enter(german, () => parts.currency('de')),
-        collector.enter(english, () => parts.currency('en')),
+        collector.enter(driven.carrying(german), () => parts.currency('de')),
+        collector.enter(driven.carrying(english), () => parts.currency('en')),
       ]);
-      collector.close();
+      await collector.close();
       expect([first, second]).toEqual(['1200 euros', '1200 dollars']);
 
-      const stitched = await stitchJourneys({
-        directory,
+      const stitched = stitchJourneys({
+        reports: driven.reports,
         heads: ['api'],
         owners: new Map([
           [german, 'euros.spec.ts'],
@@ -143,21 +169,26 @@ describe('a head reports what each journey entered', () => {
     // The control, and the reason the case above is evidence rather than a
     // coincidence: identical source, identical interleaving, one counter set.
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
-      const collector = collectJourneys({ head: 'api', directory });
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
       const parts = await head(root);
 
       await Promise.all([
         collector.enter(undefined, () => parts.currency('de')),
         collector.enter(undefined, () => parts.currency('en')),
       ]);
-      collector.close();
+      // One driven request afterwards, because a process with no way home has
+      // nobody to tell. What that request carries is its own account and the
+      // process's: its own is empty, and the process's is both branches.
+      const german = mintJourney();
+      await collector.enter(driven.carrying(german), () => 0);
+      await collector.close();
 
-      const stitched = await stitchJourneys({
-        directory,
+      const stitched = stitchJourneys({
+        reports: driven.reports,
         heads: ['api'],
         owners: new Map([
-          [mintJourney(), 'euros.spec.ts'],
+          [german, 'euros.spec.ts'],
           [mintJourney(), 'dollars.spec.ts'],
         ]),
       });
@@ -177,14 +208,14 @@ describe('a head reports what each journey entered', () => {
 
   it('attributes a scope to the journey until what it returned settles', async () => {
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
-      const collector = collectJourneys({ head: 'api', directory });
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
       const parts = await head(root);
       const journey = mintJourney();
-      await collector.enter(journey, () => parts.currency('de'));
-      collector.close();
+      await collector.enter(driven.carrying(journey), () => parts.currency('de'));
+      await collector.close();
 
-      const reports = await readJourneyReports(directory);
+      const reports = driven.reports;
       const mine = reports.filter((report) => report.journey === journey);
       expect(mine).toHaveLength(1);
       // Not just the entry block: the resume block after the `await` is in here
@@ -198,15 +229,15 @@ describe('a head reports what each journey entered', () => {
 describe('a head that was not there', () => {
   it('refuses to let any subject in the run justify an exclusion', async () => {
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
-      const collector = collectJourneys({ head: 'api', directory });
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
       const parts = await head(root);
       const journey = mintJourney();
-      await collector.enter(journey, () => parts.currency('de'));
-      collector.close();
+      await collector.enter(driven.carrying(journey), () => parts.currency('de'));
+      await collector.close();
 
-      const stitched = await stitchJourneys({
-        directory,
+      const stitched = stitchJourneys({
+        reports: driven.reports,
         heads: ['api', 'pricing'],
         owners: new Map([[journey, 'euros.spec.ts']]),
       });
@@ -220,15 +251,15 @@ describe('a head that was not there', () => {
 
   it('drops out of the whole observations a later run may narrow by', async () => {
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
-      const collector = collectJourneys({ head: 'api', directory });
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
       const parts = await head(root);
       const journey = mintJourney();
-      await collector.enter(journey, () => parts.currency('de'));
-      collector.close();
+      await collector.enter(driven.carrying(journey), () => parts.currency('de'));
+      await collector.close();
 
-      const stitched = await stitchJourneys({
-        directory,
+      const stitched = stitchJourneys({
+        reports: driven.reports,
         heads: ['api', 'pricing'],
         owners: new Map([[journey, 'euros.spec.ts']]),
       });
@@ -251,42 +282,40 @@ describe('a head that was not there', () => {
     });
   });
 
-  it('declares nothing missing when the run declares no heads', async () => {
-    await inRoot(async (root) => {
-      const stitched = await stitchJourneys({
-        directory: resolve(root, 'never-written'),
-        heads: [],
-        owners: new Map([[mintJourney(), 'unit.spec.ts']]),
-      });
-      expect(stitched).toMatchObject({ complete: true, silent: [], unclaimed: 0 });
-      expect(stitched.heads.size).toBe(0);
-      expect(stitched.because).toBeUndefined();
+  it('declares nothing missing when the run declares no heads', () => {
+    const stitched = stitchJourneys({
+      reports: [],
+      heads: [],
+      owners: new Map([[mintJourney(), 'unit.spec.ts']]),
     });
+    expect(stitched).toMatchObject({ complete: true, silent: [], unclaimed: 0 });
+    expect(stitched.heads.size).toBe(0);
+    expect(stitched.because).toBeUndefined();
   });
 });
 
 describe('a process nobody asked to report', () => {
   it('installs nothing and runs the body as itself', () => {
     const before = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
-    const collector = collectJourneys({ head: 'api', directory: undefined });
+    const collector = collectJourneys({ head: 'api', enabled: false });
     expect(collector.collecting).toBe(false);
-    expect(collector.enter(mintJourney(), () => 41 + 1)).toBe(42);
+    expect(collector.enter(`${JOURNEY_COOKIE}=${mintJourney()}`, () => 41 + 1)).toBe(42);
     expect(Object.getOwnPropertyDescriptor(globalThis, '__VA__')).toEqual(before);
   });
 
   it('lets the page collector defer to a head that is already collecting', async () => {
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
-      const collector = collectJourneys({ head: 'api', directory });
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
       // The build hoists the page collector in front of every instrumented
       // module; in a service it arrives after the head installed its own.
       new Function(executionCollectorSource())();
       const parts = await head(root);
       const journey = mintJourney();
-      await collector.enter(journey, () => parts.currency('de'));
-      collector.close();
+      await collector.enter(driven.carrying(journey), () => parts.currency('de'));
+      await collector.close();
 
-      const reports = await readJourneyReports(directory);
+      const reports = driven.reports;
       expect(reports.some((report) => report.journey === journey)).toBe(true);
     });
   });
@@ -310,13 +339,17 @@ describe('the wire', () => {
 
   it('counts traffic the run did not drive rather than attributing it', async () => {
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
-      const collector = collectJourneys({ head: 'api', directory });
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
       const parts = await head(root);
-      await collector.enter('a-journey-nobody-minted', () => parts.currency('de'));
-      collector.close();
+      await collector.enter(driven.carrying('a-journey-nobody-minted'), () => parts.currency('de'));
+      await collector.close();
 
-      const stitched = await stitchJourneys({ directory, heads: ['api'], owners: new Map() });
+      const stitched = stitchJourneys({
+        reports: driven.reports,
+        heads: ['api'],
+        owners: new Map(),
+      });
       expect(stitched.unclaimed).toBe(1);
       expect(stitched.heads.get('api')).toEqual([]);
     });
@@ -331,22 +364,22 @@ describe('two heads over one file', () => {
     // the block sets agree and the merge unions them — which is the whole of
     // why one index can hold both.
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
-      const api = collectJourneys({ head: 'api', directory });
+      const driven = await driver();
+      const api = collectJourneys({ head: 'api', enabled: true });
       const apiParts = await head(root, 'api');
       const german = mintJourney();
-      await api.enter(german, () => apiParts.currency('de'));
-      api.close();
+      await api.enter(driven.carrying(german), () => apiParts.currency('de'));
+      await api.close();
 
-      const worker = collectJourneys({ head: 'worker', directory });
+      const worker = collectJourneys({ head: 'worker', enabled: true });
       const workerParts = await head(root, 'worker');
       const english = mintJourney();
-      await worker.enter(english, () => workerParts.currency('en'));
-      worker.close();
+      await worker.enter(driven.carrying(english), () => workerParts.currency('en'));
+      await worker.close();
 
       const coverageFile = resolve(root, 'coverage.bin');
-      const stitched = await stitchJourneys({
-        directory,
+      const stitched = stitchJourneys({
+        reports: driven.reports,
         heads: ['api', 'worker'],
         owners: new Map([
           [german, 'euros.spec.ts'],
@@ -378,25 +411,25 @@ describe('two heads over one file', () => {
 });
 
 describe('one environment block configures both ends', () => {
-  it('takes the head name and the report directory from the environment', async () => {
+  it('takes the head name and the fact of the run from the environment', async () => {
     await inRoot(async (root) => {
-      const directory = resolve(root, 'journeys');
+      const driven = await driver();
       process.env[JOURNEY_HEAD_VARIABLE] = 'api';
-      process.env[JOURNEY_DIRECTORY_VARIABLE] = directory;
+      process.env[JOURNEY_VARIABLE] = '1';
       try {
         const collector = collectJourneys();
         expect(collector.collecting).toBe(true);
         expect(collector.head).toBe('api');
         const parts = await head(root);
         const journey = mintJourney();
-        await collector.enter(journey, () => parts.currency('de'));
-        collector.close();
+        await collector.enter(driven.carrying(journey), () => parts.currency('de'));
+        await collector.close();
 
-        const reports = await readJourneyReports(directory);
+        const reports = driven.reports;
         expect(reports.map((report) => report.head)).toContain('api');
       } finally {
         delete process.env[JOURNEY_HEAD_VARIABLE];
-        delete process.env[JOURNEY_DIRECTORY_VARIABLE];
+        delete process.env[JOURNEY_VARIABLE];
       }
     });
   });

@@ -25,15 +25,21 @@
  * Three parts, and each is somebody's:
  *
  * 1. **The head** ({@link collectJourneys}) runs inside the service. It installs
- *    a journey-keyed factory behind `globalThis.__VA__` and writes one report per
- *    journey into a directory it is told about. Told nothing, it installs
- *    nothing: the same call ships to production and costs an `if`.
- * 2. **The wire** ({@link JOURNEY_COOKIE}, {@link mintJourney},
- *    {@link journeyOf}) is a cookie holding a UUID. Same-origin is the filter,
- *    the browser enforces it, cookies ignore ports, and a bare UUID has no
- *    character any engine encodes differently.
+ *    a journey-keyed factory behind `globalThis.__VA__` and reports one account
+ *    per journey the moment that journey's last scope settles. Told nothing, it
+ *    installs nothing: the same call ships to production and costs an `if`.
+ * 2. **The wire** is `@variance-authority/wire`, shared with
+ *    `@variance-authority/event` down to the cookie: one id per execution, one
+ *    way home, and nothing written down. Same-origin is the filter, the browser
+ *    enforces it, cookies ignore ports, and a bare UUID has no character any
+ *    engine encodes differently. An account is **acknowledged** rather than
+ *    fired and forgotten, because the two instruments on that wire fail in
+ *    opposite directions: a lost announcement is a wait that times out where
+ *    somebody is reading, and a lost account is a subject skipped in silence.
  * 3. **The join** ({@link stitchJourneys}) runs in the driver, which is the only
- *    participant that knows which subject each journey was.
+ *    participant that knows which subject each journey was — and the only one
+ *    that writes anything down. A head persists nothing at all: it holds counts
+ *    for as long as a scope is open and reports them to whoever left an address.
  *
  * ## The probe does not change, and this is why
  *
@@ -60,42 +66,46 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
-import { codeUnitOrder, isMissing } from './instrumented-modules.js';
-import type { CoveragePrecondition } from './index.js';
-import type { ObservedSubject } from './journal.js';
+import { codeUnitOrder } from './instrumented-modules.js';
+import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 
 /**
- * The cookie a journey rides on.
- *
- * Deliberately not a short name, for the reason `EXECUTION_GLOBAL` is not: this
- * shares a namespace with whatever the application already sets, and a collision
- * would surface as a confusing selection rather than as an error.
+ * The join, re-exported so one import serves a driver: a participant that
+ * stitches also mints, and splitting that across two entry points would be a
+ * file layout leaking into somebody else's import block.
  */
-export const JOURNEY_COOKIE = 'variance-authority-journey';
+export {
+  journeyReportFrom,
+  stitchJourneys,
+  type JourneyAccount,
+  type JourneyReport,
+  type StitchedJourneys,
+  type StitchJourneysOptions,
+} from './stitch.js';
 
-/** Where a head reports. Absent, a head installs nothing. */
-export const JOURNEY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_JOURNEYS';
+/**
+ * The cookie a journey rides on, named by the wire rather than here.
+ *
+ * The id is the wire's identity and not this instrument's: an announcement and
+ * an account are two things said about *the same execution*, so there is one
+ * cookie and both read it.
+ */
+export { JOURNEY_COOKIE };
+
+/**
+ * Whether this process reports at all. Absent, a head installs nothing.
+ *
+ * Any value will do — where to report is a fact about the request, carried in by
+ * whoever drove it, and not something an environment can know in advance.
+ */
+export const JOURNEY_VARIABLE = 'VARIANCE_AUTHORITY_JOURNEYS';
 
 /** What a head calls itself, when the process is started rather than configured. */
 export const JOURNEY_HEAD_VARIABLE = 'VARIANCE_AUTHORITY_HEAD';
 
-/**
- * Crossings that belong to no journey, and the name they report under.
- *
- * A module's own initialization runs once per process, before any request, so
- * every journey depends on it and none records it. The same is true of a
- * background timer and of anything a handler left running past its scope. Those
- * are folded into **every** subject by {@link stitchJourneys} — over-including,
- * in the direction [`selecting.md`](../../../../docs/selecting.md) argues for,
- * rather than pretending a process can name a caller it never had. The leading
- * space keeps it out of the space a driver mints from: a UUID has none.
- */
-const UNATTRIBUTED = '\u0000unattributed';
 
 /** One execution of one subject, as it crosses the wire: opaque, and nothing else. */
 export function mintJourney(): string {
@@ -129,40 +139,35 @@ export interface JourneyCollectorOptions {
    */
   readonly head?: string;
   /**
-   * Where reports are written. Defaults to {@link JOURNEY_DIRECTORY_VARIABLE}.
-   * Absent, nothing is installed and {@link JourneyCollector.enter} is the
-   * identity — which is how this call survives being left in a production build.
+   * Whether to install the factory at all. Defaults to whether
+   * {@link JOURNEY_VARIABLE} is set. False installs nothing and makes
+   * {@link JourneyCollector.enter} the identity — which is how this call
+   * survives being left in a production build.
    */
-  readonly directory?: string;
+  readonly enabled?: boolean;
 }
 
 /** A head's participation in a run, or its cheap absence. */
 export interface JourneyCollector {
-  /** False when no directory was configured: nothing installed, nothing written. */
+  /** False when nothing said this process reports: nothing installed, nothing held. */
   readonly collecting: boolean;
   readonly head: string;
   /**
-   * Run `body` as part of `journey`, so everything it enters — including
-   * whatever it awaits — is attributed to that subject and to no other.
+   * Run `body` as part of the execution the request belongs to, so everything it
+   * enters — including whatever it awaits — is attributed to that subject and to
+   * no other.
    *
-   * `undefined` is honest and is not an error: a request with no cookie is
-   * something the run did not drive, and its crossings go to the unattributed
-   * bucket rather than to whichever subject happened to be nearby.
+   * `carried` is the request's `Cookie` header; a head with a request-scoped
+   * cookie accessor of its own may pass the pairs it holds joined the same way.
+   * A request carrying neither an execution nor a way home is honest and is not
+   * an error: it is something the run did not drive, and its crossings go to the
+   * unattributed bucket rather than to whichever subject happened to be nearby.
    */
-  readonly enter: <Result>(journey: string | undefined, body: () => Result) => Result;
-  /** Write out everything held so far, including crossings still inside open scopes. */
-  readonly flush: () => void;
+  readonly enter: <Result>(carried: string | undefined, body: () => Result) => Result;
+  /** Report everything held so far, including crossings still inside open scopes. */
+  readonly flush: () => Promise<void>;
   /** Stop collecting and restore what was on the global before. */
-  readonly close: () => void;
-}
-
-/** One head's account of one journey, as it lands in the run directory. */
-export interface JourneyReport {
-  readonly version: 1;
-  readonly instrumentation: string;
-  readonly head: string;
-  readonly journey: string;
-  readonly modules: readonly ExecutedModule[];
+  readonly close: () => Promise<void>;
 }
 
 type Factory = (file: string, count: number) => Uint32Array;
@@ -171,11 +176,11 @@ type Factory = (file: string, count: number) => Uint32Array;
  * Install the journey-keyed collector in this process.
  *
  * ```js
- * import { collectJourneys, journeyOf } from '@variance-authority/sense/journey';
+ * import { collectJourneys } from '@variance-authority/sense/journey';
  *
  * const journeys = collectJourneys();
  * server.on('request', (request, response) =>
- *   journeys.enter(journeyOf(request.headers.cookie), () => handle(request, response)));
+ *   journeys.enter(request.headers.cookie, () => handle(request, response)));
  * ```
  *
  * One line, and it is the whole of the extra setup a service needs — plus
@@ -184,23 +189,25 @@ type Factory = (file: string, count: number) => Uint32Array;
  */
 export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyCollector {
   const head = options.head ?? process.env[JOURNEY_HEAD_VARIABLE] ?? 'head';
-  const directory = options.directory ?? process.env[JOURNEY_DIRECTORY_VARIABLE];
-  if (directory === undefined) {
+  const enabled = options.enabled ?? process.env[JOURNEY_VARIABLE] !== undefined;
+  if (!enabled) {
     return {
       collecting: false,
       head,
-      enter: (_journey, body) => body(),
-      flush: () => {},
-      close: () => {},
+      enter: (_carried, body) => body(),
+      flush: async () => {},
+      close: async () => {},
     };
   }
 
   const store = new AsyncLocalStorage<string>();
+  const channels = new Map<string, Channel>();
+  const sending = new Set<Promise<void>>();
+  let lost = 0;
   const counters = new Map<string, Map<string, Uint32Array>>();
   const factories = new Map<string, Factory>();
   const depth = new Map<string, number>();
   const previous = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
-  let made = false;
 
   // One factory object per journey, cached: the probe re-resolves exactly when
   // this identity moves, so a fresh closure per increment would be correct and
@@ -222,7 +229,7 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     return factory;
   };
 
-  const write = (journey: string): void => {
+  const report = (journey: string, over: Channel | undefined): void => {
     const modules = counters.get(journey);
     counters.delete(journey);
     factories.delete(journey);
@@ -236,22 +243,28 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       if (hits.length > 0) entered.push({ file, hits });
     }
     if (entered.length === 0) return;
-    const report: JourneyReport = {
+    if (over === undefined) return;
+    const account: JourneyAccount = {
       version: 1,
       instrumentation: INSTRUMENTATION_ID,
       head,
-      journey,
+      scope: journey === UNATTRIBUTED ? 'process' : 'journey',
+      ...(lost === 0 ? {} : { lost }),
       modules: entered.sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
-    if (!made) {
-      mkdirSync(directory, { recursive: true });
-      made = true;
-    }
-    // Synchronous, and one file per journey rather than one per process at the
-    // end. A driver reads this directory while the service is still serving, and
-    // a report that waited for shutdown would be read by nobody: `webServer`
-    // teardown happens after the workers that needed it have already recorded.
-    writeFileSync(resolve(directory, `${process.pid}-${randomUUID()}.json`), JSON.stringify(report));
+    // Now, rather than once at shutdown. A driver stitches while the service is
+    // still serving, and an account that waited for teardown would be read by
+    // nobody: `webServer` teardown happens after the workers that needed it have
+    // already recorded.
+    const sent = over
+      .deliver('journeys', account)
+      .catch(() => {
+        lost += 1;
+      })
+      .finally(() => {
+        sending.delete(sent);
+      });
+    sending.add(sent);
   };
 
   const release = (journey: string): void => {
@@ -261,27 +274,35 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       return;
     }
     depth.delete(journey);
-    write(journey);
-    write(UNATTRIBUTED);
+    const over = channels.get(journey);
+    channels.delete(journey);
+    report(journey, over);
+    // Whatever the process did outside any journey goes home on the address that
+    // is open right now. It belongs to every subject, so which one carries it is
+    // nobody's business but the driver's, and the driver unions them.
+    report(UNATTRIBUTED, over);
   };
 
-  const flush = (): void => {
-    // `write` deletes the key it was handed, which is the one being visited —
+  const flush = async (): Promise<void> => {
+    // `report` deletes the key it was handed, which is the one being visited —
     // the only mutation a Map iteration is allowed to see and go on.
-    for (const journey of counters.keys()) write(journey);
+    for (const journey of counters.keys()) report(journey, channels.get(journey));
+    await Promise.all(sending);
   };
 
   Object.defineProperty(globalThis, '__VA__', {
     configurable: true,
     get: () => factoryFor(store.getStore() ?? UNATTRIBUTED),
   });
-  process.once('exit', flush);
 
   return {
     collecting: true,
     head,
-    enter: <Result,>(journey: string | undefined, body: () => Result): Result => {
-      if (journey === undefined) return body();
+    enter: <Result,>(carried: string | undefined, body: () => Result): Result => {
+      const channel = channelFrom(carried);
+      const journey = channel?.journey;
+      if (channel === undefined || journey === undefined) return body();
+      channels.set(journey, channel);
       depth.set(journey, (depth.get(journey) ?? 0) + 1);
       let done: Result;
       try {
@@ -298,9 +319,8 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       return done;
     },
     flush,
-    close: () => {
-      flush();
-      process.off('exit', flush);
+    close: async () => {
+      await flush();
       if (previous === undefined) delete (globalThis as Record<string, unknown>)['__VA__'];
       else Object.defineProperty(globalThis, '__VA__', previous);
     },
@@ -314,184 +334,4 @@ function isThenable(value: unknown): value is Promise<unknown> {
     typeof (value as { then?: unknown }).then === 'function' &&
     typeof (value as { finally?: unknown }).finally === 'function'
   );
-}
-
-export interface StitchJourneysOptions {
-  /**
-   * The run directory every head was pointed at.
-   *
-   * Absent is not an error and not an empty run: it means nothing told any head
-   * where to report, which is the same fact as a head that did not, and is
-   * answered the same way.
-   */
-  readonly directory?: string;
-  /**
-   * Every head this run declares, by the name it reports under.
-   *
-   * Empty is the ordinary case and costs nothing: a Storybook preview or a
-   * Vitest file has one process, so it declares no heads and nothing can be
-   * missing from it.
-   */
-  readonly heads: readonly string[];
-  /** Which subject each journey the driver minted belonged to. */
-  readonly owners: ReadonlyMap<string, string>;
-  /** Inputs each subject's observation depended on, by subject. */
-  readonly preconditions?: ReadonlyMap<string, readonly CoveragePrecondition[]>;
-  /**
-   * Subjects the runner already knows did not finish. A failed subject may
-   * contribute crossings and may never justify an exclusion.
-   */
-  readonly incomplete?: ReadonlySet<string>;
-}
-
-/** What the reports in a run directory add up to. */
-export interface StitchedJourneys {
-  /**
-   * Each head that reported, and what it saw, keyed by the label its build
-   * instrumented under. The labels name the inventories one `recordExecution`
-   * reads, because an ordinal means something only against the inventory that
-   * minted it, and the rows join the page's rather than being written after
-   * them.
-   */
-  readonly heads: ReadonlyMap<string, readonly ObservedSubject[]>;
-  /** Declared heads that reported nothing all run. */
-  readonly silent: readonly string[];
-  /** Reports for journeys no subject claimed: traffic this run did not drive. */
-  readonly unclaimed: number;
-  /**
-   * False when a declared head was silent or reported against another probe
-   * recipe. Every observation in the run is then recorded incomplete, which is
-   * what stops a half-watched run from narrowing.
-   */
-  readonly complete: boolean;
-  /** Present when `complete` is false, in the words a report can print. */
-  readonly because?: string;
-}
-
-/**
- * Join every head's reports to the subjects the driver minted journeys for.
- *
- * The driver is the only participant holding `journey -> subject`, so this runs
- * there and nothing crosses a wire to make it possible. It refuses in one
- * direction only: a declared head that never reported, or one reporting a
- * different probe recipe, retires every observation rather than contributing
- * part of one.
- */
-export async function stitchJourneys(options: StitchJourneysOptions): Promise<StitchedJourneys> {
-  const reports =
-    options.directory === undefined ? [] : await readJourneyReports(options.directory);
-  const reported = new Set(reports.map((report) => report.head));
-  const silent = options.heads.filter((head) => !reported.has(head));
-  const foreign = reports.find((report) => report.instrumentation !== INSTRUMENTATION_ID);
-
-  const because =
-    foreign !== undefined
-      ? `head ${foreign.head} reported probe recipe ${foreign.instrumentation} and this driver ` +
-        `records ${INSTRUMENTATION_ID}: the service and the driver are different versions`
-      : silent.length > 0
-        ? `${silent.length === 1 ? 'head' : 'heads'} ${silent.join(', ')} reported nothing: a ` +
-          'service that was not watched cannot be told from one that executed nothing, so no ' +
-          'subject in this run may justify an exclusion'
-        : undefined;
-  const complete = because === undefined;
-
-  // Everything a process did outside any journey is everybody's: it ran, it is
-  // product source, and no subject can be excluded on the claim that it did not.
-  const shared = new Map<string, Map<string, Set<number>>>();
-  const held = new Map<string, Map<string, Map<string, Set<number>>>>();
-  let unclaimed = 0;
-
-  for (const report of reports) {
-    if (report.journey === UNATTRIBUTED) {
-      const common = shared.get(report.head) ?? new Map<string, Set<number>>();
-      add(common, report.modules);
-      shared.set(report.head, common);
-      continue;
-    }
-    const owner = options.owners.get(report.journey);
-    if (owner === undefined) {
-      unclaimed += 1;
-      continue;
-    }
-    const byOwner = held.get(report.head) ?? new Map<string, Map<string, Set<number>>>();
-    const modules = byOwner.get(owner) ?? new Map<string, Set<number>>();
-    add(modules, report.modules);
-    byOwner.set(owner, modules);
-    held.set(report.head, byOwner);
-  }
-
-  const everyOwner = [...new Set(options.owners.values())];
-  const heads = new Map<string, readonly ObservedSubject[]>();
-  for (const head of reported) {
-    const byOwner = held.get(head) ?? new Map<string, Map<string, Set<number>>>();
-    const common = shared.get(head);
-    // A head whose only report was unattributed still saw every subject's shared
-    // initialization, so the rows exist even when no journey of its own landed.
-    const owners = common === undefined ? [...byOwner.keys()] : everyOwner;
-    const subjects: ObservedSubject[] = [];
-    for (const owner of [...owners].sort(codeUnitOrder)) {
-      const modules = new Map<string, Set<number>>();
-      const own = byOwner.get(owner);
-      if (own !== undefined) for (const [file, ordinals] of own) modules.set(file, new Set(ordinals));
-      if (common !== undefined) {
-        for (const [file, ordinals] of common) {
-          const into = modules.get(file) ?? new Set<number>();
-          for (const ordinal of ordinals) into.add(ordinal);
-          modules.set(file, into);
-        }
-      }
-      if (modules.size === 0) continue;
-      const preconditions = options.preconditions?.get(owner);
-      subjects.push({
-        owner,
-        complete: complete && options.incomplete?.has(owner) !== true,
-        journal: {
-          instrumentation: INSTRUMENTATION_ID,
-          modules: [...modules]
-            .map(([file, ordinals]) => ({
-              file,
-              hits: [...ordinals].sort((left, right) => left - right),
-            }))
-            .sort((left, right) => codeUnitOrder(left.file, right.file)),
-        },
-        ...(preconditions === undefined ? {} : { preconditions }),
-      });
-    }
-    heads.set(head, subjects);
-  }
-
-  return { heads, silent, unclaimed, complete, ...(because === undefined ? {} : { because }) };
-}
-
-function add(into: Map<string, Set<number>>, modules: readonly ExecutedModule[]): void {
-  for (const module of modules) {
-    const ordinals = into.get(module.file) ?? new Set<number>();
-    for (const ordinal of module.hits) ordinals.add(ordinal);
-    into.set(module.file, ordinals);
-  }
-}
-
-/**
- * Every report in a run directory.
- *
- * A missing directory is not an error: it is a run in which no head reported,
- * which is exactly the fact {@link stitchJourneys} is built to act on.
- */
-export async function readJourneyReports(directory: string): Promise<readonly JourneyReport[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  const reports = await Promise.all(
-    names
-      .filter((name) => name.endsWith('.json'))
-      .map(
-        async (name) =>
-          JSON.parse(await readFile(resolve(directory, name), 'utf8')) as JourneyReport,
-      ),
-  );
-  return reports.filter((report) => report.version === 1);
 }

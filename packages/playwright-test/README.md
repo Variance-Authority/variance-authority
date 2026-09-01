@@ -4,10 +4,6 @@
 
 > Add a source-aware visual observation to a Playwright test that already knows how to reach the state.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a Playwright test run with an already-opened `Page`, a non-null
 viewport, and a browser binary on the machine.
 
@@ -222,8 +218,9 @@ defaults to `2` and cannot go lower than two captures.
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
-| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile, heads, journeys, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` and `origin`. The browser half needs neither. |
+| `varianceWire` | The worker's end of the medium every instrumented realm answers on. | A loopback listener on an ephemeral port, opened and closed by the fixture. |
 
 Recording joins every observation in one spec file to that file: the runner's
 unit of execution is the file, so an attribution finer than that is one no
@@ -241,8 +238,8 @@ spec forever, no matter how well the browser half is watched.
 
 `heads` names the services that report for themselves. Each one runs
 `collectJourneys()` from `@variance-authority/sense/journey` under the same name
-its build gave `testSelectionProbes()`, and one environment block points both
-ends at one directory:
+its build gave `testSelectionProbes()`, and one environment block is the whole of
+the configuration on that side:
 
 ```ts
 // playwright.config.ts
@@ -255,7 +252,7 @@ export default {
     command: 'node ./server.js',
     url: 'http://localhost:3000',
     env: {
-      VARIANCE_AUTHORITY_JOURNEYS: '.variance/journeys',
+      VARIANCE_AUTHORITY_JOURNEYS: '1',
       VARIANCE_AUTHORITY_HEAD: 'api',
     },
   },
@@ -264,13 +261,17 @@ export default {
 
 Every test mints one opaque id — one per attempt, because a flake and its retry
 are two executions a service has to be able to tell apart — and the fixture puts
-it on the browser context before the spec navigates. The browser attaches it to
-every same-origin request, so nothing in the application is touched to carry it,
-and the spec file's *name* never leaves the runner. `journeys` overrides the
-report directory when the environment is not where it was configured, and
-`origin` overrides the origin the cookie is scoped to; it defaults to the
-project's `baseURL`, and a project with neither says so on stderr instead of
-recording a run whose services were never reachable.
+it on the browser context before the spec navigates, beside the address this
+worker is listening on. The browser attaches both to every same-origin request,
+so nothing in the application is touched to carry them, and the spec file's
+*name* never leaves the runner. `VARIANCE_AUTHORITY_JOURNEYS` says only that the
+service is under a run — any value will do, because where to report is a fact
+about the request rather than about the environment. `origin` overrides the
+origin the cookies are scoped to and defaults to the project's `baseURL`.
+
+Nothing is written by the service. Its accounts are acknowledged over the same
+medium the announcements below travel, under the same id, and the run's only
+artifact is the coverage index this worker merges into at teardown.
 
 Nothing above happens when `heads` is empty, which is the default and the
 ordinary case. A suite driving one application has one instrumented realm, and
@@ -368,6 +369,14 @@ Nothing is written down and no path is agreed. The worker listens on a loopback
 port it was given, and the cookie beside the journey carries that address into
 whatever the page talks to, so a head answers the execution it is serving as it
 serves it.
+
+It is one listener for both instruments. Announcements and coverage accounts are
+two things said about the same execution, so they arrive on one medium
+([`@variance-authority/wire`](../wire/README.md)) under one id, and this end
+reads only which of the two was speaking. A page reports through a function the
+worker exposed and a service reports through a socket; nothing below routes on
+which, which is why a server the suite starts in-process needs no configuration
+at all.
 
 `heads` overrides whether services are expected — it defaults to whether
 `VARIANCE_AUTHORITY_EVENTS` is set, which is how the service was told — and

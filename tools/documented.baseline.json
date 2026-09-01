@@ -138,6 +138,12 @@
     "packages": 3
   },
   {
+    "name": "NotObserved",
+    "kind": "interface",
+    "at": "packages/report/src/format.ts",
+    "packages": 3
+  },
+  {
     "name": "Observation",
     "kind": "interface",
     "at": "packages/history/src/observation.ts",
@@ -243,12 +249,6 @@
     "name": "NetworkObservation",
     "kind": "interface",
     "at": "packages/playwright/src/network.ts",
-    "packages": 2
-  },
-  {
-    "name": "NotObserved",
-    "kind": "interface",
-    "at": "packages/report/src/format.ts",
     "packages": 2
   },
   {

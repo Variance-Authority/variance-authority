@@ -8,10 +8,8 @@
  * underneath it, and a build that shipped without a listener is the same build.
  */
 
+import { WIRE_SINK } from '@variance-authority/wire';
 import { EVENT_SINK } from './index.js';
-
-/** The channel a driver exposes in the page to receive announcements. */
-export const EVENT_REPORT = '__VAE_REPORT__';
 
 /**
  * Source that installs the page's sink.
@@ -20,23 +18,24 @@ export const EVENT_REPORT = '__VAE_REPORT__';
  * document that goes away takes its sink with it, and the driver's log is what
  * survives the navigation.
  *
- * The channel is read at announcement time rather than captured at install time,
- * so the two halves may be installed in either order, and announcements made
- * before the channel exists are held rather than dropped — a decision taken
- * during the first evaluation of the first script is exactly the one a test most
- * wants and the one a captured reference would lose.
+ * The carrier is read at announcement time rather than captured at install time,
+ * so this and the wire's own source may be evaluated in either order, and
+ * announcements made before a carrier exists are held rather than dropped — a
+ * decision taken during the first evaluation of the first script is exactly the
+ * one a test most wants and the one a captured reference would lose.
  */
 export function eventCollectorSource(): string {
   return `(() => {
   const held = [];
   globalThis[${JSON.stringify(EVENT_SINK)}] = (phase, location, subject, action) => {
-    const report = globalThis[${JSON.stringify(EVENT_REPORT)}];
-    if (typeof report !== 'function') {
-      held.push({ phase, location, subject, action });
+    const carrier = globalThis[${JSON.stringify(WIRE_SINK)}];
+    const said = { phase, location, subject, action };
+    if (typeof carrier !== 'function') {
+      held.push(said);
       return;
     }
-    while (held.length > 0) report(held.shift());
-    report({ phase, location, subject, action });
+    while (held.length > 0) carrier(undefined, 'events', held.shift());
+    carrier(undefined, 'events', said);
   };
 })();`;
 }
