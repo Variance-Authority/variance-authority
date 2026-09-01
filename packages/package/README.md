@@ -4,12 +4,6 @@
 
 > Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.
 
-**Requires:** a workspace on a disk this process can read — a root `package.json`
-whose `workspaces` field lists the workspace members (the packages that make up
-the monorepo), and, for any package that publishes compiled declarations, a
-`tsconfig.json` saying which directory they were compiled from. Nothing has to
-have been built.
-
 This package reads a TypeScript workspace's public API as data: a **surface**.
 For each package it records which subpaths a manifest opens — an **entrypoint**
 — and which exported identifiers, or **names**, each entrypoint **reaches** by
@@ -20,6 +14,11 @@ tells you what an API looked like and what changed about it.
 ```bash
 npm install --save-dev @variance-authority/package
 ```
+
+Point it at a checkout, built or not. It reads the root `package.json` for the
+`workspaces` field listing the members, and, for a package that publishes
+compiled declarations, the `tsconfig.json` saying which directory they were
+compiled from.
 ## Entrypoints
 
 | entrypoint | requires | holds |

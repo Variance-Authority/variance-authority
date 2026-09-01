@@ -13,10 +13,10 @@ A subject is the thing captured for comparison: a mounted DOM subtree here, or
 `SubjectRef`: an id plus a `kind` recording what produced it (`'story'`,
 `'route'`, `'fixture'`, or `'value'`), not what it looks like.
 
-**Requires:** a live DOM and a writable artifact directory. External resources
-must be supplied as immutable bytes: capture closes over the document by
-resolving every resource it references into bytes the artifact carries, and
-refuses to write a capture it cannot close this way.
+It needs a live DOM and a directory it can write artifacts to. External resources
+arrive as immutable bytes: capture closes over the document by resolving every
+resource it references into bytes the artifact carries, and refuses to write a
+capture it cannot close this way.
 
 Browserless describes this half. The capture carries markup, CSS and resources —
 not pixels — so the later `variance run` opens a browser to paint it and refuses

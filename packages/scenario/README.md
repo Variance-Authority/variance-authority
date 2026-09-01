@@ -4,11 +4,6 @@
 
 > Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.
 
-**Requires:** semantic snapshots produced by the host — a `SemanticSnapshot` is
-the normalized capture of a rendered subject that `@variance-authority/core`
-produces from a collector's raw capture; this package never produces one
-itself. The optional archive also requires a writable directory.
-
 Use this package when a host can arrange a named UI state, perform meaningful
 acts, and attempt a semantic snapshot after each one. A scenario is AAA
 (Arrange-Act-Assert) as a state machine: Arrange is the initial state
@@ -20,6 +15,11 @@ The host remains responsible for producing `page-loading`, `page-error`,
 this precondition's parent subject, pass that parent's id and whether it was
 declared or named as `preconditionLink`; this package only records that
 evidence and never tries to infer fixtures, mocks, cookies, routes, or flags.
+
+The snapshots come from the host as well. A `SemanticSnapshot` is the normalized
+capture of a rendered subject that `@variance-authority/core` produces from a
+collector's raw capture; nothing here produces one. The optional archive writes
+to a directory you give it.
 
 ```bash
 npm install --save-dev @variance-authority/scenario

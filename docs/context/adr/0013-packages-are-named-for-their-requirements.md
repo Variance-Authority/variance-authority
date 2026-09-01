@@ -55,7 +55,10 @@ Four rules follow, and are enforced by `tools/boundaries.check.ts`:
    install does not fetch, a directory this process can write, a service already
    running, a tree `react-dom` has rendered. Naming a dependency instead
    duplicates a machine-readable fact rule 2 already checks, and a prose copy of
-   an enforced fact only ever drifts away from it.
+   an enforced fact only ever drifts away from it. This decides what goes in a
+   package. It does not decide how a README opens, and a published page never
+   leads with it: a reader arriving at `@variance-authority/dom` is told what a
+   capture is, not that a DOM package requires a DOM.
 4. **An entrypoint exists where the halves cost differently.** `store/lfs` needs
    `git`; `history/client` needs a network; `server/sqlite` needs `node:sqlite`;
    `report/file` needs a disk; `playwright/agent` must be importable *without*

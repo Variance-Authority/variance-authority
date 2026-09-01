@@ -17,10 +17,8 @@ rate), flakiness (how often a subject read differently from itself), **reach**
 (whether a token's recorded values — its **journey** across a window of runs —
 moved further, over approved runs, than any single review could have seen).
 The root entrypoint is pure contract and arithmetic; `history/client` is the
-optional HTTP client for a service you run.
-
-**Requires:** nothing for the root entrypoint. `history/client` requires a
-running service endpoint and its bearer token.
+optional HTTP client for a service you run, and the one part that needs an
+endpoint and its bearer token.
 
 A single run cannot describe accumulation: a button can gain 2px across eleven
 approved runs without any one review seeing the 22px travel. History keeps the

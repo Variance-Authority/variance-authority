@@ -4,10 +4,6 @@
 
 > Announce what the code decided, so a test waits for the decision instead of guessing when it was made.
 
-**Requires:** application source you can add a line to, and a driver that
-installs a listener for the run. Nothing is announced where no listener is
-installed, so a production bundle carries the calls and says nothing.
-
 An **announcement** is three coordinates — `location`, `subject`, `action` — sent
 from the point in the code where something was decided. A test names the same
 three back and waits for them. That is the whole of the interface: an
@@ -17,6 +13,9 @@ and the ordinary assertion reads it one line later.
 ```bash
 npm install @variance-authority/event
 ```
+
+The calls go in application source, and stay there. Nothing is announced where
+no listener is installed, so a production bundle carries them and says nothing.
 
 ## The assertion a screen cannot answer
 

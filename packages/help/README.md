@@ -5,11 +5,8 @@
 > Find the public name, signature, documentation and consumers of an exported TypeScript workspace symbol, over MCP.
 
 It reads TypeScript source across a workspace and answers what a name is, where
-it is declared, and who imports it.
-
-**Requires:** a workspace — a monorepo checkout, on a disk this process can
-read — and, to serve it, a client that speaks MCP over stdio. Nothing has to
-have been built, and nothing is generated ahead of time.
+it is declared, and who imports it. Nothing has to have been built first, and
+nothing is generated ahead of time.
 
 Use this package when a person or coding agent needs the public name,
 signature, documentation, or consumers of an exported symbol: a function,

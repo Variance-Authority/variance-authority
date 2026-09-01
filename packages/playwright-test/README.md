@@ -4,9 +4,6 @@
 
 > Add a source-aware visual observation to a Playwright test that already knows how to reach the state.
 
-**Requires:** a Playwright test run with an already-opened `Page`, a non-null
-viewport, and a browser binary on the machine.
-
 A **subject** is the piece of UI a test observes: the `Locator` you pass in,
 identified by a `subjectId`. A **baseline** is the last screenshot of that
 subject a human approved; later runs compare against it. An observation is
@@ -26,6 +23,10 @@ Playwright test:
 npm install --save-dev @variance-authority/playwright-test @playwright/test
 npx playwright install chromium
 ```
+
+The second command is there because Playwright's browser binaries do not arrive
+with an `npm install`. The test hands over a `Page` it has already opened, with
+a viewport set.
 
 ## Add an observation to a test
 

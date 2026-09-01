@@ -4,11 +4,6 @@
 
 > Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.
 
-**Requires:** a readable checkout for `scanRelations`, or source text plus a
-file/module id for the pure readers and transform. Resolution of bare specifiers
-also requires the checkout's installed dependencies and any `tsconfig.json` path
-mapping they use.
-
 Use this package when you need to answer any of these questions:
 
 - Which files and components can a changed file reach?
@@ -44,6 +39,11 @@ of whether this package produced it.
 ```bash
 npm install --save-dev @variance-authority/sense
 ```
+
+`scanRelations` reads a checkout. The pure readers and the transform take source
+text plus a file or module id instead, and never look at a disk. Resolving a bare
+specifier is the one step that needs the checkout's installed dependencies, and
+any `tsconfig.json` path mapping they use.
 ## Start with source selection
 
 The main entrypoint walks the configured directories, follows resolvable module

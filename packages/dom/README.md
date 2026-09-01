@@ -4,9 +4,6 @@
 
 > Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.
 
-**Requires:** a live DOM in scope — a mounted element and the `document` that
-owns it. jsdom or a browser; it never asks which.
-
 Extract a `RawCapture` — a serializable snapshot of an element's tree, ARIA, and
 applicable styles — from a mounted element. One implementation covers both
 **observation profiles**, i.e. what a document can be asked for: jsdom in a unit

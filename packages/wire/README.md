@@ -6,16 +6,14 @@
 >
 > One id per execution, one address to answer on, and nothing written down.
 
-**Requires:** nothing on the announcing side. A driver listens, a participant
-answers, and neither one has to know which realm the other is in.
-
 Two instruments talk to a run while it happens.
 [`@variance-authority/event`](../event/README.md) says what the code decided, so
 a test waits for a decision instead of guessing when it was made.
 [`@variance-authority/sense/journey`](../sense/README.md#follow-one-execution-into-a-service)
 says which regions of source an execution entered, so the next run can narrow.
 They are different questions with the same three answers, and this package is
-those three answers and nothing else.
+those three answers and nothing else. A driver listens, a participant answers,
+and neither one has to know which realm the other is in.
 
 ```bash
 npm install @variance-authority/wire

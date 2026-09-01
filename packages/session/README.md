@@ -4,16 +4,13 @@
 
 > Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.
 
-**Requires:** a live DOM, and a `mount` function you write. It knows about React
-only through that function, so a session runs whatever a caller can put on a
-page.
-
 A **subject** is one thing to render and compare — a story, a component
 instance, a page. A session owns one reusable container and **brackets** each
 subject's mount: it takes a cheap snapshot of shared state immediately before
 and after the mount, so it can tell what that subject left behind. The caller
 supplies the mount function, so the same runner can host DOM-only subjects or a
-framework integration without importing that framework.
+framework integration without importing that framework — it knows about React
+only through that function, and runs whatever a caller can put on a page.
 
 Because nothing is torn down between subjects, one subject can leave state that
 another one reads — a stylesheet, a global attribute, a stray DOM node. This

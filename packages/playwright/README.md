@@ -15,8 +15,8 @@ package does not choose subjects, mount application state, or build the
 `PageAgent` — the in-page object a bundle installs to read a subject and hand
 back a capture; your integration supplies that.
 
-**Requires:** a browser **binary** on the machine, which an install does not give
-you:
+Playwright's browser binaries do not arrive with an `npm install`, so there are
+two commands here rather than one:
 
 ```bash
 npm install --save-dev @variance-authority/playwright

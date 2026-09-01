@@ -4,15 +4,14 @@
 
 > Run the Variance Authority workflow from a project config: collect subjects, compare, render what moved, report, accept.
 
-**Requires:** a project config plus the runtime resources it selects: a browser
-binary for Chromium, writable storage for directory baselines, `git` for LFS,
-or reachable services for remote rendering and storage.
-
 This CLI runs that workflow end to end from a project-owned config: it
 collects **subjects** — the individual stories, routes, or fixtures being
 compared — settles the ones cheap hashing can already answer, renders what
-remains, writes one report, and returns a CI-safe exit code. `variance doctor`
-checks the selected prerequisites before the first expensive run.
+remains, writes one report, and returns a CI-safe exit code. What you
+need on the machine follows from what that config selects: a browser binary for
+Chromium, writable storage for directory baselines, `git` for LFS, reachable
+services for remote rendering and storage. `variance doctor` checks the ones
+your config asked for, before the first expensive run.
 
 Use this package for an executable, config-driven integration. If navigation
 and readiness already live in Playwright tests, use

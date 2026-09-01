@@ -4,14 +4,12 @@
 
 > The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
 
-**Requires:** nothing for the format. `report/file` requires a path this process
-can read and write.
-
 What a run leaves behind. A run compares one or more **subjects** — the pages,
 routes, or components under test — and produces its answers in memory before the
 process ends. A **`RunReport`** is the shape those answers take, so they can be
 read afterwards: from a different process, on a different machine, by whoever or
-whatever is asking.
+whatever is asking. The format itself is plain data; only `report/file` touches a
+disk, and it needs a path this process can read and write.
 
 ```bash
 npm install --save-dev @variance-authority/report

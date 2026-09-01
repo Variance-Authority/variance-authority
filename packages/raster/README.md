@@ -4,12 +4,9 @@
 
 > Pixel-tier contracts for Variance Authority: what a renderer and a store promise, and which policy a comparison ran under.
 
-**Requires:** nothing. No browser to launch, no directory to write, no port to
-bind, no runtime globals — the same `types: []` bar `core` clears.
-
-What is left when those are taken away turns out to be most of the interesting
-part: what a document assembles to, what a renderer promises, what a store
-promises, which policy a comparison ran under, which tricks a subject — the
+Most of the interesting part survives once the browser, the directory and the
+port are taken away: what a document assembles to, what a renderer promises,
+what a store promises, which policy a comparison ran under, which tricks a subject — the
 image, component, or page instance being compared — was held still with,
 whether it held still at all, and what composition (the specific ordered
 sequence of tools) produced an answer.

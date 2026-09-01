@@ -12,11 +12,11 @@ reviewer accepting one subject's observations for one run). The service stores
 both in a backend and answers the history queries defined by
 `@variance-authority/history`.
 
-**Requires:** a port and a bearer token of at least 16 characters — it refuses to
-start without the token. The shipped backend adds a Node with `node:sqlite` (22+,
-where it is still experimental and warns on import) and a writable database path;
-a backend you write yourself requires neither, and the entrypoint table below says
-which is which.
+It binds a port, and refuses to start without a bearer token of at least 16
+characters. The shipped backend adds a Node with `node:sqlite` (22+, where it is
+still experimental and warns on import) and a writable database path; a backend
+you write yourself needs neither, and the entrypoint table below says which is
+which.
 
 This is an operator-run service, not a hosted endpoint. Nothing in this package
 starts it for another project or provisions a database.

@@ -9,9 +9,6 @@ ask which named tests exercise source. The server reads supplied evidence and
 returns text; it never runs tests, rerenders a subject, changes a baseline, or
 infers evidence that is not there.
 
-**Requires:** an MCP client that speaks over stdio, plus a run report for the
-visual tools or an execution index for the source-test tool.
-
 The supplied evidence remains canonical. This package makes visual causes,
 regions, verdicts, findings, composition, variation, acceptance preview, and
 source-to-test reach available from another process after collection finishes.

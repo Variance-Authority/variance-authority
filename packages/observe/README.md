@@ -4,9 +4,6 @@
 
 > Compare render documents or rasters and receive one Variance Authority observation, whatever produced the images.
 
-**Requires:** by entrypoint, `observeRasters` needs only two rasters. Durable
-raster observation needs a store. Document paths need a renderer and store.
-
 This package is the comparison core. Give it two images of the same
 **subject** — a story, route, fixture, or value under test, identified by a
 stable id — and it returns one `Observation`: a `verdict` (one of a fixed set

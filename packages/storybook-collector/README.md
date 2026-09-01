@@ -4,9 +4,6 @@
 
 > Turn a built or already-served Storybook into Variance Authority subjects.
 
-**Requires:** a browser binary and a built or already-served Storybook. The
-built `index.json` is the input; `.storybook` configuration is not read.
-
 Turn a built or already-served Storybook into subjects that `variance run` can
 observe — one subject per story, the unit a comparison runs against. Use this
 package when Storybook already owns component mounting and you want
@@ -20,6 +17,10 @@ This is the Storybook adapter, not the `variance` binary. Pair it with
 npm install --save-dev @variance-authority/cli @variance-authority/storybook-collector
 npx playwright install chromium
 ```
+
+The second command is there because Playwright's browser binaries do not arrive
+with an `npm install`. The built `index.json` is the input, whether you build the
+Storybook or already serve it; `.storybook` configuration is not read.
 
 ## Integrate a Storybook
 

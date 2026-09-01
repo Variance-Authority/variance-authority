@@ -12,8 +12,8 @@ call site from the JSX transform through to the rendered element, so
 `@variance-authority/react` can read it back off the fiber as part of that
 element's **provenance** — the resolved record of where it came from.
 
-**Requires:** a build you control the JSX transform of, and a React runtime for
-it to resolve. Nothing imports this package directly — a compiler or a bundler
+You need a build whose JSX transform you control, and a React runtime for it to
+resolve. Nothing imports this package directly — a compiler or a bundler
 does, because a setting told it to.
 
 ```bash

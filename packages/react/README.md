@@ -12,9 +12,9 @@ whether the node came through a **portal** — content `createPortal` places
 elsewhere in the document while it stays part of the component tree rooted at
 the **subject**, the component, page, or story a capture is taken of.
 
-**Requires:** that `react-dom` rendered the tree you are pointing at. This
-package reads metadata attached to DOM nodes and does not import the
-application's React package, so it cannot pin, duplicate, or replace that copy.
+It reads metadata that `react-dom` attached to the DOM nodes, and never imports
+the application's React package, so it cannot pin, duplicate, or replace that
+copy. What it does need is a tree `react-dom` actually rendered.
 
 ```bash
 npm install --save-dev @variance-authority/react

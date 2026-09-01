@@ -8,12 +8,11 @@ Here, the **subject** is the newly rendered image under test, the **baseline**
 is the previously approved image it's checked against, and a **decoder** is
 what turns PNG bytes into raw pixels so the two can be compared.
 
-**Requires:** a runtime that can load a native addon — a compiled,
-platform-specific binary loaded into the process (here, Sharp's libvips
-binding, a `.node` file) — on a platform somebody has published one for. Not a
-Worker, not an edge runtime, not a bundle that cannot carry a `.node` file.
-That requirement is the entire reason this is its own package instead of
-living inside `@variance-authority/png`.
+Decoding here runs through a native addon — a compiled, platform-specific binary
+loaded into the process (Sharp's libvips binding, a `.node` file) — so it works
+only where somebody has published one. Not a Worker, not an edge runtime, not a
+bundle that cannot carry a `.node` file. That is the entire reason this is its
+own package instead of living inside `@variance-authority/png`.
 
 The comparison is unchanged. Only the decoding is faster.
 

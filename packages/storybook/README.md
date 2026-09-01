@@ -11,9 +11,9 @@ an ordered, filtered plan of which subjects a run will actually observe. For the
 complete CLI/browser workflow, use `@variance-authority/storybook-collector`.
 This package does not mount stories or choose a browser for you.
 
-**Requires:** a built Storybook's `index.json` as a value. `storybook/read`
-additionally requires a readable path, and driving a preview requires a page
-object you supply with `url`, `goto`, and `evaluate` methods.
+It takes a built Storybook's `index.json` as a value. `storybook/read` will take
+a readable path instead, and driving a preview needs a page object you supply,
+with `url`, `goto`, and `evaluate` methods.
 
 Install it when a custom integration owns the preview page or only needs the
 index/subject helpers:

@@ -4,9 +4,6 @@
 
 > Turn pages your application already serves into Variance Authority subjects.
 
-**Requires:** a browser binary and a reachable application, unless a static
-directory is supplied. Authenticated routes are unsupported.
-
 A **subject** is the rendered unit a report compares against its approved
 baseline. This package is a **collector**: a module that plans subjects from
 your routes and hands `@variance-authority/cli` what to render, via
@@ -23,6 +20,10 @@ login support (see **When integration fails**, below, for the alternative).
 npm install --save-dev @variance-authority/cli @variance-authority/route-collector
 npx playwright install chromium
 ```
+
+The second command is there because Playwright's browser binaries do not arrive
+with an `npm install`. Point it at an application it can reach, or at a static
+directory if you have one built.
 
 ## Integrate an explicit route list
 

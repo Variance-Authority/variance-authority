@@ -9,8 +9,8 @@ baselines, history, and per-subject decisions. It supplies the Worker handler,
 storage adapters, review API, and optional React UI; it does not provide a hosted
 endpoint or an integration that posts runs for you.
 
-**Requires:** a database and object store owned by the deployment, a runtime that
-serves `fetch`, and two different bearer tokens of at least 16 characters.
+The deployment owns the database and the object store, the runtime has to serve
+`fetch`, and it takes two different bearer tokens of at least 16 characters.
 
 **Two deployments ship, and they run the same router.** On Cloudflare the
 database is D1, the object store is R2, and the runtime is a Worker. On a machine

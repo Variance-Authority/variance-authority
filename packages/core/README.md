@@ -9,9 +9,6 @@ value. A **capture** is the raw material a collector records from it once,
 before anything is compared. Collectors extract captures; this package
 normalizes and adjudicates them, and never captures anything itself.
 
-**Requires:** nothing — not even a runtime with a `Buffer`. No DOM, no I/O, no
-async, enforced by its `tsconfig` (`lib: ES2022`, `types: []`).
-
 ```bash
 npm install --save-dev @variance-authority/core
 ```

@@ -16,8 +16,8 @@ Skip this package if the renderer and the store already run in the same
 process as the rest of the pipeline: the HTTP hop only pays for itself once
 rendering or storage happens somewhere else.
 
-**Requires:** a port to bind for a server, or an endpoint to reach for a client.
-The package does not provide a renderer, a database, or a baseline policy.
+A server binds a port, a client reaches an endpoint. Neither side gets a
+renderer, a database, or a baseline policy out of this package.
 
 ```bash
 npm install --save-dev @variance-authority/remote

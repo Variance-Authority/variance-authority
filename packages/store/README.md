@@ -8,11 +8,10 @@ Use this package when a comparison needs baselines on a filesystem. Choose the
 plain durable backend for a directory owned by one runner, or the LFS backend
 when the baseline images must travel with a branch.
 
-**Requires:** a writable directory. `store/lfs` additionally uses `git` and
-expects Git LFS smudging on checkout; the tracking diagnostic reports when that
-assumption could not be checked.
-
-Both backends implement the same `RasterStore` contract.
+Both backends implement the same `RasterStore` contract, and both want a
+directory they can write. The LFS one also runs `git`, and expects LFS smudging
+on checkout — when that could not be checked, the tracking diagnostic says so
+rather than letting an un-smudged clone read as a passing run.
 
 ```bash
 npm install --save-dev @variance-authority/store

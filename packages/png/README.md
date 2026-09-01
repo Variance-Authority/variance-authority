@@ -4,11 +4,9 @@
 
 > Decode, compare and diff PNGs without a browser: two buffers in, a mask out.
 
-**Requires:** a runtime with `Buffer` — so Node, not a browser. Nothing to launch,
-nothing to write, nothing to reach. Two buffers in, a mask out.
-
-This package needs a PNG codec and nothing else: no browser, no filesystem, no
-network socket. It decodes two images, compares them, and returns a
+This package needs a PNG codec and a runtime with `Buffer` — so Node, not a
+browser — and nothing else: nothing to launch, nothing to write, nothing to
+reach. It decodes two images, compares them, and returns a
 `ChangeMask` — a per-pixel changed/unchanged bitmap, one byte per pixel, set
 where that pixel differs. Grouping those pixels into named places
 (**region isolation**) and matching a place to the component that produced it

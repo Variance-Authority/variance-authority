@@ -165,14 +165,12 @@ describe('every advertised entrypoint exists', () => {
   );
 });
 
-/** The `**Requires:` paragraph, which is everything before the second blank line. */
-function requirement(workspace: Workspace): string {
+/** Everything a README says before its first `##` heading. */
+function opening(workspace: Workspace): string {
   const text = readFileSync(join(workspace.dir, 'README.md'), 'utf8');
-  const start = text.indexOf('**Requires:');
-  if (start === -1) return '';
+  const heading = text.indexOf('\n## ');
 
-  const end = text.indexOf('\n\n', start);
-  return end === -1 ? text.slice(start) : text.slice(start, end);
+  return heading === -1 ? text : text.slice(0, heading);
 }
 
 /**
@@ -262,43 +260,37 @@ describe('every package says what it is', () => {
   );
 
   it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
-    '%s states its requirement before anything else',
+    '%s does not open on its preconditions',
     (_name, workspace) => {
-      // "**Requires:" is the sentence the layout rule turns on. A README that
-      // does not answer *what must be true before this works* is a README
-      // describing features, which is the shape the boundary argues against.
-      // Examples and cases are exempt: nobody installs them.
-      expect(requirement(workspace), `${workspace.name} states no requirement`).not.toBe('');
-    },
-  );
-
-  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
-    '%s does not restate its manifest in prose',
-    (_name, workspace) => {
-      // The requirement is what `package.json` **cannot** say: a browser binary
-      // an install does not fetch, a directory this process can write, a service
-      // already running, a tree `react-dom` has rendered. Naming a dependency
-      // here instead duplicates a fact that is machine-readable and already
-      // checked above — and a prose copy of an enforced fact only ever drifts
-      // away from it.
-      const declared = Object.keys(workspace.manifest.dependencies ?? {}).filter(
-        (dependency) => !dependency.startsWith('@variance-authority/'),
-      );
-      const restated = declared.filter((dependency) =>
-        new RegExp(`\\b${dependency.replace(/[/-]/g, '.')}\\b`).test(requirement(workspace)),
-      );
-
-      expect(restated).toEqual([]);
+      // A published README opens for a person deciding whether this is for them.
+      // A mandated "**Requires:" label made all thirty of them open in spec
+      // voice instead — and on a third of them the opening statement was
+      // "nothing", which is not a fact anybody came for.
+      //
+      // What a package needs is still true and still worth saying; it is said
+      // where the reader hits it, next to the install step or in the prose that
+      // uses it. `playwright` warns about the browser binaries above the two
+      // commands, `store` about an un-smudged LFS checkout beside the backend
+      // that reads one.
+      //
+      // The architectural rule this label came from — a requirement is what the
+      // manifest cannot state — governs what goes in a package
+      // ([ADR-0013](../docs/context/adr/0013-packages-are-named-for-their-requirements.md)),
+      // and is enforced on the manifests above rather than on prose. There is no
+      // check here that a precondition was written down: whether a reader needs
+      // one is a judgement, and the last attempt to mechanize it produced thirty
+      // identical openings.
+      expect(opening(workspace)).not.toContain('**Requires:');
     },
   );
 
   it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
     '%s is not named for a library it imports',
     (_name, workspace) => {
-      // The rule above says the *requirement paragraph* may not name a
-      // dependency. This says the same of the name over it, and they are not the
-      // same rule: `packages/oxc` stated its requirement correctly — a readable
-      // checkout — and was still named for its parser
+      // A package may not be named for a library it imports. That is not the
+      // same rule as naming its requirement correctly, and one does not buy the
+      // other: `packages/oxc` had its requirement right — a readable checkout —
+      // and was still named for its parser
       // ([ADR-0042](../docs/context/adr/0042-a-package-is-named-for-what-it-is-for.md)).
       // A collision is not automatically wrong — a package may be named for the
       // suite it plugs into, which is usually also the package that suite ships.
