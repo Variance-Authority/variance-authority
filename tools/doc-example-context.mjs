@@ -44,6 +44,9 @@ export const CONTEXT = {
   webkitPixels: `Parameters<typeof import('@variance-authority/raster/difference').observeDifference>[0]['secondImage']`,
   current: `Awaited<ReturnType<typeof import('@variance-authority/raster/difference').observeDifference>>`,
 
+  // sense
+  subjectsThisRunPainted: `NonNullable<NonNullable<Parameters<typeof import('@variance-authority/sense/test-selection').journeysApart>[1]>['observers']>`,
+
   // playwright / remote
   'packages/playwright/README.md#document': `Parameters<Awaited<ReturnType<typeof import('@variance-authority/playwright').createPlaywrightRenderer>>['render']>[0]`,
   iifeBundleInstallingYourAgent: `Parameters<typeof import('@variance-authority/playwright').createHarness>[0]['bundle']`,

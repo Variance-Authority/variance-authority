@@ -45,6 +45,10 @@
       "types": "./dist/test-selection/journal.d.ts",
       "default": "./dist/test-selection/journal.js"
     },
+    "./journey": {
+      "types": "./dist/test-selection/journey.d.ts",
+      "default": "./dist/test-selection/journey.js"
+    },
     "./vitest": {
       "types": "./dist/test-selection/vitest.d.ts",
       "default": "./dist/test-selection/vitest.js"

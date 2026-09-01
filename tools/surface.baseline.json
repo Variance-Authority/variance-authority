@@ -2145,6 +2145,10 @@
           "types": "./dist/test-selection/journal.d.ts",
           "default": "./dist/test-selection/journal.js"
         },
+        "./journey": {
+          "types": "./dist/test-selection/journey.d.ts",
+          "default": "./dist/test-selection/journey.js"
+        },
         "./vitest": {
           "types": "./dist/test-selection/vitest.d.ts",
           "default": "./dist/test-selection/vitest.js"
@@ -2254,9 +2258,25 @@
         "TransformingContext": "interface",
         "drainExecution": "function",
         "executionCollectorSource": "function",
+        "joinObservations": "function",
         "preconditionOf": "function",
         "recordExecution": "function",
         "testSelectionProbes": "function"
+      },
+      "./journey": {
+        "JOURNEY_COOKIE": "const",
+        "JOURNEY_DIRECTORY_VARIABLE": "const",
+        "JOURNEY_HEAD_VARIABLE": "const",
+        "JourneyCollector": "interface",
+        "JourneyCollectorOptions": "interface",
+        "JourneyReport": "interface",
+        "StitchJourneysOptions": "interface",
+        "StitchedJourneys": "interface",
+        "collectJourneys": "function",
+        "journeyOf": "function",
+        "mintJourney": "function",
+        "readJourneyReports": "function",
+        "stitchJourneys": "function"
       },
       "./vitest": {
         "TestSelectionOptions": "interface",

@@ -222,7 +222,7 @@ defaults to `2` and cannot go lower than two captures.
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
-| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile, heads, journeys, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 
 Recording joins every observation in one spec file to that file: the runner's
 unit of execution is the file, so an attribution finer than that is one no
@@ -230,6 +230,61 @@ selector could spend. A worker accumulates and writes once at teardown, under a
 lock on the index, so parallel workers do not overwrite each other. A spec whose
 test failed is recorded as incomplete — its crossings still count, and it can
 never justify skipping itself later.
+
+### Recording what a service executed
+
+The fixture above records the page. A suite that drives its application through
+that application's own API executes product source in a second process, and
+nothing in the page knows it happened — so a change to a route handler runs every
+spec forever, no matter how well the browser half is watched.
+
+`heads` names the services that report for themselves. Each one runs
+`collectJourneys()` from `@variance-authority/sense/journey` under the same name
+its build gave `testSelectionProbes()`, and one environment block points both
+ends at one directory:
+
+```ts
+// playwright.config.ts
+export default {
+  use: {
+    baseURL: 'http://localhost:3000',
+    varianceExecution: { heads: ['api'] },
+  },
+  webServer: {
+    command: 'node ./server.js',
+    url: 'http://localhost:3000',
+    env: {
+      VARIANCE_AUTHORITY_JOURNEYS: '.variance/journeys',
+      VARIANCE_AUTHORITY_HEAD: 'api',
+    },
+  },
+};
+```
+
+Every test mints one opaque id — one per attempt, because a flake and its retry
+are two executions a service has to be able to tell apart — and the fixture puts
+it on the browser context before the spec navigates. The browser attaches it to
+every same-origin request, so nothing in the application is touched to carry it,
+and the spec file's *name* never leaves the runner. `journeys` overrides the
+report directory when the environment is not where it was configured, and
+`origin` overrides the origin the cookie is scoped to; it defaults to the
+project's `baseURL`, and a project with neither says so on stderr instead of
+recording a run whose services were never reachable.
+
+Nothing above happens when `heads` is empty, which is the default and the
+ordinary case. A suite driving one application has one instrumented realm, and
+nothing can be missing from it.
+
+**Naming a head is a promise, and a promise this checks.** The extra setup is
+extra: it can be left out of one CI job, the service can fail to start, and a
+service built without probes looks exactly like a service that executed nothing.
+So a declared head that reports nothing all run — or one reporting a different
+probe recipe than the driver records — retires **every** observation the run
+made, page included. The crossings are still written; what they lose is the right
+to justify a skip, and the next `--since` runs the whole suite and prints the
+reason. A run half of whose evidence never arrived narrows nothing, because a
+spec skipped on the say-so of a service that was not watching is the one failure
+this category cannot detect afterwards.
 
 ### Matcher integration
 

@@ -76,6 +76,10 @@ export async function createVariance(
       ? undefined
       : createExecutionRecorder(options.tests === true ? {} : options.tests);
   const owner = recorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
+  // An additive helper is commonly called after the suite has navigated, so a
+  // head sees this execution from here on rather than from the first request.
+  // Callers who want the whole journey call `createVariance` before navigating.
+  if (owner !== undefined) await recorder!.join(page, owner, testInfo.project.use.baseURL);
   const bundle = options.bundle ?? (await bundlePageAgent());
   const materialization = options.materialization ?? { kind: 'deferred' };
   const store = options.store ?? createDurableStore(options.baselines ?? '.variance/baselines');

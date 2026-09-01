@@ -263,6 +263,12 @@ export const varianceFixtures: Fixtures<
   ) => {
     await page.addInitScript(varianceBundle);
     const owner = varianceRecorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
+    // Before `use`, because the cookie has to be on the context before the
+    // subject navigates: a head cannot be told which execution a request
+    // belongs to by a header that arrived after the request did.
+    if (owner !== undefined) {
+      await varianceRecorder!.join(page, owner, testInfo.project.use.baseURL);
+    }
     await use(async (locator, options) => {
       try {
         return await observeLocator(

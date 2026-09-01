@@ -228,7 +228,11 @@ const factory = (file, count) => {
   }
   return counters;
 };
-globalThis.__VA__ = factory;
+// A realm that already has a factory has a collector that knows more than this
+// one: a Node head keys its counters by journey, and this page-shaped map has
+// nowhere to put a caller. Deferring is what lets one instrumented build serve
+// a page and a service, and a page never has anything to defer to.
+if (globalThis.__VA__ === undefined) globalThis.__VA__ = factory;
 globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
   version: 1,
   instrumentation: ${JSON.stringify(INSTRUMENTATION_ID)},

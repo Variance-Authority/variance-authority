@@ -52,6 +52,8 @@ import {
   isMissing,
   projectPath,
   readInstrumentedModules,
+  type CapturedModule,
+  type InstrumentedModules,
 } from './instrumented-modules.js';
 import {
   testCoverageFile,
@@ -135,12 +137,29 @@ export interface RecordExecutionOptions {
   /** Repository root the paths in the inventory are relative to. */
   readonly root: string;
   readonly subjects: readonly ObservedSubject[];
-  /** Defaults to the label's repository-keyed inventory. */
-  readonly modulesFile?: string;
+  /**
+   * Defaults to the label's repository-keyed inventory.
+   *
+   * Several, when one run drove more than one instrumented build and their
+   * inventories do not sit where the labels put them.
+   */
+  readonly modulesFile?: string | readonly string[];
   /** Matches {@link testSelectionProbes}'s `label`. Defaults to `build`. */
   readonly label?: string;
   /** Persisted coverage index. Defaults to the repository-keyed user cache. */
   readonly coverageFile?: string;
+  /**
+   * Other builds this same run drove, by the label each instrumented under.
+   *
+   * Their inventories join this call rather than getting one of their own,
+   * because a second call describing the same subjects looks to the merge like
+   * a second run and retires the first's evidence for every owner they share.
+   * Where two inventories hold one file and disagree about its blocks, that
+   * file is recorded as **not instrumented** — the builds transformed it
+   * differently, so no ordinal in it means one thing, and unknown widens where
+   * a guess would skip.
+   */
+  readonly heads?: readonly string[];
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -169,23 +188,29 @@ export async function recordExecution(
     options.coverageFile === undefined
       ? testCoverageFile(root)
       : resolve(root, options.coverageFile);
-  const modulesFile =
-    options.modulesFile === undefined
-      ? instrumentedModulesFile(root, options.label)
-      : resolve(root, options.modulesFile);
+  const modulesFiles = [
+    ...(options.modulesFile === undefined
+      ? [instrumentedModulesFile(root, options.label)]
+      : typeof options.modulesFile === 'string'
+        ? [options.modulesFile]
+        : options.modulesFile),
+    ...(options.heads ?? []).map((head) => instrumentedModulesFile(root, head)),
+  ].map((file) => resolve(root, file));
 
-  const inventory = await readInstrumentedModules(modulesFile);
-  if (inventory === undefined) {
+  const read = await Promise.all(modulesFiles.map(readInstrumentedModules));
+  const missing = modulesFiles.filter((_file, index) => read[index] === undefined);
+  if (missing.length > 0) {
     return {
       recorded: false,
       coverageFile,
       subjects: 0,
       because:
-        `no instrumented block inventory at ${modulesFile}: add ` +
+        `no instrumented block inventory at ${missing.join(', ')}: add ` +
         '`testSelectionProbes()` to the build this run drives, and rebuild it with ' +
         'the same version of this package',
     };
   }
+  const inventory = unionInventories(read as readonly InstrumentedModules[]);
 
   const foreign = options.subjects.find(
     (subject) => subject.journal.instrumentation !== INSTRUMENTATION_ID,
@@ -329,6 +354,98 @@ async function lockAge(lock: string): Promise<number | undefined> {
 
 function isTaken(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'EEXIST';
+}
+
+/**
+ * One row per owner, whatever realm saw it.
+ *
+ * A run records once. Two calls describing the same subject are two runs as far
+ * as the merge is concerned, and the second retires the first — so a page's
+ * crossings and every head's are one observation before anything is written.
+ */
+export function joinObservations(
+  sources: readonly (readonly ObservedSubject[])[],
+): readonly ObservedSubject[] {
+  interface Held {
+    readonly modules: Map<string, Set<number>>;
+    readonly preconditions: Map<string, CoveragePrecondition>;
+    complete: boolean;
+    instrumentation: string;
+  }
+  const byOwner = new Map<string, Held>();
+
+  for (const subjects of sources) {
+    for (const subject of subjects) {
+      const held = byOwner.get(subject.owner) ?? {
+        modules: new Map<string, Set<number>>(),
+        preconditions: new Map<string, CoveragePrecondition>(),
+        complete: true,
+        instrumentation: INSTRUMENTATION_ID,
+      };
+      for (const module of subject.journal.modules) {
+        const ordinals = held.modules.get(module.file) ?? new Set<number>();
+        for (const ordinal of module.hits) ordinals.add(ordinal);
+        held.modules.set(module.file, ordinals);
+      }
+      for (const precondition of subject.preconditions ?? []) {
+        held.preconditions.set(precondition.name, precondition);
+      }
+      if (subject.complete === false) held.complete = false;
+      // A recipe that does not match this driver's has to survive the fold, or
+      // the refusal it exists to trigger is folded away with it.
+      if (subject.journal.instrumentation !== INSTRUMENTATION_ID) {
+        held.instrumentation = subject.journal.instrumentation;
+      }
+      byOwner.set(subject.owner, held);
+    }
+  }
+
+  return [...byOwner]
+    .sort(([left], [right]) => codeUnitOrder(left, right))
+    .map(([owner, held]) => ({
+      owner,
+      complete: held.complete,
+      journal: {
+        instrumentation: held.instrumentation,
+        modules: [...held.modules]
+          .map(([file, ordinals]) => ({ file, hits: [...ordinals].sort((a, b) => a - b) }))
+          .sort((left, right) => codeUnitOrder(left.file, right.file)),
+      },
+      ...(held.preconditions.size === 0
+        ? {}
+        : { preconditions: [...held.preconditions.values()] }),
+    }));
+}
+
+/**
+ * One module list over several builds of overlapping source.
+ *
+ * A file two builds agree on is one file: the instrument is a pure function of
+ * the source, so an identical digest is an identical block list and the first
+ * copy answers for both. A file they disagree on is a file whose ordinals mean
+ * two things, and the only honest row for it is the one this format already has
+ * for a module nothing read — `instrumented: false`, which widens.
+ */
+function unionInventories(inventories: readonly InstrumentedModules[]): InstrumentedModules {
+  if (inventories.length === 1) return inventories[0]!;
+  const byFile = new Map<string, CapturedModule>();
+  const conflicted = new Set<string>();
+  for (const inventory of inventories) {
+    for (const module of inventory.modules) {
+      const known = byFile.get(module.file);
+      if (known === undefined) byFile.set(module.file, module);
+      else if (known.sourceDigest !== module.sourceDigest) conflicted.add(module.file);
+    }
+  }
+  return {
+    version: 1,
+    instrumentation: INSTRUMENTATION_ID,
+    modules: [...byFile.values()]
+      .map((module) =>
+        conflicted.has(module.file) ? { ...module, instrumented: false, blocks: [] } : module,
+      )
+      .sort((left, right) => codeUnitOrder(left.file, right.file)),
+  };
 }
 
 /**
