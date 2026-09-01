@@ -74,9 +74,18 @@ export interface CoverageTest {
 }
 
 export interface TestCoverage {
-  readonly version: 2;
+  readonly version: 3;
   /** Probe recipe that produced every block and crossing in this snapshot. */
   readonly instrumentation: string;
+  /**
+   * The commit this snapshot was recorded at — its position in time and space,
+   * and the ref a caller diffs against to learn what has changed since.
+   *
+   * Absent when the recording happened outside a checkout. An index that cannot
+   * say where it is cannot be diffed against, so a caller holding one has no
+   * grounds to narrow anything and runs the suite it would have run anyway.
+   */
+  readonly commit?: string;
   readonly tests: readonly CoverageTest[];
   readonly modules: readonly CoverageModule[];
 }

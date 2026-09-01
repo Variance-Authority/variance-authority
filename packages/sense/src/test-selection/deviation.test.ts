@@ -35,7 +35,7 @@ describe('test-file deviation', () => {
       { file: 'helper.ts' },
     ];
     const coverage: TestCoverage = {
-      version: 2,
+      version: 3,
       instrumentation: 'fixture-instrumentation',
       tests: observations(['alpha.test.ts', 'beta.test.ts', 'type-only.test.ts']),
       modules: [{
@@ -93,7 +93,7 @@ describe('test-file deviation', () => {
     roots.push(root);
     await writeFile(resolve(root, 'opaque.ts'), 'export const opaque = true;\n');
     const coverage: TestCoverage = {
-      version: 2,
+      version: 3,
       instrumentation: 'fixture-instrumentation',
       tests: observations(['opaque.test.ts']),
       modules: [{

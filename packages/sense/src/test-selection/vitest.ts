@@ -6,8 +6,9 @@ import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
-import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { mergeCoverage } from './merge.js';
+import { commitOf } from './commit.js';
+import { encodeTestCoverage } from './format.js';
+import { existingCoverage, mergeCoverage } from './merge.js';
 import {
   cleanId,
   codeUnitOrder,
@@ -167,9 +168,11 @@ function selectionReporter(
           ? []
           : [coverageTest(file, root, preconditionFiles, journals, modules)]),
       );
+      const commit = await commitOf(root);
       const current: TestCoverage = {
-        version: 2,
+        version: 3,
         instrumentation: INSTRUMENTATION_ID,
+        ...(commit === undefined ? {} : { commit }),
         tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
         modules: [...modules.values()]
           .map((module): CoverageModule => ({
@@ -262,14 +265,6 @@ async function readJournals(directory: string): Promise<readonly Journal[]> {
   return Promise.all(names.map(async (name) => JSON.parse(await readFile(resolve(directory, name), 'utf8')) as Journal));
 }
 
-async function existingCoverage(file: string): Promise<TestCoverage | undefined> {
-  try {
-    return decodeTestCoverage(await readFile(file));
-  } catch (error) {
-    if (isMissing(error)) return undefined;
-    throw error;
-  }
-}
 
 function array<T>(value: T | readonly T[] | undefined): T[] {
   return value === undefined ? [] : Array.isArray(value) ? [...value] : [value as T];

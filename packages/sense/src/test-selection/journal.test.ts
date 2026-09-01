@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   EXECUTION_GLOBAL,
@@ -66,6 +68,18 @@ async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
 
 function diffAt(file: string, line: number): string {
   return `--- a/${file}\n+++ b/${file}\n@@ -${line},1 +${line},1 @@\n`;
+}
+
+/** Turn a scratch directory into a checkout with one commit, and name it. */
+async function checkout(root: string): Promise<string> {
+  const git = async (...args: string[]): Promise<string> =>
+    (await promisify(execFile)('git', args, { cwd: root })).stdout.trim();
+  await git('init', '--quiet');
+  await git('config', 'user.email', 'fixture@example.invalid');
+  await git('config', 'user.name', 'Fixture');
+  await git('add', '--all');
+  await git('commit', '--quiet', '--message', 'the state this index stands at');
+  return git('rev-parse', 'HEAD');
 }
 
 describe('a browser run records what it executed', () => {
@@ -138,6 +152,66 @@ describe('a browser run records what it executed', () => {
       const coverage = await readTestCoverage(coverageFile);
       const root_ = coverage.modules[0]!.blocks.find((block) => block.kind === 'module')!;
       expect(root_.testFiles).toEqual(['story:price--plain', 'story:price--premium']);
+    });
+  });
+
+  it('stamps the commit the checkout was at, and nothing when there is none', async () => {
+    // An index's whole position in time and space. A reader diffs from here to
+    // the working tree to learn what has changed since; without it there is
+    // nothing to diff against, which is the honest record of a recording made
+    // outside a checkout and leaves a caller running everything.
+    await inRoot(async (root) => {
+      const modulesFile = resolve(root, 'modules.json');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+
+      const plugin = testSelectionProbes({ root, modulesFile });
+      const transformed = plugin.transform(SOURCE, module)!;
+      await plugin.buildEnd();
+      const realm = evaluate(transformed.code);
+      realm.price(20);
+      const journal = realm.collector.drain();
+      const subjects = [{ owner: 'story:price--premium', journal }];
+
+      await recordExecution({ root, modulesFile, coverageFile, subjects });
+      expect(await readTestCoverage(coverageFile)).not.toHaveProperty('commit');
+
+      const head = await checkout(root);
+      await recordExecution({ root, modulesFile, coverageFile, subjects });
+      expect((await readTestCoverage(coverageFile)).commit).toBe(head);
+    });
+  });
+
+  it('records over an index it can no longer read', async () => {
+    // Refusing would take the index lock inside a runner's teardown and stop
+    // every later run from recording anything until somebody deleted the file
+    // by hand. What is lost is evidence this machine could not read anyway.
+    await inRoot(async (root) => {
+      const modulesFile = resolve(root, 'modules.json');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+
+      const plugin = testSelectionProbes({ root, modulesFile });
+      const transformed = plugin.transform(SOURCE, module)!;
+      await plugin.buildEnd();
+      const realm = evaluate(transformed.code);
+      realm.price(20);
+      const journal = realm.collector.drain();
+      await writeFile(coverageFile, 'half a copy of something else', 'utf8');
+
+      const recorded = await recordExecution({
+        root,
+        modulesFile,
+        coverageFile,
+        subjects: [{ owner: 'story:price--premium', journal }],
+      });
+
+      expect(recorded).toMatchObject({ recorded: true, subjects: 1 });
+      expect(await selectTestFiles(coverageFile, diffAt('price.js', PREMIUM_LINE))).toEqual([
+        'story:price--premium',
+      ]);
     });
   });
 

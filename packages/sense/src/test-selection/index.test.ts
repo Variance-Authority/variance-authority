@@ -8,7 +8,7 @@ import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js'
 
 const testFiles = ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'];
 const coverage: TestCoverage = {
-  version: 2,
+  version: 3,
   instrumentation: 'fixture-instrumentation',
   tests: testFiles.map((file) => ({
     file,
@@ -197,6 +197,31 @@ describe('selectTestFiles', () => {
     expect(
       narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff).unread,
     ).toEqual([]);
+  });
+
+  it('names a module the build could not instrument rather than reading its silence', () => {
+    // A row with no blocks behind it. The lookup succeeds, so the file is not
+    // unknown the way `README.md` is — and its emptiness is the build saying it
+    // never parsed this module, not the journal saying nothing entered it.
+    // Selecting nobody would be an answer, and there is no answer here.
+    const unparsed: TestCoverage = {
+      ...coverage,
+      modules: [
+        ...coverage.modules,
+        { file: 'src/unparsed.ts', sourceDigest: 'source:unparsed', instrumented: false, blocks: [] },
+      ],
+    };
+    const diff = `--- a/src/unparsed.ts
++++ b/src/unparsed.ts
+@@ -2,1 +2,1 @@
+-  return 1;
++  return 2;`;
+
+    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(unparsed)), diff)).toEqual({
+      whole: testFiles,
+      entered: [],
+      unread: ['src/unparsed.ts'],
+    });
   });
 
   it('unions two hunks in one file rather than letting the deeper one erase the other', () => {

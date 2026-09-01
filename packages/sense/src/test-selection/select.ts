@@ -32,6 +32,14 @@ export interface ExecutionNarrowing {
    * opinion, and a caller reading it as *nobody entered this* skips a suite over
    * a file it never measured.
    *
+   * A module the build could not instrument is the same fact wearing a row. It
+   * is in the index, so a lookup finds it; it has no blocks, because that is
+   * what `instrumented: false` means on disk; and reading its emptiness as *no
+   * test entered this* is the one case where the snapshot holds a path and still
+   * knows nothing about it. Recorded evidence and unparsed silence are opposite
+   * answers, so the row is read as the silence it is and the file is returned
+   * here.
+   *
    * Empty is the ordinary state and means every changed path was one the journal
    * could answer for.
    */
@@ -68,7 +76,10 @@ function readDiff(
 
   for (const [file, ranges] of changedLines(diff)) {
     const module = findModule(coverage, file);
-    if (module === undefined) {
+    // No row, or a row with nothing behind it. `instrumented: false` is the
+    // build saying it never read this module — not that nothing ran in it — and
+    // its zero blocks would otherwise select nobody and look like an answer.
+    if (module === undefined || coverage.moduleInstrumented[module] !== 1) {
       governing.push(file);
       continue;
     }

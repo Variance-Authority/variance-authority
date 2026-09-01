@@ -7,7 +7,7 @@ import type {
 } from './index.js';
 import { validateCoverageColumns } from './format-validation.js';
 
-const VERSION = 2;
+const VERSION = 3;
 const ALIGNMENT = 8;
 const NO_OWNER = 0xffff_ffff;
 
@@ -69,6 +69,13 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   stringOffsets[strings.length] = byteOffset;
 
   const instrumentation = Uint32Array.of(stringId(normalized.instrumentation));
+  // Empty rather than a sentinel id: an index recorded outside a checkout has no
+  // position, and a zero-length column is how the file says so without inventing
+  // a commit that would later be diffed against.
+  const commit =
+    normalized.commit === undefined
+      ? new Uint32Array(0)
+      : Uint32Array.of(stringId(normalized.commit));
   const testPaths = Uint32Array.from(normalized.tests, (test) => stringId(test.file));
   const testComplete = Uint8Array.from(normalized.tests, (test) => test.complete ? 1 : 0);
   const testPreconditions = new Uint32Array(normalized.tests.length + 1);
@@ -136,6 +143,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     'strings.blob': stringBlob,
     'strings.off': bytes(stringOffsets),
     'snapshot.instrumentation': bytes(instrumentation),
+    'snapshot.commit': bytes(commit),
     'tests.path': bytes(testPaths),
     'tests.complete': bytes(testComplete),
     'tests.preconditions': bytes(testPreconditions),
@@ -209,11 +217,19 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
       blocks,
     });
   }
-  return { version: 2, instrumentation: view.instrumentation, tests, modules };
+  return {
+    version: 3,
+    instrumentation: view.instrumentation,
+    ...(view.commit === undefined ? {} : { commit: view.commit }),
+    tests,
+    modules,
+  };
 }
 
 export interface TestCoverageView {
   readonly instrumentation: string;
+  /** The commit this snapshot was recorded at; absent when it has no position. */
+  readonly commit: string | undefined;
   readonly testPath: Uint32Array;
   readonly testComplete: Uint8Array;
   readonly testPreconditions: Uint32Array;
@@ -266,6 +282,7 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
   const stringOffsets = u32('strings.off');
   const decoder = new TextDecoder();
   const instrumentation = u32('snapshot.instrumentation');
+  const commit = u32('snapshot.commit');
   const testPath = u32('tests.path');
   const testComplete = u8('tests.complete');
   const testPreconditions = u32('tests.preconditions');
@@ -287,7 +304,7 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
   const blockTests = u32('blocks.tests');
   const crossingTest = u32('crossings.test');
   validateCoverageColumns({
-    stringOffsets, stringBytes: stringBlob.length, instrumentation,
+    stringOffsets, stringBytes: stringBlob.length, instrumentation, commit,
     testPath, testComplete, testPreconditions, preconditionName, preconditionDigest,
     modulePath, moduleSource, moduleInstrumented, moduleBlocks,
     blockOrdinal, blockKind, blockOwner, blockDigest, blockName, blockPath,
@@ -295,15 +312,20 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
     kindCount: KINDS.length, noOwner: NO_OWNER,
   });
 
+  const stringAt = (id: number): string => {
+    const start = stringOffsets[id];
+    const end = stringOffsets[id + 1];
+    if (start === undefined || end === undefined || end > stringBlob.length) throw invalid();
+    return decoder.decode(stringBlob.subarray(start, end));
+  };
+
   return {
     instrumentation: (() => {
       const value = instrumentation[0];
       if (value === undefined) throw invalid();
-      const start = stringOffsets[value];
-      const end = stringOffsets[value + 1];
-      if (start === undefined || end === undefined || end > stringBlob.length) throw invalid();
-      return decoder.decode(stringBlob.subarray(start, end));
+      return stringAt(value);
     })(),
+    commit: commit.length === 0 ? undefined : stringAt(commit[0]!),
     testPath,
     testComplete,
     testPreconditions,
@@ -324,12 +346,7 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
     blockSource,
     blockTests,
     crossingTest,
-    string(id) {
-      const start = stringOffsets[id];
-      const end = stringOffsets[id + 1];
-      if (start === undefined || end === undefined || end > stringBlob.length) throw invalid();
-      return decoder.decode(stringBlob.subarray(start, end));
-    },
+    string: stringAt,
   };
 }
 
@@ -366,6 +383,7 @@ function sections(input: Readonly<Record<string, Buffer>>): Buffer {
 function dictionary(coverage: TestCoverage): readonly string[] {
   const values = new Set<string>();
   values.add(coverage.instrumentation);
+  if (coverage.commit !== undefined) values.add(coverage.commit);
   for (const test of coverage.tests) {
     values.add(test.file);
     for (const precondition of test.preconditions) {

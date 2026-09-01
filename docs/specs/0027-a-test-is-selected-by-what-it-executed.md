@@ -158,12 +158,15 @@ block* and *by what route*.
 ### How a diff moves the index
 
 The diff is taken between **what the index recorded and what is on disk** — not
-between a branch and a merge base. That distinction is load-bearing: no ref is
-consulted, so a rebase, a squash, a branch switch and a shallow clone change
-nothing, and a revert lands on records already held. Every failure mode
+between a branch and a merge base. The index names the commit it was written at,
+which is where it stands in time and space, and that one ref is the whole of what
+is consulted: a rebase, a squash and a branch switch are answered by diffing that
+commit against the tree on disk, and a revert lands on records already held. A
+checkout that no longer holds the commit leaves the index with no position to
+diff from, which widens to the full suite. Every failure mode
 [ADR-0039](../context/adr/0039-the-digest-is-the-proof-the-trail-is-the-explanation.md)
-enumerates for `git diff base...HEAD` is a property of inputs this diff does not
-have.
+enumerates for `git diff base...HEAD` is a property of a merge base this diff
+never computes.
 
 Then the diff **transforms** the index rather than merely explaining it:
 

@@ -52,6 +52,23 @@ describe('the persisted coverage format', () => {
     });
   });
 
+  it('carries the commit a snapshot was recorded at, and its absence', () => {
+    // The whole of an index's position. A file that has one can be diffed
+    // against; a file that has none says so rather than naming a commit a
+    // reader would then diff against and be wrong about.
+    const positioned: TestCoverage = {
+      ...representativeCoverage(),
+      commit: '9b6a1f2e4c8d0a35b7e9f1c3d5a7b9e1f3c5a7b9',
+    };
+
+    expect(decodeTestCoverage(encodeTestCoverage(positioned)).commit).toBe(
+      '9b6a1f2e4c8d0a35b7e9f1c3d5a7b9e1f3c5a7b9',
+    );
+    expect(decodeTestCoverage(encodeTestCoverage(representativeCoverage()))).not.toHaveProperty(
+      'commit',
+    );
+  });
+
   it('rejects invalid state columns before they can answer a query', () => {
     const encoded = encodeTestCoverage(representativeCoverage());
     const headerLength = encoded.readUInt32LE(0);
@@ -106,7 +123,7 @@ function representativeCoverage(): TestCoverage {
     `packages/application/src/feature-${index}/feature-${index}.test.ts`,
   ).sort();
   return {
-    version: 2,
+    version: 3,
     instrumentation: 'fixture-instrumentation',
     tests: testFiles.map((file) => ({
       file,

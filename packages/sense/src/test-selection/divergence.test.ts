@@ -40,7 +40,7 @@ const THREE = ['story:cart-card--item', 'story:cart-card--removing', 'story:cart
 
 function coverage(modules: readonly CoverageModule[], tests = THREE): TestCoverage {
   return {
-    version: 2,
+    version: 3,
     instrumentation: 'sense:instrument@1',
     tests: tests.map((file) => ({ file, complete: true, preconditions: [] })),
     modules,

@@ -245,6 +245,18 @@ every test it governs, which is what declaring one is for. A file the snapshot
 never recorded selects nothing, and `narrowByExecution` returns it under
 `unread` so a caller can tell that from *nothing entered it*.
 
+The snapshot carries the commit it was recorded at, which is the whole of its
+position in time and space. There is one master branch and every other checkout
+is that branch plus a diff — or minus one, where it is behind — so
+`git diff <commit> HEAD` and the working tree are the distance in either
+direction, and `readTestCoverage(file)` hands the ref back under `commit` for a
+caller to diff from. Merging leaves the index standing where the run that merged
+into it stands; whether an individual block's crossings survived that merge is a
+finer question, decided per region by the region's own digest. A recording made
+outside a checkout has no commit, and an index that cannot say where it is has
+nothing to diff against, so a caller holding one runs the suite it would have run
+anyway.
+
 The unit of a change is the **line**, in the coordinates of the diff's own base
 revision, which is the side the snapshot is indexed by. A hunk header is not the
 change: the context lines printed around an edit are unchanged, and charging
@@ -300,6 +312,8 @@ driver closed, each an `owner`, the drained `journal`, optional `preconditions`
 naming files whose identity the observation depended on, and `complete`, which is
 false for a subject that did not finish and keeps it from ever justifying a skip.
 `heads` names other builds the same run drove, whose inventories join this call.
+`commit` overrides where the recording stands, which otherwise reads the
+checkout's `HEAD`.
 
 Anything else drives it directly: evaluate `executionCollectorSource()` in the
 page if the build does not hoist it, call `drainExecution(page)` to close a

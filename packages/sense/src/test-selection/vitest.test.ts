@@ -109,7 +109,7 @@ function coverage(
   sourceModule?: TestCoverage['modules'][number],
 ): TestCoverage {
   return {
-    version: 2,
+    version: 3,
     instrumentation: 'fixture-instrumentation',
     tests: [{
       file: 'case.test.ts',

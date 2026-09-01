@@ -7,10 +7,22 @@
  * importing a runner it does not have.
  */
 
+import { readFile } from 'node:fs/promises';
+import { decodeTestCoverage } from './format.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 
-/** Merge independent runs and shards without transferring evidence across generations. */
+/**
+ * Merge independent runs and shards without transferring evidence across generations.
+ *
+ * The result is positioned where `current` is. A merge whose two sides name
+ * different commits is a local layer over a baseline — the ordinary shape, and
+ * the reason nothing is refused here: a run adds what it saw to what was already
+ * known, and the index then stands at the commit that run was made at. Whether
+ * an individual block's crossings survive that is decided per block by
+ * {@link reusableBlock}, which compares the region's own digest and is a finer
+ * question than the commit.
+ */
 export function mergeCoverage(
   previous: TestCoverage | undefined,
   current: TestCoverage,
@@ -67,11 +79,37 @@ export function mergeCoverage(
   }
   modules.sort((left, right) => codeUnitOrder(left.file, right.file));
   return {
-    version: 2,
+    version: 3,
     instrumentation: current.instrumentation,
+    ...(current.commit === undefined ? {} : { commit: current.commit }),
     tests,
     modules,
   };
+}
+
+/**
+ * The index a merge is about to write over, or nothing to merge with.
+ *
+ * Undecodable counts as nothing. This is the read half of a read-modify-write,
+ * and the only two things it can do with a file it cannot parse are refuse the
+ * recording or replace it. Refusing means a format change, a truncated write or
+ * a half-copied cache file stops every later run from recording anything until
+ * somebody deletes it by hand — and it does so *after* taking the index lock,
+ * from inside a runner's teardown, where the sentence is easiest to miss.
+ * Replacing costs this machine the evidence it could no longer read, which the
+ * next full run restores, and which in the meantime widens selection rather than
+ * narrowing it.
+ *
+ * Readers ask the opposite way round. A caller that is about to *exclude* tests
+ * gets the decode error, because there the same unreadable file would silently
+ * become an empty answer.
+ */
+export async function existingCoverage(file: string): Promise<TestCoverage | undefined> {
+  try {
+    return decodeTestCoverage(await readFile(file));
+  } catch {
+    return undefined;
+  }
 }
 
 function samePreconditions(left: CoverageTest, right: CoverageTest): boolean {

@@ -43,8 +43,9 @@ import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { digestString } from '@variance-authority/core';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
-import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { mergeCoverage } from './merge.js';
+import { commitOf } from './commit.js';
+import { encodeTestCoverage } from './format.js';
+import { existingCoverage, mergeCoverage } from './merge.js';
 import {
   codeUnitOrder,
   coverageModule,
@@ -160,6 +161,11 @@ export interface RecordExecutionOptions {
    * a guess would skip.
    */
   readonly heads?: readonly string[];
+  /**
+   * Where this recording stands. Defaults to the checkout's `HEAD`, which is the
+   * answer in every case except a caller that already knows better.
+   */
+  readonly commit?: string;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -267,9 +273,11 @@ export async function recordExecution(
     })
     .sort((left, right) => codeUnitOrder(left.file, right.file));
 
+  const commit = options.commit ?? (await commitOf(root));
   const current: TestCoverage = {
-    version: 2,
+    version: 3,
     instrumentation: INSTRUMENTATION_ID,
+    ...(commit === undefined ? {} : { commit }),
     tests,
     modules: inventory.modules
       .map((module) =>
@@ -470,11 +478,3 @@ export async function preconditionOf(
   }
 }
 
-async function existingCoverage(file: string): Promise<TestCoverage | undefined> {
-  try {
-    return decodeTestCoverage(await readFile(file));
-  } catch (error) {
-    if (isMissing(error)) return undefined;
-    throw error;
-  }
-}

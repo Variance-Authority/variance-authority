@@ -2,6 +2,7 @@ interface CoverageColumns {
   readonly stringOffsets: Uint32Array;
   readonly stringBytes: number;
   readonly instrumentation: Uint32Array;
+  readonly commit: Uint32Array;
   readonly testPath: Uint32Array;
   readonly testComplete: Uint8Array;
   readonly testPreconditions: Uint32Array;
@@ -35,6 +36,7 @@ export function validateCoverageColumns(value: CoverageColumns): void {
     value.stringOffsets[strings] !== value.stringBytes ||
     !ordered(value.stringOffsets) ||
     value.instrumentation.length !== 1 ||
+    value.commit.length > 1 ||
     value.testComplete.length !== value.testPath.length ||
     value.testPreconditions.length !== value.testPath.length + 1 ||
     value.preconditionName.length !== value.preconditionDigest.length ||
@@ -56,7 +58,7 @@ export function validateCoverageColumns(value: CoverageColumns): void {
   csr(value.blockTests, value.crossingTest.length);
 
   for (const column of [
-    value.instrumentation, value.testPath, value.preconditionName,
+    value.instrumentation, value.commit, value.testPath, value.preconditionName,
     value.preconditionDigest, value.modulePath, value.moduleSource,
     value.blockDigest, value.blockName, value.blockPath,
   ]) ids(column, strings);
