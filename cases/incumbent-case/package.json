@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc --build",
     "bundle": "node scripts/bundle.mjs",
-    "incumbent": "node scripts/incumbent.mjs"
+    "incumbent": "node scripts/incumbent.mjs",
+    "engines": "node scripts/engines.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",

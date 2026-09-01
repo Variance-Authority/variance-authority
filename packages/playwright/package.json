@@ -41,10 +41,14 @@
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
-    "mark.svg"
+    "mark.svg",
+    "scripts/host.mjs",
+    "scripts/paint.mjs"
   ],
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "host": "node scripts/host.mjs",
+    "paint": "node scripts/paint.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",

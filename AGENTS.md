@@ -128,6 +128,23 @@ deletes the claim** rather than leaving it to be noticed.
   exported, documented, called by nothing, and drifting from the private copy
   `playwright-test` had grown for the same job. `EXERCISE_DEBT` is a per-package
   budget that may only shrink, on the same terms as `OPTION_DEBT`.
+- **Performance is earned, and isolation is not how it is earned.** A session
+  keeps one browser, one context and one page (ADR-0009), and switches subjects
+  **in place** through the harness's own API — Storybook's story switch, never a
+  reload and never a fresh fixture. Playwright's per-test isolation is rejected
+  here on measurement, not taste: it costs 2.3x to 6.4x the whole subject, the
+  tax falls hardest on the engine that paints fastest, and a benchmark shaped
+  like it reports process setup while claiming to report the engine
+  ([journal 0036](docs/context/journal/0036-the-model-picks-the-engine.md)).
+  Storage and cookies may be cleared between subjects — 0.30 ms, which is the
+  entire price of the objection. On a host that translates instructions the same
+  tax is 8.9x to 28.7x, because translation is expensive at process creation and
+  cheap in steady state — reuse pays it once, a fixture pays it per subject
+  ([journal 0037](docs/context/journal/0037-the-container-is-not-the-tax.md)).
+  A subject that is *unstable* under reuse is a finding: divergence analysis names
+  the writer and the selector that connected them, and **we guide the fix**.
+  Rinsing to make an unstable subject look stable hides the defect and charges
+  every other subject for it.
 - A limitation is a bug or a position, never an apology. Classify it before
   writing "we cannot".
 - **A status claim is a marker, not a sentence in `docs/`.** `it.todo` for what

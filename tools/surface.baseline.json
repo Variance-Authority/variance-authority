@@ -1365,7 +1365,9 @@
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
-        "mark.svg"
+        "mark.svg",
+        "scripts/host.mjs",
+        "scripts/paint.mjs"
       ],
       "engines": {
         "node": ">=22"

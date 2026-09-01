@@ -23,8 +23,8 @@ import {
   type RenderIdentity,
   type Viewport,
 } from '@variance-authority/core';
+import { captureSubject } from './capture.js';
 import {
-  SUBJECT_PATH,
   assemble,
   familiesOf,
   identityAtScale,
@@ -70,17 +70,26 @@ import {
  * both engines — by the machinery that was there for two laptops, unchanged.
  * Nothing about cross-engine support required a cross-engine concept.
  *
- * **What is not claimed.** No suite in this repository has run WebKit or Firefox.
- * What is verified is that the identity differs, which is what decides whether
- * two images may be compared at all; the tricks in the stabilization recipe are
- * written against Chromium's behaviour and have never been asked to hold another
- * engine still.
+ * **What is not claimed.** The tricks in the stabilization recipe are written
+ * against Chromium's behaviour and have never been asked to hold another engine
+ * still, and text rasterization is pinnable on Chromium alone — see
+ * {@link CHROMIUM_RASTER_ARGS}. `engines.chromium.test.ts` exercises whichever
+ * engines are installed, so the identity claim is verified rather than assumed.
  */
 export type BrowserEngine = 'chromium' | 'firefox' | 'webkit';
 
 const ENGINES: Readonly<Record<BrowserEngine, BrowserType>> = { chromium, firefox, webkit };
 
-/** Chromium settings that make text rasterization independent of host defaults. */
+/**
+ * Chromium settings that make text rasterization independent of host defaults.
+ *
+ * **No other engine accepts them**, so Firefox and WebKit paint text the way the
+ * host does; WebKit's one lever is the page's `-webkit-font-smoothing`, which
+ * changes the subject rather than the conditions it is shot under. Dormant on
+ * macOS — no subpixel antialiasing since 10.14, every flag a no-op — and
+ * load-bearing wherever fontconfig is live: 6,662 chromatic pixels in the standard
+ * image, zero with the flags. A raster belongs to a host. See the README.
+ */
 export const CHROMIUM_RASTER_ARGS = [
   '--disable-lcd-text',
   '--font-render-hinting=none',
@@ -264,14 +273,10 @@ export async function createPlaywrightRenderer(
 
           const missingFonts = await page.evaluate(probeFonts, familiesOf(document.fonts));
 
-          const subject = page.locator(`[data-va-path="${SUBJECT_PATH}"]`);
-          // Handed to the browser rather than emulated in CSS. It fast-forwards a
-          // finite animation to completion — the state a user comes to rest on —
-          // and cancels an infinite one to its initial frame, then replays it.
-          // Injected CSS can only pin frame zero, which captures a fade-in at the
-          // moment it is invisible.
-          const bytes = await subject.screenshot(screenshot);
-          const box = await subject.boundingBox();
+          // Takes the element path or a page clip over the same rectangle,
+          // whichever is cheaper and identical; `capture.ts` owns that decision
+          // and the animation options both paths are given.
+          const { bytes, box } = await captureSubject(page, document.viewport, screenshot);
 
           // Catch work queued by load/font completion or the screenshot itself.
           // Every network channel remains blocked for the whole lease; this turn

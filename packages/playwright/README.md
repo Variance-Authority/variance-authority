@@ -179,6 +179,74 @@ reports `incomparable`, naming both engines. The supplied stabilization recipe
 targets Chromium — use `prepare` for engine-specific controls needed by
 Firefox or WebKit.
 
+### Only Chromium can be told how to paint text
+
+`CHROMIUM_RASTER_ARGS` — `--disable-lcd-text`, `--font-render-hinting=none` —
+makes Chromium's text independent of host defaults, and there is no equivalent
+for Firefox or WebKit. Their text is painted the way the host paints text.
+WebKit's one lever is the page's own `-webkit-font-smoothing`, which is not a
+substitute: it moves 4,204 pixels of a 500x160 subject, so it changes the subject
+rather than the conditions the subject is photographed under.
+
+On macOS none of this bites. The system has had no subpixel antialiasing since
+10.14, all four candidate flags are no-ops, and every engine paints greyscale
+headed or headless at 1x and 2x. Where fontconfig is live — Linux, so most CI —
+the flags are load-bearing for Chromium and absent for the other two. Measured in
+`mcr.microsoft.com/playwright:v1.62.1-noble`: Chromium painting a webfont emits
+6,662 chromatic pixels, the two flags take that to zero, and Firefox and WebKit do
+not move because the flags never reached them.
+
+**So a WebKit or Firefox raster is comparable only to one from the same host.**
+`RenderIdentity` carries `platform`, so a laptop's baseline and a container's are
+separate baselines and a run says `incomparable` rather than comparing them. That
+is the safe failure, not a solution: neither answers for the other. If rasters are
+produced in a container, produce them only there — a local WebKit renderer records
+baselines nothing will ever compare against, and pays the raster tier for them.
+The semantic tier is unaffected and stays local (ADR-0010).
+
+Choosing the container is cheap, which is not the assumption. Measured on an M4 Max
+under Docker Desktop 29.0.1, `mcr.microsoft.com/playwright:v1.62.1-noble` costs
+Chromium 1.17x and WebKit 1.66x per paint against native macOS, and costs Firefox
+nothing at all — it is *faster* in the container, 7.5 ms against 8.3. The same
+image run as arm64 and as translated amd64 produces byte-identical rasters, so the
+pixels follow the image rather than the machine.
+
+The engine outranks both the host and the emulator: across those three hosts, all
+nine arrangements sort by engine before they sort by anything else, and WebKit in
+a *translated x86* container paints faster than Chromium on bare metal — 11.0 ms
+against 29.0.
+
+### Which engine is fastest depends on what you are painting
+
+Capture cost and rasterization cost are separate, and no engine is cheap at both.
+Median ms per paint on macOS, one page reused, both subjects captured the same
+way:
+
+| engine | text on a flat fill | 240 blurred gradient cells |
+| --- | ---: | ---: |
+| chromium | 26.2 | 36.8 |
+| firefox | **8.5** | **21.6** |
+| webkit | **3.7** | 45.5 |
+
+Chromium pays ~26 ms to take a screenshot at all and then rasterizes cheaply;
+WebKit is the reverse, seven times cheaper to capture and four times more
+expensive per unit of drawing. **WebKit is the fastest engine on the first
+subject and the slowest on the second**, so a ranking measured on one kind of
+subject does not transfer to a suite made of the other kind. Firefox is second
+on both, which makes it the engine to reach for when the suite is mixed or
+unmeasured.
+
+`scripts/host.mjs` is the reproduction — it paints both subjects and imports
+nothing from this repository, so the same bytes run on every host:
+
+```bash
+yarn workspace @variance-authority/playwright host 60
+```
+
+```bash
+yarn workspace @variance-authority/playwright host --compare ./native ./box/out
+```
+
 ## The renderer: a document in, a raster out
 
 ```ts
