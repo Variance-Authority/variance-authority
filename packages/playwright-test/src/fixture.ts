@@ -39,6 +39,11 @@ import {
   type ExecutionRecorder,
   type ExecutionRecording,
 } from './execution.js';
+import {
+  varianceEventFixtures,
+  type VarianceEventFixtures,
+  type VarianceEventWorkerFixtures,
+} from './events.js';
 import type { AcquireRequest } from './page-agent.js';
 
 /**
@@ -126,12 +131,12 @@ export type MaterializationOptions =
   | { readonly kind: 'deferred' }
   | InPlaceCaptureOptions;
 
-export interface VarianceFixtures {
+export interface VarianceFixtures extends VarianceEventFixtures {
   /** Observe one subtree against its stored baseline. */
   readonly variance: (locator: Locator, options?: VarianceOptions) => Promise<Observation>;
 }
 
-export interface VarianceWorkerFixtures {
+export interface VarianceWorkerFixtures extends VarianceEventWorkerFixtures {
   /**
    * Record what each spec executed, for the next run's `--since`.
    *
@@ -196,12 +201,22 @@ function viewportOf(
   };
 }
 
+/**
+ * Every fixture this package has, as a value rather than as a `test`.
+ *
+ * A suite extends its own base with it — `base.extend(varianceFixtures)` — which
+ * is the only shape that composes with the extension module a project already
+ * owns. The worker fixtures below are options: a suite names one in `use` when
+ * it supplies its own renderer, store, agent bundle or event directory.
+ */
 export const varianceFixtures: Fixtures<
   VarianceFixtures,
   VarianceWorkerFixtures,
   PlaywrightTestArgs,
   PlaywrightWorkerArgs
 > = {
+  ...varianceEventFixtures,
+
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
   varianceExecution: [false, { scope: 'worker', option: true }],
@@ -257,18 +272,17 @@ export const varianceFixtures: Fixtures<
   ],
 
   variance: async (
-    { page, varianceBundle, varianceRenderer, varianceStore, varianceRecorder },
+    // `varianceJourney` is depended on rather than used: it is what puts the
+    // cookie on the context, and it has to be there before the subject
+    // navigates — a head cannot be told which execution a request belongs to by
+    // an id that arrived after the request did.
+    { page, varianceBundle, varianceRenderer, varianceStore, varianceRecorder, varianceJourney },
     use,
     testInfo,
   ) => {
+    void varianceJourney;
     await page.addInitScript(varianceBundle);
     const owner = varianceRecorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
-    // Before `use`, because the cookie has to be on the context before the
-    // subject navigates: a head cannot be told which execution a request
-    // belongs to by a header that arrived after the request did.
-    if (owner !== undefined) {
-      await varianceRecorder!.join(page, owner, testInfo.project.use.baseURL);
-    }
     await use(async (locator, options) => {
       try {
         return await observeLocator(

@@ -42,6 +42,7 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
+    "@variance-authority/event": "workspace:^",
     "@variance-authority/observe": "workspace:^",
     "@variance-authority/playwright": "workspace:^",
     "@variance-authority/raster": "workspace:^",

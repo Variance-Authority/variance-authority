@@ -82,8 +82,12 @@ export interface ExecutionRecorder {
    * attaches it to every same-origin request — navigations, subresources,
    * `fetch` a library made with no `credentials` option, `sendBeacon`, a form
    * POST — so nothing in the application is touched to carry it.
+   *
+   * Returns the journey, so anything else that needs this execution named — the
+   * `events` fixture, most of all — uses the one that is already on the context
+   * rather than minting a second and overwriting the first.
    */
-  readonly join: (page: Page, owner: string, origin?: string) => Promise<void>;
+  readonly join: (page: Page, owner: string, origin?: string) => Promise<string | undefined>;
   /** Say whether this owner's tests finished; an incomplete owner never excludes. */
   readonly mark: (owner: string, complete: boolean) => void;
   /** Merge this worker's contribution into the index, or explain the silence. */
@@ -135,7 +139,7 @@ export function createExecutionRecorder(
     },
 
     join: async (page, owner, origin) => {
-      if (heads.length === 0) return;
+      if (heads.length === 0) return undefined;
       const url = recording.origin ?? origin;
       if (url === undefined) {
         // Nothing is set, so every head stays silent and `close` declines. The
@@ -146,11 +150,12 @@ export function createExecutionRecorder(
             'this project has no `baseURL`; heads will report nothing and this run will not ' +
             'narrow the next one\n',
         );
-        return;
+        return undefined;
       }
       const journey = mintJourney();
       minted.set(journey, owner);
       await page.context().addCookies([{ name: JOURNEY_COOKIE, value: journey, url }]);
+      return journey;
     },
 
     mark: (owner, complete) => {

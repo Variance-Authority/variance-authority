@@ -1,0 +1,46 @@
+{
+  "name": "@variance-authority/event",
+  "version": "0.0.0-beta.1",
+  "description": "Announce what the code decided, so a test waits for the decision instead of guessing when it was made.",
+  "keywords": [
+    "variance-authority",
+    "flaky-tests",
+    "e2e",
+    "testing",
+    "instrumentation",
+    "observability"
+  ],
+  "license": "MIT",
+  "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/event"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./collect": {
+      "types": "./dist/collect.d.ts",
+      "default": "./dist/collect.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  }
+}

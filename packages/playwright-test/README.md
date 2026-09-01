@@ -223,6 +223,7 @@ defaults to `2` and cannot go lower than two captures.
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 | `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile, heads, journeys, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+| `varianceEvents` | A service announces, and its report directory is not where it was configured. | `{}`. Accepts `directory`, `origin`, and `intervalMs`. The browser half needs none of it. |
 
 Recording joins every observation in one spec file to that file: the runner's
 unit of execution is the file, so an attribution finer than that is one no
@@ -286,6 +287,94 @@ reason. A run half of whose evidence never arrived narrows nothing, because a
 spec skipped on the say-so of a service that was not watching is the one failure
 this category cannot detect afterwards.
 
+## Wait for a decision, not for a repaint
+
+`events` is the driver half of `@variance-authority/event`. Where `variance`
+asks what the screen looks like, this answers *when the code decided*, which is
+the question a screen cannot answer at all for the branch that draws nothing:
+**the modal is not shown** and **the modal is not shown yet** look identical, and
+waiting longer never separates them.
+
+The application announces at the decision:
+
+```ts
+import { vae } from '@variance-authority/event';
+
+declare function shouldUpsell(): Promise<boolean>;
+declare function setUpsell(open: boolean): void;
+
+export async function decideUpsell(): Promise<void> {
+  const show = await shouldUpsell();
+  vae('checkout', 'upsell-modal', 'decided');
+  if (show) setUpsell(true);
+}
+```
+
+The spec names the same three coordinates back, and then asserts the screen once:
+
+```ts
+import { test, expect } from '@playwright/test';
+import { varianceFixtures } from '@variance-authority/playwright-test';
+
+const suite = test.extend(varianceFixtures);
+
+suite('the upsell stays away', async ({ page, events }) => {
+  await page.goto('/checkout');
+  await events.happened('checkout', 'upsell-modal', 'decided');
+  await expect(page.getByRole('dialog')).toBeHidden({ timeout: 0 });
+});
+```
+
+Nothing configures the browser half and nothing builds for it. The fixture
+evaluates the listener before navigation and takes what the page announces; a
+test that never destructures `events` sets none of it up. A wait also settles
+against announcements already heard, so one written a line too late still
+resolves rather than hanging.
+
+`events` is an `EventLog`: `happened` waits for coordinates in any phase,
+`finished` waits for the end of a process `vaStart` opened, `saw` asks without
+waiting, `seen` is everything in arrival order, and `pending` is what started and
+never ended. A wait that does not settle prints what the run did announce, in
+order, or says that nothing was announced at all — which is a setup fact, not a
+product defect, and is worded as one.
+
+### Hearing a service announce
+
+A process behind the page answers several tests at once, so an announcement
+leaving it has to name the execution it belonged to; otherwise one test's wait is
+settled by another test's decision. That id is the same journey the recording
+above puts on the browser context, and the fixture mints one for events when
+nothing else has.
+
+The service runs `collectEvents()` from `@variance-authority/event/collect` and
+one environment block points both ends at one directory:
+
+```ts
+// playwright.config.ts
+export default {
+  use: { baseURL: 'http://localhost:3000' },
+  webServer: {
+    command: 'node ./server.js',
+    url: 'http://localhost:3000',
+    env: {
+      VARIANCE_AUTHORITY_EVENTS: '.variance/events',
+      VARIANCE_AUTHORITY_HEAD: 'api',
+    },
+  },
+};
+```
+
+`directory` overrides that path when the runner's environment is not where the
+service was configured, `origin` overrides the origin the journey cookie is
+scoped to — it defaults to the project's `baseURL` — and `intervalMs` sets how
+often a report is read, defaulting to 25 and costing only latency on a head's
+announcements.
+
+The extra setup is extra, and its absence is quiet: with no directory
+configured, the page still answers and services are simply silent. An
+announcement that arrives without a journey on it is counted and named in the
+failure rather than handed to whichever test was nearby.
+
 ### Matcher integration
 
 `toBeUnchanged` reads the same verdict as a matcher rather than an assertion; it
@@ -310,7 +399,9 @@ suite that already owns a shared Playwright extension module. Compose them into
 that module's existing `test` and `expect`; this package never exports either
 symbol. Override the worker fixtures only when the suite deliberately supplies
 another renderer, store, or agent bundle. The public types are
-`VarianceWorkerFixtures`, `VarianceFixtures`, and `VarianceOptions`.
+`VarianceWorkerFixtures`, `VarianceFixtures`, `VarianceOptions`,
+`VarianceEventFixtures`, `VarianceEventWorkerFixtures`, and
+`VarianceEventsOptions`.
 
 The package also exports `bundlePageAgent`, `acquire`, `AGENT`, and
 `AGENT_VERSION` for authors building a custom Playwright fixture. Ordinary test

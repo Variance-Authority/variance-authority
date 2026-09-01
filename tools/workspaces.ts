@@ -39,6 +39,18 @@ export const SURFACES = [
  */
 export const NEXT_STEP = ['@variance-authority/core', '@variance-authority/cli'];
 
+/**
+ * What a surface may name because the adopter imports it somewhere else entirely.
+ *
+ * `event` is imported by the application, from the code a test is looking at, and
+ * a surface cannot re-export its way out of that: the announcement has to reach
+ * production without production depending on a test runner. So it is named
+ * alongside a surface without being reached *through* one, and a README that
+ * shows both halves is showing two sides of a boundary rather than two boxes an
+ * adopter has to know to run a test.
+ */
+export const PRODUCT_SIDE = ['@variance-authority/event'];
+
 export interface Workspace {
   readonly name: string;
   readonly dir: string;
@@ -75,10 +87,13 @@ export function sourceFiles(dir: string, out: string[] = []): string[] {
  * `@variance-authority/store/lfs` and `@variance-authority/store` are one
  * dependency. `node:fs/promises` is not a dependency at all — a host capability
  * rather than something anybody installs, and one the compiler already governs
- * through each package's `types` and `lib`.
+ * through each package's `types` and `lib`. Neither is `/event.js`: a specifier
+ * rooted at a slash is a URL a server answers, which names no package and would
+ * otherwise be read as one called the empty string.
  */
 export function packageOf(specifier: string): string | null {
-  if (specifier.startsWith('.') || specifier.startsWith('node:')) return null;
+  if (specifier.startsWith('.') || specifier.startsWith('/')) return null;
+  if (specifier.startsWith('node:')) return null;
   const parts = specifier.split('/');
   return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!;
 }

@@ -23,6 +23,9 @@
       "path": "./packages/jsx-source"
     },
     {
+      "path": "./packages/event"
+    },
+    {
       "path": "./packages/session"
     },
     {

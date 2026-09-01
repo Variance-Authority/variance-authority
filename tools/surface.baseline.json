@@ -948,6 +948,58 @@
       }
     }
   },
+  "@variance-authority/event": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./collect": {
+          "types": "./dist/collect.d.ts",
+          "default": "./dist/collect.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "AnnouncedEvent": "interface",
+        "EVENT_SINK": "const",
+        "EventPhase": "type",
+        "vaEnd": "function",
+        "vaStart": "function",
+        "vae": "function"
+      },
+      "./collect": {
+        "EVENT_DIRECTORY_VARIABLE": "const",
+        "EVENT_HEAD_VARIABLE": "const",
+        "EVENT_REPORT": "const",
+        "EventCollector": "interface",
+        "EventCollectorOptions": "interface",
+        "EventLog": "interface",
+        "EventWatch": "interface",
+        "HeadEventReport": "interface",
+        "RecordedEvent": "interface",
+        "WaitOptions": "interface",
+        "WatchOptions": "interface",
+        "collectEvents": "function",
+        "createEventLog": "function",
+        "eventCollectorSource": "function",
+        "watchEventReports": "function"
+      }
+    }
+  },
   "@variance-authority/help": {
     "declared": {
       "type": "module",
@@ -1450,6 +1502,9 @@
         "InstalledAgent": "interface",
         "MaterializationOptions": "type",
         "UnchangedOptions": "interface",
+        "VarianceEventFixtures": "interface",
+        "VarianceEventWorkerFixtures": "interface",
+        "VarianceEventsOptions": "interface",
         "VarianceFixtures": "interface",
         "VarianceOptions": "interface",
         "VarianceRuntime": "interface",

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { NEXT_STEP, PACKAGES, ROOT, SURFACES, type Manifest } from './workspaces.js';
+import { NEXT_STEP, PACKAGES, PRODUCT_SIDE, ROOT, SURFACES, type Manifest } from './workspaces.js';
 
 /**
  * What an adopter is told to import, and what that promise costs to keep.
@@ -108,7 +108,8 @@ describe('adopter-facing code knows one package', () => {
   it.each(facing)('%s names at most one surface, and no collaborator', (where, text) => {
     const allowed = REACH_THROUGH_DEBT[where] ?? [];
     const named = [...variancePackagesIn(text)].filter(
-      (name) => !NEXT_STEP.includes(name) && !allowed.includes(name),
+      (name) =>
+        !NEXT_STEP.includes(name) && !PRODUCT_SIDE.includes(name) && !allowed.includes(name),
     );
     const reachThrough = named.filter((name) => !SURFACES.includes(name));
 

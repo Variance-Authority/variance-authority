@@ -12,6 +12,7 @@
   "references": [
     { "path": "../core" },
     { "path": "../dom" },
+    { "path": "../event" },
     { "path": "../observe" },
     { "path": "../playwright" },
     { "path": "../raster" },
