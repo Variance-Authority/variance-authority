@@ -20,6 +20,7 @@ export type { Acquired, AcquireRequest, InstalledAgent } from './page-agent.js';
 export { bundlePageAgent } from './bundle.js';
 export { createExecutionRecorder, ownerOf } from './execution.js';
 export type {
+  EventDesk,
   VarianceEventFixtures,
   VarianceEventsOptions,
   VarianceEventWorkerFixtures,

@@ -129,43 +129,62 @@ answers several at once, so an announcement leaving it has to name the execution
 it belonged to — otherwise one test's wait is settled by another test's decision
 and both pass for the wrong reason.
 
-That id is the journey, the same opaque per-execution value
-`@variance-authority/sense/journey` already puts on a cookie. `collectEvents()`
-installs the process's sink; `enter` runs a request inside its execution, and
-everything it announces — including across an `await` — is attributed there.
+`collectEvents()` installs the process's sink. `enter` runs a request inside the
+execution that sent it, and everything it announces — including across an
+`await` — answers to that execution's driver and no other.
 
 ```ts
 import { collectEvents } from '@variance-authority/event/collect';
-import { journeyOf } from '@variance-authority/sense/journey';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 declare function handle(request: IncomingMessage, response: ServerResponse): void;
 
 const events = collectEvents();
 createServer((request, response) =>
-  events.enter(journeyOf(request.headers.cookie), () => handle(request, response)),
+  events.enter(request.headers.cookie, () => handle(request, response)),
 ).listen(3000);
 ```
 
+### Nothing is written down
+
+An announcement is a message and not a record. A test **waits** on it, so it is
+worth something for the length of one execution and nothing afterwards: there is
+no report directory, no file to clean up, and no artifact to mistake for evidence
+later.
+
+The channel is the cookie the driver already sets. Beside the journey it leaves a
+**return address** — a loopback URL that belongs to one execution — and a head
+answers to it as it announces. `enter` takes the request's `Cookie` header, or
+the address itself where a service has an accessor of its own; a request the run
+did not drive carries neither, and announces to nobody.
+
+Only loopback `http` addresses are accepted, and only when
+`VARIANCE_AUTHORITY_EVENTS` says this process is under a run. A cookie is written
+by whoever is talking to the service, and a process that posts wherever a cookie
+says is a hole rather than an instrument. Every send that fails is swallowed, for
+the reason the sink swallows a throw: that failure belongs to the driver, where
+it reads as a wait that times out and prints what it did hear.
+
 `EventCollectorOptions` takes `head`, the name this service announces under, and
-`directory`, where it writes. They default to `VARIANCE_AUTHORITY_HEAD` and
-`VARIANCE_AUTHORITY_EVENTS` — the same variables the journey collector reads, so
-one environment block configures both. With no directory configured,
-`collecting` is false, nothing is installed, and the process announces nothing.
-`close` gives the global back.
+`enabled`, whether to install a sink at all. They default to
+`VARIANCE_AUTHORITY_HEAD` and to whether `VARIANCE_AUTHORITY_EVENTS` is set — the
+first is the variable the journey collector reads, and the second is read by the
+driver too, so one environment block configures both ends. Not under a run,
+`collecting` is false, nothing is installed, and the call costs an `if`. `close`
+gives the global back.
 
-Announcements are appended as `HeadEventReport` lines, one per line, and a driver
-reads them while the run is still going: a test **waits** on these, so a report
-drained at teardown would be worth nothing. `watchEventReports(directory, …)`
-returns an `EventWatch` — `poll` to look now, `close` to stop — delivering every
-complete line once, in order. A line still being written is not a line yet and is
-left for the next look. `WatchOptions` takes `intervalMs`, defaulting to 25;
-`EVENT_DIRECTORY_VARIABLE` and `EVENT_HEAD_VARIABLE` name the two variables.
+`receiveEvents(onReport)` is the other end of the wire. It listens on an
+ephemeral loopback port, hands out one address per execution through
+`endpointFor`, and calls back with the execution and the `HeadEventReport`, in
+the order a head said them. `ReceiverOptions` takes `host`, defaulting to
+`127.0.0.1`. The execution is in the address rather than in the body, so a head
+repeats nothing it was told and a report cannot claim an execution by writing one
+down.
 
-An announcement that arrives with no journey on it belongs to no execution.
-Those are counted and named in the failure rather than handed to whichever test
-was nearby, because a person reading *nothing was announced* while the service is
-plainly announcing needs to be told the cookie never reached it.
+An announcement that arrives for an execution nobody here owns is counted and
+named in the failure rather than handed to whichever test was nearby, because a
+person reading *nothing was announced* while the service is plainly announcing
+needs to be told where it was answering instead.
 
 ## Read and act on failures
 
@@ -175,9 +194,9 @@ plainly announcing needs to be told the cookie never reached it.
 - **A list of announcements that does not include the one you wanted.** The
   coordinates drifted. The list prints in order, so a mistyped `action` is
   visible at a glance.
-- **A head announced with no journey.** Its requests are not carrying the
-  cookie. Same-origin is the filter, and a second hop must pass the incoming
-  cookie on explicitly.
+- **A head answered for an execution no test here owns.** Its requests are
+  carrying a cookie some other execution left. Same-origin is the filter, and a
+  second hop must pass the incoming cookie on rather than one it kept.
 - **A wait that hangs where the announcement plainly happened.** Something is
   listening in a realm the log is not reading, or the process announcing was
-  started without a report directory.
+  started without `VARIANCE_AUTHORITY_EVENTS`.

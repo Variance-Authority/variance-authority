@@ -7,7 +7,6 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { collectEvents } from '@variance-authority/event/collect';
-import { journeyOf } from '@variance-authority/sense/journey';
 
 const events = collectEvents();
 // The page is served the package's own built module, unbundled. What the browser
@@ -59,7 +58,7 @@ createServer((request, response) => {
     return;
   }
   if (url.pathname === '/api/decide') {
-    events.enter(journeyOf(request.headers.cookie), () =>
+    events.enter(request.headers.cookie, () =>
       decide(request, response, url.searchParams.get('show') === 'yes'),
     );
     return;

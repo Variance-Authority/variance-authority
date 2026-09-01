@@ -207,7 +207,7 @@ function viewportOf(
  * A suite extends its own base with it — `base.extend(varianceFixtures)` — which
  * is the only shape that composes with the extension module a project already
  * owns. The worker fixtures below are options: a suite names one in `use` when
- * it supplies its own renderer, store, agent bundle or event directory.
+ * it supplies its own renderer, store, agent bundle or listening arrangement.
  */
 export const varianceFixtures: Fixtures<
   VarianceFixtures,

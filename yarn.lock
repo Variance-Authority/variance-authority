@@ -2612,7 +2612,6 @@ __metadata:
     "@playwright/test": "npm:^1.49.0"
     "@variance-authority/event": "workspace:^"
     "@variance-authority/playwright-test": "workspace:^"
-    "@variance-authority/sense": "workspace:^"
     vitest: "npm:^2.1.8"
   languageName: unknown
   linkType: soft

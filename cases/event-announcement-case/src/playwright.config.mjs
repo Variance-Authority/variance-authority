@@ -15,7 +15,7 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       VA_PORT: port,
-      VARIANCE_AUTHORITY_EVENTS: process.env.VARIANCE_AUTHORITY_EVENTS,
+      VARIANCE_AUTHORITY_EVENTS: '1',
       VARIANCE_AUTHORITY_HEAD: 'pricing',
     },
   },

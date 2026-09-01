@@ -982,21 +982,22 @@
         "vae": "function"
       },
       "./collect": {
-        "EVENT_DIRECTORY_VARIABLE": "const",
+        "EVENT_COOKIE": "const",
         "EVENT_HEAD_VARIABLE": "const",
         "EVENT_REPORT": "const",
+        "EVENT_VARIABLE": "const",
         "EventCollector": "interface",
         "EventCollectorOptions": "interface",
         "EventLog": "interface",
-        "EventWatch": "interface",
+        "EventReceiver": "interface",
         "HeadEventReport": "interface",
+        "ReceiverOptions": "interface",
         "RecordedEvent": "interface",
         "WaitOptions": "interface",
-        "WatchOptions": "interface",
         "collectEvents": "function",
         "createEventLog": "function",
         "eventCollectorSource": "function",
-        "watchEventReports": "function"
+        "receiveEvents": "function"
       }
     }
   },
@@ -1496,6 +1497,7 @@
         "CHROMIUM_RASTER_ARGS": "const",
         "CreateVarianceOptions": "interface",
         "DirectObservationOptions": "interface",
+        "EventDesk": "interface",
         "ExecutionRecorder": "interface",
         "ExecutionRecording": "interface",
         "InPlaceCaptureOptions": "interface",

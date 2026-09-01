@@ -10,12 +10,11 @@ export { createEventLog, type EventLog, type RecordedEvent, type WaitOptions } f
 export { eventCollectorSource, EVENT_REPORT } from './page.js';
 export {
   collectEvents,
-  watchEventReports,
-  EVENT_DIRECTORY_VARIABLE,
+  EVENT_COOKIE,
   EVENT_HEAD_VARIABLE,
+  EVENT_VARIABLE,
   type EventCollector,
   type EventCollectorOptions,
-  type EventWatch,
   type HeadEventReport,
-  type WatchOptions,
 } from './head.js';
+export { receiveEvents, type EventReceiver, type ReceiverOptions } from './receive.js';

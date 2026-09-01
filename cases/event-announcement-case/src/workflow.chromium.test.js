@@ -31,7 +31,7 @@ if (!BROWSER_AVAILABLE) {
 // a fixed one would make this case the flake it exists to argue against.
 let next = 4319;
 
-function playwright(arguments_, reports) {
+function playwright(arguments_, results) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
@@ -41,8 +41,10 @@ function playwright(arguments_, reports) {
         env: {
           ...process.env,
           VA_PORT: String((next += 1)),
-          VA_RESULTS: join(reports, 'playwright-results'),
-          VARIANCE_AUTHORITY_EVENTS: reports,
+          VA_RESULTS: join(results, 'playwright-results'),
+          // Heads are in play. Not a path: nothing here writes a report, the
+          // worker listens on a port it picked, and the address rides the cookie.
+          VARIANCE_AUTHORITY_EVENTS: '1',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       },
@@ -59,26 +61,27 @@ function playwright(arguments_, reports) {
   });
 }
 
-async function inFreshReports(body) {
-  const reports = await mkdtemp(join(tmpdir(), 'variance-announcement-'));
+// Playwright's own artifact directory, and the only directory in this case.
+async function inFreshResults(body) {
+  const results = await mkdtemp(join(tmpdir(), 'variance-announcement-'));
   try {
-    return await body(reports);
+    return await body(results);
   } finally {
-    await rm(reports, { recursive: true, force: true });
+    await rm(results, { recursive: true, force: true });
   }
 }
 
 live('a decision announced across two processes', () => {
   it('settles every wait with no duration written anywhere', async () => {
-    const run = await inFreshReports((reports) =>
-      playwright(['--grep-invert=diagnosis'], reports),
+    const run = await inFreshResults((results) =>
+      playwright(['--grep-invert=diagnosis'], results),
     );
     expect(run, run.output).toMatchObject({ code: 0 });
     expect(run.output).toContain('12 passed');
   }, 120_000);
 
   it('says what it heard when a wait does not settle', async () => {
-    const run = await inFreshReports((reports) => playwright(['--grep=diagnosis'], reports));
+    const run = await inFreshResults((results) => playwright(['--grep=diagnosis'], results));
     expect(run, run.output).toMatchObject({ code: 1 });
 
     // Coordinates that drifted: the list is the diagnostic, and it prints in

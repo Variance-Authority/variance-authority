@@ -8,20 +8,27 @@
  * never set up.
  *
  * A head is the part that is extra, and it is extra in the ordinary way: the
- * service runs `collectEvents()` and both ends are pointed at one directory. Not
- * pointed there, the page still answers and heads are simply silent, which is the
- * same bargain journeys make.
+ * service runs `collectEvents()`, and one variable says heads are in play so
+ * this side leaves them a return address. Not said, the page still answers and
+ * heads are simply silent, which is the same bargain journeys make.
+ *
+ * One listener per worker and one address per execution. A worker runs its tests
+ * one at a time, but a *head* does not: it is serving several workers at once,
+ * and the address is what keeps one worker's announcement out of another's log
+ * without either of them knowing the other exists.
  */
 
 import type { Fixtures, Page, PlaywrightTestArgs, PlaywrightWorkerArgs } from '@playwright/test';
 import type { AnnouncedEvent } from '@variance-authority/event';
 import {
-  EVENT_DIRECTORY_VARIABLE,
+  EVENT_COOKIE,
   EVENT_REPORT,
+  EVENT_VARIABLE,
   createEventLog,
   eventCollectorSource,
-  watchEventReports,
+  receiveEvents,
   type EventLog,
+  type HeadEventReport,
 } from '@variance-authority/event/collect';
 import { JOURNEY_COOKIE, mintJourney } from '@variance-authority/sense/journey';
 import type { ExecutionRecorder } from './execution.js';
@@ -29,30 +36,30 @@ import { ownerOf } from './execution.js';
 
 export interface VarianceEventsOptions {
   /**
-   * Where heads report announcements. Defaults to
-   * `VARIANCE_AUTHORITY_EVENTS`, which is also how the service was told, so one
-   * variable in `webServer.env` configures both ends.
+   * Whether services announce in this run. Defaults to whether
+   * `VARIANCE_AUTHORITY_EVENTS` is set, which is also how a service was told, so
+   * one line in `webServer.env` configures both ends.
+   *
+   * False costs nothing at all: no listener, no cookie, and a page that still
+   * answers for itself.
    */
-  readonly directory?: string;
+  readonly heads?: boolean;
   /**
-   * The origin the journey cookie is scoped to. Defaults to the project's
-   * `baseURL`. Same-origin is the filter, so this is also the whole of the
-   * decision about which services are ever asked to announce.
+   * The origin the cookies are scoped to. Defaults to the project's `baseURL`.
+   * Same-origin is the filter, so this is also the whole of the decision about
+   * which services are ever asked to announce.
    */
   readonly origin?: string;
-  /**
-   * How often a head's report is read, in milliseconds. Defaults to 25.
-   *
-   * It is latency on a head's announcements and nothing else — a poll that
-   * misses one finds it on the next look — so it trades a few milliseconds per
-   * wait against a few file reads per second.
-   */
-  readonly intervalMs?: number;
 }
 
 export interface VarianceEventWorkerFixtures {
   /** How this project listens. The defaults need no configuration. */
   readonly varianceEvents: VarianceEventsOptions;
+  /**
+   * The worker's listener, and the desk that routes what arrives to whichever
+   * test is waiting for it. Undefined when no head is expected.
+   */
+  readonly varianceEventDesk: EventDesk | undefined;
 }
 
 export interface VarianceEventFixtures {
@@ -74,6 +81,14 @@ export interface VarianceEventFixtures {
   readonly events: EventLog;
 }
 
+/** Where a head answers, and who is listening for it right now. */
+export interface EventDesk {
+  readonly endpointFor: (journey: string) => string;
+  /** Take this execution's announcements until the returned call gives it up. */
+  readonly open: (journey: string, log: EventLog) => () => void;
+  readonly close: () => Promise<void>;
+}
+
 interface RecorderFixture {
   readonly varianceRecorder: ExecutionRecorder | undefined;
 }
@@ -90,6 +105,19 @@ export const varianceEventFixtures: Fixtures<
 > = {
   varianceEvents: [{}, { scope: 'worker', option: true }],
 
+  varianceEventDesk: [
+    async ({ varianceEvents }, use) => {
+      if (!expectsHeads(varianceEvents)) {
+        await use(undefined);
+        return;
+      }
+      const desk = await openDesk();
+      await use(desk);
+      await desk.close();
+    },
+    { scope: 'worker' },
+  ],
+
   // One minting site for the whole bundle, which is the only reason this is a
   // fixture rather than two lines in each of the two places that want it. Two
   // minters means two cookies under one name, so whichever wrote last decides
@@ -100,7 +128,7 @@ export const varianceEventFixtures: Fixtures<
       varianceRecorder === undefined
         ? undefined
         : await varianceRecorder.join(page, ownerOf(process.cwd(), testInfo), origin);
-    if (joined !== undefined || origin === undefined || directoryFor(varianceEvents) === undefined) {
+    if (joined !== undefined || origin === undefined || !expectsHeads(varianceEvents)) {
       await use(joined);
       return;
     }
@@ -109,31 +137,84 @@ export const varianceEventFixtures: Fixtures<
     await use(journey);
   },
 
-  events: async ({ page, varianceEvents, varianceJourney }, use) => {
+  events: async ({ page, varianceEvents, varianceJourney, varianceEventDesk }, use, testInfo) => {
     const log = createEventLog();
     await listen(page, log);
-    const directory = directoryFor(varianceEvents);
-    const watch =
-      directory === undefined
+
+    const origin = varianceEvents.origin ?? testInfo.project.use.baseURL;
+    const give =
+      varianceEventDesk === undefined || varianceJourney === undefined || origin === undefined
         ? undefined
-        : watchEventReports(
-            directory,
-            follow(log, varianceJourney),
-            varianceEvents.intervalMs === undefined
-              ? {}
-              : { intervalMs: varianceEvents.intervalMs },
-          );
+        : await address(page, varianceEventDesk, varianceJourney, origin, log);
+
     await use(log);
-    // A last look before the waits are failed, so an announcement that landed
-    // while the test was finishing settles rather than being reported missing.
-    watch?.poll();
-    watch?.close();
+    give?.();
     log.close('the test ended');
   },
 };
 
-function directoryFor(options: VarianceEventsOptions): string | undefined {
-  return options.directory ?? process.env[EVENT_DIRECTORY_VARIABLE];
+function expectsHeads(options: VarianceEventsOptions): boolean {
+  return options.heads ?? process.env[EVENT_VARIABLE] !== undefined;
+}
+
+/** Leave this execution's return address where every same-origin head will find it. */
+async function address(
+  page: Page,
+  desk: EventDesk,
+  journey: string,
+  origin: string,
+  log: EventLog,
+): Promise<() => void> {
+  const give = desk.open(journey, log);
+  await page
+    .context()
+    .addCookies([{ name: EVENT_COOKIE, value: desk.endpointFor(journey), url: origin }]);
+  return give;
+}
+
+/**
+ * The worker's listener, with a desk in front of it.
+ *
+ * A report names its execution by the address it arrived on, so routing is a
+ * lookup and nothing else. What arrives for an execution nobody has open is
+ * **not** given to whoever is here now — that is the pass for the wrong reason
+ * this whole mechanism exists to refuse — but it is not silently dropped either:
+ * it is remarked on, because a head that is plainly talking while a test hears
+ * nothing is a wire problem, and the person reading the failure needs to be told
+ * which half was alive.
+ */
+async function openDesk(): Promise<EventDesk> {
+  const logs = new Map<string, EventLog>();
+  const unclaimed = new Map<string, number>();
+
+  const receiver = await receiveEvents((journey, report) => {
+    const log = logs.get(journey);
+    if (log !== undefined) {
+      log.record(report.head, report);
+      return;
+    }
+    const count = (unclaimed.get(report.head) ?? 0) + 1;
+    unclaimed.set(report.head, count);
+    for (const open of logs.values()) open.remark(report.head, stray(report, count));
+  });
+
+  return {
+    endpointFor: receiver.endpointFor,
+    open: (journey, log) => {
+      logs.set(journey, log);
+      return () => logs.delete(journey);
+    },
+    close: receiver.close,
+  };
+}
+
+function stray(report: HeadEventReport, count: number): string {
+  return (
+    `\`${report.head}\` answered ${count === 1 ? 'once' : `${count} times`} for an execution no ` +
+    'test here owns, so nothing it said settled a wait. A head that is handed one execution’s ' +
+    'cookie while serving another announces to whoever left the address, which is what a hop ' +
+    'that forwards a stale `Cookie` header looks like from this side.'
+  );
 }
 
 /** Put the sink in the page and take what it says. */
@@ -145,37 +226,4 @@ async function listen(page: Page, log: EventLog): Promise<void> {
   // page's sink holds what it cannot yet report. The order here is the cheaper
   // one, not the correct one.
   await page.addInitScript(eventCollectorSource());
-}
-
-/**
- * Take a head's announcements that belong to this execution, and account for the
- * ones that belong to no execution at all.
- *
- * Under any concurrency a head is serving several tests at once, so an
- * announcement without this journey on it is somebody else's and settling a wait
- * with it would be a pass for the wrong reason. Unattributed announcements are
- * neither: they are counted and said out loud in the failure, because a person
- * reading "nothing was announced" while the service is plainly announcing needs
- * to be told the journey never reached it.
- */
-function follow(
-  log: EventLog,
-  journey: string | undefined,
-): (report: AnnouncedEvent & { readonly head: string; readonly journey?: string }) => void {
-  const loose = new Map<string, number>();
-  return (report) => {
-    if (report.journey === undefined) {
-      const count = (loose.get(report.head) ?? 0) + 1;
-      loose.set(report.head, count);
-      log.remark(
-        report.head,
-        `\`${report.head}\` announced ${count === 1 ? 'once' : `${count} times`} with no journey ` +
-          'on it, so nothing could say which execution it belonged to and no wait was settled ' +
-          'by it. The journey cookie reaches a head that is same-origin and passes it on.',
-      );
-      return;
-    }
-    if (report.journey !== journey) return;
-    log.record(report.head, report);
-  };
 }

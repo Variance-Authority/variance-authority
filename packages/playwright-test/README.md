@@ -223,7 +223,7 @@ defaults to `2` and cannot go lower than two captures.
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
 | `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile, heads, journeys, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
-| `varianceEvents` | A service announces, and its report directory is not where it was configured. | `{}`. Accepts `directory`, `origin`, and `intervalMs`. The browser half needs none of it. |
+| `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` and `origin`. The browser half needs neither. |
 
 Recording joins every observation in one spec file to that file: the runner's
 unit of execution is the file, so an attribution finer than that is one no
@@ -346,8 +346,8 @@ settled by another test's decision. That id is the same journey the recording
 above puts on the browser context, and the fixture mints one for events when
 nothing else has.
 
-The service runs `collectEvents()` from `@variance-authority/event/collect` and
-one environment block points both ends at one directory:
+The service runs `collectEvents()` from `@variance-authority/event/collect`, and
+one environment block tells both ends that heads are in play:
 
 ```ts
 // playwright.config.ts
@@ -357,23 +357,27 @@ export default {
     command: 'node ./server.js',
     url: 'http://localhost:3000',
     env: {
-      VARIANCE_AUTHORITY_EVENTS: '.variance/events',
+      VARIANCE_AUTHORITY_EVENTS: '1',
       VARIANCE_AUTHORITY_HEAD: 'api',
     },
   },
 };
 ```
 
-`directory` overrides that path when the runner's environment is not where the
-service was configured, `origin` overrides the origin the journey cookie is
-scoped to — it defaults to the project's `baseURL` — and `intervalMs` sets how
-often a report is read, defaulting to 25 and costing only latency on a head's
-announcements.
+Nothing is written down and no path is agreed. The worker listens on a loopback
+port it was given, and the cookie beside the journey carries that address into
+whatever the page talks to, so a head answers the execution it is serving as it
+serves it.
 
-The extra setup is extra, and its absence is quiet: with no directory
-configured, the page still answers and services are simply silent. An
-announcement that arrives without a journey on it is counted and named in the
-failure rather than handed to whichever test was nearby.
+`heads` overrides whether services are expected — it defaults to whether
+`VARIANCE_AUTHORITY_EVENTS` is set, which is how the service was told — and
+`origin` overrides the origin both cookies are scoped to, defaulting to the
+project's `baseURL`.
+
+The extra setup is extra, and its absence is quiet: with nothing configured, the
+page still answers and services are simply silent. An announcement that arrives
+for an execution no test here owns is counted and named in the failure rather
+than handed to whichever test was nearby.
 
 ### Matcher integration
 

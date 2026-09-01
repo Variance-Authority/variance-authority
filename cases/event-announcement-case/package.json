@@ -6,8 +6,7 @@
   "dependencies": {
     "@playwright/test": "^1.49.0",
     "@variance-authority/event": "workspace:^",
-    "@variance-authority/playwright-test": "workspace:^",
-    "@variance-authority/sense": "workspace:^"
+    "@variance-authority/playwright-test": "workspace:^"
   },
   "devDependencies": {
     "vitest": "^2.1.8"

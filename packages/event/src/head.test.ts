@@ -1,213 +1,251 @@
 // The claim under test is that a process serving several executions at once
-// attributes each announcement to the one it was serving, that a driver reading
-// the report while the run is still going never sees half a line, and that a
-// process nobody configured writes nothing at all.
+// answers each announcement to the driver that asked for it, in the order it
+// said them, that a process nobody configured says nothing at all, and that the
+// whole channel is a socket held open for the length of a run: no file is opened
+// anywhere in here, and none is left behind.
 
-import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { setTimeout as after } from 'node:timers/promises';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  EVENT_DIRECTORY_VARIABLE,
+  EVENT_COOKIE,
   EVENT_HEAD_VARIABLE,
+  EVENT_VARIABLE,
   collectEvents,
-  watchEventReports,
   type EventCollector,
-  type EventWatch,
   type HeadEventReport,
 } from './head.js';
+import { receiveEvents, type EventReceiver } from './receive.js';
 import { vae, vaEnd, vaStart } from './index.js';
 
-const opened: EventCollector[] = [];
-const watching: EventWatch[] = [];
+interface Heard {
+  readonly journey: string;
+  readonly report: HeadEventReport;
+}
 
-function collect(directory: string, head = 'api'): EventCollector {
-  const collector = collectEvents({ directory, head });
+const opened: EventCollector[] = [];
+const listening: EventReceiver[] = [];
+
+/** A driver listening on loopback, and everything it has been told so far. */
+async function driver(): Promise<{
+  heard: Heard[];
+  endpointFor: (journey: string) => string;
+}> {
+  const heard: Heard[] = [];
+  const receiver = await receiveEvents((journey, report) => heard.push({ journey, report }));
+  listening.push(receiver);
+  return { heard, endpointFor: receiver.endpointFor };
+}
+
+function collect(head = 'api'): EventCollector {
+  const collector = collectEvents({ enabled: true, head });
   opened.push(collector);
   return collector;
 }
 
-function watch(directory: string): { reports: HeadEventReport[]; watch: EventWatch } {
-  const reports: HeadEventReport[] = [];
-  const running = watchEventReports(directory, (report) => reports.push(report));
-  watching.push(running);
-  return { reports, watch: running };
+/** What a driver has heard, once as much of it as was promised has arrived. */
+async function settled(heard: readonly Heard[], count: number): Promise<readonly Heard[]> {
+  await expect.poll(() => heard.length).toBe(count);
+  return heard;
 }
 
-function directory(): string {
-  return mkdtempSync(join(tmpdir(), 'variance-events-'));
-}
-
-function written(where: string, head = 'api'): HeadEventReport[] {
-  const file = join(where, `events-${head}-${process.pid}.ndjson`);
-  return readFileSync(file, 'utf8')
-    .split('\n')
-    .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as HeadEventReport);
-}
-
-afterEach(() => {
+afterEach(async () => {
   for (const collector of opened.splice(0)) collector.close();
-  for (const running of watching.splice(0)) running.close();
-  delete process.env[EVENT_DIRECTORY_VARIABLE];
+  for (const receiver of listening.splice(0)) await receiver.close();
+  delete process.env[EVENT_VARIABLE];
   delete process.env[EVENT_HEAD_VARIABLE];
 });
 
 describe('collectEvents', () => {
-  it('installs nothing when no directory is configured', () => {
+  it('installs nothing when nothing says this process is under a run', () => {
     const collector = collectEvents({ head: 'api' });
     expect(collector.collecting).toBe(false);
-    expect(collector.enter('journey', () => vae('checkout', 'upsell', 'decided'))).toBeUndefined();
+    expect(
+      collector.enter('http://127.0.0.1:1/a-journey', () => vae('checkout', 'upsell', 'decided')),
+    ).toBeUndefined();
   });
 
-  it('reads the directory and the head from the environment', () => {
-    const where = directory();
-    process.env[EVENT_DIRECTORY_VARIABLE] = where;
+  it('reads the run and the head from the environment', async () => {
+    process.env[EVENT_VARIABLE] = '1';
     process.env[EVENT_HEAD_VARIABLE] = 'pricing';
     const collector = collectEvents();
     opened.push(collector);
+    const { heard, endpointFor } = await driver();
+
     expect(collector.head).toBe('pricing');
-    collector.enter('a-journey', () => vae('checkout', 'upsell', 'decided'));
-    expect(written(where, 'pricing')).toHaveLength(1);
+    collector.enter(endpointFor('a-journey'), () => vae('checkout', 'upsell', 'decided'));
+
+    expect((await settled(heard, 1))[0]?.report.head).toBe('pricing');
   });
 
-  it('attributes an announcement to the execution it was serving', () => {
-    const where = directory();
-    const collector = collect(where);
-    collector.enter('journey-one', () => vae('checkout', 'upsell', 'decided'));
-    expect(written(where)).toEqual([
+  it('answers the driver that owns the execution it was serving', async () => {
+    const collector = collect();
+    const { heard, endpointFor } = await driver();
+
+    collector.enter(endpointFor('journey-one'), () => vae('checkout', 'upsell', 'decided'));
+
+    expect(await settled(heard, 1)).toEqual([
       {
-        version: 1,
-        head: 'api',
         journey: 'journey-one',
-        phase: 'once',
-        location: 'checkout',
-        subject: 'upsell',
-        action: 'decided',
+        report: {
+          version: 1,
+          head: 'api',
+          phase: 'once',
+          location: 'checkout',
+          subject: 'upsell',
+          action: 'decided',
+        },
       },
     ]);
   });
 
+  it('takes the address off the cookie the request already carried', async () => {
+    const collector = collect();
+    const { heard, endpointFor } = await driver();
+    const header = `session=abc; ${EVENT_COOKIE}=${endpointFor('journey-one')}; theme=dark`;
+
+    collector.enter(header, () => vae('checkout', 'upsell', 'decided'));
+
+    expect((await settled(heard, 1))[0]?.journey).toBe('journey-one');
+  });
+
   it('keeps two concurrent executions apart', async () => {
-    // The reason a journey is on the wire at all: without it, one test's wait is
-    // satisfied by another test's decision and both pass for the wrong reason.
-    const where = directory();
-    const collector = collect(where);
+    // The reason an execution is on the wire at all: without it, one test's wait
+    // is satisfied by another test's decision and both pass for the wrong reason.
+    const collector = collect();
+    const { heard, endpointFor } = await driver();
+
     await Promise.all([
-      collector.enter('journey-one', async () => {
+      collector.enter(endpointFor('journey-one'), async () => {
         await after(5);
         vae('checkout', 'upsell', 'decided');
       }),
-      collector.enter('journey-two', async () => {
+      collector.enter(endpointFor('journey-two'), async () => {
         vae('checkout', 'upsell', 'decided');
         await after(10);
         vae('checkout', 'upsell', 'shown');
       }),
     ]);
-    expect(written(where).map((report) => [report.journey, report.action])).toEqual([
-      ['journey-two', 'decided'],
-      ['journey-one', 'decided'],
-      ['journey-two', 'shown'],
+
+    const said = await settled(heard, 3);
+    expect(said.map((one) => `${one.journey} ${one.report.action}`).sort()).toEqual([
+      'journey-one decided',
+      'journey-two decided',
+      'journey-two shown',
     ]);
+    // Order inside one execution is the property a wait rests on. Between two of
+    // them there is no order to have, which is why the assertion above sorts.
+    expect(
+      said.filter((one) => one.journey === 'journey-two').map((one) => one.report.action),
+    ).toEqual(['decided', 'shown']);
   });
 
-  it('stays inside an execution across an await', () => {
-    const where = directory();
-    const collector = collect(where);
-    return collector
-      .enter('journey-one', async () => {
-        await after(1);
-        vae('checkout', 'upsell', 'decided');
-      })
-      .then(() => {
-        expect(written(where)[0]?.journey).toBe('journey-one');
-      });
+  it('stays inside an execution across an await', async () => {
+    const collector = collect();
+    const { heard, endpointFor } = await driver();
+
+    await collector.enter(endpointFor('journey-one'), async () => {
+      await after(1);
+      vae('checkout', 'upsell', 'decided');
+    });
+
+    expect((await settled(heard, 1))[0]?.journey).toBe('journey-one');
   });
 
-  it('announces without a journey rather than guessing one', () => {
-    const where = directory();
-    collect(where);
+  it('announces to nobody when nothing left an address', async () => {
+    const collector = collect();
+    const { heard } = await driver();
+
+    collector.enter(undefined, () => vae('checkout', 'upsell', 'decided'));
     vae('checkout', 'upsell', 'decided');
-    expect(written(where)[0]).not.toHaveProperty('journey');
+
+    await after(50);
+    expect(heard).toEqual([]);
   });
 
-  it('carries the phase a process was bounded with', () => {
-    const where = directory();
-    const collector = collect(where);
-    collector.enter('journey-one', () => {
+  it('refuses an address that is not loopback', async () => {
+    // The cookie is written by whoever is talking to the service. A process that
+    // posts wherever it is told is a way to reach whatever that process can reach.
+    const collector = collect();
+    const { heard, endpointFor } = await driver();
+
+    collector.enter(endpointFor('journey-one').replace('127.0.0.1', 'example.com'), () =>
+      vae('checkout', 'upsell', 'decided'),
+    );
+
+    await after(50);
+    expect(heard).toEqual([]);
+  });
+
+  it('carries the phase a process was bounded with', async () => {
+    const collector = collect();
+    const { heard, endpointFor } = await driver();
+
+    collector.enter(endpointFor('journey-one'), () => {
       vaStart('checkout', 'payment', 'authorizing');
       vaEnd('checkout', 'payment', 'authorizing');
     });
-    expect(written(where).map((report) => report.phase)).toEqual(['start', 'end']);
+
+    expect((await settled(heard, 2)).map((one) => one.report.phase)).toEqual(['start', 'end']);
   });
 
-  it('gives the global back when it closes', () => {
-    const where = directory();
-    const collector = collectEvents({ directory: where, head: 'api' });
+  it('says nothing when the driver has gone away', async () => {
+    // The observer may not break the subject. A refused connection is the
+    // driver's problem, and it surfaces there as a wait that times out.
+    const collector = collect();
+    const { endpointFor } = await driver();
+    const endpoint = endpointFor('journey-one');
+    for (const receiver of listening.splice(0)) await receiver.close();
+
+    await expect(
+      collector.enter(endpoint, async () => {
+        vae('checkout', 'upsell', 'decided');
+        await after(50);
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('gives the global back when it closes', async () => {
+    const collector = collectEvents({ enabled: true, head: 'api' });
+    const { heard, endpointFor } = await driver();
     collector.close();
-    expect(() => vae('checkout', 'upsell', 'decided')).not.toThrow();
-    expect(() => written(where)).toThrow();
+
+    collector.enter(endpointFor('journey-one'), () => vae('checkout', 'upsell', 'decided'));
+
+    await after(50);
+    expect(heard).toEqual([]);
   });
 });
 
-describe('watchEventReports', () => {
-  it('reads a directory nothing has written to as silence', () => {
-    const { reports } = watch(join(directory(), 'never-created'));
-    expect(reports).toEqual([]);
+describe('receiveEvents', () => {
+  it('hands out one address per execution', async () => {
+    const { endpointFor } = await driver();
+    expect(endpointFor('journey-one')).not.toBe(endpointFor('journey-two'));
+    expect(endpointFor('journey-one')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/journey-one$/);
   });
 
-  it('delivers announcements as they land', async () => {
-    const where = directory();
-    const collector = collect(where);
-    const { reports } = watch(where);
-    collector.enter('journey-one', () => vae('checkout', 'upsell', 'decided'));
-    await expect.poll(() => reports.map((report) => report.action)).toEqual(['decided']);
+  it('reads back an execution whose id would not survive a path', async () => {
+    const collector = collect();
+    const { heard, endpointFor } = await driver();
+
+    collector.enter(endpointFor('a/b c'), () => vae('checkout', 'upsell', 'decided'));
+
+    expect((await settled(heard, 1))[0]?.journey).toBe('a/b c');
   });
 
-  it('delivers each announcement once', async () => {
-    const where = directory();
-    const collector = collect(where);
-    const { reports, watch: running } = watch(where);
-    collector.enter('journey-one', () => vae('checkout', 'upsell', 'decided'));
-    running.poll();
-    running.poll();
-    collector.enter('journey-one', () => vae('checkout', 'upsell', 'shown'));
-    running.poll();
-    running.poll();
-    expect(reports.map((report) => report.action)).toEqual(['decided', 'shown']);
+  it('drops a body it cannot read rather than losing the run', async () => {
+    const { heard, endpointFor } = await driver();
+
+    await fetch(endpointFor('journey-one'), { method: 'POST', body: 'from a later version' });
+
+    await after(50);
+    expect(heard).toEqual([]);
   });
 
-  it('leaves a line that is still being written for the next look', () => {
-    const where = directory();
-    const file = join(where, `events-api-${process.pid}.ndjson`);
-    writeFileSync(file, '{"version":1,"head":"api","phase":"once","location":"checkout"');
-    const { reports, watch: running } = watch(where);
-    running.poll();
-    expect(reports).toEqual([]);
-    appendFileSync(file, ',"subject":"upsell","action":"decided"}\n');
-    running.poll();
-    expect(reports.map((report) => report.action)).toEqual(['decided']);
-  });
+  it('stops answering when it closes', async () => {
+    const receiver = await receiveEvents(() => {});
+    const endpoint = receiver.endpointFor('journey-one');
+    await receiver.close();
 
-  it('skips a line it cannot read rather than losing the run', () => {
-    const where = directory();
-    const file = join(where, `events-api-${process.pid}.ndjson`);
-    writeFileSync(file, 'from a later version of this package\n');
-    appendFileSync(
-      file,
-      '{"version":1,"head":"api","phase":"once","location":"checkout","subject":"upsell","action":"decided"}\n',
-    );
-    const { reports, watch: running } = watch(where);
-    running.poll();
-    expect(reports.map((report) => report.action)).toEqual(['decided']);
-  });
-
-  it('ignores files no head wrote', () => {
-    const where = directory();
-    writeFileSync(join(where, 'coverage.json'), '{}');
-    const { reports, watch: running } = watch(where);
-    running.poll();
-    expect(reports).toEqual([]);
+    await expect(fetch(endpoint, { method: 'POST', body: '{}' })).rejects.toThrow();
   });
 });

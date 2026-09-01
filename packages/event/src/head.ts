@@ -9,30 +9,48 @@
  * reason coverage is: a handler that returns a promise is still inside its
  * execution while that promise is pending, and a time window is not an execution.
  *
- * ## Why a file, and why the driver reads it while the run is still going
+ * ## Nothing is written down
  *
- * A test **waits** on these, so a report drained at teardown is worth nothing.
- * The transport is an append-only line per announcement and a driver that reads
- * from where it left off. That costs a poll interval of latency and buys a
- * channel with no port, no protocol and no second process — on one machine, which
- * is where a suite and the service it drives both are.
+ * An announcement is a message and not a record. A test **waits** on it, so it is
+ * worth something for the length of one execution and nothing afterwards, and a
+ * run that ends leaves the disk it found. There is no report directory, no file
+ * to clean up and no artifact to mistake for evidence later.
  *
- * The write is synchronous. Ordering is the only property this file has that a
- * test can rely on, and an async write would hand it back in exchange for
- * microseconds in a path that only exists while a run is watching.
+ * The channel is the cookie the driver already sets. Beside the journey it
+ * leaves a **return address** — a loopback URL that belongs to one execution —
+ * and a head answers to it as it announces. So the head learns where to speak
+ * from the request it is already serving, which is the same trick that carries
+ * the journey: no port to agree on, no configuration per service, and no second
+ * transport to keep alive.
+ *
+ * Only loopback addresses are accepted, and only when this process was told it is
+ * under test ({@link EVENT_VARIABLE}). A cookie is written by whoever is talking
+ * to the service, and a process that posts wherever a cookie says is a hole
+ * rather than an instrument.
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import type { AnnouncedEvent } from './index.js';
 import { EVENT_SINK } from './index.js';
 
 /**
- * Where a head writes announcements. Nothing here reads the journey directory:
- * one variable means one thing, and a head may want events without coverage.
+ * The cookie a driver leaves its return address on.
+ *
+ * Beside `variance-authority-journey` rather than inside it: one cookie is one
+ * participant's business, and a head that only announces should not have to
+ * understand a coverage key to answer.
  */
-export const EVENT_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_EVENTS';
+export const EVENT_COOKIE = 'variance-authority-events';
+
+/**
+ * Whether this process is under a run at all. Absent, a head installs nothing,
+ * and the `collectEvents()` call in a production build costs an `if`.
+ *
+ * Any value will do — it is a fact about the environment, not a location. The
+ * driver reads the same variable to decide whether heads are in play, so one
+ * line in a `webServer` env block configures both ends.
+ */
+export const EVENT_VARIABLE = 'VARIANCE_AUTHORITY_EVENTS';
 
 /**
  * What a head calls itself.
@@ -44,40 +62,39 @@ export const EVENT_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_EVENTS';
  */
 export const EVENT_HEAD_VARIABLE = 'VARIANCE_AUTHORITY_HEAD';
 
-/** One announcement as a head wrote it down. */
+/** One announcement, as it leaves a head. */
 export interface HeadEventReport extends AnnouncedEvent {
   readonly version: 1;
   readonly head: string;
-  /** Absent when nothing told the head which execution this belonged to. */
-  readonly journey?: string;
 }
 
 export interface EventCollectorOptions {
   /** Defaults to {@link EVENT_HEAD_VARIABLE}, then `head`. */
   readonly head?: string;
   /**
-   * Where announcements are written. Defaults to
-   * {@link EVENT_DIRECTORY_VARIABLE}. Absent, nothing is installed and this
-   * process announces nothing — which is how the call survives a production
-   * build.
+   * Whether to install a sink at all. Defaults to whether {@link EVENT_VARIABLE}
+   * is set, which is what keeps this call inert everywhere else.
    */
-  readonly directory?: string;
+  readonly enabled?: boolean;
 }
 
 /** A head's voice in a run, or its cheap absence. */
 export interface EventCollector {
-  /** False when no directory was configured: nothing installed, nothing written. */
+  /** False when nothing was installed, and therefore nothing is announced. */
   readonly collecting: boolean;
   readonly head: string;
   /**
-   * Run `body` as part of `journey`, so everything it announces — including
-   * whatever it awaits — names that execution and no other.
+   * Run `body` as part of the execution the request belongs to, so everything it
+   * announces — including whatever it awaits — answers to that driver and no
+   * other.
    *
-   * `undefined` is honest rather than an error: a request the run did not drive
-   * announces without a journey, and the driver counts those instead of handing
-   * them to whichever test was nearby.
+   * `address` is the request's `Cookie` header, or the value of the
+   * {@link EVENT_COOKIE} cookie if the head has an accessor of its own: anything
+   * beginning with `http` is read as the address itself. `undefined` is honest
+   * rather than an error — a request the run did not drive has nobody to answer,
+   * and announces to nobody.
    */
-  readonly enter: <Result>(journey: string | undefined, body: () => Result) => Result;
+  readonly enter: <Result>(address: string | undefined, body: () => Result) => Result;
   /** Stop announcing and restore what was on the global before. */
   readonly close: () => void;
 }
@@ -94,41 +111,27 @@ type Sink = (
  *
  * ```js
  * import { collectEvents } from '@variance-authority/event/collect';
- * import { journeyOf } from '@variance-authority/sense/journey';
  *
  * const events = collectEvents();
  * server.on('request', (request, response) =>
- *   events.enter(journeyOf(request.headers.cookie), () => handle(request, response)));
+ *   events.enter(request.headers.cookie, () => handle(request, response)));
  * ```
  */
 export function collectEvents(options: EventCollectorOptions = {}): EventCollector {
   const head = options.head ?? process.env[EVENT_HEAD_VARIABLE] ?? 'head';
-  const directory = options.directory ?? process.env[EVENT_DIRECTORY_VARIABLE];
-  if (directory === undefined) {
-    return { collecting: false, head, enter: (_journey, body) => body(), close: () => {} };
+  const enabled = options.enabled ?? process.env[EVENT_VARIABLE] !== undefined;
+  if (!enabled) {
+    return { collecting: false, head, enter: (_address, body) => body(), close: () => {} };
   }
 
   const store = new AsyncLocalStorage<string>();
-  const file = join(directory, `events-${head}-${process.pid}.ndjson`);
   const previous = Object.getOwnPropertyDescriptor(globalThis, EVENT_SINK);
-  let made = false;
+  const sending = new Map<string, Promise<void>>();
 
   const sink: Sink = (phase, location, subject, action) => {
-    const journey = store.getStore();
-    const report: HeadEventReport = {
-      version: 1,
-      head,
-      ...(journey === undefined ? {} : { journey }),
-      phase,
-      location,
-      subject,
-      action,
-    };
-    if (!made) {
-      mkdirSync(directory, { recursive: true });
-      made = true;
-    }
-    appendFileSync(file, `${JSON.stringify(report)}\n`);
+    const address = store.getStore();
+    if (address === undefined) return;
+    post(sending, address, { version: 1, head, phase, location, subject, action });
   };
 
   Object.defineProperty(globalThis, EVENT_SINK, { configurable: true, value: sink });
@@ -136,7 +139,10 @@ export function collectEvents(options: EventCollectorOptions = {}): EventCollect
   return {
     collecting: true,
     head,
-    enter: (journey, body) => (journey === undefined ? body() : store.run(journey, body)),
+    enter: (address, body) => {
+      const endpoint = addressIn(address);
+      return endpoint === undefined ? body() : store.run(endpoint, body);
+    },
     close: () => {
       if (previous === undefined) delete (globalThis as Record<string, unknown>)[EVENT_SINK];
       else Object.defineProperty(globalThis, EVENT_SINK, previous);
@@ -144,76 +150,68 @@ export function collectEvents(options: EventCollectorOptions = {}): EventCollect
   };
 }
 
-/** A running read of a report directory. */
-export interface EventWatch {
-  /** Read whatever has landed since the last look, without waiting for a tick. */
-  readonly poll: () => void;
-  readonly close: () => void;
-}
+/**
+ * One announcement on its way, behind whatever this endpoint is still sending.
+ *
+ * Order is the only property of this channel a test can rely on — *started* has
+ * to arrive before *ended* — and two overlapping posts do not have it. So they
+ * queue per endpoint, which is per execution, and one execution's announcements
+ * never wait behind another's.
+ *
+ * Every failure is swallowed. The observer may not break the subject: a driver
+ * that has gone away, a refused connection, a body nobody reads — each of those
+ * surfaces where it is legible, as a wait that times out and prints what it did
+ * hear, rather than as an exception thrown out of the line that announced.
+ */
+function post(sending: Map<string, Promise<void>>, endpoint: string, report: HeadEventReport): void {
+  const settled = (sending.get(endpoint) ?? Promise.resolve())
+    .then(async () => {
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(report),
+      });
+    })
+    .catch(() => {});
 
-export interface WatchOptions {
-  /**
-   * How often the directory is looked at, in milliseconds. Defaults to 25.
-   *
-   * It is the latency a wait pays and nothing else: a poll that misses an
-   * announcement finds it on the next tick, because the file it reads is
-   * append-only and the reader remembers its own offset.
-   */
-  readonly intervalMs?: number;
+  sending.set(endpoint, settled);
+  void settled.then(() => {
+    if (sending.get(endpoint) === settled) sending.delete(endpoint);
+  });
 }
 
 /**
- * Read a head's announcements as they land, from a driver.
+ * The address to answer, out of whatever the request carried.
  *
- * Every complete line since the last look, in file order, once each. A line that
- * is still being written is not a line yet and is left for the next look, which
- * is the whole of the concurrency protocol between the two processes.
+ * Loopback only, and http only. The value is written by whoever is talking to
+ * this service, so the guard is what keeps an instrument from becoming a way to
+ * make the process fetch an address somebody else chose.
  */
-export function watchEventReports(
-  directory: string,
-  onReport: (report: HeadEventReport) => void,
-  options: WatchOptions = {},
-): EventWatch {
-  const consumed = new Map<string, number>();
+function addressIn(address: string | undefined): string | undefined {
+  if (address === undefined) return undefined;
+  const value = address.startsWith('http') ? address : cookieIn(address);
+  if (value === undefined) return undefined;
 
-  const poll = (): void => {
-    let names: readonly string[];
-    try {
-      names = readdirSync(directory);
-    } catch {
-      // A directory nothing has written to yet is not an error: it is a head
-      // that has announced nothing, which is a thing a run is allowed to be.
-      return;
-    }
-    for (const name of names) {
-      if (!name.startsWith('events-') || !name.endsWith('.ndjson')) continue;
-      const file = join(directory, name);
-      const from = consumed.get(name) ?? 0;
-      let content: Buffer;
-      try {
-        if (statSync(file).size <= from) continue;
-        content = readFileSync(file);
-      } catch {
-        continue;
-      }
-      const complete = content.lastIndexOf(10) + 1;
-      if (complete <= from) continue;
-      consumed.set(name, complete);
-      for (const line of content.subarray(from, complete).toString('utf8').split('\n')) {
-        if (line.length === 0) continue;
-        try {
-          onReport(JSON.parse(line) as HeadEventReport);
-        } catch {
-          // A line this reader cannot parse came from another version of this
-          // package. Skipping it loses one announcement; throwing here would
-          // lose the run, in the driver, on the observer's behalf.
-        }
-      }
-    }
-  };
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'http:') return undefined;
+  return LOOPBACK.has(url.hostname) ? url.href : undefined;
+}
 
-  poll();
-  const timer = setInterval(poll, options.intervalMs ?? 25);
-  timer.unref();
-  return { poll, close: () => clearInterval(timer) };
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+
+/** The one cookie this package owns, read out of a `Cookie` header. */
+function cookieIn(header: string): string | undefined {
+  for (const pair of header.split(';')) {
+    const equals = pair.indexOf('=');
+    if (equals < 0) continue;
+    if (pair.slice(0, equals).trim() !== EVENT_COOKIE) continue;
+    const value = pair.slice(equals + 1).trim();
+    return value.length === 0 ? undefined : decodeURIComponent(value);
+  }
+  return undefined;
 }
