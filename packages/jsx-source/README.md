@@ -4,10 +4,6 @@
 
 > Carry the file and line that wrote a JSX element as far as the rendered DOM node.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 The **subject** is that rendered tree — the page or component under test on a
 given run. To report *which* component changed, Variance Authority needs to
 know where in your source each DOM node came from: the file and line whose

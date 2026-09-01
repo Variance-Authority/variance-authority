@@ -4,10 +4,6 @@
 
 > A self-hosted HTTP history service for Variance Authority observations and approvals.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Run this package when a pipeline needs a self-hosted HTTP history service. A
 **run** — one execution of the pipeline, recorded whether or not anything
 changed — posts **observations** (one row per component whose rendered hash

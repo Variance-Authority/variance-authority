@@ -4,10 +4,6 @@
 
 > Sense spacing, alignment, prominence and repetition inside one live interface, as evidence an agent can read.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a `RawCapture` — a normalized, serializable snapshot of one
 rendered DOM subject, produced by a collector such as this package's Playwright
 entry point. Layout-derived evidence is available only when the capture's

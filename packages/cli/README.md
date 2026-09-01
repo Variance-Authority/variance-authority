@@ -4,10 +4,6 @@
 
 > Run the Variance Authority workflow from a project config: collect subjects, compare, render what moved, report, accept.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a project config plus the runtime resources it selects: a browser
 binary for Chromium, writable storage for directory baselines, `git` for LFS,
 or reachable services for remote rendering and storage.

@@ -4,10 +4,6 @@
 
 > Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a live DOM, and a `mount` function you write. It knows about React
 only through that function, so a session runs whatever a caller can put on a
 page.

@@ -4,10 +4,6 @@
 
 > Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** semantic snapshots produced by the host — a `SemanticSnapshot` is
 the normalized capture of a rendered subject that `@variance-authority/core`
 produces from a collector's raw capture; this package never produces one

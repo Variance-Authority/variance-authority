@@ -4,10 +4,6 @@
 
 > Expose a completed visual run and its source-to-test selection to an MCP client.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Use this package when an MCP client needs to inspect a completed visual run or
 ask which named tests exercise source. The server reads supplied evidence and
 returns text; it never runs tests, rerenders a subject, changes a baseline, or

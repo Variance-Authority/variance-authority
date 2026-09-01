@@ -4,10 +4,6 @@
 
 > Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Use this package when a comparison needs baselines on a filesystem. Choose the
 plain durable backend for a directory owned by one runner, or the LFS backend
 when the baseline images must travel with a branch.

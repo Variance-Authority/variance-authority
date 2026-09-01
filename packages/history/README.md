@@ -4,10 +4,6 @@
 
 > Retain visual-regression observations across runs and answer churn, flakiness, reach and token-drift questions.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 A **run** is one execution of the visual-regression suite, recorded whether or
 not anything changed. A run produces **observations** — rows recording that
 one component's content-hash moved for one **subject** (a rendered story,

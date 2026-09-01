@@ -4,10 +4,6 @@
 
 > A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Use this package when your integration owns a **harness** (a long-lived browser
 instance kept open across captures) or needs to turn a `RenderDocument` — a
 serialized snapshot of one **subject**'s rendered state, where a subject is the

@@ -4,10 +4,6 @@
 
 > A self-hosted review service for Variance Authority baselines, history and per-subject decisions.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Use this package when you are deploying a self-hosted review service for
 baselines, history, and per-subject decisions. It supplies the Worker handler,
 storage adapters, review API, and optional React UI; it does not provide a hosted

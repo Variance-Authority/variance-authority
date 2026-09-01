@@ -4,10 +4,6 @@
 
 > Decode, compare and diff PNGs without a browser: two buffers in, a mask out.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a runtime with `Buffer` — so Node, not a browser. Nothing to launch,
 nothing to write, nothing to reach. Two buffers in, a mask out.
 

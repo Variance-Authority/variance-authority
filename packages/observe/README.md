@@ -4,10 +4,6 @@
 
 > Compare render documents or rasters and receive one Variance Authority observation, whatever produced the images.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** by entrypoint, `observeRasters` needs only two rasters. Durable
 raster observation needs a store. Document paths need a renderer and store.
 

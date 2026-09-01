@@ -4,10 +4,6 @@
 
 > Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Use this package when rendering or baseline storage must happen in another
 process or on another machine — for example, painting screenshots on a box with
 a pinned browser while the rest of the pipeline runs elsewhere. The server

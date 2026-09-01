@@ -4,10 +4,6 @@
 
 > The Variance Authority format, rules, comparison, attribution and verdicts. Pure data in, pure data out, no DOM and no I/O.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 A **subject** is whatever is under test — a component, a page, or a plain
 value. A **capture** is the raw material a collector records from it once,
 before anything is compared. Collectors extract captures; this package

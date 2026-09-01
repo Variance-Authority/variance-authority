@@ -4,10 +4,6 @@
 
 > Storybook index parsing, subject planning and a host-neutral preview driver.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Use this package when you need Storybook index parsing, subject planning, or a
 host-neutral preview driver. A *subject* is the one thing under test — here, one
 Storybook story. *Subject planning* is turning the index's raw story list into

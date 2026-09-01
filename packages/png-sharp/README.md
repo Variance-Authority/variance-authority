@@ -4,10 +4,6 @@
 
 > Faster PNG decoding for Variance Authority through sharp, for runtimes that can load a native addon.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Here, the **subject** is the newly rendered image under test, the **baseline**
 is the previously approved image it's checked against, and a **decoder** is
 what turns PNG bytes into raw pixels so the two can be compared.

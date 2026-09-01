@@ -4,10 +4,6 @@
 
 > Turn a built or already-served Storybook into Variance Authority subjects.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a browser binary and a built or already-served Storybook. The
 built `index.json` is the input; `.storybook` configuration is not read.
 

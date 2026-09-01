@@ -4,10 +4,6 @@
 
 > Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a workspace on a disk this process can read — a root `package.json`
 whose `workspaces` field lists the workspace members (the packages that make up
 the monorepo), and, for any package that publishes compiled declarations, a
@@ -18,13 +14,8 @@ This package reads a TypeScript workspace's public API as data: a **surface**.
 For each package it records which subpaths a manifest opens — an **entrypoint**
 — and which exported identifiers, or **names**, each entrypoint **reaches** by
 following re-exports through barrel files to their source. It reads source and
-manifests directly, never a build. It is a release and breaking-change tool, not
-a visual-regression step: nothing here renders anything or compares pixels.
-
-**When not to use it:** if you need to compare two renders of a UI, this is the
-wrong package — see `@variance-authority/core` and the rest of the toolkit
-instead. This package only tells you what an API looked like and what changed
-about it.
+manifests directly, never a build. It is a release and breaking-change tool: it
+tells you what an API looked like and what changed about it.
 
 ```bash
 npm install --save-dev @variance-authority/package

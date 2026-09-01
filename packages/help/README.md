@@ -4,14 +4,8 @@
 
 > Find the public name, signature, documentation and consumers of an exported TypeScript workspace symbol, over MCP.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
-It does not render, diff, or report on pixels. It reads TypeScript source
-across a workspace and answers what a name is, where it is declared, and who
-imports it. Skip it if what you need is a visual comparison — reach for the
-toolkit's other packages for that.
+It reads TypeScript source across a workspace and answers what a name is, where
+it is declared, and who imports it.
 
 **Requires:** a workspace — a monorepo checkout, on a disk this process can
 read — and, to serve it, a client that speaks MCP over stdio. Nothing has to

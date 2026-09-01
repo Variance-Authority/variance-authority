@@ -4,10 +4,6 @@
 
 > Pixel-tier contracts for Variance Authority: what a renderer and a store promise, and which policy a comparison ran under.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** nothing. No browser to launch, no directory to write, no port to
 bind, no runtime globals — the same `types: []` bar `core` clears.
 

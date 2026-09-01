@@ -4,10 +4,6 @@
 
 > Capture a mounted DOM subject in a browserless Jest or Vitest process, then render and observe it later.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 Capture a mounted DOM subject in a browserless Jest or Vitest process, then let
 `variance run` render and observe that artifact in a later process. The package
 does not export `test`, `expect`, a reporter, or a browser.

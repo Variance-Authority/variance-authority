@@ -4,10 +4,6 @@
 
 > The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** nothing for the format. `report/file` requires a path this process
 can read and write.
 

@@ -4,10 +4,6 @@
 
 > Turn pages your application already serves into Variance Authority subjects.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 **Requires:** a browser binary and a reachable application, unless a static
 directory is supplied. Authenticated routes are unsupported.
 

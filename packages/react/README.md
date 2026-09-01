@@ -4,10 +4,6 @@
 
 > Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.
 
-**Variance Authority** is a visual regression toolkit for web interfaces: it
-compares a rendered subject against an approved baseline and reports which
-component caused each change. This package is one piece of it.
-
 This package reads **provenance**: React's own record of which components
 produced a piece of DOM. For a node, that means its **owner chain** (the
 composite components enclosing it, innermost first), a **props digest** at
