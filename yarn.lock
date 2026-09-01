@@ -2605,6 +2605,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@variance-authority/case-event-announcement@workspace:cases/event-announcement-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-event-announcement@workspace:cases/event-announcement-case"
+  dependencies:
+    "@playwright/test": "npm:^1.49.0"
+    "@variance-authority/event": "workspace:^"
+    "@variance-authority/playwright-test": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
+    vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/case-incumbent@workspace:cases/incumbent-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/case-incumbent@workspace:cases/incumbent-case"
@@ -2702,6 +2714,12 @@ __metadata:
     jsdom: "npm:^30.0.1"
     react: "npm:^19"
     react-dom: "npm:^19"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/event@workspace:^, @variance-authority/event@workspace:packages/event":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/event@workspace:packages/event"
   languageName: unknown
   linkType: soft
 
@@ -2907,6 +2925,7 @@ __metadata:
   dependencies:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
+    "@variance-authority/event": "workspace:^"
     "@variance-authority/observe": "workspace:^"
     "@variance-authority/playwright": "workspace:^"
     "@variance-authority/raster": "workspace:^"

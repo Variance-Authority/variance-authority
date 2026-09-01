@@ -62,7 +62,12 @@ const GATED: readonly string[] = execFileSync(
   // This file names the gate in order to find it, and is not gated by it. Left
   // in, it discovers itself, finds no announcement, and fails — a checker whose
   // first finding is itself teaches everyone to distrust its second.
-  .filter((file) => !file.startsWith('tools/'));
+  .filter((file) => !file.startsWith('tools/'))
+  // Suites, and only suites. A benchmark script asks the same question for a
+  // different reason: nobody runs it as part of `yarn test`, so it cannot skip
+  // silently inside a green run, and telling it to `console.warn` during
+  // collection asks a file that has no collection to have one.
+  .filter((file) => /\.test\.[cm]?[jt]sx?$/.test(file));
 
 /**
  * Every `console.warn` a reader reaches during collection: top level, or one
