@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 320" role="img" aria-labelledby="title desc">
+  <title id="title">Variance Authority mark</title>
+  <desc id="desc">Folded ribbon VA mark in charcoal and orange.</desc>
+
+  <defs>
+    <style>
+      .ribbon-dark {
+        fill: #24282A;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .ribbon-dark {
+          fill: #F3F4F6;
+        }
+      }
+    </style>
+  </defs>
+
+  <path class="ribbon-dark" d="M64 54H159L256 266H160Z"/>
+  <path class="ribbon-dark" d="M331 28H419L494 266H397Z"/>
+  <path d="M256 266L202 152L283 28H376L301 165Z" fill="#FF4A19"/>
+  <path d="M202 152L256 266L301 165L264 103Z" fill="#D83A13" opacity="0.72"/>
+</svg>

@@ -1,0 +1,80 @@
+{
+  "name": "@variance-authority/eyes",
+  "version": "0.0.0-beta.1",
+  "description": "Record which DOM elements a test addresses and preserve their React attribution before the rendered tree moves.",
+  "keywords": [
+    "variance-authority",
+    "testing",
+    "dom",
+    "react",
+    "fiber",
+    "playwright",
+    "testing-library"
+  ],
+  "license": "MIT",
+  "author": "Mechanic Garden",
+  "homepage": "https://variance-authority.dev#packages",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/eyes"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./rtl": {
+      "types": "./dist/rtl.d.ts",
+      "default": "./dist/rtl.js"
+    },
+    "./playwright": {
+      "types": "./dist/playwright.d.ts",
+      "default": "./dist/playwright.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/react": "workspace:^"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.62 <2",
+    "@testing-library/dom": ">=10.4 <11",
+    "@testing-library/react": ">=16.3 <17"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    },
+    "@testing-library/dom": {
+      "optional": true
+    },
+    "@testing-library/react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "jsdom": "^30.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

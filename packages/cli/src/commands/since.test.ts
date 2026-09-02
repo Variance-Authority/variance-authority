@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SourceIndex } from '@variance-authority/core';
 import type { Collected, Plan } from './run.js';
+import { narrowingFor } from './since.js';
 import {
   collectorOf,
   configOf,
@@ -52,6 +53,13 @@ function stored(components: readonly string[]) {
 }
 
 describe('narrowing a run to what a diff could have changed', () => {
+  it('resolves an unnarrowed request without inventing either ref', async () => {
+    const narrowing = await narrowingFor({ relations: false }, []);
+
+    expect(narrowing.since).toBeUndefined();
+    expect(narrowing.against).toBeUndefined();
+  });
+
   it('leaves a subject whose baseline names no component the diff touched unreached', async () => {
     const { report } = await runWith(CONFIG, COLLECTOR, stored(['Clock']), {
       since: { ref: 'origin/main', changed: ['src/Button.tsx'] },

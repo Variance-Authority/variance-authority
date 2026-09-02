@@ -23,6 +23,7 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * check below is what stops it from quietly becoming false.
  */
 export const SURFACES = [
+  '@variance-authority/eyes',
   '@variance-authority/playwright-test',
   '@variance-authority/unit-test',
   '@variance-authority/storybook-collector',

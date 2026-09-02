@@ -74,6 +74,7 @@ A handful of nouns carry the whole model, and every page below assumes them.
 | Page | Reader question |
 | --- | --- |
 | [`architecture.md`](architecture.md) | Why is this a set of tools rather than a pipeline, and how are the packages cut? |
+| [`eyes.md`](eyes.md) | Which DOM elements did a test address, and which rendered source owned them at that moment? |
 | [`information.md`](information.md) | What is retained, where does it cross a boundary, and what may be merged or deleted? |
 | [`instruments.md`](instruments.md) | Which instrument answers which question, and where is each claim measured? |
 | [`metrics.md`](metrics.md) | What is the evidence, and what is its denominator? |

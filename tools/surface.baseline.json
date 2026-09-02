@@ -997,6 +997,64 @@
       }
     }
   },
+  "@variance-authority/eyes": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./rtl": {
+          "types": "./dist/rtl.d.ts",
+          "default": "./dist/rtl.js"
+        },
+        "./playwright": {
+          "types": "./dist/playwright.d.ts",
+          "default": "./dist/playwright.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "ArgumentSnapshot": "type",
+        "Attention": "type",
+        "AttentionDraft": "type",
+        "ConsumedLocatorAttention": "type",
+        "DocumentEventAttention": "interface",
+        "EyesLog": "interface",
+        "LocatorStep": "interface",
+        "PlannedLocatorAttention": "interface",
+        "RtlQueryAttention": "type",
+        "TargetSnapshot": "interface",
+        "createEyesLog": "function",
+        "snapshotNode": "function"
+      },
+      "./rtl": {
+        "RtlWatch": "interface",
+        "watch": "function"
+      },
+      "./playwright": {
+        "EYES_AGENT": "const",
+        "EYES_AGENT_VERSION": "const",
+        "EYES_RECORD": "const",
+        "EyesFixtures": "interface",
+        "EyesWorkerFixtures": "interface",
+        "bundleEyesAgent": "function",
+        "eyesFixtures": "const"
+      }
+    }
+  },
   "@variance-authority/help": {
     "declared": {
       "type": "module",

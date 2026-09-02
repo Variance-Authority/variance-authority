@@ -23,6 +23,9 @@
       "path": "./packages/react"
     },
     {
+      "path": "./packages/eyes"
+    },
+    {
       "path": "./packages/jsx-source"
     },
     {
