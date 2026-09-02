@@ -6,20 +6,38 @@
 
 # Variance Authority
 
-**Visual regression that points to the cause.**
+**Find what varied, what caused it, and what it reached.**
 
-A screenshot diff tells you where pixels moved. Variance Authority connects the
-changed region to the component responsible and the `file:line` where that
-component lives, so the result starts with what to review rather than a list of
-screenshots to inspect.
+Variance Authority is a set of composable evidence tools for software that
+changes. Some compare rendered UI. Others inspect one live interface, record
+runtime paths, trace an edit through source and tests, read a workspace's public
+API, or carry evidence to a person or coding agent. Visual regression is one
+composition, not the product boundary.
 
-It works with UI states your Playwright tests, Storybook, application, or unit
-tests already know how to reach. Rendering, baselines, and reports stay in
-infrastructure you control; there is no vendor account or hosted dashboard.
+The tools share the same discipline: record the conditions behind an answer,
+keep missing evidence distinct from an empty result, and return a cause or a
+boundary instead of a confident guess. There is no mandatory pipeline; use the
+part that answers your question.
 
-## Start with what you already run
+## Start with the question
 
-| Your UI is already ready in | Start here |
+| What do you need to know? | Start here |
+| --- | --- |
+| Did rendered UI change, and which component or source line caused it? | The [`@variance-authority/cli`](packages/cli) or one of the host integrations below. |
+| How is information grouped, aligned, repeated, and emphasized in one live interface? | [`@variance-authority/presentation`](packages/presentation) senses presentation relationships without a baseline or design score. |
+| At which authored action did two runtime paths stop agreeing? | [`@variance-authority/scenario`](packages/scenario) records witnessed Arrange–Act–Assert paths as a state machine. |
+| Which components and tests could—or did—a source change reach? | [`@variance-authority/sense`](packages/sense) joins static source reach with recorded execution. |
+| What public API does a workspace expose, and who consumes it? | [`@variance-authority/package`](packages/package) reads package surfaces; [`@variance-authority/help`](packages/help) answers about their names and consumers over MCP. |
+| What did a running system decide, and where did one execution go? | [`@variance-authority/event`](packages/event) announces decisions, [`@variance-authority/wire`](packages/wire) carries one execution identity across realms, and [`@variance-authority/vantage`](packages/vantage) exposes the run while it is still running. |
+| How often has a cause recurred, drifted, or proved unstable? | [`@variance-authority/history`](packages/history) defines the answers; [`@variance-authority/server`](packages/server) is the service an operator can run to retain them. |
+| How does a person or agent inspect and decide on the evidence? | [`@variance-authority/mcp`](packages/mcp) exposes retained evidence to an agent; [`@variance-authority/tribunal`](packages/tribunal) is the self-hosted review and approval service. |
+
+## Add UI observation where the state already lives
+
+Visual and semantic observation is one family of tools. Start with the host that
+already knows how to reach the UI state:
+
+| Your UI is already ready in | Integration recipe |
 | --- | --- |
 | A Playwright test | [`@variance-authority/playwright-test`: add an observation](packages/playwright-test/README.md#add-an-observation-to-a-test) |
 | A Jest or Vitest jsdom test | [`@variance-authority/unit-test`: capture now, render later](packages/unit-test/README.md) |
@@ -27,11 +45,10 @@ infrastructure you control; there is no vendor account or hosted dashboard.
 | A running application or static build | [`@variance-authority/route-collector`: integrate a route list](packages/route-collector/README.md#integrate-an-explicit-route-list) |
 | A custom renderer, store, or pipeline | [`@variance-authority/observe`: choose the entrypoint](packages/observe/README.md#choose-the-entrypoint) |
 
-Choose the row that already owns the state you care about. Variance Authority
-adds observation to that environment; it does not replace its test runner,
-fixtures, routing, or mounting.
+These packages add observation to the environment you already own. They do not
+replace its test runner, fixtures, routing, or mounting.
 
-## What a result looks like
+## One visual result
 
 This example changes only the `background-color` of one `Button`:
 
@@ -48,43 +65,53 @@ The report names the cause and the source location:
       examples/readme-case/src/Button.js:9
 ```
 
-A root is the cause the run asks you to review. Several affected subjects can
-share one root, so one edit does not have to become one decision per screenshot.
-If a subject moves by itself or because another subject ran first, the run
-reports that separately and refuses to promote the unstable result as a
-baseline.
+[`examples/readme-case`](examples/readme-case) generates the images and report.
+Other examples cover [source selection](examples/selection-reuse),
+[structural changes](examples/structural-change), and
+[flake diagnosis](examples/dynamic-route-flake). The
+[external cases](cases/README.md) exercise the packages against real hosts and
+runners.
 
-[`examples/readme-case`](examples/readme-case) generates the images and report
-above. [Flake detection](docs/flakiness.md) explains the repeated readings used
-to distinguish a change from instability and order dependence.
+## Why there are many packages
+
+A package is cut around what its consumer must supply. A browser, a live DOM, a
+filesystem, a socket, and a readable checkout are different requirements, so
+they do not arrive as one mandatory dependency graph.
+
+The reader-facing packages above compose public building blocks:
+`@variance-authority/core`, `@variance-authority/dom`,
+`@variance-authority/react`, `@variance-authority/jsx-source`,
+`@variance-authority/raster`, `@variance-authority/png`,
+`@variance-authority/png-sharp`, `@variance-authority/session`,
+`@variance-authority/playwright`, `@variance-authority/storybook`,
+`@variance-authority/store`, `@variance-authority/report`, and
+`@variance-authority/remote`. They are public seams, not private stages: a
+custom integration can acquire a document without rendering it, compare
+existing rasters without a browser, or consume a report without reopening the
+system under test.
+
+The [architecture package map](docs/architecture.md#packages) names what every
+package requires and what contract it owns. The
+[information map](docs/information.md) shows how visual, source, runtime,
+scenario, presentation, history, and review evidence remain separate and meet
+only on identities their producers emitted.
 
 ## Scope and non-goals
 
-Variance Authority fits when you already control the UI environment and want
-source attribution, deterministic evidence, and a CI verdict without sending
-the workflow to a managed service.
+Variance Authority ships libraries, command-line tools, agent surfaces, and
+services that run in infrastructure you control. It is not a hosted product:
+compute, storage, browser capacity, credentials, and deployment remain yours.
 
-You operate the compute, storage, browser capacity, and review integration.
-Choose a hosted product instead when you need a managed dashboard, a managed
-cross-browser or real-device grid, perceptual or ML comparison, or a setup path
-owned by a vendor.
+For visual-review adoption, the [adoption gates](docs/gates.md) state where the
+tool fits Playwright, Storybook, Jest, and Vitest. The
+[product comparison](docs/comparison.md) states what Percy, Chromatic, Argos,
+and Applitools provide that this project does not.
 
-The [adoption gates](docs/gates.md) match those boundaries to Playwright,
-Storybook, Jest, and Vitest. The [product comparison](docs/comparison.md) states
-what Percy, Chromatic, Argos, and Applitools each provide that this project does
-not.
+## Documentation
 
-## Go deeper when you have a question
-
-The [documentation index](docs/README.md) routes by reader question: deciding
-whether the tool fits, understanding a verdict, diagnosing a flake, selecting
-less of a suite, or checking the evidence behind a claim.
-
-For the system itself, see the [architecture](docs/architecture.md). For
-executable evidence, start with the [small examples](examples/readme-case) and
-then the [external cases](cases/README.md). Presentation sensing and runtime
-scenarios are separate, baseline-free surfaces described in
-[presentation](docs/presentation.md) and [scenarios](docs/scenarios.md).
+The [documentation index](docs/README.md) routes by question rather than by
+package. Use it to find the contract, measurement, or limitation behind any of
+the paths above.
 
 ## Licence
 
