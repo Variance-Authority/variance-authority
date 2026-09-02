@@ -102,6 +102,19 @@ function attentionLines(entries: readonly Attention[], only: EyesPhase | undefin
 
 function describe(entry: Attention): string {
   if (entry.kind === 'eyes-phase') return `phase → ${entry.phase}`;
+  if (entry.kind === 'react-commit') {
+    const rendered = entry.commit.components.length === 0
+      ? 'no composite renderers'
+      : entry.commit.components.join(', ');
+    if (entry.commit.updaters === undefined) {
+      return `React commit → rendered ${rendered}; update initiators unavailable`;
+    }
+    const updaters = entry.commit.updaters.length === 0
+      ? 'measured empty'
+      : entry.commit.updaters.map((updater) =>
+        updater.path.map((frame) => frame.name).join(' ← ')).join('; ');
+    return `React commit → rendered ${rendered}; update initiators: ${updaters}`;
+  }
   if (entry.kind === 'document-event') {
     return `document ${entry.event}${entry.trusted ? '' : ' (synthetic)'} → ${targetLine(entry.target)}`;
   }

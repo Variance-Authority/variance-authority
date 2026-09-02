@@ -1,8 +1,9 @@
+import { tapCommits } from '@variance-authority/react';
 import { snapshotNode } from './snapshot.js';
-import type { DocumentEventAttention, TargetSnapshot } from './access.js';
+import type { AttentionDraft, TargetSnapshot } from './access.js';
 
 export const EYES_AGENT = '__variance_authority_eyes__';
-export const EYES_AGENT_VERSION = 'eyes@0';
+export const EYES_AGENT_VERSION = 'eyes@1';
 export const EYES_RECORD = '__variance_authority_eyes_record__';
 
 const EVENTS = [
@@ -29,7 +30,7 @@ export interface InstalledEyesAgent {
 
 type EyesPageGlobal = typeof globalThis & {
   [EYES_AGENT]?: InstalledEyesAgent;
-  [EYES_RECORD]?: (attention: DocumentEventAttention) => Promise<void>;
+  [EYES_RECORD]?: (attention: AttentionDraft) => Promise<void>;
 };
 
 /** Install the page-realm half before application code receives an event. */
@@ -47,6 +48,13 @@ export function installEyesAgent(): InstalledEyesAgent {
   }
 
   const installedDocuments = new WeakSet<Document>();
+  tapCommits({
+    onCommit: (commit) => {
+      // Losing an observer must not turn a passing application interaction into
+      // an unhandled rejection inside that application.
+      void record({ kind: 'react-commit', commit }).catch(() => undefined);
+    },
+  });
   const installDocument = (force = false): void => {
     if (!force && installedDocuments.has(document)) return;
     installedDocuments.add(document);

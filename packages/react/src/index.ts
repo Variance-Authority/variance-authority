@@ -39,6 +39,18 @@ export {
   findReactContainers,
 } from './fiber.js';
 
+export type {
+  FiberChainResult,
+  FiberWalkOptions,
+  FiberWalkResult,
+} from './traversal.js';
+export {
+  componentFiberPath,
+  fiberParentChain,
+  fiberSourceLocation,
+  walkFiberSubtree,
+} from './traversal.js';
+
 export { componentName, fiberComponentName, debugOwnerName, ANONYMOUS } from './names.js';
 
 export { portalContentOf } from './portal.js';
@@ -54,8 +66,24 @@ export type {
 } from './arrival.js';
 export { awaitSuspense, suspenseRefusal } from './arrival.js';
 
-export type { Commit, CommitTap, TapOptions, TapRefusal, QuietOptions, QuietResult } from './commits.js';
-export { tapCommits, awaitQuiet } from './commits.js';
+export type {
+  Commit,
+  CommitTap,
+  TapOptions,
+  TapRefusal,
+} from './commits.js';
+export { tapCommits } from './commits.js';
+
+export type { QuietOptions, QuietResult } from './quiet.js';
+export { awaitQuiet } from './quiet.js';
+
+export type {
+  CommitUpdater,
+  CommitUpdaterFrame,
+  FiberRootUpdate,
+  MemoizedUpdatersResult,
+} from './updaters.js';
+export { memoizedUpdatersOf } from './updaters.js';
 
 export { wiringOf, componentFiberOf } from './wiring.js';
 

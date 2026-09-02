@@ -93,6 +93,11 @@ test.afterEach(async ({ eyes }, testInfo) => {
 
 The archive preserves the runner's stable test identity, explicit completion,
 and chronological attention for readers such as `@variance-authority/mcp`.
+The browser agent also installs the React commit tap before page code loads.
+Each commit records both components that performed render work and the
+structural paths of the live components in `memoizedUpdaters` that initiated the
+update. The commit belongs to the most recent authored phase in the same journal;
+it does not infer an Act from the update.
 `readEyesArchive` from `@variance-authority/eyes/archive` validates an attached
 or consolidated JSON artifact before it crosses a process boundary.
 

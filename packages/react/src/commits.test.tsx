@@ -134,6 +134,27 @@ describe('what a commit says', () => {
     // a reader to a component that did nothing.
     expect(tap.commits()).toHaveLength(2);
     expect(tap.commits()[1]?.components).toEqual(['Restless']);
+    expect(tap.commits()[1]?.updaters).toMatchObject([
+      { path: [{ name: 'Restless' }, { name: 'Shell' }] },
+    ]);
+    tap.stop();
+  });
+
+  it('calls a commit observer with the same bounded evidence the tap retains', async () => {
+    const observed: unknown[] = [];
+    let bump!: () => void;
+    function Counter() {
+      const [value, setValue] = useState(0);
+      bump = () => setValue((current) => current + 1);
+      return h('span', null, String(value));
+    }
+
+    const tap = tapCommits({ onCommit: (commit) => observed.push(commit) });
+    await render(h(Counter, null));
+    await act(async () => bump());
+
+    expect(observed).toEqual(tap.commits());
+    expect(tap.commits()[1]?.updaters?.[0]?.path[0]?.name).toBe('Counter');
     tap.stop();
   });
 

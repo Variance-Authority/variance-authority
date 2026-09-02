@@ -274,8 +274,12 @@ Native tools project into exactly one field and refuse a missing field rather
 than substituting an empty value. The testing-surface view is the one intentional
 join: it relates an Eyes journal to Sense crossings only when both producers
 emit the same test id. Titles and file paths are presentation, not fallback
-identity. Files entered by that test but carrying no Eyes-attributed target are
-replay candidates; neither record establishes that they are safe to replace.
+identity. Within each authored phase it keeps DOM attention, React update
+initiators, and executed source distinct. An updater is inside an addressed
+target only when their name-and-props structural suffixes overlap; matching a
+component name alone is insufficient. Files entered by that test but carrying no
+Eyes-attributed target are replay candidates; neither record establishes that
+they are safe to replace.
 
 ## What can produce a useful report
 

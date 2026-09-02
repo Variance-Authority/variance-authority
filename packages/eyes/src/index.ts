@@ -12,6 +12,7 @@ export type {
   LocatorStep,
   PlannedLocatorAttention,
   PhaseAttention,
+  ReactCommitAttention,
   RtlQueryAttention,
   TargetSnapshot,
 } from './access.js';

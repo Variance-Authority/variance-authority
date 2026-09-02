@@ -21,6 +21,39 @@ describe('portable Eyes evidence', () => {
     });
   });
 
+  it('validates portable updater paths without turning absence into an empty set', () => {
+    const archive = parseEyesArchive({
+      eyesVersion: 1,
+      tests: [{
+        id: 'test-1',
+        title: 'redraws',
+        complete: true,
+        attention: [{
+          kind: 'react-commit',
+          sequence: 0,
+          commit: {
+            at: 12,
+            components: ['Canvas'],
+            updaters: [{
+              path: [
+                { name: 'Canvas', key: null, propsDigest: 'canvas-props' },
+                { name: 'DrawingPage', key: null, propsDigest: 'page-props' },
+              ],
+              source: { file: 'src/Canvas.tsx', line: 12, column: 0 },
+            }],
+          },
+        }],
+      }],
+    });
+
+    const attention = archive.tests[0]?.attention[0];
+    expect(attention?.kind).toBe('react-commit');
+    if (attention?.kind === 'react-commit') {
+      expect(attention.commit.updaters?.[0]?.path[0]?.name).toBe('Canvas');
+      expect(attention.commit.updaters?.[0]?.source?.column).toBe(0);
+    }
+  });
+
   it('reads the same contract from a runner-owned JSON artifact', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'variance-eyes-'));
     const path = join(directory, 'eyes.json');

@@ -1,5 +1,10 @@
 import { isOwnerFrame, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
+import {
+  memoizedUpdatersOf,
+  type CommitUpdater,
+  type FiberRootUpdate,
+} from './updaters.js';
 
 /**
  * Every commit React makes, and which components rendered in it.
@@ -70,6 +75,7 @@ const DEFAULT_NAME_LIMIT = 64;
 /** How many commits are retained. Oldest are dropped, and the drop is counted. */
 const DEFAULT_KEEP = 512;
 
+/** A portable record of one React commit, copied before the renderer moves on. */
 export interface Commit {
   /** Milliseconds since the tap attached, from the page's monotonic clock. */
   readonly at: number;
@@ -84,8 +90,19 @@ export interface Commit {
    */
   readonly components: readonly string[];
 
+  /**
+   * Fibers that initiated this commit, when React exposed `memoizedUpdaters`.
+   *
+   * Absent means the renderer did not expose the set. An empty array means it
+   * did and no composite updater initiated this commit, as on an initial mount.
+   */
+  readonly updaters?: readonly CommitUpdater[];
+
   /** Set when `nameLimit` cut the list short. Absent means the list is complete. */
   readonly truncated?: boolean;
+
+  /** Set when `updaterLimit` cut the initiator list short. */
+  readonly updatersTruncated?: boolean;
 }
 
 export type TapRefusal =
@@ -131,7 +148,11 @@ export interface TapOptions {
   /** Where the hook lives. Injectable so a test can use a scope of its own. */
   readonly scope?: Record<string, unknown>;
   readonly nameLimit?: number;
+  /** How many update initiators one commit may retain. Defaults to 64. */
+  readonly updaterLimit?: number;
   readonly keep?: number;
+  /** Observe each retained commit synchronously. A failure never breaks the page. */
+  readonly onCommit?: (commit: Commit) => void;
   /**
    * Whether a page that has already mounted React is a refusal.
    *
@@ -171,20 +192,16 @@ interface DevToolsHook {
  *   called first. That covers the DevTools extension and any other harness, and
  *   `stop()` puts the original back rather than deleting the field.
  *
- * FIXME: no collector composes this. `awaitSuspense` runs ahead of stabilization
- * in every page agent, but nothing asks {@link awaitQuiet} whether the framework
- * has stopped committing — so a page whose requests have all settled and whose
- * components are still rendering is read at whatever commit the raster lands on.
- * The blocker is the ordering constraint above: a tap must be installed before
- * `react-dom` runs, and a collector's bundle is injected into a page the host
- * already built. `examples/todomvc` is the only caller, and it gets there by
- * owning its own entry. This is the second rung of `stabilization.md`'s ladder,
- * and the one held back by something a collector cannot decide — `gateStability`
- * is the third, and is held back only by what it costs.
+ * FIXME: the Eyes page agent records this stream but stabilization does not ask
+ * {@link awaitQuiet} whether the framework has stopped committing. A page whose
+ * requests have all settled and whose components are still rendering is still
+ * read at whichever commit the raster reaches. The evidence exists in the test
+ * chronology; making it a capture refusal remains collector policy.
  */
 export function tapCommits(options: TapOptions = {}): CommitTap {
   const scope = options.scope ?? (globalThis as unknown as Record<string, unknown>);
   const nameLimit = options.nameLimit ?? DEFAULT_NAME_LIMIT;
+  const updaterLimit = options.updaterLimit ?? DEFAULT_NAME_LIMIT;
   const keep = options.keep ?? DEFAULT_KEEP;
   const refuseIfLoaded = options.refuseIfLoaded ?? true;
 
@@ -205,21 +222,33 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
 
   const record = (...args: unknown[]): void => {
     if (stopped) return;
-    const fiberRoot = args[1] as { current?: Fiber } | undefined;
+    const fiberRoot = args[1] as FiberRootUpdate | undefined;
     last = now();
 
     const named = fiberRoot?.current ? componentsThatRendered(fiberRoot.current, nameLimit) : null;
-    const commit: { at: number; components: readonly string[]; truncated?: boolean } = {
+    const updaterEvidence = memoizedUpdatersOf(fiberRoot, updaterLimit);
+    const commit: {
+      at: number;
+      components: readonly string[];
+      updaters?: readonly CommitUpdater[];
+      truncated?: boolean;
+      updatersTruncated?: boolean;
+    } = {
       at: last - started,
       components: named?.names ?? [],
     };
     if (named?.truncated) commit.truncated = true;
+    if (updaterEvidence !== undefined) {
+      commit.updaters = updaterEvidence.updaters;
+      if (updaterEvidence.truncated) commit.updatersTruncated = true;
+    }
 
     recorded.push(commit);
     if (recorded.length > keep) {
       recorded.shift();
       lost += 1;
     }
+    options.onCommit?.(commit);
   };
 
   const hook: DevToolsHook = existing ?? installHook(scope);
@@ -251,96 +280,6 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
       hook.onCommitFiberRoot = previous;
     },
   };
-}
-
-export interface QuietResult {
-  /** True when the page went `quietFor` milliseconds without a commit. */
-  readonly settled: boolean;
-  /** How long the page was quiet for when this returned. */
-  readonly quietFor: number;
-  /** Commits observed while waiting. */
-  readonly commits: number;
-  /**
-   * Components that rendered while waiting, most commits first.
-   *
-   * The output that makes an unsettled page actionable. On a page that settles
-   * this is what arrived late; on one that never does, it is the thing to fix.
-   */
-  readonly restless: readonly { readonly name: string; readonly commits: number }[];
-}
-
-export interface QuietOptions {
-  /** Milliseconds of silence that count as settled. */
-  readonly quietFor?: number;
-  /** Give up after this long and report what was still moving. */
-  readonly timeout?: number;
-  /** Poll interval. The tap is event-driven; this only decides how soon we look. */
-  readonly interval?: number;
-}
-
-/**
- * Wait until React stops committing, and say what was moving if it does not.
- *
- * The honest limits, because this is the function that will be mistaken for a
- * guarantee. It knows about React and nothing else: a CSS animation, an image
- * decoding, a canvas painting itself and a third-party widget with its own
- * renderer all keep a page moving without committing anything. It is a *stronger*
- * signal than two matching screenshots for the movement it covers and a blind
- * one for the rest, which is why it belongs beside the wire and the stylesheet
- * (`docs/stabilization.md`) rather than in place of them.
- *
- * Returns rather than throws on timeout, for the reason `network.settle()` does:
- * a page holding something open is a normal page, and the run wants the reading
- * plus the diagnostic, not an aborted subject.
- */
-export async function awaitQuiet(tap: CommitTap, options: QuietOptions = {}): Promise<QuietResult> {
-  const quietFor = options.quietFor ?? 100;
-  const timeout = options.timeout ?? 2_000;
-  const interval = options.interval ?? 16;
-
-  const before = tap.commits().length;
-  const deadline = now() + timeout;
-
-  // An unattached tap cannot observe silence, so it must not claim it. Reporting
-  // `settled: false` with nothing restless is the shape a caller can tell apart
-  // from a page that genuinely never settled.
-  if (!tap.attached) {
-    return { settled: false, quietFor: 0, commits: 0, restless: [] };
-  }
-
-  for (;;) {
-    const quiet = tap.quietFor();
-    if (quiet >= quietFor) {
-      return { settled: true, quietFor: quiet, ...seenSince(tap, before) };
-    }
-    if (now() >= deadline) {
-      return { settled: false, quietFor: quiet, ...seenSince(tap, before) };
-    }
-    await sleep(Math.min(interval, Math.max(1, quietFor - quiet)));
-  }
-}
-
-function seenSince(
-  tap: CommitTap,
-  before: number,
-): { commits: number; restless: readonly { name: string; commits: number }[] } {
-  const since = tap.commits().slice(before);
-  const counts = new Map<string, number>();
-
-  for (const commit of since) {
-    for (const name of commit.components) {
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-    }
-  }
-
-  const restless = [...counts]
-    .map(([name, commits]) => ({ name, commits }))
-    // Ties broken by name so two runs of one page print the same line.
-    .sort(
-      (a, b) => b.commits - a.commits || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-    );
-
-  return { commits: since.length, restless };
 }
 
 /**
@@ -477,10 +416,4 @@ function refused(reason: TapRefusal): CommitTap {
 function now(): number {
   const clock = globalThis.performance;
   return clock && typeof clock.now === 'function' ? clock.now() : Date.now();
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
 }

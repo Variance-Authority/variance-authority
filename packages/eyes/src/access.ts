@@ -1,4 +1,4 @@
-import type { resolveProvenance } from '@variance-authority/react';
+import type { Commit, resolveProvenance } from '@variance-authority/react';
 
 /** A DOM target copied while its identity and React Fiber are still live. */
 export interface TargetSnapshot {
@@ -86,12 +86,19 @@ export interface PhaseAttention {
   readonly phase: EyesPhase;
 }
 
+/** One React commit observed by the page agent installed before the application. */
+export interface ReactCommitAttention {
+  readonly kind: 'react-commit';
+  readonly commit: Commit;
+}
+
 export type AttentionDraft =
   | RtlQueryAttention
   | PlannedLocatorAttention
   | ConsumedLocatorAttention
   | DocumentEventAttention
-  | PhaseAttention;
+  | PhaseAttention
+  | ReactCommitAttention;
 
 /** One ordered selector, Locator, event, or authored phase observation. */
 export type Attention = AttentionDraft & { readonly sequence: number };

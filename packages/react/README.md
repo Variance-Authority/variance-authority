@@ -58,8 +58,8 @@ component.
 
 ## What else it reads off the same fiber
 
-The same fiber answers five distinct questions, and none of them needs a hook,
-a build plugin or an annotation.
+The same fiber answers seven distinct questions. Most need no hook, build plugin
+or annotation; commit evidence needs the hook React already offers renderers.
 
 | | |
 |---|---|
@@ -67,7 +67,9 @@ a build plugin or an annotation.
 | `holdingOf` | what a component was handed and what it retained — props, contexts and hook cells, each as a digest — **evidence**: it rides beside the snapshot, enters no hash, and is read by `partingOf` to say which input a difference came from |
 | `remountedSince` | which instances were destroyed and rebuilt rather than updated — a **finding**: a fact about this one reading, not a diff between two revisions |
 | `awaitSuspense` / `suspenseRefusal` | wait for every boundary under a node to settle, and rule on what to do if one did not |
-| `tapCommits` / `awaitQuiet` | which components are still committing, by name — the one export here with a precondition: it must be installed before `react-dom` loads, and refuses rather than reporting a page it reached too late |
+| `tapCommits` / `awaitQuiet` | which components performed work, and which live component instances initiated each commit — the one instrument here with a precondition: it must be installed before `react-dom` loads, and refuses rather than reporting a page it reached too late |
+| `memoizedUpdatersOf` | React's `memoizedUpdaters` set as portable structural component paths, with an optional JSX source coordinate |
+| `walkFiberSubtree` / `fiberParentChain` / `componentFiberPath` / `fiberSourceLocation` | bounded read-only traversal for a caller that already has a Fiber |
 
 Every shipped collector calls the Suspense pair before it reads a page: the
 page waits and reports, the driver decides. `awaitSuspense` returns `settled`,
@@ -78,17 +80,32 @@ caller to fail the run rather than capture the subject mid-arrival, or
 `undefined` when the wait genuinely succeeded — a shape a caller cannot
 accidentally downgrade to a warning.
 
-The commit tap is different: it is not installed automatically. Call
-`tapCommits()` before `react-dom` is imported, then pass the returned tap to
-`awaitQuiet` when a runner needs a component-level readiness signal. If React was
-already loaded, the tap reports `attached: false` rather than pretending the page
-was quiet.
+The commit tap is different: it is not installed by a host that reaches an
+already-loaded page. Call `tapCommits()` before `react-dom` is imported, then
+pass the returned tap to `awaitQuiet` when a runner needs a component-level
+readiness signal. An init script can satisfy the same ordering for a page the
+host is about to navigate. If React was already loaded, the tap reports
+`attached: false` rather than pretending the page was quiet.
+
+Each retained commit keeps two independent readings. `components` comes from
+React's `PerformedWork` flags and says which component render bodies ran.
+`updaters` comes from the root's `memoizedUpdaters` and says which live instances
+initiated the update. An updater is a component path, innermost first, whose
+frames carry the component name, reconciliation key, and props digest; `source`
+is included when the Fiber exposes a JSX coordinate. A missing `updaters` means
+the renderer did not expose the set. An empty array means it exposed the set and
+the commit had no retained updater, as on an initial mount.
+
+The traversal exports take raw Fiber objects rather than DOM nodes. Subtree
+walks do not cross the supplied root's sibling, parent walks follow the
+structural `return` chain rather than `_debugOwner`, and every result states
+whether its explicit `limit` or a malformed cycle truncated the read.
 
 The readiness options are caller policy, not hidden defaults:
 
 | call | useful controls |
 |---|---|
-| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds traversal per commit, `keep` bounds retained commits, and `refuseIfLoaded` keeps a late tap from claiming coverage |
+| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same portable record, and `refuseIfLoaded` keeps a late tap from claiming coverage |
 | `awaitQuiet` | `quietFor` is the required silence, `timeout` bounds the wait, and `interval` controls polling; a timeout returns `settled: false` with restless component names |
 | `awaitSuspense` | `timeoutMs`, `pollMs`, and `confirmations` bound the boundary check; a pending or unobserved result is returned for the page agent to rule on |
 
@@ -153,4 +170,3 @@ without source metadata, the result is intentionally incomplete. `provenanceOf`
 does not guess a component from the DOM; use the name scan in `core/attribute` or
 install `@variance-authority/jsx-source` for production call-site
 locations.
-

@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { Commit, CommitUpdater, CommitUpdaterFrame } from '@variance-authority/react';
 import {
   createEyesArchive,
   type ArgumentSnapshot,
@@ -59,6 +60,9 @@ function checkedAttention(value: unknown, where: string): Attention {
     }
     return { kind, phase, sequence };
   }
+  if (kind === 'react-commit') {
+    return { kind, commit: checkedCommit(attention['commit'], `${where} commit`), sequence };
+  }
   if (kind === 'document-event') {
     if (typeof attention['trusted'] !== 'boolean') throw new Error(`${where} trusted must be boolean`);
     return {
@@ -72,6 +76,59 @@ function checkedAttention(value: unknown, where: string): Attention {
   if (kind === 'rtl-query') return checkedRtl(attention, where, sequence);
   if (kind === 'playwright-locator') return checkedLocator(attention, where, sequence);
   throw new Error(`${where} has unknown kind`);
+}
+
+function checkedCommit(value: unknown, where: string): Commit {
+  const commit = object(value, where);
+  const at = finiteNonNegative(commit['at'], `${where} at`);
+  const components = strings(commit['components'], `${where} components`);
+  const updaters = commit['updaters'] === undefined
+    ? undefined
+    : checkedUpdaters(commit['updaters'], `${where} updaters`);
+  const truncated = optionalBoolean(commit['truncated'], `${where} truncated`);
+  const updatersTruncated = optionalBoolean(
+    commit['updatersTruncated'],
+    `${where} updatersTruncated`,
+  );
+  return {
+    at,
+    components,
+    ...(updaters === undefined ? {} : { updaters }),
+    ...(truncated === undefined ? {} : { truncated }),
+    ...(updatersTruncated === undefined ? {} : { updatersTruncated }),
+  };
+}
+
+function checkedUpdaters(value: unknown, where: string): readonly CommitUpdater[] {
+  if (!Array.isArray(value)) throw new Error(`${where} must be an array`);
+  return value.map((candidate, at) => {
+    const updater = object(candidate, `${where} ${at}`);
+    if (!Array.isArray(updater['path']) || updater['path'].length === 0) {
+      throw new Error(`${where} ${at} path must be a non-empty array`);
+    }
+    const path = updater['path'].map((frame, index) =>
+      checkedUpdaterFrame(frame, `${where} ${at} path ${index}`));
+    const source = updater['source'] === undefined
+      ? undefined
+      : checkedSource(updater['source'], `${where} ${at} source`);
+    return { path, ...(source === undefined ? {} : { source }) };
+  });
+}
+
+function checkedUpdaterFrame(value: unknown, where: string): CommitUpdaterFrame {
+  const frame = object(value, where);
+  const key = frame['key'];
+  if (key !== null && typeof key !== 'string') {
+    throw new Error(`${where} key must be string or null`);
+  }
+  return {
+    name: requiredString(frame['name'], `${where} name`),
+    key,
+    propsDigest: requiredString(
+      frame['propsDigest'],
+      `${where} propsDigest`,
+    ) as CommitUpdaterFrame['propsDigest'],
+  };
 }
 
 function checkedRtl(
@@ -216,7 +273,9 @@ function checkedSource(value: unknown, where: string): { file: string; line: num
   return {
     file: requiredString(source['file'], `${where} file`),
     line: positiveInteger(source['line'], `${where} line`),
-    column: positiveInteger(source['column'], `${where} column`),
+    // React 18 and the recording JSX runtime use zero when the transform did
+    // not supply a column. It is a known absence inside a present location.
+    column: nonNegativeInteger(source['column'], `${where} column`),
   };
 }
 
@@ -253,6 +312,24 @@ function nonNegativeInteger(value: unknown, where: string): number {
     throw new Error(`${where} must be a non-negative integer`);
   }
   return value as number;
+}
+
+function finiteNonNegative(value: unknown, where: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw new Error(`${where} must be a finite non-negative number`);
+  }
+  return value;
+}
+
+function strings(value: unknown, where: string): readonly string[] {
+  if (!Array.isArray(value)) throw new Error(`${where} must be an array`);
+  return value.map((item, at) => requiredString(item, `${where} ${at}`));
+}
+
+function optionalBoolean(value: unknown, where: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'boolean') throw new Error(`${where} must be boolean`);
+  return value;
 }
 
 function positiveInteger(value: unknown, where: string): number {

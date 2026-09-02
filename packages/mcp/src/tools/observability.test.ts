@@ -27,6 +27,18 @@ const EYES: EyesArchive = {
     attention: [
       { kind: 'eyes-phase', phase: 'act', sequence: 0 },
       { kind: 'document-event', event: 'click', trusted: false, target: TARGET, sequence: 1 },
+      {
+        kind: 'react-commit',
+        commit: {
+          at: 8,
+          components: ['DrawingPanel', 'Canvas'],
+          updaters: [
+            { path: [{ name: 'DrawingPanel', key: null, propsDigest: 'props' }] },
+            { path: [{ name: 'Clock', key: null, propsDigest: 'clock-props' }] },
+          ],
+        },
+        sequence: 2,
+      },
     ],
   }],
 };
@@ -73,6 +85,8 @@ describe('the composite observability surface', () => {
     const text = testingSurface.run(subject, { test: 'redraw-test' });
 
     expect(text).toContain('act:\n  components: DrawingPanel\n  source: src/panel.tsx');
+    expect(text).toContain('inside addressed component paths: DrawingPanel');
+    expect(text).toContain('outside addressed component paths: Clock');
     expect(text).toContain('ExecutionIndex retains test crossings, not AAA intervals');
     expect(text).toContain('replay candidate at depth 5 — src/top-nav.tsx');
     expect(text).toContain('Neither Eyes nor Sense establishes that it is safe to mock');

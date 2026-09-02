@@ -41,7 +41,18 @@ const ARCHIVE: EyesArchive = {
         target: BUTTON,
         sequence: 3,
       },
-      { kind: 'eyes-phase', phase: 'assert', sequence: 4 },
+      {
+        kind: 'react-commit',
+        commit: {
+          at: 7,
+          components: ['DrawingPanel', 'Canvas'],
+          updaters: [{
+            path: [{ name: 'DrawingPanel', key: null, propsDigest: 'props' }],
+          }],
+        },
+        sequence: 4,
+      },
+      { kind: 'eyes-phase', phase: 'assert', sequence: 5 },
       {
         kind: 'playwright-locator',
         operation: 'assertion',
@@ -50,7 +61,7 @@ const ARCHIVE: EyesArchive = {
         before: [BUTTON],
         after: [BUTTON],
         outcome: 'resolved',
-        sequence: 5,
+        sequence: 6,
       },
     ],
   }],
@@ -68,7 +79,9 @@ describe('variance_test_attention', () => {
 
     expect(text).toContain('#1 [arrange] getByRole');
     expect(text).toContain('#3 [act] document click (synthetic)');
-    expect(text).toContain('#5 [assert] assertion to.have.text');
+    expect(text).toContain('#4 [act] React commit → rendered DrawingPanel, Canvas');
+    expect(text).toContain('update initiators: DrawingPanel');
+    expect(text).toContain('#6 [assert] assertion to.have.text');
     expect(text).toContain('DrawingPanel at src/drawing/RedrawButton.tsx:17');
   });
 

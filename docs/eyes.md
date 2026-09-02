@@ -48,12 +48,23 @@ available from the event record and the pre-action snapshot.
 An assertion on absence carries the locator plan and an observed empty match
 set. It carries no invented component owner.
 
+The page agent installs React's commit hook before application code loads. A
+commit records `PerformedWork` component names separately from React's
+`memoizedUpdaters`: the first says which render bodies ran, while the second
+names the live component paths that initiated the update. Each updater path is
+innermost first and retains component name, reconciliation key, props digest,
+and a JSX source coordinate when React exposes one. Missing updater evidence
+means the renderer did not expose the set; an empty updater list is a completed
+reading.
+
 ## Test chronology
 
 An Eyes log is a monotonic journal within one test realm. `phase('arrange')`,
 `phase('act')`, and `phase('assert')` append authored boundaries; later attention
 belongs to the most recent marker when a reader presents the chronology. Calls
-before any marker remain explicitly unphased.
+before any marker remain explicitly unphased. React commits use the same rule,
+so an update can be related to the phase in which it occurred without claiming
+which callback, event, or source region caused it.
 
 An Eyes archive groups journals under the runner's stable test identity. Every
 journal is either complete or partial with a reason. The archive is portable
@@ -70,5 +81,7 @@ those fields remain absent.
 
 The document event channel covers user-facing DOM events. A store mutation,
 network request, timer, or direct function call that emits no DOM event is not
-classified as an action by Eyes. Execution regions remain the responsibility of
-Sense, and cross-realm correlation remains the responsibility of Journey.
+classified as an action by Eyes. A memoized updater identifies the component
+instance that scheduled work, not the source statement or callback that invoked
+it. Execution regions remain the responsibility of Sense, and cross-realm
+correlation remains the responsibility of Journey.

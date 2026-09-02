@@ -4,6 +4,23 @@ import type { ObservabilitySubject } from '../observability-subject.js';
 import { locateEyesTest, phasedAttention, targetsOf } from './attention.js';
 import { NO_ARGS, stringArg, type Tool } from './tool.js';
 
+type Phase = EyesPhase | 'unphased';
+type OwnerPath = Extract<TargetSnapshot['provenance'], { status: 'resolved' }>['provenance']['owners'];
+type CommitAttention = Extract<EyesTestAttention['attention'][number], { kind: 'react-commit' }>;
+type Updater = NonNullable<CommitAttention['commit']['updaters']>[number];
+
+interface AddressedPhase {
+  readonly owners: Set<string>;
+  readonly files: Set<string>;
+  readonly paths: OwnerPath[];
+}
+
+interface UpdatedPhase {
+  commits: number;
+  unavailable: number;
+  readonly updaters: Updater[];
+}
+
 /** Which independent instruments this MCP connection can actually answer from. */
 export const observability: Tool<ObservabilitySubject> = {
   name: 'variance_observability',
@@ -70,13 +87,21 @@ function line(name: string, evidence: unknown, detail: string | undefined): stri
 }
 
 function surface(test: EyesTestAttention, execution: ExecutionIndex | undefined): string {
-  const phases = new Map<EyesPhase | 'unphased', { owners: Set<string>; files: Set<string> }>();
+  const phases = new Map<Phase, AddressedPhase>();
+  const updates = new Map<Phase, UpdatedPhase>();
   let unattributed = 0;
   let targets = 0;
   for (const { phase, entry } of phasedAttention(test.attention)) {
+    if (entry.kind === 'react-commit') {
+      const bucket = updates.get(phase) ?? { commits: 0, unavailable: 0, updaters: [] };
+      bucket.commits += 1;
+      if (entry.commit.updaters === undefined) bucket.unavailable += 1;
+      else bucket.updaters.push(...entry.commit.updaters);
+      updates.set(phase, bucket);
+    }
     for (const target of targetsOf(entry)) {
       targets += 1;
-      const bucket = phases.get(phase) ?? { owners: new Set(), files: new Set() };
+      const bucket = phases.get(phase) ?? { owners: new Set(), files: new Set(), paths: [] };
       phases.set(phase, bucket);
       if (target.provenance.status === 'no-fiber') {
         unattributed += 1;
@@ -95,6 +120,8 @@ function surface(test: EyesTestAttention, execution: ExecutionIndex | undefined)
     '',
     ...phaseLines(phases),
     '',
+    ...updateLines(updates, phases),
+    '',
     ...executionLines,
     '',
     'Reduction rule: an executed file with no addressed target attribution is a replay candidate only. ' +
@@ -103,18 +130,19 @@ function surface(test: EyesTestAttention, execution: ExecutionIndex | undefined)
 }
 
 function addTarget(
-  bucket: { owners: Set<string>; files: Set<string> },
+  bucket: AddressedPhase,
   target: TargetSnapshot,
 ): void {
   if (target.provenance.status !== 'resolved') return;
   const provenance = target.provenance.provenance;
+  bucket.paths.push(provenance.owners);
   for (const owner of provenance.owners) bucket.owners.add(owner.name);
   if (provenance.createdBy !== undefined) bucket.owners.add(provenance.createdBy);
   if (provenance.source !== undefined) bucket.files.add(provenance.source.file);
 }
 
 function phaseLines(
-  phases: ReadonlyMap<EyesPhase | 'unphased', { owners: Set<string>; files: Set<string> }>,
+  phases: ReadonlyMap<Phase, AddressedPhase>,
 ): string[] {
   if (phases.size === 0) return ['Addressed surface: measured empty.'];
   const order = ['unphased', 'arrange', 'act', 'assert'] as const;
@@ -127,6 +155,55 @@ function phaseLines(
       `  source: ${values(found.files)}`,
     ];
   });
+}
+
+function updateLines(
+  updates: ReadonlyMap<Phase, UpdatedPhase>,
+  addressed: ReadonlyMap<Phase, AddressedPhase>,
+): string[] {
+  if (updates.size === 0) {
+    return ['React update initiators: unavailable; no commit evidence was recorded.'];
+  }
+  const lines = ['React update initiators:'];
+  const order = ['unphased', 'arrange', 'act', 'assert'] as const;
+  for (const phase of order) {
+    const found = updates.get(phase);
+    if (found === undefined) continue;
+    const paths = addressed.get(phase)?.paths ?? [];
+    const connected = found.updaters.filter((updater) =>
+      paths.some((path) => pathsOverlap(updater, path)));
+    const elsewhere = found.updaters.filter((updater) => !connected.includes(updater));
+    lines.push(`  ${phase}: ${found.commits} commit(s)`);
+    if (found.unavailable > 0) {
+      lines.push(`    unavailable in ${found.unavailable} commit(s)`);
+    }
+    if (found.updaters.length === 0 && found.unavailable < found.commits) {
+      lines.push('    measured empty');
+    }
+    if (connected.length > 0) {
+      lines.push(`    inside addressed component paths: ${updaterNames(connected)}`);
+    }
+    if (elsewhere.length > 0) {
+      lines.push(`    outside addressed component paths: ${updaterNames(elsewhere)}`);
+    }
+  }
+  return lines;
+}
+
+function pathsOverlap(updater: Updater, target: OwnerPath): boolean {
+  const updatePath = updater.path;
+  const length = Math.min(updatePath.length, target.length);
+  for (let offset = 1; offset <= length; offset += 1) {
+    const left = updatePath[updatePath.length - offset]!;
+    const right = target[target.length - offset]!;
+    if (left.name !== right.name || left.propsDigest !== right.propsDigest) return false;
+  }
+  return length > 0;
+}
+
+function updaterNames(updaters: readonly Updater[]): string {
+  return updaters.map((updater) =>
+    updater.path.map((frame) => frame.name).join(' ← ')).join('; ');
 }
 
 function executionSurface(

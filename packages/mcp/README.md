@@ -67,11 +67,14 @@ members. Native tools remain available on the same connection:
 
 `variance_testing_surface` is the deliberate cross-domain answer. It maps the
 DOM owners and source locations a test addressed in each authored phase, then
-contrasts them with files that the same exact test id entered. An executed file
-with no addressed target is a replay candidate, not proof that the branch is
-unrelated or safe to mock. The tool does not join by title or file when stable
-producer identities disagree. `ExecutionIndex` retains whole-test crossings,
-not AAA intervals, so runtime files remain test-scoped rather than phase-scoped.
+places React update initiators inside or outside those exact structural component
+paths and contrasts both with files that the same exact test id entered.
+`PerformedWork` says a render body ran; it is not substituted for an updater.
+An executed file with no addressed target is a replay candidate, not proof that
+the branch is unrelated or safe to mock. The tool does not join by title or file
+when stable producer identities disagree. `ExecutionIndex` retains whole-test
+crossings, not AAA intervals, so runtime files remain test-scoped rather than
+phase-scoped.
 
 The individual served sets remain available as `REPORTS`, `PRESENTATIONS`,
 `SOURCE_TESTS`, `VANTAGE`, `EYES`, and `SCENARIOS`. Use one when the integration owns only that

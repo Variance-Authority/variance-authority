@@ -3,7 +3,8 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { DocumentEventAttention } from './access.js';
+import { FiberTag, memoizedUpdatersOf, type Fiber } from '@variance-authority/react';
+import type { Attention, DocumentEventAttention } from './access.js';
 import { EYES_AGENT, EYES_RECORD, installEyesAgent } from './page-agent.js';
 
 const page = globalThis as typeof globalThis & Record<string, unknown>;
@@ -47,4 +48,53 @@ describe('the page attention agent', () => {
       },
     ]);
   });
+
+  it('records the component path React names as the update initiator', () => {
+    const seen: Attention[] = [];
+    page[EYES_RECORD] = vi.fn(async (attention: Attention) => {
+      seen.push(attention);
+    });
+    installEyesAgent();
+
+    const component = fakeFiber('Canvas', FiberTag.FunctionComponent);
+    const root = fakeFiber('Root', FiberTag.HostRoot);
+    (component as unknown as { return: Fiber | null }).return = root;
+    (root as unknown as { child: Fiber | null; stateNode: unknown }).child = component;
+    (root as unknown as { stateNode: unknown }).stateNode = { current: root };
+    (component as unknown as { flags: number }).flags = 1;
+    (root as unknown as { subtreeFlags: number }).subtreeFlags = 1;
+    expect(memoizedUpdatersOf({
+      current: root,
+      memoizedUpdaters: new Set([component]),
+    })?.updaters[0]?.path[0]?.name).toBe('Canvas');
+
+    const hook = page['__REACT_DEVTOOLS_GLOBAL_HOOK__'] as {
+      onCommitFiberRoot: (renderer: number, root: unknown) => void;
+    };
+    hook.onCommitFiberRoot(1, { current: root, memoizedUpdaters: new Set([component]) });
+
+    expect(seen).toMatchObject([{
+      kind: 'react-commit',
+      commit: {
+        components: ['Canvas'],
+        updaters: [{ path: [{ name: 'Canvas' }] }],
+      },
+    }]);
+  });
 });
+
+function fakeFiber(name: string, tag: number): Fiber {
+  const type = { displayName: name };
+  return {
+    tag,
+    key: null,
+    elementType: type,
+    type,
+    stateNode: null,
+    return: null,
+    child: null,
+    sibling: null,
+    alternate: null,
+    memoizedProps: {},
+  };
+}
