@@ -260,6 +260,23 @@ Keeping the three separate prevents a source dependency trail, a witnessed test
 crossing, and a user-visible golden path from being merged into one graph whose
 edges have incompatible meanings.
 
+### MCP observability view
+
+An MCP connection can receive the run report, full presentation readings,
+execution index, live Vantage state, Eyes archive, and scenario manifests as
+optional fields of one subject.
+This is a view over separately supplied records, not a global run object. Tool
+discovery is shared; evidence identity, completeness, retention, and storage
+remain native to each domain.
+
+The inventory distinguishes an unavailable field from a present empty record.
+Native tools project into exactly one field and refuse a missing field rather
+than substituting an empty value. The testing-surface view is the one intentional
+join: it relates an Eyes journal to Sense crossings only when both producers
+emit the same test id. Titles and file paths are presentation, not fallback
+identity. Files entered by that test but carrying no Eyes-attributed target are
+replay candidates; neither record establishes that they are safe to replace.
+
 ## What can produce a useful report
 
 Report assembly happens after subject observation and before the SUT process is
@@ -343,6 +360,7 @@ The durable outputs are deliberately separate:
 | render cache | local XDG cache or backend cache | machine or backend cache scope | yes: avoids repainting an identical document under one painter |
 | source index | versioned binary generation under the configured root; local XDG scan namespace by default | exact artifact through CI cache, shared volume, or artifact transfer | yes: reuses validated source, name, and graph sections |
 | runtime coverage | default `coverage.bin` cache or configured file artifact | restored CI cache, shared volume, or explicit artifact transfer | yes: selects tests for later source changes |
+| Eyes attention | test process memory or a runner-owned JSON attachment containing an Eyes archive | whoever can read the test artifact | no: it explains the test execution that produced it |
 | scenario execution | process memory or opt-in scenario archive root | whoever can read the admitted semantic text | assessment and presentation; not automatic visual selection |
 | presentation reading | caller process memory; only the projected signal persists, inside the run report | whoever holds the reading; the signal travels with the report | no: each run senses its own pages |
 | history facts | operator history service | authenticated clients in the configured project scope | yes: current values, recurrence, churn, flakiness, and drift |

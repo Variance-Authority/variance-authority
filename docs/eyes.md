@@ -3,8 +3,9 @@
 Eyes records the DOM elements a test addresses and attributes each live element
 to the React tree that rendered it. The record describes test attention: selector
 intent, the element resolved at that point, and the action, read, assertion, or
-browser event that consumed it. It does not decide whether that attention is
-Arrange, Act, or Assert evidence.
+browser event that consumed it. An adopter can place authored Arrange, Act, and
+Assert markers in the same chronology. Eyes records those markers and never
+classifies surrounding evidence from an API name.
 
 Fiber attribution is copied in the synchronous turn that observes the element.
 React deletes its Fiber pointer when a node unmounts, and its double-buffered
@@ -46,6 +47,19 @@ available from the event record and the pre-action snapshot.
 
 An assertion on absence carries the locator plan and an observed empty match
 set. It carries no invented component owner.
+
+## Test chronology
+
+An Eyes log is a monotonic journal within one test realm. `phase('arrange')`,
+`phase('act')`, and `phase('assert')` append authored boundaries; later attention
+belongs to the most recent marker when a reader presents the chronology. Calls
+before any marker remain explicitly unphased.
+
+An Eyes archive groups journals under the runner's stable test identity. Every
+journal is either complete or partial with a reason. The archive is portable
+JSON, so a runner attachment, Jest/Vitest setup integration, or another harness
+can hand the same selector, locator, event, and Fiber evidence to an external
+reader after the live DOM is gone.
 
 ## Boundaries
 

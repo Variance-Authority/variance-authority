@@ -19,7 +19,16 @@
   ],
   "references": [
     {
+      "path": "../eyes"
+    },
+    {
+      "path": "../presentation"
+    },
+    {
       "path": "../report"
+    },
+    {
+      "path": "../scenario"
     },
     {
       "path": "../sense"

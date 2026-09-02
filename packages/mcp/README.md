@@ -2,12 +2,13 @@
 
 # @variance-authority/mcp
 
-> Expose a visual run, its source-to-test selection, and a suite that is still running to an MCP client.
+> Expose independently supplied observability evidence to an MCP client.
 
-Use this package when an MCP client needs to inspect a visual run, ask which
-named tests exercise source, or watch a suite that has not finished. The server
-reads supplied evidence and returns text; it never runs tests, rerenders a
-subject, changes a baseline, or infers evidence that is not there.
+Use this package when an MCP client needs to inspect a visual run, presentation
+signals, source-to-test journeys, live events, test attention, or retained
+scenarios. The server reads supplied evidence and returns text; it never runs
+tests, rerenders a subject, changes a baseline, or infers evidence that is not
+there.
 
 The supplied evidence remains canonical. This package makes visual causes,
 regions, verdicts, findings, composition, variation, acceptance preview, and
@@ -20,7 +21,7 @@ the evidence it sees now with the evidence it saw one call ago.
 | entrypoint | requires | holds |
 |---|---|---|
 | `.` | stdio | everything, plus `serve`, `serveReportFile` and `serveVantage` |
-| `./tools` | nothing | visual-report and source-test answers as pure functions over their evidence |
+| `./tools` | nothing | observability answers as pure functions over their native evidence |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 
 Two of the three halves are pure, and that is deliberate. The question that
@@ -28,10 +29,54 @@ matters — *does this actually help an agent fix it?* — has to stay cheap to 
 and it stops being asked the moment answering it requires speaking a protocol
 over a pipe.
 
-What a producer *wrote* is not here either. The visual report format belongs to
-`@variance-authority/report`, and the execution index belongs to
-`@variance-authority/sense`. MCP reads both contracts; it owns
-neither.
+What a producer *wrote* is not here either. Reports, execution indexes, live
+state, Eyes archives, and scenario manifests belong to their producing
+packages. MCP reads those contracts; it owns none.
+
+## Give an agent all observability
+
+`OBSERVABILITY` serves one connection over an `ObservabilitySubject`. Each field
+is optional because each instrument has its own lifecycle and retention rules:
+
+```ts
+import { OBSERVABILITY, serve } from '@variance-authority/mcp';
+import type { ObservabilitySubject } from '@variance-authority/mcp';
+
+export function serveObservability(current: () => ObservabilitySubject) {
+  return serve({
+    input: process.stdin,
+    output: process.stdout,
+    served: OBSERVABILITY,
+    subject: current,
+  });
+}
+```
+
+The handshake tells the client to call `variance_observability` first. Its
+answer distinguishes a missing domain from a supplied domain that measured zero
+members. Native tools remain available on the same connection:
+
+| tool | evidence | answers |
+|---|---|---|
+| `variance_test_attention` | Eyes archive | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
+| `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
+| `variance_source_tests` | Sense execution index | which named tests entered source and their minimum observed distance |
+| `variance_run_signals`, `variance_test_signals` | Vantage state | what an in-flight suite and one test have announced |
+| visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
+| `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
+
+`variance_testing_surface` is the deliberate cross-domain answer. It maps the
+DOM owners and source locations a test addressed in each authored phase, then
+contrasts them with files that the same exact test id entered. An executed file
+with no addressed target is a replay candidate, not proof that the branch is
+unrelated or safe to mock. The tool does not join by title or file when stable
+producer identities disagree. `ExecutionIndex` retains whole-test crossings,
+not AAA intervals, so runtime files remain test-scoped rather than phase-scoped.
+
+The individual served sets remain available as `REPORTS`, `PRESENTATIONS`,
+`SOURCE_TESTS`, `VANTAGE`, `EYES`, and `SCENARIOS`. Use one when the integration owns only that
+domain. React Testing Library and Playwright remain optional peer dependencies
+of `@variance-authority/eyes`; installing MCP does not add either runner.
 
 ## Give an agent the tests for source
 
@@ -121,7 +166,8 @@ against a suite in flight the same way it works against a report.
 
 A **subject** is whatever data the server currently holds and answers questions
 about — a `RunReport` for the visual tools, an `ExecutionIndex` for the
-source-test tool, or a `VantageState` for a suite that is still running. (Inside a `RunReport`, each individually observed
+source-test tool, a `VantageState` for a suite that is still running, or an
+`ObservabilitySubject` carrying independently optional domains. (Inside a `RunReport`, each individually observed
 rendering, such as `story:card--dark`, is also called a subject; the tool
 contract below works at that finer grain.)
 

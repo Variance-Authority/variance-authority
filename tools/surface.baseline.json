@@ -1014,6 +1014,10 @@
         "./playwright": {
           "types": "./dist/playwright.d.ts",
           "default": "./dist/playwright.js"
+        },
+        "./archive": {
+          "types": "./dist/archive.d.ts",
+          "default": "./dist/archive.js"
         }
       },
       "files": [
@@ -1032,11 +1036,16 @@
         "AttentionDraft": "type",
         "ConsumedLocatorAttention": "type",
         "DocumentEventAttention": "interface",
+        "EyesArchive": "interface",
         "EyesLog": "interface",
+        "EyesPhase": "type",
+        "EyesTestAttention": "type",
         "LocatorStep": "interface",
+        "PhaseAttention": "interface",
         "PlannedLocatorAttention": "interface",
         "RtlQueryAttention": "type",
         "TargetSnapshot": "interface",
+        "createEyesArchive": "function",
         "createEyesLog": "function",
         "snapshotNode": "function"
       },
@@ -1052,6 +1061,10 @@
         "EyesWorkerFixtures": "interface",
         "bundleEyesAgent": "function",
         "eyesFixtures": "const"
+      },
+      "./archive": {
+        "parseEyesArchive": "function",
+        "readEyesArchive": "function"
       }
     }
   },
@@ -1296,12 +1309,21 @@
     },
     "names": {
       ".": {
+        "EYES": "const",
+        "EYES_TOOLS": "const",
         "JsonRpcRequest": "interface",
         "JsonRpcResponse": "interface",
         "NO_ARGS": "const",
+        "OBSERVABILITY": "const",
+        "OBSERVABILITY_TOOLS": "const",
+        "ObservabilitySubject": "interface",
+        "PRESENTATIONS": "const",
+        "PRESENTATION_TOOLS": "const",
         "PROTOCOL_VERSION": "const",
         "REPORTS": "const",
         "ReportFileOptions": "interface",
+        "SCENARIOS": "const",
+        "SCENARIO_TOOLS": "const",
         "SERVER_NAME": "const",
         "SERVER_VERSION": "const",
         "SOURCE_TESTS": "const",
@@ -1317,7 +1339,11 @@
         "VANTAGE_TOOLS": "const",
         "createLineReader": "function",
         "diffState": "function",
+        "eyesToolByName": "function",
         "handle": "function",
+        "observabilityToolByName": "function",
+        "presentationToolByName": "function",
+        "scenarioToolByName": "function",
         "serve": "function",
         "serveReportFile": "function",
         "serveVantage": "function",
@@ -1327,7 +1353,11 @@
         "vantageToolByName": "function"
       },
       "./tools": {
+        "EYES_TOOLS": "const",
         "NO_ARGS": "const",
+        "OBSERVABILITY_TOOLS": "const",
+        "PRESENTATION_TOOLS": "const",
+        "SCENARIO_TOOLS": "const",
         "SOURCE_TEST_TOOLS": "const",
         "Served": "interface",
         "StateDifference": "type",
@@ -1336,17 +1366,25 @@
         "ToolInvocation": "interface",
         "VANTAGE_TOOLS": "const",
         "diffState": "function",
+        "eyesToolByName": "function",
         "notObservedSentence": "function",
+        "observabilityToolByName": "function",
+        "presentationToolByName": "function",
+        "scenarioToolByName": "function",
         "sourceTestToolByName": "function",
         "stringArg": "function",
         "toolByName": "function",
         "vantageToolByName": "function"
       },
       "./protocol": {
+        "EYES": "const",
         "JsonRpcRequest": "interface",
         "JsonRpcResponse": "interface",
+        "OBSERVABILITY": "const",
+        "PRESENTATIONS": "const",
         "PROTOCOL_VERSION": "const",
         "REPORTS": "const",
+        "SCENARIOS": "const",
         "SERVER_NAME": "const",
         "SERVER_VERSION": "const",
         "SOURCE_TESTS": "const",

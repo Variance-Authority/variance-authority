@@ -1,13 +1,17 @@
-export { createEyesLog } from './access.js';
+export { createEyesArchive, createEyesLog } from './access.js';
 export type {
   ArgumentSnapshot,
   Attention,
   AttentionDraft,
   ConsumedLocatorAttention,
   DocumentEventAttention,
+  EyesArchive,
   EyesLog,
+  EyesPhase,
+  EyesTestAttention,
   LocatorStep,
   PlannedLocatorAttention,
+  PhaseAttention,
   RtlQueryAttention,
   TargetSnapshot,
 } from './access.js';

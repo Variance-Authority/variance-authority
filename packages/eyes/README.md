@@ -33,6 +33,18 @@ its entries. `attention.close()` restores every method once no watcher remains.
 The entrypoint watches bound `screen` queries; `within()` and queries returned by
 `render()` are distinct objects and remain outside it.
 
+The test authors Arrange, Act, and Assert boundaries; Eyes records them without
+guessing from library calls:
+
+```text
+attention.log.phase('arrange');
+render(<DrawingPage />);
+attention.log.phase('act');
+screen.getByRole('button', { name: 'Redraw' }).click();
+attention.log.phase('assert');
+expect(screen.getByRole('status')).toHaveTextContent('Redrawn');
+```
+
 ## Add Eyes to a Playwright extension
 
 Install Eyes beside the runner and its browser binary:
@@ -59,17 +71,30 @@ Another fixture or an `afterEach` hook can read the per-test `eyes` journal:
 
 ```ts
 import { test as base } from '@playwright/test';
+import { createEyesArchive } from '@variance-authority/eyes';
 import { eyesFixtures } from '@variance-authority/eyes/playwright';
 
 const test = base.extend(eyesFixtures);
 
 test.afterEach(async ({ eyes }, testInfo) => {
+  const archive = createEyesArchive([{
+    id: testInfo.testId,
+    title: testInfo.title,
+    file: testInfo.file,
+    complete: true,
+    attention: eyes.drain(),
+  }]);
   await testInfo.attach('eyes.json', {
-    body: Buffer.from(JSON.stringify(eyes.drain())),
+    body: Buffer.from(JSON.stringify(archive)),
     contentType: 'application/json',
   });
 });
 ```
+
+The archive preserves the runner's stable test identity, explicit completion,
+and chronological attention for readers such as `@variance-authority/mcp`.
+`readEyesArchive` from `@variance-authority/eyes/archive` validates an attached
+or consolidated JSON artifact before it crosses a process boundary.
 
 The low-level `bundleEyesAgent` export is for custom fixture authors. The
 standard fixture reads and installs that same bundle.
@@ -84,5 +109,6 @@ creates the ordered in-memory journal both adapters use:
 import { createEyesLog, snapshotNode } from '@variance-authority/eyes';
 
 const log = createEyesLog();
+log.phase('arrange');
 const target = snapshotNode(document.querySelector('button')!);
 ```

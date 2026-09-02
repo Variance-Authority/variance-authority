@@ -1,5 +1,8 @@
+import type { EyesArchive } from '@variance-authority/eyes';
+import type { PresentationReport } from '@variance-authority/presentation';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { VantageState } from '@variance-authority/vantage';
+import type { ObservabilitySubject } from './observability-subject.js';
 import { adjudicate } from './tools/adjudicate.js';
 import { changelog } from './tools/changelog.js';
 import { changes } from './tools/changes.js';
@@ -9,6 +12,10 @@ import { diff, diffState, type StateDifference } from './tools/diff.js';
 import { explain } from './tools/explain-verdict.js';
 import { findings } from './tools/findings.js';
 import { summarize } from './tools/summary.js';
+import { attention } from './tools/attention.js';
+import { observability, testingSurface } from './tools/observability.js';
+import { presentations, type PresentationEvidence } from './tools/presentations.js';
+import { scenarios, type ScenarioEvidence } from './tools/scenarios.js';
 import { sourceTests } from './tools/source-tests.js';
 import { runSignals } from './tools/run-signals.js';
 import { testSignals } from './tools/test-signals.js';
@@ -140,4 +147,79 @@ export const TOOLS: readonly Tool[] = [
 
 export function toolByName(name: string): Tool | undefined {
   return TOOLS.find((tool) => tool.name === name);
+}
+
+/** Full presentation graphs supplied by the caller, independent of report projections. */
+export const PRESENTATION_TOOLS = [
+  presentations,
+  diff as Tool<PresentationEvidence>,
+] as const;
+
+export function presentationToolByName(name: string): Tool<readonly PresentationReport[]> | undefined {
+  return PRESENTATION_TOOLS.find((tool) => tool.name === name);
+}
+
+/** Test attention captured synchronously while DOM nodes still have attribution. */
+export const EYES_TOOLS = [attention, diff as Tool<EyesArchive>] as const;
+
+export function eyesToolByName(name: string): Tool<EyesArchive> | undefined {
+  return EYES_TOOLS.find((tool) => tool.name === name);
+}
+
+/** Retained scenario executions, including witnessed Arrange state and Act outcomes. */
+export const SCENARIO_TOOLS = [scenarios, diff as Tool<ScenarioEvidence>] as const;
+
+export function scenarioToolByName(name: string): Tool<ScenarioEvidence> | undefined {
+  return SCENARIO_TOOLS.find((tool) => tool.name === name);
+}
+
+/**
+ * Every independently supplied observability domain behind one MCP connection.
+ *
+ * Native tools are lifted without changing their answers. A missing field is a
+ * tool error, not an empty subject, and previous invocation state is projected
+ * through the same field before a native diff sees it.
+ */
+export const OBSERVABILITY_TOOLS: readonly Tool<ObservabilitySubject>[] = [
+  observability,
+  ...TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
+    lift(tool, 'visual/report', (subject) => subject.report)),
+  ...PRESENTATION_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
+    lift(tool, 'presentation readings', (subject) => subject.presentations)),
+  ...SOURCE_TEST_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
+    lift(tool, 'runtime journey', (subject) => subject.execution)),
+  ...VANTAGE_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
+    lift(tool, 'live journey/events', (subject) => subject.vantage)),
+  ...EYES_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
+    lift(tool, 'Eyes attention', (subject) => subject.eyes)),
+  testingSurface,
+  ...SCENARIO_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
+    lift(tool, 'scenario AAA', (subject) => subject.scenarios)),
+  diff as Tool<ObservabilitySubject>,
+];
+
+export function observabilityToolByName(name: string): Tool<ObservabilitySubject> | undefined {
+  return OBSERVABILITY_TOOLS.find((tool) => tool.name === name);
+}
+
+function lift<Subject>(
+  tool: Tool<Subject>,
+  domain: string,
+  read: (subject: ObservabilitySubject) => Subject | undefined,
+): Tool<ObservabilitySubject> {
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    run(subject, input, invocation) {
+      const evidence = read(subject);
+      if (evidence === undefined) {
+        throw new Error(`${domain} evidence is unavailable to this MCP connection`);
+      }
+      const previous = invocation?.previous === undefined
+        ? undefined
+        : read(invocation.previous);
+      return tool.run(evidence, input, previous === undefined ? undefined : { previous });
+    },
+  };
 }

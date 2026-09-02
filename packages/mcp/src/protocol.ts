@@ -1,8 +1,20 @@
+import type { EyesArchive } from '@variance-authority/eyes';
+import type { PresentationReport } from '@variance-authority/presentation';
 import type { RunReport } from '@variance-authority/report';
+import type { ScenarioArchiveManifest } from '@variance-authority/scenario/archive';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import type { VantageState } from '@variance-authority/vantage';
+import type { ObservabilitySubject } from './observability-subject.js';
 import type { Served, Tool, ToolInvocation } from './tools/tool.js';
-import { SOURCE_TEST_TOOLS, TOOLS, VANTAGE_TOOLS } from './tools.js';
+import {
+  EYES_TOOLS,
+  OBSERVABILITY_TOOLS,
+  PRESENTATION_TOOLS,
+  SCENARIO_TOOLS,
+  SOURCE_TEST_TOOLS,
+  TOOLS,
+  VANTAGE_TOOLS,
+} from './tools.js';
 import { attaching } from './tools/vantage-lines.js';
 
 /**
@@ -77,6 +89,46 @@ export const VANTAGE: Served<VantageState> = {
       '',
       attaching(state),
     ].join('\n'),
+};
+
+/** The MCP surface for synchronously captured test attention. */
+export const EYES: Served<EyesArchive> = {
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
+  tools: EYES_TOOLS,
+};
+
+/** The MCP surface for full presentation graphs held by their caller. */
+export const PRESENTATIONS: Served<readonly PresentationReport[]> = {
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
+  tools: PRESENTATION_TOOLS,
+};
+
+/** The MCP surface for retained scenario executions. */
+export const SCENARIOS: Served<readonly ScenarioArchiveManifest[]> = {
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
+  tools: SCENARIO_TOOLS,
+};
+
+/**
+ * The MCP surface that exposes every supplied observability domain without
+ * merging their evidence or inventing cross-domain identity.
+ */
+export const OBSERVABILITY: Served<ObservabilitySubject> = {
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
+  tools: OBSERVABILITY_TOOLS,
+  instructions: () => [
+    'This connection can expose visual reports, full presentation readings and durable signals, runtime journeys, ' +
+      'live events, Eyes attention and retained scenarios. Start with `variance_observability` ' +
+      'to learn which independent evidence domains were supplied.',
+    '',
+    'Unavailable evidence is not an empty measurement. Cross-domain answers join only on ' +
+      'exact identities emitted by both producers. `variance_testing_surface` reports replay ' +
+      'candidates; it does not establish that a branch is safe to mock.',
+  ].join('\n'),
 };
 
 const METHOD_NOT_FOUND = -32601;

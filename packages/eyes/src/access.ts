@@ -1,5 +1,6 @@
 import type { resolveProvenance } from '@variance-authority/react';
 
+/** A DOM target copied while its identity and React Fiber are still live. */
 export interface TargetSnapshot {
   readonly nodeName: string;
   readonly id?: string;
@@ -40,6 +41,7 @@ export type RtlQueryAttention =
   | (RtlQueryBase & { readonly outcome: 'absent' })
   | (RtlQueryBase & { readonly outcome: 'threw'; readonly error: string });
 
+/** One method in the lazy Locator plan that Playwright will consume later. */
 export interface LocatorStep {
   readonly member: string;
   readonly arguments: readonly ArgumentSnapshot[];
@@ -75,19 +77,51 @@ export interface DocumentEventAttention {
   readonly target: TargetSnapshot;
 }
 
+/** An authored test phase; Eyes records this identity and never infers it. */
+export type EyesPhase = 'arrange' | 'act' | 'assert';
+
+/** An authored AAA boundary. Eyes records it and never infers one from an API call. */
+export interface PhaseAttention {
+  readonly kind: 'eyes-phase';
+  readonly phase: EyesPhase;
+}
+
 export type AttentionDraft =
   | RtlQueryAttention
   | PlannedLocatorAttention
   | ConsumedLocatorAttention
-  | DocumentEventAttention;
+  | DocumentEventAttention
+  | PhaseAttention;
 
+/** One ordered selector, Locator, event, or authored phase observation. */
 export type Attention = AttentionDraft & { readonly sequence: number };
 
 export interface EyesLog {
   /** Everything recorded since construction or the previous drain. */
   readonly seen: readonly Attention[];
   record(attention: AttentionDraft): Attention;
+  /** Record an authored AAA boundary without classifying surrounding evidence by guesswork. */
+  phase(phase: EyesPhase): Attention;
   drain(): readonly Attention[];
+}
+
+interface EyesTestBase {
+  /** Stable producer identity. Titles are not required to be unique. */
+  readonly id: string;
+  readonly title: string;
+  readonly file?: string;
+  readonly attention: readonly Attention[];
+}
+
+/** One runner-identified test journal with explicit collection completeness. */
+export type EyesTestAttention =
+  | (EyesTestBase & { readonly complete: true })
+  | (EyesTestBase & { readonly complete: false; readonly because: string });
+
+/** Serializable, test-scoped attention evidence for readers in another process. */
+export interface EyesArchive {
+  readonly eyesVersion: 1;
+  readonly tests: readonly EyesTestAttention[];
 }
 
 /** A synchronous, per-realm journal. It owns ordering and no runner lifecycle. */
@@ -105,8 +139,34 @@ export function createEyesLog(): EyesLog {
       seen.push(attention);
       return attention;
     },
+    phase(phase) {
+      return this.record({ kind: 'eyes-phase', phase });
+    },
     drain() {
       return seen.splice(0, seen.length);
     },
   };
+}
+
+/** Copy complete or explicitly partial test journals into one portable value. */
+export function createEyesArchive(tests: readonly EyesTestAttention[]): EyesArchive {
+  const ids = new Set<string>();
+  const copied = tests.map((test) => {
+    if (test.id === '' || test.title === '') throw new Error('eyes test id and title are required');
+    if (ids.has(test.id)) throw new Error(`duplicate eyes test id: ${test.id}`);
+    ids.add(test.id);
+    if (!test.complete && test.because.trim() === '') {
+      throw new Error(`partial eyes test ${test.id} requires a reason`);
+    }
+    for (let at = 1; at < test.attention.length; at += 1) {
+      if (test.attention[at]!.sequence <= test.attention[at - 1]!.sequence) {
+        throw new Error(`eyes test ${test.id} attention is not in sequence order`);
+      }
+    }
+    return {
+      ...test,
+      attention: test.attention.map((entry) => ({ ...entry })),
+    };
+  });
+  return { eyesVersion: 1, tests: copied };
 }

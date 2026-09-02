@@ -332,6 +332,7 @@ export interface PresentationFocus {
   };
 }
 
+/** One deterministic presentation graph and the evidence derived from its live subject. */
 export interface PresentationReport {
   readonly formatVersion: 1;
   readonly digest: Digest;

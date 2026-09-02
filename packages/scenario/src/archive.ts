@@ -40,6 +40,7 @@ export interface ScenarioArchivePolicy {
   readonly admit: (snapshot: SemanticSnapshot) => ScenarioArchiveAdmission;
 }
 
+/** Retention and identity envelope for one admitted, witnessed scenario execution. */
 export interface ScenarioArchiveManifest {
   readonly archiveVersion: 1;
   readonly address: ScenarioArchiveAddress;

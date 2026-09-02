@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as root from './index.js';
+import * as archive from './archive.js';
 import * as playwright from './playwright.js';
 import * as rtl from './rtl.js';
 
@@ -25,6 +26,8 @@ describe('Eyes entrypoints', () => {
   it('keeps optional hosts out of the root entrypoint', () => {
     expect(root.snapshotNode).toBeTypeOf('function');
     expect(root.createEyesLog).toBeTypeOf('function');
+    expect(root.createEyesArchive).toBeTypeOf('function');
+    expect(archive.readEyesArchive).toBeTypeOf('function');
     expect(root).not.toHaveProperty('watch');
     expect(root).not.toHaveProperty('eyesFixtures');
   });

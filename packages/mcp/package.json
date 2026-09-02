@@ -1,7 +1,7 @@
 {
   "name": "@variance-authority/mcp",
   "version": "0.0.0-beta.1",
-  "description": "Expose a visual run, its source-to-test selection, and a suite that is still running to an MCP client.",
+  "description": "Expose independently supplied observability evidence to an MCP client.",
   "keywords": [
     "variance-authority",
     "visual-regression",
@@ -51,7 +51,10 @@
     "build": "tsc --build"
   },
   "dependencies": {
+    "@variance-authority/eyes": "workspace:^",
+    "@variance-authority/presentation": "workspace:^",
     "@variance-authority/report": "workspace:^",
+    "@variance-authority/scenario": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/vantage": "workspace:^"
   },

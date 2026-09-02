@@ -2917,7 +2917,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/eyes@workspace:packages/eyes":
+"@variance-authority/eyes@workspace:^, @variance-authority/eyes@workspace:packages/eyes":
   version: 0.0.0-use.local
   resolution: "@variance-authority/eyes@workspace:packages/eyes"
   dependencies:
@@ -2983,7 +2983,10 @@ __metadata:
   resolution: "@variance-authority/mcp@workspace:packages/mcp"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/eyes": "workspace:^"
+    "@variance-authority/presentation": "workspace:^"
     "@variance-authority/report": "workspace:^"
+    "@variance-authority/scenario": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     "@variance-authority/vantage": "workspace:^"
   bin:
@@ -3067,7 +3070,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/presentation@workspace:packages/presentation":
+"@variance-authority/presentation@workspace:^, @variance-authority/presentation@workspace:packages/presentation":
   version: 0.0.0-use.local
   resolution: "@variance-authority/presentation@workspace:packages/presentation"
   dependencies:
@@ -3137,7 +3140,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/scenario@workspace:packages/scenario":
+"@variance-authority/scenario@workspace:^, @variance-authority/scenario@workspace:packages/scenario":
   version: 0.0.0-use.local
   resolution: "@variance-authority/scenario@workspace:packages/scenario"
   dependencies:
