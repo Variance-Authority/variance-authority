@@ -150,4 +150,42 @@ describe('createEventLog', () => {
     expect(cleared).toHaveBeenCalled();
     cleared.mockRestore();
   });
+
+  describe('a second reader', () => {
+    it('is told each announcement as it is recorded, in the same order', () => {
+      const told: string[] = [];
+      const log = createEventLog({ onRecord: (event) => told.push(event.action) });
+
+      log.record('page', { phase: 'once', location: 'checkout', subject: 'upsell', action: 'shown' });
+      log.record('api', { phase: 'once', location: 'checkout', subject: 'upsell', action: 'decided' });
+
+      expect(told).toEqual(['shown', 'decided']);
+    });
+
+    it('is told each remark', () => {
+      const told: string[] = [];
+      const log = createEventLog({ onRemark: (about, sentence) => told.push(`${about}: ${sentence}`) });
+
+      log.remark('api', 'answered twice for nobody');
+
+      expect(told).toEqual(['api: answered twice for nobody']);
+    });
+
+    it('cannot break the run by failing', async () => {
+      // A watcher is an observer, and an observer whose failure reaches the
+      // subject is worse than no watcher at all.
+      const log = createEventLog({
+        onRecord: () => {
+          throw new Error('the watcher went away');
+        },
+      });
+
+      expect(() =>
+        log.record('page', { phase: 'once', location: 'checkout', subject: 'upsell', action: 'decided' }),
+      ).not.toThrow();
+      await expect(log.happened('checkout', 'upsell', 'decided')).resolves.toMatchObject({
+        action: 'decided',
+      });
+    });
+  });
 });

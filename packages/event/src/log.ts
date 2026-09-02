@@ -30,6 +30,25 @@ export interface RecordedEvent extends AnnouncedEvent {
   readonly realm: string;
 }
 
+/**
+ * A second reader, for what a wait does not consume.
+ *
+ * A log exists to settle waits, and a wait takes exactly one announcement and
+ * leaves the rest. Everything a run heard is worth something to a process
+ * watching the run — which realms answered, in what order, what opened and never
+ * closed — and that reader cannot poll `seen` from outside the worker. So it is
+ * told, at the moment of recording, and told nothing costs one undefined check.
+ *
+ * Neither call may throw. A listener that took the run out would be an observer
+ * breaking its subject, which is the one thing this side may never do.
+ */
+export interface EventLogOptions {
+  /** Told about each announcement as it is recorded, in the same order. */
+  readonly onRecord?: (event: RecordedEvent) => void;
+  /** Told about each remark, keyed the same way and last write winning. */
+  readonly onRemark?: (about: string, sentence: string) => void;
+}
+
 /** How long a wait is willing to be wrong about. */
 export interface WaitOptions {
   /** Defaults to 5000, which is Playwright's own assertion timeout. */
@@ -95,7 +114,7 @@ interface Waiter {
 const LISTED = 20;
 
 /** Start a log with nothing in it. */
-export function createEventLog(): EventLog {
+export function createEventLog(options: EventLogOptions = {}): EventLog {
   const seen: RecordedEvent[] = [];
   const waiters = new Set<Waiter>();
   const remarks = new Map<string, string>();
@@ -173,6 +192,7 @@ export function createEventLog(): EventLog {
       };
       seen.push(recorded);
       deliver(recorded);
+      told(() => options.onRecord?.(recorded));
       return recorded;
     },
 
@@ -195,6 +215,7 @@ export function createEventLog(): EventLog {
 
     remark: (about, sentence) => {
       remarks.set(about, sentence);
+      told(() => options.onRemark?.(about, sentence));
     },
 
     close: (because = 'the run ended') => {
@@ -206,6 +227,15 @@ export function createEventLog(): EventLog {
       }
     },
   };
+}
+
+/** Tell the second reader, and let nothing it does reach the run. */
+function told(tell: () => void): void {
+  try {
+    tell();
+  } catch {
+    // A watcher is an observer. Its failure is its own.
+  }
 }
 
 function unheard(

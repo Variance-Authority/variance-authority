@@ -987,6 +987,7 @@
         "EventCollector": "interface",
         "EventCollectorOptions": "interface",
         "EventLog": "interface",
+        "EventLogOptions": "interface",
         "HeadEventReport": "interface",
         "RecordedEvent": "interface",
         "WaitOptions": "interface",
@@ -1248,19 +1249,24 @@
         "SOURCE_TESTS": "const",
         "SOURCE_TEST_TOOLS": "const",
         "Served": "interface",
+        "ServedVantage": "interface",
         "ServerOptions": "interface",
         "StateDifference": "type",
         "TOOLS": "const",
         "Tool": "interface",
         "ToolInvocation": "interface",
+        "VANTAGE": "const",
+        "VANTAGE_TOOLS": "const",
         "createLineReader": "function",
         "diffState": "function",
         "handle": "function",
         "serve": "function",
         "serveReportFile": "function",
+        "serveVantage": "function",
         "sourceTestToolByName": "function",
         "stringArg": "function",
-        "toolByName": "function"
+        "toolByName": "function",
+        "vantageToolByName": "function"
       },
       "./tools": {
         "NO_ARGS": "const",
@@ -1270,11 +1276,13 @@
         "TOOLS": "const",
         "Tool": "interface",
         "ToolInvocation": "interface",
+        "VANTAGE_TOOLS": "const",
         "diffState": "function",
         "notObservedSentence": "function",
         "sourceTestToolByName": "function",
         "stringArg": "function",
-        "toolByName": "function"
+        "toolByName": "function",
+        "vantageToolByName": "function"
       },
       "./protocol": {
         "JsonRpcRequest": "interface",
@@ -1284,6 +1292,7 @@
         "SERVER_NAME": "const",
         "SERVER_VERSION": "const",
         "SOURCE_TESTS": "const",
+        "VANTAGE": "const",
         "createLineReader": "function",
         "handle": "function"
       }
@@ -1506,6 +1515,8 @@
         "VarianceOptions": "interface",
         "VarianceRuntime": "interface",
         "VarianceSession": "interface",
+        "VarianceVantageFixtures": "interface",
+        "VarianceVantageWorkerFixtures": "interface",
         "VarianceWireFixtures": "interface",
         "VarianceWorkerFixtures": "interface",
         "acquire": "function",
@@ -1518,6 +1529,7 @@
         "toBeUnchanged": "function",
         "varianceFixtures": "const",
         "varianceMatchers": "const",
+        "varianceVantageFixtures": "const",
         "varianceWireFixtures": "const"
       }
     }
@@ -2854,6 +2866,58 @@
       }
     }
   },
+  "@variance-authority/vantage": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./attach": {
+          "types": "./dist/attach.d.ts",
+          "default": "./dist/attach.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "Observatory": "interface",
+        "ObservatoryOptions": "interface",
+        "RecordedEvent": "interface",
+        "TestClosed": "interface",
+        "TestHeard": "interface",
+        "TestOpened": "interface",
+        "TestRemarked": "interface",
+        "TestState": "type",
+        "VANTAGE_VARIABLE": "const",
+        "VANTAGE_VERSION": "const",
+        "Vantage": "interface",
+        "VantageReport": "type",
+        "VantageState": "interface",
+        "WatchedTest": "interface",
+        "WatchedTestIdentity": "interface",
+        "createObservatory": "function",
+        "isVantageReport": "function",
+        "openVantage": "function"
+      },
+      "./attach": {
+        "AttachOptions": "interface",
+        "AttachedVantage": "interface",
+        "attachVantage": "function"
+      }
+    }
+  },
   "@variance-authority/wire": {
     "declared": {
       "type": "module",
@@ -2886,7 +2950,8 @@
         "RETURN_COOKIE": "const",
         "WIRE_SINK": "const",
         "WireCarrier": "type",
-        "channelFrom": "function"
+        "channelFrom": "function",
+        "channelTo": "function"
       },
       "./listen": {
         "ListenOptions": "interface",

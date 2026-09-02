@@ -222,6 +222,7 @@ defaults to `2` and cannot go lower than two captures.
 | `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` and `origin`. The browser half needs neither. |
 | `varianceWire` | The worker's end of the medium every instrumented realm answers on. | A loopback listener on an ephemeral port, opened and closed by the fixture. |
+| `varianceVantage` | This worker's voice to whoever is watching the run. | Whatever `VARIANCE_AUTHORITY_VANTAGE` names, and `undefined` when nothing does. |
 
 Recording joins every observation in one spec file to that file: the runner's
 unit of execution is the file, so an attribution finer than that is one no
@@ -414,13 +415,45 @@ that module's existing `test` and `expect`; this package never exports either
 symbol. Override the worker fixtures only when the suite deliberately supplies
 another renderer, store, or agent bundle. The public types are
 `VarianceWorkerFixtures`, `VarianceFixtures`, `VarianceOptions`,
-`VarianceEventFixtures`, `VarianceEventWorkerFixtures`, and
-`VarianceEventsOptions`.
+`VarianceEventFixtures`, `VarianceEventWorkerFixtures`,
+`VarianceEventsOptions`, `VarianceVantageFixtures`, and
+`VarianceVantageWorkerFixtures`.
 
 The package also exports `bundlePageAgent`, `acquire`, `AGENT`, and
 `AGENT_VERSION` for authors building a custom Playwright fixture. Ordinary test
 suites should use `observe` or `createVariance`; the low-level exports do not
 create a renderer, store, or acceptance lifecycle on their own.
+
+## Watch the run from outside it
+
+Everything above is spent inside the worker: a wait settles, the test moves on,
+and what it heard is discarded. That is right for a wait and useless to anybody —
+a person or an agent — trying to understand a suite that is *still going*.
+
+`varianceVantageFixtures` reports the run to a watching process, and
+`varianceFixtures` already includes it. One variable is the whole of the setup:
+
+```bash
+VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
+```
+
+Unset, nothing happens and the run pays one environment read per worker — the
+same bargain the heads make above. Set, the watcher is told each test as it
+opens, each announcement as it is recorded rather than at teardown, the
+listener's remarks, and how each test ended. It is
+[`@variance-authority/vantage`](../vantage/README.md) on the other end, over the
+medium the announcements already travel, and none of it is written down.
+
+`varianceWatched` is automatic, so a listing has no holes: a test that
+destructures nothing still opens and closes, and a suite that takes no
+screenshot reports exactly what one that does reports. What it adds beyond that
+comes from the fixtures a test did take — the announcements are the `events`
+fixture's.
+
+The watcher an agent talks to is [`@variance-authority/mcp`](../mcp/README.md),
+started with `variance-authority-mcp --watch`. It prints the line above with its
+own address in it, then answers which tests are running, and what the one that
+is hanging has heard so far.
 
 ## Loading and Suspense boundaries
 

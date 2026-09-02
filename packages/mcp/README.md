@@ -2,12 +2,12 @@
 
 # @variance-authority/mcp
 
-> Expose a completed visual run and its source-to-test selection to an MCP client.
+> Expose a visual run, its source-to-test selection, and a suite that is still running to an MCP client.
 
-Use this package when an MCP client needs to inspect a completed visual run or
-ask which named tests exercise source. The server reads supplied evidence and
-returns text; it never runs tests, rerenders a subject, changes a baseline, or
-infers evidence that is not there.
+Use this package when an MCP client needs to inspect a visual run, ask which
+named tests exercise source, or watch a suite that has not finished. The server
+reads supplied evidence and returns text; it never runs tests, rerenders a
+subject, changes a baseline, or infers evidence that is not there.
 
 The supplied evidence remains canonical. This package makes visual causes,
 regions, verdicts, findings, composition, variation, acceptance preview, and
@@ -19,7 +19,7 @@ the evidence it sees now with the evidence it saw one call ago.
 
 | entrypoint | requires | holds |
 |---|---|---|
-| `.` | stdio | everything, plus `serve` and `serveReportFile` |
+| `.` | stdio | everything, plus `serve`, `serveReportFile` and `serveVantage` |
 | `./tools` | nothing | visual-report and source-test answers as pure functions over their evidence |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 
@@ -65,11 +65,63 @@ from a line absent from the execution index. The index is supplied by the test
 collector or editor integration; MCP does not manufacture coverage or control
 the test runner.
 
+## Watch a suite that has not finished
+
+Every tool above answers about a run that is over. `--watch` answers about one
+that is not.
+
+```bash
+npx variance-authority-mcp --watch
+```
+
+It prints, on stderr, the one line the suite has to be started with:
+
+```
+variance-authority is watching. Start the suite with:
+  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321
+```
+
+That variable goes wherever `VARIANCE_AUTHORITY_EVENTS` goes. The suite needs
+`varianceFixtures` from `@variance-authority/playwright-test` and nothing else,
+**and none of it is about visual regression** — a test that takes no screenshot
+reports exactly what one that does reports.
+
+The same line is handed to the client at the handshake, as the server's
+`instructions`, because stderr goes to a log the model never reads. An agent
+that is told the address only after it has already started the suite has been
+told it one run too late.
+
+| tool | answers | ask it when |
+|---|---|---|
+| `variance_run_signals` | every test that has reported, in the order the run opened them, its state, and how much each has announced | you want to know where the suite has got to, or which test is the one still going |
+| `variance_test_signals` | everything one test has announced, in order, with the realm that said each, plus work that started and never ended | a test is hanging, or failed, and the assertion that did not settle is the part you already know |
+
+`variance_run_signals` takes `state`, `file` and `limit`, and marks a running
+test with `▸`. `variance_test_signals` takes `test` — an id from the listing, a
+title, or enough of one to be unambiguous; where it is not unambiguous, the
+answer is the candidates and their ids.
+
+The second is the one a timeout cannot give. A runner reports what a test
+*wanted*; this reports what its execution actually **heard**, and from whom.
+Nothing at all is a wiring fact — no listener installed, or code that does not
+announce yet. A page that spoke while a service did not is a request that never
+arrived or never came back. Three announcements and then silence, with one
+`vaStart` still open, names the call that is hanging.
+
+Nothing is written down and nothing is added to the run's evidence: a report file
+records what a run **decided**, and this records what it **is doing**, which
+stops being a fact the moment this process exits. What it holds is bounded, and
+it says so when it dropped something, because a reader who cannot tell *nothing
+was announced* from *the beginning was forgotten* draws the first conclusion.
+
+`variance_diff` is served here too, so *what changed since I last asked* works
+against a suite in flight the same way it works against a report.
+
 ## Diff the current state
 
 A **subject** is whatever data the server currently holds and answers questions
-about — a `RunReport` for the visual tools, or an `ExecutionIndex` for the
-source-test tool above. (Inside a `RunReport`, each individually observed
+about — a `RunReport` for the visual tools, an `ExecutionIndex` for the
+source-test tool, or a `VantageState` for a suite that is still running. (Inside a `RunReport`, each individually observed
 rendering, such as `story:card--dark`, is also called a subject; the tool
 contract below works at that finer grain.)
 
@@ -97,6 +149,7 @@ No install is needed to just run the published binary:
 ```bash
 npx variance serve            # via the CLI, reading .variance/run.json
 npx variance-authority-mcp .variance/run.json    # directly
+npx variance-authority-mcp --watch               # a run that has not finished
 ```
 
 ```jsonc
@@ -283,7 +336,17 @@ composes when the report does not come from a file:
 | `served` | the `Served<Subject>` name and tools for the subject; use `REPORTS` for a `RunReport` or supply a set for another serializable subject |
 | `subject` | supplies the current subject. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot. It may be async, and the request waits for it: a supplier that started a refresh and answered from the previous value would make *this* request the stale one, and this request is the agent that just re-ran |
 
+A `Served` is a name, a version and the tools. It may also carry
+`instructions`, a function of the subject whose answer the client puts in front
+of the model before it has called anything — for a set of tools whose subject
+has to be *arranged* first, and which therefore reads as broken to an agent that
+finds it empty. `REPORTS` has none: a report on disk is already there.
+
 Both return a function that detaches the server from its streams.
+`serveVantage()` is the third: it opens the listener, serves the watch tools over
+the same streams, and returns the `address` to start a run with alongside the
+call that stops both. Its subject is a snapshot taken per request, which is why a
+subject that is moving fits a surface built for one that is not.
 
 ## Stability
 

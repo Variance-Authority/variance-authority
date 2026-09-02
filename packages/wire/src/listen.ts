@@ -29,6 +29,8 @@ export type WireHandler = (journey: string | undefined, body: unknown) => void;
 
 /** A listening driver. */
 export interface Wire {
+  /** Where this listener is, with no execution in it yet. */
+  readonly origin: string;
   /** Where a participant answering for `journey` should report. */
   readonly addressFor: (journey: string) => string;
   /** The same desk, for a realm this driver is inside rather than talking to. */
@@ -91,6 +93,7 @@ export async function listen(options: ListenOptions = {}): Promise<Wire> {
   const origin = `http://${host.includes(':') ? `[${host}]` : host}:${port}`;
 
   return {
+    origin,
     addressFor: (journey) => `${origin}/${encodeURIComponent(journey)}`,
     carrier: (journey, participant, body) => {
       if (!deliver(journey, participant, body)) {

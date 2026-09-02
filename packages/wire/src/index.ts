@@ -66,8 +66,15 @@ export const JOURNEY_COOKIE = 'variance-authority-journey';
  */
 export const RETURN_COOKIE = 'variance-authority-return';
 
-/** Which instrument is speaking. The driver routes on this and nothing else. */
-export type Participant = 'events' | 'journeys';
+/**
+ * Which instrument is speaking. The driver routes on this and nothing else.
+ *
+ * `run` is the one that talks the other way. A run is a participant too when
+ * something is watching it: same three answers — one id per execution, one
+ * address, nothing written down — with the suite reporting and a watcher
+ * listening instead of the other way around.
+ */
+export type Participant = 'events' | 'journeys' | 'run';
 
 /**
  * What a driver installs in a realm it is inside.
@@ -136,6 +143,26 @@ function through(carrier: WireCarrier, journey: string | undefined): Channel {
       await carrier(journey, participant, body);
     },
   };
+}
+
+/**
+ * A channel to an address this process was **given** rather than handed on a
+ * cookie.
+ *
+ * For the reporter that already knows where it is answering: a run told where a
+ * watcher is listening has no request to read a return address out of, and
+ * resolving one through {@link channelFrom} would prefer whatever sink happens
+ * to be installed in this realm — which for a driver is its own desk, and would
+ * quietly route the run's own reports back to itself.
+ *
+ * The address is guarded exactly as a carried one is. It arrives from an
+ * environment this process did not necessarily write.
+ */
+export function channelTo(origin: string, journey: string): Channel | undefined {
+  const address = addressIn(origin);
+  return address === undefined
+    ? undefined
+    : over(`${address}/${encodeURIComponent(journey)}`, journey);
 }
 
 /** A driver in another process: the report is a POST to the address it left. */

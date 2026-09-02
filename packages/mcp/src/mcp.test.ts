@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { REPORTS, handle, createLineReader, PROTOCOL_VERSION } from './protocol.js';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
-import { serve, serveReportFile } from './server.js';
+import { openVantage } from '@variance-authority/vantage';
+import { serve, serveReportFile, serveVantage } from './server.js';
 import { TOOLS, toolByName } from './tools.js';
 
 /**
@@ -377,6 +378,42 @@ describe('the server', () => {
       }
     } finally {
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the watching server', () => {
+  it('answers about a run that is still going', async () => {
+    // The whole claim in one pass: the address it prints is one a suite can
+    // report to, and what the suite says is answerable before it has finished.
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const lines = readLines(output);
+    const watching = await serveVantage({ input, output });
+
+    try {
+      input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'initialize' })}\n`);
+      expect(await lines()).toContain(`VARIANCE_AUTHORITY_VANTAGE=${watching.address}`);
+
+      const vantage = openVantage(watching.address);
+      expect(vantage).toBeDefined();
+      vantage?.opened('t-1', { title: 'cart adds an item', file: 'cart.spec.ts', worker: 0 });
+
+      await expect
+        .poll(async () => {
+          input.write(
+            `${JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/call',
+              params: { name: 'variance_run_signals', arguments: {} },
+            })}\n`,
+          );
+          return await lines();
+        })
+        .toContain('cart adds an item');
+    } finally {
+      await watching.stop();
     }
   });
 });

@@ -26,6 +26,8 @@ export type {
   VarianceEventWorkerFixtures,
 } from './events.js';
 export type { ExecutionRecorder, ExecutionRecording } from './execution.js';
+export { varianceVantageFixtures } from './vantage.js';
+export type { VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 export { varianceWireFixtures } from './wire.js';
 export type { VarianceWireFixtures } from './wire.js';
 export { CHROMIUM_RASTER_ARGS } from '@variance-authority/playwright';

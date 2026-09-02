@@ -108,6 +108,15 @@ processes that started and have not ended, `saw` to ask without waiting,
 sentence its failures should carry, and `close` to fail every outstanding wait at
 once. `WaitOptions` takes `timeoutMs`, defaulting to 5000.
 
+`EventLogOptions` takes `onRecord` and `onRemark`, called as each one arrives.
+They exist for a second reader — something watching the run from outside the
+worker, such as [`@variance-authority/vantage`](../vantage/README.md) — and they
+fire at the moment of recording rather than at teardown, because the question
+worth asking of a running suite is what the test hanging *right now* has heard,
+and an answer that arrives when it finishes answers a different question. A
+watcher that throws is swallowed, for the reason a sink that throws is: an
+observer may not break its subject.
+
 A wait resolves against announcements **already heard** before it subscribes, so
 `await events.happened(...)` written one line too late still settles. Anything
 else would be a race with a stopwatch in it.

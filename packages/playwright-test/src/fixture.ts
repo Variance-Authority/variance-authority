@@ -44,6 +44,8 @@ import {
   type VarianceEventFixtures,
   type VarianceEventWorkerFixtures,
 } from './events.js';
+import { varianceVantageFixtures } from './vantage.js';
+import type { VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
 import type { AcquireRequest } from './page-agent.js';
 
@@ -132,12 +134,15 @@ export type MaterializationOptions =
   | { readonly kind: 'deferred' }
   | InPlaceCaptureOptions;
 
-export interface VarianceFixtures extends VarianceEventFixtures {
+export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures {
   /** Observe one subtree against its stored baseline. */
   readonly variance: (locator: Locator, options?: VarianceOptions) => Promise<Observation>;
 }
 
-export interface VarianceWorkerFixtures extends VarianceEventWorkerFixtures, VarianceWireFixtures {
+export interface VarianceWorkerFixtures
+  extends VarianceEventWorkerFixtures,
+    VarianceWireFixtures,
+    VarianceVantageWorkerFixtures {
   /**
    * Record what each spec executed, for the next run's `--since`.
    *
@@ -217,6 +222,7 @@ export const varianceFixtures: Fixtures<
   PlaywrightWorkerArgs
 > = {
   ...varianceWireFixtures,
+  ...varianceVantageFixtures,
   ...varianceEventFixtures,
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],

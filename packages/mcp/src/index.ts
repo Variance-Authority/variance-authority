@@ -30,9 +30,11 @@ export {
   NO_ARGS,
   SOURCE_TEST_TOOLS,
   TOOLS,
+  VANTAGE_TOOLS,
   sourceTestToolByName,
   stringArg,
   toolByName,
+  vantageToolByName,
   diffState,
 } from './tools.js';
 export type { Served, StateDifference, Tool, ToolInvocation } from './tools.js';
@@ -40,6 +42,7 @@ export type { Served, StateDifference, Tool, ToolInvocation } from './tools.js';
 export {
   REPORTS,
   SOURCE_TESTS,
+  VANTAGE,
   handle,
   createLineReader,
   PROTOCOL_VERSION,
@@ -48,5 +51,5 @@ export {
 } from './protocol.js';
 export type { JsonRpcRequest, JsonRpcResponse } from './protocol.js';
 
-export { serve, serveReportFile } from './server.js';
-export type { ReportFileOptions, ServerOptions } from './server.js';
+export { serve, serveReportFile, serveVantage } from './server.js';
+export type { ReportFileOptions, ServerOptions, ServedVantage } from './server.js';

@@ -1,7 +1,9 @@
 import type { RunReport } from '@variance-authority/report';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
+import type { VantageState } from '@variance-authority/vantage';
 import type { Served, Tool, ToolInvocation } from './tools/tool.js';
-import { SOURCE_TEST_TOOLS, TOOLS } from './tools.js';
+import { SOURCE_TEST_TOOLS, TOOLS, VANTAGE_TOOLS } from './tools.js';
+import { attaching } from './tools/vantage-lines.js';
 
 /**
  * MCP over stdio, written out rather than depended on.
@@ -50,6 +52,33 @@ export const SOURCE_TESTS: Served<ExecutionIndex> = {
   tools: SOURCE_TEST_TOOLS,
 };
 
+/**
+ * The MCP surface for an agent watching a suite that has not finished.
+ *
+ * The only served set that instructs. The other two answer about something that
+ * already exists; this one answers about a run somebody still has to start, and
+ * an agent that is not told the variable at the handshake starts it without one.
+ */
+export const VANTAGE: Served<VantageState> = {
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
+  tools: VANTAGE_TOOLS,
+  instructions: (state) =>
+    [
+      'This server watches a test run while it happens. It answers about a suite ' +
+        'in flight rather than about a report on disk, and none of it is limited ' +
+        'to visual tests.',
+      '',
+      'Ask `variance_run_signals` for where the run has got to and which test is ' +
+        'still going, and `variance_test_signals` for everything one test has ' +
+        'announced — in order, with the realm that said each, plus work that ' +
+        'started and never ended. Both answer while the test is still running, ' +
+        'which is what a runner cannot do from outside the worker.',
+      '',
+      attaching(state),
+    ].join('\n'),
+};
+
 const METHOD_NOT_FOUND = -32601;
 const INVALID_PARAMS = -32602;
 
@@ -77,6 +106,12 @@ export function handle<Subject>(
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
         serverInfo: { name: served.name, version: served.version },
+        // Read at the handshake rather than fixed at construction, because the
+        // one thing worth saying here — the address a run reports to — is not
+        // known until the listener has a port.
+        ...(served.instructions === undefined
+          ? {}
+          : { instructions: served.instructions(subject()) }),
       });
 
     case 'ping':

@@ -1,7 +1,8 @@
 import type { Readable, Writable } from 'node:stream';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { REPORTS, createLineReader, handle, type JsonRpcRequest } from './protocol.js';
+import { attachVantage } from '@variance-authority/vantage/attach';
+import { REPORTS, VANTAGE, createLineReader, handle, type JsonRpcRequest } from './protocol.js';
 import type { Served } from './tools/tool.js';
 
 /**
@@ -57,7 +58,12 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
 
     queue = queue.then(async () => {
       const subject = await options.subject();
-      const response = handle(request, () => subject, options.served, { previous });
+      const response = handle(
+        request,
+        () => subject,
+        options.served,
+        previous === undefined ? {} : { previous },
+      );
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = structuredClone(subject);
       }
@@ -117,4 +123,43 @@ export async function serveReportFile(
       return cached;
     },
   });
+}
+
+/** A watcher that is listening, and the address a run must be started with. */
+export interface ServedVantage {
+  /** What to put in the run's environment, verbatim. */
+  readonly address: string;
+  readonly stop: () => Promise<void>;
+}
+
+/**
+ * Serve a suite that has not finished.
+ *
+ * The subject is a **snapshot** rather than the store, and that is the whole of
+ * why a live subject fits a surface built for files. A store is a thing a socket
+ * writes into while an answer is being composed; a snapshot is a value, so every
+ * tool here stays what every tool here is — a pure function over evidence — and
+ * `variance_diff` gets a coherent previous state to compare against instead of
+ * an object that changed underneath it.
+ *
+ * Nothing is written to disk, and nothing outlives this process. That is the
+ * position `@variance-authority/event` takes about announcements, kept: what
+ * changes is how long one execution lasts when somebody is watching it.
+ */
+export async function serveVantage(streams: ReportFileOptions = {}): Promise<ServedVantage> {
+  const attached = await attachVantage();
+  const stop = serve({
+    input: streams.input ?? process.stdin,
+    output: streams.output ?? process.stdout,
+    served: VANTAGE,
+    subject: () => attached.observatory.snapshot(),
+  });
+
+  return {
+    address: attached.address,
+    stop: async () => {
+      stop();
+      await attached.close();
+    },
+  };
 }

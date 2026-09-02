@@ -33,6 +33,7 @@ import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { WIRE_REPORT, wireCarrierSource, type Wire } from '@variance-authority/wire/listen';
 import type { ExecutionRecorder } from './execution.js';
 import { ownerOf } from './execution.js';
+import type { VarianceVantageWorkerFixtures } from './vantage.js';
 import type { VarianceWireFixtures } from './wire.js';
 
 export interface VarianceEventsOptions {
@@ -99,7 +100,10 @@ interface RecorderFixture {
  */
 export const varianceEventFixtures: Fixtures<
   VarianceEventFixtures,
-  VarianceEventWorkerFixtures & RecorderFixture & VarianceWireFixtures,
+  VarianceEventWorkerFixtures &
+    RecorderFixture &
+    VarianceWireFixtures &
+    VarianceVantageWorkerFixtures,
   PlaywrightTestArgs,
   PlaywrightWorkerArgs
 > = {
@@ -139,8 +143,20 @@ export const varianceEventFixtures: Fixtures<
     await use(journey);
   },
 
-  events: async ({ page, varianceJourney, varianceEventDesk }, use, testInfo) => {
-    const log = createEventLog();
+  events: async ({ page, varianceJourney, varianceEventDesk, varianceVantage }, use, testInfo) => {
+    // A watcher is told at the moment of recording rather than at teardown: the
+    // question worth asking of a running suite is what the test hanging right
+    // now has heard, and an answer that arrives when it finishes is an answer to
+    // a different question.
+    const log = createEventLog(
+      varianceVantage === undefined
+        ? {}
+        : {
+            onRecord: (event) => varianceVantage.heard(testInfo.testId, event),
+            onRemark: (about, sentence) =>
+              varianceVantage.remarked(testInfo.testId, about, sentence),
+          },
+    );
     // A page with no execution of its own still has one here. A worker runs its
     // tests one at a time, so a key nothing else can mint is enough to route by,
     // and the page and a head reach the same desk by the same rule.

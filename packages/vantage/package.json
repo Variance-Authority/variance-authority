@@ -1,14 +1,16 @@
 {
-  "name": "@variance-authority/mcp",
+  "name": "@variance-authority/vantage",
   "version": "0.0.0-beta.1",
-  "description": "Expose a visual run, its source-to-test selection, and a suite that is still running to an MCP client.",
+  "description": "Hold what a running test suite is saying in a process an agent can ask, so a test in flight is something to look at rather than something to wait for.",
   "keywords": [
     "variance-authority",
-    "visual-regression",
+    "flaky-tests",
+    "e2e",
+    "testing",
+    "instrumentation",
+    "observability",
     "mcp",
-    "model-context-protocol",
-    "agent",
-    "ai"
+    "agent"
   ],
   "license": "MIT",
   "author": "Mechanic Garden",
@@ -16,7 +18,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Variance-Authority/variance-authority.git",
-    "directory": "packages/mcp"
+    "directory": "packages/vantage"
   },
   "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
   "engines": {
@@ -28,20 +30,13 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./tools": {
-      "types": "./dist/tools.d.ts",
-      "default": "./dist/tools.js"
-    },
-    "./protocol": {
-      "types": "./dist/protocol.d.ts",
-      "default": "./dist/protocol.js"
+    "./attach": {
+      "types": "./dist/attach.d.ts",
+      "default": "./dist/attach.js"
     }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "variance-authority-mcp": "./dist/bin.js"
-  },
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
@@ -51,11 +46,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@variance-authority/report": "workspace:^",
-    "@variance-authority/sense": "workspace:^",
-    "@variance-authority/vantage": "workspace:^"
-  },
-  "devDependencies": {
-    "@variance-authority/core": "workspace:^"
+    "@variance-authority/event": "workspace:^",
+    "@variance-authority/wire": "workspace:^"
   }
 }

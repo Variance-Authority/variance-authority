@@ -29,6 +29,9 @@
       "path": "./packages/event"
     },
     {
+      "path": "./packages/vantage"
+    },
+    {
       "path": "./packages/session"
     },
     {

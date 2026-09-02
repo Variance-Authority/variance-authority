@@ -47,6 +47,21 @@ export interface Served<Subject = RunReport> {
   readonly name: string;
   readonly version: string;
   readonly tools: readonly Tool<Subject>[];
+  /**
+   * What a client puts in front of the model before it has called anything.
+   *
+   * A tool list says what each tool answers and cannot say when to reach for
+   * one, and there is a class of server where that gap is the whole product: a
+   * watcher nobody attached a run to lists tools about a run that does not
+   * exist, reads as broken, and is never called again. So this takes the
+   * subject — the one thing a set of tools cannot see at handshake time — and
+   * anything it needs to say about **setup** goes here rather than into a tool
+   * nobody has a reason to call yet.
+   *
+   * Omitted where a tool list is self-explanatory, which is the ordinary case:
+   * a report on disk is already there, and nothing has to be arranged.
+   */
+  readonly instructions?: (subject: Subject) => string;
 }
 
 export const NO_ARGS = { type: 'object', properties: {}, additionalProperties: false } as const;

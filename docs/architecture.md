@@ -125,6 +125,7 @@ entrypoints.
 | `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
 | `wire` | nothing; the driver's end of it needs a Node runtime and a loopback socket | one id per execution and one address to answer on, whether the participant is the page, a service in another process, or a server the suite started inside itself |
 | `event` | nothing; its `collect` entrypoint additionally needs a Node runtime and a loopback socket | announcements a running system makes about its own decisions, and the log a test waits on |
+| `vantage` | nothing; its `attach` entrypoint additionally needs a Node runtime and a loopback socket | what a run is saying while it is still saying it, held in a process that outlives the test |
 | `storybook` | a built Storybook's `index.json`, as a value | a project's own stories as a subject list |
 | `storybook-collector` | a browser, and a Storybook built or already served | the browser half: each story opened, made ready, and collected |
 | `route-collector` | a browser, and an application to reach or a directory to serve | pages an application already serves, opened and collected |

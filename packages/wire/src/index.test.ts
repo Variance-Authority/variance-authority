@@ -5,7 +5,7 @@
 
 import { setTimeout as after } from 'node:timers/promises';
 import { afterEach, describe, expect, it } from 'vitest';
-import { JOURNEY_COOKIE, RETURN_COOKIE, channelFrom } from './index.js';
+import { JOURNEY_COOKIE, RETURN_COOKIE, channelFrom, channelTo } from './index.js';
 import { installCarrier, listen, type Wire } from './listen.js';
 
 const listening: Wire[] = [];
@@ -22,6 +22,7 @@ async function driver(): Promise<{ taken: Taken[]; carrying: (journey: string) =
   listening.push(wire);
   wire.on('events', (journey, body) => taken.push({ journey, body }));
   wire.on('journeys', (journey, body) => taken.push({ journey, body }));
+  wire.on('run', (journey, body) => taken.push({ journey, body }));
   return {
     taken,
     carrying: (journey) =>
@@ -139,5 +140,36 @@ describe('what may not be lost', () => {
     await channel.deliver('journeys', { modules: [] });
 
     expect(taken).toEqual([{ journey: 'journey-one', body: { modules: [] } }]);
+  });
+
+  describe('channelTo', () => {
+    it('reaches an address this process was given rather than handed', async () => {
+      const { taken, wire } = await driver();
+
+      channelTo(wire.origin, 'journey-one')?.report('run', { kind: 'opened' });
+
+      await expect.poll(() => taken).toEqual([
+        { journey: 'journey-one', body: { kind: 'opened' } },
+      ]);
+    });
+
+    it('is preferred over a sink this realm happens to have installed', async () => {
+      // A driver reporting to a watcher must not be routed back into its own
+      // desk, which is exactly what resolving through the realm would do.
+      const near = await driver();
+      const far = await driver();
+      uninstalled.push(installCarrier(near.wire.carrier));
+
+      channelTo(far.wire.origin, 'journey-one')?.report('run', { kind: 'opened' });
+
+      await expect.poll(() => far.taken).toHaveLength(1);
+      expect(near.taken).toEqual([]);
+    });
+
+    it('refuses an address a report may not be sent to', () => {
+      expect(channelTo('http://example.com:80', 'journey-one')).toBeUndefined();
+      expect(channelTo('https://127.0.0.1:80', 'journey-one')).toBeUndefined();
+      expect(channelTo('nonsense', 'journey-one')).toBeUndefined();
+    });
   });
 });

@@ -49,6 +49,7 @@
     "@variance-authority/react": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/store": "workspace:^",
+    "@variance-authority/vantage": "workspace:^",
     "@variance-authority/wire": "workspace:^"
   },
   "peerDependencies": {

@@ -2904,6 +2904,7 @@ __metadata:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/report": "workspace:^"
     "@variance-authority/sense": "workspace:^"
+    "@variance-authority/vantage": "workspace:^"
   bin:
     variance-authority-mcp: ./dist/bin.js
   languageName: unknown
@@ -2945,6 +2946,7 @@ __metadata:
     "@variance-authority/react": "workspace:^"
     "@variance-authority/sense": "workspace:^"
     "@variance-authority/store": "workspace:^"
+    "@variance-authority/vantage": "workspace:^"
     "@variance-authority/wire": "workspace:^"
   peerDependencies:
     "@playwright/test": ">=1.49 <2"
@@ -3173,6 +3175,15 @@ __metadata:
     jsdom: "npm:^30.0.1"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/vantage@workspace:^, @variance-authority/vantage@workspace:packages/vantage":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/vantage@workspace:packages/vantage"
+  dependencies:
+    "@variance-authority/event": "workspace:^"
+    "@variance-authority/wire": "workspace:^"
   languageName: unknown
   linkType: soft
 

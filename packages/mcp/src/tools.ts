@@ -1,4 +1,5 @@
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
+import type { VantageState } from '@variance-authority/vantage';
 import { adjudicate } from './tools/adjudicate.js';
 import { changelog } from './tools/changelog.js';
 import { changes } from './tools/changes.js';
@@ -9,6 +10,8 @@ import { explain } from './tools/explain-verdict.js';
 import { findings } from './tools/findings.js';
 import { summarize } from './tools/summary.js';
 import { sourceTests } from './tools/source-tests.js';
+import { runSignals } from './tools/run-signals.js';
+import { testSignals } from './tools/test-signals.js';
 import { NO_ARGS, stringArg, type Tool } from './tools/tool.js';
 import { trace } from './tools/trace-component.js';
 import { variations } from './tools/variations.js';
@@ -94,6 +97,31 @@ export const SOURCE_TEST_TOOLS = [sourceTests, diff as Tool<ExecutionIndex>] as 
 /** Look up one source-test tool without widening it to the visual-report subject. */
 export function sourceTestToolByName(name: string): Tool<ExecutionIndex> | undefined {
   return SOURCE_TEST_TOOLS.find((tool) => tool.name === name);
+}
+
+/**
+ * The tool set for a watcher attached to a suite that is still running.
+ *
+ * A third subject, and the first one that is not a thing somebody produced. The
+ * report tools answer about a run that finished and the source-test tools answer
+ * about an index that was written; these answer about a run *in flight*, held in
+ * the memory of the process answering, and gone when it exits.
+ *
+ * The listing comes first for the same reason `variance_summary` does: the other
+ * two take an argument it printed. `variance_diff` is last here rather than
+ * second, because on a live subject it is not the session question but the
+ * *progress* question — what the suite did between two asks — and that is only
+ * worth asking once a reader knows what they are watching.
+ */
+export const VANTAGE_TOOLS = [
+  runSignals,
+  testSignals,
+  diff as Tool<VantageState>,
+] as const;
+
+/** Look up one live-run tool without widening it to the visual-report subject. */
+export function vantageToolByName(name: string): Tool<VantageState> | undefined {
+  return VANTAGE_TOOLS.find((tool) => tool.name === name);
 }
 
 export const TOOLS: readonly Tool[] = [

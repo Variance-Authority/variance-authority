@@ -61,7 +61,20 @@ reporting for reads it from the same place it got the channel.
 Only loopback `http` addresses are accepted. The address is written by whoever is
 talking to the process, so a participant that posted wherever a cookie said would
 be a way to make it fetch an address somebody else chose, rather than an
-instrument.
+instrument. `channelTo(origin, journey)` is the same channel for a participant
+that was **handed** an address rather than sent one — a test run reporting to a
+watcher reads it from its own environment — and it refuses the same addresses for
+the same reason. It goes to that address rather than through `channelFrom`,
+because a driver has a carrier of its own installed and would otherwise prefer
+its own desk.
+
+`Participant` is what the driver routes on and the only thing it reads out of a
+report. `events` and `journeys` are the two instruments above. `run` is the one
+that talks the other way: a run is a participant too when something is watching
+it — the same three answers, with the suite reporting and a watcher listening
+instead of the other way around. That is
+[`@variance-authority/vantage`](../vantage/README.md), and it needed no new
+medium.
 
 ## Two guarantees, on purpose
 
@@ -105,7 +118,10 @@ nothing is agreed in advance and several workers listen at once without a word
 between them. `ListenOptions` takes `host`, defaulting to `127.0.0.1`.
 `addressFor` hands out one address per execution, `on` registers one handler per
 participant and returns the call that gives it up, and `close` stops listening
-without waiting for a participant that is mid-sentence.
+without waiting for a participant that is mid-sentence. `origin` is where the
+listener is, without an execution in it — what to give a participant that will
+name its own executions as it goes, rather than one the driver minted a key for
+in advance.
 
 **The execution id is in the address, never in the body.** A participant repeats
 nothing it was told, and the driver reads back the key it minted itself — so a

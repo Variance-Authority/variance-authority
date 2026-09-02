@@ -6,7 +6,13 @@
  * service under test import this, and nothing that reaches a user does.
  */
 
-export { createEventLog, type EventLog, type RecordedEvent, type WaitOptions } from './log.js';
+export {
+  createEventLog,
+  type EventLog,
+  type EventLogOptions,
+  type RecordedEvent,
+  type WaitOptions,
+} from './log.js';
 export { eventCollectorSource } from './page.js';
 export {
   collectEvents,
