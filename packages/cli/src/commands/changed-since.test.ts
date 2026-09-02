@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { changedSince } from './resources.js';
+import { changedSince } from './since.js';
 
 /**
  * The join between the two ways a file gets named, which is where this quietly

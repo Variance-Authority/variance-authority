@@ -1,13 +1,13 @@
 import type {
   AccessibilitySnapshot,
   ComponentBands,
-  Digest,
   RenderIdentity,
 } from '@variance-authority/core';
 import type { FindingRecord } from './finding-record.js';
 import type { CompositionReport } from './composition.js';
 import type { IgnoreLedger, SensitivityLedger } from './declarations.js';
 import type { ReachReport } from './reach.js';
+import type { PresentationSignalRecord } from './presentation-record.js';
 import type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 import type { VariationRecord } from './variation.js';
 
@@ -173,6 +173,32 @@ export interface RunReport {
    * and could not attribute it, which is a different fact and a louder one.
    */
   readonly reach?: ReachReport;
+
+  /**
+   * What this run narrowed by, and what it could have narrowed by.
+   *
+   * A run that observed everything is the default and is not a failure, so this
+   * is not a scolding — it is the coordinate. The execution index records the
+   * commit it was written at, which is its position in time and space; the
+   * distance from there to the tree on disk is what `--since` would have spent,
+   * and a reader that cannot see the coordinate cannot decide whether spending
+   * it is worth anything.
+   *
+   * Both halves are optional and mean different things absent. No `since` is a
+   * run that observed everything it planned. No `index` is either no recorded
+   * execution index or one with no position — nothing to diff from, so nothing
+   * to offer — and never *the index is current*, which is `changed: 0`.
+   */
+  readonly narrowing?: {
+    /** The ref `--since` named. */
+    readonly since?: string;
+    /** Where the recorded execution index stands, and how far the tree is from it. */
+    readonly index?: {
+      readonly commit: string;
+      /** Files differing between that commit and the working tree. */
+      readonly changed: number;
+    };
+  };
 
   /**
    * What each declaration did, and the audit an ignore is only safe to have
@@ -409,58 +435,6 @@ export interface ObservationRecord {
   };
 }
 
-/** How one relationship condition changed between comparable presentation readings. */
-export type PresentationEffectTransition = 'introduced' | 'resolved' | 'persisted';
-
-/** The finding-local measurement retained on one side of a presentation effect. */
-export interface PresentationEffectEvidence {
-  /** Finding id in the corresponding presentation report or hierarchy reading. */
-  readonly finding: string;
-  readonly measurements: Readonly<Record<string, number | string>>;
-}
-
-/** One relationship consequence attributable to the difference between two readings. */
-export interface PresentationEffectRecord {
-  readonly rule: string;
-  readonly transition: PresentationEffectTransition;
-  readonly owner: string;
-  readonly nodes: readonly string[];
-  readonly pattern?: string;
-  readonly contract?: string;
-  readonly before?: PresentationEffectEvidence;
-  readonly after?: PresentationEffectEvidence;
-}
-
-/** Information-volume evidence kept beside relationship effects. */
-export interface PresentationInformationRecord {
-  readonly contentPreserved: boolean;
-  readonly characters: { readonly before: number; readonly after: number; readonly delta: number };
-  readonly elements: { readonly before: number; readonly after: number; readonly delta: number };
-  readonly repeatedObjects: { readonly before: number; readonly after: number; readonly delta: number };
-}
-
-/**
- * Presentation evidence carried by a general regression report.
- *
- * `incomparable` has no effects: inventing a transition from one reading would
- * turn absence into evidence. Comparable readings always carry `effects`, where
- * an empty array means the presentation consequence was measured and unchanged.
- */
-export type PresentationSignalRecord =
-  | {
-      readonly verdict: 'incomparable';
-      readonly because: string;
-      readonly before?: Digest;
-      readonly after?: Digest;
-    }
-  | {
-      readonly verdict: 'unchanged' | 'changed';
-      readonly before: Digest;
-      readonly after: Digest;
-      readonly information: PresentationInformationRecord;
-      readonly effects: readonly PresentationEffectRecord[];
-    };
-
 export interface RegionRecord {
   readonly x: number;
   readonly y: number;
@@ -495,5 +469,12 @@ export interface RegionRecord {
 // Re-exported so a reader importing the report's shape gets the shapes its
 // fields are made of, without having to know which file each one was argued in.
 export type { FindingRecord } from './finding-record.js';
+export type {
+  PresentationEffectEvidence,
+  PresentationEffectRecord,
+  PresentationEffectTransition,
+  PresentationInformationRecord,
+  PresentationSignalRecord,
+} from './presentation-record.js';
 export type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 export type { VariationRecord } from './variation.js';

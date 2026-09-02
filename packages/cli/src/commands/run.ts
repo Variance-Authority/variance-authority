@@ -77,9 +77,7 @@ export { recordOf } from './record.js';
 export { compositionOf } from './compose.js';
 export type { ComposeInput } from './compose.js';
 export {
-  changedSince,
   decoderFor,
-  diffSince,
   historyFor,
   journeyAgainst,
   relationsFor,
@@ -88,6 +86,7 @@ export {
   storeFor,
   writeArtifactToDisk,
 } from './resources.js';
+export { changedSince, diffSince, indexPosition, narrowingFor } from './since.js';
 export { affectedProjects } from './changes.js';
 export type { AffectedProjects, ChangeSource, ChangeTool } from './changes.js';
 export { readCliRunReport, writeCliRunReport } from './run-report.js';
@@ -467,6 +466,18 @@ async function observeAll(
     // no comparison alone can pose — which reached subject did not move, and
     // which moved subject nothing reached.
     ...(selected?.reach !== undefined ? { reach: selected.reach } : {}),
+    // The coordinate, carried whether or not the run used it. A run that
+    // observed everything is the default and is not a failure; a reader that
+    // cannot see what narrowing would have cost cannot tell that from a run
+    // that had nothing to narrow by.
+    ...(options.since !== undefined || options.index !== undefined
+      ? {
+          narrowing: {
+            ...(options.since === undefined ? {} : { since: options.since.ref }),
+            ...(options.index === undefined ? {} : { index: options.index }),
+          },
+        }
+      : {}),
     ...(warnings.length + selection.length + recorded.warnings.length > 0
       ? { warnings: [...warnings, ...selection, ...recorded.warnings] }
       : {}),

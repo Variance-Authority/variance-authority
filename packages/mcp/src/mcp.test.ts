@@ -75,6 +75,11 @@ const REPORT: RunReport = {
   ],
 };
 
+/** The summary over a report that narrowed, or could have. */
+function summaryOf(narrowing: RunReport['narrowing']): string {
+  return toolByName('variance_summary')!.run({ ...REPORT, ...(narrowing === undefined ? {} : { narrowing }) }, {}) as string;
+}
+
 function call(name: string, args: Record<string, unknown> = {}): string {
   const response = handle(
     { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
@@ -103,6 +108,29 @@ describe('the summary', () => {
 
   it('says which machine rendered it, because that decides comparability', () => {
     expect(call('variance_summary')).toContain('darwin/arm64');
+  });
+
+  it('names the coordinate a run that narrowed nothing could have narrowed by', () => {
+    // `--since` is an option and stays one — nothing here says the run should
+    // have skipped anything. What it refuses is an agent working against this
+    // suite for weeks without ever learning that an index is on disk, that it
+    // knows the commit it stands at, and that the distance from there is a
+    // number. An option nobody is told about is an option nobody has.
+    const text = summaryOf({ index: { commit: 'a1b2c3d', changed: 12 } });
+
+    expect(text).toContain('a1b2c3d');
+    expect(text).toContain('12 file(s) differ');
+    expect(text).toContain('variance run --since a1b2c3d');
+  });
+
+  it('says what a run did narrow by instead of what it could have', () => {
+    expect(summaryOf({ since: 'origin/main' })).toContain('narrowed from origin/main');
+  });
+
+  it('offers nothing when the tree has not moved from the index', () => {
+    // The line is an invitation to spend a call. Printed over an index the tree
+    // stands on, the call it invites learns that zero files changed.
+    expect(summaryOf({ index: { commit: 'a1b2c3d', changed: 0 } })).not.toContain('--since');
   });
 
   it('says so plainly when nothing needs review', () => {

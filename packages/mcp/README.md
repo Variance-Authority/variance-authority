@@ -258,6 +258,19 @@ subjects the run planned and has no result for; it distinguishes `excluded` from
 `excluded` turns a coverage hole into a decision somebody made, and guessing
 `failed` turns every deliberate exclusion into a permanently red build.
 
+## The narrowing coordinate
+
+`variance_summary` prints, in its header, where the recorded execution index
+stands and how many files the working tree differs from it by — followed by the
+`variance run --since <commit>` that would observe only what those files reach.
+
+It is in the header rather than in a tool of its own because an option an agent
+is never told about is an option it does not have. Nothing about the line
+proposes that a run should have skipped anything; narrowing stays the operator's
+decision, and the header carries the coordinate the decision needs. It is omitted
+when there is nothing to offer: no index on disk, an index with no position, or a
+tree that has not moved from it.
+
 ## Serve a custom subject
 
 `serveReportFile(path)` is the whole executable, and `serve(options)` is what it

@@ -492,6 +492,11 @@ owns its own collector, renderer, storage, or review surface:
   through the import graph to the components each subject renders. A changed
   subject the commit does not reach is the strongest thing a report can say,
   and it is unavailable to anything that only compares images.
+- `run` also takes `index`, which narrows nothing. It is where the recorded
+  execution index stands — the commit it was written at and how many files the
+  working tree differs from it by — and it travels into the report so a reader
+  can see what `--since` would have cost on this run. `narrowingFor` resolves
+  `since`, `against` and `index` together from the refs a caller was given.
 - `formatReport` takes a `format` of `text`, `json`, or `html`. `subject` narrows
   text or JSON to one id and is refused for HTML because a narrowed page would
   hide coverage. Use the CLI's `report` command when the report must be loaded

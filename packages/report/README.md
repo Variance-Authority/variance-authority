@@ -104,6 +104,14 @@ Each `ObservationRecord` holds one subject's **verdict** — `unchanged`,
 **region**s responsible: attributed rectangles of the diff, each with the
 component and pixel count that explain it.
 
+A report also carries **`narrowing`**: the ref a run was told to observe from,
+and where the recorded execution index stands — the commit it was written at,
+and how many files the working tree differs from it by. A run that observed
+everything carries the second half alone, which is what makes a narrowing option
+visible to a reader who never passed one. Absent `index` means there is nothing
+to diff from, either because no index was recorded or because the one on disk has
+no position; it never means the index is current, which is `changed: 0`.
+
 ## Presentation consequence is a signal, not a verdict
 
 An `ObservationRecord` can carry one or more **signals** —

@@ -106,8 +106,13 @@ export function packageOf(specifier: string): string | null {
  * What is left is matched at line starts: a statement cannot cross a `;`, so an
  * `export const` cannot reach a `from` several lines below it.
  */
+// `(` and `=` are excluded from the span, not merely `;`. A clause between
+// `import`/`export` and `from` is a name list and never contains either — while
+// `export function report(…)` opens a body that may run for pages, and a string
+// inside it ending in the word `from` is then read as a specifier and reported
+// as an undeclared dependency, with the file's own source quoted as its name.
 const PATTERNS = [
-  /^[ \t]*(?:import|export)\b[^;]*?\bfrom[ \t]*['"]([^'"]+)['"]/gm,
+  /^[ \t]*(?:import|export)\b[^;()=]*?\bfrom[ \t]*['"]([^'"]+)['"]/gm,
   /^[ \t]*import[ \t]*['"]([^'"]+)['"]/gm,
   /\bimport\([ \t]*['"]([^'"]+)['"][ \t]*\)/g,
 ];

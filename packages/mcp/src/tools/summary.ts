@@ -1,6 +1,7 @@
 import { arrivalLine, carriedLine } from '@variance-authority/report';
 import type { NotObserved, RunReport } from '@variance-authority/report';
 import { presentationSummary } from '../presentation.js';
+import { narrowing } from './narrowing.js';
 import { NO_ARGS, type Tool } from './tool.js';
 
 /**
@@ -58,6 +59,7 @@ export const summarize: Tool = {
         .concat(shortfall(report))
         .join(', '),
       ...(report.intent !== undefined ? [`intent: ${report.intent}`] : []),
+      ...narrowing(report),
     ];
 
     // `ignored` is counted in the header and does not get a line of its own.

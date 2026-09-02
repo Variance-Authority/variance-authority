@@ -175,6 +175,19 @@ export interface RunOptions {
     readonly changed: readonly string[];
     readonly ref: string;
   };
+
+  /**
+   * Where the recorded execution index stands, and how far the tree is from it.
+   *
+   * Carried into the report and used for nothing else. A run narrows by `since`
+   * or it does not; this is the coordinate a reader needs to judge that
+   * decision, and resolving it here rather than in the run keeps a `git` call
+   * out of the loop that observes subjects.
+   */
+  readonly index?: {
+    readonly commit: string;
+    readonly changed: number;
+  };
 }
 
 export interface ObserveContext {

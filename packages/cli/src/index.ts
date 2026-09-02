@@ -33,12 +33,8 @@
  *   it, and states the limit of its own font probe.
  */
 
-export {
-  DEFAULT_REPORT_PATH,
-  ConfigError,
-  loadConfig,
-  parseConfig,
-} from './config.js';
+export { DEFAULT_REPORT_PATH, ConfigError, parseConfig } from './config.js';
+export { loadConfig } from './config-load.js';
 export type {
   BaselinesConfig,
   Config,

@@ -1,12 +1,8 @@
-import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { profileById, type ProfileId, type Viewport } from '@variance-authority/core';
 import type { Retention } from '@variance-authority/raster';
-import { OperatorError } from './exit.js';
 import {
-  ConfigError,
   fail,
-  messageOf,
   nonEmpty,
   object,
   optionalText,
@@ -467,35 +463,4 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
     ...(concurrency === undefined ? {} : { concurrency: concurrency as number }),
   };
-}
-
-/**
- * Read and validate a config file.
- *
- * A missing file is an operator error with the path in it, not a fallback to
- * defaults. Running with a config that was never read is how a CI job ends up
- * observing nothing and reporting success.
- */
-export async function loadConfig(path: string): Promise<Config> {
-  const source = path;
-  let text: string;
-
-  try {
-    text = await readFile(path, 'utf8');
-  } catch (error) {
-    throw new OperatorError(
-      `cannot read the config file ${path}: ${messageOf(error)}. ` +
-        'Nothing about a run is inferred, so there is no default to fall back to.',
-      { cause: error },
-    );
-  }
-
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch (error) {
-    throw new ConfigError(source, '(file)', `is not valid JSON: ${messageOf(error)}`);
-  }
-
-  return parseConfig(value, { source, baseDir: dirname(resolve(path)) });
 }

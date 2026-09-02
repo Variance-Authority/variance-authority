@@ -2,7 +2,8 @@ import { writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Renderer } from '@variance-authority/raster';
 import { messageOf } from './config-values.js';
-import { loadConfig, type Config } from './config.js';
+import type { Config } from './config.js';
+import { loadConfig } from './config-load.js';
 import {
   EXIT_CLEAN,
   EXIT_OPERATOR,
@@ -17,14 +18,13 @@ import {
   planList,
   planStorybook,
   affectedProjects,
-  changedSince,
   historyFor,
   identityOf,
   readCliRunReport,
   relationsFor,
   run,
-  diffSince,
   journeyAgainst,
+  narrowingFor,
   scanSourceDirs,
   storeFor,
   writeArtifactToDisk,
@@ -109,25 +109,14 @@ export async function dispatch(
       // implies `--against` wherever a graph is configured: the walk has already
       // happened by then, and a run that narrowed itself and could not say why is
       // the one shape this is worth avoiding.
-      const dirs = effective.source?.dirs ?? [];
-      const sinceDiff =
-        parsed.since === undefined ? undefined : await diffSince(parsed.since, dirs);
-      const since =
-        parsed.since === undefined
-          ? undefined
-          : {
-              ref: parsed.since,
-              changed: await changedSince(parsed.since, dirs),
-              ...(sinceDiff === undefined ? {} : { diff: sinceDiff }),
-            };
-      const againstRef =
-        parsed.against ?? (effective.source?.relations === true ? parsed.since : undefined);
-      const against =
-        againstRef === undefined
-          ? undefined
-          : againstRef === since?.ref
-            ? { ref: againstRef, changed: since.changed }
-            : { ref: againstRef, changed: await changedSince(againstRef, dirs) };
+      const narrowing = await narrowingFor(
+        {
+          ...(parsed.since !== undefined ? { since: parsed.since } : {}),
+          ...(parsed.against !== undefined ? { against: parsed.against } : {}),
+          relations: effective.source?.relations === true,
+        },
+        effective.source?.dirs ?? [],
+      );
 
       const identity = identityOf(
         {
@@ -144,8 +133,7 @@ export async function dispatch(
           ...(parsed.intent !== undefined ? { intent: parsed.intent } : {}),
           ...(parsed.flakes ? { flakes: true } : {}),
           ...(identity !== undefined ? { identity } : {}),
-          ...(since === undefined ? {} : { since }),
-          ...(against === undefined ? {} : { against }),
+          ...narrowing,
           deps: {
             collector,
             store: await storeFor(effective),
