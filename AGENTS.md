@@ -187,18 +187,28 @@ checkout before believing a failure**, and re-run before reporting one.
 
 ## Backlog.md Workflow
 
-This project uses Backlog.md for task and project management.
+This project uses Backlog.md for task and project management. Backlog governs
+task processing, not repository orientation.
 
-**For every user request in this project, run `backlog instructions overview` before answering or taking action.**
+Invoke Backlog only when the request processes a Backlog task: searching,
+reading, creating or updating one, or executing or finalizing work already
+identified as a Backlog task. Reading `AGENTS.md` or `docs/context/`, inspecting
+the checkout, locating files or tools, answering an ad hoc question, and making
+an ad hoc change are not Backlog task processing and must not invoke it.
 
-Use the overview to decide whether to search, read, create, or update Backlog tasks.
+At the start of Backlog task processing, run
+`./node_modules/.bin/backlog instructions overview` and
+use it to decide whether to search, read, create or update tasks. Run Backlog
+commands independently from orientation and context reads so a CLI failure
+cannot prevent those reads.
 
 Before task lifecycle actions, read the matching detailed guide:
-- `backlog instructions task-creation` before creating or splitting tasks
-- `backlog instructions task-execution` before planning, changing status or assignee, adding a plan or implementation notes, or implementing task work
-- `backlog instructions task-finalization` before checking acceptance criteria, writing final summaries, or moving tasks to terminal statuses
+- `./node_modules/.bin/backlog instructions task-creation` before creating or splitting tasks
+- `./node_modules/.bin/backlog instructions task-execution` before planning, changing status or assignee, adding a plan or implementation notes, or implementing task work
+- `./node_modules/.bin/backlog instructions task-finalization` before checking acceptance criteria, writing final summaries, or moving tasks to terminal statuses
 
-Use `backlog <command> --help` before running unfamiliar commands. Help shows options, fields, and examples.
+Use `./node_modules/.bin/backlog <command> --help` before running unfamiliar
+commands. Help shows options, fields, and examples.
 
 Do not edit Backlog task, draft, document, decision, or milestone markdown files directly. Use the `backlog` CLI so metadata, relationships, and history stay consistent.
 
