@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/wire",
-  "version": "0.0.0-beta.1",
+  "version": "0.1.1",
   "description": "The address a process under test answers on, so what it reports reaches the run that started it and nothing is written down.",
   "keywords": [
     "variance-authority",

@@ -105,9 +105,6 @@
     },
     {
       "path": "./cases/incumbent-case"
-    },
-    {
-      "path": "./docs-examples"
     }
   ]
 }

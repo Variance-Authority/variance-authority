@@ -53,8 +53,7 @@ interface Documented {
  * Every value a package README names in backticks and its own source exports.
  *
  * Types are not included. A type is exercised by whatever compiles against it,
- * and `tools/doc-examples.mjs` already type-checks every fenced block, so an
- * unusable type fails there rather than here.
+ * so an unusable type fails wherever it is used rather than here.
  */
 const DOCUMENTED: readonly Documented[] = SOURCES.flatMap((file) => {
   const dir = file.slice(0, file.indexOf('/src/'));

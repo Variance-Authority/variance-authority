@@ -14,6 +14,15 @@
 # back: a published version is unpublishable, an npm dist-tag is what every
 # `yarn add` in the world resolves, and "who merged that" is not a recovery plan.
 #
+# Nothing here holds an npm token. The publish job authenticates by exchanging
+# GitHub's OIDC token for a short-lived registry credential, which the registry
+# grants only to this repository, this workflow file and the `npm` environment,
+# because that is what the trusted publisher on each package names. It also
+# means the tarballs carry provenance: a signed statement of which commit and
+# which workflow built them, which a consumer can verify without trusting us.
+# Granular tokens that bypass two-factor lose the ability to publish in January
+# 2027 in any case, so a token here would be a thing to migrate off later.
+#
 # The version itself is derived — `.changeset/config.json` holds all packages in
 # one `fixed` group, because they are one product with `workspace:^` between
 # them. `changeset publish` reads the package manager from the workspace and
@@ -81,11 +90,19 @@ jobs:
   publish:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # Point this at a GitHub environment with required reviewers to put a second
-    # person between the button and the registry. Nothing here assumes one.
+    # The environment name is load-bearing twice over: GitHub can hold the run
+    # here for a reviewer, and npm's trusted publisher for every package names
+    # this environment, this repository and this workflow's filename. Rename any
+    # of the three and the registry refuses the exchange — which is the point,
+    # but it makes `release.yml` and `npm` names that cannot be tidied.
     environment: npm
     permissions:
       contents: write
+      # Trusted publishing: `yarn npm publish` trades this run's OIDC token for a
+      # credential that lives seconds and cannot leave the runner. There is no
+      # npm token in this repository to leak, rotate, or find expired on the one
+      # evening a release matters.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -125,7 +142,10 @@ jobs:
 
       - name: Publish, and tag what was published
         env:
-          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # No token, deliberately. Yarn attempts the OIDC exchange when no
+          # credential is configured, so adding one back here would silently
+          # disable trusted publishing rather than fail.
+          YARN_NPM_PUBLISH_PROVENANCE: 'true'
         run: |
           yarn release:publish
           # Tags come from `changeset publish` and name versions the registry has

@@ -1,8 +1,14 @@
 # ADR-0014 — An example is a call site, and is compiled like one
 
-**Status:** accepted
+**Status:** reversed
 **Date:** 2026-08-03
 **Extends:** ADR-0013 (packages are named for their requirements)
+
+**Reversed 2026-09-03.** Examples live in external repositories now, installed
+from the registry the way a consumer installs them. A README fence is no longer
+the only call site a compiler cannot see, so the in-repo generator that made one
+out of every fence was removed along with the workspace it wrote into. What
+follows is the record of the decision, not a description of the build.
 
 ## Context
 
@@ -44,11 +50,11 @@ API, on their first ten minutes with the tool.
 **A fenced `ts` example in a README is source code, and is compiled against the
 package's published types on every run of the checks.**
 
-`tools/doc-examples.mjs` extracts each fence and writes it as a real
+A generator extracted each fence and wrote it as a real
 module sitting beside the README it came from — so `@variance-authority/observe`
-resolves through the package's own `exports` to its built `.d.ts`, exactly as it
-would for a consumer — and reports each diagnostic against the markdown line a
-person would edit. It also fails an example that imports a name it never uses,
+resolved through the package's own `exports` to its built `.d.ts`, exactly as it
+would for a consumer — and reported each diagnostic against the markdown line a
+person would edit. It also failed an example that imported a name it never used,
 which is what a broken example looks like after somebody edited the code around
 it and left the imports.
 

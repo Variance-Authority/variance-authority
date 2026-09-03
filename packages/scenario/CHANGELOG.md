@@ -1,0 +1,20 @@
+# @variance-authority/scenario
+
+## 0.1.1
+
+### Patch Changes
+
+- @variance-authority/core@0.1.1
+
+## 0.1.0
+
+### Patch Changes
+
+- 92f62d4: Name the `startScenario` option a host left out. `precondition` and `profile`
+  are required and were read before they were checked, so omitting `precondition`
+  answered `Cannot read properties of undefined (reading 'id')` from inside the
+  module while `id` — required in the same way, on the same options object —
+  already answered with a sentence. All three now do.
+- Updated dependencies [e8fee66]
+- Updated dependencies [5c34e6d]
+  - @variance-authority/core@0.1.0

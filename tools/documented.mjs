@@ -26,20 +26,9 @@ import { readHelp, undocumented } from '@variance-authority/package/help';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const BASELINE = join(ROOT, 'tools/documented.baseline.json');
 
-/**
- * Directories holding code this repository did not write.
- *
- * `docs-examples/src` is `tools/doc-examples.mjs` extracting every README fence
- * into a file so a compiler can check it. Counting those imports as an audience
- * would make a name's standing here depend on whether somebody has run the
- * build, and a ratchet that answers differently before and after `yarn build`
- * is a ratchet that gets re-recorded rather than read.
- */
-const GENERATED = ['docs-examples'];
-
 /** One line per silent name: where it is, and how big the audience is. */
 export function silent() {
-  return undocumented(readHelp(ROOT, { skip: GENERATED })).map((entry) => ({
+  return undocumented(readHelp(ROOT)).map((entry) => ({
     name: entry.name,
     kind: entry.kind,
     at: entry.at,

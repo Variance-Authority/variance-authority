@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/react",
-  "version": "0.0.0-beta.1",
+  "version": "0.1.1",
   "description": "Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.",
   "keywords": [
     "variance-authority",
