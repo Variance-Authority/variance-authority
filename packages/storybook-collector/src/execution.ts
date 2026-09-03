@@ -89,13 +89,31 @@ export async function createStoryRecorder(
       // a visual run: losing it costs the *next* selection its narrowing, which
       // is a full suite — the safe direction — while failing the run over it
       // would cost this one its baselines, which is not.
-      const record = await recordExecution({
-        root,
-        subjects: observed,
-        ...(options.label === undefined ? {} : { label: options.label }),
-        ...(options.modulesFile === undefined ? {} : { modulesFile: options.modulesFile }),
-        ...(options.coverageFile === undefined ? {} : { coverageFile: options.coverageFile }),
-      });
+      //
+      // That holds for a throw as much as for a refusal. The recorder reports
+      // what it declined in `because`, but it is a file format, a lock and a
+      // filesystem underneath, and any of them can raise something it has no
+      // sentence for. Letting that escape ends the run *after* every subject
+      // has been rendered and compared — the most expensive possible moment to
+      // lose a set of baselines, and over the half of the work that was only
+      // ever an addition.
+      let record: Awaited<ReturnType<typeof recordExecution>>;
+      try {
+        record = await recordExecution({
+          root,
+          subjects: observed,
+          ...(options.label === undefined ? {} : { label: options.label }),
+          ...(options.modulesFile === undefined ? {} : { modulesFile: options.modulesFile }),
+          ...(options.coverageFile === undefined ? {} : { coverageFile: options.coverageFile }),
+        });
+      } catch (error) {
+        process.stderr.write(
+          'variance-authority: recorded no story execution — the recorder failed with ' +
+            `${error instanceof Error ? error.message : String(error)}; this run is ` +
+            'unaffected and the next `--since` will run everything\n',
+        );
+        return;
+      }
       if (!record.recorded) {
         process.stderr.write(
           `variance-authority: recorded no story execution — ${record.because}\n`,

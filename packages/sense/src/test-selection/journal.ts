@@ -190,6 +190,14 @@ export async function recordExecution(
   options: RecordExecutionOptions,
 ): Promise<ExecutionRecord> {
   const root = resolve(options.root);
+  // One row per owner before anything reads them. A subject is read again
+  // whenever the first read was not trusted — `again` before `alone` — so a
+  // changed or unstable subject reaches here twice, and `tests` is keyed by
+  // owner: two rows for one owner is the duplicate the encoder refuses to
+  // intern. `joinObservations` is the fold that already exists for joining a
+  // page to its heads, it is idempotent, and doing it here rather than in each
+  // collector is what makes the invariant hold for collectors not yet written.
+  const subjects = joinObservations([options.subjects]);
   const coverageFile =
     options.coverageFile === undefined
       ? testCoverageFile(root)
@@ -218,7 +226,7 @@ export async function recordExecution(
   }
   const inventory = unionInventories(read as readonly InstrumentedModules[]);
 
-  const foreign = options.subjects.find(
+  const foreign = subjects.find(
     (subject) => subject.journal.instrumentation !== INSTRUMENTATION_ID,
   );
   if (foreign !== undefined) {
@@ -233,7 +241,7 @@ export async function recordExecution(
   }
 
   const byFile = new Map(inventory.modules.map((module) => [module.file, module]));
-  const owners = options.subjects.map((subject) => subject.owner);
+  const owners = subjects.map((subject) => subject.owner);
 
   // Module initialization runs once per page, for whichever subject was first.
   // It is every subject's, and this is the line that says so.
@@ -241,7 +249,7 @@ export async function recordExecution(
   const crossings = new Map<string, Map<number, Set<string>>>();
   const entered = new Map<string, Set<string>>();
 
-  for (const subject of options.subjects) {
+  for (const subject of subjects) {
     for (const module of subject.journal.modules) {
       const known = byFile.get(module.file);
       if (known === undefined || !known.instrumented) continue;
@@ -260,7 +268,7 @@ export async function recordExecution(
     }
   }
 
-  const tests: readonly CoverageTest[] = options.subjects
+  const tests: readonly CoverageTest[] = subjects
     .map((subject): CoverageTest => {
       const digests = [...(entered.get(subject.owner) ?? [])]
         .sort(codeUnitOrder)
@@ -314,7 +322,7 @@ export async function recordExecution(
     await rm(lock, { force: true });
   }
 
-  return { recorded: true, coverageFile, subjects: options.subjects.length };
+  return { recorded: true, coverageFile, subjects: subjects.length };
 }
 
 /**

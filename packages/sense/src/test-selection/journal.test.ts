@@ -120,6 +120,54 @@ describe('a browser run records what it executed', () => {
     });
   });
 
+  it('records one row for a subject the run read twice', async () => {
+    // A subject that is not trusted on the first read is read again, so an
+    // unstable or changed one reaches the recorder twice under one owner. The
+    // format interns rows by file, and two rows for one owner is the duplicate
+    // it refuses — a refusal that used to reach the caller as a crash on every
+    // run after the first, which is the only kind that has baselines to differ
+    // from. The two reads are one observation, and their crossings union.
+    await inRoot(async (root) => {
+      const modulesFile = resolve(root, 'modules.json');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+
+      const plugin = testSelectionProbes({ root, modulesFile });
+      const transformed = plugin.transform(SOURCE, module)!;
+      await plugin.buildEnd();
+
+      const realm = evaluate(transformed.code);
+      realm.price(20);
+      const first = realm.collector.drain();
+      realm.price(1);
+      const again = realm.collector.drain();
+
+      const recorded = await recordExecution({
+        root,
+        modulesFile,
+        coverageFile,
+        subjects: [
+          { owner: 'story:price--only', journal: first },
+          { owner: 'story:price--only', journal: again },
+        ],
+      });
+      expect(recorded).toMatchObject({ recorded: true, subjects: 1 });
+
+      const coverage = await readTestCoverage(coverageFile);
+      expect(coverage.tests.map((test) => test.file)).toEqual(['story:price--only']);
+
+      // Both reads' lines belong to it: the fold unions crossings rather than
+      // letting the later read stand in for the pair.
+      expect(await selectTestFiles(coverageFile, diffAt('price.js', PREMIUM_LINE))).toEqual([
+        'story:price--only',
+      ]);
+      expect(await selectTestFiles(coverageFile, diffAt('price.js', PLAIN_LINE))).toEqual([
+        'story:price--only',
+      ]);
+    });
+  });
+
   it('gives a module-scope edit every subject the page served', async () => {
     await inRoot(async (root) => {
       const modulesFile = resolve(root, 'modules.json');
