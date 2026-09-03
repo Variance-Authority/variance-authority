@@ -115,4 +115,5 @@ the paths above.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Mechanic Garden.
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026
+[Machine Garden](https://machine-garden.com/). [GitHub](https://github.com/Machine-Garden).

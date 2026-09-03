@@ -1,4 +1,10 @@
-import { DOCS, DOCS_INDEX, GITHUB } from "../links";
+import {
+  DOCS,
+  DOCS_INDEX,
+  GITHUB,
+  MACHINE_GARDEN,
+  MACHINE_GARDEN_GITHUB,
+} from "../links";
 import Mark from "./Mark";
 
 /** Only destinations that exist: page anchors, and files under docs/. */
@@ -66,7 +72,17 @@ export default function SiteFooter() {
         ))}
       </div>
       <p className="mt-12 border-t border-hairline pt-6 font-mono text-xs text-warm">
-        MIT · Copyright © 2026 Mechanic Garden
+        MIT · Copyright © 2026{" "}
+        <a className="transition-colors hover:text-ivory" href={MACHINE_GARDEN}>
+          Machine Garden
+        </a>{" "}
+        ·{" "}
+        <a
+          className="transition-colors hover:text-ivory"
+          href={MACHINE_GARDEN_GITHUB}
+        >
+          GitHub
+        </a>
       </p>
       </div>
     </footer>
