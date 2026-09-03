@@ -4,8 +4,8 @@ import {
   navigationItem,
   navigationNeighbors,
 } from "../navigation";
-import DocsFooter from "./DocsFooter";
-import DocsHeader from "./DocsHeader";
+import SiteFooter from "./SiteFooter";
+import SiteHeader from "./SiteHeader";
 
 export interface TableOfContentsItem {
   readonly id: string;
@@ -100,9 +100,9 @@ export default function DocsShell({
       >
         Skip to content
       </a>
-      <DocsHeader current={current} />
+      <SiteHeader />
 
-      <details className="docs-mobile-navigation sticky top-[3.25rem] z-40 border-b border-hairline bg-deep/95 px-5 py-3 backdrop-blur-md lg:hidden">
+      <details className="docs-mobile-navigation sticky top-16 z-40 border-b border-hairline bg-deep/95 px-5 py-3 backdrop-blur-md lg:hidden">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-sm text-ivory">
           <span>
             <span className="mr-2 font-mono text-[10px] uppercase tracking-[0.16em] text-orange">
@@ -233,7 +233,7 @@ export default function DocsShell({
         ) : null}
       </div>
 
-      <DocsFooter />
+      <SiteFooter />
     </div>
   );
 }

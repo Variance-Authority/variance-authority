@@ -1,33 +1,27 @@
-import {
-  DOCS,
-  DOCS_INDEX,
-  GITHUB,
-  MACHINE_GARDEN,
-  MACHINE_GARDEN_GITHUB,
-} from "../links";
+import { GITHUB, MACHINE_GARDEN, MACHINE_GARDEN_GITHUB } from "../links";
 import Mark from "./Mark";
 
-/** Only destinations that exist: page anchors, and files under docs/. */
+/** Product anchors and documentation destinations shared across every route. */
 const FOOTER = [
   {
     title: "on this page",
     links: [
-      { href: "#evidence", label: "Evidence slices" },
-      { href: "#react", label: "React trail" },
-      { href: "#review", label: "Grouped review" },
-      { href: "#intent", label: "Agent intent" },
-      { href: "#selection", label: "Selection + reuse" },
-      { href: "#fit", label: "Operating fit" },
-      { href: "#integrate", label: "Integrate" },
+      { href: "/#evidence", label: "Evidence slices" },
+      { href: "/#react", label: "React trail" },
+      { href: "/#review", label: "Grouped review" },
+      { href: "/#intent", label: "Agent intent" },
+      { href: "/#selection", label: "Selection + reuse" },
+      { href: "/#fit", label: "Operating fit" },
+      { href: "/#integrate", label: "Integrate" },
     ],
   },
   {
     title: "project",
     links: [
-      { href: DOCS_INDEX, label: "Documentation" },
-      { href: `${DOCS}/architecture.md`, label: "Architecture" },
-      { href: `${DOCS}/attribution.md`, label: "Attribution" },
-      { href: `${DOCS}/comparison.md`, label: "Comparison" },
+      { href: "/docs", label: "Documentation" },
+      { href: "/docs/architecture", label: "Architecture" },
+      { href: "/docs/attribution", label: "Attribution" },
+      { href: "/reference/comparison", label: "Comparison" },
       { href: GITHUB, label: "GitHub" },
     ],
   },

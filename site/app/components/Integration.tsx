@@ -1,4 +1,4 @@
-import { DOCS, GITHUB } from "../links";
+import { GITHUB } from "../links";
 import SectionHead from "./SectionHead";
 
 const RECIPES = [
@@ -100,7 +100,7 @@ export default function Integration() {
         These four are the entry points. Every package behind them is listed
         in{" "}
         <a
-          href={`${DOCS}/architecture.md`}
+          href="/docs/architecture"
           className="text-orange transition-colors hover:text-ivory"
         >
           architecture.md →

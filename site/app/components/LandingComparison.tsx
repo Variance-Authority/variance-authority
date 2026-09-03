@@ -1,5 +1,3 @@
-import { DOCS } from "../links";
-
 /**
  * The competitor table, with a gate instead of a promise.
  *
@@ -130,7 +128,7 @@ export default function Comparison() {
       <p className="mt-2 max-w-3xl text-sm leading-6 text-quiet">
         Every vendor cell is quoted from the{" "}
         <a
-          href={`${DOCS}/comparison.md`}
+          href="/reference/comparison"
           className="text-ivory underline decoration-hairline underline-offset-4 transition-colors hover:decoration-orange"
         >
           comparison document
@@ -244,7 +242,7 @@ export default function Comparison() {
             . Hosted features and pricing change, so{" "}
             {doc("the linked pages are the authority for a buying decision")}.{" "}
             <a
-              href={`${DOCS}/comparison.md`}
+              href="/reference/comparison"
               className="font-mono text-orange transition-colors hover:text-ivory"
             >
               Full comparison, with sources →

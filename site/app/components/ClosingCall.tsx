@@ -1,4 +1,3 @@
-import { GITHUB } from "../links";
 import Mark from "./Mark";
 
 /** The closing ask routes the reader to the integration that matches the host. */
@@ -29,7 +28,7 @@ export default function ClosingCall() {
               Choose an integration
             </a>
             <a
-              href={`${GITHUB}/tree/main/docs`}
+              href="/docs"
               className="rounded-lg border border-hairline px-5 py-2.5 text-sm font-medium text-ivory transition-colors hover:border-orange/60"
             >
               Read the docs

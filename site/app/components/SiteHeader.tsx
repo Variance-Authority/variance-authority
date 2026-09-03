@@ -6,7 +6,7 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-hairline/70 bg-deep/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <a href="#" className="flex items-center gap-3">
+        <a href="/" className="flex items-center gap-3">
           <Mark />
           <span className="text-sm font-medium tracking-[0.22em] text-ivory">
             VARIANCE&nbsp;AUTHORITY
@@ -14,37 +14,37 @@ export default function SiteHeader() {
         </a>
         <nav className="flex items-center gap-6 text-sm text-quiet">
           <a
-            href="#evidence"
+            href="/#evidence"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
             Evidence
           </a>
           <a
-            href="#review"
+            href="/#review"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
             Review
           </a>
           <a
-            href="#selection"
+            href="/#selection"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
             Selection
           </a>
           <a
-            href="#fit"
+            href="/#fit"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
             Fit
           </a>
           <a
-            href="#integrate"
+            href="/#integrate"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
             Integrate
           </a>
           <a
-            href={`${GITHUB}/tree/main/docs`}
+            href="/docs"
             className="hidden transition-colors hover:text-ivory sm:inline"
           >
             Docs

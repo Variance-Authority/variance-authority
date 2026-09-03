@@ -1,5 +1,3 @@
-import { DOCS } from "../links";
-
 const GOOD_FIT = [
   "Your UI already runs in Playwright, Storybook, served routes, or jsdom.",
   "You want a changed region to resolve to a component and a file:line, not just to the DOM node that painted it.",
@@ -81,7 +79,7 @@ export default function OperatingBargain() {
           </div>
         </div>
         <a
-          href={`${DOCS}/comparison.md`}
+          href="/reference/comparison"
           className="mt-5 inline-block font-mono text-xs text-orange transition-colors hover:text-ivory"
         >
           Compare the operating models →
