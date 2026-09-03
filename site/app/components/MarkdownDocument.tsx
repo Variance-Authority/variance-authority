@@ -110,7 +110,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
 }
 
 const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
-  README: "/",
+  README: "/docs",
   agents: "/agents",
   "agent-live-run": "/agents/live-run",
   "agent-mcp": "/agents/mcp",

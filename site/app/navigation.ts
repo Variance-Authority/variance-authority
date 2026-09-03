@@ -14,7 +14,7 @@ export interface NavigationSection {
 export const NAVIGATION = [
   {
     label: "Overview",
-    items: [{ href: "/", label: "Start with the decision" }],
+    items: [{ href: "/docs", label: "Documentation overview" }],
   },
   {
     label: "Get started",

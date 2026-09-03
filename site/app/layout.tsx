@@ -30,7 +30,7 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Variance Authority",
+        alt: ROOT_TITLE,
       },
     ],
   },
@@ -69,6 +69,11 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        {/* Sections are authored hidden and revealed by an observer. Without
+            script there is nothing to reveal them, so undo it. */}
+        <noscript>
+          <style>{".reveal{opacity:1;transform:none}"}</style>
+        </noscript>
       </head>
       <body>{children}</body>
     </html>

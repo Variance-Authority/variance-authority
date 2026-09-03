@@ -70,6 +70,147 @@ html {
   border-radius: 6px;
 }
 
+/* Sections arrive rather than being already there. Authored as hidden and
+   revealed by script, so `is-in` is the only thing the observer sets — the
+   <noscript> override in layout.tsx keeps the page readable without JS. */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.75s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.75s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* The faint node grid behind the hero — geometry, not decoration. */
+.dot-grid {
+  background-image: radial-gradient(#383e41 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(
+    ellipse 90% 70% at 50% 0%,
+    black 30%,
+    transparent 75%
+  );
+}
+
+@keyframes caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  95% {
+    opacity: 0;
+  }
+}
+
+.caret {
+  animation: caret 1.1s steps(1) infinite;
+}
+
+/* --- The hero's timelines ------------------------------------------------ */
+
+/* Each path draws itself in, then holds. `pathLength` is normalised to 1 by
+   the dash values below, so one rule covers curves of any real length. */
+@keyframes tl-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+.tl-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: tl-draw 2.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes tl-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px rgba(255, 74, 25, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(255, 74, 25, 0.85));
+  }
+}
+
+.tl-glow {
+  animation:
+    tl-draw 2.6s cubic-bezier(0.4, 0, 0.2, 1) both,
+    tl-glow 3.4s ease-in-out 2.6s infinite;
+}
+
+@keyframes tl-pulse {
+  0%,
+  100% {
+    r: 4;
+    opacity: 1;
+  }
+  50% {
+    r: 5.5;
+    opacity: 0.7;
+  }
+}
+
+.tl-pulse {
+  animation: tl-pulse 2.2s ease-in-out infinite;
+}
+
+/* The junction announces itself once per cycle and fades — a reading, not a siren. */
+@keyframes tl-ring {
+  0% {
+    r: 4;
+    opacity: 0.9;
+    stroke-width: 2;
+  }
+  100% {
+    r: 26;
+    opacity: 0;
+    stroke-width: 0.5;
+  }
+}
+
+.tl-ring {
+  animation: tl-ring 3.2s ease-out infinite;
+}
+
+@keyframes tl-blink {
+  0%,
+  88%,
+  100% {
+    opacity: 0.35;
+  }
+  92% {
+    opacity: 1;
+  }
+}
+
+.tl-blink {
+  animation: tl-blink 4s steps(1, end) infinite;
+}
+
+@keyframes tl-scan {
+  from {
+    transform: translateX(-140px);
+  }
+  to {
+    transform: translateX(820px);
+  }
+}
+
+.tl-scan {
+  animation: tl-scan 7s linear infinite;
+}
+
 /* The documentation is a reading surface: navigation stays put while the
    article owns the scroll. Columns collapse before the prose gets narrow. */
 .docs-grid {
@@ -474,8 +615,30 @@ html {
     scroll-behavior: auto;
   }
 
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .caret,
   .rise,
-  .vr-blink {
+  .vr-blink,
+  .tl-glow,
+  .tl-pulse,
+  .tl-ring,
+  .tl-blink,
+  .tl-scan {
     animation: none;
+  }
+
+  /* Still drawn — just already finished. */
+  .tl-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .tl-scan {
+    opacity: 0;
   }
 }

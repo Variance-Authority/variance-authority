@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 export const SITE =
   process.env.SITE_URL ?? "https://variance-authority.dev";
 export const SITE_NAME = "Variance Authority";
-export const ROOT_TITLE = "Variance Authority documentation";
+export const ROOT_TITLE = "Variance Authority — Many screenshots. One review decision.";
 export const ROOT_DESCRIPTION =
-  "Documentation for composing visual, semantic, runtime, and source evidence into bounded review decisions.";
+  "Causal visual review: pixel, document, accessibility, React, and source evidence connected per change, repeated effects grouped into one bounded decision, inside infrastructure you control.";
 
 /** Metadata for a page in the public reading order. */
 export function pageMetadata(

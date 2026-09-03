@@ -1,73 +1,57 @@
 import { GITHUB } from "../links";
 import Mark from "./Mark";
 
-const PRIMARY = [
-  { href: "/", label: "Overview" },
-  { href: "/start", label: "Get started" },
-  { href: "/docs/surface", label: "Learn" },
-  { href: "/agents", label: "Agents" },
-  { href: "/docs/architecture", label: "Reference" },
-] as const;
-
-const REFERENCE_DOCS = [
-  "/docs/architecture",
-  "/docs/eyes",
-  "/docs/information",
-  "/docs/instruments",
-  "/docs/metrics",
-] as const;
-
-function sectionIsActive(current: string | undefined, href: string): boolean {
-  if (!current) return false;
-  return (
-    current === href ||
-    (href === "/docs/surface" &&
-      current.startsWith("/docs/") &&
-      !REFERENCE_DOCS.some((path) => path === current)) ||
-    (href === "/agents" && current.startsWith("/agents/")) ||
-    (href === "/start" && current.startsWith("/start/")) ||
-    (href === "/docs/architecture" &&
-      (current.startsWith("/reference/") ||
-        REFERENCE_DOCS.some((path) => path === current)))
-  );
-}
-
-/** The global wayfinding remains useful from both the overview and docs. */
-export default function SiteHeader({ current }: { current?: string }) {
+/** Sticky, on its own translucent ground so the page runs under it. */
+export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-hairline/70 bg-deep/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[94rem] items-center justify-between gap-5 px-5 py-3 sm:px-6">
-        <a href="/" className="flex min-w-0 items-center gap-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <a href="#" className="flex items-center gap-3">
           <Mark />
-          <span className="hidden text-sm font-medium tracking-[0.22em] text-ivory sm:inline">
+          <span className="text-sm font-medium tracking-[0.22em] text-ivory">
             VARIANCE&nbsp;AUTHORITY
           </span>
         </a>
-        <nav aria-label="Primary" className="flex items-center gap-2 text-sm text-quiet sm:gap-4">
-          {PRIMARY.map((item) => {
-            const active = sectionIsActive(current, item.href);
-            return (
-              <a
-                key={item.href}
-                href={item.href}
-                aria-current={current === item.href ? "page" : undefined}
-                className={`hidden rounded-md px-1.5 py-2 transition-colors hover:text-ivory md:inline ${
-                  active ? "text-ivory" : ""
-                }`}
-              >
-                {item.label}
-              </a>
-            );
-          })}
+        <nav className="flex items-center gap-6 text-sm text-quiet">
           <a
-            href="/"
-            className="rounded-md px-2 py-2 text-quiet transition-colors hover:text-ivory md:hidden"
+            href="#evidence"
+            className="hidden transition-colors hover:text-ivory sm:inline"
+          >
+            Evidence
+          </a>
+          <a
+            href="#review"
+            className="hidden transition-colors hover:text-ivory sm:inline"
+          >
+            Review
+          </a>
+          <a
+            href="#selection"
+            className="hidden transition-colors hover:text-ivory sm:inline"
+          >
+            Selection
+          </a>
+          <a
+            href="#fit"
+            className="hidden transition-colors hover:text-ivory sm:inline"
+          >
+            Fit
+          </a>
+          <a
+            href="#integrate"
+            className="hidden transition-colors hover:text-ivory sm:inline"
+          >
+            Integrate
+          </a>
+          <a
+            href={`${GITHUB}/tree/main/docs`}
+            className="hidden transition-colors hover:text-ivory sm:inline"
           >
             Docs
           </a>
           <a
             href={GITHUB}
-            className="rounded-lg border border-hairline px-3 py-2 text-ivory transition-colors hover:border-orange/60"
+            className="rounded-lg border border-hairline px-3 py-1.5 text-ivory transition-colors hover:border-orange/60"
           >
             GitHub
           </a>

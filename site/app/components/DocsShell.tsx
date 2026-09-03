@@ -4,8 +4,8 @@ import {
   navigationItem,
   navigationNeighbors,
 } from "../navigation";
-import SiteFooter from "./SiteFooter";
-import SiteHeader from "./SiteHeader";
+import DocsFooter from "./DocsFooter";
+import DocsHeader from "./DocsHeader";
 
 export interface TableOfContentsItem {
   readonly id: string;
@@ -100,7 +100,7 @@ export default function DocsShell({
       >
         Skip to content
       </a>
-      <SiteHeader current={current} />
+      <DocsHeader current={current} />
 
       <details className="docs-mobile-navigation sticky top-[3.25rem] z-40 border-b border-hairline bg-deep/95 px-5 py-3 backdrop-blur-md lg:hidden">
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-sm text-ivory">
@@ -135,15 +135,15 @@ export default function DocsShell({
         <main id="main-content" className="min-w-0 py-10 sm:py-14 lg:py-16">
           <nav aria-label="Breadcrumb" className="mb-8">
             <ol className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-quiet">
-              {current === "/" ? (
+              {current === "/docs" ? (
                 <li aria-current="page" className="text-quiet">
-                  Overview
+                  Documentation
                 </li>
               ) : (
                 <>
                   <li>
-                    <a href="/" className="transition-colors hover:text-ivory">
-                      Overview
+                    <a href="/docs" className="transition-colors hover:text-ivory">
+                      Docs
                     </a>
                   </li>
                   <li aria-hidden="true">/</li>
@@ -233,7 +233,7 @@ export default function DocsShell({
         ) : null}
       </div>
 
-      <SiteFooter />
+      <DocsFooter />
     </div>
   );
 }
