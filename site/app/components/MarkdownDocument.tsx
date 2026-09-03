@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import rehypeRaw from "rehype-raw";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { GITHUB } from "../links";
+import MermaidDiagram from "./MermaidDiagram";
 
 function textOf(value: ReactNode): string {
   if (typeof value === "string" || typeof value === "number") {
@@ -93,6 +94,21 @@ function siteLinkLabel(href: string, children: ReactNode): ReactNode {
   return children;
 }
 
+function CodeBlock({ children }: { children: ReactNode }) {
+  if (
+    isValidElement<{ className?: string; children?: ReactNode }>(children) &&
+    children.props.className === "language-mermaid"
+  ) {
+    return (
+      <MermaidDiagram
+        source={textOf(children.props.children).replace(/\n$/, "")}
+      />
+    );
+  }
+
+  return <pre tabIndex={0}>{children}</pre>;
+}
+
 const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
   README: "/",
   agents: "/agents",
@@ -174,7 +190,7 @@ export default function MarkdownDocument({
               <table>{children}</table>
             </div>
           ),
-          pre: ({ children }) => <pre tabIndex={0}>{children}</pre>,
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
         }}
       >
         {body}

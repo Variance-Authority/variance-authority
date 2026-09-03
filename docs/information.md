@@ -32,7 +32,9 @@ not caches: losing them changes what later runs can know.
 ## From execution to persisted results
 
 ```mermaid
-flowchart LR
+flowchart TD
+  accTitle: Variance Authority information exchange and retention
+  accDescr: Project, source, and SUT inputs become independently retained reports, evidence, references, histories, and reusable caches.
   Config["project definition"] --> Plan["subject and test plan"]
   Checkout["source checkout"] --> Scan["source scan"]
   Scan --> SourceStore["versioned binary source index"]

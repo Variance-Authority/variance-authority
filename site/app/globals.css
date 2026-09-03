@@ -344,6 +344,78 @@ html {
   margin-bottom: 0;
 }
 
+.mermaid-diagram {
+  margin-block: 1.5rem 2rem;
+}
+
+.mermaid-canvas {
+  overflow-x: auto;
+  border: 1px solid #383e41;
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(circle at top left, rgba(255, 74, 25, 0.055), transparent 28rem),
+    #15181a;
+  padding: 1.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: #383e41 transparent;
+}
+
+.mermaid-canvas > div {
+  width: max-content;
+  min-width: 100%;
+}
+
+.mermaid-canvas svg {
+  display: block;
+  max-width: none;
+  height: auto;
+  margin-inline: auto;
+}
+
+.mermaid-canvas.is-fit > div {
+  width: 100%;
+  min-width: 0;
+}
+
+.mermaid-canvas.is-fit svg {
+  width: 100%;
+  max-width: 100%;
+}
+
+.mermaid-canvas p {
+  margin: 0;
+  color: #8f8580;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.docs-content .mermaid-source {
+  margin-top: 0.75rem;
+  background: transparent;
+}
+
+.mermaid-size-control {
+  margin-top: 0.65rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #ff7651;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.mermaid-size-control:hover {
+  color: #ff9a7e;
+}
+
+.docs-content .mermaid-source pre {
+  margin-bottom: 0;
+}
+
 @media (max-width: 639px) {
   .doc-link-grid {
     grid-template-columns: 1fr;
