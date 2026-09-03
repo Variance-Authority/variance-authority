@@ -15,7 +15,7 @@ export default function Hero() {
       </div>
       <div className="rise relative">
         <p className="mb-6 font-mono text-xs uppercase tracking-[0.18em] text-orange">
-          cause-first visual review
+          composable evidence tools
         </p>
         <h1 className="max-w-4xl text-4xl font-bold leading-[1.06] tracking-tight text-ivory sm:text-6xl lg:text-[4.25rem]">
           <span className="block">Many screenshots.</span>
@@ -29,11 +29,13 @@ export default function Hero() {
       <div className="mt-10 grid items-start gap-10 lg:mt-12 lg:grid-cols-[1fr_1.06fr] lg:gap-12 [&>*]:min-w-0">
         <div className="rise" style={{ animationDelay: "0.1s" }}>
           <p className="leading-7 text-quiet sm:text-lg sm:leading-8">
-            Variance Authority connects a changed pixel to the document and
-            accessibility evidence behind it, to the React component that owns
-            it and the inputs that moved, and to the source that rendered it.
-            States that changed the same way are reviewed as one decision. A
-            state with extra or missing evidence stays open.
+            Variance Authority is a set of composable evidence tools for
+            software that changes. Visual review is one composition: it connects
+            a changed pixel to the document and accessibility evidence behind
+            it, to the React component that owns it and the inputs that moved,
+            and to the source that rendered it. States that changed the same way
+            are reviewed as one decision. A state with extra or missing evidence
+            stays open.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
