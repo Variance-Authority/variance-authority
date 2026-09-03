@@ -241,28 +241,19 @@ their own edges are unknown, and a breadth-first trail per node — so a report 
 say *why* a subject was included, one hop at a time, rather than asserting that it
 was
 ([ADR-0039](context/adr/0039-the-digest-is-the-proof-the-trail-is-the-explanation.md)).
-Above that sits a Merkle closure: one digest per node covering everything it
-rests on, with cycles condensed so a strongly-connected component hashes as a
-unit, and anything downstream of an unknown marked volatile rather than digested.
-**Selection does not use it.** `closureOf` and `driftedBetween` are complete and
-tested and their callers are their own tests — a closure digest is only a fact
-against an earlier one, and nothing writes one down. So `--since` resolves to a
-git diff and inherits every way a shallow clone, a rebase or a wrong ref can
-shape one; the closure is what would replace that, and it is
-[spec 0026](specs/0026-selection-by-closure-digest.md)'s to finish.
 
 ## The transform that records the path
 
-The graph answers what a change could reach. It cannot answer what a run *took* —
-rendering is a series of choices, and a file graph sees both sides of every fork.
+The graph answers what a change could reach. Execution selection records what a
+test or driven subject actually entered, because a file graph sees both sides of
+every fork.
 
-`@variance-authority/sense/instrument` is the other half's foundation: a pure
-function of a string, `instrument(source, id)`, which parses, decides where the
-execution boundaries are, and splices a recording call in front of each one. No
-disk, no runner, no index, so it is testable against a fixture — and **no
-command instruments anything.** There is no flag, no config key, and nothing
-that reads `globalThis.__VA__` back. It is not a test-selection result: that needs a run
-over source and tests, followed by selection against a diff.
+`@variance-authority/sense/instrument` supplies the pure transform:
+`instrument(source, id)` parses source, chooses execution boundaries, and
+splices a recording call in front of each one. The Vitest adapter applies that
+transform and records crossings at test-file granularity. A Vite-compatible
+application build uses `testSelectionProbes()`; Storybook and Playwright
+recording drain its page journal and persist the crossings for selection.
 
 Two properties make the emitted code explicit about its runtime:
 
@@ -278,14 +269,11 @@ A source it cannot parse returns nothing rather than throwing, because a file
 whose blocks are unknown is *not instrumented*, never *not executed*
 ([ADR-0008](context/adr/0008-per-profile-expectations.md)).
 
-The transform alone does not select tests. Test selection needs two operations:
-an instrumented run over source and tests that produces coverage data, then a
-diff joined to that coverage data that produces tests to execute. The runner,
-coverage index, and diff-to-block mapping are specified in
-[spec 0027](specs/0027-a-test-is-selected-by-what-it-executed.md),
-[spec 0028](specs/0028-the-instrument.md),
-[spec 0029](specs/0029-what-a-run-remembers.md), and
-[spec 0030](specs/0030-a-diff-lands-on-blocks.md).
+The transform alone does not select tests. The runner records crossings first;
+`selectTestFiles` then joins the persisted coverage data to a diff and returns the
+test files whose recorded regions intersect it. Missing or indeterminate
+coverage widens selection instead of turning absence into no reach. See
+[`selecting.md`](selecting.md) for the decision boundary.
 
 ## What this refuses to conclude
 

@@ -395,45 +395,45 @@ describe('the documented vocabulary is the real one', () => {
   });
 });
 
-/**
- * Package registry links land on the adopter chooser, not on repository
- * decomposition. The complete fleet belongs to the architecture inventory
- * checked above; the site names the four supported ways to start.
- */
+/** Package registries keep reference ownership; the start guide links outward. */
 describe('the site routes package visitors to adopter integrations', () => {
-  const INTEGRATION = readFileSync(join(ROOT, 'site/app/components/Integration.tsx'), 'utf8');
+  const GUIDE = readFileSync(join(ROOT, 'docs/start.md'), 'utf8');
   const STARTS = [
+    '@variance-authority/observe',
     '@variance-authority/playwright-test',
-    '@variance-authority/storybook-collector',
     '@variance-authority/route-collector',
+    '@variance-authority/storybook-collector',
     '@variance-authority/unit-test',
   ];
 
   it.each(STARTS)('names the %s start', (name) => {
-    expect(INTEGRATION).toContain(name);
+    expect(GUIDE).toContain(name);
   });
 
-  it('points a package visitor at the complete inventory', () => {
-    expect(INTEGRATION).toContain('architecture.md');
+  const manifests = execFileSync('git', ['ls-files', ':(glob)packages/*/package.json'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
+
+  it.each(manifests)('%s links to its reference', (path) => {
+    const manifest = JSON.parse(readFileSync(join(ROOT, path), 'utf8')) as { homepage?: string };
+    expect(manifest.homepage).toBe(`https://variance-authority.dev/reference/packages/${path.split('/')[1]}`);
   });
 
-  it('renders the chooser at both the page and the published package anchor', () => {
-    const page = readFileSync(join(ROOT, 'site/app/page.tsx'), 'utf8');
-    expect(page).toContain('<Integration />');
-    expect(INTEGRATION).toContain('id="integrate"');
-    expect(INTEGRATION).toContain('id="packages"');
+  it('renders the canonical first-observation guide', () => {
+    const page = readFileSync(join(ROOT, 'site/app/start/page.tsx'), 'utf8');
+    expect(page).toContain('productDocument("start")');
+    expect(page).toContain('<MarkdownDocument');
   });
 });
 
 /**
- * The landing page's competitor table quotes the compared document.
+ * The routed comparison page's competitor table quotes the compared document.
  *
  * `docs/comparison.md` is the repository's one carefully sourced statement about
  * Percy, Chromatic, Argos, and Applitools — every vendor fact in it links the
  * vendor's own published page, and its second section states what each does
- * better than this project. The site does not get a second opinion: every cell
- * the table marks with `doc()` must be a verbatim fragment of that document,
- * so the page can claim fairness as a checked property rather than a tone.
+ * better than this project. The routed documentation does not get a second
+ * opinion: every cell the table marks with `doc()` must be a verbatim fragment
+ * of that document, so the page can claim fairness as a checked property rather
+ * than a tone.
  * Matching is case-insensitive and ignores line wrap, backticks, and curly
  * quotes, because those are formatting; the words are the claim.
  */
@@ -466,8 +466,8 @@ describe('the comparison table quotes the compared document', () => {
     expect(COMPARED).toContain(flatten(claim));
   });
 
-  it('is rendered on the page', () => {
-    const page = readFileSync(join(ROOT, 'site/app/page.tsx'), 'utf8');
+  it('is rendered on the comparison page', () => {
+    const page = readFileSync(join(ROOT, 'site/app/reference/comparison/page.tsx'), 'utf8');
     expect(page).toContain('<Comparison />');
   });
 });

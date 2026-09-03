@@ -1,5 +1,3 @@
-import { DOCS } from "../links";
-
 /**
  * The competitor table, with a gate instead of a promise.
  *
@@ -35,7 +33,6 @@ const ROWS = [
         text: doc(
           "Self-hosted tribunal — builds, docket, region overlays, recorded decisions",
         ),
-        mark: "beta",
       },
     ],
   },
@@ -125,17 +122,18 @@ export default function Comparison() {
   return (
     <div>
       <p className="font-mono text-[10px] tracking-[0.16em] text-orange uppercase">
-        the field, as this repository states it
+        choose by operating boundary
       </p>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-quiet">
-        Every vendor cell is quoted from the{" "}
+        Start with where pixels are made, who owns review, and who operates the
+        system. The{" "}
         <a
-          href={`${DOCS}/comparison.md`}
+          href="#1-the-dimensions-a-buyer-actually-decides-on"
           className="text-ivory underline decoration-hairline underline-offset-4 transition-colors hover:decoration-orange"
         >
-          comparison document
+          detailed comparison
         </a>
-        , which links to each vendor&apos;s own published pages.
+        {" "}links each commercial claim to the vendor&apos;s published material.
       </p>
 
       <div className="mt-6 overflow-x-auto rounded-2xl border border-hairline bg-panel">
@@ -180,12 +178,7 @@ export default function Comparison() {
                     {typeof cell === "string" ? (
                       cell
                     ) : (
-                      <>
-                        {cell.text}{" "}
-                        <span className="ml-1 rounded border border-orange/40 px-1.5 py-0.5 align-middle font-mono text-[9px] tracking-[0.12em] text-orange uppercase">
-                          {cell.mark}
-                        </span>
-                      </>
+                      cell.text
                     )}
                   </td>
                 ))}
@@ -221,11 +214,15 @@ export default function Comparison() {
             )}
             . {doc("TurboSnap reads the static module graph")}.{" "}
             {doc(
-              "Wallaby.js holds the execution-side index, and takes it further than this project does",
+              "Wallaby.js holds the execution-side index, and takes it further than Variance Authority",
             )}
-            . {doc("This project does not build that viewer")}.{" "}
+            .{" "}
             {doc(
-              "It ships the index underneath it. Give coveringTests a source line or function and it returns the individual tests that executed it, nearest call stack first",
+              "Variance Authority exposes the underlying index through coveringTests, not a time-travel viewer",
+            )}
+            .{" "}
+            {doc(
+              "Given a source line or function, it returns the individual tests that executed it, nearest call stack first, from an execution index supplied by any collector",
             )}
             .{" "}
             {doc(
@@ -240,11 +237,12 @@ export default function Comparison() {
             sources
           </dt>
           <dd className="text-xs leading-5 text-quiet">
-            Vendor facts {doc("come from the vendors' published documentation")}
-            . Hosted features and pricing change, so{" "}
-            {doc("the linked pages are the authority for a buying decision")}.{" "}
+            {doc("Vendor documentation is authoritative for vendor behaviour")}
+            .{" "}
+            {doc("Verify pricing and hosted-service features there before buying")}
+            .{" "}
             <a
-              href={`${DOCS}/comparison.md`}
+              href="#1-the-dimensions-a-buyer-actually-decides-on"
               className="font-mono text-orange transition-colors hover:text-ivory"
             >
               Full comparison, with sources →

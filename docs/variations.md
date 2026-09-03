@@ -181,16 +181,16 @@ flag list. This tool cannot produce a variation and does not try to name one; it
 compares two subjects because somebody said they were related. An axis nobody
 here thought of needs nothing from this project.
 
-**It does not sense an undeclared arm.** A subject whose page decides its own
-arm — a percentage rollout drawing per browser context — is not a variation, it
-is an uncovered render input, and it still arrives as an unstable component with
-a `file:line` in code nobody edited. That is
-[spec 0032](specs/0032-a-render-nobody-committed.md), and it is unbuilt.
+**It does not infer an undeclared arm.** A subject whose page chooses its own
+arm — a percentage rollout drawing per browser context — still has one subject
+id. If two readings land in different arms, ordinary stability analysis reports
+the subject as unstable; it does not invent a variation relationship. To compare
+the arms as variations, the collector plans each as a separate subject and the
+name grammar or a `variance-parent:` tag links them.
 
 **It does not compare two subjects on request.** The pair has to be declared
-before the run, by whoever writes the subjects. *What is different between
-`Button` and `IconButton`*, asked afterwards, is
-[spec 0033](specs/0033-two-sides-a-person-chose.md).
+before the run, by whoever writes the subjects. An ad hoc comparison requested
+after the run is outside this surface.
 
 ## Reading it
 

@@ -179,34 +179,16 @@ Inventory by material and host:
 This metric is not ranked to be won. It is complete when every unsupported
 conclusion is visible at the decision boundary.
 
-## What has been taken
-
-The nine above are definitions. This is the standing of each one; two are
-taken, six are partial, and one has no reading at all.
-
-| | Standing | Where |
-| --- | --- | --- |
-| M1 | **partial** — one incumbent, eight scenarios, no strata | [`cases/incumbent-case`](../cases/incumbent-case) — 6 hit, 1 false alarm, 1 deferral against the incumbent's 3 hit, 3 miss. Top-1 against a declared changed-file set on an independent corpus is not taken |
-| M2 | **partial** — the root count is asserted, the review saving is not | `examples/kitchen-sink/src/measure.test.tsx` — 18 scorable cases, each declared in advance to present exactly **one docket root**, so a false merge and a false split both fail. What is not reported is the compression: nothing counts the changed subjects and isolated regions those 18 roots stand in for |
-| M3 | **partial** — two ratios, no per-tier split | `examples/kitchen-sink` bench (warm against cold capture) and `packages/dom/src/style-index.test.ts` (shared index against per-subject). Acquisition, decision, render, compare and report are not separately timed on any run |
-| M4a | **partial** — synthetic, one machine | `packages/playwright/src/engines.chromium.test.ts` partitions by engine; the pixel arm reports a strict-policy noise floor of 91 px on unchanged stories. Scale, font declaration and capture order are handled by the identity rather than measured against it |
-| M4b | **taken** | `examples/todomvc`'s pixel arm — three blind-spot probes, of which the canvas repaint is a scored miss and the other two are caught. Unobservable is reported as unobservable, not as a pass |
-| M5 | **partial** — two processes, one machine | `examples/todomvc/src/offload.chromium.test.tsx` — the same closed document paints identically in-process and across a socket. Two machines have never been compared |
-| M6 | **partial** — integration weight only | Four offerings in [`cases/`](../cases): Storybook is 2 new files and ~24 operator lines, unit capture 1 new file and ~17, additive Playwright 0 new files and ~18 lines inside an existing spec. Wall-clock to first verdict from a clean repository is not measured for any of them |
-| M7 | **partial** — the blame is asserted, the null model is not | `examples/kitchen-sink/src/measure.test.tsx` — the same 18 cases each declare **which component** the report must blame, which is what caught a `prop` root attributing to the component the pixels moved in rather than the one that passed the prop. Nothing compares the ranking against "largest region first", which is the null model this metric exists to beat |
-| M8 | **not taken** | Every part is built and tested; no sequence of approved changes has been observed end to end ([`history.md`](history.md)) |
-| M9 | **taken, and never finished** | [`gates.md`](gates.md), the table in M9 above, and the pixel arm's blind-spot probes. This is the metric that is complete only while it is being maintained |
-
-**One machine, one Chromium, one corpus written by the implementers.** That
-bound sits under every row above and is not repeated in each of them; see
-[`instruments.md`](instruments.md#what-none-of-this-establishes).
-
 ## Reading the set
 
 No single score represents the product. M1, M2, and M7 measure reviewer signal;
 M3 and M6 measure adoption/operation cost; M4 and M5 measure correctness; M8
 measures longitudinal value; M9 prevents the other numbers from claiming more
 than their evidence.
+
+Every reading states its corpus, host, profile, sample size, denominator,
+strata, and comparison method. Its conclusion is bounded to those conditions;
+transfer to another corpus or host requires another reading.
 
 The useful result is a table with all denominators and strata present. A missing
 metric remains missing; it does not inherit the result of the nearest proxy.

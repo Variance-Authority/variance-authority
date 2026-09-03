@@ -179,12 +179,10 @@ Two consequences worth stating, because they are the ones that get argued about:
 
 - **A package may be small.** Splitting by requirement produces small boxes, and
   a small box with one requirement is better than a large one with four.
-- **The rule is enforced, not documented.** `tools/boundaries.check.ts` fails when
-  an import is undeclared, a declaration is unused, a name shares a word with one
-  of the outside libraries the package depends on and nobody has written down
-  which of the two it is, adopter-facing code reaches through one package of this
-  scope to import another, the production graph gains a cycle, or an advertised
-  entrypoint does not resolve.
+- **Package boundaries are structural.** Each package declares exactly the
+  external requirements it uses, names its responsibility rather than an outside
+  library, exposes resolvable entrypoints, and keeps the adopter-facing production
+  graph acyclic without cross-package reach-through.
 
 ## What this forecloses
 

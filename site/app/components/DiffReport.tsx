@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 
 /**
- * The HTML report's subject viewer, at the size a landing page has for it.
+ * The HTML report's subject viewer, at the size a documentation figure has.
  * Three pictures side by side is where every self-hosted report stops, and it
  * is the point at which a four-pixel shift becomes invisible — so the page is
  * the comparison rather than an arrangement of it, and `regions` leads,

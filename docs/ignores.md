@@ -4,14 +4,14 @@ Some of what a page renders is not the subject. A clock, a carousel, an embed
 somebody else controls — they move on every run, and no amount of correctness
 elsewhere makes a suite usable while they do.
 
-This page is how you say so, and — more importantly — what the run says back.
+An ignore declares that boundary, and every run accounts for what the
+declaration absorbs.
 
 ## An ignore is not a tolerance
 
-This project has no difference tolerance. Not as an oversight: a tolerance is an
+Variance Authority applies no global difference tolerance. A tolerance is an
 anonymous number, chosen by whoever wrote the default, that hides anything small
-enough to fit under it. Nobody can tell you what a given run's tolerance
-absorbed, because nothing recorded it.
+enough to fit under it. Nothing records what a given run's tolerance absorbs.
 
 There *is* a per-pixel colour threshold — `DiffPolicy.threshold`, `pixelmatch`'s
 YIQ distance — and it is the one number that decides whether two pixel values
@@ -23,7 +23,7 @@ way to lie with a pixel measurement, which is why neither is quoted alone.
 
 An ignore is the opposite in every respect that matters.
 
-| | a tolerance | an ignore here |
+| | a tolerance | a Variance Authority ignore |
 |---|---|---|
 | Scope | the whole image | one named place, or one difference shape |
 | Author | whoever chose the default | you, in your config, by name |
@@ -32,11 +32,10 @@ An ignore is the opposite in every respect that matters.
 | When it stops | never | the run it absorbs nothing, it is reported |
 | Verdict it produces | `unchanged` | `ignored`, which is a different word |
 
-The last two rows are what make ignores safe to have. A mask that outlived its
-flake is a hole in your suite that nobody can see, so every run tells you which
-of your rules caught nothing — and a subject that went green because you declined
-to look at it never reports the same word as a subject that genuinely did not
-change.
+Dead-rule accounting exposes a mask that outlives its flake. Every run names the
+rules that caught nothing, and a subject that went green because you declined to
+look at it reports `ignored`, never the `unchanged` used for a subject that
+genuinely did not change.
 
 ## Two ways to name what is not the subject
 
@@ -75,9 +74,9 @@ differ. The declaration is the same either way, which is the point of resolving 
 once on the snapshot.
 
 There is no coordinate form. A rectangle stops covering the thing it was drawn
-around the first time the layout moves, and the case that would justify one — an
-imported PNG with no document behind it — is [not something this project
-accepts](../README.md#scope-and-non-goals).
+around the first time the layout moves. Existing rasters enter through the
+library seam, not the CLI configuration path, and carry no document element for
+a selector to follow ([`comparison.md`](comparison.md)).
 
 ### By shape — a fingerprint
 
@@ -132,9 +131,8 @@ Place. The element is stable even though its text is not.
 { "id": "clock", "reason": "wall time", "select": "time[datetime]" }
 ```
 
-The difference between this and a pixel tool's coordinate mask is what happens
-when the header gets taller: here the exclusion follows the element, because it
-*is* the element.
+The difference from a pixel tool's coordinate mask appears when the header gets
+taller: the selector exclusion follows the element because it *is* the element.
 
 ### A carousel, a marquee, or anything that animates
 
@@ -282,13 +280,12 @@ it is recorded under; a bare attribute with no value is recorded under `marked`.
 This is honoured whether or not you have an `ignore` block, and it never enters a
 hash — adding the attribute to a component does not re-baseline every subject
 that renders it. What it does not get is a `reason`, an expiry, or a line in the
-per-rule ledger below, because none of those live in markup. Prefer the config
-for anything you intend to keep.
+per-rule ledger, because none of those live in markup. Prefer the config for
+anything you intend to keep.
 
 ## What the run tells you back
 
-Every run prints a ledger. It is the reason ignores are safe to have here, and
-it is worth reading even when everything is green.
+Every run prints an ignore ledger, including when everything is green.
 
 ```
 IGNORED — 1284 pixel(s) absorbed by 3 rule(s); 12 subject(s) differed only there
@@ -311,8 +308,8 @@ Five states, and they need different actions:
 | `[unworn]` | the rule is scoped to tags no subject in this run carries | check the spelling against the run's vocabulary, which the line offers |
 | … `none of which was compared this run` | it found its element, and no subject carrying it reached a comparison | nothing yet — this run says nothing either way |
 
-The second and third are the ones a coordinate mask can never tell you, and they
-are the reason a masked suite rots.
+Coordinate masks cannot distinguish a rule whose target held steady from one
+whose target disappeared, which is why a masked suite rots silently.
 
 ## `ignored` is not `unchanged`
 
@@ -344,122 +341,18 @@ the two are never added by accident.
 
 ## Asserting on less, instead of ignoring more
 
-A route-level test and a component-level test want opposite things from the same
-machinery. A component's test asserts on everything: a colour token moved and
-that *is* the change. A route's test asserts the page still assembles — the nav
-is where it was, the sidebar did not collapse — and a design-system token landing
-in forty routes is noise it should never have been shown.
-
-That is not an ignore, and writing it as one would mean listing every element
-that might be restyled. It is a **sensitivity**: a declaration of which frequency
-bands a subject is asserted on at all.
-
-| level | asserts on | absorbs |
-|---|---|---|
-| `strict` | everything | nothing — the default, and how an exception is written back inside a relaxed group |
-| `layout` | `a11y`, `geometry` | `token`, `content`, `texture` |
-| `content` | `a11y`, `content` | `geometry`, `token`, `texture` |
-
-**This is not a threshold, and the difference is the whole point.** A threshold
-absorbs anything small enough; a band absorbs exactly one kind of thing however
-large it is. A route declared `layout` still reports a nav that moved by one
-pixel, and never reports a rebrand that repainted every surface on the page.
-
-`a11y` is in every level deliberately. A control that lost its accessible name
-repaints nothing and moves nothing, and a route test blind to it would be
-asserting on the shape of the page while ignoring the shape a screen reader sees.
-
-Everything an ignore owes, a sensitivity owes: an id, a required reason, a scope,
-and a count of what it absorbed — including the count of zero, which is how a
-route declared `layout` that nothing has ever restyled gets found.
-
-```
-SENSITIVITY — 38 subject(s) not asserted on in full, by 2 rule(s)
-  routes — asserts on layout; absorbed token difference(s) in 38 of 41 subject(s):
-    a route asserts the page assembles, not what it is painted
-  [dead] legacy-embed — asserts on content across 3 subject(s) and absorbed
-    nothing (a themed embed we do not control); nothing here needed relaxing
-```
-
-Three states, and the third is the one that matters six months later. A rule that
-absorbed something is working; a rule that reached subjects and absorbed nothing
-is `[dead]` — either a route nothing styles or a declaration nobody needed; a
-rule that matched no subject at all is `[unscoped]`, which is a typo rather than
-a policy that has outlived its cause. One word for the last two would send half
-of them to the wrong edit.
-
-### Declaring one
-
-```jsonc
-{
-  "sensitivity": [
-    {
-      "id": "routes",
-      "reason": "a route asserts the page assembles, not what it is painted",
-      "level": "layout",
-      "subjects": ["route/*"]
-    },
-    {
-      "id": "checkout-is-strict",
-      "reason": "the one page where a colour is the product",
-      "level": "strict",
-      "subjects": ["route/checkout"]
-    }
-  ]
-}
-```
-
-**The last matching rule wins**, which is the opposite of how `ignore` composes
-and is deliberate. Ignores accumulate — two rules absorb more than one. A
-sensitivity answers *how much of this subject is under test*, and two
-contradictory answers cannot both hold, so the broad rule goes first and the
-exception after it, read top to bottom the way the file is.
-
-A rule that names neither `subjects` nor `tags` is **refused**. A sensitivity
-that applies to everything is a run-wide setting, and this project does not have
-one.
-
-### How it decides, and what it costs
-
-A declaration is reachable from the library and from the binary, which are two
-different comparisons. `applySensitivity` folds over a pair of snapshots. `variance
-run` compares an image against a stored baseline — and reaches the same answer
-because [ADR-0027](context/adr/0027-a-baseline-carries-what-its-document-said.md)
-makes a baseline carry per-component hashes, split finely enough that each digest
-names a band:
-
-| digest | band |
-|---|---|
-| `semantics` — role, accessible name, ARIA state | `a11y` |
-| `text` | `content` |
-| `structure` — tags, aliases, attributes, child boundaries | `geometry` |
-| `geometry` — rects and computed layout output | `geometry` |
-| `style` — declared values and custom properties | `token` |
-
-So a run asks the two sidecars which bands disagree, and absorbs the subject when
-every one of them is a band this subject is not asserted on. Same vocabulary as
-the two-snapshot path, same `bandsOf` — the two agree by sharing the mapping
-rather than by inspection.
-
-**A relaxed subject is also a cheap one.** The decision is taken *before*
-isolation, so a route that a rebrand only repainted never pays to cluster its
-mask, attribute its regions or fingerprint them — the expensive half of a
-comparison. Forty routes in a token PR pay one hash comparison each instead of
-forty isolations.
-
-**A baseline carrying no hashes absorbs nothing**, and the subject is reported in
-full. A declaration that cannot be evaluated has not been satisfied.
-
-`texture` never appears. It is raster residue by definition and a document cannot
-carry it, so the one band this comparison is blind to is absent from the answer
-rather than silently absorbed.
+An ignore excludes a named place or difference shape. A
+[sensitivity](sensitivity.md) instead declares which frequency bands a subject
+asserts on, so a route can watch its assembly without treating every token
+repaint as a regression. Sensitivity has its own scope, precedence, and
+dead-rule accounting.
 
 ## Accepting a shape, instead of silencing it
 
 A recurring difference has two honest answers, and only one of them is an ignore.
 
 - **It is noise.** The subject moves and nothing about the product changed. That
-  is an ignore, and everything above applies.
+  is an ignore, with the same accounting, scope, and expiry contract.
 - **It is the new truth.** The change is real, you have read it, and it landed in
   forty screenshots. That is an *acceptance*, and silencing it would be a
   permanent blind spot bought to save forty clicks.
@@ -511,12 +404,3 @@ from a different run, and that is worth being told.
 | Chromatic's `.chromatic-ignore` / `data-chromatic="ignore"` | `data-variance-ignore="<rule id>"` |
 | A coordinate mask | a `select` rule; there is no coordinate form, [and why](#by-place--a-selector) |
 | A global pixel threshold | nothing. There is no equivalent, [on purpose](#an-ignore-is-not-a-tolerance) |
-
-## Where this is implemented
-
-`packages/core/src/judge/ignore.ts` holds the model and the register,
-`packages/core/src/judge/fingerprint.ts` both fingerprints,
-`packages/core/src/attribute/mask.ts` the pixel subtraction;
-`packages/dom/src/ignore.ts` resolves selectors against a live document, which is
-the only step that needs one. The rules it enforces are stated where they are
-enforced.

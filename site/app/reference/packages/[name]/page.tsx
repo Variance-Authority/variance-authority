@@ -1,0 +1,57 @@
+import { notFound } from "next/navigation";
+import DocsShell from "../../../components/DocsShell";
+import MarkdownDocument, {
+  documentDescription,
+  documentTitle,
+  documentToc,
+} from "../../../components/MarkdownDocument";
+import {
+  PACKAGE_DOCUMENTS,
+  packageDocument,
+} from "../../../content/package-docs";
+import { pageMetadata } from "../../../metadata";
+
+interface PageProps {
+  readonly params: Promise<{ name: string }>;
+}
+
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return PACKAGE_DOCUMENTS.map(({ name }) => ({ name }));
+}
+
+export async function generateMetadata({ params }: PageProps) {
+  const { name } = await params;
+  const document = packageDocument(name);
+  if (!document) return {};
+  return pageMetadata(
+    `/reference/packages/${name}`,
+    documentTitle(document.source),
+    documentDescription(document.source),
+  );
+}
+
+export default async function Page({ params }: PageProps) {
+  const { name } = await params;
+  const document = packageDocument(name);
+  if (!document) notFound();
+
+  const title = documentTitle(document.source);
+  const description = documentDescription(document.source);
+
+  return (
+    <DocsShell
+      current={`/reference/packages/${name}`}
+      eyebrow="Package reference"
+      title={title}
+      description={description}
+      toc={documentToc(document.source)}
+    >
+      <MarkdownDocument
+        source={document.source}
+        sourcePath={document.sourcePath}
+      />
+    </DocsShell>
+  );
+}

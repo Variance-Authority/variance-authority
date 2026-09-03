@@ -18,9 +18,9 @@ opening at all. The second names a cause. The rest is what fell out of it.
 
 The two readings need not be two revisions. Two arms of an experiment, two
 breakpoints, or **the same subject read twice** are all pairs, and the last one
-is why this page belongs beside [`flakiness.md`](flakiness.md): a flake is the
-case where every input agreed and the output moved anyway, and it is the same
-question asked of one page instead of two.
+connects directly to [`flakiness.md`](flakiness.md): a flake is the case where
+every input agreed and the output moved anyway, the same question asked of one
+page instead of two.
 
 ---
 

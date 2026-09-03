@@ -177,29 +177,6 @@ it. An `UPDATE` or a `DELETE` aborts with a sentence saying why — because a
 rewritten row changes a number somebody already read, and a deleted one turns a
 flake that was fixed into a flake that never happened.
 
-## What is not built
-
-[`spec 0002`](specs/0002-history-store.md) is the live list, and two things on it
-are worth knowing up front.
-
-**`lastChanged` is not asked by a run.** It is implemented in every backend and
-served by `packages/server/src/http.ts` and `packages/tribunal/src/worker.ts`;
-the other reads are asked by `recordRun`, and `reach` and `flakiness` are asked
-by the review surface in [`tribunal`](../packages/tribunal) when a reviewer asks
-whether the difference in front of them has happened before. *When did this
-component last move* is a question about the suite rather than about a run, so it
-does not fit the shape everything else here uses — the run asks, the report
-carries.
-
-Half of it is answered elsewhere: *where does this component appear* is a
-question about one commit, and the suite compares itself against itself to
-answer it ([`composition.md`](composition.md)). What is missing is the word
-*started* — a delta needs two of those graphs, and nothing writes one to the
-record.
-
-**The eleven-step journey above is assembled from parts, not observed.** Every
-part exists and each is tested; no real project has produced the whole sequence.
-
 ---
 
 **Further:** [`flakiness.md`](flakiness.md) for the flake half ·
@@ -207,8 +184,6 @@ part exists and each is tested; no real project has produced the whole sequence.
 baseline is what it is, from evidence kept beside it ·
 [`flows.md`](flows.md#rung-5--history-recurrence-and-drift-across-runs) for where
 this sits in the adoption ladder ·
-[spec 0002](specs/0002-history-store.md) for what a row is allowed to contain and
-why ·
 [ADR-0031](context/adr/0031-the-run-asks-what-is-recorded-now.md) and
 [ADR-0032](context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md) for
 the two decisions that made it callable.

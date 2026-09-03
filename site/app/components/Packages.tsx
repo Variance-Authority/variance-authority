@@ -1,4 +1,4 @@
-import SectionHead from "./SectionHead";
+import { PACKAGE_DOCUMENTS } from "../content/package-docs";
 
 /**
  * How far the last card must stretch to finish its row. A grid of n over c
@@ -66,6 +66,24 @@ const PACKAGES: {
     ],
   },
   {
+    group: "what observes a live run",
+    note: "Signals that exist while the system under test is still executing.",
+    items: [
+      {
+        name: "eyes",
+        role: "selector and locator attention, retained with React attribution",
+      },
+      {
+        name: "event",
+        role: "announcements a running system makes about its own decisions",
+      },
+      {
+        name: "vantage",
+        role: "what each in-flight test heard, and work that never ended",
+      },
+    ],
+  },
+  {
     group: "what they are built on",
     items: [
       {
@@ -110,6 +128,10 @@ const PACKAGES: {
         name: "package",
         role: "what a package offers an adopter: every entrypoint a manifest opens",
       },
+      {
+        name: "wire",
+        role: "one execution identity and one address shared across process boundaries",
+      },
     ],
   },
   {
@@ -128,26 +150,33 @@ const PACKAGES: {
   },
 ];
 
+const presentedNames = PACKAGES.flatMap(({ items }) =>
+  items.map(({ name }) => name),
+);
+const inventoryMatches =
+  presentedNames.length === PACKAGE_DOCUMENTS.length &&
+  new Set(presentedNames).size === presentedNames.length &&
+  PACKAGE_DOCUMENTS.every(({ name }) => presentedNames.includes(name));
+
+if (!inventoryMatches) {
+  throw new Error("Package map must classify every documented package once");
+}
+
 /** The kinds on offer, grouped by what a reader does with them. */
 export default function Packages() {
   return (
     <section
       id="packages"
-      className="scroll-mt-24 border-t border-hairline py-20"
+      className="doc-section scroll-mt-24"
     >
-      <SectionHead
-        n="11"
-        label="packages"
-        title="There is no pipeline. There are tools."
-      >
-        A fixed sequence encodes one team&rsquo;s workflow and fails the next.
-        What ships instead is a set of kinds — acquire, prepare, render, hash,
-        compare, isolate, map, judge, record — and a pipeline is something you
-        assemble from them. Two of those kinds need a host: a DOM to acquire
-        from, a browser to render in. Three need nothing at all, and that
-        distribution is the whole economic argument.
-      </SectionHead>
-      <div className="mt-12 space-y-8">
+      <h2>Choose by responsibility</h2>
+      <p>
+        Start with the package whose boundary matches the capability your
+        process can supply. Its README names the public contract, setup, and
+        limits; the lower-level collaborators remain available for custom
+        compositions.
+      </p>
+      <div className="mt-8 space-y-8">
         {PACKAGES.map((g) => {
           const n = g.items.length;
           const lgCols = n < 3 ? n : 3;
@@ -172,8 +201,9 @@ export default function Packages() {
                 }`}
               >
                 {g.items.map((p, idx) => (
-                  <div
+                  <a
                     key={p.name}
+                    href={`/reference/packages/${p.name}`}
                     className={`group border-b border-r border-hairline p-5 transition-colors hover:bg-charcoal ${
                       idx === n - 1 ? `${SM} ${LG}` : ""
                     }`}
@@ -183,17 +213,16 @@ export default function Packages() {
                       {p.name}
                     </p>
                     <p className="mt-2 text-xs leading-5 text-quiet">{p.role}</p>
-                  </div>
+                  </a>
                 ))}
               </div>
             </div>
           );
         })}
       </div>
-      <p className="mt-6 max-w-2xl font-mono text-xs leading-5 text-warm">
-        <span className="text-orange">{"//"}</span> a consumer knows one package:
-        adopter-facing code names its immediate neighbour, never its
-        neighbour&rsquo;s collaborators
+      <p className="mt-6 max-w-2xl text-sm leading-6 text-quiet">
+        Adopter-facing code names its immediate package, not that package&rsquo;s
+        collaborators.
       </p>
     </section>
   );

@@ -125,7 +125,7 @@ rather than as a miss, so a first run costs one request too.
 Declaring is a hint and never a question. A store that does not serve
 `/baseline/working-set` answers the run's declaration with a 404 and the client
 falls back to one request per key, which is what a deployment of
-[`tribunal`](../packages/tribunal) does today. No verdict moves either way.
+[`tribunal`](../packages/tribunal) does. No verdict moves either way.
 
 Anything else the store cannot answer — an unreachable endpoint, a refused token,
 a 500, a body that is not an answer — **throws**. It is never a miss, because

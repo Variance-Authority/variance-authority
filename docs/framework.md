@@ -25,8 +25,8 @@ the five instruments below are five different questions asked of it.
 The last two are about a page that has not finished and live in
 [`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished).
 `holdingOf` is about two readings of a page that has, and lives in
-[`parting.md`](parting.md) with the comparison it exists to feed. This page is
-about the remaining two, which are read once and stored.
+[`parting.md`](parting.md) with the comparison it exists to feed. The remaining
+two are read once and stored.
 
 ---
 
@@ -141,8 +141,8 @@ thing that was rebuilt rather than the innermost thing that noticed.
 
 ### Why this is a finding and not a digest
 
-The rule is checkable, and it is what splits this page in two: **read the same
-page twice without changing anything, and if the value moved, it is not one.**
+The rule is checkable: **read the same page twice without changing anything, and
+if the value moved, it is not one.**
 
 Hook shape, wrappers, contexts and keys survive that. Whether an instance
 remounted cannot, by construction — it is a property of a *reading*, not of a
@@ -156,19 +156,17 @@ together.
 
 ---
 
-## What this does not do
+## Framework boundary
 
-- **It is React.** `collect()` takes `wiringOf` as a callback, exactly as it takes
-  `provenanceOf`, so another framework supplies its own — but no other
-  implementation exists, and a page without one is absent from the digest rather
-  than reported as unwired.
-- **Nothing waits on these two.** Wiring and remounts are exports a caller uses,
-  and no shipped collector passes `wiringOf` — the digest is defined and hashed
-  where a caller supplies the reader, and absent otherwise.
-  The Suspense reader is the exception: every *browser* collector waits for
-  boundaries to settle before it reads, and refuses a subject that is still
-  showing a fallback
+- **Composition attribution requires a framework reader.** `collect()` accepts
+  `wiringOf` alongside `provenanceOf`. Without a reader, framework wiring is
+  absent from the digest rather than reported as empty. The provided reader
+  targets React.
+- **Wiring and remount observation are opt-in inputs.** A collector that supplies
+  `wiringOf` includes wiring in the digest; otherwise it remains absent. Browser
+  collectors wait for Suspense boundaries to settle before reading and refuse a
+  subject that is still showing a fallback
   ([`stabilization.md`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)).
-  The commit tap is still an export, for the reason given there.
+  The commit tap remains available for commit-level stability.
 - **A remount is not attributed to a line.** It names the component, its owner
   chain and its element. Which parent re-render caused it is not recovered.

@@ -1,22 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-
-/**
- * Absolute URLs for the share card and the canonical link. Set SITE_URL at
- * build time to whatever the page is actually served from; the fallback only
- * keeps a local build coherent.
- */
-const SITE = process.env.SITE_URL ?? "https://variance-authority.dev";
-
-const TITLE = "Variance Authority — Many screenshots. One review decision.";
-const DESCRIPTION =
-  "Causal visual review: pixel, document, accessibility, React, and source evidence connected per change, repeated effects grouped into one bounded decision, inside infrastructure you control.";
+import { ROOT_DESCRIPTION, ROOT_TITLE, SITE, SITE_NAME } from "./metadata";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
-  title: TITLE,
-  description: DESCRIPTION,
-  applicationName: "Variance Authority",
+  title: {
+    default: ROOT_TITLE,
+    template: `%s — ${SITE_NAME}`,
+  },
+  description: ROOT_DESCRIPTION,
+  applicationName: SITE_NAME,
   alternates: { canonical: "/" },
   icons: {
     icon: [
@@ -28,23 +21,23 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
   openGraph: {
     type: "website",
-    siteName: "Variance Authority",
+    siteName: SITE_NAME,
     url: "/",
-    title: TITLE,
-    description: DESCRIPTION,
+    title: ROOT_TITLE,
+    description: ROOT_DESCRIPTION,
     images: [
       {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Variance Authority — Many screenshots. One review decision.",
+        alt: "Variance Authority",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: TITLE,
-    description: DESCRIPTION,
+    title: ROOT_TITLE,
+    description: ROOT_DESCRIPTION,
     images: ["/og.png"],
   },
 };
@@ -76,11 +69,6 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        {/* Sections are authored hidden and revealed by an observer. Without
-            script there is nothing to reveal them, so undo it. */}
-        <noscript>
-          <style>{".reveal{opacity:1;transform:none}"}</style>
-        </noscript>
       </head>
       <body>{children}</body>
     </html>

@@ -271,7 +271,7 @@ about how both sides were read: both renderings come out of one run, off one
 collector, at one commit, so they are read the same way by construction. It needs
 no framework adapter either — the boundaries come from the owner chain and the
 cascade from `styleProvenance` — which is why an ancestor's `color` is nameable
-on a browser run today.
+on a browser run.
 
 **Measured on todomvc: zero.** A props digest is not a complete statement of a
 component's inputs, so three shapes reach the check and are refused by it
@@ -343,9 +343,9 @@ component, with the same props, that this run did *not* report moving. Empty
 means there was no control, which weakens the finding, and is why it is a list
 rather than a flag.
 
-An unexplained movement is where this page stops. What the run does with one — how
-the shortlist is ordered, and the second instrument that turns it into a verdict —
-belongs to [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it).
+Composition stops at an unexplained movement. How the run orders its shortlist
+and turns a second reading into a verdict belongs to
+[`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it).
 
 ## What it costs
 
@@ -389,12 +389,13 @@ and the report's own types say so.
 **Provenance is React's.** The boundaries come from the fiber tree, so a suite
 built on anything else composes nothing at all — the raster tier's answer, with
 the same honest absence.
-[Spec 0019](specs/0019-provenance-without-react.md) is the vacancy.
+Suites on other frameworks retain raster comparison without composition
+attribution.
 
 **It is measured on one application.** Fifteen stories, twelve components, one
 framework, one development build, one machine, and a change set declared by the
-example rather than read from a repository's history. Every number on this page is
-an assertion in
+example rather than read from a repository's history. Every number is an assertion
+in
 [`composition.test.tsx`](../examples/todomvc/src/composition.test.tsx) and
 [`closure.test.tsx`](../examples/todomvc/src/closure.test.tsx), which are small
 enough that their measurements are the claim.

@@ -5,10 +5,10 @@ made, and who operates review. Those decisions determine privacy, browser
 coverage, reproducibility, latency, and price more directly than the name of the
 test runner adapter.
 
-Vendor facts below come from the vendors' published documentation. Pricing and
-hosted-service features change; the linked pages are the authority for a buying
-decision. Variance Authority claims point to the package or document that owns
-the contract.
+Vendor documentation is authoritative for vendor behaviour. Verify pricing and
+hosted-service features there before buying; both change independently.
+Variance Authority entries state the capture and operational contracts available
+to an adopter.
 
 ## 1. The dimensions a buyer actually decides on
 
@@ -29,23 +29,23 @@ That is a deliberate design choice, not a missing feature, and it keeps a run's
 coverage independent of how well a graph was read.
 
 The selection row divides on one axis: what a change imports versus what its
-tests executed. TurboSnap reads the static module graph, and the optional file
-graph here is the same family of thing — a specifier scan over `import`,
+tests executed. TurboSnap reads the static module graph, and Variance Authority's
+optional file graph is the same family of thing — a specifier scan over `import`,
 `require`, `@use` and `url()` — which answers only the file-to-component half.
 What decides a skip is the other half, and it is not a prediction: a stored
 baseline records the components the document that painted it actually rendered,
 so a subject is skipped because the last run established what it is made of, and
 never because a graph said so.
 [Wallaby.js](https://wallabyjs.com/) holds the execution-side index, and takes it
-further than this project does. Its Test Story Viewer shows one test's full
+further than Variance Authority. Its Test Story Viewer shows one test's full
 execution history in a single view: executed lines highlighted, context faded,
 file names shown where execution crosses files, with a time-travel debugger
-attached. This project does not build that viewer. It ships the index underneath
-it. Give `coveringTests` a source line or function and it returns the individual
-tests that executed it, nearest call stack first, reading an execution index from
-any collector. The gap is worth stating exactly. The shipped integration
-records one entry per test file and stores no call-stack depth, so per-test
-answers require a collector that already records them.
+attached. Variance Authority exposes the underlying index through
+`coveringTests`, not a time-travel viewer. Given a source line or function, it
+returns the individual tests that executed it, nearest call stack first, from an
+execution index supplied by any collector. The shipped integration records one
+entry per test file and stores no call-stack depth, so per-test answers require a
+collector that already records them.
 
 The Variance integration matrix and exact material/placement choices are in
 [`surface.md`](surface.md). The underlying decision is recorded in
@@ -71,7 +71,7 @@ Sources: [Percy pricing](https://www.browserstack.com/pricing?product=percy),
 [Argos pricing](https://argos-ci.com/pricing), and
 [Applitools terms](https://applitools.com/terms-of-use/).
 
-## 2. What each competitor does better than this project
+## 2. Where the managed products lead
 
 ### Percy
 
@@ -219,18 +219,13 @@ inside the test environment and move only pixels to later systems.
 
 ## 5. When not to choose this
 
-Percy, Chromatic, Argos, and Applitools are good products, and each is further
-along than this project on the things a team notices in its first week: coverage
-somebody else keeps running, a review surface a designer can be handed a link to,
-and somebody to call when it breaks on a Friday.
+Percy, Chromatic, Argos, and Applitools supply managed browser coverage, hosted
+review links, and vendor support. **Buy one of them when visual review should be a
+product rather than infrastructure you run** — when nobody on the team wants to
+own a renderer image, a storage bucket, an upload path, and the pager that comes
+with them.
 
-The honest criterion is not a feature list. **Buy one of them when visual review
-should be a product rather than infrastructure you run** — when nobody on the team
-wants to own a renderer image, a storage bucket, an upload path, and the pager
-that comes with them. That is a legitimate answer, and the most common correct
-one.
-
-Choose this composition when a changed screenshot should arrive as one cause
+Choose Variance Authority when a changed screenshot should arrive as one cause
 with its evidence, and be settled in one decision — and when
 component/source attribution, explicit evidence boundaries, and local or
 operator-controlled data placement are worth owning the operation. It asks for

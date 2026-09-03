@@ -1,16 +1,72 @@
-# Documentation
+# Start with the decision
 
-Variance Authority connects a changed region to the component that caused it and
-the `file:line` where that component lives, in infrastructure you control. These
-pages are the reference behind that. Each one answers a question rather than
-covering a feature; start from the question you actually have.
+Variance Authority answers questions about rendered software from evidence
+produced inside a suite you control. Begin with the decision the run must
+support; the state owner, capture boundary, and retained material follow from
+that question.
 
-The [root README](../README.md) is the shortest path into a suite. The
-[package READMEs](../packages) are the API surface.
+## Put one state under observation
 
-## The words these pages use
+The smallest complete path is one subject through one review loop. The host
+already knows how to reach the state. The integration gives that state a stable
+id and a bounded root, reads it, and compares it with an approved baseline.
 
-A handful of nouns carry the whole model, and every page below assumes them.
+The first durable reading is `new`, not unchanged. Review and explicitly accept
+the candidate, then read the same subject again. An `unchanged` result closes the
+loop: acquisition, renderer identity, baseline lookup, and reporting agree for
+that subject.
+
+[Observe one state end to end](start.md) before adding remote infrastructure,
+suite-wide selection, or policy. The guide branches to the setup recipe for the
+process that already owns the state.
+
+## Continue from the question you have
+
+### A region moved; what caused it?
+
+Follow [pixel-to-source attribution](attribution.md) from a changed rectangle to
+the element and component that own it, and to `file:line` when provenance is
+available. When one source change reaches several subjects,
+[composition](composition.md) folds their evidence into one cause-led decision.
+[Ignores](ignores.md) and
+[variations](variations.md) cover intentional differences without erasing the
+rest of the subject.
+
+### The same input did not produce the same state
+
+[Parting](parting.md) compares two readings at the point their inputs diverge.
+[Flakiness](flakiness.md) separates causes absorbed by construction, identity,
+policy, or evidence from variance that still reaches the report.
+[Stabilization](stabilization.md) defines what is held still before a subject is
+read.
+
+### One edit should not pay for the whole suite
+
+[Source reach](source.md) establishes what a change could affect before a
+browser opens. [Test selection](selecting.md) combines that static answer with
+observed execution, and the [source index](source-index.md) defines the
+generation both readings share.
+
+### There is no approved image to compare
+
+[Presentation intelligence](presentation.md) reads grouping, separation,
+alignment, and emphasis from one interface. [Runtime scenarios](scenarios.md)
+compare state transitions and name the action where two executions part.
+Neither question requires a durable visual baseline.
+
+### An existing screenshot suite already owns the workflow
+
+[Replacing a screenshot suite](replacing.md) maps an existing host and baseline
+store to the corresponding composition. [Replacement gates](gates.md) define
+the questions a substitute must answer; the [product comparison](comparison.md)
+keeps those questions separate from feature count.
+
+## Read a report from subject to verdict
+
+The report starts with the observed state, keeps independently
+observed signals separate, classifies differences by severity, attributes them
+to stable causes, and leaves only undecided causes for review. These nouns carry
+that model throughout the documentation.
 
 | Word | What it means |
 | --- | --- |
@@ -22,60 +78,33 @@ A handful of nouns carry the whole model, and every page below assumes them.
 | **docket** | What a run leaves for a decision: the roots nobody declared, ranked by cause rather than by area. |
 | **verdict** | The one word a subject ends in — `unchanged`, `inherited`, `authorized`, `needs-review`, `violation`, or `unexplained`. A band a profile could not observe reports `unobserved`, which is not a verdict and never collapses into one. |
 
-## Deciding whether it fits
+An observation also reports boundary states such as `new`, `incomparable`, and
+not observed. They are not empty verdicts: respectively, no approved baseline
+exists, the available evidence cannot be compared, or the run did not obtain an
+observation.
 
-| Page | Reader question |
+## Choose the boundary the suite owns
+
+Four independent choices determine what the answer can mean. Changing one does
+not silently choose the others.
+
+| Decision | Start here |
 | --- | --- |
-| [`surface.md`](surface.md) | What are the independent choices a suite composes to connect? |
-| [`flows.md`](flows.md) | How much does an operator have to stand up, and can I stop at the first rung? |
-| [`cases.md`](cases.md) | Who owns the state, what material do I keep, and where do pixels get made? |
-| [`replacing.md`](replacing.md) | I already have a screenshot suite. What does each replacement trade? |
-| [`gates.md`](gates.md) | Can this replace what I am paying for? |
-| [`comparison.md`](comparison.md) | What do Percy, Chromatic, Argos, and Applitools each do better? |
+| Which process reaches the state and decides it is ready? | [Choosing a composition](cases.md) |
+| Does acquisition keep a document or an already-painted raster, and where are pixels made? | [Surface](surface.md) |
+| Is evidence compared inside one run or against a durable baseline, and who stores it? | [Baseline placement](placement.md) |
+| Does the answer stay in a test, become a report, reach a reviewer, or answer an agent? | [Operating flows](flows.md) |
 
-## What a run decides
+The paths join at observation, retention, and reporting; they do not produce
+identical evidence. Browser accessibility, component provenance, resource
+closure, and in-place paint are present only when the chosen surface supplies
+them. An unavailable reading is absent rather than represented as an empty
+result.
 
-| Page | Reader question |
-| --- | --- |
-| [`attribution.md`](attribution.md) | How does a changed pixel become a component and a line of source? |
-| [`ignores.md`](ignores.md) | Part of this page is not my subject. How do I say so without losing the rest? |
-| [`variations.md`](variations.md) | A flag's second arm, a dark scheme, a narrow viewport — how are those addressed? |
-| [`composition.md`](composition.md) | Many subjects, one revision: what do they say about each other? |
-| [`changelog.md`](changelog.md) | A baseline is a PNG. Where does the reason it was approved live? |
-| [`placement.md`](placement.md) | Where do baselines live, and what makes two of them comparable? |
-| [`history.md`](history.md) | Eleven approved 2px changes are twenty-two. What sees that? |
+## Check a claim at its instrument
 
-## Telling a flake from a change
-
-| Page | Reader question |
-| --- | --- |
-| [`stabilization.md`](stabilization.md) | What is already held still before my subject is read? |
-| [`flakiness.md`](flakiness.md) | Which causes of variance get absorbed, and what does each one cost me? |
-| [`framework.md`](framework.md) | The artefact is a render in the past tense. What does the framework know that it cannot? |
-| [`parting.md`](parting.md) | Two readings differ. Which input moved, and is this a variation, a flake, or a refactor? |
-
-## Running less of the suite
-
-| Page | Reader question |
-| --- | --- |
-| [`source.md`](source.md) | What could this change have reached, known before anything renders? |
-| [`selecting.md`](selecting.md) | One component moved. Why am I paying for 300 collections? |
-| [`source-index.md`](source-index.md) | What does the source scan persist, and what makes a generation reusable? |
-
-## Evidence that needs no baseline
-
-| Page | Reader question |
-| --- | --- |
-| [`presentation.md`](presentation.md) | How is information grouped, separated, aligned, and emphasized in this one interface? |
-| [`scenarios.md`](scenarios.md) | Arrange, Act, Assert as a state machine: at which Act did two runs stop agreeing? |
-
-## How it is built, and what it claims
-
-| Page | Reader question |
-| --- | --- |
-| [`architecture.md`](architecture.md) | Why is this a set of tools rather than a pipeline, and how are the packages cut? |
-| [`eyes.md`](eyes.md) | Which DOM elements did a test address, and which rendered source owned them at that moment? |
-| [`information.md`](information.md) | What is retained, where does it cross a boundary, and what may be merged or deleted? |
-| [`instruments.md`](instruments.md) | Which instrument answers which question, and where is each claim measured? |
-| [`metrics.md`](metrics.md) | What is the evidence, and what is its denominator? |
-| [`visual-guidelines.md`](visual-guidelines.md) | What is the mark, the palette, and the illustration grammar? |
+[Instruments](instruments.md) names the reading behind each product claim and
+the boundary where that reading stops. [Metrics](metrics.md) defines the
+numerator, denominator, and population for reported measurements.
+[Architecture](architecture.md) describes the package boundaries after the
+reader already knows which answer they need.

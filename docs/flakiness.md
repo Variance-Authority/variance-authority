@@ -1,7 +1,5 @@
 # Flakiness
 
-This page is the position, not the manual.
-
 Yes, visual regression is flaky. Anyone who says otherwise has either not run it
 at scale or has quietly set a threshold large enough to hide it.
 
@@ -44,7 +42,7 @@ reading. What differs here is the last column.
 | **Different machine, GPU, driver** | environment-key | A durable baseline is stored *partitioned by renderer identity*, so a cross-machine comparison is `incomparable` — one sentence, not a day of unattributable red. See [ADR-0011](context/adr/0011-durable-and-ephemeral-retention.md). Or use the ephemeral mode, where there is no second machine to be wrong about. |
 | **Fonts substituted or not loaded** | environment-key, **and reported** | Fonts are in the key. The renderer also probes by metrics and names what it did not have, because two runs of a substituted font compare `unchanged` — true, and worthless. |
 | **Dates, clocks, dynamic content** | policy | Both arms move; both are right. The difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
-| **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. **But:** headless Chromium uses overlay scrollbars, so the classic scrollbar reflow does not reproduce in CI at all — a blind spot we share with every headless pipeline, [written up rather than deleted](context/journal/0012-instability.md). |
+| **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
 | **Animations mid-flight** | **construction** | A transform caught in flight is a computed style value and it does reach the representation — so the page is held still *before the subject is read*, not only before it is painted. Pinned at the first frame by CSS, with the recipe's digest in the environment key so an unstabilized baseline is `incomparable` rather than a diff. **Measured:** one page, a 4s animation, read twice a second apart — the hash moves untouched and holds under the recipe ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
 | **Lazy loading, network latency** | **construction** | Content that arrives late is a structural difference, and correctly so — the question is whether you were still waiting when it landed. `wait-for-images` polls `document.images`, which misses anything appended during the wait and has no entry for a `background-image`; the driver watches the wire instead and knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
 | **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. The state of the art screenshots until two consecutive images agree — a raster per poll, and a timeout that names nothing. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
@@ -56,12 +54,6 @@ reading. What differs here is the last column.
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
 
 **Four** rows are absorbed by nothing, and they are the honest half of the table.
-
-A comparison that only ever finds in its own favour is an advertisement, so the
-count in that sentence is the number this table is judged on. A limitation left
-standing because writing it down felt like enough is the same failure with better
-manners: a row here is a claim that nobody has found the afternoon's work that
-removes it, not a claim that none exists.
 
 ## What still gets through, and how it is found
 
@@ -200,10 +192,8 @@ when every verdict is green.
 
 **The sweep reads in plan order.** The shortlist an unexplained movement
 produces is sorted by how much control the suite has over each entry, and
-nothing points the sweep at it — a subject with four held siblings and a
-subject with none get the same second reading in whatever order the plan
-emitted them. That is a vacancy rather than a decision: the ordering exists and
-`variance run --flakes` does not read it.
+nothing points the sweep at it. A subject with four held siblings and a subject
+with none get the same second reading in the order the plan emitted them.
 
 **Two readings is a floor, not a ceiling.** A subject that reads differently one
 time in fifty passes this forty-nine runs out of fifty, and an absent finding
@@ -224,10 +214,10 @@ The question two readings cannot answer, and the one that decides who fixes it.
 were clean* says somebody already fixed it, and rewriting that fix is a day spent
 re-solving a solved problem.
 
-A run records what it saw, when a history service is configured
-([spec 0002](specs/0002-history-store.md)), and asks the record about every
-subject it just called unstable. The answer travels in the report, so the
-summary, the pull-request comment and an agent all read one sentence:
+A run records what it saw when a [history service](history.md) is configured,
+then asks the record about every subject it just called unstable. The answer
+travels in the report, so the summary, the pull-request comment and an agent all
+read one sentence:
 
 ```
 UNSTABLE: 1 subject(s) were read twice, seconds apart …
@@ -265,28 +255,15 @@ The instability it catches need not be in the page. It can be in the observer,
 and that is the case no assertion about a verdict can reach — because the verdict
 stays right.
 
-Blink does not write a mutated inline style back into the `style` attribute
-eagerly: `element.style.padding = …` marks the declaration dirty and the attribute
-is regenerated the next time anything reads the element's attributes. `outerHTML`
-is such a read, and the regenerated attribute is *appended*. A freshly mounted
-component holding `[type]` with a pending style therefore serializes as
-`<button type data-va-path style>` if the stamp goes on before the read, and
-`<button type style data-va-path>` if the same story is collected again without a
-remount. Same tree, same pixels, two document digests — decided by whether the
-subject has been read before in that run.
+Browser attribute materialization can otherwise make the same element serialize
+in a different order after it has been read once. The observer materializes those
+attributes before it stamps provenance, so two readings of one stable subject
+produce one document digest. A disagreement is reported as instability even when
+the pixels and verdict still agree.
 
-Nothing about the verdict is wrong, so nothing about the verdict reports it. What
-it costs is the economy: `settle` skips a render when this run's document digest
-equals the digest the baseline was painted from, so the cheap tier switches itself
-off depending on the collection history of the run that recorded the baseline —
-silent, permanent, and invisible to any test that only reads a verdict.
-
-`materializeAttributes` in `packages/dom/src/document.ts` reads the attribute
-names first, so anything pending materializes while the stamp is still absent and
-the stamp is appended last on every reading. In
-[`cases/storybook-case`](../cases/storybook-case) every story but one then
-produces one digest for two consecutive readings; the exception is the one with a
-clock in it, which is the right answer.
+That protects render reuse as well as correctness. `settle` skips a render only
+when the document digest repeatably describes the same subject; observer-induced
+digest movement therefore cannot silently disable the cheap tier for later runs.
 
 ## Test order and shared state
 
@@ -310,9 +287,10 @@ pollution becomes a read-write conflict with a named writer:
 ```
 
 Measured at **3–4× faster** than rinsing, with the probe costing **~2%** of
-session time. `packages/session/src/cost.test.ts` re-measures it on every run and
-asserts only that it is materially cheaper, because the multiple moves with the
-machine and a tight bound would fail on a loaded CI box. Details in
+session time. The [session cost measurement](../packages/session/src/cost.test.ts)
+re-measures it on every run and asserts only that it is materially cheaper,
+because the multiple moves with the machine and a tight bound would fail on a
+loaded CI box. Details in
 [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md).
 
 **A `variance run` does not do that.** It calls the adopter's collector once per
@@ -337,40 +315,27 @@ fixed, so a leak that happens *every* time never moves the hash and reports as
 nothing. That deterministic kind is the one that becomes a false regression
 rather than a flake.
 
-**What a run will not tell you is who wrote it.** A probe sees stylesheets,
-custom properties, attributes and stray body nodes; the couplings that bite live
-in module scope — a singleton store, a cached client, a mocked clock — and touch
-no DOM at all. There is no stack to fall back on either. So the run resolves the
-outcome the way it resolves every outcome — to a node, a component, a file — and
-narrowing to the writer is a bisection over run order. Details and what is left
-in [spec 0012](specs/0012-order-dependence-in-a-run.md).
+**A run identifies the affected component, not the writer of an order leak.** A
+probe sees stylesheets, custom properties, attributes and stray body nodes; the
+couplings that bite live in module scope — a singleton store, a cached client, a
+mocked clock — and touch no DOM at all. With no runtime stack connecting the
+mutation to its writer, the outcome resolves to a node, a component and source
+attribution. Locating the writer requires bisection over run order.
 
-## Where we differ from the state of the art
+## Recurring diff fingerprints
 
-Argos [detects unstable tests and can auto-ignore a recurring
-change](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md)
-once its diff fingerprint has appeared some number of times in a window. That is
-a good, pragmatic answer, and it works at a scale nothing here has been
-run at.
+Variance Authority treats an unstable hash as a finding with a cause, not noise
+to suppress. Diff-shape grouping can correlate recurring observations, but it
+does not license automatic acceptance: the same suppression can hide a later
+regression in the same region. [The product comparison](comparison.md) covers
+the different acceptance trade-offs.
 
-Our bet is different: **an unstable hash is a finding with a cause, not noise to
-suppress.** Auto-ignoring by diff shape silences the symptom without naming the
-writer, and the same suppression that hides a flake hides the real regression
-that later lands in the same region.
-
-**The method, which we use too.** Argos publishes the mechanism —
-[`mask-fingerprint`](https://github.com/argos-ci/mask-fingerprint) takes the mask
-of differing pixels, dilates it, crops to its bounding box, reduces to a grid of
-densities and hashes that to an integer, so two diffs of roughly the same shape
-in roughly the same place group together in SQL. Its own framing is precise:
-tolerant equality, not approximate similarity.
-
-It is worth reading as a **method** rather than as a rival key, because the
-method is the reusable part: *take an observation that cannot answer your
-question, derive a value from it, and reason over the derived value.* No single
-pixel comparison can say "this is the same defect as last Tuesday"; the derived
-integer says it in one `GROUP BY`. The claim lives one layer above the
-observation, and the derivation is what carries it there.
+[`mask-fingerprint`](https://github.com/argos-ci/mask-fingerprint) derives a key
+by dilating the mask of differing pixels, cropping it to its bounding box,
+reducing it to a density grid and hashing the result. Variance Authority uses
+that method for shape-scoped ignore rules: tolerant equality in pixel space,
+not approximate similarity. The derived key groups observations without
+deciding whether they are acceptable.
 
 That is the same move as
 [differencing two renders that vary in one prop](composition.md) to learn what
@@ -424,13 +389,13 @@ Every finding carries a `confidence` field for exactly this reason.
 Every instability probe we have run **simulates** its cause — a smoothing mode
 instead of a different GPU driver, a second browser context instead of a second
 runner — because varying the machine is not available from inside a test. Except
-where a row says otherwise, every number on this page comes from one Mac and one
+where a row says otherwise, every number comes from one Mac and one
 Chromium, which bounds what they prove.
 
 ---
 
 **Further.** [`instruments.md`](instruments.md) — the whole set, including the
-instruments on this page, as one table of what each varies and what each holds.
+flake instruments as one table of what each varies and what each holds.
 
 **Sources.** [Argos: stabilize screenshots](https://argos-ci.com/blog/screenshot-stabilization) ·
 [Argos: flaky test detection](https://argos-ci.com/docs/learn/reliability-and-flakiness/flaky-test-detection.md) ·

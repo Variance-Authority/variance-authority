@@ -1,0 +1,78 @@
+import type { ReactNode } from "react";
+import Attribution from "./Attribution";
+import DiffReport from "./DiffReport";
+import EvidenceSlices from "./EvidenceSlices";
+import RuntimeEvidence from "./RuntimeEvidence";
+import Since from "./Since";
+import Subjects from "./Subjects";
+import Variations from "./Variations";
+
+const CAPTIONS: Record<string, string> = {
+  surface:
+    "The same observation model can address several kinds of subject without pretending they need the same retained evidence.",
+  attribution:
+    "A region is the start of the explanation: document and React evidence carry it to an owner and, where provenance exists, a source location.",
+  variations:
+    "Related subjects keep separate baselines while their cross-variant difference becomes evidence of its own.",
+  composition:
+    "The review keeps repeated causes together and leaves states with additional evidence open.",
+  selecting:
+    "Static reach explains what a change could affect; prior execution evidence names the tests that actually entered it.",
+  instruments:
+    "Independent readings stay independent, so an absent signal cannot be mistaken for an observed empty result.",
+};
+
+function Figure({ children, caption }: { children: ReactNode; caption: string }) {
+  return (
+    <figure className="doc-figure">
+      {children}
+      <figcaption>{caption}</figcaption>
+    </figure>
+  );
+}
+
+export default function DocumentFigure({ slug }: { slug: string }) {
+  switch (slug) {
+    case "surface":
+      return (
+        <Figure caption={CAPTIONS.surface!}>
+          <Subjects />
+        </Figure>
+      );
+    case "attribution":
+      return (
+        <Figure caption={CAPTIONS.attribution!}>
+          <Attribution />
+        </Figure>
+      );
+    case "variations":
+      return (
+        <Figure caption={CAPTIONS.variations!}>
+          <Variations />
+        </Figure>
+      );
+    case "composition":
+      return (
+        <Figure caption={CAPTIONS.composition!}>
+          <DiffReport />
+        </Figure>
+      );
+    case "selecting":
+      return (
+        <Figure caption={CAPTIONS.selecting!}>
+          <div className="grid gap-5 2xl:grid-cols-2 [&>*]:min-w-0">
+            <Since />
+            <RuntimeEvidence />
+          </div>
+        </Figure>
+      );
+    case "instruments":
+      return (
+        <Figure caption={CAPTIONS.instruments!}>
+          <EvidenceSlices />
+        </Figure>
+      );
+    default:
+      return null;
+  }
+}

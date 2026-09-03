@@ -28,47 +28,25 @@ last ran `yarn workspace @variance-authority/example-todomvc pixel`, 3.4 against
 and it is the ratio that makes "read it again" a design option rather than a
 budget line.
 
-| instrument | varies | holds | names | run reaches it |
-|---|---|---|---|---|
-| **baseline comparison** | the revision | the subject, the world | a component, a band, a `file:line` | yes |
-| **[`again`](flakiness.md#what-still-gets-through-and-how-it-is-found)** | time | the world | `unstable`, with the component and band that moved | yes |
-| **[`alone`](flakiness.md#test-order-and-shared-state)** | the world | time | `order-dependent`, and `accept` refuses it | yes |
-| **[composition](composition.md)** | the subject | the revision | echoes, divergences, and why each component moved | yes |
-| **[variation](variations.md)** | the subject, on purpose | the revision | what a declared arm changes, and whether that changed | yes |
-| **[history](history.md)** | the run | the subject | recurrence, sweeps-since, and [drift](history.md#how-far-a-token-has-drifted) | when configured |
-| **[the session probe](../packages/session)** | subject order | the world | the *writer*, by subject and by what it wrote | **no** |
-| **[`trail`](../packages/core)** | the edit step | the subject | since-start, put-back, and going in circles | **no** |
-| **the engine** | the observer | everything | which tier can decide, and which cannot see it | yes |
+| instrument | varies | holds | names |
+|---|---|---|---|
+| **baseline comparison** | the revision | the subject, the world | a component, a band, a `file:line` |
+| **[`again`](flakiness.md#what-still-gets-through-and-how-it-is-found)** | time | the world | `unstable`, with the component and band that moved |
+| **[`alone`](flakiness.md#test-order-and-shared-state)** | the world | time | `order-dependent`, and `accept` refuses it |
+| **[composition](composition.md)** | the subject | the revision | echoes, divergences, and why each component moved |
+| **[variation](variations.md)** | the subject, on purpose | the revision | what a declared arm changes, and whether that changed |
+| **[history](history.md)** | the run | the subject | recurrence, sweeps-since, and [drift](history.md#how-far-a-token-has-drifted) |
+| **the engine** | the observer | everything | which tier can decide, and which cannot see it |
 
 Each row is a controlled experiment, and the discipline of one variable is what
 lets the answer be a sentence instead of a probability. It is also why the rows
 compose: `again` and `alone` vary opposite things, so running both on one changed
 subject partitions three causes that arrive identically.
 
-**Where a row is reached from is a fact about it rather than a detail of
-packaging**, and the last column is that fact. Two rows are **built, tested, and
-called by nothing a run does** — they are in the table because they are the same
-move as the rest, not because a `variance run` performs them.
-
-The record behind recurrence, sweeps-since and drift is a service
-the operator runs, and a run reaches it exactly when the config names an endpoint
-and a token and the run can name itself
-([`history.md`](history.md#turning-it-on)); with none of those named it computes
-nothing for the record, rather than hashing three hundred snapshots to hand them
-to something that discards them. The session probe rides on a standing
-world — `createSession` is the runner, and the probe brackets every mount that
-arrives through `session.run` — so naming the *writer* means owning the loop; a
-run hands each subject to the adopter's collector instead and asks `alone` of a
-subject it called `changed`, which establishes at most that something else in
-the suite moved this one, and never which thing. **No package in this workspace
-depends on `@variance-authority/session`**, so the bracket it describes is
-applied by nothing shipped.
-
-`trail` is the same division one step further: a value in `core/judge` and pure
-functions over it, whose holder is whoever runs the loop, for as long as they
-hold it. **Its callers are its own tests.** An edit loop is the only thing that
-can hold a trail, `variance` does not run one, and until something does, the row
-above is a shape rather than a reading.
+History is the one instrument whose evidence crosses runs. It contributes
+recurrence and drift only when configuration names an endpoint and token and
+the run has an identity ([`history.md`](history.md#turning-it-on)); otherwise
+those fields are absent.
 
 ### The pair that decides whether a change is real
 

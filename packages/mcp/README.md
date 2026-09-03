@@ -196,8 +196,8 @@ npm install @variance-authority/mcp
 No install is needed to just run the published binary:
 
 ```bash
-npx variance serve            # via the CLI, reading .variance/run.json
-npx variance-authority-mcp .variance/run.json    # directly
+npx variance serve            # via the CLI, reading .variance/report.json
+npx variance-authority-mcp .variance/report.json # directly
 npx variance-authority-mcp --watch               # a run that has not finished
 ```
 
@@ -205,7 +205,7 @@ npx variance-authority-mcp --watch               # a run that has not finished
 // claude_desktop_config.json, or any MCP client
 {
   "mcpServers": {
-    "variance": { "command": "npx", "args": ["variance-authority-mcp", ".variance/run.json"] }
+    "variance": { "command": "npx", "args": ["variance-authority-mcp", ".variance/report.json"] }
   }
 }
 ```

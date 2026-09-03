@@ -4,10 +4,10 @@
 GIFs are frozen, fonts and images are waited for, scrollbars are hidden — before
 your subject is read, on every run, whether or not you knew it was a problem.
 
-You are on this page for one of three reasons, and none of them is configuration:
+Three reliability questions meet here, and none of them is configuration:
 
-- **Something still moved.** Go to [what is still not
-  here](#what-is-still-not-here). It is a short list and it is honest.
+- **Something still moved.** Go to [what stabilization does not
+  cover](#what-stabilization-does-not-cover).
 - **You want to know what was done to your page.** The run tells you — see [the
   run says what it did](#the-run-says-what-it-did) — and the table below is the
   reference.
@@ -410,7 +410,7 @@ hidden element still occupies the box it would have. It covers
 `none` role.
 
 It is **opt-in and in no default recipe**, and it is the only trick here that is.
-Everything else on this page removes something that was never part of the
+The other stabilization mechanisms remove something that was never part of the
 assertion — a caret, a scrollbar, an animation mid-flight. This one removes page
 content, which is a judgement about what a suite is for, and a default that
 quietly stopped watching every `alt=""` image would hide real regressions under a
@@ -695,50 +695,30 @@ attributes to anything.
 
 ---
 
-## What is still not here
+## What stabilization does not cover
 
-Stated rather than left for you to find.
+The standard observation path combines stabilization recipes for CSS animation,
+fonts, images, scrollbars, and carets with network observation of asset bytes
+and a Suspense readiness check. It does not redefine application state or
+install framework hooks before the application loads.
 
-- **CSS `background-image`** is fetched and therefore *hashed*, but nothing pins
-  a subject's wait to it specifically; `settle()` covers it only because it
-  covers every request.
-- **`settle()` does not consult the commit tap.** Suspense is wired in — every
-  collector waits for boundaries and refuses a subject that has not arrived — but
-  `tapCommits` is still an export you call yourself, and a page that is quietly
-  re-rendering forever is caught by the second pass rather than by the wait. The
-  reason is the constraint above: the tap must be installed before `react-dom`
-  loads, which a collector navigating to somebody else's page cannot guarantee,
-  so an unattached tap would refuse every subject on a page it simply arrived at
-  too late. Suspense had no such precondition, which is why it went first.
-- **`gateStability` is reachable and nothing composes it.** Two documents of one
-  subject at one commit are enough to catch a page that is still moving, before
-  any pixel is paid for — and unlike the commit tap there is no precondition in
-  the way, since a collector can acquire a second document whenever it likes.
-  What stops it is the price: a second acquisition on every subject is paid by
-  every subject forever, and today the second reading is spent only where it is
-  already earned, on a subject the run called `changed`. So the check is real,
-  tested and exported, and a run does not take it.
-- **`srcset` re-resolution** on a viewport change can leave a fractional height
-  difference, because browsers reuse a cached candidate. Argos parses `srcset`
-  and pins a single candidate; this does not.
-- **Dates, clocks and dynamic content** are absorbed by *policy*, not here — see
-  [`ignores.md`](ignores.md), which masks the element or the shape of the
-  difference rather than a coordinate region.
-- **Hover state** is not reset before a subject is read.
-- **Sticky and fixed positioning** are not neutralized for a full-page capture.
-- **Spellcheck squiggles** and **subpixel image sizing** are not addressed.
+Collectors inspect Suspense directly, but they do not install `tapCommits` or
+call `awaitQuiet`. The commit tap remains an explicit host integration because
+it must attach before `react-dom`; silence from a late tap cannot prove that the
+page is quiet.
 
-Hover, sticky and fixed positioning, spellcheck squiggles and subpixel image
-sizing are all tricks Argos ships and this does not, and none of them is hard —
-they are `Intervention` values nobody has written yet. The registry is
-open precisely so that adding one is a value and not a fork.
+Dates, clocks, randomized data, `requestAnimationFrame` mutations, hover state,
+sticky or fixed positioning during full-page capture, spellcheck decoration,
+and subpixel image sizing are not normalized by that path. Control them in the
+host's fixture, express deliberate volatile regions through
+[`ignores`](ignores.md), or provide a custom composition with its own
+intervention recipe.
 
-**What gets past all of it is caught rather than tolerated.** A subject the run
-calls `changed` is read a second time in the same world, and one that disagrees
-with itself is reported `unstable` — with the component and the frequency band
-that moved, not a page to go and read. That is where this page hands over to
-[`flakiness.md`](flakiness.md#what-still-gets-through-and-how-it-is-found) and to
-[ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md).
+A subject reported `changed` is read again in the same world. Disagreement is
+reported as `unstable`, with the component and frequency band when those signals
+are available. [`flakiness.md`](flakiness.md#what-still-gets-through-and-how-it-is-found)
+continues from that result; [ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md)
+defines why the second readings vary one input at a time.
 
 ---
 
