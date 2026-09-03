@@ -13,6 +13,7 @@ import SectionHead from "./components/SectionHead";
 import Since from "./components/Since";
 import SiteFooter from "./components/SiteFooter";
 import SiteHeader from "./components/SiteHeader";
+import { GITHUB } from "./links";
 
 export default function Page() {
   return (
@@ -61,23 +62,30 @@ export default function Page() {
           >
             <SectionHead
               n="02"
-              label="react trail"
-              title="React knows who rendered it—and what the component was holding."
+              label="deep react integration"
+              title="React knows who rendered it—and what started the update."
             >
-              The next question after "what changed" is which component owns
-              the change, and which of its inputs moved. The capture walks the
-              React tree alongside the DOM. Each changed node carries its owning
-              component, and says whether a prop, a context value, or local
-              state changed with it. If the build emits source metadata, the
-              same row points at the file and line that rendered the element.
+              This is not a component name guessed from the DOM. The page agent
+              reads the live Fiber attached to each node: its author and owner
+              chain, props, context and hook-cell digests, reconciliation keys,
+              portals, remounts and pending Suspense boundaries. Source metadata
+              carries the same trail back to the rendered file and line.
             </SectionHead>
             <div className="mt-12">
               <Attribution />
             </div>
             <p className="mt-6 max-w-3xl text-sm leading-6 text-quiet">
-              Every claim names its source. Inputs come from the running tree;
-              file locations come from the build. When a source is missing, the
-              report shows a gap rather than a guess.
+              A commit tap installed before React loads adds two different
+              readings: which component render bodies ran, and which live
+              instances initiated the update. If the tap arrives late, it
+              refuses to claim coverage. The integration reads the
+              application&apos;s React; it never imports or replaces it.{" "}
+              <a
+                href={`${GITHUB}/tree/main/packages/react`}
+                className="text-orange underline decoration-hairline underline-offset-4 transition-colors hover:text-ivory"
+              >
+                Read the React contract →
+              </a>
             </p>
           </section>
         </Reveal>
@@ -99,6 +107,54 @@ export default function Page() {
             </SectionHead>
             <div className="mt-12">
               <DiffReport />
+            </div>
+            <div className="mt-8 grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
+              <article className="rounded-2xl border border-hairline bg-panel p-6">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
+                  local review
+                </p>
+                <h3 className="mt-3 text-lg font-semibold text-ivory">
+                  No review service required.
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-quiet">
+                  The CLI writes an HTML page beside the report and its images.
+                  Open it locally or upload the directory with the CI artifacts;
+                  then promote the chosen candidates with{" "}
+                  <span className="font-mono text-[0.95em] text-ivory">
+                    variance accept
+                  </span>
+                  . Nothing needs an account or a running server.
+                </p>
+                <a
+                  href={`${GITHUB}/tree/main/packages/cli#html-report`}
+                  className="mt-5 inline-block font-mono text-xs text-orange transition-colors hover:text-ivory"
+                >
+                  local report and acceptance →
+                </a>
+              </article>
+
+              <article className="rounded-2xl border border-hairline bg-panel p-6">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
+                  shared review
+                </p>
+                <h3 className="mt-3 text-lg font-semibold text-ivory">
+                  Tribunal runs in infrastructure you control.
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-quiet">
+                  Tribunal receives finished runs and holds their baselines,
+                  history and per-subject decisions. Approval promotes the
+                  candidate the run already uploaded; the service never renders
+                  a replacement. It ships for a local Node process or a
+                  Cloudflare Worker and is not a hosted Variance Authority
+                  endpoint.
+                </p>
+                <a
+                  href={`${GITHUB}/tree/main/packages/tribunal`}
+                  className="mt-5 inline-block font-mono text-xs text-orange transition-colors hover:text-ivory"
+                >
+                  self-host the Tribunal →
+                </a>
+              </article>
             </div>
           </section>
         </Reveal>
@@ -124,11 +180,59 @@ export default function Page() {
             <div className="mt-12">
               <AgentFlow />
             </div>
-            <p className="mt-6 max-w-3xl text-sm leading-6 text-quiet">
-              This interface only produces evidence. It shows the boundary of
-              a proposed change. Execution and acceptance stay with the tools
-              that own them.
-            </p>
+            <div className="mt-8 grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
+              <article className="rounded-2xl border border-hairline bg-panel p-6">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
+                  MCP
+                </p>
+                <h3 className="mt-3 text-lg font-semibold text-ivory">
+                  The evidence becomes something an agent can question.
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-quiet">
+                  MCP exposes visual reports, presentation findings,
+                  source-to-test reach, test attention, scenarios and live-run
+                  state as one set of tools. It reads evidence supplied by those
+                  instruments; it never runs a test, rerenders a subject or
+                  changes a baseline.
+                </p>
+                <a
+                  href={`${GITHUB}/tree/main/packages/mcp`}
+                  className="mt-5 inline-block font-mono text-xs text-orange transition-colors hover:text-ivory"
+                >
+                  inspect the MCP surface →
+                </a>
+              </article>
+
+              <article className="rounded-2xl border border-hairline bg-panel p-6">
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
+                  events + vantage
+                </p>
+                <h3 className="mt-3 text-lg font-semibold text-ivory">
+                  Ask a suite what it is doing before it stops.
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-quiet">
+                  Events announce decisions and bounded work from application
+                  or service code. Vantage holds what each in-flight test heard,
+                  from which realm, and which work started but never ended. MCP
+                  makes that live state queryable. It needs no screenshot and
+                  writes no lasting report; stop the watcher and it is gone.
+                </p>
+                <p className="mt-5 flex flex-wrap gap-x-4 gap-y-2 font-mono text-xs">
+                  <a
+                    href={`${GITHUB}/tree/main/packages/event`}
+                    className="text-orange transition-colors hover:text-ivory"
+                  >
+                    announcements →
+                  </a>
+                  <a
+                    href={`${GITHUB}/tree/main/packages/vantage`}
+                    className="text-orange transition-colors hover:text-ivory"
+                  >
+                    live-run view →
+                  </a>
+                </p>
+              </article>
+            </div>
           </section>
         </Reveal>
 
