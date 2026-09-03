@@ -1,6 +1,5 @@
 ---
 '@variance-authority/sense': patch
-'@variance-authority/storybook-collector': patch
 ---
 
 Record one coverage row for a subject the run read twice.
@@ -8,13 +7,13 @@ Record one coverage row for a subject the run read twice.
 Stabilization reads a subject again whenever the first read was not trusted, so
 a changed or unstable subject reaches `recordExecution` twice. It built one
 `CoverageTest` per observation and keyed them by owner, and the encoder refuses
-to intern two rows under one name: every second Storybook run of a moving suite
-died with `duplicate test coverage observation` and wrote no journal.
-`recordExecution` now folds its subjects through `joinObservations` — the same
-join Playwright's collector already applied before calling — so the invariant
-holds for collectors not yet written.
+to intern two rows under one name: every second run of a moving Storybook suite
+died with `duplicate test coverage observation` and wrote no journal, which is a
+selection index that silently stops existing exactly when the suite starts
+moving.
 
-`@variance-authority/storybook-collector` also honours what its own comment
-promised. A refusal to record was written to stderr and the run continued; a
-throw from the same call took the run down with it, costing every subject its
-baselines over a journal that is not the artefact under review.
+`recordExecution` now folds its subjects through `joinObservations` before
+anything reads them — the same join `@variance-authority/playwright-test`
+already applied at its call site and `@variance-authority/storybook-collector`
+did not. Folding inside the recorder rather than in each collector is what makes
+the one-row-per-owner invariant hold for collectors not yet written.
