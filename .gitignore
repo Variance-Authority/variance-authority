@@ -20,6 +20,7 @@ node_modules
 # Build output
 dist
 *.tsbuildinfo
+docs-examples
 
 # The two copies of `dist` the probe-overhead benchmark compares. Inside the
 # package because a bare specifier only resolves from somewhere `node_modules` is
