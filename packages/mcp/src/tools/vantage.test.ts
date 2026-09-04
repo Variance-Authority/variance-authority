@@ -6,6 +6,7 @@ import type {
 } from '@variance-authority/vantage';
 import { handle, REPORTS, VANTAGE } from '../protocol.js';
 import { runSignals } from './run-signals.js';
+import { self } from './self.js';
 import { testSignals } from './test-signals.js';
 
 function event(ordinal: number, realm: string, action: string, phase = 'once'): RecordedEvent {
@@ -61,6 +62,7 @@ describe('variance_run_signals', () => {
   it('is callable through the MCP protocol, beside the tools that read a report', () => {
     const listed = handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, () => RUNNING, VANTAGE);
     expect((listed!.result as { tools: { name: string }[] }).tools).toEqual([
+      expect.objectContaining({ name: 'variance_self' }),
       expect.objectContaining({ name: 'variance_run_signals' }),
       expect.objectContaining({ name: 'variance_test_signals' }),
       expect.objectContaining({ name: 'variance_diff' }),
@@ -189,5 +191,36 @@ describe('the handshake', () => {
     const answer = handle(initialize, () => ({}) as never, REPORTS);
 
     expect(answer?.result).not.toHaveProperty('instructions');
+  });
+});
+
+describe('variance_self', () => {
+  it('is offered first, because it is the question asked before the others', () => {
+    // A reader that has just found a watcher has no handshake to look at. Every
+    // other live answer is about the run; this one is about the thing holding it.
+    expect(VANTAGE.tools[0]).toBe(self);
+  });
+
+  it('says what it is holding, most of it first', () => {
+    expect(self.run(RUNNING, {})).toContain('Watching 2 test(s): 1 passed, 1 running.');
+  });
+
+  it('says what to start a suite with, so the address is never guessed at', () => {
+    expect(self.run(RUNNING, {})).toContain(`VARIANCE_AUTHORITY_VANTAGE=${ADDRESS}`);
+  });
+
+  it('distinguishes a watcher nothing has reported to from a suite with no tests', () => {
+    // The two are indistinguishable from any other answer, and they need opposite
+    // things done about them: start the suite, or start it with the variable set.
+    const text = self.run({ address: ADDRESS, tests: [], forgotten: 0 }, {});
+
+    expect(text).toContain(ADDRESS);
+    expect(text).not.toContain('Watching 0 test(s)');
+  });
+
+  it('admits what it dropped, rather than reporting a shorter run', () => {
+    const text = self.run({ ...RUNNING, forgotten: 12 }, {});
+
+    expect(text).toContain('12 earlier test(s) were dropped');
   });
 });

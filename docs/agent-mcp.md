@@ -16,6 +16,11 @@ The standalone `variance-authority-mcp` executable does not discover those
 other artifacts beside a report file. Use it for a run report; use the
 producer's MCP connection for evidence the producer holds.
 
+The report tools are also questions on the command line, where they need no
+client and no server: [ask a run from the command line](agent-cli.md). Connect a
+client when the evidence is held by a producer, or when the agent in the loop
+speaks MCP already.
+
 ## Serve a completed run report
 
 Use Node 22 or newer. From the directory in which the MCP client will launch the

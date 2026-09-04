@@ -42,8 +42,15 @@ const SAYS_ENOUGH = 24;
  */
 const NAMES_ITS_PRICE = /—.*\bneeds\s/;
 
-/** A file a test runner collects, and therefore a todo that appears in a summary. */
-const COLLECTED = /\.(test|check)\.(ts|tsx|js|jsx)$/;
+/**
+ * A file a test runner collects, and therefore a todo that appears in a summary.
+ *
+ * `.measure.ts` counts because `yarn measure` collects it. The kind exists
+ * because a cost ratio cannot be timed through the suite that instruments it,
+ * and a todo parked there is read by a runner every bit as much as one in the
+ * suite — it is simply read by the other command.
+ */
+const COLLECTED = /\.(test|check|measure)\.(ts|tsx|js|jsx)$/;
 
 const MARKERS = markers();
 const COMMENTS = MARKERS.filter((marker: { kind: string }) => marker.kind !== 'todo');

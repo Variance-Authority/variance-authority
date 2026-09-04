@@ -29,6 +29,14 @@ export function toBeUnchanged(observation: Observation, options: UnchangedOption
   };
 }
 
+/**
+ * Every matcher here as one object, for a suite handing the set to `expect.extend`.
+ *
+ * A bundle rather than a namespace, and it exists so that adding a matcher is
+ * not a line every adopter has to add to their own setup file. Each member is
+ * exported separately as well, because a suite that wants one matcher is
+ * entitled to take one.
+ */
 export const varianceMatchers = { toBeUnchanged };
 
 /** Assert without replacing the suite's existing `expect`. */

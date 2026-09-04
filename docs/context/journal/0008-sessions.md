@@ -25,7 +25,7 @@ SESSION COST (30 subjects, 302 CSS rules)
 ```
 
 ```bash
-yarn vitest run packages/session/src/cost.test.ts
+yarn measure
 ```
 
 JSDOM construction is the *cheapest* member of the family this stands in for. A

@@ -22,13 +22,19 @@ yarn workspace @variance-authority/sense overhead
 ```
 
 ```bash
-yarn vitest run --config tools/instrumented.config.mts
+yarn test
+```
+
+```bash
+yarn vitest run --config tools/uninstrumented.config.mts
 ```
 
 The census instruments every product file in this repository and counts what it
 placed. The overhead benchmark copies this package's own build three times,
-instruments one copy, and times a real scan through each. The last command is the
-suite itself, run through the transform.
+instruments one copy, and times a real scan through each. The last two are the
+suite itself, with the transform and without it — `yarn test` records what it
+executes, and `tools/uninstrumented.config.mts` is the same configuration with
+that one plugin taken off.
 
 ## The probe set is 0.4× Istanbul
 

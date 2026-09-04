@@ -76,10 +76,32 @@ const now = watching.observatory.snapshot();
 watcher on the same machine coordinates with nothing, and the one string
 `attachVantage` returns is everything a run needs to be started with.
 
-The medium is [`@variance-authority/wire`](../wire/README.md), unchanged: one id
-per execution, one address to answer on, and the execution in the address rather
+That same string is also where the watcher answers. A `GET` on it returns the
+snapshot as JSON, together with the snapshot handed to the previous reader, so a
+process that is not this one can ask what the run is doing:
+
+```bash
+curl http://127.0.0.1:54321/
+```
+
+One address rather than two. A reader asks on the string it already had to
+export for the suite, and there is no second port to keep in step with the
+first. Reading and reporting are separated by method rather than by path,
+because a participant reports under an execution id it chose and `/` is a
+perfectly good one.
+
+The previous snapshot travels with the reading because the reader is a process
+that exits. It cannot hold the state a *what changed since I last asked* answer
+compares against, and it cannot come back to say it succeeded — so the watcher
+rotates as it hands a reading over. One `previous` is shared by every reader,
+which is the bargain one MCP connection already makes for its one client.
+
+The medium is [`@variance-authority/wire`](../wire/README.md): one id per
+execution, one address to answer on, and the execution in the address rather
 than in the body. A run is simply another participant with something to say. The
-only difference from a head is which end is the subject.
+only difference from a head is which end is the subject — and that this is the
+one listener that also answers, which the medium takes as an option so a head or
+an event collector stays write-only.
 
 ## Reading it
 
@@ -126,11 +148,14 @@ fixture.
 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
 ```
 
-The watcher an agent talks to is
-[`@variance-authority/mcp`](../mcp/README.md), started with
-`variance-authority-mcp --watch`: it prints that line, holds the run, and answers
-`variance_run_signals` and `variance_test_signals` while the suite is still
-going.
+Two things start a watcher, and they hold the run identically. `variance watch`,
+from [`@variance-authority/cli`](../cli/README.md), prints that line and stays
+up; `variance ask --at <address>` reads it from any other shell.
+`variance-authority-mcp --watch`, from
+[`@variance-authority/mcp`](../mcp/README.md), does the same over stdio for a
+client that speaks it. Both answer `variance_self`, `variance_run_signals` and
+`variance_test_signals` about a suite that is still going, from the same
+functions over the same snapshot.
 
 Nothing here knows what a subject is, and none of it is about visual regression.
 A suite that never takes a screenshot reports exactly the same four sentences as

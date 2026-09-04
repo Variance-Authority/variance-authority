@@ -37,7 +37,8 @@
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
-    "mark.svg"
+    "mark.svg",
+    "skill"
   ],
   "scripts": {
     "build": "tsc --build"
@@ -55,6 +56,7 @@
     "@variance-authority/report": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/store": "workspace:^",
-    "@variance-authority/storybook": "workspace:^"
+    "@variance-authority/storybook": "workspace:^",
+    "@variance-authority/vantage": "workspace:^"
   }
 }

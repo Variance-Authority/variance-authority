@@ -85,6 +85,16 @@ export interface SessionStats {
   readonly probeShare: number;
 }
 
+/**
+ * A session: one document, reused by every subject that runs in it.
+ *
+ * What the type is for is what it refuses to do between subjects. Rebuilding a
+ * document costs the whole document; emptying a container costs the last
+ * subject, so that is the only teardown performed and everything else — sheets,
+ * fonts, whatever the previous subject left behind — is carried forward on
+ * purpose. A subject that passes only in a fresh document is unstable, and this
+ * is the arrangement that makes it say so instead of hiding it.
+ */
 export function createSession(options: SessionOptions): Session {
   return new Session(options);
 }

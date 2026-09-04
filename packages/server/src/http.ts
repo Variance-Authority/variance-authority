@@ -106,6 +106,15 @@ const DEFAULT_MAX_BODY_BYTES = 8 * 1024 * 1024;
  */
 const UNAUTHENTICATED = 'a valid bearer token is required';
 
+/**
+ * Start the history service, and refuse to start it unauthenticated.
+ *
+ * The empty-token check is here because this is the last point at which it can
+ * still be a startup failure. A service that accepts every request holds every
+ * observation an operator has ever recorded, and it fails silently — it serves
+ * correctly, to anyone. Everything else a caller can get wrong is answered per
+ * request against {@link UNAUTHENTICATED}; this one closes the door instead.
+ */
 export async function serveHistory(options: HistoryServiceOptions): Promise<HistoryService> {
   if (options.token.trim() === '') {
     throw new Error(

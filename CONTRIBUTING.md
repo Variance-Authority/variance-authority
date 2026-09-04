@@ -8,13 +8,27 @@ yarn build
 yarn verify
 ```
 
-`verify` runs lint, documentation and dependency-boundary checks, and the test
-suite. Browser suites skip with a reason when Chromium is unavailable; install
-it with:
+`verify` runs lint, documentation and dependency-boundary checks, the cost
+measurements, and the test suite. Browser suites skip with a reason when
+Chromium is unavailable; install it with:
 
 ```bash
 npx playwright install chromium
 ```
+
+## Running less than the whole suite
+
+`yarn test` records which test file executed which region of which module.
+`yarn test:since` reads that back and runs the files a change reached:
+
+```bash
+yarn test:since
+```
+
+It narrows only where it has a measurement. A changed path the snapshot holds no
+row for — a file added since the recording, a fixture, a module that cannot
+carry a probe — runs everything and names the path that caused it. So a green
+`test:since` is a smaller claim than a green `verify`, and `verify` is the gate.
 
 ## Reproduce the documented behavior
 

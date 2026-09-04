@@ -17,25 +17,34 @@ export function diffState(before: unknown, after: unknown): readonly StateDiffer
   return differences;
 }
 
-/** The one stateful tool every served subject receives. */
+/**
+ * The one stateful tool every served subject receives.
+ *
+ * It says *invocation*, never the name of a transport. The previous state is
+ * held in memory for as long as an MCP connection lasts and read from a file
+ * beside the report when `variance ask` is the caller, and the reader of the
+ * answer has no way to act on which — an answer that named MCP would be, to
+ * somebody who has never configured one, a report about a component that is not
+ * installed.
+ */
 export const diff: Tool<unknown> = {
   name: 'variance_diff',
   description:
-    'Compare the current state with the state held from the previous successful MCP tool invocation. ' +
+    'Compare the current state with the state recorded by the previous successful invocation. ' +
     'The first invocation records state and has nothing to compare.',
   inputSchema: NO_ARGS,
   run(current, _input, invocation) {
     if (invocation?.previous === undefined) {
-      return 'No previous MCP invocation state. The current state is now remembered.';
+      return 'No previous invocation was recorded. The current state is now remembered.';
     }
 
     const differences = diffState(invocation.previous, current);
     if (differences.length === 0) {
-      return 'The current state matches the previous MCP invocation.';
+      return 'The current state matches the previous invocation.';
     }
 
     return [
-      `The current state differs from the previous MCP invocation at ${String(differences.length)} path(s).`,
+      `The current state differs from the previous invocation at ${String(differences.length)} path(s).`,
       ...differences.map(describe),
     ].join('\n');
   },

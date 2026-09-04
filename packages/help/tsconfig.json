@@ -8,7 +8,7 @@
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/__fixtures__/**"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.measure.ts", "src/__fixtures__/**"],
   "references": [
     { "path": "../package" },
     { "path": "../mcp" }

@@ -87,6 +87,11 @@ export const VANTAGE: Served<VantageState> = {
         'started and never ended. Both answer while the test is still running, ' +
         'which is what a runner cannot do from outside the worker.',
       '',
+      'Ask `variance_self` when an answer is emptier than expected. It says what ' +
+        'this watcher is holding and what a suite has to be started with, which ' +
+        'is what separates a run that reported somewhere else from one that has ' +
+        'not started.',
+      '',
       attaching(state),
     ].join('\n'),
 };

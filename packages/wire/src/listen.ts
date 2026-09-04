@@ -47,6 +47,22 @@ export interface ListenOptions {
    * than here.
    */
   readonly host?: string;
+  /**
+   * What a reader gets when it asks this listener a question, if anything.
+   *
+   * Opt-in, and absent everywhere but a watcher. A listener is a place
+   * participants report *to*, and a driver that holds its reports in memory
+   * nobody else may see is the normal case: heads and event collectors pass
+   * nothing here and keep answering `404` to every read, exactly as they did
+   * before this existed.
+   *
+   * The one caller that does pass it has a second audience — an agent asking
+   * about a run in flight — and no other way to reach it, because the memory
+   * being asked about ends with the process holding it. Returning `undefined`
+   * declines a path, so the reader's surface is the handler's to define rather
+   * than this module's.
+   */
+  readonly answer?: (path: string) => unknown;
 }
 
 /**
@@ -67,7 +83,30 @@ export async function listen(options: ListenOptions = {}): Promise<Wire> {
     return true;
   };
 
+  const answer = options.answer;
+
   const server = createServer((request, response) => {
+    // Method-separated rather than path-separated, so a reader's surface cannot
+    // collide with an execution id a participant reports under. A listener with
+    // no `answer` never reaches this branch and a `GET` falls through to a body
+    // that will not parse, which is the `404` it already was.
+    if (request.method === 'GET' && answer !== undefined) {
+      const asked = new URL(request.url ?? '/', 'http://localhost').pathname;
+      const said = answer(asked);
+      if (said === undefined) {
+        response.writeHead(404).end();
+        return;
+      }
+      const body = JSON.stringify(said);
+      response
+        .writeHead(200, {
+          'content-type': 'application/json',
+          'content-length': String(Buffer.byteLength(body)),
+        })
+        .end(body);
+      return;
+    }
+
     take(request, (body) => {
       const path = new URL(request.url ?? '/', 'http://localhost').pathname.split('/');
       const journey = decodeURIComponent(path[1] ?? '');

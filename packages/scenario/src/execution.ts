@@ -24,6 +24,15 @@ export interface StartScenarioOptions {
   readonly preconditionLink?: PreconditionLink;
 }
 
+/**
+ * The acts a scenario will perform, fixed before any of them run.
+ *
+ * Declaring the sequence up front is what makes a partial run legible: a run
+ * that stops after two of five acts is three acts unobserved rather than a
+ * shorter scenario, and nothing downstream has to infer which. The acts are
+ * copied on the way in, so a caller that keeps mutating its own array cannot
+ * rewrite the definition a recorded run was checked against.
+ */
 export function defineScenario(id: string, acts: readonly ScenarioAct[]): ScenarioDefinition {
   requireName(id, 'scenario id');
   for (const act of acts) requireName(act.key, 'act key');
@@ -48,6 +57,15 @@ export function semanticSnapshotDigest(snapshot: SemanticSnapshot): Digest {
   return digestString(canonicalize(snapshot as unknown as CanonicalValue));
 }
 
+/**
+ * Open a run of a definition against one precondition, on one profile.
+ *
+ * The arrange observation is a parameter rather than an optional because a
+ * scenario with no starting state has nothing to be a change *from* — every
+ * later act would be reported against whatever the first one happened to
+ * produce. Failing to observe it is a legal outcome rather than an error: the
+ * run terminates there, and {@link recordAct} refuses everything after.
+ */
 export function startScenario(
   definition: ScenarioDefinition,
   options: StartScenarioOptions,
@@ -86,6 +104,15 @@ export function startScenario(
   return run;
 }
 
+/**
+ * Add one act's observation, in the order the definition declared it.
+ *
+ * Returns a new run rather than mutating one. A run is evidence, and evidence
+ * that changes shape under the code reading it cannot be compared with the copy
+ * something else is already holding. The key is checked against the act the
+ * sequence expects, so a suite whose steps have drifted out of order fails
+ * naming both keys instead of recording a scenario nobody performed.
+ */
 export function recordAct(
   run: ScenarioRun,
   key: string,

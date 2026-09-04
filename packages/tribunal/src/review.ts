@@ -97,6 +97,15 @@ export type {
   TribunalChangelogQuery,
 } from './changelog.js';
 
+/**
+ * The store, bound to one project in one database and one bucket.
+ *
+ * A factory rather than a class because the bindings arrive per request in a
+ * Worker: there is no process to hold a connection in, and a module-scope
+ * instance would outlive the request that was entitled to it. `project` is
+ * closed over rather than passed, so it reaches every statement below and a
+ * query cannot read across projects by being written without it.
+ */
 export function createReviewStore(options: ReviewOptions): ReviewStore {
   const { db, bucket, project } = options;
   const now = options.now ?? ((): Date => new Date());

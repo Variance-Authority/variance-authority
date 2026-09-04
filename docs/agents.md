@@ -8,6 +8,7 @@ different owners and lifetimes, so they use different agent paths.
 
 | Question | What the agent reads | Guide |
 | --- | --- | --- |
+| What did the last visual run observe, and what explains it? | The run report the CLI wrote, read from a shell | [Ask a run from the command line](agent-cli.md) |
 | What does retained evidence say about a completed run or another recorded observation? | A supplied run report, execution index, archive, or other producer-owned evidence | [Question retained evidence over MCP](agent-mcp.md) |
 | What is an executing suite doing, and where did one test stop making progress? | Process-local test lifecycle and announcement signals | [Inspect a live run](agent-live-run.md) |
 | What does this workspace publish, where is a symbol declared, and which packages import it? | Manifests and current TypeScript source | [Inspect the workspace public API](agent-workspace-api.md) |

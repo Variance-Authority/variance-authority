@@ -122,14 +122,23 @@ async function consume(
     throw error;
   }
 
-  const after = await snapshot(locator);
+  let after: readonly TargetSnapshot[] | undefined;
+  try {
+    after = await snapshot(locator);
+  } catch {
+    // The operation itself already succeeded. Navigation, a closed page, or a
+    // detached frame can lose the post-operation read, and an observer may not
+    // break its subject, so the record omits `after` to say the read never
+    // completed rather than failing an interaction that passed.
+  }
+
   log.record({
     kind: 'playwright-locator',
     operation,
     member,
     locator: path,
     before,
-    after,
+    ...(after === undefined ? {} : { after }),
     outcome: 'resolved',
   });
   return result;

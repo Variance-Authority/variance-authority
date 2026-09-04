@@ -159,6 +159,24 @@ yarn build && yarn verify
 `verify` includes the documentation checks in `tools/`: every link resolves,
 every path named in prose exists, every `file:line` lands where it says, stated
 counts are the counts, and the CLI command lists match the binary's own table.
+It also runs `yarn measure`, the `*.measure.ts` files that gate on what the
+product costs — separate from the suite because the suite instruments what it
+loads, and a ratio cannot be timed through the thing timing it.
+
+`yarn test` records which test file executed which region of which module.
+`yarn test:since` reads that back and runs the files a change reached:
+
+```bash
+yarn test:since            # since the commit the snapshot was recorded at
+yarn test:since main       # since the merge base with main
+yarn test:since --dry-run  # decide, explain, run nothing
+```
+
+It narrows only where it has a measurement. A changed path the snapshot holds no
+row for — an untracked file, a fixture, a page-side module that cannot carry a
+probe — runs everything and names the path that caused it. So a green
+`test:since` is a smaller claim than a green `verify`: use it in the loop, and
+report against the gate.
 
 **An out-of-date checkout reports defects, not errors, and that is what makes it
 expensive.** Nothing here imports another package by relative path, so a check

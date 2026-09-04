@@ -2,7 +2,6 @@ import {
   isVendorPath,
   jsxSourceOf,
   parseStackFrames,
-  propsDigest,
   type OwnerFrame,
   type Provenance,
   type SourceLocation,
@@ -10,6 +9,7 @@ import {
 } from '@variance-authority/core';
 import { FiberTag, findFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { debugOwnerName, fiberComponentName } from './names.js';
+import { boundaryPropsDigest } from './props.js';
 
 /**
  * Turning a DOM node into the `Provenance` value `core` defines.
@@ -233,7 +233,7 @@ function ownerChain(fiber: Fiber): readonly OwnerFrame[] {
       const authoredBy = debugOwnerName(node._debugOwner);
       frames.push({
         name: fiberComponentName(node),
-        propsDigest: propsDigest(digestableProps(node.memoizedProps)),
+        propsDigest: boundaryPropsDigest(node.memoizedProps),
         // Development-only, like every `_debugOwner` read. Absent in a
         // production build, which degrades structural attribution to the
         // enclosing component rather than breaking it.
@@ -245,35 +245,6 @@ function ownerChain(fiber: Fiber): readonly OwnerFrame[] {
   }
 
   return frames;
-}
-
-/**
- * Props as they enter this boundary, minus `children`.
- *
- * Excluding `children` is not a convenience — it is what makes §6.2's
- * root/collateral distinction work at all. `children` *is* the subtree, and the
- * snapshot already captures the subtree structurally. Digesting it here would
- * mean any change anywhere below a component alters that component's incoming
- * props digest, and every ancestor's too. §6.2 declares a component the **root**
- * of a change when its subtree changed *while its incoming props held*; if a
- * descendant edit moved every ancestor's digest, that condition could never
- * hold, every change would read as "arrived from outside", and the root would
- * always be reported as the application shell.
- *
- * The cost is real and bounded: swapping which element is passed as `children`
- * while everything else holds does not move this digest. That change is still
- * caught — the subtree diff sees it — it is just attributed to the enclosing
- * component rather than to the prop provider.
- */
-function digestableProps(props: Readonly<Record<string, unknown>> | null): Record<string, unknown> {
-  if (props === null || typeof props !== 'object') return {};
-
-  const shaped: Record<string, unknown> = {};
-  for (const key of Object.keys(props)) {
-    if (key === 'children') continue;
-    shaped[key] = props[key];
-  }
-  return shaped;
 }
 
 /**

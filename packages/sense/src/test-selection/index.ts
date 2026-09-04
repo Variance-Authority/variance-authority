@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { digestString, type FileRecord } from '@variance-authority/core';
+import type { BlockKind } from '../instrument/index.js';
 import { deviationFromView } from './deviation.js';
 import {
   journeyDivergences,
@@ -28,13 +29,14 @@ export {
   type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
+export type { BlockKind };
 export type { ExecutionNarrowing };
 export { journeyDivergences };
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 
 export interface CoverageBlock {
   readonly ordinal: number;
-  readonly kind: string;
+  readonly kind: BlockKind;
   /** Ordinal of the enclosing arrival region; absent only on the module root. */
   readonly owner?: number;
   /** Identity of this region's source after child-region bodies are excluded. */

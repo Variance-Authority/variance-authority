@@ -156,7 +156,7 @@ than three tools stapled together.
 | The suite shares renderings, and which examples watch the same bytes        | `examples/todomvc/src/composition.test.tsx` — 26 shared renderings, 0 divergences                                                 |
 | Wiring separates two byte-identical documents                               | `examples/todomvc/src/fiber.test.tsx`                                                                                             |
 | A remount is invisible to the document                                      | `packages/react/src/identity.test.tsx` — the two renders serialize identically, while the UI reads `1 of 1` against `0 of 1`      |
-| Detecting cross-pollution beats rinsing it away                             | `packages/session/src/cost.test.ts` — 3–4× faster, probe overhead ~2% of session time; re-measured every run, asserted as a floor |
+| Detecting cross-pollution beats rinsing it away                             | `packages/session/src/cost.measure.ts` — 3–4× faster, probe overhead ~2% of session time; re-measured every run, asserted as a floor |
 | Which bands a single prop reaches                                           | `examples/todomvc/src/contrast.test.tsx` — seven props, five distinct sets                                                        |
 
 ## What none of this establishes

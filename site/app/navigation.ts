@@ -187,6 +187,11 @@ export const NAVIGATION = [
     items: [
       { href: "/agents", label: "Choose an agent workflow" },
       {
+        href: "/agents/cli",
+        label: "Ask a run from the command line",
+        alternative: true,
+      },
+      {
         href: "/agents/mcp",
         label: "Query evidence over MCP",
         alternative: true,

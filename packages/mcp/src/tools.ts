@@ -18,6 +18,7 @@ import { presentations, type PresentationEvidence } from './tools/presentations.
 import { scenarios, type ScenarioEvidence } from './tools/scenarios.js';
 import { sourceTests } from './tools/source-tests.js';
 import { runSignals } from './tools/run-signals.js';
+import { self } from './tools/self.js';
 import { testSignals } from './tools/test-signals.js';
 import { NO_ARGS, stringArg, type Tool } from './tools/tool.js';
 import { trace } from './tools/trace-component.js';
@@ -114,13 +115,18 @@ export function sourceTestToolByName(name: string): Tool<ExecutionIndex> | undef
  * about an index that was written; these answer about a run *in flight*, held in
  * the memory of the process answering, and gone when it exits.
  *
- * The listing comes first for the same reason `variance_summary` does: the other
- * two take an argument it printed. `variance_diff` is last here rather than
- * second, because on a live subject it is not the session question but the
- * *progress* question — what the suite did between two asks — and that is only
- * worth asking once a reader knows what they are watching.
+ * `variance_self` is first because it is the only one that answers before a run
+ * has started, and because the failure it names — a suite started without the
+ * variable, reporting nowhere — makes every other answer here empty in a way
+ * that reads like a quiet suite. The listing is second for the reason
+ * `variance_summary` leads the report tools: the tool after it takes an
+ * argument it printed. `variance_diff` is last rather than second, because on a
+ * live subject it is not the session question but the *progress* question —
+ * what the suite did between two asks — and that is only worth asking once a
+ * reader knows what they are watching.
  */
 export const VANTAGE_TOOLS = [
+  self,
   runSignals,
   testSignals,
   diff as Tool<VantageState>,
@@ -131,6 +137,18 @@ export function vantageToolByName(name: string): Tool<VantageState> | undefined 
   return VANTAGE_TOOLS.find((tool) => tool.name === name);
 }
 
+/**
+ * The report tools, in the order argued above.
+ *
+ * Exported as a list, and not only through `toolByName`, because `variance ask`
+ * offers the same eleven questions from a shell to the agents that cannot host a
+ * server. A set enumerated on that side would be short by one the day a tool is
+ * added here, and short in the direction nobody checks: the CLI would keep
+ * working and would quietly be a smaller product than the connection.
+ *
+ * The order carries across for the same reason it exists — `variance_summary`
+ * prints the ids every other tool takes, so it is first wherever the list is read.
+ */
 export const TOOLS: readonly Tool[] = [
   summarize,
   diff,

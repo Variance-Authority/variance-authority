@@ -90,9 +90,12 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--limit <n>] [--at <address>] [<report>...]
+variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
+variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>]
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
@@ -107,12 +110,87 @@ it wrote; `adjudicate` re-reads it against what you said you were doing;
 diff itself, identifying a category of visual difference so it can be matched
 across subjects) wherever that shape is the whole change, and refuses by name
 any subject where something else moved too; `changelog` reads back why the
-baselines are what they are; `push` sends a finished run to a review surface for
-somebody to decide; `doctor` says what this machine can observe
-before a run rather than after one. `serve` exposes the report the last run
+baselines are what they are; `journeys` reads back which regions of one module
+this run's subjects entered differently; `push` sends a finished run to a review
+surface for somebody to decide; `doctor` says what this machine can observe
+before a run rather than after one; `watch` holds a suite that is still running
+so `ask` has something live to ask. `serve` exposes the report the last run
 wrote to an MCP client — an agent asks it what changed, which component and
 which file, over stdio, without re-running anything; the tools are
-`@variance-authority/mcp`'s.
+`@variance-authority/mcp`'s, and `ask` is the same set without the client.
+
+### Ask: the agent answers, without an agent protocol
+
+```bash
+npx variance ask                          # the questions, and what each answers
+npx variance ask summary
+npx variance ask changes --component Toggle
+npx variance ask describe --subject story:card
+```
+
+`ask` calls the tools `serve` serves and prints what they return. The same
+function, so the two cannot describe the same run differently — and a shell is
+all it takes, which matters because an MCP server is a process the *client*
+launches from a config file that belongs to the client. A CI job, a sandboxed
+agent, a container with no editor in it, somebody else's harness: all of them
+have a shell, and many of them cannot add a server. The skill this package ships
+at `skill/SKILL.md` routes an agent through these questions in order.
+
+Every answer exits `0`, including one that describes changes. `ask` reads; it
+does not decide. The verdict stays with `run`, `report` and `adjudicate`, which
+exit `1` when something needs review — one command per gate, so a workflow
+cannot lose its exit code to a question.
+
+`ask diff` reports what moved since the previous question was answered. An MCP
+connection holds that state in memory for as long as it lasts; a command line
+cannot, so the report each answer was read from is recorded beside the
+configured report as `asked.json`. Deleting it costs the next `ask diff` its
+comparison and nothing else.
+
+### Watch: ask about a suite that has not finished
+
+A finished run leaves a file, so any number of processes can open it whenever
+they like. A run in flight leaves nothing, and the only copy of what it said is
+in the memory of whatever was listening at the time. So somebody has to be
+listening *before* the suite starts:
+
+```bash
+npx variance watch
+```
+
+It prints the one line the suite has to be started with, and stays up:
+
+```
+VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321
+```
+
+That variable goes wherever `VARIANCE_AUTHORITY_EVENTS` goes, and **none of it
+is about visual regression** — a test that takes no screenshot reports exactly
+what one that does reports. Start the suite in one shell and ask from another:
+
+```bash
+npx variance ask self --at http://127.0.0.1:54321
+npx variance ask run-signals --at http://127.0.0.1:54321
+npx variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
+```
+
+`--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
+it for the suite asks with nothing extra typed. Ask `self` first: it says where
+the watcher is listening and what it is holding, which is what separates a run
+that reported somewhere else from one that has not started. `run-signals` marks
+the test still going with `▸`; `test-signals` gives everything one test
+announced, in order, with the realm that said each and the work that started
+without finishing — the answer a timeout cannot give, because a runner reports
+what a test *wanted*.
+
+`ask diff --at` works here too, against the reading the watcher handed out last.
+The watcher holds that state rather than a file, because this process exits
+between questions and there is nothing to write down: the run lives in memory
+that ends with the watcher. Stop it and the run is gone.
+
+The same questions are served over stdio by `variance-authority-mcp --watch`,
+from [`@variance-authority/mcp`](../mcp/README.md), for a client that speaks it.
+Same functions, same text.
 
 ### Push: put a build in front of a reviewer
 
@@ -218,6 +296,61 @@ Three failure modes are handled explicitly:
   `ephemeral` retention there is no baseline to explain; behind a `remote`
   store the explanation lives in that service's record instead, and this
   command reads only the log of a checkout.
+
+### Journeys: which part of a module two subjects took differently
+
+Every other reading here answers *which subject*. A recurrence count names a
+subject that keeps moving, a second reading names a subject that disagrees with
+itself, and none of them can say **where in the source** the two readings parted,
+because none of them was inside the module while it ran.
+
+A build instrumented with `testSelectionProbes()` from
+`@variance-authority/sense/journal` was. It records which regions of which
+modules each subject crossed while it was painted, and two subjects that render
+one module and enter different regions of it have parted:
+
+```bash
+npx variance journeys --file CartCard
+```
+
+```
+app/src/components/CartCard.tsx  3 observers
+  parted     handler CartCard/onClick  51-58
+    entered  story:cart-card--removing
+    missed   story:cart-card--item, story:cart-card--verbose
+  unentered  branch CartCard/empty  62-64
+
+pool: 3 observations the journal recorded whole, out of 3 subjects the report names
+note: recorded at 4f2a1c9d0b73
+```
+
+`parted` is the finding; `unentered` is its weaker sibling — a region with source
+of its own that nobody in the pool entered at all. `--file` narrows to modules
+whose path contains a string, `--limit` caps how many modules are named, and
+what a cap left out is counted rather than dropped.
+
+It exits `0` whatever it finds. Every suite with two stories per component has
+partings, so gating on one would fail every suite; this is where to look once
+something else has said something moved.
+
+**The pool is printed whether or not anything was found**, for `changelog`'s
+reason: an empty answer from a pool of one and an empty answer from a pool of
+forty are opposite facts. The journal accumulates across runs, so the default
+pool is the subjects the configured report names — this run's question, about
+this run's subjects. `--all` reads the accumulated record on purpose, and a
+checkout with no report to read gets that record *with a sentence saying so*,
+because a pool nobody chose must not print as one somebody did.
+
+Three more ways the pool is not what it looks like, each named rather than left
+to be inferred: an observation recorded incomplete is dropped from the pool
+rather than counted as having missed anything, and counted in a note; a named
+subject the journal holds no row for is listed, because nothing here is about it;
+and a pool that cannot hold two is said out loud, because a parting is a
+disagreement between two observers and one observer has not found nothing — it
+has not been able to look.
+
+With no journal at all the answer is *nothing*, not *nothing found*: the command
+names the file it looked for and what writes one.
 
 ### HTML report
 

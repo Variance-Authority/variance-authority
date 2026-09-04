@@ -29,6 +29,15 @@ export interface WorkspaceOptions extends HelpOptions {
   readonly output?: Writable;
 }
 
+/**
+ * Serve one workspace over MCP, re-reading it on every request.
+ *
+ * Returns the stop function because stopping is the only thing a caller can
+ * usefully do to a running transport: the reading is deliberately not theirs to
+ * hold, for the reason above. The workspace is read once before serving as well,
+ * so a path that is not a workspace fails at startup rather than on whichever
+ * question an agent happens to ask first.
+ */
 export function serveWorkspace(root: string, options: WorkspaceOptions = {}): () => void {
   const { input, output, ...reading } = options;
 

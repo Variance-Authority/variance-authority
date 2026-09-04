@@ -1,4 +1,4 @@
-import type { CoverageModule, TestCoverage } from './index.js';
+import type { BlockKind, CoverageModule, TestCoverage } from './index.js';
 
 /**
  * One module, two observers, and not the same path through it.
@@ -29,8 +29,8 @@ import type { CoverageModule, TestCoverage } from './index.js';
 
 /** A region of one module, and who has been inside it. */
 export interface JourneyRegion {
-  /** `function`, `branch`, `continuation`, `loop`, `case`, `handler`, `resume`. */
-  readonly kind: string;
+  /** Never `module`: the root is dropped before a region is built. */
+  readonly kind: BlockKind;
   /** What the instrument called it, which is usually the enclosing declaration. */
   readonly name: string;
   readonly startLine: number;

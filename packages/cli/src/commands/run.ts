@@ -80,6 +80,7 @@ export {
   decoderFor,
   historyFor,
   journeyAgainst,
+  recordedJourneys,
   relationsFor,
   renderCacheRoot,
   scanSourceDirs,
@@ -89,7 +90,7 @@ export {
 export { changedSince, diffSince, indexPosition, narrowingFor } from './since.js';
 export { affectedProjects } from './changes.js';
 export type { AffectedProjects, ChangeSource, ChangeTool } from './changes.js';
-export { readCliRunReport, writeCliRunReport } from './run-report.js';
+export { readCliRunReport, subjectsInReport, writeCliRunReport } from './run-report.js';
 export type {
   CliObservationRecord,
   CliRunReport,

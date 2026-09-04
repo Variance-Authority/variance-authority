@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BOOLEAN } from './args.js';
 import { USAGE, parseArgs } from './parse.js';
-import { openRenderer } from './dispatch.js';
+import { openRenderer } from './renderer.js';
 import { EXIT_OPERATOR, OperatorError } from './exit.js';
 
 describe('parseArgs', () => {
@@ -109,6 +109,79 @@ describe('parseArgs', () => {
 
   it('refuses accept with neither subjects nor --all', () => {
     expect(attempt(['accept']).message).toContain('needs a subject id, --shape, or --all');
+  });
+
+  it('reads the ask question as the first positional and the rest as reports', () => {
+    // One command with the question as data, rather than eleven subcommands: the
+    // set grows whenever the MCP tools do, and half of the names collide with
+    // commands that already mean something else here (`changelog`, `adjudicate`).
+    expect(parseArgs(['ask', 'describe', '--subject', 'story:card', 'shard-a.json'])).toEqual({
+      command: 'ask',
+      config: resolve('variance.config.json'),
+      question: 'describe',
+      subject: 'story:card',
+      reports: [resolve('shard-a.json')],
+    });
+  });
+
+  it('leaves the ask question absent when none was named, which lists them', () => {
+    expect(parseArgs(['ask'])).toEqual({
+      command: 'ask',
+      config: resolve('variance.config.json'),
+      reports: [],
+    });
+  });
+
+  it('reads journeys with no pool named, which is the run rather than the record', () => {
+    // `--all` absent is the default and it is not a value the parser invents: the
+    // pool it produces is decided in `dispatch`, from the report, because the
+    // difference between "this run's subjects" and "every subject ever recorded"
+    // is a reading of a file and not a reading of argv.
+    expect(parseArgs(['journeys'])).toEqual({
+      command: 'journeys',
+      config: resolve('variance.config.json'),
+      all: false,
+    });
+
+    expect(parseArgs(['journeys', '--all', '--file', 'CartCard', '--limit', '5'])).toEqual({
+      command: 'journeys',
+      config: resolve('variance.config.json'),
+      all: true,
+      file: 'CartCard',
+      limit: 5,
+    });
+  });
+
+  it('refuses a journeys --limit that is not a count', () => {
+    expect(attempt(['journeys', '--limit', 'all']).message).toContain('--limit');
+    expect(attempt(['journeys', '--limit', '0']).message).toContain('--limit');
+  });
+
+  it('splits ask --subjects on commas, as the changelog question takes them', () => {
+    expect(parseArgs(['ask', 'changelog', '--subjects', 'story:a, story:b'])).toMatchObject({
+      subjects: ['story:a', 'story:b'],
+    });
+  });
+
+  it('reads ask --at, which is the address a live question is asked on', () => {
+    expect(parseArgs(['ask', 'run-signals', '--at', 'http://127.0.0.1:4100'])).toMatchObject({
+      question: 'run-signals',
+      at: 'http://127.0.0.1:4100',
+    });
+  });
+
+  it('refuses a --limit that is not a count, before anything is asked', () => {
+    expect(attempt(['ask', 'run-signals', '--limit', 'lots']).message).toContain('--limit');
+    expect(attempt(['ask', 'run-signals', '--limit', '0']).message).toContain('--limit');
+  });
+
+  it('takes watch with nothing else, because nothing configures a watcher', () => {
+    // It holds a port and some memory. A `--config` here would be a path taken
+    // and never read, which is worse than a refusal.
+    expect(parseArgs(['watch'])).toEqual({ command: 'watch' });
+    expect(attempt(['watch', '--config', 'variance.config.json']).message).toContain(
+      'is not a flag `variance watch` accepts; it takes none',
+    );
   });
 
   it('refuses a value on a boolean flag', () => {
@@ -222,8 +295,8 @@ describe('parseArgs', () => {
       const command = /^variance (\w+)/.exec(line)?.[1];
       if (command === undefined) continue;
 
-      // Every command takes `--config`, and each usage line shows it, so the
-      // per-command set is what this has to reach.
+      // Whatever the command actually accepts, which for all but `watch` is the
+      // per-command set plus `--config`. Each usage line has to show all of it.
       for (const flag of flagsOf(command)) {
         if (!line.includes(flag)) missing.push(`${command}: ${flag}`);
       }
@@ -285,7 +358,8 @@ describe('opening a renderer', () => {
  */
 function flagsOf(command: string): readonly string[] {
   const sentence = /it takes ([^\n]+)/.exec(attempt([command, '--not-a-flag']).message)?.[1];
-  return sentence === undefined ? [] : sentence.split(',').map((flag) => flag.trim());
+  if (sentence === undefined || sentence === 'none') return [];
+  return sentence.split(',').map((flag) => flag.trim());
 }
 
 function attempt(argv: readonly string[]): OperatorError {

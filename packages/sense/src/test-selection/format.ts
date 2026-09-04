@@ -1,3 +1,4 @@
+import type { BlockKind } from '../instrument/index.js';
 import type {
   CoverageBlock,
   CoverageModule,
@@ -23,6 +24,17 @@ interface Header {
   readonly sections: readonly Section[];
 }
 
+/**
+ * The wire encoding of a block kind: a kind's position in this list is the byte
+ * `blocks.kind` holds for it. The order is append-only — move a member and every
+ * artifact an older build wrote decodes into a different vocabulary.
+ *
+ * `BlockKind` owns the vocabulary and this list owns only its numbering, and
+ * both halves of that correspondence are checked where they are written.
+ * `satisfies` rejects a name here the union does not carry; `kindId` hands a
+ * `BlockKind` to `indexOf`, whose parameter is this tuple's own element type, so
+ * a member added to the union stops the build there until it is appended here.
+ */
 const KINDS = [
   'module',
   'function',
@@ -32,7 +44,7 @@ const KINDS = [
   'loop',
   'case',
   'handler',
-] as const;
+] as const satisfies readonly BlockKind[];
 
 /**
  * One versioned snapshot: interned strings, dense block columns, and a CSR
@@ -199,7 +211,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
       }
       blocks.push({
         ordinal: view.blockOrdinal[block]!,
-        kind: KINDS[view.blockKind[block]!] ?? 'unknown',
+        kind: KINDS[view.blockKind[block]!]!,
         ...(view.blockOwner[block] === NO_OWNER ? {} : { owner: view.blockOwner[block]! }),
         digest: view.string(view.blockDigest[block]!),
         name: view.string(view.blockName[block]!),
@@ -434,8 +446,9 @@ function uniquePreconditions(
   );
 }
 
-function kindId(kind: string): number {
-  const id = KINDS.indexOf(kind as (typeof KINDS)[number]);
+function kindId(kind: BlockKind): number {
+  const id = KINDS.indexOf(kind);
+  // Unreachable from a typed caller; a JavaScript one can still hand over anything.
   if (id < 0) throw new Error(`unknown coverage block kind: ${kind}`);
   return id;
 }

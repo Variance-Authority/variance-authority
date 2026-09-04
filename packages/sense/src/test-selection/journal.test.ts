@@ -38,14 +38,44 @@ interface Realm {
  * Run the transformed module the way a page would: collector first, then the
  * module body, with the hoisted import spent by hand because a `new Function`
  * has no module loader to spend it.
+ *
+ * A page arrives with no collector, and the one the build hoists keeps whatever
+ * identity it finds ({@link executionCollectorSource}) so that a second script
+ * cannot displace the first. This file borrows the runner's `globalThis` to play
+ * that page, and under an instrumented suite the runner has already installed a
+ * collector of its own — so the fixture would defer to it and hand `price.js`
+ * to whichever run is watching this test file. The page therefore holds the
+ * global only while page code is running: the module body, and each call into
+ * it. Everything between belongs to the runner, and reports to the runner.
  */
 function evaluate(transformed: string): Realm {
-  new Function(executionCollectorSource())();
-  const body = transformed.replace(/^import "[^"]+";/, '');
-  new Function(body)();
   const global = globalThis as unknown as Record<string, unknown>;
+  const runner = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
+  const asRunner = (): void => {
+    if (runner === undefined) delete global['__VA__'];
+    else Object.defineProperty(globalThis, '__VA__', runner);
+  };
+
+  delete global['__VA__'];
+  let page: PropertyDescriptor;
+  try {
+    new Function(executionCollectorSource())();
+    page = Object.getOwnPropertyDescriptor(globalThis, '__VA__')!;
+    new Function(transformed.replace(/^import "[^"]+";/, ''))();
+  } finally {
+    asRunner();
+  }
+
+  const price = global['__browser_test_price'] as (amount: number) => number;
   return {
-    price: global['__browser_test_price'] as (amount: number) => number,
+    price: (amount) => {
+      Object.defineProperty(globalThis, '__VA__', page);
+      try {
+        return price(amount);
+      } finally {
+        asRunner();
+      }
+    },
     collector: global[EXECUTION_GLOBAL] as ExecutionCollector,
   };
 }
@@ -54,7 +84,6 @@ afterEach(() => {
   const global = globalThis as unknown as Record<string, unknown>;
   delete global['__browser_test_price'];
   delete global[EXECUTION_GLOBAL];
-  delete global['__VA__'];
 });
 
 async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
