@@ -235,11 +235,11 @@ pixel, and the default traversal walks it anyway. A subject skipped in error is 
 green run over an unwatched surface; a subject observed in error costs one
 collection.
 
-`movedBy` walks the changed set backwards and returns the files and components it
-reached, the changed paths the graph holds no node for, the files seeded because
-their own edges are unknown, and a breadth-first trail per node — so a report can
-say *why* a subject was included, one hop at a time, rather than asserting that it
-was
+`movedBy` walks the changed set backwards and returns four things: the files and
+components it reached, the changed paths the graph holds no node for, the files
+seeded because their own edges are unknown, and a breadth-first trail per node.
+The trail is what lets a report say *why* a subject was included, one hop at a
+time, instead of asserting that it was
 ([ADR-0039](context/adr/0039-the-digest-is-the-proof-the-trail-is-the-explanation.md)).
 
 ## The transform that records the path

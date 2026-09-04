@@ -106,8 +106,9 @@ The last row of that argument is the one worth stating separately, because it is
 about the instrument, not the page: **reading a subject twice catches
 instability in the observer, which no assertion about a verdict can reach.** The
 worked case is a Blink attribute-order effect that changed a document digest while
-leaving the verdict entirely correct, silently switching off the cheap tier
-depending on the collection history of the run that recorded the baseline
+leaving the verdict entirely correct. Left in place, it turns the cheap tier off
+for later runs, and whether it does depends on the collection history of the run
+that recorded the baseline
 ([`flakiness.md`](flakiness.md#the-class-of-defect-a-second-reading-reaches)).
 
 ### Four instruments that never open one

@@ -393,7 +393,7 @@ that only reflowed does not outrank the smaller edit that caused it; `cause` is
 a field on a region rather than something inferred from a component's size.
 
 Step 4 is the question a before-and-after cannot answer. The same 2px shift is a
-bug in a component nobody has touched since March and a Tuesday in one that moves
+bug in a component nobody has touched since March and a Tuesday in one that drifts
 in nineteen runs out of twenty. Two numbers are drawn as missing rather than as
 zero, deliberately: a flake rate is **absent** until a run has read every subject
 twice (`RunRecord.swept`), and a coverage that was never stated is unknown rather

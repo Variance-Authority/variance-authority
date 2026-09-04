@@ -234,10 +234,10 @@ page contains it. That is one wrapper away from being fixed and it is invisible
 until the suite is joined to itself.
 
 The organism end holds the opposite result. `TodoApp` is too large to describe in
-full and nobody would write a story for its internals — but it is a boundary with
+full, and nobody would write a story for its internals. But it is a boundary with
 a hash, five instances and five examples, so it can be *watched* without being
-described, and an edit inside it resolves to the molecule that moved rather than
-to the whole page.
+described, and an edit inside it resolves to the molecule that changed, not to
+the whole page.
 
 ### One input, two renderings
 

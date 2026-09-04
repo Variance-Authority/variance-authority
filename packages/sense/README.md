@@ -447,8 +447,8 @@ Two facts about the setup, and they point in opposite directions.
 one process, and the realm that executes is the realm that is watched. They
 declare no heads, so nothing can be missing, and the `heads` list is empty by
 default: no cookie is minted, nothing is listening, and no code path above
-runs. This is machinery for a product that spans processes, and a product that
-does not spans nothing to trace.
+runs. This is machinery for a product that spans processes; a product that
+does not has nothing to trace.
 
 **A system that needs it must actually have it.** A head is extra setup — an
 instrumented build for the service, an environment block, a line where requests

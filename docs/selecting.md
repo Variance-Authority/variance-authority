@@ -303,11 +303,11 @@ file that decides it.
 
 [`unentered`](#what-a-record-knows-that-no-graph-can) names where those forks
 are, in the modules something did load: a region with source of its own that no
-subject in the pool went into. It closes nothing — a region no run has entered
-is exactly the one no record can rule out, and the list is only as wide as what
-was instrumented and observed — but *nothing here has ever been in this branch*
-is a sentence somebody can act on, and the alternative is inferring it from a
-report that cannot mention it.
+subject in the pool went into. It closes nothing: a region no run has entered is
+exactly the one no record can rule out, and the list is only as wide as what was
+instrumented and observed. But *nothing here has ever been in this branch* is a
+sentence somebody can act on, and the alternative is inferring it from a report
+that cannot mention it.
 
 **A first run.** Nothing has baselines, so nothing can be ruled out, and the
 whole suite runs. That is correct and worth expecting: `--since` pays from the

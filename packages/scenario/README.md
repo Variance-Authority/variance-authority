@@ -84,13 +84,15 @@ execution — Arrange's own outcome, or one Act's — pairing that frame's rende
 hash (the exact content digest of what rendered) with its semantic snapshot.
 
 `arrange` compares the initial observations. Each transition then carries the
-left effect, the right effect, and whether the two agree; an effect digest is
-the digest of the classified semantic variance between an Act's before and
-after snapshot, not the frame's own render hash. A shared token edit moves
-every frame's render hash — its exact, absolute state — yet leaves the effect
-digest stable, because the edit is already present in an Act's before and
-after frame alike; changing the handler does move the digest at that Act,
-because that is exactly the comparison the delta is taken from.
+left effect, the right effect, and whether the two agree. An **effect digest**
+is the digest of the classified semantic variance between an Act's before and
+after snapshot — not the frame's own render hash.
+
+That distinction is the point. A shared token edit changes every frame's render
+hash, which is its exact, absolute state, yet leaves the effect digest stable:
+the edit is already present in an Act's before and after frame alike. Changing
+the handler does move the digest at that Act, because that is exactly the
+comparison the delta is taken from.
 
 Acts align by `(key, occurrence)` along their common ordered prefix. An inserted,
 missing, or repeated Act is reported in `unmatched` with its side; later ordinals are not
