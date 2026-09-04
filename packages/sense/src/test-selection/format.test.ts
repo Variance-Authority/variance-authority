@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import type { TestCoverage } from './index.js';
+import type { BlockKind, TestCoverage } from './index.js';
 
 describe('the persisted coverage format', () => {
   it('round-trips without storing repeated test paths in every block', async () => {
@@ -111,6 +111,17 @@ describe('the persisted coverage format', () => {
     expect(() => decodeTestCoverage(prior)).toThrow(/unsupported test coverage version: 1/);
   });
 
+  it('round-trips every kind the instrument can put on a block', () => {
+    // The format numbers kinds by position and writes the number, so a kind the
+    // encoder cannot place throws and one the decoder misplaces comes back as a
+    // different region. Neither shows up in a fixture that only ever uses
+    // `module` and `branch`, which is what every other case here holds.
+    const encoded = encodeTestCoverage(coverageOfEveryKind());
+
+    expect(decodeTestCoverage(encoded).modules[0]?.blocks.map((block) => block.kind))
+      .toEqual(everyBlockKind());
+  });
+
   it('rejects JSON instead of mistaking it for a coverage artifact', async () => {
     expect(() => decodeTestCoverage(Buffer.from('{"version":1}'))).toThrow(
       /not a variance-authority test coverage artifact/,
@@ -153,5 +164,55 @@ function representativeCoverage(): TestCoverage {
         ).sort(),
       })),
     })).sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0),
+  };
+}
+
+/**
+ * Every member of `BlockKind`, `module` first.
+ *
+ * A record keyed by the union rather than a list of names, so that a member added
+ * to `BlockKind` is a missing property here and not a case this quietly stops
+ * covering. What stops the build is in `format.ts`, where `kindId` takes a
+ * `BlockKind`; this is only the enumeration that walks it. `module` leads because
+ * the format requires the ordinal-zero block of a module to be its root.
+ */
+function everyBlockKind(): readonly BlockKind[] {
+  const kinds: Record<BlockKind, true> = {
+    module: true,
+    function: true,
+    branch: true,
+    continuation: true,
+    resume: true,
+    loop: true,
+    case: true,
+    handler: true,
+  };
+  const named = Object.keys(kinds) as readonly BlockKind[];
+  return ['module', ...named.filter((kind) => kind !== 'module')];
+}
+
+/** One module carrying one block of each kind, rooted at the module block. */
+function coverageOfEveryKind(): TestCoverage {
+  return {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    tests: [{ file: 'src/every-kind.test.ts', complete: true, preconditions: [] }],
+    modules: [{
+      file: 'src/every-kind.ts',
+      sourceDigest: 'source:every-kind',
+      instrumented: true,
+      blocks: everyBlockKind().map((kind, ordinal) => ({
+        ordinal,
+        kind,
+        ...(ordinal === 0 ? {} : { owner: 0 }),
+        digest: `block:${kind}`,
+        name: `everyKind/${kind}`,
+        path: ordinal === 0 ? 'module' : `${kind}#${ordinal}`,
+        startLine: ordinal * 2 + 1,
+        endLine: ordinal * 2 + 2,
+        source: true,
+        testFiles: ['src/every-kind.test.ts'],
+      })),
+    }],
   };
 }

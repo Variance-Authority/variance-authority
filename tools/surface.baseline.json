@@ -2404,6 +2404,7 @@
         "instrument": "function"
       },
       "./test-selection": {
+        "BlockKind": "type",
         "CodeExtent": "interface",
         "CoverageBlock": "interface",
         "CoverageModule": "interface",
