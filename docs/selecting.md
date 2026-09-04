@@ -1,7 +1,7 @@
 # Running less of the suite
 
-A 300-subject suite where one component moved pays for 300 collections and 300
-comparisons to report two. That is the largest single saving available in this
+A 300-subject suite where one component changed pays for 300 collections and 300
+comparisons to report two changed subjects. That is the largest single saving available in this
 category, and every product in it has an answer:
 
 - **Chromatic's TurboSnap** traces a change through the *bundler's* dependency
@@ -133,7 +133,7 @@ server tree is always that, and for now so is anything outside the browser.
 
 `src/tokens.css` is the file every design system is most afraid of, and so is the
 shared helper, the theme provider, the icon nobody thinks about. None of them
-declares a component, so each one runs three hundred subjects to report two.
+declares a component, so each one runs three hundred subjects to report two changed subjects.
 
 The answer is two hops away, and the hops are written down in the source:
 

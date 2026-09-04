@@ -264,11 +264,10 @@ leaving every attribution untouched. A region matches a cause under either
 namespace, author or enclosure, because a one-sided test finds nothing and
 silently reverts to area.
 
-Two limits, stated rather than smoothed over. The semantic tier may name more
-than one cause and on that case it names two, `Toggle` and `Text`, both real —
-this does not collapse them, because picking one would be inventing a fact. And
-with no causes supplied the order falls back to area, which is honest and is not
-good.
+Two limits, stated and not smoothed over. The semantic tier may name more than
+one cause, and here it names two: `Toggle` and `Text`, both real. It does not
+collapse them, because picking one would be inventing a fact. And with no causes
+supplied the order falls back to area, which is honest and is not good.
 
 ## What this refuses to conclude
 
