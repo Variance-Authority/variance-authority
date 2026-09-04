@@ -72,7 +72,7 @@ Add rules to the top-level `sensitivity` list in the Variance Authority config:
 The last matching rule wins. Sensitivities answer how much of one subject is
 under test, so two contradictory answers cannot both hold. Put the broad rule
 first and its exception after it. This is the opposite of ignores, which
-accumulate because two matching ignore rules exclude more than one.
+accumulate, because two matching ignore rules exclude more than either one does.
 
 A non-`strict` rule that names neither `subjects` nor `tags` is refused. There is
 no run-wide sensitivity setting. `strict` may omit both because it relaxes

@@ -26,8 +26,7 @@ second `test` export when the suite already extends `varianceFixtures`.
 Something must be listening before the suite starts, because nothing else keeps
 what the suite says. Two things can listen: the CLI, which needs a shell and no
 configuration, and the MCP server, for a client that speaks it. They hold the
-same state and answer with the same text; choose by what the agent has
-already.
+same state and answer with the same text; choose by what the agent already has.
 
 From a shell:
 
@@ -90,10 +89,10 @@ npx variance ask test-signals --test '<id>'
 
 `--at <address>` names the watcher and defaults to `VARIANCE_AUTHORITY_VANTAGE`,
 so a shell that exports it for the suite needs no flag. An MCP client asks the
-same four as `variance_self`, `variance_run_signals`, `variance_test_signals`
-and `variance_diff`.
+same four questions under the names `variance_self`, `variance_run_signals`,
+`variance_test_signals` and `variance_diff`.
 
-No announcements for a listed test are a wiring or application signal, not a
+A listed test with no announcements is a wiring or application signal, not a
 fabricated empty trace. The listing itself establishes whether the suite
 reached the watcher before interpreting silence inside one test.
 

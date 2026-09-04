@@ -78,7 +78,7 @@ Every reader takes a **snapshot**. The observatory is a mutable thing a socket
 writes into, and a question about a run must not be answered from a value that
 changes while the answer is being written.
 
-**`pending` is exact whatever was dropped.** What is bounded is the list of
+**`pending` is exact no matter what was dropped.** What is bounded is the list of
 announcements, not the tally of work that opened and never closed — and that
 tally is the one an unfinished run is actually asked about. Both bounds drop from
 the front and both are counted, because a reader that cannot tell *nothing was

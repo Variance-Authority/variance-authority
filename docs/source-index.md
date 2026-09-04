@@ -149,7 +149,7 @@ writes the smallest segment that connects them. The segment is published before
 a scratch manifest is renamed over the destination.
 
 The ninth pending segment compacts the chain into one complete segment. The
-compacted segment restores generation-wide string interning and obsolete
+compacted segment restores generation-wide string interning, and the obsolete
 segments from the prior manifest are removed after publication. Write failures
 leave scanning correct and preserve the previous manifest when one exists;
 without one, later work is cold.

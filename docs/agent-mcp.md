@@ -12,8 +12,9 @@ archives, remain with the integration that produced them. That integration can
 serve one domain or combine independently supplied domains through the MCP
 package's observability surface.
 
-The standalone `variance-authority-mcp` executable does not discover those
-other artifacts beside a report file. Use it for a run report; use the
+The standalone `variance-authority-mcp` executable reads the report file it is
+given and nothing else; it does not go looking for those other artifacts beside
+it. Use it for a run report; use the
 producer's MCP connection for evidence the producer holds.
 
 The report tools are also questions on the command line, where they need no
@@ -58,8 +59,8 @@ If the summary names changes, ask `variance_changes` before opening an
 individual subject. It groups shared causes across subjects. Narrow to a
 subject, component, finding, composition, or verdict explanation only when the
 question requires that detail. After replacing the report with a completed
-rerun, `variance_diff` compares the current supplied report with the subject
-held from the preceding successful tool call.
+rerun, `variance_diff` compares the current supplied state with the one held from
+the preceding successful tool call.
 
 On a connection that serves several observability domains, begin instead with
 `variance_observability`. Its inventory distinguishes an unavailable domain
@@ -72,7 +73,7 @@ exact identities emitted by both producers.
 Some answers include an exact CLI command that could settle a reviewed visual
 change. The MCP server returns that command as evidence and never executes it.
 Baseline promotion remains an explicit action by the owner of the review loop,
-and evidence the connection was not supplied remains absent.
+and evidence the connection was never supplied with stays absent.
 
 The complete server and tool contracts live in the
 [`@variance-authority/mcp` package reference](../packages/mcp/README.md).

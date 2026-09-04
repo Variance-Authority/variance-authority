@@ -106,7 +106,7 @@ those fields remain absent.
 
 The document event channel covers user-facing DOM events. Every record carries
 the event's `trusted` flag, so an event the browser raised from an input gesture
-is separable from one page script dispatched. A store mutation, network request,
+is separable from one a page script dispatched. A store mutation, network request,
 timer, or direct function call that emits no DOM event is not classified as an
 action by Eyes. A memoized updater identifies the component instance that
 scheduled work, not the source statement or callback that invoked it. Execution

@@ -78,8 +78,8 @@ Every reading here separates _nothing was there_ from _nobody looked_, and does
 it in the shape rather than in prose. Update initiators the renderer did not
 expose are unavailable; an empty list is a completed reading. A node with no
 reachable Fiber says which of the two reasons applies. The tally of work a run
-opened and never closed is exact whatever was dropped from the bounded log beside
-it.
+opened and never closed is exact no matter what was dropped from the bounded log
+beside it.
 
 The case that costs something is the one worth reading. A declared head that
 reports nothing retires the whole run's right to narrow anything:

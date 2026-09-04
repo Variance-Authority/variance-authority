@@ -35,7 +35,7 @@ The assessment keeps three pairs separate:
 | Execution divergence | one transition effect against the corresponding effect | At which Act did behaviour stop agreeing? |
 
 The transition-effect digest is derived from semantic deltas. It remains stable
-when an unrelated edit moves both sides of an edge together, and moves when the
+when an unrelated edit moves both sides of an edge together, and changes when the
 Act produces a different delta. It is inquiry evidence, not a regression verdict:
 scenario assessment writes no baseline, approval, history row, changelog, or
 exit code.
