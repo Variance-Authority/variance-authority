@@ -54,7 +54,7 @@ same `<li>` agree on `rendering`, `structure`, `semantics`, `text` and `style` �
 byte-identical `innerHTML` — and disagree on `wiring`.
 
 **Hook *values* are deliberately absent.** `useState(0)` records `useState` and
-never `0`. A value moves between two readings of an unchanged page by design, and
+never `0`. A value drifts between two readings of an unchanged page by design, and
 a dimension that moves when nothing changed is worse than none, because it
 produces work.
 
@@ -142,7 +142,7 @@ thing that was rebuilt rather than the innermost thing that noticed.
 ### Why this is a finding and not a digest
 
 The rule is checkable: **read the same page twice without changing anything, and
-if the value moved, it is not one.**
+if the value moved, it is not a digest.**
 
 Hook shape, wrappers, contexts and keys survive that. Whether an instance
 remounted cannot, by construction — it is a property of a *reading*, not of a

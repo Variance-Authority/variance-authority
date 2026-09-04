@@ -102,11 +102,11 @@ baselines:
 | **[asset bytes behind an unchanged URL](stabilization.md#a-url-your-build-did-not-name-is-hashed-on-the-wire)**                 | no markup and no computed style can see a re-exported logo                                                                     |
 | **[a substituted font](stabilization.md#what-runs-and-what-it-absorbs)**                                                        | two runs of the substitution compare `unchanged` — true, and worthless                                                         |
 
-The last row of that argument is the one worth stating separately, because it is
+The last row of that table is the one worth stating separately, because it is
 about the instrument, not the page: **reading a subject twice catches
 instability in the observer, which no assertion about a verdict can reach.** The
 worked case is a Blink attribute-order effect that changed a document digest while
-leaving the verdict entirely correct. Left in place, it turns the cheap tier off
+leaving the verdict entirely correct. Left in place, it can turn the cheap tier off
 for later runs, and whether it does depends on the collection history of the run
 that recorded the baseline
 ([`flakiness.md`](flakiness.md#the-class-of-defect-a-second-reading-reaches)).
@@ -115,9 +115,9 @@ that recorded the baseline
 
 Those rows are about defects a comparison cannot reach. These are readings that
 do not attempt one: each answers _what happened in this run_, which is a
-different question from _is this different from what we agreed_ — the shift is
-in [ask a question the test did not ask](observability.md) — and each is
-installable on its own.
+different question from _is this different from what we agreed_, a shift set out
+in [ask a question the test did not ask](observability.md). Each is installable
+on its own.
 
 | instrument                                                | the question                                                  | what it needs                                                         |
 | --------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -163,9 +163,8 @@ than three tools stapled together.
 ## What none of this establishes
 
 **One machine and one Chromium.** Every timing and every instability probe comes
-from one M-series Mac, and every probe _simulates_ its cause — a smoothing mode
-not a different GPU driver; a second browser context, not a second
-runner. Varying the machine is not available from inside a test.
+from one M-series Mac, and every probe _simulates_ its cause — a smoothing mode,
+not a different GPU driver; a second browser context, not a second runner. Varying the machine is not available from inside a test.
 
 **One corpus, written by the people who wrote the implementation.** Ground truth
 was declared before the pipeline existed, which is worth something, and no

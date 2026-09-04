@@ -14,12 +14,12 @@ to an adopter.
 
 | Dimension | Percy | Chromatic | Argos | Applitools | Variance Authority |
 | --- | --- | --- | --- | --- | --- |
-| Acquisition | SDK captures DOM/resources or Automate captures the running browser | Storybook or E2E archive | Host adapters reach a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook/routes/unit tests emit a `RenderDocument`; Playwright emits a document or in-place `Raster` |
+| Acquisition | SDK captures the DOM and its resources, or Automate captures the running browser | Storybook or E2E archive | Host adapters reach a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook, routes and unit tests emit a `RenderDocument`; Playwright emits a document or an in-place `Raster` |
 | Pixel placement | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or operator-owned remote renderer |
-| Review | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | Self-hosted `tribunal` — builds, docket, region overlays, recorded decisions, posted by `variance push`; or JSON/HTML/CLI/MCP evidence |
-| Browser breadth | Managed desktop/mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs |
+| Review | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | Self-hosted `tribunal` — builds, docket, region overlays, recorded decisions, posted by `variance push`; or the same evidence as JSON, HTML, CLI output or MCP |
+| Browser breadth | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs |
 | Existing PNG input | Product-specific SDK paths | No general PNG intake | CLI upload | SDK checkpoints | Library seam through `observeRasters` or raster `CaptureArtifact`; no CLI ingest command |
-| Source attribution | DOM/CSS root-cause aids | Story identity and dependency tracing | Spec/story metadata | DOM/CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies matching provenance |
+| Source attribution | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies matching provenance |
 | Compared against | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
 | Change-driven selection | No documented equivalent | TurboSnap uses the module graph to avoid snapshots a change cannot reach | No documented equivalent | No documented equivalent | `--since` skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
 | Operations | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
@@ -55,7 +55,7 @@ The Variance integration matrix and exact material/placement choices are in
 
 Hosted products meter different units. Percy and Argos count screenshots;
 Chromatic counts snapshots with product-specific multipliers; Applitools defines
-a Page independently of browser/device repetitions. A useful estimate therefore
+a Page independently of browser and device repetitions. A useful estimate therefore
 starts with the vendor's unit, not with a raw subject count:
 
 ```text
@@ -76,7 +76,7 @@ Sources: [Percy pricing](https://www.browserstack.com/pricing?product=percy),
 ### Percy
 
 Percy supplies broad SDK coverage, managed rendering, a hosted approval surface,
-and BrowserStack's browser/device operations. Its DOM-snapshot workflow captures
+and BrowserStack's browser and device operations. Its DOM-snapshot workflow captures
 resources in the test environment and renders later; Automate instead observes
 the running browser. That is a useful example of one product supporting both
 materialization topologies.
@@ -129,10 +129,10 @@ and [flaky-test detection](https://argos-ci.com/docs/learn/reliability-and-flaki
 
 Applitools exposes both an in-place Classic runner model and a capture-once,
 render-many Ultrafast Grid. The grid is the clearest example of acquisition and
-render placement being independent: the SDK records DOM/resources and a managed
-fleet produces browser/device rasters later.
+render placement being independent: the SDK records the DOM and its resources, and a
+managed fleet produces browser and device rasters later.
 
-Choose Applitools when managed cross-browser/mobile coverage, perceptual match
+Choose Applitools when managed cross-browser and mobile coverage, perceptual match
 levels, enterprise workflow, or an on-premise commercial deployment is required.
 
 Sources: [Ultrafast Grid](https://applitools.com/docs/eyes/concepts/test-execution/ultrafast-grid),
@@ -179,8 +179,8 @@ The resulting adopter surfaces are compositions rather than separate products:
 - Storybook and routes: browser acquisition → environment-dependent document →
   local render or remote renderer with equivalent resource access → shared
   observation.
-- Jest/Vitest jsdom: browserless acquisition → capture archive → later CLI
-  process → local/remote render → shared observation.
+- Jest or Vitest jsdom: browserless acquisition → capture archive → later CLI
+  process → local or remote render → shared observation.
 - Playwright Test deferred: caller locator → environment-dependent document →
   renderer with equivalent resource access → shared observation.
 - Playwright Test in place: caller locator → repeated agreeing screenshots →
@@ -208,7 +208,7 @@ Variance Authority provides libraries and a CLI for infrastructure the adopter
 operates. It does not provide a managed browser fleet, hosted reviewer accounts,
 support SLA, contractual data residency, or vendor-operated retention.
 
-The CLI supports Storybook, explicit routes/static directories, artifact-backed
+The CLI supports Storybook, explicit routes and static directories, artifact-backed
 unit capture, and custom collectors. The additive Playwright package operates
 inside the suite and leaves `test` and `expect` with Playwright. Raster input is a
 library seam; the CLI has no arbitrary-PNG ingest workflow.
@@ -227,7 +227,7 @@ with them.
 
 Choose Variance Authority when a changed screenshot should arrive as one cause
 with its evidence, and be settled in one decision — and when
-component/source attribution, explicit evidence boundaries, and local or
-operator-controlled data placement are worth owning the operation. It asks for
+component and source attribution, explicit evidence boundaries, and local or
+operator-controlled data placement are worth the operation they cost. It asks for
 more from the team and gives back a different kind of answer, which is a trade
 rather than an upgrade.

@@ -46,9 +46,10 @@ one-axis difference was meant. It shows up as two subjects with one rendering in
 That rule reads a name with no help, so it can only walk outwards: a parent has
 to be a shorter name this one extends. Plenty of suites are not shaped like that.
 The baseline is spelled out — `checkout--default`, not `checkout` — the axes have
-vocabularies, and the question worth asking is between two names of the same
-length: what is the difference between the green one and the glass one. Neither
-of those extends the other, so the rule above sees two unrelated subjects.
+vocabularies, and and the question worth asking is between two names of the
+same length: what is the difference between the green one and the glass one?
+Neither of those extends the other, so the rule above sees two unrelated
+subjects.
 
 `names` says what the words are:
 

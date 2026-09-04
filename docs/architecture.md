@@ -21,9 +21,9 @@ can be reasoned about, replaced, and composed without reading the others.
 | **judge** | everything above | a verdict | a policy |
 | **record** | a verdict | an artifact, or a row that outlives the run | a store |
 
-Two of these need a host — a DOM to acquire from, a browser to render in.
-Three need nothing at all. That distribution is the
-whole economic argument, and it only exists because the kinds are separate.
+Two of these need a host — a DOM to acquire from, a browser to render in. Three
+need nothing at all. That distribution is the whole economic argument, and it
+only exists because the kinds are separate.
 
 **prepare** is itself a set rather than a stage: resets, holds, waits and
 supports are individual tricks, each declaring the cheapest tier that can observe
@@ -100,7 +100,8 @@ that will not hold still, and names why, before any image exists.
 **Extension.** A team with Playwright tests chooses an in-place raster or a
 deferred document without replacing its runner. A browserless unit suite writes
 a document archive for a later browser process. A team with images from elsewhere
-takes only the reading end. The pieces below the chosen material do not know.
+takes only the reading end. The pieces below the chosen material never learn
+which of the three it was.
 
 ## Packages
 
@@ -157,8 +158,8 @@ listed here rather than left out, because a rule with an unstated exception read
 as a rule with none.
 It is a **service**, not a linked tool: the requirement it names is a deployment
 rather than something a consumer supplies to a function, and it composes five
-packages because a deployed thing has to. Named for what it is rather than for the
-host it currently runs on
+packages because a deployed thing has to. It is named for what it is rather than
+for the host it currently runs on
 ([ADR-0023](context/adr/0023-a-service-is-named-for-what-it-is.md)), which is why
 the row does not say `cloudflare`.
 
@@ -166,10 +167,10 @@ Four boxes require nothing at all, and hash, compare and isolate — the three
 kinds the tool table shows needing nothing — all live in one of them. That is the
 same economic argument arrived at from the other end, and it is what makes the
 cheap tiers cheap in practice rather than only on paper: running the ephemeral
-retention mode pulls in no filesystem and no socket, because the mode does not
-have one.
+retention mode pulls in no filesystem and no socket, because the mode needs
+neither.
 
-Entrypoints are the second cut. `store/lfs` needs a `git`; `history/client`
+Entrypoints are the second cut. `store/lfs` needs `git`; `history/client`
 needs a network; `server/sqlite` needs `node:sqlite`; `report/file` needs a disk;
 `playwright/agent` must be importable *without* Playwright, since it is bundled
 into the page. In every case the split exists because the two halves cost

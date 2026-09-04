@@ -26,7 +26,7 @@ page instead of two.
 
 ## The slice: what kind of parting this is
 
-Before which input moved comes whether anybody should look. Seven answers,
+Before *which input moved* comes *whether anybody should look*. Seven answers,
 decided from three facts — did the component tree hold, did any input move, did
 the output move:
 
@@ -53,7 +53,7 @@ differently between two variants, or a rewrite between two revisions — and in
 neither case is there a moved input for the rungs below to name.
 
 `unread` is why `flake` is safe to say. Nondeterminism is an accusation, and a
-run that read no boundaries has not found the inputs to agree, it has not asked
+run that read no boundaries has not found the inputs agreeing — it has not asked
 them ([ADR-0002](context/adr/0002-observation-profiles.md)). The two are separate
 slices so silence can never be reported as agreement.
 
@@ -62,7 +62,7 @@ slices so silence can never be reported as agreement.
 ## The rungs: how far up it traced
 
 At every component boundary, one rule: *a component whose inputs agreed and
-whose output moved decided differently.* Walking for the shallowest boundary
+whose output moved decided differently.* Walking up to the shallowest boundary
 where that holds is what turns a page of deltas into one sentence.
 
 | rung | what it means | where to look |
@@ -150,8 +150,9 @@ can hold the same record with a session token beside it, so what travels is a
 digest — enough for an equality comparison, and not reversible into what a user
 was looking at. The cost is the one `propsDigest` already accepts: shape rather
 than identity, so a re-created inline closure does not register as moved. That
-is tolerable here for the same reason, because this decides *who is responsible*
-for a difference the semantic diff already found, never *whether* there is one.
+is tolerable here for the same reason it is tolerable there: this decides *who is
+responsible* for a difference the semantic diff already found, never *whether*
+there is one.
 
 **Nothing here reaches a hash.** A hook's value is precisely the thing that
 legitimately differs between two readings of an unchanged page, so a band

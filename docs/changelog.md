@@ -118,7 +118,7 @@ refuses to carry matters as much as what it holds. Three things are kept out.
 
 **No measurement bound to the machine that took it.** A changed-pixel count is a
 number two readers will compare, and one of them will be wrong: it measures
-displacement rather than magnitude, and it moves with the renderer, the device
+displacement rather than magnitude, and it varies with the renderer, the device
 scale factor and the crop. What is kept instead is the region — where the change
 was, which is stable and answers the question the number was standing in for.
 
@@ -131,7 +131,7 @@ phrasing of the one that shipped first.
 and the unshaped count already carry it. Two numbers that can disagree leave a
 reader deciding which one is the record.
 
-The version prefix is `v1`, and it moves only if an existing field changes
+The version prefix is `v1`, and it goes up only if an existing field changes
 meaning. Adding a field does not need it: a reader keeps keys it does not
 recognise and writes them back, so a repository shared by two versions of this
 tool does not lose whichever half the older one did not understand.

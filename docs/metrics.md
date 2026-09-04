@@ -19,9 +19,9 @@ that measure them.
 6. Treat a result fitted against its own corpus as regression evidence, not an
    estimate of general accuracy.
 
-The core strata are component stories, composed/page stories, route-level
+The core strata are component stories, composed page stories, route-level
 subjects, and non-React subjects. A headline rate without those strata hides
-where component/source attribution is available and where it is structurally
+where component and source attribution is available and where it is structurally
 absent.
 
 ## M1. File attribution
@@ -75,7 +75,7 @@ decision, rendering, comparison, and reporting.
 Report cold and warm runs separately. Include browser launch, resource closure,
 remote transport, and cache hits. In-place and deferred rendering are separate
 rows: in-place avoids reconstruction but takes repeated screenshots; deferred
-rendering pays archive/paint cost and can reuse content-addressed rasters.
+rendering pays to archive and to paint, and can reuse content-addressed rasters.
 
 The measurements in source tests are local benchmark evidence. They establish
 relative behavior on that fixture and machine, not a universal throughput
@@ -97,9 +97,9 @@ not a component regression.
 
 **Question:** does an intentional visual change settle as `unchanged`?
 
-The corpus includes structure, paint, geometry, content, canvas/media, and
+The corpus includes structure, paint, geometry, content, canvas and media, and
 resource-only changes. Report scorable, unobservable, and contested cases
-separately. DOM-only acquisition is expected to leave canvas/media pixels
+separately. DOM-only acquisition is expected to leave canvas and media pixels
 unobservable; that boundary is not scored as a pass.
 
 ## M5. Cross-machine comparability
@@ -112,7 +112,7 @@ compare under different renderer identities?
 Compare:
 
 - image dimensions and bytes;
-- engine/platform/scale/font/stabilization/rasterization identity;
+- engine, platform, scale, font, stabilization and rasterization identity;
 - verdict when identity differs;
 - remote versus in-process rendering of the same closed document.
 
@@ -134,13 +134,13 @@ public docs. Measure through one real change and its baseline workflow.
 | Wall-clock minutes | Evaluation friction |
 | Files added or edited | Integration weight |
 | Operator-authored lines | Configuration versus implementation |
-| Browser/service prerequisites | Infrastructure burden |
+| Browser and service prerequisites | Infrastructure burden |
 | External accounts | Procurement burden |
 
 Run the Storybook, route, Playwright, and unit-capture offerings separately.
 Do not substitute a package's internal fixture for the adopter path.
 
-## M7. Cause/collateral ranking
+## M7. Cause and collateral ranking
 
 **Question:** is the component containing the intentional edit ranked before
 components that merely reflowed or repainted around it?
@@ -156,7 +156,7 @@ unattributed regions. Area is the null ranking model: a ranking must outperform
 **Question:** can a sequence of individually approved changes reveal a cumulative
 token movement?
 
-**Unit:** one token/component pair across approved revisions.
+**Unit:** one token-and-component pair across approved revisions.
 
 Report per-revision values, cumulative delta, approval count, and the first
 revision where the declared drift policy fires. A history store that cannot
@@ -174,7 +174,7 @@ Inventory by material and host:
 | Environment-dependent document | resource bytes unavailable to another renderer |
 | Raster without snapshot | component, band, exclusion, and source attribution |
 | In-place browser raster | launch identity is a caller declaration |
-| DOM provenance | framework/runtime ownership not supplied by the host |
+| DOM provenance | framework and runtime ownership not supplied by the host |
 
 This metric is not ranked to be won. It is complete when every unsupported
 conclusion is visible at the decision boundary.
@@ -182,7 +182,7 @@ conclusion is visible at the decision boundary.
 ## Reading the set
 
 No single score represents the product. M1, M2, and M7 measure reviewer signal;
-M3 and M6 measure adoption/operation cost; M4 and M5 measure correctness; M8
+M3 and M6 measure the cost of adopting and operating it; M4 and M5 measure correctness; M8
 measures longitudinal value; M9 prevents the other numbers from claiming more
 than their evidence.
 

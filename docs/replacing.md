@@ -32,13 +32,14 @@ test('empty cart', async ({ page }, testInfo) => {
 
 The default deferred path acquires a document and paints it through a separate
 local or remote renderer. The explicit in-place path screenshots the locator in
-the caller's browser, repeats the capture, refuses disagreement, and sends the
-agreeing raster to the same baseline observation.
+the caller's browser, repeats the capture, refuses disagreement, and hands the
+agreeing raster to the same baseline comparison.
 
 **What you gain.**
 
 - renderer incompatibility is `incomparable`, not a product diff;
-- semantic/source evidence can connect a changed region to a component and file;
+- semantic and source evidence can connect a changed region to a component and
+  file;
 - local, remote, and in-place materialization use one verdict shape;
 - acceptance promotes the candidate bytes the run already observed.
 
@@ -53,8 +54,8 @@ agreeing raster to the same baseline observation.
 
 ## 2. Replacing `toMatchImageSnapshot` in Jest or Vitest
 
-**What you keep.** The runner, its `test`/`expect`, jsdom lifecycle, mount
-helpers, and ordinary semantic assertions.
+**What you keep.** The runner, its `test` and `expect`, the jsdom lifecycle,
+mount helpers, and ordinary semantic assertions.
 
 **What you add.**
 
@@ -103,7 +104,7 @@ this browserless route.
 
 ## 2b. Replacing Percy on a set of URLs
 
-**What you keep.** The application/static build, its startup command, and the
+**What you keep.** The application or static build, its startup command, and the
 explicit list of states worth treating as subjects.
 
 **What you add.** A route collector config mapping stable ids to URLs and widths.
@@ -114,7 +115,7 @@ route's resources because this collector records their hashes, not their bytes.
 **What you gain.**
 
 - operator-selected local or remote rendering;
-- document/semantic evidence alongside pixels;
+- document and semantic evidence alongside the pixels;
 - source attribution when the application carries provenance;
 - directory, LFS, or remote baseline storage behind one store contract.
 
@@ -122,7 +123,7 @@ route's resources because this collector records their hashes, not their bytes.
 
 - routes are explicit; the collector is not a crawler or sitemap product;
 - authentication and state setup belong to the host collector;
-- a managed browser/device fleet and hosted reviewer surface are absent;
+- a managed browser and device fleet and a hosted reviewer surface are absent;
 - each viewport is a distinct planned subject and render.
 
 ## 3. Replacing Percy or Chromatic on a Storybook
@@ -143,7 +144,7 @@ mount, waits for Storybook's rendered state, and emits documents.
 
 **What you pay.**
 
-- render/storage/review infrastructure remains yours;
+- rendering, storage and review infrastructure remain yours;
 - automatic hosted branch baselines, assigned reviewers, and discussion threads
   are not part of the collector;
 - cross-browser breadth is limited to renderer engines you install and operate.

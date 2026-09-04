@@ -84,7 +84,7 @@ happened, so none is invented.
 | | when | roughly |
 |---|---|---|
 | The run itself | always, including runs where nothing changed | one row |
-| A component hash | when it moved | one row per `(subject, component, band, profile)` that moved |
+| A component hash | when it changes | one row per `(subject, component, band, profile)` that moved |
 | A resolved token | when a token's value moved | one row per token |
 | An instability | every time a subject fails to read the same way twice | one row per named cause |
 
@@ -156,8 +156,8 @@ rejected.
 
 **An absent answer never reads as a good one.** With no store configured, every
 history question answers with the sentence *nobody is keeping a record* — never
-an empty result, because an agent handed an empty churn concludes the product is
-stable when the truth is that the question was never asked. The same rule holds
+an empty result, because an agent handed an empty churn figure concludes the
+product is stable when the truth is that the question was never asked. The same rule holds
 one level in: a service that cannot be reached is a warning naming what was lost,
 not a zero.
 

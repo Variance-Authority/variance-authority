@@ -10,8 +10,8 @@ The operating principle is: **preserve information; expose relationships**.
 ## One report, independent dimensions
 
 [`sensePresentation`](../packages/presentation/README.md#sense-once-then-choose-the-structural-owner)
-reads a locator in a live Playwright page. Its report keeps
-these dimensions separate:
+reads a locator in a live Playwright page. Its report keeps these dimensions
+separate:
 
 | Dimension | Evidence |
 |---|---|
@@ -115,10 +115,10 @@ DOM-correlated anchors let graph nodes point back to rendered elements; the
 browser snapshot retains what the engine exposed. Neither substitutes for the
 other.
 
-No exposed ARIA nodes is an observed empty root. A boundary-relative snapshot
-with no parent or no children is an observed partial root. Both remain present
-and participate in the report digest. Only omission of browser accessibility
-means it was not observed.
+A snapshot exposing no ARIA nodes is an observed empty root. One with no parent
+or no children, relative to the boundary, is an observed partial root. Both
+remain present and participate in the report digest. Only the absence of browser
+accessibility altogether means it was not observed.
 
 ## Paint the evidence
 
@@ -150,14 +150,14 @@ feedback between two sensed reports. The offering owns no baseline, approval
 lifecycle, regression verdict, or threshold that decides whether a build may
 pass.
 
-`presentationSignal` projects that before/after evidence into the general run
+`presentationSignal` projects that before-and-after evidence into the general run
 report. Automatic findings and supplied product-owned hierarchy readings become
 introduced, resolved, or measurement-changing persisted effects under
 `ObservationRecord.signals.presentation`. The signal also retains content
 identity and information-count deltas. Missing reports or layout findings are
 `incomparable`; a present empty effect list means both sides were measured and no
 relationship consequence changed. The stored signal remains independent of the
-renderer's layout/paint/composite impact and never changes the observation
+renderer's layout, paint and composite impact, and never changes the observation
 verdict.
 
 The engine supplies objective evidence. The coding agent remains responsible for

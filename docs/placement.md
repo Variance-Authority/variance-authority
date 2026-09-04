@@ -80,8 +80,9 @@ ordered by URL escape rather than by anything a reviewer recognises.
 ```
 
 `"layout": "beside"` reads the subject id as a path and walks it down from the
-root, so a component's baselines arrive with the checkout, move when the
-component moves, and show up in the diff of the directory that caused them:
+root, so a component's baselines arrive with the checkout, follow the
+component when it moves, and show up in the diff of the directory that caused
+them:
 
 ```
 src/ui/Button/v1:6c1f…/primary.png
@@ -115,8 +116,8 @@ branches, no quota, and a corpus that can outgrow what anyone wants in a work
 tree. `variance accept` writes through, so approval stops being a commit.
 
 The bill is round trips. Most subjects settle from the sidecar alone — 32 hex
-characters, no image moved — and across a network that saving is spent again as
-one request per subject. So the run declares its working set: after selection,
+characters, no image fetched — and across a network that saving is spent straight
+back on one request per subject. So the run declares its working set: after selection,
 `variance run` names the subjects it is going to ask about, and the store fetches
 their sidecars for this machine's identity in **one** request. Subjects a filter
 ruled out are not named, and a subject with no baseline comes back as an answer
@@ -148,7 +149,8 @@ lands under the baseline root by default:
 baselines/v1:6c1f…/by-document/v1:a04e….png
 ```
 
-Committed, that is the whole reason a baseline repository gets a reputation.
+Commit that, and you have the whole reason a baseline repository gets its
+reputation.
 `variance run` therefore points it at `$XDG_CACHE_HOME/variance-authority/renders`
 and leaves the configured root holding baselines and nothing else — not a config
 field, because there is no answer an operator could give that is better than
@@ -164,7 +166,7 @@ four store implementations run the same scenarios in
 expected verdict pinned, because four stores agreeing on a wrong answer is not a
 pass.
 
-So moving is a re-record, and the honest way to do it is to run the suite once
+So switching is a re-record, and the honest way to do it is to run the suite once
 against the new placement on a commit you already trust, rather than to copy
 files between layouts.
 
