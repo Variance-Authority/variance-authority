@@ -102,22 +102,28 @@ variance doctor  [--config <path>]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
 ```
 
-`run` produces the **verdict** — the per-subject outcome (`unchanged`,
-`needs-review`, and so on) that decides the exit code; `report` re-reads what
-it wrote; `adjudicate` re-reads it against what you said you were doing;
-`accept` promotes a candidate image to baseline — by subject, by `--all`, or by
-`--shape`, which accepts a difference **shape** (a fingerprint computed from the
-diff itself, identifying a category of visual difference so it can be matched
-across subjects) wherever that shape is the whole change, and refuses by name
-any subject where something else moved too; `changelog` reads back why the
-baselines are what they are; `journeys` reads back which regions of one module
-this run's subjects entered differently; `push` sends a finished run to a review
-surface for somebody to decide; `doctor` says what this machine can observe
-before a run rather than after one; `watch` holds a suite that is still running
-so `ask` has something live to ask. `serve` exposes the report the last run
-wrote to an MCP client — an agent asks it what changed, which component and
-which file, over stdio, without re-running anything; the tools are
-`@variance-authority/mcp`'s, and `ask` is the same set without the client.
+| command | what it does |
+|---|---|
+| `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `needs-review`, and so on) that decides the exit code |
+| `report` | re-reads what `run` wrote |
+| `adjudicate` | re-reads it against what you said you were doing |
+| `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
+| `changelog` | reads back why the baselines are what they are |
+| `journeys` | reads back which regions of one module this run's subjects entered differently |
+| `push` | sends a finished run to a review surface for somebody to decide |
+| `doctor` | says what this machine can observe, before a run rather than after one |
+| `watch` | holds a suite that is still running, so `ask` has something live to ask |
+| `serve` | exposes the last run's report to an MCP client over stdio |
+| `ask` | the same questions `serve` answers, without an MCP client |
+
+`--shape` accepts a difference **shape**: a fingerprint computed from the diff
+itself, which identifies a category of visual difference so it can be matched
+across subjects. It promotes a subject wherever that shape accounts for the
+whole change, and refuses by name any subject where something else changed too.
+
+`serve` and `ask` share their questions with `@variance-authority/mcp`, so an
+agent can ask what changed, in which component and which file, without
+re-running anything.
 
 ### Ask: the agent answers, without an agent protocol
 
@@ -341,13 +347,16 @@ this run's subjects. `--all` reads the accumulated record on purpose, and a
 checkout with no report to read gets that record *with a sentence saying so*,
 because a pool nobody chose must not print as one somebody did.
 
-Three more ways the pool is not what it looks like, each named rather than left
-to be inferred: an observation recorded incomplete is dropped from the pool
-rather than counted as having missed anything, and counted in a note; a named
-subject the journal holds no row for is listed, because nothing here is about it;
-and a pool that cannot hold two is said out loud, because a parting is a
-disagreement between two observers and one observer has not found nothing — it
-has not been able to look.
+Three more ways the pool is not what it looks like. Each is named rather than
+left to be inferred:
+
+- An observation recorded incomplete is dropped from the pool and noted, rather
+  than counted as a subject that agreed.
+- A named subject the journal holds no row for is listed by name, because this
+  run holds nothing that would settle it either way.
+- A pool holding fewer than two observations is said out loud. A parting is a
+  disagreement between two observers, and a single observer has not found
+  nothing — it has not been able to look.
 
 With no journal at all the answer is *nothing*, not *nothing found*: the command
 names the file it looked for and what writes one.
@@ -362,14 +371,16 @@ One file, written beside `report.json`, uploaded by whatever already uploads you
 CI artifacts. No account, no upload step, no retention policy, nothing to keep
 running — the cheapest rung of presentation infrastructure there is.
 
-It renders the same **docket** the pull-request body does — one entry per root
+It renders the same **docket** the pull-request body does: one entry per root
 cause, grouping every subject that cause reached, instead of one entry per
-subject: causes first with `file:line`, collateral counted rather than listed,
-a pixel-diff **region** (a bounding box of changed pixels) the semantic tier
-could not attribute to a component marked as *largest region, not a named
-cause*, and coverage failures — subjects the run could not observe — listed
-above the **findings** (the defects and changes the run reports) so the page
-cannot look complete when it is not.
+subject. Causes come first, with `file:line`, and their collateral is counted
+rather than listed.
+
+A pixel-diff **region** — a bounding box of changed pixels — that the semantic
+tier could not attribute to a component is marked *largest region, not a named
+cause*, so it is never read as an explanation. Coverage failures, meaning
+subjects the run could not observe at all, sit above the **findings**, so the
+page cannot look complete when it is not.
 
 Two constraints worth knowing. **Image paths are relative to the report**, so the
 page belongs beside it — a report written elsewhere shows broken images rather
@@ -759,17 +770,22 @@ stops absorbing. A subject whose only differences were absorbed reports
 **`ignored`**, never `unchanged`, and every run prints a ledger naming the rules
 that absorbed nothing — the two states that make a masked suite rot.
 
-The remaining top-level keys: `history` points the run at a history service,
-which is what makes `variance run` record observations and `variance accept`
-record approvals — its `token`, and `baselines.token` on a remote store, take
-either a literal or `{ "env": "NAME" }` naming the environment variable that
-holds it, because a config in a repository is the wrong place for a credential; `images` decides what a run writes alongside its report;
-`blank` replaces an image on the wire with a transparent one of the same
-intrinsic size; `sensitivity` narrows a named subject to a sensitivity level;
-`decoder` chooses the PNG implementation; `concurrency` bounds how many
-subjects are in flight; `intent` sets the default `--intent` label; `alone.limit`
-bounds how many changed subjects a run re-collects in isolation to confirm a
-change reproduces (the same budget `run --flakes` ignores — see above).
+The remaining top-level keys:
+
+| key | what it decides |
+|---|---|
+| `history` | the history service to reach. Setting it is what makes `variance run` record observations and `variance accept` record approvals |
+| `images` | what a run writes alongside its report |
+| `blank` | replaces an image on the wire with a transparent one of the same intrinsic size |
+| `sensitivity` | narrows a named subject to a sensitivity level |
+| `decoder` | which PNG implementation to use |
+| `concurrency` | how many subjects may be in flight at once |
+| `intent` | the default `--intent` label |
+| `alone.limit` | how many changed subjects a run re-collects in isolation to confirm the change reproduces — the same budget `run --flakes` ignores, above |
+
+`history.token`, and `baselines.token` on a remote store, take either a literal
+string or `{ "env": "NAME" }` naming the environment variable that holds it. A
+config file in a repository is the wrong place for a credential.
 
 `browser` is `chromium` (the default), `firefox` or `webkit` — one engine per
 run, because the engine is part of the identity a baseline is stored under, so
