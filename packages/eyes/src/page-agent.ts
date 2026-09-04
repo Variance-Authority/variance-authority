@@ -68,13 +68,15 @@ export function installEyesAgent(): InstalledEyesAgent {
 
           // The snapshot is complete before the Promise crosses realms. In
           // particular, React has not received this capture-phase event yet and
-          // therefore has not had an opportunity to unmount the target.
+          // therefore has not had an opportunity to unmount the target. Losing
+          // the receiver on the way out must not break the event the
+          // application is still dispatching.
           void record({
             kind: 'document-event',
             event: event.type,
             trusted: event.isTrusted,
             target: snapshotNode(target),
-          });
+          }).catch(() => undefined);
         },
         { capture: true },
       );

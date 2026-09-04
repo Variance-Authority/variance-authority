@@ -92,4 +92,45 @@ describe('Playwright API-compatible proxies', () => {
     });
     expect(snapshot).toHaveBeenCalledTimes(4);
   });
+
+  it('keeps a successful action passing when the post-operation read is lost', async () => {
+    const log = createEyesLog();
+    let reads = 0;
+    const snapshot = vi.fn(async () => {
+      reads += 1;
+      if (reads > 1) throw new Error('Target page, context or browser has been closed');
+      return [target];
+    });
+
+    const child = {
+      click(this: unknown) {
+        expect(this).toBe(child);
+        return Promise.resolve('clicked');
+      },
+    };
+    const page = {
+      getByRole(this: unknown) {
+        expect(this).toBe(page);
+        return child;
+      },
+    };
+
+    const instrumented = instrumentPage(
+      page as unknown as Page,
+      log,
+      snapshot as (locator: Locator) => Promise<readonly TargetSnapshot[]>,
+    );
+
+    await expect(instrumented.getByRole('button', { name: 'Redraw' }).click()).resolves.toBe(
+      'clicked',
+    );
+
+    expect(snapshot).toHaveBeenCalledTimes(2);
+    expect(log.seen[1]).toMatchObject({
+      member: 'click',
+      before: [target],
+      outcome: 'resolved',
+    });
+    expect(log.seen[1]).not.toHaveProperty('after');
+  });
 });
