@@ -8,7 +8,7 @@ rendering, and a Playwright host does not imply in-place pixels.
 
 | Question | Choices | Consequence |
 | --- | --- | --- |
-| Where is the UI already ready? | Storybook, served route/static output, Playwright Test, browserless unit DOM, custom host | Selects the lifecycle, the discovery mechanism, and the naming adapter |
+| Where is the UI already ready? | Storybook, served routes or static output, Playwright Test, browserless unit DOM, custom host | Selects the lifecycle, the discovery mechanism, and the naming adapter |
 | What crosses the acquisition boundary? | RenderDocument — environment-dependent or resource-closed — or already-painted Raster | Selects portability, disclosure, and which semantic evidence can travel |
 | Where are pixels made? | Caller browser, local renderer, operator-owned remote renderer | Selects latency, reproducibility, infrastructure, and renderer identity |
 
@@ -35,8 +35,8 @@ If the served route is the product state under review, use the route composition
 
 ## Served routes or static output
 
-Use `@variance-authority/route-collector` for an explicit map of stable subject ids
-to URLs, or for static output whose HTML files are the chosen subjects. Each
+Use `@variance-authority/route-collector` for an explicit map of stable subject
+ids to URLs, or for static output whose HTML files are the chosen subjects. Each
 viewport is planned separately and navigation happens at that viewport.
 
 Choose it when:
@@ -128,8 +128,9 @@ an operator error, never a missing baseline.
 
 Choose Percy, Chromatic, Argos, or Applitools when the required outcome is a
 vendor-operated review surface, browser and device fleet, support contract,
-branch baseline workflow, perceptual differ, or compliance commitment. Self-operation
-is a product boundary, not a feature-equivalent substitute for those services.
+branch baseline workflow, perceptual differ, or compliance commitment.
+Self-operation is a product boundary, not a feature-equivalent substitute for
+those services.
 
 See [comparison.md](comparison.md#5-when-not-to-choose-this) for the vendor
 models and [surface.md](surface.md) for exact package APIs.

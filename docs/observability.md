@@ -108,7 +108,7 @@ ends can see — a display name, a title, a wall clock. Those agree until they d
 not, and nothing announces the day they stop.
 
 So a cross-instrument answer joins on exact identities both producers emitted, or
-it refuses and names the half that was missing. A name match is available when a
+it refuses and names the half that was missing. A name match is good enough when a
 person looks something up by hand, and never between two instruments. It is also
 why a joined view concludes _less_ than either half alone: a file that executed
 with nothing addressing it is a replay candidate, and neither instrument
@@ -116,7 +116,7 @@ establishes that it is safe to mock.
 
 ## What the suite is for afterwards
 
-None of this moves a verdict. The suite passes and fails on the assertions
+None of this changes a verdict. The suite passes and fails on the assertions
 somebody wrote, and nothing here reaches a baseline or an exit code. What changes
 is that the run stops being the only thing that knew, and a question nobody
 thought to write down in advance has somewhere to be asked.

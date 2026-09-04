@@ -14,8 +14,8 @@ package's observability surface.
 
 The standalone `variance-authority-mcp` executable reads the report file it is
 given and nothing else; it does not go looking for those other artifacts beside
-it. Use it for a run report; use the
-producer's MCP connection for evidence the producer holds.
+it. Use it for a run report, and the producer's own MCP connection for evidence
+the producer holds.
 
 The report tools are also questions on the command line, where they need no
 client and no server: [ask a run from the command line](agent-cli.md). Connect a

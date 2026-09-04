@@ -17,7 +17,7 @@ segment chain:
 ```text
 magic            8 bytes   "VAIDXLSM"
 manifest length  4 bytes   unsigned 32-bit little-endian
-manifest          n bytes   UTF-8 JSON
+manifest         n bytes   UTF-8 JSON
 ```
 
 The manifest has format `variance-authority-immutable-log`, version `1`, and an
@@ -54,16 +54,16 @@ unsigned 32-bit integers in the runtime's `Uint32Array` byte order. Version 1
 does not claim portability between machines with different endianness. Padding
 between sections is not part of either section.
 
-The segment reader requires the exact format name and version. It rejects duplicate
-section names, overlapping or out-of-bounds sections, invalid widths, unaligned
-offsets, malformed column lengths and invalid references. A missing,
+The segment reader requires the exact format name and version. It rejects
+duplicate section names, overlapping or out-of-bounds sections, invalid widths,
+unaligned offsets, malformed column lengths and invalid references. A missing,
 incompatible or rejected chain is an empty cache and causes a normal scan. A
 standalone version-1 segment remains readable as a legacy one-layer generation.
 
 ## Strings and nullable values
 
 Every string within one segment is interned once across its parse and record
-changes. `strings.blob` concatenates its UTF-8 bytes without delimiters;
+rows. `strings.blob` concatenates its UTF-8 bytes without delimiters;
 `strings.off` contains one unsigned 32-bit offset per string plus a terminal
 offset. String id `i` therefore occupies `blob[off[i]..off[i + 1]]`.
 

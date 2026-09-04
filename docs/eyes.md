@@ -93,8 +93,8 @@ commit record and a page that rendered once and stopped are different readings.
 
 An Eyes archive groups journals under the runner's stable test identity. Every
 journal is either complete or partial with a reason. The archive is portable
-JSON, so a runner attachment, Jest/Vitest setup integration, or another harness
-can hand the same selector, locator, event, and Fiber evidence to an external
+JSON, so a runner attachment, a Jest or Vitest setup integration, or another
+harness can hand the same selector, locator, event, and Fiber evidence to an external
 reader after the live DOM is gone.
 
 ## Boundaries
@@ -106,9 +106,9 @@ those fields remain absent.
 
 The document event channel covers user-facing DOM events. Every record carries
 the event's `trusted` flag, so an event the browser raised from an input gesture
-is separable from one a page script dispatched. A store mutation, network request,
-timer, or direct function call that emits no DOM event is not classified as an
-action by Eyes. A memoized updater identifies the component instance that
+is separable from one a page script dispatched. A store mutation, a network
+request, a timer, or a direct function call that emits no DOM event is not
+classified as an action by Eyes. A memoized updater identifies the component instance that
 scheduled work, not the source statement or callback that invoked it. Execution
 regions remain the responsibility of Sense, and cross-realm correlation remains
 the responsibility of Journey.
