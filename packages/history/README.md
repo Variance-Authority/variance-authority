@@ -5,17 +5,20 @@
 > Retain visual-regression observations across runs and answer churn, flakiness, reach and token-drift questions.
 
 A **run** is one execution of the visual-regression suite, recorded whether or
-not anything changed. A run produces **observations** — rows recording that
-one component's content-hash moved for one **subject** (a rendered story,
-route, fixture, or value) — and, once a person signs off, an **approval** for
-that subject-and-run pair.
+not anything changed. It produces **observations**: rows recording that one
+component's content hash changed for one **subject** — a rendered story, route,
+fixture, or value. Once a person signs off, it produces an **approval** for that
+subject-and-run pair as well.
 
 Use this package when a pipeline needs to keep those rows across many runs and
-turn them into: **churn** (how often a component's own code changed, as a
-rate), flakiness (how often a subject read differently from itself), **reach**
-(where a component appears now that it did not before), and **token drift**
-(whether a token's recorded values — its **journey** across a window of runs —
-moved further, over approved runs, than any single review could have seen).
+ask four things of them:
+
+- **churn** — how often a component's own code changed, as a rate
+- **flakiness** — how often a subject read differently from itself
+- **reach** — where a component appears now that it did not before
+- **token drift** — whether a token's values drifted further across approved
+  runs than any single review could have seen. The window of runs those values
+  are read over is the token's **journey**.
 The root entrypoint is pure contract and arithmetic; `history/client` is the
 optional HTTP client for a service you run, and the one part that needs an
 endpoint and its bearer token.

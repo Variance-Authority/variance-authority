@@ -5,17 +5,19 @@
 > Sense spacing, alignment, prominence and repetition inside one live interface, as evidence an agent can read.
 
 Sense one rendered subject and return a machine-readable presentation graph. The
-report keeps semantic anchors attached to concrete element references, measures
-geometry and presentation relationships, and exposes deterministic collapse (the
-gap that should separate repeated instances, or the size difference that should
-separate a heading from body text, disappearing) and drift (one instance's
-position, baseline, or presentation diverging from the dominant pattern) —
-without recommending a layout or assigning a UI quality score.
+report keeps semantic anchors attached to concrete element references, and
+measures geometry and presentation relationships.
 
-It reads a `RawCapture` — a normalized, serializable snapshot of one rendered DOM
+Two of its findings are deterministic. **Collapse** is a gap that should separate
+repeated instances, or a size difference that should separate a heading from body
+text, disappearing. **Drift** is one instance's position, baseline, or
+presentation diverging from the dominant pattern. Neither recommends a layout or
+scores the UI.
+
+It reads a `RawCapture`: a normalized, serializable snapshot of one rendered DOM
 subject, produced by a collector such as this package's Playwright entry point.
-The layout-derived evidence arrives only when that capture's profile — a
-declaration of what its collector could observe (ARIA, style, layout, pixels) —
+A capture's **profile** declares what its collector could observe — ARIA, style,
+layout, pixels — and the layout-derived evidence arrives only when that profile
 includes computed style and layout.
 
 This is a sensing and support surface, not a visual-regression assertion. It does

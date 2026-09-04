@@ -4,16 +4,19 @@
 
 > A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.
 
-Use this package when your integration owns a **harness** (a long-lived browser
-instance kept open across captures) or needs to turn a `RenderDocument` — a
-serialized snapshot of one **subject**'s rendered state, where a subject is the
-story, route, or component variant under test — into a **raster** (a PNG image
-plus the conditions it was captured under). If you already have a Playwright
-Test suite, use `@variance-authority/playwright-test` instead; for a CLI route
-or Storybook collection, use the corresponding collector. This lower-level
-package does not choose subjects, mount application state, or build the
-`PageAgent` — the in-page object a bundle installs to read a subject and hand
-back a capture; your integration supplies that.
+Use this package when your integration owns a **harness** — a long-lived browser
+instance kept open across captures — or needs to turn a `RenderDocument` into a
+**raster**, a PNG image plus the conditions it was captured under. A
+`RenderDocument` is a serialized snapshot of one **subject**'s rendered state,
+where a subject is the story, route, or component variant under test.
+
+If you already have a Playwright Test suite, use
+`@variance-authority/playwright-test` instead. For a CLI route or Storybook
+collection, use the corresponding collector.
+
+This lower-level package does not choose subjects, mount application state, or
+build the `PageAgent` — the in-page object a bundle installs to read a subject
+and hand back a capture. Your integration supplies that.
 
 Playwright's browser binaries do not arrive with an `npm install`, so there are
 two commands here rather than one:

@@ -4,12 +4,14 @@
 
 > Pixel-tier contracts for Variance Authority: what a renderer and a store promise, and which policy a comparison ran under.
 
-Most of the interesting part survives once the browser, the directory and the
-port are taken away: what a document assembles to, what a renderer promises,
-what a store promises, which policy a comparison ran under, which tricks a subject — the
-image, component, or page instance being compared — was held still with,
-whether it held still at all, and what composition (the specific ordered
-sequence of tools) produced an answer.
+Take away the browser, the directory and the port, and most of the pixel tier is
+still here: what a document assembles to, what a renderer promises, what a store
+promises, and which policy a comparison ran under.
+
+It also holds the record of how a **subject** — the image, component, or page
+instance being compared — was held still: which tricks were used, whether it
+held still at all, and what **composition**, the ordered sequence of tools,
+produced the answer.
 
 ```bash
 npm install --save-dev @variance-authority/raster

@@ -5,12 +5,14 @@
 > Read React provenance from rendered DOM nodes: owner chains, props digests and portals, without importing the app’s React.
 
 This package reads **provenance**: React's own record of which components
-produced a piece of DOM. For a node, that means its **owner chain** (the
-composite components enclosing it, innermost first), a **props digest** at
-each one (a hash of that component's own props, excluding children), and
-whether the node came through a **portal** — content `createPortal` places
-elsewhere in the document while it stays part of the component tree rooted at
-the **subject**, the component, page, or story a capture is taken of.
+produced a piece of DOM. For one node that means three things — its **owner
+chain**, the composite components enclosing it, innermost first; a **props
+digest** at each one, hashing that component's own props and excluding children;
+and whether the node arrived through a **portal**.
+
+A portal is content `createPortal` puts elsewhere in the document while it stays
+part of the component tree rooted at the **subject** — the component, page, or
+story a capture is taken of.
 
 It reads metadata that `react-dom` attached to the DOM nodes, and never imports
 the application's React package, so it cannot pin, duplicate, or replace that
