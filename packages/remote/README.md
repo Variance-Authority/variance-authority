@@ -24,13 +24,17 @@ npm install --save-dev @variance-authority/remote
 ```
 ## What crosses the wire
 
-A **render document** (the serializable description of what to paint), a
-**raster** (the painted image, its pixels carried as base64), a **baseline
-description** (a baseline's metadata — digest, comparability, missing fonts —
-without its image bytes), and a **cache entry** (a previously rendered raster,
-kept so an unchanged document is not repainted) are all plain JSON. A document
-acquired in a jsdom unit test can therefore be painted by a pinned renderer
-elsewhere without changing the interfaces above or below the hop.
+Four things cross, and all four are plain JSON:
+
+- a **render document** — the serializable description of what to paint
+- a **raster** — the painted image, its pixels carried as base64
+- a **baseline description** — a baseline's metadata (digest, comparability,
+  missing fonts) without its image bytes
+- a **cache entry** — a previously rendered raster, kept so an unchanged
+  document is not repainted
+
+A document acquired in a jsdom unit test can therefore be painted by a pinned
+renderer elsewhere, without changing the interfaces above or below the hop.
 
 ## Client and server entrypoints
 
@@ -67,11 +71,11 @@ one.
 ## Batch overlapping renders
 
 `render(document)` is unchanged and takes one document. Underneath, calls that
-overlap in time leave as **one request** to `/render/batch`, because a run's
-raster tier goes as wide as the operator allowed, and one request per
-**subject** (the component or page a baseline represents) pays a connection, a
-round trip and — on a farm that scales to zero — a chance of a cold start, per
-subject, around a paint that costs ~65 ms.
+overlap in time leave as **one request** to `/render/batch`. A run's raster tier
+goes as wide as the operator allowed, and one request per **subject** — the
+component or page a baseline represents — pays for a connection, a round trip,
+and on a farm that scales to zero a chance of a cold start. That is a great deal
+of overhead around a paint costing ~65 ms.
 
 The batching is under the interface rather than in it: nothing upstream learns a
 new shape, no caller picks a size, and the local and remote renderers stay
@@ -122,10 +126,11 @@ the client then fetches all of their sidecars for one identity from
 `variance run` declares the set after selection, so a narrowed run does not fetch
 what it will not consult.
 
-It is a hint and never a question. It is optional on `RasterStore`, so a store on
-a disk simply does not have it; a server from before the path existed answers 404
-and the client falls back to one request per key; a subject with no baseline comes
-back as an *answer* rather than as a miss, so a first run costs one request too.
+It is a hint and never a question, so every way it can go missing is already
+handled. It is optional on `RasterStore`, so a store on a disk simply does not
+have it. A server from before the path existed answers 404, and the client falls
+back to one request per key. A subject with no baseline comes back as an
+*answer* rather than a miss, so a first run costs one request too.
 Nothing about it can move a verdict, which is the property that lets it be added
 to a deployed protocol at all.
 

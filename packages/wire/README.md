@@ -140,9 +140,9 @@ const wire = await listen({ answer: (path) => (path === '/' ? state() : undefine
 
 Opt-in because a head and an event collector have nothing they mean to publish,
 and a medium that made them readable would have given each of them a surface it
-never agreed to. Where it is used — a watcher, in
-[`@variance-authority/vantage`](../vantage/README.md) — a reader asks on the same
-address a run reports to, so there is no second port to keep in step. Reading is
+never agreed to. Where it is used — by a watcher, in
+[`@variance-authority/vantage`](../vantage/README.md) — the reader asks on the
+same address the run reports to, so there is no second port to keep in step. Reading is
 separated from reporting by method rather than by path, so a reader's surface
 cannot collide with an execution id a participant chose. Returning `undefined`
 is a `404`, which is how a listener declines a path it has nothing for.

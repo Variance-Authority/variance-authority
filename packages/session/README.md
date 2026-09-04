@@ -46,11 +46,15 @@ leaks instead.
 
 Every subject is bracketed by a cheap shared-state probe, and its reads are
 derived from its own capture. That turns *"these tests are flaky in CI"* into a
-**finding**: a fixed report with five fields — `[confidence] victim` names the
-affected subject and whether the cause is suspected or confirmed; `cause:`
-names the subject that wrote the shared state (and the components that
-rendered it, when known); `via:` names the shared-state key both subjects
-touched; `evidence:` says how the tool knows; `fix:` says what to change.
+**finding**: a fixed report with five fields.
+
+| field | what it names |
+|---|---|
+| `[confidence] victim` | the affected subject, and whether the cause is suspected or confirmed |
+| `cause:` | the subject that wrote the shared state, and the components that rendered it when those are known |
+| `via:` | the shared-state key both subjects touched |
+| `evidence:` | how the tool knows |
+| `fix:` | what to change |
 
 ```
 [confirmed] story:card
@@ -177,11 +181,12 @@ subject producing a different hash with no code change, and attribution reports 
 culprit rather than inventing one.
 
 **Confirmation varies time and holds the world fixed.** Re-running a subject in
-the same session proves it is unstable; a leak that happens *every* time renders
-the same wrong way in both passes and never moves the hash, so one the probe
-never saw either is reported as nothing at all. That is the two limits composing,
-and it is the kind that becomes a false regression rather than a flake. Catching
-it means varying the world instead — collecting the subject in one nothing else
-has touched, which is what `variance run` — the `run` command in
-`@variance-authority/cli` — asks its collector for when a subject's pixels
-moved.
+the same session proves that the subject is unstable. But a leak that happens
+*every* time renders the same wrong way in both passes, so the hash never
+changes, and a leak the probe also never saw is reported as nothing at all.
+
+That is both limits at once, and what comes out of it is a false regression
+rather than a flake: the subject is stably wrong. Catching it means varying the
+world instead, and collecting the subject in a session nothing else has touched.
+That is what `variance run` — the `run` command in `@variance-authority/cli` —
+asks its collector for when a subject's pixels change.
