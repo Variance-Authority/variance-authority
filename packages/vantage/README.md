@@ -41,8 +41,8 @@ ends with the test.
 
 ## Two ends
 
-`openVantage()` is the run's end and reads `VARIANCE_AUTHORITY_VANTAGE`. Unset,
-it returns `undefined` and the suite pays one environment read per worker —
+`openVantage()` is the run's end and reads `VARIANCE_AUTHORITY_VANTAGE`. When it
+is unset, `openVantage` returns `undefined` and the suite pays one environment read per worker —
 the same bargain heads make, because an instrument nobody asked for must not be
 a cost anybody pays.
 
@@ -114,7 +114,7 @@ Each `WatchedTest` carries its `id`, `title`, `file`, `project`, `worker` and
 realm that made it; what is `pending`, meaning work `vaStart` opened and `vaEnd`
 never closed; the listener's `remarks`; and the `error`, when there was one.
 
-`pending` is exact whatever was dropped. What is bounded is the list of
+`pending` is exact no matter what was dropped. What is bounded is the list of
 announcements, not the tally of work that opened and never closed, and the tally
 is the one an unfinished run is actually asked about.
 
@@ -125,7 +125,7 @@ drop from the front and both are counted, because a reader who cannot tell
 conclusion — the one that sends somebody looking for a call that is right there.
 `address` is carried into every answer so a reader with nothing to show can name
 what to set. `AttachOptions` adds `host`, the interface to listen on, defaulting
-to `127.0.0.1`, which is all a run will answer.
+to `127.0.0.1`, which is the only kind of address a run will report to.
 
 ## Still nothing written down
 

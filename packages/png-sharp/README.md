@@ -10,8 +10,8 @@ what turns PNG bytes into raw pixels so the two can be compared.
 
 Decoding here runs through a native addon: Sharp's libvips binding, a compiled
 platform-specific `.node` file loaded into the process. So it works only where
-somebody has published one for the platform. Not a Worker, not an edge runtime, not a
-bundle that cannot carry a `.node` file. That is the entire reason this is its
+somebody has published one for the platform: not a Worker, not an edge runtime,
+not a bundle that cannot carry a `.node` file. That is the entire reason this is its
 own package instead of living inside `@variance-authority/png`.
 
 The comparison is unchanged. Only the decoding is faster.
@@ -84,7 +84,7 @@ report to explain it.
 Byte identity covers flat colour, every PNG filter type, partial transparency,
 fully transparent pixels whose colour must survive, one-pixel images, and the
 padding required for a size mismatch. Verdict equality alone is insufficient:
-two decoders can agree after losing the same byte information.
+two decoders can agree while both losing the same information.
 
 If the native addon cannot load, `sharpDecoder` rejects; the CLI's default
 `decoder: "auto"` selection catches that and falls back to `pngjs`. Set

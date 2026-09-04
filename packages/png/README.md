@@ -47,9 +47,9 @@ console.log(comparison.changed, comparison.mask.changed);
 const picture = diffImage(before, after, DEFAULT_POLICY);
 ```
 
-Not a number, and not a picture. The number is what makes a pixel differ
+Not a number, and not a picture. The number is why a pixel differ is
 unactionable — *"5482 pixels changed"* cannot be assigned to anyone — and the
-picture is what makes it expensive, because somebody has to look. Both are
+picture is why it is expensive, because somebody has to look. Both are
 derivable from a mask; neither can produce one.
 
 `comparison.changed` contains one count per requested policy and `mask` keeps
@@ -85,8 +85,8 @@ simply fails when they differ. Failing is the easy choice and the dishonest one:
 it lets a layout change score "detected" without measuring anything.
 
 Both images are padded onto the union box, on **white** because a page's declared
-canvas is white, and the padding is reported. A story that grew by one row then
-differs in that row rather than in its entire area.
+canvas is white, and the padding is reported. A story that grew by one row differs
+in that row rather than in its entire area.
 
 ## `png/difference` — the codec half of known-difference measurement
 
@@ -121,7 +121,7 @@ A real divergence, stated rather than smoothed over. `compareRasters` pads,
 because it is answering *did this subject — the newly rendered image — change*
 and refusing would let a layout change score "detected" without measuring
 anything. `observePngDifference` refuses, because it is answering *how has a
-known difference moved* — and a baseline field measured on one grid has no
+known difference drifted* — and a baseline field measured on one grid has no
 per-pixel correspondence with a current field measured on another. Padding
 there would silently invent a difference across the whole added region and
 then report it as drift.

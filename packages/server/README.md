@@ -7,13 +7,13 @@
 Run this package when a pipeline needs a self-hosted HTTP history service. A
 **run** — one execution of the pipeline, recorded whether or not anything
 changed — posts **observations** (one row per component whose rendered hash
-moved, on a **subject**: the page or story under test) and **approvals** (a
+changed, on a **subject**: the page or story under test) and **approvals** (a
 reviewer accepting one subject's observations for one run). The service stores
 both in a backend and answers the history queries defined by
 `@variance-authority/history`.
 
 It binds a port, and refuses to start without a bearer token of at least 16
-characters. The shipped backend adds a Node with `node:sqlite` (22+, where it is
+characters. The shipped backend also needs a Node with `node:sqlite` (22+, where it is
 still experimental and warns on import) and a writable database path; a backend
 you write yourself needs neither, and the entrypoint table below says which is
 which.
@@ -29,7 +29,7 @@ between operators, and every row in it was posted by your own code — see
 write it cannot attribute to its configured token.
 
 `@variance-authority/history` holds the client-side contract and the drift
-arithmetic and no storage; this package holds a database and a socket, plus the
+arithmetic, and no storage; this package holds a database and a socket, plus the
 row-to-answer arithmetic every backend shares. A backend itself does no
 arithmetic — it only appends and returns rows. Three functions turn those rows
 into the numbers a client reads: **churn** (how often one component's own code
@@ -75,16 +75,16 @@ projects.
 
 | method & path | request | response |
 |---|---|---|
-| `POST /v1/observations` | `{ run, observations, tokens, instabilities? }` — the run record, the observation rows that moved, the token values resolved, and optionally which subjects read differently from themselves this run | `204`, empty body |
+| `POST /v1/observations` | `{ run, observations, tokens, instabilities? }` — the run record, the observation rows that changed, the token values resolved, and optionally which subjects read differently from themselves this run | `204`, empty body |
 | `POST /v1/approvals` | `{ approvals }` | `204`, empty body |
-| `POST /v1/current?project=` | `{ subjects }` — up to 200 subject ids | `200 { observations, tokens }` — the latest recorded row per subject/component/band/profile, and every token's latest value |
+| `POST /v1/current?project=` | `{ subjects }` — up to 200 subject ids | `200 { observations, tokens }` — the latest recorded row per subject, component, band and profile, and every token's latest value |
 | `GET /v1/last-changed?project=&subject=&component=&band=` | `subject` and `component` required; `band` optional, one of `structure`\|`style`\|`geometry` | `200 { observation }` — the observation, or `null` |
 | `GET /v1/churn?project=&component=&since=&until=&limit=` | `component` required | `200` — runs and changed-runs in the window, a `rate` per comparable band, and separate counts of collateral and rejected runs |
 | `GET /v1/flakiness?project=&subject=&since=&until=&limit=` | `subject` required | `200` — sweeps, occurrences, absorbed runs, and a `rate` that is absent (not zero) when nothing swept |
 | `GET /v1/value-journey?project=&token=&since=&until=&limit=` | `token` required | `200` — the token's recorded values, oldest first |
 | `GET /v1/reach?project=&component=&since=&until=&limit=` | `component` required | `200` — subjects the component appeared in, and which of those are newly arrived |
 
-`since`/`until` are ISO-8601 instants and `limit` a positive integer; all three
+`since` and `until` are ISO-8601 instants and `limit` a positive integer; all three
 are optional on every `GET` route above. Whatever a `limit` excludes comes back
 as an `omitted` count rather than silently shrinking a total.
 

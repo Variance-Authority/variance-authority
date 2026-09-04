@@ -71,7 +71,7 @@ one.
 ## Batch overlapping renders
 
 `render(document)` is unchanged and takes one document. Underneath, calls that
-overlap in time leave as **one request** to `/render/batch`. A run's raster tier
+overlap in time go out as **one request** to `/render/batch`. A run's raster tier
 goes as wide as the operator allowed, and one request per **subject** — the
 component or page a baseline represents — pays for a connection, a round trip,
 and on a farm that scales to zero a chance of a cold start. That is a great deal
@@ -118,10 +118,11 @@ and `windowMs` alone would read as a timeout.
 
 ## Prefetch store metadata
 
-Most subjects settle from the sidecar — 32 hex characters, no image moved — and
-over a socket that saving is spent again as one request per subject. `expect(keys)`
-on the store is where a caller says which subjects this run is going to ask about;
-the client then fetches all of their sidecars for one identity from
+Most subjects settle from the sidecar — 32 hex characters, no image fetched —
+and over a socket that saving is spent again as one request per subject.
+`expect(keys)` on the store is where a caller says which subjects this run is
+going to ask about; the client then fetches all of their sidecars for one
+identity from
 `/baseline/working-set` in a single request, and answers `describe` out of it.
 `variance run` declares the set after selection, so a narrowed run does not fetch
 what it will not consult.
@@ -131,7 +132,7 @@ handled. It is optional on `RasterStore`, so a store on a disk simply does not
 have it. A server from before the path existed answers 404, and the client falls
 back to one request per key. A subject with no baseline comes back as an
 *answer* rather than a miss, so a first run costs one request too.
-Nothing about it can move a verdict, which is the property that lets it be added
+Nothing about it can change a verdict, which is the property that lets it be added
 to a deployed protocol at all.
 
 ## Validate remote records
@@ -155,6 +156,6 @@ Every failure mode **throws**; none is translated into a missing baseline:
 | a bare `null` body | a miss |
 | a baseline with no stated comparability | a comparable baseline |
 
-They share one safety boundary. `new` re-records what is on screen, so a network blip
-read as a miss does not skip a check — it **destroys the thing the check was
-against, and reports success while doing it.**
+They share one safety boundary. `new` re-records what is on screen, so a network
+blip read as a miss does not just skip a check — it **destroys the thing the
+check was against, and reports success while doing it.**

@@ -60,8 +60,8 @@ reporting for reads it from the same place it got the channel.
 
 Only loopback `http` addresses are accepted. The address is written by whoever is
 talking to the process, so a participant that posted wherever a cookie said would
-be a way to make it fetch an address somebody else chose, rather than an
-instrument. `channelTo(origin, journey)` is the same channel for a participant
+not be an instrument — it would be a way to make it talk to an address somebody
+else chose. `channelTo(origin, journey)` is the same channel for a participant
 that was **handed** an address rather than sent one — a test run reporting to a
 watcher reads it from its own environment — and it refuses the same addresses for
 the same reason. It goes to that address rather than through `channelFrom`,
@@ -126,7 +126,7 @@ in advance.
 **The execution id is in the address, never in the body.** A participant repeats
 nothing it was told, and the driver reads back the key it minted itself — so a
 report cannot claim an execution by writing one down. A body the listener cannot
-parse is answered as a refusal rather than thrown on, which is how a participant
+parse is answered as a refusal rather than passed on, which is how a participant
 that acknowledges its reports learns it lost one.
 
 `answer` is the one way traffic goes the other direction. A listener given one
@@ -142,8 +142,8 @@ Opt-in because a head and an event collector have nothing they mean to publish,
 and a medium that made them readable would have given each of them a surface it
 never agreed to. Where it is used — by a watcher, in
 [`@variance-authority/vantage`](../vantage/README.md) — the reader asks on the
-same address the run reports to, so there is no second port to keep in step. Reading is
-separated from reporting by method rather than by path, so a reader's surface
+same address the run reports to, so there is no second port to keep in step.
+Reading is separated from reporting by method rather than by path, so a reader's surface
 cannot collide with an execution id a participant chose. Returning `undefined`
 is a `404`, which is how a listener declines a path it has nothing for.
 

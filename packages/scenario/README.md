@@ -91,13 +91,13 @@ after snapshot — not the frame's own render hash.
 That distinction is the point. A shared token edit changes every frame's render
 hash, which is its exact, absolute state, yet leaves the effect digest stable:
 the edit is already present in an Act's before and after frame alike. Changing
-the handler does move the digest at that Act, because that is exactly the
+the handler does change the digest at that Act, because that is exactly the
 comparison the delta is taken from.
 
 Acts align by `(key, occurrence)` along their common ordered prefix. An inserted,
-missing, or repeated Act is reported in `unmatched` with its side; later ordinals are not
-shifted into a plausible pair. A failed observation is created with
-`unobserved(...)`, terminates the reachable prefix, and makes
+missing, or repeated Act is reported in `unmatched` with its side; later
+ordinals are not shifted into a plausible pair. A failed observation is recorded
+with `unobserved(...)`; it terminates the reachable prefix and leaves
 `firstDivergence` unresolved rather than clean.
 
 `startScenario` takes:
@@ -127,10 +127,10 @@ The root entrypoint is ephemeral and performs no I/O. Import
 semantic evidence must survive the process.
 
 The archive requires an address covering project, run, scenario, execution,
-precondition, profile, and attempt — a caller-assigned label, such as a retry
-count, that the archive never derives from the run itself. Its policy declares
-expiry, access, deletion, and an admission function — a check that can refuse
-to retain a given snapshot — for every semantic snapshot. Equal snapshots are
+precondition, profile, and attempt. `attempt` is a caller-assigned label, such
+as a retry count, that the archive never derives from the run itself. Its policy
+declares expiry, access and deletion for every semantic snapshot, plus an
+admission function — a check that can refuse to retain a given snapshot. Equal snapshots are
 stored once by content digest. Expired or missing evidence reads as
 `unobserved`; garbage collection removes expired manifests and semantic objects
 no retained manifest references.

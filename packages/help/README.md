@@ -70,17 +70,17 @@ Five tools, in the order they are meant to be asked in:
 
 | tool | takes | answers |
 |---|---|---|
-| `docs_packages` | nothing | every import specifier the workspace publishes, and how used and documented each is |
+| `docs_packages` | nothing | every import specifier the workspace publishes, and how heavily used and how well documented each is |
 | `docs_entrypoint` | a package, optionally a subpath | the names one specifier opens, most-imported first |
 | `docs_symbol` | a name | the import line, the place, the signature, the doc, and who imports it |
 | `docs_search` | a string | names whose name or doc contains it, ranked the same way |
-| `docs_gaps` | nothing | names other packages import and which say nothing about themselves |
+| `docs_gaps` | nothing | names other packages import that say nothing about themselves |
 
 `docs_packages` takes no argument and returns the import specifiers every
 other tool takes as input, so it is the natural first call.
 
-Every request re-reads the workspace, so an answer always reflects the file on
-disk right now, not the one at boot. The read is manifests and module
+Every request re-reads the workspace, so an answer always reflects the files on
+disk right now, not the ones read at boot. The read is manifests and module
 records, not a compilation, so it stays well under a second even across
 dozens of packages and well over a thousand names.
 
@@ -103,9 +103,9 @@ npx variance-authority-help write . --out docs/api
 `--base https://github.com/you/repo/blob/main/` puts a prefix in front of every
 path, for pages that will be read away from the checkout.
 
-The same two from a program, where `writePages` takes them as `base` and
-`page` — `page` being the title and summary for the generated files above,
-overriding what they would otherwise take from the root manifest:
+From a program, `writePages` takes that same prefix as `base`, plus a `page` —
+the title and summary for the generated files above, overriding what they would
+otherwise take from the root manifest:
 
 ```ts
 import { writePages } from '@variance-authority/help';
@@ -146,7 +146,7 @@ Three parts, and none of them is new here:
 ## What it does not do
 
 It does not read `dist`. A `types` target of `./dist/index.d.ts` is mapped back
-through that package's own `rootDir`/`outDir` to `src/index.ts`, so what it
+through that package's own `rootDir` and `outDir` to `src/index.ts`, so what it
 reports is what somebody wrote.
 
 It does not infer. A name with no block comment above it is reported as having

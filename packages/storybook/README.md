@@ -8,15 +8,15 @@ Use this package when you need Storybook index parsing, subject planning, or a
 host-neutral preview driver. A *subject* is the one thing under test — here, one
 Storybook story. *Subject planning* is turning the index's raw story list into
 an ordered, filtered plan of which subjects a run will actually observe. For the
-complete CLI/browser workflow, use `@variance-authority/storybook-collector`.
+complete CLI and browser workflow, use `@variance-authority/storybook-collector`.
 This package does not mount stories or choose a browser for you.
 
-It takes a built Storybook's `index.json` as a value. `storybook/read` will take
-a readable path instead, and driving a preview needs a page object you supply,
+It takes a built Storybook's `index.json` as a value. `storybook/read` takes a
+readable path instead, and driving a preview needs a page object you supply,
 with `url`, `goto`, and `evaluate` methods.
 
 Install it when a custom integration owns the preview page or only needs the
-index/subject helpers:
+index and subject helpers:
 
 ```bash
 npm install --save-dev @variance-authority/storybook
@@ -57,7 +57,7 @@ console.log(plan.subjects.map(({ story }) => story.id));
    anything that is not that. No browser, no evaluation, no `.storybook/`. It
    recognizes index versions 3 (the older `stories` shape) and 4 and 5 (the
    newer `entries` shape). An index that declares a different or no `v` is still
-   read — by whichever of `entries`/`stories` is actually present — with a
+   read — by whichever of `entries` or `stories` is actually present — with a
    warning attached to the returned `warnings` array rather than a refusal.
    Refusal is reserved for a file with neither key, or an entry missing a
    required field. Call it directly on an index you already hold;
@@ -75,8 +75,8 @@ console.log(plan.subjects.map(({ story }) => story.id));
 
 The snippet above is the smallest complete path: it reads the built artifact and
 returns an ordered, policy-filtered plan. It does not open a browser. The CLI
-adapter in `@variance-authority/storybook-collector`
-owns the browser and capture callback for a normal visual run.
+adapter in `@variance-authority/storybook-collector` owns the browser and the
+capture callback for a normal visual run.
 
 ## Drive an existing preview
 
@@ -135,7 +135,7 @@ or defers work to an effect. Those async gaps are what cause a *flake*: a
 capture that differs between otherwise-identical runs because it was taken
 before the component had actually finished rendering.
 
-Supplied, it becomes the only signal that can produce a `rendered` outcome: a
+When supplied, it becomes the only signal that can produce a `rendered` outcome: a
 story that never attaches the selector **times out rather than being captured
 early**.
 

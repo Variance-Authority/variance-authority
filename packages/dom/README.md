@@ -6,7 +6,7 @@
 
 Extract a `RawCapture` — a serializable snapshot of an element's tree, ARIA, and
 applicable styles — from a mounted element. One implementation covers both
-**observation profiles**, i.e. what a document can be asked for: jsdom in a unit
+**observation profiles** — what a document can be asked for: jsdom in a unit
 test, Chromium in a page, same code, same ruleset.
 
 ```bash
@@ -35,9 +35,9 @@ this package, not in `@variance-authority/core`, because deciding whether a rule
 applies needs a live document; every other normalization rule stays versioned by
 the ruleset instead of the collector.
 
-On a single-button subject mounted under Storybook chrome, a preview reset, dead
-utility classes and CSS-in-JS accretion, applicability pruning reduced 1,010
-parsed rules to the one rule that could reach the subject. A design system's
+On a single-button subject mounted under Storybook chrome — a preview reset,
+dead utility classes, CSS-in-JS accretion — applicability pruning reduced 1,010
+parsed rules to the one that could reach the subject. A design system's
 stylesheet is almost entirely irrelevant to any one subject, and a comparison
 that carries it is comparing the document a subject happened to be mounted in.
 
@@ -67,8 +67,8 @@ const renderDocument = acquireDocument(root, { subject, viewport });
 console.log(capture.root.tag, renderDocument.html.length);
 ```
 
-The mounted element is the same value for both paths. `collect` is synchronous and returns serializable data
-for `normalize`. `acquireDocument` returns serializable markup, frame context, and
+The mounted element is the same value for both paths. `collect` is synchronous
+and returns serializable data for `normalize`. `acquireDocument` returns serializable markup, frame context, and
 only the CSS that applies to the subject, ready for a renderer owned by another
 package or process.
 

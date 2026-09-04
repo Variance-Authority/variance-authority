@@ -19,6 +19,7 @@ ask four things of them:
 - **token drift** — whether a token's values drifted further across approved
   runs than any single review could have seen. The window of runs those values
   are read over is the token's **journey**.
+
 The root entrypoint is pure contract and arithmetic; `history/client` is the
 optional HTTP client for a service you run, and the one part that needs an
 endpoint and its bearer token.
@@ -94,7 +95,7 @@ client throws on every transport failure for the same reason, and
 
 ## Writers and client options
 
-**A configured `variance run` does, and so does `variance accept`.** The CLI
+**A configured `variance run` writes here, and so does `variance accept`.** The CLI
 parses a `history` config block; `variance run` records the run and its
 observations when that block is present *and* the run can name itself, and
 `variance accept` records approvals. A run with a store but no identity writes
@@ -108,14 +109,14 @@ missing the runs nobody noticed were absent.
 |---|---|---|
 | `endpoint` | required | base URL of the service you run, e.g. `http://history.internal:7788` |
 | `token` | required | the bearer the service was started with. The service holds no accounts and no identity of its own; everything it stores was produced by runs you own, and the token is how it refuses a write it cannot attribute to one |
-| `project` | none | scopes every query and is checked against every row written. Optional because a single-project deployment does not need it, and dangerous to omit on a shared one: unscoped queries blend two projects' `Button` into one rate and nothing in the answer would show it. Set, a write carrying another project's rows throws rather than landing in the wrong history |
+| `project` | none | scopes every query and is checked against every row written. Optional because a single-project deployment does not need it, and dangerous to omit on a shared one: unscoped queries blend two projects' `Button` into one rate and nothing in the answer would show it. Once set, a write carrying another project's rows throws rather than landing in the wrong history |
 | `timeoutMs` | `10000` | a history query that hangs must fail, not stall the run |
 | `fetch` | `globalThis.fetch` | for a caller with its own agent or proxy |
 
 A store you reach directly through `createHttpHistoryStore`, outside the CLI,
-holds exactly what your own code posted to it — and with no writer at all, every
-drift query answers from an empty store, which `createAbsentStore` and the
-`unkept` sentence above give you a truthful way to report.
+holds exactly what your own code posted to it. With no writer at all, every
+drift query answers from an empty store — and that is where `createAbsentStore`
+gives you *no record is kept* to report instead of a confident nothing.
 
 ## When not to use this
 
