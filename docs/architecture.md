@@ -61,7 +61,7 @@ Five rules. A tool that breaks one is broken, whatever it produces.
 
 **1. Declare what you need.** A tool states the cheapest tier that can answer its
 question. A tier is then never charged for another tier's requirements — an
-unloaded font cannot change which rules match, so the cheap rung waits for
+unloaded font cannot change which rules match, so the cheap tier waits for
 nothing.
 
 **2. Declare what you did.** Anything that could change the answer becomes part

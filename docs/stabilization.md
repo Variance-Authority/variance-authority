@@ -70,7 +70,7 @@ takes a screenshot, so it would be a trick that silently does nothing.
 
 Filtered by tier, so a jsdom collection applies **nothing** — no layout engine and
 no animation clock means there is nothing to hold still, and a `fonts.ready` wait
-per subject on the rung that exists to be cheap is the trade that rung refuses.
+per subject on the tier that exists to be cheap is the trade that tier refuses.
 
 ## What runs, and what it absorbs
 

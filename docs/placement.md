@@ -170,7 +170,7 @@ files between layouts.
 
 ---
 
-**Further:** [`flows.md`](flows.md) for what each rung of adoption buys ·
+**Further:** [`flows.md`](flows.md) for what each level of adoption buys ·
 [`@variance-authority/store`](../packages/store) for the two file-backed stores ·
 [ADR-0016](context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) for why
 none of this reaches a verdict.

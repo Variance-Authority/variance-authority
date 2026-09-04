@@ -6,13 +6,13 @@ observed evidence decide whether two readings are comparable. Deployment decides
 who retains the baseline, where review happens, and whether the record survives
 long enough to answer questions across runs.
 
-The first four rungs are alternative retention and placement choices. Tribunal
+The first four levels are alternative retention and placement choices. Tribunal
 and history are services that a durable run can add; one Tribunal deployment can
 also supply the remote-baseline and history protocols. Subject acquisition is a
 separate choice described in [surface](surface.md), and the renderer may remain
 with the run or move to an operator-owned service.
 
-| Rung | You operate | Choose it when | Boundary |
+| Level | You operate | Choose it when | Boundary |
 | --- | --- | --- | --- |
 | 0. Ephemeral | no baseline store | the collector can produce both revisions in one run | no approved baseline crosses runs |
 | 1. Directory | a durable filesystem path | one machine or persistent workspace owns the baseline corpus | the path must reach the next run |
@@ -21,7 +21,7 @@ with the run or move to an operator-owned service.
 | 4. Tribunal | database, object storage, two tokens, and a review adapter | reviewers need a browser docket and recorded decisions | authentication remains the operator's responsibility |
 | 5. History | a history endpoint and token | recurrence, churn, or accumulated token drift changes the decision | a run must carry a stable run id and commit |
 
-## Rung 0 — ephemeral: compare two revisions now
+## Level 0 — ephemeral: compare two revisions now
 
 Ephemeral retention is a complete comparison with no durable baseline. Its
 collector supplies the current document and a `before` document for every
@@ -50,7 +50,7 @@ satisfy this flow; that subject is reported as failed rather than unchanged.
 `baselines` is refused under ephemeral retention because there is no durable
 baseline to read or promote.
 
-## Rung 1 — directory: one durable filesystem
+## Level 1 — directory: one durable filesystem
 
 Directory retention keeps approved baselines in an ordinary writable path:
 
@@ -70,7 +70,7 @@ baseline and reports `new`.
 [Baseline placement](placement.md) owns the tracking, layout, and render-cache
 details for directory and Git-backed roots.
 
-## Rung 2 — Git LFS: baselines travel with the repository
+## Level 2 — Git LFS: baselines travel with the repository
 
 Git LFS uses the same durable layout while its filter carries the image bytes:
 
@@ -90,7 +90,7 @@ Choose this when the baseline and its reason should move in the same repository
 change as the code. Acceptance writes files that still need an ordinary review
 and commit; the tool does not turn a CI credential into permission to push.
 
-## Rung 3 — remote baselines: one shared corpus
+## Level 3 — remote baselines: one shared corpus
 
 Remote retention keeps baseline bytes behind the shared `RasterStore` protocol:
 
@@ -117,7 +117,7 @@ Run `serveRasterStore` from
 you operate, or use the compatible baseline surface supplied by
 [`@variance-authority/tribunal`](../packages/tribunal/README.md).
 
-## Rung 4 — tribunal: review outside the CI log
+## Level 4 — tribunal: review outside the CI log
 
 Tribunal combines a baseline store, history store, build docket, candidate
 images, region overlays, recorded decisions, and retention sweeps. A deployment
@@ -155,7 +155,7 @@ The [`@variance-authority/tribunal` reference](../packages/tribunal/README.md)
 owns the Worker, Node, and Next.js deployment paths and their authorization
 contracts.
 
-## Rung 5 — history: recurrence, and drift across runs
+## Level 5 — history: recurrence, and drift across runs
 
 History retains semantic observation rows, approvals, token values, and
 instability events. It stores no pixels. A configured CLI records the run and

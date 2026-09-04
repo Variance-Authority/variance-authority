@@ -73,8 +73,8 @@ for different halves of one answer:
   *it* wrote. Content it was handed is a hole in its output — present, sized and
   positioned by it, authored somewhere else.
 
-Boundaries are placed by owner, and by **every** rung of the owner chain rather
-than its head. Three components that return one another share one `div` and hold
+Boundaries are placed by owner, and by **every** level of the owner chain, not
+just its head. Three components that return one another share one `div` and hold
 three boundaries on it, so **a component that renders nothing but other
 components is still a component**. Reading only `owners[0]` loses exactly the two
 shapes a design system is made of: a variant wrapper (`DangerButton` returning a

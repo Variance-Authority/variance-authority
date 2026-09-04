@@ -182,7 +182,7 @@ flake that was fixed into a flake that never happened.
 **Further:** [`flakiness.md`](flakiness.md) for the flake half ·
 [`changelog.md`](changelog.md) for the other half of the same complaint — why one
 baseline is what it is, from evidence kept beside it ·
-[`flows.md`](flows.md#rung-5--history-recurrence-and-drift-across-runs) for where
+[`flows.md`](flows.md#level-5--history-recurrence-and-drift-across-runs) for where
 this sits in the adoption ladder ·
 [ADR-0031](context/adr/0031-the-run-asks-what-is-recorded-now.md) and
 [ADR-0032](context/adr/0032-a-flake-rate-divides-by-the-runs-that-asked.md) for

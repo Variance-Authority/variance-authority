@@ -369,7 +369,7 @@ npx variance report --format html > out/report.html
 
 One file, written beside `report.json`, uploaded by whatever already uploads your
 CI artifacts. No account, no upload step, no retention policy, nothing to keep
-running — the cheapest rung of presentation infrastructure there is.
+running — the cheapest presentation infrastructure available.
 
 It renders the same **docket** the pull-request body does: one entry per root
 cause, grouping every subject that cause reached, instead of one entry per

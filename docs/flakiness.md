@@ -156,7 +156,8 @@ than strengthening it, which is why it is a list rather than a flag.
 
 It costs no collection, no browser and no image: it is a fold over digests the
 run already produced. What it needs is [`--since`](selecting.md), because the
-top two rungs are unreachable without a change set — and a run that did not ask
+top two answers — an edited file and a changed token — are unreachable without a
+change set, and a run that did not ask
 says so beside every unexplained difference instead of accusing anybody.
 
 ### Which part of the module they took differently
@@ -341,7 +342,7 @@ shuffles — and the next one is a different specific thing. A retry budget tune
 to the last one absorbs the next one in silence, which is how a suite ends up
 with a pass rate nobody believes.
 
-So nothing here classifies. Every instrument narrows, and each rung names a
+So nothing here classifies. Every instrument narrows, and each row names a
 smaller place than the one above it:
 
 | Narrowed to | Named by | What it asks of you |
@@ -355,7 +356,7 @@ smaller place than the one above it:
 
 Read down until something names a thing you can change, then stop. These are not
 confidence levels on one claim; they are different claims, each from an
-instrument the rung above it cannot reach. *`Price` renders two ways from one
+instrument the row above it cannot reach. *`Price` renders two ways from one
 props digest* states a contradiction and leaves you to go find it. *Three
 subjects mount `CartCard`, one of them clicked Remove, and this `onClick` body is
 a region the other two have never been inside* names the region — and nothing
