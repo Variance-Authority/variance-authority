@@ -18,7 +18,7 @@ you own — a laptop, an EC2 instance, a container, the package does not ask —
 database is a SQLite file through `node:sqlite` and the object store is a
 directory through `node:fs`. Every module above the bindings takes a `D1Like` and
 an `R2Like` and names no runtime, so the routes, the refusals and the status
-codes are the same code in both. The name says what it is rather than where it
+codes are the same code in both. The name says what it is, not where it
 runs.
 
 Anything else that satisfies those two interfaces is an adapter away, but the
@@ -106,7 +106,7 @@ export default {
 | `project` | required | scopes every row and every object key, so one deployment serves several repositories without their `story:card` colliding. There is no default: an invented one puts two projects' baselines in one namespace and the first symptom is a mass `changed` |
 | `ingestToken` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `reviewToken` | required | held by people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
-| `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request rather than on a timer, because a Worker has no timer and this package will not invent a cron the operator did not ask for — wire it to a scheduled trigger, call it from a CI job, or never |
+| `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request, not on a timer, because a Worker has no timer and this package will not invent a cron the operator did not ask for — wire it to a scheduled trigger, call it from a CI job, or never |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
 `env.DB` and `env.BUCKET` are Cloudflare's own `D1Database` and `R2Bucket`,
@@ -168,7 +168,7 @@ reads four names plus two optional ones:
 | `INGEST_TOKEN` | secret | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `REVIEW_TOKEN` | secret | held by people. Reads the review surface and decides. 16 characters or more |
 | `PROJECT` | var, default `default` | scopes every row and object |
-| `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back rather than sweeping everything |
+| `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back instead of sweeping everything |
 
 A bad environment answers **500 with a sentence**, not a deployment-wide platform
 error: construction happens inside `fetch`, so *your token is too short* and *your
@@ -329,7 +329,7 @@ returned `'review'` has the review token attached on their behalf.
 ### `GET /review/changelog`
 
 A build says what changed today; this endpoint says what was *approved*,
-grouped by shape rather than by which screenshot changed — the same grouping
+grouped by shape, not by which screenshot changed — the same grouping
 the docket (the reviewer's ranked list of causes, described below) uses, so a
 token edit across forty stories is one entry, not forty.
 
@@ -354,7 +354,7 @@ changes[0]?.builds;    // where the approvals came from
 `since` (ISO 8601) and `limit` (default 500). The route takes the same four as
 query parameters.
 
-**One row is written per approval, and its columns are copies rather than a
+**One row is written per approval, and its columns are copies, not a
 join.** The regions, the commit, the intent and the reviewer are frozen at the
 moment of approval rather than read live from `builds` and `build_subjects`,
 because a `sweep` (see Retention below) removes builds, and a baseline's
@@ -366,7 +366,7 @@ baseline changed.
 **Shapes are grouped when somebody reads**, not when a row is written — approval
 here is per subject, so there is no batch at write time to cluster, and a shape
 approved across several sessions still reads as one change. Approved subjects
-that no shape could group are returned as `ungrouped` rather than dropped.
+that no shape could group are returned as `ungrouped`, not dropped.
 
 ## Review surface
 
@@ -376,7 +376,7 @@ reviewer sees, in this order:
 1. **The docket** — one entry per component the semantic tier (the analysis step
    that attributes a changed region to a component, rather than just measuring
    pixels) named as a *cause*, largest first, with the file each is declared in.
-   Collateral is one number for the build rather than a per-region list.
+   Collateral is one number for the build, not a per-region list.
 2. **The regions, drawn on the render**, cause and collateral styled apart, each
    labelled with the component that owns it.
 3. **The comparison** — swipe, onion, side-by-side, difference mask — last, and
@@ -388,7 +388,7 @@ reviewer sees, in this order:
    hundred changed subjects would otherwise make nine hundred history requests to
    draw a page on which one is read.
 
-The docket ranks by cause pixels rather than total area, so a large container
+The docket ranks by cause pixels, not total area, so a large container
 that only reflowed does not outrank the smaller edit that caused it; `cause` is
 a field on a region rather than something inferred from a component's size.
 
@@ -401,7 +401,7 @@ than clean.
 
 The `Changelog` tab is the same evidence at project scale — every approval,
 grouped by the shape that was approved, with the approvals nothing could
-attribute listed rather than dropped.
+attribute listed, not dropped.
 
 ## Review invariants
 
@@ -411,7 +411,7 @@ next run reads. A subject whose candidate was never uploaded **cannot be
 approved**.
 
 **A store failure is never a verdict.** Every D1 and R2 failure raises
-`RasterStoreError` rather than returning a value; `null` is reserved for *the
+`RasterStoreError` instead of returning a value; `null` is reserved for *the
 store looked and there is no baseline*.
 
 **A row without its object is damage, not absence.** The sidecar (metadata)

@@ -106,7 +106,7 @@ is the enclosure answer — coarser, never wrong in a new direction.
 
 ## What a boundary hashes
 
-Inside a boundary, a child boundary is a placeholder rather than its content.
+Inside a boundary, a child boundary is a placeholder, not its content.
 Where the enclosing component placed the child, the placeholder names it; where
 the child arrived as `children` from somewhere else, the placeholder is an
 anonymous hole — a container is not told what it was handed, so its hash must not
@@ -172,7 +172,7 @@ element.
 `composeSubjects` walks the per-subject instance lists once, in plan order, and
 buckets them: component → props class → rendering → sites. Every unattributed
 boundary is skipped, and a boundary with no provenance is filed under a sentinel
-rather than under `undefined`, so nothing downstream can read "unknown props" as
+not under `undefined`, so nothing downstream can read "unknown props" as
 a props class like any other.
 
 | level | key | why |
@@ -294,7 +294,7 @@ disagree. And `propsDigest` excludes `children` deliberately, so
 "the children differed" are required to be quiet, the child components mounted
 and the boundary's own text.
 
-The asymmetry is the reason those checks are code rather than prose: a movement
+The asymmetry is the reason those checks are code, not prose: a movement
 wrongly dismissed as `contradicted` is an explanation nobody can act on, while
 the same movement left unexplained lands on the suspect shortlist, where a second
 reading settles it.
@@ -330,7 +330,7 @@ this component's inputs. On todomvc, an edit to `src/app/todo.tsx` explains five
 chip movements through `TodoFooter`; a run consulting only `within` finds `Stack`,
 which nobody edited, and reports five unexplained differences instead of one caller.
 
-`token` is read off the component's own instances rather than off the subject,
+`token` is read off the component's own instances, not off the subject,
 which is what makes it worth anything: every subject on a themed page resolves
 through every token in the theme, so a subject-level intersection names them all
 and explains nothing.
@@ -341,7 +341,7 @@ often reading one edit, and the count is the difference between a frightening
 report and an accurate one. **`held`** is the control group: sites of the same
 component, with the same props, that this run did *not* report moving. Empty
 means there was no control, which weakens the finding, and is why it is a list
-rather than a flag.
+and not a flag.
 
 Composition stops at an unexplained difference. How the run orders its shortlist
 and turns a second reading into a verdict belongs to
@@ -352,7 +352,7 @@ and turns a second reading into a verdict belongs to
 One pass over the instances every subject already reported, after the worker pool
 and in plan order, so a slower machine that finishes subject 41 before subject 3
 produces the same bytes. No browser, no image, no disk, no service. Every list
-that reaches the artifact is sorted by code unit rather than by locale, because a
+that reaches the artifact is sorted by code unit, not by locale, because a
 report is committed, diffed and read back on another runner, and a locale-aware
 comparison makes the byte order a promise about `LANG`.
 

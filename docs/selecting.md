@@ -11,7 +11,7 @@ category, and every product in it has an answer:
 This selects too, and from a different place. A stored baseline records the
 components the document that painted it **actually rendered**
 ([ADR-0018](context/adr/0018-a-component-hash-covers-its-own-nodes.md)), so *what
-this subject is made of* is a fact the last run established rather than one a
+this subject is made of* is a fact the last run established, not one a
 build tool predicts. There is no bundler plugin, no stats file, and nothing that
 goes stale when a bundler is upgraded.
 
@@ -194,7 +194,7 @@ union, and neither overrules the other. Taken as the selection instead, it would
 give back most of what selection is for — a project is hundreds of subjects, and
 a one-line change to a leaf component marks the whole package affected.
 
-`turbo` needs the `task` because its filter answers *what would run* rather than
+`turbo` needs the `task` because its filter answers *what would run*, not
 *what changed*; naming it is how you say which pipeline's inputs match what a
 render depends on. `nx` answers about projects without being told.
 
@@ -235,7 +235,7 @@ known, and each removes a layer:
 Both caches live under `XDG_CACHE_HOME` (or `~/.cache`), keyed by repository
 root, outside the work tree — so nothing here is committed and `git clean` will
 not take it. Both halves are content-addressed, which is what makes their
-location a cost decision rather than a correctness one: a stale entry, a cache
+location a cost decision, not a correctness one: a stale entry, a cache
 from another branch, or no cache at all costs a slower scan and can never produce
 a different graph. Deleting them costs one cold scan and nothing else.
 
@@ -275,7 +275,7 @@ that only appears once a handler has run is written, which is why the reading is
 as well. **`unentered`** is a region with source of its own that nobody in the
 pool entered at all, and that is the row below.
 
-Two things bound it, and both are printed rather than assumed. The journal
+Two things bound it, and both are printed, not assumed. The journal
 **accumulates across runs**, so the pool is the subjects this run's report names;
 `--all` asks for the record on purpose, and a checkout with no report to read
 gets the record *with the sentence saying so*. And an observation the journal

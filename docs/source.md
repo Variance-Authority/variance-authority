@@ -57,7 +57,7 @@ every static import, every re-export, every `import()`, with the imported, local
 and exported name of each binding. Touching it materializes no node, so a scan
 pays for a parse and not for a tree.
 
-Stylesheets get a second reader, and it is a deliberate text scan rather than a
+Stylesheets get a second reader, and it is a deliberate text scan, not a
 CSS parse: `@import`, `@use`, `@forward`, `url()` and CSS Modules' `composes …
 from`. A stylesheet request is a whole-file dependency, so there is nothing to
 bind and no tree worth building.
@@ -101,7 +101,7 @@ Three resolvers, because one set of options cannot answer all three questions:
 Conditions default to `source, import, require, default` — source before built
 output, because a package that publishes both is worth more as source. Sass'
 partial convention is tried as a second spelling, since `./colors` finding
-`_colors.scss` is a naming rule rather than a resolver option. `tsconfig: 'auto'`
+`_colors.scss` is a naming rule, not a resolver option. `tsconfig: 'auto'`
 discovers the nearest config per file, which is what a workspace of many packages
 needs.
 
@@ -137,7 +137,7 @@ one tree produce byte-identical input to the graph:
 | `unresolved` | specifiers that resolved to nothing, as written |
 | `unknown` | why this list is not the whole list |
 
-The seed directories are a starting point rather than a boundary: a component
+The seed directories are a starting point, not a boundary: a component
 under `src/` importing `../design/button.css` pulls that stylesheet in, and the
 stylesheet's own `@import` pulls in the next one, because a scan that only knows
 the files it was pointed at cannot answer the question it exists for.
@@ -153,7 +153,7 @@ hole in the edge list rather than an absence of one. It lands in `unknown`, and 
 downstream treats an unknown file as reaching everything
 ([ADR-0002](context/adr/0002-observation-profiles.md): absent is not empty). A
 file that cannot be read is the same case, and produces a record with a reason
-rather than an empty one.
+and not an empty one.
 
 ## What a second scan costs
 
@@ -166,7 +166,7 @@ working tree is not the commit, so the porcelain status is read too and every pa
 it names is re-hashed from disk by `hash-object`; a file edited back to its
 committed contents lands on its committed digest and costs nothing. Those digests
 carry a `git:` prefix, because this project's own digests are `v1:` and comparing
-the two schemes as though they were one must be impossible rather than unlikely.
+the two schemes as though they were one must be impossible, not unlikely.
 
 **A digest names what parsing produced.** The parse cache holds exactly what a
 file's bytes said — requests, exports, declarations — and nothing about where the
@@ -186,7 +186,7 @@ names the last two in one digest:
 | which paths exist | the layout digest |
 | how resolution is configured | the layout digest |
 
-The layout digest covers the path *set* rather than a sample of it, because
+The layout digest covers the path *set*, not a sample of it, because
 resolution is decided by absence as much as by presence: `./button` finds
 `button.ts` only while no `button.tsx` sits beside it. It also folds in the
 contents of the files that decide where *other* files resolve — every
@@ -265,7 +265,7 @@ Two properties make the emitted code explicit about its runtime:
   on first use. An instrumented module without a collector throws at its first
   probe, so a runner cannot silently omit collection.
 
-A source it cannot parse returns nothing rather than throwing, because a file
+A source it cannot parse returns nothing instead of throwing, because a file
 whose blocks are unknown is *not instrumented*, never *not executed*
 ([ADR-0008](context/adr/0008-per-profile-expectations.md)).
 

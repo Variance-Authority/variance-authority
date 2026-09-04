@@ -64,7 +64,7 @@ reading. What differs here is the last column.
 
 Prevention is the base layer and it is on by default
 ([`stabilization.md`](stabilization.md)). What survives it is a residue, and a
-residue is worth naming rather than tolerating.
+residue is worth naming, not tolerating.
 
 A run that calls a subject `changed` is claiming something about a component, and
 there are exactly three ways for that claim to be wrong: an earlier subject left
@@ -143,7 +143,7 @@ holdings, [`partingOf`](parting.md) makes the same accusation about a
 **boundary**: the component whose props, contexts and hook cells were all read,
 all agreed, and whose output moved anyway. That is the narrower claim, and it is
 available only to a run that asked what the components were holding — which is
-why an unread boundary is a slice of its own rather than a quiet pass.
+why an unread boundary is a slice of its own, not a quiet pass.
 Narrower again is a *region* of that component's source, which neither reading
 reaches and which is answered
 [from what the run executed](#which-part-of-the-module-they-took-differently).
@@ -152,7 +152,7 @@ reaches and which is answered
 where the same component, with the same props, did not move — the stable states
 to refer to, and the suite supplies them for free, because they are the other
 sites of the same rendering. An empty `held` list *weakens* a finding rather
-than strengthening it, which is why it is a list rather than a flag.
+than strengthening it, which is why it is a list and not a flag.
 
 It costs no collection, no browser and no image: it is a fold over digests the
 run already produced. What it needs is [`--since`](selecting.md), because the
@@ -198,13 +198,13 @@ suite with two stories per component has partings; a parting is where to look
 once something else has already said something moved.
 
 **The pool is most of the finding.** The journal accumulates across runs, so
-read whole it answers about the record rather than about this run: a story
+read whole it answers about the record, not about this run: a story
 deleted two commits ago is still a party to every parting it was recorded in. So
 the pool is the subjects the report names, `--all` asks for the record on
 purpose, and a checkout with no report to read gets the record *with the
 sentence saying that is what it got* — a pool nobody chose must never print as
 one somebody did. Three other ways a pool is not what it looks like are each
-named rather than left to be inferred:
+named, not left to be inferred:
 
 | What happened | Why it is not silence |
 |---|---|
@@ -238,7 +238,7 @@ agent is told to go fix it. The alternative was a check that made **every**
 route-level test red for exactly the movement its level was written to ignore.
 
 It is still counted and still names the rule, which is the same rule `ignored`
-follows for pixels — one level up and about *kinds* rather than *places*. A
+follows for pixels — one level up and about *kinds* and not *places*. A
 declaration nobody re-reads is how a suite quietly stops watching something, and
 the rule's name is what makes that auditable a year later.
 
@@ -418,7 +418,7 @@ This catches the case the probe's own confirmation tier cannot. `verify()`
 re-runs a subject **in the same session**: it varies time and holds the world
 fixed, so a leak that happens *every* time never moves the hash and reports as
 nothing. That deterministic kind is the one that becomes a false regression
-rather than a flake.
+and not a flake.
 
 **A run identifies the affected component, not the writer of an order leak.** A
 probe sees stylesheets, custom properties, attributes and stray body nodes; the
@@ -459,7 +459,7 @@ pixels that moved back to the component that moved them.**
 The two instruments differ in what they need and in what they can say. Counting
 fingerprints needs a *window* — several runs, and a store to keep them in — and
 answers with a probability. Reading the subject twice needs one run and answers
-with a component and a band, because the evidence is two documents rather than
+with a component and a band, because the evidence is two documents and not
 two images. The cost of ours is that it only ever fires on a subject the run
 already called `changed`; the cost of theirs is that the first several
 occurrences are red builds.
@@ -480,7 +480,7 @@ rendering somewhere else *right now*, and whether it moved there is a control
 the run can read for free ([`composition.md`](composition.md)). That is where
 *no related change* stops being an assumption: an unexplained difference beside
 four places the component held is a different claim from an unexplained difference
-with nothing to compare against, and the report distinguishes them rather than
+with nothing to compare against, and the report distinguishes them instead of
 calling both flaky. What it does **not** do is decide — an unexplained difference
 is still not a flake until something has read the subject twice.
 

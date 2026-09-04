@@ -25,7 +25,7 @@ snapshot is text, and painting the same page in the same process costs
 **roughly eighteen times as much** — 3.0 ms against 54.0 ms on the machine that
 last ran `yarn workspace @variance-authority/example-todomvc pixel`, 3.4 against
 65.4 on an earlier one. The milliseconds are machine-bound and the ratio is not,
-and it is the ratio that makes "read it again" a design option rather than a
+and it is the ratio that makes "read it again" a design option, not a
 budget line.
 
 | instrument                                                              | varies                  | holds                  | names                                                                         |
@@ -84,7 +84,7 @@ now_, and whether it moved there costs nothing to read
 That is what turns _nothing explains this_ from a shrug into a finding. An
 unexplained difference beside four subjects where the component **held** is a
 different claim from one with nothing to compare against, and the report keeps
-them apart rather than calling both flaky.
+them apart instead of calling both flaky.
 
 ## What has no baseline in it at all
 
@@ -103,7 +103,7 @@ baselines:
 | **[a substituted font](stabilization.md#what-runs-and-what-it-absorbs)**                                                        | two runs of the substitution compare `unchanged` — true, and worthless                                                         |
 
 The last row of that argument is the one worth stating separately, because it is
-about the instrument rather than the page: **reading a subject twice catches
+about the instrument, not the page: **reading a subject twice catches
 instability in the observer, which no assertion about a verdict can reach.** The
 worked case is a Blink attribute-order effect that moved a document digest while
 leaving the verdict entirely correct, silently switching off the cheap tier
@@ -163,7 +163,7 @@ than three tools stapled together.
 
 **One machine and one Chromium.** Every timing and every instability probe comes
 from one M-series Mac, and every probe _simulates_ its cause — a smoothing mode
-rather than a different GPU driver, a second browser context rather than a second
+not a different GPU driver; a second browser context, not a second
 runner. Varying the machine is not available from inside a test.
 
 **One corpus, written by the people who wrote the implementation.** Ground truth

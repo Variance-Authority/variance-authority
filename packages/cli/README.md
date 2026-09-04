@@ -16,7 +16,7 @@ your config asked for, before the first expensive run.
 Use this package for an executable, config-driven integration. If navigation
 and readiness already live in Playwright tests, use
 `@variance-authority/playwright-test` instead of this CLI — it runs the same
-comparison from inside a test rather than from a separate command.
+comparison from inside a test, not from a separate command.
 
 Install the executable together with the collector adapter your project uses:
 
@@ -65,7 +65,7 @@ npx variance doctor --config variance.config.json
 
 Run this in the same machine or CI image that will execute `variance run`.
 Doctor reports what can be checked locally and labels remote renderer checks as
-not performed rather than pretending a network endpoint is healthy.
+not performed, instead of pretending a network endpoint is healthy.
 
 ### 4. Run, review, accept, rerun
 
@@ -111,7 +111,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `changelog` | reads back why the baselines are what they are |
 | `journeys` | reads back which regions of one module this run's subjects entered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
-| `doctor` | says what this machine can observe, before a run rather than after one |
+| `doctor` | says what this machine can observe, before a run, not after one |
 | `watch` | holds a suite that is still running, so `ask` has something live to ask |
 | `serve` | exposes the last run's report to an MCP client over stdio |
 | `ask` | the same questions `serve` answers, without an MCP client |
@@ -190,7 +190,7 @@ without finishing — the answer a timeout cannot give, because a runner reports
 what a test *wanted*.
 
 `ask diff --at` works here too, against the reading the watcher handed out last.
-The watcher holds that state rather than a file, because this process exits
+The watcher holds that state, not a file, because this process exits
 between questions and there is nothing to write down: the run lives in memory
 that ends with the watcher. Stop it and the run is gone.
 
@@ -294,7 +294,7 @@ or a SHA, `--limit` caps how many commits are read.
 Three failure modes are handled explicitly:
 
 - **git missing, no repository, or an unresolvable revision** each exit `2`
-  with a message, rather than printing an empty history that looks the same as
+  with a message, instead of printing an empty history that looks the same as
   "nothing has changed since the last baseline."
 - **A shallow clone bounds what can be read.** CI checkouts at depth 1 see one
   commit; the output carries a `note:` saying what it could not see.
@@ -333,7 +333,7 @@ note: recorded at 4f2a1c9d0b73
 `parted` is the finding; `unentered` is its weaker sibling — a region with source
 of its own that nobody in the pool entered at all. `--file` narrows to modules
 whose path contains a string, `--limit` caps how many modules are named, and
-what a cap left out is counted rather than dropped.
+what a cap left out is counted, not dropped.
 
 It exits `0` whatever it finds. Every suite with two stories per component has
 partings, so gating on one would fail every suite; this is where to look once
@@ -374,7 +374,7 @@ running — the cheapest presentation infrastructure available.
 It renders the same **docket** the pull-request body does: one entry per root
 cause, grouping every subject that cause reached, instead of one entry per
 subject. Causes come first, with `file:line`, and their collateral is counted
-rather than listed.
+and not listed.
 
 A pixel-diff **region** — a bounding box of changed pixels — that the semantic
 tier could not attribute to a component is marked *largest region, not a named
@@ -434,7 +434,7 @@ it is listed under *not asserted on*, does not gate, and is not refused by
 ### Reporting without gating
 
 `--exit-zero-on-changes` turns exit 1 into exit 0 on `run` and `report`, for a
-job that reports rather than blocks the merge — which is how most of this
+job that reports instead of blocking the merge — which is how most of this
 category is actually run.
 
 The reason it is a flag and not a line of shell: `|| true` swallows exit **2** as
@@ -469,7 +469,7 @@ should still read as a bug.
 
 A suite big enough to split across CI jobs runs `variance run --subjects <glob>`
 once per job and ends with one artifact each. Name them all and `report` answers
-about the suite rather than about a slice — one exit code, one body for
+about the suite, not about a slice — one exit code, one body for
 `comment`:
 
 ```bash
@@ -534,7 +534,7 @@ no component and grouped the change by its shape alone — which is what the
 unclaimed lines below print, and what a suite with no source attribution has to
 claim by. A bare name is read as a component; any other prefix is read as part
 of the component's name, so a misspelt one comes back as a component that never
-rendered rather than as an error.
+rendered, not as an error.
 
 It answers three things: what you declared and delivered; what moved that you
 did not declare; and **what you declared that did not happen** — `Card`
@@ -663,7 +663,7 @@ owns its own collector, renderer, storage, or review surface:
 1. **Collect** — subjects from a list or from a Storybook index.
 2. **Settle what the cheap tiers can settle.** A subject whose document digests
    to what the baseline was painted from cannot differ, and is answered by 32 hex
-   characters rather than by an image.
+   characters, not by an image.
 3. **Render only the residue.**
 4. **Write a report that accounts for every subject** — including the ones it did
    not observe.
@@ -737,7 +737,7 @@ in one. `dirs` names where components are declared *and* declares the scope: a
 changed file inside it that reaches no component forces a whole run, a changed
 file outside it was never claimed to affect a render. `relations: true` reads
 what imports what, so `tokens.css` is answered by walking to the components that
-rest on it rather than by running the suite — it costs one scan of the tree,
+rest on it instead of running the suite — it costs one scan of the tree,
 which is cached by content and by tree shape and so is paid once. `unrendered`
 answers the case where the walk succeeds and lands nowhere: a change reaching
 only components no baseline records narrows like any other, and the run names
@@ -791,7 +791,7 @@ config file in a repository is the wrong place for a credential.
 run, because the engine is part of the identity a baseline is stored under, so
 two engines produce two separate sets of baselines. Switching it is safe:
 a run under a new engine finds nothing under its key and reports every subject
-`new`, rather than diffing two engines and blaming a component for a font
+`new`, instead of diffing two engines and blaming a component for a font
 stack. `retention: "ephemeral"` needs no baselines at all — both images are
 produced by this run.
 

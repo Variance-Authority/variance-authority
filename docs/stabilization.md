@@ -50,7 +50,7 @@ It happens because the computed-style allowlist admits `transform`, `opacity`,
 `filter`, `color` and every geometric longhand — and an animation in flight moves
 all of them. The allowlist *excludes* `animation-*` and `transition-*` on the
 stated grounds that a snapshot is taken with animations already disabled, which
-makes disabling them a precondition rather than a nicety.
+makes disabling them a precondition, not a nicety.
 [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md) is where
 that precondition is met.
 
@@ -101,19 +101,19 @@ what already happened to your subject.
 ```
 
 `animation-play-state: paused` alone freezes an animation *wherever it happens to
-be*, which is the flake held still rather than removed. The negative
+be*, which is the flake held still, not removed. The negative
 `animation-delay` is what makes it deterministic: it seeks every animation to
 (very nearly) its first keyframe before pausing it. `transition-duration: 0s`
 collapses a transition to its end state, which is where it was going anyway.
 
 `animation: none` is avoided because removing an animation drops whatever layout
 its keyframes contribute — a component whose final position comes from a keyframe
-jumps somewhere else. That changes the page rather than stopping it.
+jumps somewhere else. That changes the page instead of stopping it.
 
 At render there is a better option and it is used: `hold-animations` is a
 *screenshot* option, so the browser fast-forwards a finite animation to where a
 user comes to rest and cancels an infinite one to its first frame. CSS cannot
-express that, which is why both tricks exist rather than one.
+express that, which is why both tricks exist and not one.
 
 Percy's answer to the JavaScript half is to disable JavaScript entirely on
 re-render, which it can afford because it re-renders from a serialized DOM. Here
@@ -187,7 +187,7 @@ one. So:
   than inventing a component to blame.
 - Turning a trick off, adding one, or retuning one is a re-baseline you are told
   about, on the run it happens, instead of a mass diff you have to work out.
-- `undefined` means *observed untouched*, and is absent from the key rather than
+- `undefined` means *observed untouched*, and is absent from the key, not
   present-and-empty — because "no recipe ran" and "an empty recipe ran" are the
   same state and neither should look like a confident value.
 
@@ -228,7 +228,7 @@ already paid to prevent.
 ## What is proven
 
 [`packages/route-collector/src/stabilization.chromium.test.ts`](../packages/route-collector/src/stabilization.chromium.test.ts),
-against a real compositor rather than a simulation of one: a page with a 4s
+against a real compositor, not a simulation of one: a page with a 4s
 linear infinite animation on `transform` and `opacity`, read twice about a second
 apart through the real collector.
 
@@ -313,7 +313,7 @@ load and cannot be seeked back. Its documented failure mode is cross-origin: no
 CORS grant means a tainted canvas, `toDataURL` throws, and the GIF keeps
 spinning.
 
-Doing it on the wire removes the problem rather than handling it. The bytes have
+Doing it on the wire removes the problem instead of handling it. The bytes have
 not been decoded yet, so there is nothing to seek back and no second decode to
 pay for; cross-origin stops mattering, because the fulfilment is ours and nothing
 asks the page to read anything; and the result is **the original bytes minus some
@@ -362,13 +362,13 @@ Blanking answers all three before the browser has decoded anything:
 The response is replaced with a **fully transparent PNG of the original's own
 intrinsic dimensions**, so every box on the page resolves exactly as it would
 have. That is the difficult part and the reason the size is read from the
-original's header rather than assumed: an `<img>` with no CSS width lays out at
+original's header, not assumed: an `<img>` with no CSS width lays out at
 its intrinsic size, so a 1×1 substitute would collapse the column it was holding
 open and the run would report a layout regression this tool caused. A format
 whose header cannot be read — SVG, AVIF — is **served unmodified with a
 diagnostic**, never blanked at a guessed size.
 
-Transparent rather than a flat fill, because what is left is then the page's own
+Transparent, not a flat fill, because what is left is then the page's own
 background, which is the honest rendering of "there is nothing here". One
 consequence worth knowing: a contrast finding over a blanked image is measured
 against whatever is behind it.
@@ -690,7 +690,7 @@ off the page rather than a counter somebody has to keep correct. The first
 subject still pays, and should: that is the one where the sheet arrives and
 something is genuinely moving.
 
-**What the skip saves is bounded rather than measured.** Two animation frames on
+**What the skip saves is bounded, not measured.** Two animation frames on
 a 60Hz compositor is ~32 ms, so the regression that puts them back into every
 subject costs a third of a second on a ten-story Storybook and about six on two
 hundred — arithmetic, not a reading. There is no control to measure it against:
