@@ -1,11 +1,11 @@
 # Subjects that are other subjects on purpose
 
-A feature flag's second arm, the same page in the dark scheme, a story at a
+A feature flag's second variant, the same page in the dark scheme, a story at a
 narrow viewport, a route whose backend answers with the empty state. Each of
 these is an ordinary subject here, with its own baseline, and every run compares
 it only to itself.
 
-That means the difference the arm exists **for** is the one difference nothing
+That means the difference the variant exists **for** is the one difference nothing
 measures. A story added behind `checkout-v2` is `new` on its first run: one
 baseline written, an empty diff, nothing said. From then on it is green until
 somebody edits it. What the flag *does to the page* is visible by opening two
@@ -181,12 +181,12 @@ flag list. This tool cannot produce a variation and does not try to name one; it
 compares two subjects because somebody said they were related. An axis nobody
 here thought of needs nothing from this project.
 
-**It does not infer an undeclared arm.** A subject whose page chooses its own
-arm — a percentage rollout drawing per browser context — still has one subject
-id. If two readings land in different arms, ordinary stability analysis reports
-the subject as unstable; it does not invent a variation relationship. To compare
-the arms as variations, the collector plans each as a separate subject and the
-name grammar or a `variance-parent:` tag links them.
+**It does not infer an undeclared variant.** A subject whose page chooses its
+own variant — a percentage rollout drawing per browser context — still has one
+subject id. If two readings land in different variants, ordinary stability
+analysis reports the subject as unstable; it does not invent a variation
+relationship. To compare them as variations, the collector plans each as a
+separate subject and the name grammar or a `variance-parent:` tag links them.
 
 **It does not compare two subjects on request.** The pair has to be declared
 before the run, by whoever writes the subjects. An ad hoc comparison requested

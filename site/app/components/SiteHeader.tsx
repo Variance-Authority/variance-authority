@@ -1,6 +1,21 @@
 import { GITHUB } from "../links";
 import Mark from "./Mark";
 
+/**
+ * The landing sections, in page order. Four of them survive to a phone-width
+ * header; the rest arrive when there is room for them.
+ */
+const SECTIONS = [
+  { href: "/#evidence", label: "Evidence", wide: false },
+  { href: "/#review", label: "Review", wide: false },
+  { href: "/#flakes", label: "Flakes", wide: false },
+  { href: "/#without-a-baseline", label: "Observability", wide: true },
+  { href: "/#selection", label: "Selection", wide: true },
+  { href: "/#fit", label: "Fit", wide: true },
+  { href: "/#integrate", label: "Integrate", wide: true },
+  { href: "/docs", label: "Docs", wide: false },
+] as const;
+
 /** Sticky, on its own translucent ground so the page runs under it. */
 export default function SiteHeader() {
   return (
@@ -13,42 +28,17 @@ export default function SiteHeader() {
           </span>
         </a>
         <nav className="flex items-center gap-6 text-sm text-quiet">
-          <a
-            href="/#evidence"
-            className="hidden transition-colors hover:text-ivory sm:inline"
-          >
-            Evidence
-          </a>
-          <a
-            href="/#review"
-            className="hidden transition-colors hover:text-ivory sm:inline"
-          >
-            Review
-          </a>
-          <a
-            href="/#selection"
-            className="hidden transition-colors hover:text-ivory sm:inline"
-          >
-            Selection
-          </a>
-          <a
-            href="/#fit"
-            className="hidden transition-colors hover:text-ivory sm:inline"
-          >
-            Fit
-          </a>
-          <a
-            href="/#integrate"
-            className="hidden transition-colors hover:text-ivory sm:inline"
-          >
-            Integrate
-          </a>
-          <a
-            href="/docs"
-            className="hidden transition-colors hover:text-ivory sm:inline"
-          >
-            Docs
-          </a>
+          {SECTIONS.map((section) => (
+            <a
+              key={section.href}
+              href={section.href}
+              className={`transition-colors hover:text-ivory ${
+                section.wide ? "hidden lg:inline" : "hidden sm:inline"
+              }`}
+            >
+              {section.label}
+            </a>
+          ))}
           <a
             href={GITHUB}
             className="rounded-lg border border-hairline px-3 py-1.5 text-ivory transition-colors hover:border-orange/60"

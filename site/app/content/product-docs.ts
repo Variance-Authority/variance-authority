@@ -19,6 +19,7 @@ import index from "../../../docs/README.md?raw";
 import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
 import metrics from "../../../docs/metrics.md?raw";
+import observability from "../../../docs/observability.md?raw";
 import parting from "../../../docs/parting.md?raw";
 import placement from "../../../docs/placement.md?raw";
 import presentation from "../../../docs/presentation.md?raw";
@@ -37,6 +38,7 @@ import startRoutes from "../../../docs/start-routes.md?raw";
 import startStorybook from "../../../docs/start-storybook.md?raw";
 import startUnit from "../../../docs/start-unit.md?raw";
 import surface from "../../../docs/surface.md?raw";
+import vantage from "../../../docs/vantage.md?raw";
 import variations from "../../../docs/variations.md?raw";
 
 export interface ProductDocument {
@@ -57,11 +59,7 @@ const documents = [
   ["agents", agents, "docs/agents.md"],
   ["agent-mcp", agentMcp, "docs/agent-mcp.md"],
   ["agent-live-run", agentLiveRun, "docs/agent-live-run.md"],
-  [
-    "agent-workspace-api",
-    agentWorkspaceApi,
-    "docs/agent-workspace-api.md",
-  ],
+  ["agent-workspace-api", agentWorkspaceApi, "docs/agent-workspace-api.md"],
   ["surface", surface, "docs/surface.md"],
   ["flows", flows, "docs/flows.md"],
   ["cases", cases, "docs/cases.md"],
@@ -83,8 +81,10 @@ const documents = [
   ["source", source, "docs/source.md"],
   ["selecting", selecting, "docs/selecting.md"],
   ["source-index", sourceIndex, "docs/source-index.md"],
+  ["observability", observability, "docs/observability.md"],
   ["presentation", presentation, "docs/presentation.md"],
   ["scenarios", scenarios, "docs/scenarios.md"],
+  ["vantage", vantage, "docs/vantage.md"],
   ["architecture", architecture, "docs/architecture.md"],
   ["eyes", eyes, "docs/eyes.md"],
   ["information", information, "docs/information.md"],

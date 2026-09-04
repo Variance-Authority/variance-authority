@@ -253,7 +253,7 @@ and
 
 The GIF fixture is built byte by byte in the test, with real LZW, and every
 sampling run first asserts `naturalWidth === 8` — because a GIF that failed to
-decode paints nothing in *both* arms, and "held still" and "never arrived" would
+decode paints nothing in *both* runs, and "held still" and "never arrived" would
 otherwise have the same signature.
 
 The first row is asserted as a *reproduction*: if the flake ever stops
@@ -274,7 +274,7 @@ it cannot tell you what the bytes were.
 
 The driver sees every response. So it watches.
 
-### Every asset is hashed into the environment key
+### A URL your build did not name is hashed on the wire
 
 ```ts
 snapshot.environment.inputs.assets
@@ -287,6 +287,15 @@ hero image swapped behind a CDN path, or a font replaced under the same URL
 produces a different picture under an identical key — and the run says
 `unchanged`. The page cannot close that gap: it can read a URL and not the bytes
 behind it. The wire can.
+
+Most of the time your build already closed it. A bundler that emits
+`logo.4f2a91.svg` has put the content hash in the URL, and that URL is in the
+markup the capture already hashes — hashing the bytes would record the same fact
+a second time and pay [what the wire costs](#what-the-wire-costs) to do it. Turn
+it off for a build like that. Storybook and Next name assets this way for
+anything you `import`; what neither does it for is what they serve verbatim — a
+file in `public/`, a CDN path, a font behind a stable name. Those are what the
+wire is for, and why it is on by default.
 
 Hashed: `image`, `font`, `media`. Not hashed: documents, scripts and stylesheets,
 whose effect on the render arrives through the capture itself — the DOM, the rule
@@ -444,8 +453,10 @@ recorded, which is what the reader of a surprising diff needs.
 Routing disables the browser's HTTP cache for what it routes, and every routed
 request makes a round trip into Node. Only asset requests are fetched and read;
 everything else is continued without its body. Set `network: false` on the
-collector to turn it off — the assets map is then empty, and an empty map is
-visibly a run that recorded nothing rather than a run that had nothing.
+collector — `hashAssets: false` on the observer — to turn it off, which is the
+right call for a build whose URLs already carry their own content hash. The
+assets map is then empty, and an empty map is visibly a run that recorded nothing
+rather than a run that had nothing.
 
 ### Which assets belong to which subject
 
@@ -682,7 +693,7 @@ something is genuinely moving.
 **What the skip saves is bounded rather than measured.** Two animation frames on
 a 60Hz compositor is ~32 ms, so the regression that puts them back into every
 subject costs a third of a second on a ten-story Storybook and about six on two
-hundred — arithmetic, not a reading. The arm that would measure it is not there:
+hundred — arithmetic, not a reading. There is no control to measure it against:
 `stabilize` is fixed when a collector is built and the sheet survives every
 collection after the first, so nothing the option can express reaches the
 unconditional path, so the saving stays a bound and is labelled as one.

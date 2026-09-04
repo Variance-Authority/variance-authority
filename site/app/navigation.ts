@@ -127,7 +127,7 @@ export const NAVIGATION = [
       },
       {
         href: "/docs/flakiness",
-        label: "Classify flakes without hiding them",
+        label: "Trace a flake to its cause",
         cluster: "Make the result reliable",
       },
       {
@@ -156,13 +156,28 @@ export const NAVIGATION = [
         cluster: "Run less",
       },
       {
-        href: "/docs/presentation",
-        label: "Inspect presentation relationships",
+        href: "/docs/observability",
+        label: "Ask a question the test did not",
+        cluster: "Read without a baseline",
+      },
+      {
+        href: "/docs/eyes",
+        label: "See what a test addressed",
+        cluster: "Read without a baseline",
+      },
+      {
+        href: "/docs/vantage",
+        label: "Watch a run that has not finished",
         cluster: "Read without a baseline",
       },
       {
         href: "/docs/scenarios",
         label: "Compare runtime journeys",
+        cluster: "Read without a baseline",
+      },
+      {
+        href: "/docs/presentation",
+        label: "Inspect presentation relationships",
         cluster: "Read without a baseline",
       },
     ],
@@ -192,7 +207,6 @@ export const NAVIGATION = [
     label: "Reference",
     items: [
       { href: "/docs/architecture", label: "Architecture" },
-      { href: "/docs/eyes", label: "Test attention" },
       { href: "/docs/information", label: "Information model" },
       { href: "/docs/instruments", label: "Evidence instruments" },
       { href: "/docs/metrics", label: "Metrics" },

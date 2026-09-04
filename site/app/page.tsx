@@ -3,6 +3,7 @@ import Attribution from "./components/Attribution";
 import ClosingCall from "./components/ClosingCall";
 import DiffReport from "./components/DiffReport";
 import EvidenceSlices from "./components/EvidenceSlices";
+import Flakes from "./components/Flakes";
 import Hero from "./components/Hero";
 import Integration from "./components/Integration";
 import LandingComparison from "./components/LandingComparison";
@@ -13,6 +14,8 @@ import SectionHead from "./components/SectionHead";
 import Since from "./components/Since";
 import SiteFooter from "./components/SiteFooter";
 import SiteHeader from "./components/SiteHeader";
+import WithoutABaseline from "./components/WithoutABaseline";
+import WhatTheRunKnew from "./components/WhatTheRunKnew";
 import { GITHUB } from "./links";
 
 export default function Page() {
@@ -102,8 +105,8 @@ export default function Page() {
             >
               When the same component-level change appears across routes,
               stories, or browser cases, the report groups those states. Exact
-              repeats can share one decision. A state that carries evidence beyond the
-              shared cause stays open and needs its own decision.
+              repeats can share one decision. A state that carries evidence
+              beyond the shared cause stays open and needs its own decision.
             </SectionHead>
             <div className="mt-12">
               <DiffReport />
@@ -161,11 +164,100 @@ export default function Page() {
 
         <Reveal>
           <section
-            id="intent"
+            id="flakes"
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
               n="04"
+              label="flakes"
+              title="A flake comes back with a name, not a retry."
+            >
+              Retries and tolerances trade a false alarm for a missed
+              regression, at a rate nobody measures. A changed state is read a
+              second time in the same world, then rendered again with the world
+              rebuilt around it&mdash;two experiments, one variable each. What
+              comes back is a component, and which of the readings moved:{" "}
+              <span className="font-mono text-[0.95em] text-ivory">
+                Clock (content)
+              </span>
+              , not <em>this test is flaky</em>.
+            </SectionHead>
+            <div className="mt-12">
+              <Flakes />
+            </div>
+            <article className="mt-8 rounded-2xl border border-hairline bg-panel p-6 sm:p-7">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
+                no two are alike
+              </p>
+              <h3 className="mt-3 text-lg font-semibold text-ivory">
+                The run says what else in it could explain the movement.
+              </h3>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-quiet">
+                Every component seen to move is walked down a ladder&mdash;an
+                edited file, a moved token, an edited caller, a contradiction
+                elsewhere in the suite&mdash;and stops at the first rung that
+                holds. The last rung is <em>unexplained</em>, and it arrives
+                beside the states where the same component with the same props
+                held. That control group is the rest of the suite at this
+                commit, and it was already collected.
+              </p>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-ivory">
+                A retry deletes the report of a cause. A location deletes the
+                cause.
+              </p>
+              <a
+                href="/docs/flakiness"
+                className="mt-5 inline-block font-mono text-xs text-orange transition-colors hover:text-ivory"
+              >
+                who deals with each cause &rarr;
+              </a>
+            </article>
+          </section>
+        </Reveal>
+
+        <Reveal>
+          <section
+            id="without-a-baseline"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
+            <SectionHead
+              n="05"
+              label="what the run knew"
+              title="An assertion is a question written before the run. The answer is one bit."
+            >
+              The execution knew more than that: which elements it addressed,
+              which components rendered, which instance scheduled each render,
+              which branch a service took while the page waited on it. All of it
+              is reachable at a breakpoint, on a live page, with somebody
+              watching&mdash;and none of those three hold in CI. So the record
+              is taken while the page is alive and kept once it is gone. The
+              test does not change.
+            </SectionHead>
+            <div className="mt-12">
+              <WhatTheRunKnew />
+            </div>
+            <h3 className="mt-16 text-2xl font-bold tracking-tight text-ivory">
+              Four instruments read the run in front of you. Not one opens a
+              baseline.
+            </h3>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-quiet">
+              What the test addressed, what the run is saying while it says it,
+              where two executions parted, and where one set of inputs produced
+              two results. Each is installable on its own.
+            </p>
+            <div className="mt-8">
+              <WithoutABaseline />
+            </div>
+          </section>
+        </Reveal>
+
+        <Reveal>
+          <section
+            id="intent"
+            className="scroll-mt-24 border-t border-hairline py-20"
+          >
+            <SectionHead
+              n="06"
               label="agent intent"
               title="Connect a cause to its effect, at every layer."
             >
@@ -211,8 +303,8 @@ export default function Page() {
                   Ask a suite what it is doing before it stops.
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-quiet">
-                  Events announce decisions and bounded work from application
-                  or service code. Vantage holds what each in-flight test heard,
+                  Events announce decisions and bounded work from application or
+                  service code. Vantage holds what each in-flight test heard,
                   from which realm, and which work started but never ended. MCP
                   makes that live state queryable. It needs no screenshot and
                   writes no lasting report; stop the watcher and it is gone.
@@ -242,7 +334,7 @@ export default function Page() {
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
-              n="05"
+              n="07"
               label="selection + reuse"
               title="Run the UI states the change actually reached."
             >
@@ -271,7 +363,7 @@ export default function Page() {
                   "When evidence is unreadable or incomplete, the run selects more work or reports no conclusion.",
                 ],
               ].map(([label, body]) => (
-                <div key={label} className="bg-ink p-5">
+                <div key={label} className="bg-deep p-5">
                   <p className="font-mono text-[10px] uppercase tracking-widest text-orange">
                     {label}
                   </p>
@@ -281,11 +373,10 @@ export default function Page() {
             </div>
             <div className="mt-8 grid max-w-4xl gap-6 sm:grid-cols-2">
               <p className="border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
-                A specifier scan misses one edge: a package that imports
-                another package&apos;s{" "}
-                <span className="text-ivory">built output</span>. Your design
-                system usually sits behind that edge, so a change inside it
-                looks like no change at all.{" "}
+                A specifier scan misses one edge: a package that imports another
+                package&apos;s <span className="text-ivory">built output</span>.
+                Your design system usually sits behind that edge, so a change
+                inside it looks like no change at all.{" "}
                 <span className="font-mono text-[0.95em]">nx</span> and{" "}
                 <span className="font-mono text-[0.95em]">turbo</span> see it.
                 Point at whichever you already run. Its affected-project list
@@ -317,7 +408,7 @@ export default function Page() {
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
-              n="06"
+              n="08"
               label="the bargain"
               title="Control the evidence stack. Own the cost of operating it."
             >

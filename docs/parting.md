@@ -16,7 +16,7 @@ Cart chose differently — useState #0 moved
 Same evidence, three rungs up. The first line is triage — whether this is worth
 opening at all. The second names a cause. The rest is what fell out of it.
 
-The two readings need not be two revisions. Two arms of an experiment, two
+The two readings need not be two revisions. Two variants of an experiment, two
 breakpoints, or **the same subject read twice** are all pairs, and the last one
 connects directly to [`flakiness.md`](flakiness.md): a flake is the case where
 every input agreed and the output moved anyway, the same question asked of one
@@ -37,7 +37,7 @@ the output move:
 | `flake` | every input agreed, the component tree held, and the output moved anyway |
 | `reshaped` | the component tree is a different tree, no input moved, and the output followed |
 | `refactor` | the component tree moved and the output did not |
-| `absorbed` | an input moved and the output did not — an arm was assigned differently and rendered the same |
+| `absorbed` | an input moved and the output did not — a variant was assigned differently and rendered the same |
 | `unread` | the output moved and what would explain it was not read |
 
 `refactor` is the slice a pixel diff cannot reach at all, because there is
@@ -49,7 +49,7 @@ is what notices.
 `reshaped` and `refactor` are the same reading of the component tree with the
 output landing on opposite sides. A tree that is a different tree and an output
 that followed is a component that chose a different shape — a branch taken
-differently between two arms, or a rewrite between two revisions — and in
+differently between two variants, or a rewrite between two revisions — and in
 neither case is there a moved input for the rungs below to name.
 
 `unread` is why `flake` is safe to say. Nondeterminism is an accusation, and a
@@ -178,7 +178,7 @@ to refuse.
   start.
 - **It gives no verdict.** `compare` says what moved and `judge` says whether
   anyone should mind; a parting is an explanation and joins neither. It takes
-  two snapshots without refusing a subject mismatch, because two arms of an
+  two snapshots without refusing a subject mismatch, because two variants of an
   experiment are two subjects on purpose.
 - **Its reach is what was read.** Boundaries come back absent — never `[]` —
   when no node on either side started a component, which puts the parting in the

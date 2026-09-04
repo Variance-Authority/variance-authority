@@ -23,10 +23,10 @@ const VARIATIONS = [
   {
     id: "story:checkout--new-flow",
     evidence: "tagged",
-    how: "tags: ['variance-parent:checkout--default'] links this arm to the state it varies from",
+    how: "tags: ['variance-parent:checkout--default'] links this variant to the state it varies from",
     line: "story:checkout--new-flow ← story:checkout--default (content, structure)",
     digest: "v1:9f2a11c4e77b",
-    says: "Content and structure differ. Checkout is the first affected component. A shared change to both arms leaves this fingerprint unchanged.",
+    says: "Content and structure differ. Checkout is the first affected component. A shared change to both variants leaves this fingerprint unchanged.",
   },
   {
     id: "story:checkout--empty",

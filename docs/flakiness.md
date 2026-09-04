@@ -8,28 +8,33 @@ retries and tolerances — both of which trade a false alarm for a missed
 regression at a rate nobody measures. The question worth asking about each cause
 of variance is:
 
-> **What would it take to absorb this?**
+> **Who deals with this one, and what does it cost you?**
 
-Because the answers are not interchangeable. Some causes cannot reach the
-representation at all. Some are not variance but two different *baselines*
-compared by mistake. Some need a policy, and some are real changes wearing a
-flake costume. Only the last two are anybody's judgement call, and lumping all
-four under "flaky" is what makes the whole category feel unmanageable.
+Four things can. The way the tool is built, so the cause never reaches anything
+it reads. The environment key, which puts the two runs in different baselines
+that are never compared to each other. A person, once, in a rule everybody then
+lives with. Or nothing, and it lands on you — where some of it turns out to be a
+real change wearing a flake costume.
 
-## The four ways a cause gets absorbed
+The first three are worth a shorter word, and the rest of this page uses it: a
+cause is **absorbed** when it happened and did not become your problem. Only the
+last two answers are anybody's judgement call, and lumping all four under
+"flaky" is what makes the whole category feel unmanageable.
+
+## Four answers, and only two of them cost you anything
 
 | Absorbed by | Meaning | Cost to you |
 |---|---|---|
-| **construction** | The change cannot reach the representation. No threshold, no config, nothing to tune. | none |
+| **construction** | The change never reaches anything the run reads. No threshold, no config, nothing to tune. | none |
 | **environment-key** | The two runs are different baselines, not a diff. They are never compared, so there is nothing to explain. | declare the environment honestly |
-| **policy** | Both arms see it and both are right. Somebody has to decide. | one decision, once |
+| **policy** | Both runs see it and both are right. Somebody has to decide. | one decision, once |
 | **nothing** | It gets through. | fix the cause, or live with it |
 
 A tolerance is the absence of all four. A tolerance large enough to swallow
 rasterization noise is also large enough to swallow a small real change, and
 nothing in the output tells you which one it just did.
 
-## The causes, and what absorbs each
+## The causes, and who deals with each
 
 The taxonomy of causes below is the industry's, and [Argos documents it
 well](https://argos-ci.com/blog/screenshot-stabilization) — they are worth
@@ -37,18 +42,18 @@ reading. What differs here is the last column.
 
 | Cause | Absorbed by | Notes |
 |---|---|---|
-| **Anti-aliasing, text smoothing** | construction | Glyph rasterization is not a property of the box tree. **Measured:** moves a pixel differ by 177px, does not move us, with no threshold set. **And the measurement is macOS-only** — the probe perturbs `-webkit-font-smoothing`, which no other platform implements, so on Linux it measures 0 changed pixels on both arms. The absorption argument stands on construction; the 177px does not stand on Linux. |
-| **Device pixel ratio, retina runners** | environment-key | **Measured:** moves a pixel differ by 3015px. Here `deviceScaleFactor` is part of the key, so a 2× run and a 1× run are different baselines and never meet. |
-| **Different machine, GPU, driver** | environment-key | A durable baseline is stored *partitioned by renderer identity*, so a cross-machine comparison is `incomparable` — one sentence, not a day of unattributable red. See [ADR-0011](context/adr/0011-durable-and-ephemeral-retention.md). Or use the ephemeral mode, where there is no second machine to be wrong about. |
-| **Fonts substituted or not loaded** | environment-key, **and reported** | Fonts are in the key. The renderer also probes by metrics and names what it did not have, because two runs of a substituted font compare `unchanged` — true, and worthless. |
-| **Dates, clocks, dynamic content** | policy | Both arms move; both are right. The difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
+| **Anti-aliasing, text smoothing** | construction | Glyph rasterization is not a property of the box tree, so it cannot reach a structure-and-style reading at all — there is no threshold to tune because there is nothing to threshold. It reaches the image, which is why the image is the last reading rather than the only one. |
+| **Device pixel ratio, retina runners** | environment-key | `deviceScaleFactor` is in the key, so a 2× run and a 1× run are different raster baselines and never meet. It is also the *only* field the semantic key drops, because layout happens in CSS pixels and a 2× render lays out identically — one structure-and-style baseline is valid on a retina laptop, a 1× runner and a container alike. |
+| **Different machine, GPU, driver** | environment-key | Renderer identity is not the machine. It is the engine and its version, the normalization ruleset, the computed-style allowlist, the viewport, the fonts by content hash, the resolved media and container conditions, the bytes behind every asset URL, and the digest of the stabilization recipe — and the semantic key is that same list with `deviceScaleFactor` removed. So your browser and CI compare on everything **except the pixels**, which is the one tier where the GPU, the driver and the flags you launched with actually live. That tier alone is partitioned by the full key, which is what makes a cross-machine *image* `incomparable` — one sentence, not a day of unattributable red. What a run captures and where its pixels are made are independent ([ADR-0044](context/adr/0044-capture-material-and-rendering-placement-are-independent.md)), so the fix for the last tier is to make it in one fixed place; see [ADR-0011](context/adr/0011-durable-and-ephemeral-retention.md), or use the ephemeral mode, where there is no second machine to be wrong about. |
+| **Fonts substituted or not loaded** | environment-key, **and reported** | You are told, and the key is why telling you is necessary. Fonts are in the key by content hash, so a run that has `Inter` and a run that does not are different baselines — but that only saves you when the two runs *differ*. When neither machine has it, the key matches, the verdict is `unchanged`, and it is a true statement about a picture of the wrong typeface. So `variance doctor` renders a probe before you record anything, and a run that painted with a substitution puts the family and the subject count on the report: *the renderer lacked `Inter` in 12 subjects; those images are of a substituted font and their metrics are not the product's*. The probe says what it cannot tell you, too — a family that measures identically to the fallback is either absent or a metric-compatible substitute, and nothing on the page distinguishes those. |
+| **Dates, clocks, dynamic content** | policy | Both runs move; both are right. The difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
-| **Animations mid-flight** | **construction** | A transform caught in flight is a computed style value and it does reach the representation — so the page is held still *before the subject is read*, not only before it is painted. Pinned at the first frame by CSS, with the recipe's digest in the environment key so an unstabilized baseline is `incomparable` rather than a diff. **Measured:** one page, a 4s animation, read twice a second apart — the hash moves untouched and holds under the recipe ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
-| **Lazy loading, network latency** | **construction** | Content that arrives late is a structural difference, and correctly so — the question is whether you were still waiting when it landed. `wait-for-images` polls `document.images`, which misses anything appended during the wait and has no entry for a `background-image`; the driver watches the wire instead and knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
+| **Animations mid-flight** | **construction** | There is a choice, and it decides which frame you review for the next year. `hold-animations` hands it to the browser at screenshot time, which fast-forwards a finite animation to completion — the state a user comes to rest on — and cancels an infinite one to its first frame. `pin-animations` does it in CSS, holding everything at frame one, so a fade-in is recorded at the moment it is invisible. Collection uses the CSS one because there is no screenshot there to hold. Neither writes `animation: none`, which would drop whatever layout the keyframes contribute. And because a transform caught in flight is a computed style value, the page is held still *before the subject is read*, not only before it is painted, with the recipe's digest in the key so an unstabilized baseline is `incomparable` rather than a diff ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
+| **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while the wire knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
 | **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. The state of the art screenshots until two consecutive images agree — a raster per poll, and a timeout that names nothing. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
 | **A Suspense boundary that has not resolved** | **construction**, and **refused** | A subject read mid-arrival records a skeleton on a slow machine and its content on a fast one, with every band agreeing and both passes consistent — invisible to every other mechanism here, and to `storyRendered` and `readySelector` besides, because a component that suspends renders no markup to hang a marker on. Every collector waits on the boundary's own `memoizedState` before it reads, two clean readings deep so a waterfall cannot slip through the gap. A boundary still open at the timeout is **refused by name** rather than captured — the one escape hatch is declaring the subject a loading-state capture, which is then checked in the other direction too ([ADR-0037](context/adr/0037-a-subject-still-arriving-is-refused.md)). |
-| **An asset whose bytes moved behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Every image, font and media response is hashed by the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carried into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
-| **Animated GIFs** | **construction** | No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. **Measured** on real screenshots. |
+| **An asset whose bytes moved behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Where your bundler content-addresses, it already fixed this and there is nothing to pay: `logo.4f2a91.svg` **is** the identity, that string is in the markup the capture already hashes, and reading the bytes would record the same fact a second time — `hashAssets: false` is the right setting and costs you nothing. It is on by default because not every URL is built that way: a file served from `public/`, a CDN path, a font behind a stable name. For those the driver hashes the response, being the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carries the digest into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
+| **Animated GIFs** | **construction** | No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. |
 | **Random seeds, unsorted data** | **nothing**, and reported | Absorbed by nothing — this is a real change and the fixture is the bug. What it does not arrive as is a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. The run also says whether *anything in it* explains the movement, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
 | **Reindented JSX inside a block** | **nothing** | Renders identically and moves our hash. Ours to fix; a pixel differ gets this one right. |
@@ -265,6 +270,41 @@ That protects render reuse as well as correctness. `settle` skips a render only
 when the document digest repeatably describes the same subject; observer-induced
 digest movement therefore cannot silently disable the cheap tier for later runs.
 
+### No two are alike, so the answer is a place
+
+The word invites a class response: retry it three times, quarantine the name,
+widen the threshold until it stops. Each of those treats *flaky* as a property
+the test has. It is not. It is one specific thing that happened once — a clock,
+a sheet that escaped its story, an effect that ran twice, a fixture that
+shuffles — and the next one is a different specific thing. A retry budget tuned
+to the last one absorbs the next one in silence, which is how a suite ends up
+with a pass rate nobody believes.
+
+So nothing here classifies. Every instrument narrows, and each rung names a
+smaller place than the one above it:
+
+| Narrowed to | Named by | What it asks of you |
+|---|---|---|
+| **a component and a band** — `Clock (content)` | the second reading, above | nothing: it runs on subjects the run already called `changed` |
+| **a boundary** — the component whose props, contexts and hook cells were all read, all agreed, and whose output moved anyway | [`partingOf`](parting.md) | a run that asked what the components were holding |
+| **an input** — an ancestor's `color`, a context, a hook cell, or nothing readable at all | the divergence's parting lines ([`composition.md`](composition.md)) | two renderings of one input inside one run, which the suite is usually already producing |
+| **an Act** — the step at which two executions of one journey stopped agreeing | scenario execution divergence ([`scenarios.md`](scenarios.md)) | a recorded scenario. It writes no verdict and no baseline; it is evidence to read |
+| **an element** — the query the test issued, what it resolved to, and the component that rendered it | [Eyes](eyes.md) | installing it beside the React Testing Library or Playwright the suite already has |
+| **a region of source** — the lines some observers of a module entered and others did not | `journeyDivergences` in [`@variance-authority/sense`](../packages/sense) | execution recording, and an API call over the coverage it produced |
+
+Read down until something names a thing you can change, then stop. These are not
+confidence levels on one claim; they are different claims, each from an
+instrument the rung above it cannot reach. *`Price` renders two ways from one
+props digest* states a contradiction and leaves you to go find it. *Three
+subjects mount `CartCard`, one of them clicked Remove, and this `onClick` body is
+a region the other two have never been inside* names the region — and nothing
+static says it, because it is the same file, the same import graph and the same
+props.
+
+After that the fix is ordinary: inject the clock, scope the sheet, seed the
+fixture. The finding does not come back, because nothing is holding it down. A
+retry deletes the report of a cause; a location deletes the cause.
+
 ## Test order and shared state
 
 The other half of flakiness is not the camera, it is the suite: subject B fails
@@ -307,7 +347,10 @@ capped by `alone.limit`. The result is reported as `order-dependent` rather than
 baseline, and the subject would compare clean for as long as the leak survived.
 The clean world is the collector's to build, like the shared one: a fourth method
 on [the contract](surface.md#1-the-three-things-you-write), optional because a
-collector holding one page open across every subject has none to give.
+collector handed somebody else's live page has no world of its own to rebuild.
+Holding one page open across a run is not that case — a preview can be opened
+twice — and both shipped collectors build the second world from the same recipe
+as the first, on the same server, so nothing but isolation differs.
 
 This catches the case the probe's own confirmation tier cannot. `verify()`
 re-runs a subject **in the same session**: it varies time and holds the world

@@ -61,13 +61,16 @@ export default function OperatingBargain() {
               repeatability
             </p>
             <p className="mt-2 text-sm leading-6 text-quiet">
-              When a subject changes, the run reads it a second time in the same
-              browser. If the two readings disagree, the subject moves on its
-              own and the change is not yours. The run then renders it with
-              nothing else on the page: if the change disappears, another
-              subject in the suite caused it. The run does this for up to
-              twenty changed subjects, with nothing to configure, and both
-              answers go in the report.
+              A changed state is read again in the same world and then rendered
+              with the world rebuilt around it, for up to twenty states, with
+              nothing to configure. Both answers go in the report and neither
+              can be accepted.{" "}
+              <a
+                href="/#flakes"
+                className="text-orange transition-colors hover:text-ivory"
+              >
+                Separating a flake from a change &rarr;
+              </a>
             </p>
           </div>
           <div>
