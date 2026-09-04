@@ -203,7 +203,7 @@ export default function WithoutABaseline() {
             </code>
           </pre>
           <p className="mt-5 text-sm leading-6 text-quiet">
-            The same question is asked one layer down of source. Where a run
+            The same question is asked of source, one layer down. Where a run
             recorded execution, one module read by several observers has regions
             some of them entered and others never did&mdash;a function body, a
             branch, a handler, a resume point. Same file, same imports, same

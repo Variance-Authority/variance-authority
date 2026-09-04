@@ -195,10 +195,10 @@ export default function Page() {
               <p className="mt-3 max-w-3xl text-sm leading-6 text-quiet">
                 Every component seen to change is walked down a ladder&mdash;an
                 edited file, an updated token, an edited caller, a contradiction
-                elsewhere in the suite&mdash;and stops at the first rung that
-                holds. The last rung is <em>unexplained</em>, and it arrives
-                beside the states where the same component with the same props
-                held. That control group is the rest of the suite at this
+                elsewhere in the suite&mdash;and the walk stops at the first
+                rung that holds. The last rung is <em>unexplained</em>, and it
+                arrives beside the states where the same component with the same
+                props held. That control group is the rest of the suite at this
                 commit, and it was already collected.
               </p>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-ivory">

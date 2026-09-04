@@ -158,7 +158,7 @@ export default function Since() {
           baseline decides what to skip: a subject drops out only when its own
           baseline lists none of those components. The graph alone never drops a
           subject. Uncertainty always widens the run—a missing baseline, a
-          missing component list, or an unreadable import each add work. A warm
+          missing component list, or an unreadable import each adds work. A warm
           rescan of a generated 30,500-file tree takes about 236 ms, and a
           one-file edit costs no measurable extra time.
         </p>

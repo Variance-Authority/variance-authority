@@ -14,7 +14,7 @@ const SUBJECTS = [
   {
     what: "The suite against itself",
     needs: "one build",
-    body: "Many states at a single commit, joined on the components they share: which of them are watching the same rendering, and which disagree right now, with no baseline involved anywhere.",
+    body: "Many states at a single commit, joined on the components they share: which of them saw the same rendering, and which disagree right now, with no baseline involved anywhere.",
   },
   {
     what: "One state across many runs",

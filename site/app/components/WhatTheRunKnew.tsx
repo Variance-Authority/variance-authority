@@ -60,7 +60,7 @@ export default function WhatTheRunKnew() {
           empty list is a completed reading. A node with no reachable fiber says
           which of the two reasons applies. The case worth reading is the one
           that costs something&mdash;a declared service that reports nothing
-          retires the whole run&apos;s right to narrow anything:
+          forfeits the whole run&apos;s right to narrow anything:
         </p>
         <pre className="mt-5 overflow-x-auto rounded-xl border border-hairline bg-deep p-4 font-mono text-[11px] leading-5 text-quiet">
           <code>

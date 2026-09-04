@@ -87,7 +87,7 @@ export default function EvidenceSlices() {
           another cut through the same run
         </p>
         <h3 className="mt-2 text-xl font-bold tracking-tight text-ivory">
-          Did the variant change, or did both states move together?
+          Did the variant change, or did both states change together?
         </h3>
 
         <div className="mt-6 space-y-3">
@@ -112,8 +112,8 @@ export default function EvidenceSlices() {
             relationship held
           </p>
           <p className="mt-2 text-sm leading-6 text-quiet">
-            Both states moved by the same amount. The gap between light and
-            dark is unchanged, which is what the dark variant is for.
+            Both states changed by the same amount. The gap between light
+            and dark is unchanged, which is what the dark variant is for.
           </p>
         </div>
 

@@ -22,7 +22,7 @@ const PACKAGES: {
     items: [
       {
         name: "cli",
-        role: "the workflow, which is the one place a workflow belongs",
+        role: "collect, compare, render, report, accept — the whole workflow from one config",
       },
       {
         name: "playwright-test",
