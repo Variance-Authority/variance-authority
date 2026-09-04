@@ -139,6 +139,9 @@ holdings, [`partingOf`](parting.md) makes the same accusation about a
 all agreed, and whose output moved anyway. That is the narrower claim, and it is
 available only to a run that asked what the components were holding — which is
 why an unread boundary is a slice of its own rather than a quiet pass.
+Narrower again is a *region* of that component's source, which neither reading
+reaches and which is answered
+[from what the run executed](#which-part-of-the-module-they-took-differently).
 
 **The `held` list is what makes any of it evidence.** Those are the subjects
 where the same component, with the same props, did not move — the stable states
@@ -150,6 +153,64 @@ It costs no collection, no browser and no image: it is a fold over digests the
 run already produced. What it needs is [`--since`](selecting.md), because the
 top two rungs are unreachable without a change set — and a run that did not ask
 says so beside every unexplained movement instead of accusing anybody.
+
+### Which part of the module they took differently
+
+The ladder narrows a movement to a component, and where the two readings carry
+holdings [`partingOf`](parting.md) narrows it to a boundary. Neither says *where
+inside it*, and for the flake that only appears once a handler has run, the
+region is the fix.
+
+Neither reading can, because neither was inside the module while it ran. The
+execution journal was: a preview built with `testSelectionProbes()` records which
+regions of which modules each subject crossed while it was painted. Two subjects
+that render one module and enter different regions of it have **parted**, and a
+parting is a place:
+
+```bash
+variance journeys
+```
+
+```
+app/src/components/CartCard.tsx  3 observers
+  parted     handler CartCard/onClick  51-58
+    entered  story:cart-card--removing
+    missed   story:cart-card--item, story:cart-card--verbose
+  unentered  branch CartCard/empty  62-64
+
+pool: 3 observations the journal recorded whole, out of 3 subjects the report names
+note: recorded at 4f2a1c9d0b73
+```
+
+The pool per module is whoever entered a region **with source of its own**,
+which is not whoever loaded the file — a module root is crossed on import, so
+every subject in a bundle crosses every module in it, and counting those would
+report one pool of everybody for every module in the app.
+
+**Nothing here is a verdict.** It exits `0` whatever it finds, because every
+suite with two stories per component has partings; a parting is where to look
+once something else has already said something moved.
+
+**The pool is most of the finding.** The journal accumulates across runs, so
+read whole it answers about the record rather than about this run: a story
+deleted two commits ago is still a party to every parting it was recorded in. So
+the pool is the subjects the report names, `--all` asks for the record on
+purpose, and a checkout with no report to read gets the record *with the
+sentence saying that is what it got* — a pool nobody chose must never print as
+one somebody did. Three other ways a pool is not what it looks like are each
+named rather than left to be inferred:
+
+| What happened | Why it is not silence |
+|---|---|
+| An observation was recorded incomplete | Dropped from the pool rather than counted as having missed — a recording that stopped early proves no absence — and counted in a note, because a pool of two that should have been three reads as agreement |
+| The journal holds no row for a subject the report names | The last recording did not paint it, or it did not exist then. Every finding is silent about it for that reason and no other |
+| Fewer than two observations survive | A parting is a disagreement between two observers of one module, so a pool that cannot hold two has not found nothing — it has not been able to look |
+
+**`unentered` is the weaker sibling finding**: regions with source of their own
+that *no* observer in the pool entered. Not "these two renders disagree" but
+"this run never went here at all", which is the same absence
+[`selecting.md`](selecting.md#what-this-does-not-reach) cannot select on — and
+naming where it is does not close it.
 
 ### Stability is required inside the boundary, not outside it
 

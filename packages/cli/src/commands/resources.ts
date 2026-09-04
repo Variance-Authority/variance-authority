@@ -17,6 +17,7 @@ import {
 } from '@variance-authority/core';
 import type { Config } from '../config.js';
 import { indexOf } from './affected.js';
+import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
 
 /**
@@ -156,6 +157,71 @@ export async function journeyAgainst(
       { cause: error },
     );
   }
+}
+
+/**
+ * The recorded partings, and the pool they were drawn from.
+ *
+ * Beside `journeyAgainst`, reading the same snapshot for the other question:
+ * that one asks *who can be ruled out of this diff*, this one asks *who took a
+ * different path through the same module*. The absence rule is the same and the
+ * failure is not — a missing snapshot narrows nothing there and answers nothing
+ * here, so both are reported rather than either being read as a clean result.
+ *
+ * The pool is returned alongside the findings because it cannot be recovered
+ * from them. An observer that entered no module with source of its own appears
+ * in no divergence at all, and a truncated observation appears in none by rule,
+ * so a caller holding only `found` cannot tell a pool of two from a pool of
+ * five that mostly went nowhere.
+ */
+export async function recordedJourneys(
+  root: string,
+  observers?: readonly string[],
+): Promise<JourneyReading> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  const file = selection.testCoverageFile(root);
+
+  let coverage;
+  try {
+    coverage = await selection.readTestCoverage(file);
+  } catch (error) {
+    // The path either way. An operator whose build carries no probes has to be
+    // told where the file this wanted would have been, and that is precisely the
+    // reading with no snapshot to carry it.
+    if (isMissing(error)) return { at: file };
+    throw new OperatorError(
+      `the recorded execution journal at ${file} could not be read: ${messageOf(error)}. ` +
+        'Delete it and run once to record a new one; a reading that skipped it would look ' +
+        'exactly like a repository that never recorded anything.',
+      { cause: error },
+    );
+  }
+
+  const wanted = observers === undefined ? undefined : new Set(observers);
+  const held = new Set(coverage.tests.map((test) => test.file));
+  const inScope = coverage.tests.filter((test) => wanted === undefined || wanted.has(test.file));
+
+  return {
+    at: file,
+    recorded: {
+      ...(coverage.commit === undefined ? {} : { commit: coverage.commit }),
+      whole: sorted(inScope.filter((test) => test.complete).map((test) => test.file)),
+      // Counted, not dropped. The instrument excludes these because a recording
+      // that stopped early cannot prove an absence; a caller that could not see
+      // how many it excluded would read a shrunken pool as an agreeing one.
+      truncated: sorted(inScope.filter((test) => !test.complete).map((test) => test.file)),
+      unrecorded: sorted((observers ?? []).filter((name) => !held.has(name))),
+      found: selection.journeyDivergences(
+        coverage,
+        observers === undefined ? {} : { observers },
+      ),
+    },
+  };
+}
+
+/** Unique, in the code-unit order every other list in the snapshot is sorted by. */
+function sorted(names: readonly string[]): readonly string[] {
+  return [...new Set(names)].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
 function isMissing(error: unknown): boolean {

@@ -132,6 +132,31 @@ describe('parseArgs', () => {
     });
   });
 
+  it('reads journeys with no pool named, which is the run rather than the record', () => {
+    // `--all` absent is the default and it is not a value the parser invents: the
+    // pool it produces is decided in `dispatch`, from the report, because the
+    // difference between "this run's subjects" and "every subject ever recorded"
+    // is a reading of a file and not a reading of argv.
+    expect(parseArgs(['journeys'])).toEqual({
+      command: 'journeys',
+      config: resolve('variance.config.json'),
+      all: false,
+    });
+
+    expect(parseArgs(['journeys', '--all', '--file', 'CartCard', '--limit', '5'])).toEqual({
+      command: 'journeys',
+      config: resolve('variance.config.json'),
+      all: true,
+      file: 'CartCard',
+      limit: 5,
+    });
+  });
+
+  it('refuses a journeys --limit that is not a count', () => {
+    expect(attempt(['journeys', '--limit', 'all']).message).toContain('--limit');
+    expect(attempt(['journeys', '--limit', '0']).message).toContain('--limit');
+  });
+
   it('splits ask --subjects on commas, as the changelog question takes them', () => {
     expect(parseArgs(['ask', 'changelog', '--subjects', 'story:a, story:b'])).toMatchObject({
       subjects: ['story:a', 'story:b'],

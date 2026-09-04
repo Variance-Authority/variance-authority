@@ -239,6 +239,51 @@ location a cost decision rather than a correctness one: a stale entry, a cache
 from another branch, or no cache at all costs a slower scan and can never produce
 a different graph. Deleting them costs one cold scan and nothing else.
 
+## What a record knows that no graph can
+
+Everything above reasons about **reach**: which components a change touches, and
+which subjects have been seen rendering them. Reach is a property of the source,
+and a scan is the right instrument for it. Which *lines* a subject went through
+while it painted is not a property of the source at all — three stories mounting
+one component, with one import graph and one set of files, take three different
+paths through it — so nothing above can be asked the question, however good the
+graph gets.
+
+A build instrumented with `testSelectionProbes()` from
+`@variance-authority/sense/journal` records those paths: for every observed
+subject, the regions of each module it crossed while it was painted. That is
+what [`packages/playwright-test`](../packages/playwright-test) narrows specs
+with, and it answers one question about a suite that a diff never asks:
+
+```bash
+variance journeys
+```
+
+```
+app/src/components/CartCard.tsx  3 observers
+  parted     handler CartCard/onClick  51-58
+    entered  story:cart-card--removing
+    missed   story:cart-card--item, story:cart-card--verbose
+  unentered  branch CartCard/empty  62-64
+
+pool: 3 observations the journal recorded whole, out of 3 subjects the report names
+```
+
+**`parted`** is one module two subjects went through differently — where a flake
+that only appears once a handler has run is written, which is why the reading is
+[in `flakiness.md`](flakiness.md#which-part-of-the-module-they-took-differently)
+as well. **`unentered`** is a region with source of its own that nobody in the
+pool entered at all, and that is the row below.
+
+Two things bound it, and both are printed rather than assumed. The journal
+**accumulates across runs**, so the pool is the subjects this run's report names;
+`--all` asks for the record on purpose, and a checkout with no report to read
+gets the record *with the sentence saying so*. And an observation the journal
+recorded as truncated is **dropped from the pool** rather than counted as having
+missed anything — a recording that stopped early proves no absence — with a count
+of what was dropped, because a pool of two that should have been three reads as
+agreement.
+
 ## What this does not reach
 
 **A fork that has never gone the other way.** Rendering is a series of choices —
@@ -255,6 +300,14 @@ because on the subject side it too reads imports rather than a record, and this
 does not. What holds the line is the row above it: a change the selection cannot
 attribute runs everything, and a new branch usually arrives with an edit to the
 file that decides it.
+
+[`unentered`](#what-a-record-knows-that-no-graph-can) names where those forks
+are, in the modules something did load: a region with source of its own that no
+subject in the pool went into. It closes nothing — a region no run has entered
+is exactly the one no record can rule out, and the list is only as wide as what
+was instrumented and observed — but *nothing here has ever been in this branch*
+is a sentence somebody can act on, and the alternative is inferring it from a
+report that cannot mention it.
 
 **A first run.** Nothing has baselines, so nothing can be ruled out, and the
 whole suite runs. That is correct and worth expecting: `--since` pays from the

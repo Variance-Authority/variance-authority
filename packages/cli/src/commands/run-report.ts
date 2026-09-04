@@ -223,3 +223,31 @@ function checkDiagnostics(path: string, observations: readonly unknown[]): void 
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
+
+/**
+ * The subjects this run is about, or nothing when there is no run to ask.
+ *
+ * A missing report is the ordinary state of a checkout nobody has run yet, and
+ * it is not the same claim as a run with no subjects — so it comes back absent
+ * and `journeys` says which pool it fell back to. A report that *exists* and
+ * cannot be read still throws: something wrote it, and reading the accumulated
+ * record instead would answer a different question under the same heading.
+ *
+ * `notObserved` counts. A subject the run planned and skipped is one of this
+ * run's subjects, and the journal may well hold a whole recording of it from
+ * the last run that did paint it.
+ */
+export async function subjectsInReport(path: string): Promise<readonly string[] | undefined> {
+  let report: CliRunReport;
+  try {
+    report = await readCliRunReport(path);
+  } catch (error) {
+    if ((error as { code?: unknown }).code === 'ENOENT') return undefined;
+    throw error;
+  }
+
+  return [
+    ...report.observations.map((observation) => observation.subject),
+    ...(report.notObserved ?? []).map((entry) => entry.subject),
+  ];
+}

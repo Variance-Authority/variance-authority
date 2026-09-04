@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { noPositionals, readFlags } from './args.js';
+import { countOf, noPositionals, readFlags } from './args.js';
 import type { ProfileId } from '@variance-authority/core';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
@@ -157,6 +157,23 @@ export type Parsed =
       readonly since?: string;
     }
   | {
+      readonly command: 'journeys';
+      readonly config: string;
+      /**
+       * `--all`: read every whole observation the snapshot holds.
+       *
+       * The default pool is the subjects the configured report names, because
+       * the snapshot accumulates across runs and a subject deleted two commits
+       * ago is still a party to every parting it was recorded in. This asks for
+       * that record on purpose, which is a different question and has to look
+       * like one.
+       */
+      readonly all: boolean;
+      /** `--file <text>`: substring, case-insensitive, over the recorded module path. */
+      readonly file?: string;
+      readonly limit?: number;
+    }
+  | {
       readonly command: 'adjudicate';
       readonly config: string;
       /** `--claims <path>`: the declaration. Required; there is no default intent. */
@@ -276,14 +293,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
       const test = flags.values.get('--test');
       const state = flags.values.get('--state');
       const file = flags.values.get('--file');
-      const limit = flags.values.get('--limit');
+      const limit = countOf(flags.values.get('--limit'), 'tests to list');
       const at = flags.values.get('--at');
-
-      if (limit !== undefined && !/^[1-9][0-9]*$/.test(limit)) {
-        throw new OperatorError(
-          `--limit is how many tests to list and must be a positive whole number, not \`${limit}\``,
-        );
-      }
 
       return {
         command: 'ask',
@@ -298,7 +309,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(test !== undefined ? { test } : {}),
         ...(state !== undefined ? { state } : {}),
         ...(file !== undefined ? { file } : {}),
-        ...(limit !== undefined ? { limit: Number(limit) } : {}),
+        ...(limit !== undefined ? { limit } : {}),
         ...(at !== undefined ? { at } : {}),
         reports: reports.map((path) => resolve(path)),
       };
@@ -384,21 +395,29 @@ export function parseArgs(argv: readonly string[]): Parsed {
       const component = flags.values.get('--component');
       const subject = flags.values.get('--subject');
       const since = flags.values.get('--since');
-      const limit = flags.values.get('--limit');
-
-      if (limit !== undefined && !/^[1-9][0-9]*$/.test(limit)) {
-        throw new OperatorError(
-          `--limit is how many commits to read and must be a positive whole number, not \`${limit}\``,
-        );
-      }
+      const limit = countOf(flags.values.get('--limit'), 'commits to read');
 
       return {
         command: 'changelog',
         config,
         ...(component !== undefined ? { component } : {}),
         ...(subject !== undefined ? { subject } : {}),
-        ...(limit !== undefined ? { limit: Number(limit) } : {}),
+        ...(limit !== undefined ? { limit } : {}),
         ...(since !== undefined ? { since } : {}),
+      };
+    }
+
+    case 'journeys': {
+      noPositionals(flags.positionals, 'journeys');
+      const file = flags.values.get('--file');
+      const limit = countOf(flags.values.get('--limit'), 'modules to name');
+
+      return {
+        command: 'journeys',
+        config,
+        all: flags.present.has('--all'),
+        ...(file !== undefined ? { file } : {}),
+        ...(limit !== undefined ? { limit } : {}),
       };
     }
 

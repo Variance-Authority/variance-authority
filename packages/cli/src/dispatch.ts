@@ -23,8 +23,10 @@ import {
   run,
   journeyAgainst,
   narrowingFor,
+  recordedJourneys,
   scanSourceDirs,
   storeFor,
+  subjectsInReport,
   writeArtifactToDisk,
   writeCliRunReport,
   type CliRunReport,
@@ -44,6 +46,7 @@ import { mergeReports } from './commands/merge.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
+import { formatJourneys, journeysOf, type JourneyPool } from './commands/journeys.js';
 import { formatPush, push } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
@@ -292,6 +295,36 @@ export async function dispatch(
       // Reading a record is never a verdict about the project. This exits 0 even
       // when it found nothing, because "no baseline was explained" is an answer
       // and not a failure — the failures already threw.
+      return EXIT_CLEAN;
+    }
+
+    case 'journeys': {
+      // The pool is chosen before the snapshot is read, because the instrument
+      // narrows on the way out: `journeyDivergences` decides who is entitled to
+      // be missing from a region, and a filter applied afterwards would be a
+      // filter over an answer somebody else's subjects had already shaped.
+      const named = parsed.all ? undefined : await subjectsInReport(config.report);
+      const pool: JourneyPool =
+        parsed.all
+          ? { kind: 'all' }
+          : named === undefined
+            ? { kind: 'unasked', report: config.report }
+            : { kind: 'run', named: named.length };
+
+      streams.out(
+        `${formatJourneys(
+          journeysOf({
+            ...(await recordedJourneys(process.cwd(), named)),
+            pool,
+            ...(parsed.file !== undefined ? { file: parsed.file } : {}),
+            ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
+          }),
+        )}\n`,
+      );
+
+      // `changelog`'s rule. A parting is where to look, not a verdict: every
+      // suite with two stories per component has them legitimately, and a
+      // command that gated on one would be red on every healthy project.
       return EXIT_CLEAN;
     }
 

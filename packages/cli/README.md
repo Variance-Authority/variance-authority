@@ -95,6 +95,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
+variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>]
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
@@ -109,8 +110,9 @@ it wrote; `adjudicate` re-reads it against what you said you were doing;
 diff itself, identifying a category of visual difference so it can be matched
 across subjects) wherever that shape is the whole change, and refuses by name
 any subject where something else moved too; `changelog` reads back why the
-baselines are what they are; `push` sends a finished run to a review surface for
-somebody to decide; `doctor` says what this machine can observe
+baselines are what they are; `journeys` reads back which regions of one module
+this run's subjects entered differently; `push` sends a finished run to a review
+surface for somebody to decide; `doctor` says what this machine can observe
 before a run rather than after one; `watch` holds a suite that is still running
 so `ask` has something live to ask. `serve` exposes the report the last run
 wrote to an MCP client — an agent asks it what changed, which component and
@@ -294,6 +296,61 @@ Three failure modes are handled explicitly:
   `ephemeral` retention there is no baseline to explain; behind a `remote`
   store the explanation lives in that service's record instead, and this
   command reads only the log of a checkout.
+
+### Journeys: which part of a module two subjects took differently
+
+Every other reading here answers *which subject*. A recurrence count names a
+subject that keeps moving, a second reading names a subject that disagrees with
+itself, and none of them can say **where in the source** the two readings parted,
+because none of them was inside the module while it ran.
+
+A build instrumented with `testSelectionProbes()` from
+`@variance-authority/sense/journal` was. It records which regions of which
+modules each subject crossed while it was painted, and two subjects that render
+one module and enter different regions of it have parted:
+
+```bash
+npx variance journeys --file CartCard
+```
+
+```
+app/src/components/CartCard.tsx  3 observers
+  parted     handler CartCard/onClick  51-58
+    entered  story:cart-card--removing
+    missed   story:cart-card--item, story:cart-card--verbose
+  unentered  branch CartCard/empty  62-64
+
+pool: 3 observations the journal recorded whole, out of 3 subjects the report names
+note: recorded at 4f2a1c9d0b73
+```
+
+`parted` is the finding; `unentered` is its weaker sibling — a region with source
+of its own that nobody in the pool entered at all. `--file` narrows to modules
+whose path contains a string, `--limit` caps how many modules are named, and
+what a cap left out is counted rather than dropped.
+
+It exits `0` whatever it finds. Every suite with two stories per component has
+partings, so gating on one would fail every suite; this is where to look once
+something else has said something moved.
+
+**The pool is printed whether or not anything was found**, for `changelog`'s
+reason: an empty answer from a pool of one and an empty answer from a pool of
+forty are opposite facts. The journal accumulates across runs, so the default
+pool is the subjects the configured report names — this run's question, about
+this run's subjects. `--all` reads the accumulated record on purpose, and a
+checkout with no report to read gets that record *with a sentence saying so*,
+because a pool nobody chose must not print as one somebody did.
+
+Three more ways the pool is not what it looks like, each named rather than left
+to be inferred: an observation recorded incomplete is dropped from the pool
+rather than counted as having missed anything, and counted in a note; a named
+subject the journal holds no row for is listed, because nothing here is about it;
+and a pool that cannot hold two is said out loud, because a parting is a
+disagreement between two observers and one observer has not found nothing — it
+has not been able to look.
+
+With no journal at all the answer is *nothing*, not *nothing found*: the command
+names the file it looked for and what writes one.
 
 ### HTML report
 
