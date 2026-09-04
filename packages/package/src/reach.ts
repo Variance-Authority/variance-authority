@@ -60,6 +60,15 @@ export interface Reader {
   readonly entrypoints: ReadonlyMap<string, string>;
 }
 
+/**
+ * Begin one read, with the entrypoints it is allowed to resolve through.
+ *
+ * The map is supplied rather than discovered because what a package publishes is
+ * a manifest decision. A specifier that is not relative reaches only what
+ * `exports` names, and a reader that resolved those itself would report names no
+ * installer can reach. So an empty map is the honest default: nothing but
+ * relative specifiers resolves, which is what reading a single package means.
+ */
 export function createReader(root: string, entrypoints: ReadonlyMap<string, string> = new Map()): Reader {
   return { root, parses: new Map(), reached: new Map(), entrypoints };
 }

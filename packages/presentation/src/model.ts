@@ -155,6 +155,17 @@ export type PresentationHierarchyRole =
   | 'body-peer'
   | 'content-internal';
 
+/**
+ * What the author says the structure is, before anything is measured.
+ *
+ * A hierarchy is intent and cannot be read off a render: two elements 16px apart
+ * are a heading and its body in one component and unrelated siblings in the
+ * next, and no amount of looking at the page separates them. So the relations
+ * are declared here and {@link PresentationHierarchyReading} reports what the
+ * page did with them. `owner` bounds the search to the smallest node containing
+ * every declared relation, so a contract cannot quietly grow to mean the whole
+ * document.
+ */
 export interface PresentationHierarchyContract {
   readonly id: string;
   /** The smallest graph node that contains every declared relationship. */
@@ -170,6 +181,16 @@ export interface PresentationHierarchyContract {
   }[];
 }
 
+/**
+ * One render measured against one {@link PresentationHierarchyContract}.
+ *
+ * Separate from the contract because it is derived and the contract is not:
+ * reading the same page twice must produce the same contract and may produce a
+ * different reading. `collisions` is the half worth reading first — two roles
+ * that were declared distinguishable and were not, an outer level separated no
+ * more than the level it contains. That is the defect a spacing scale usually
+ * has, and the one a pixel comparison can see and cannot name.
+ */
 export interface PresentationHierarchyReading {
   readonly formatVersion: 1;
   readonly report: Digest;
