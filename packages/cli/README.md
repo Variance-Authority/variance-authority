@@ -2,7 +2,7 @@
 
 # @variance-authority/cli
 
-> Run the Variance Authority workflow from a project config: collect subjects, compare, render what moved, report, accept.
+> Run the Variance Authority workflow from a project config: collect subjects, compare, render what changed, report, accept.
 
 This CLI runs that workflow end to end from a project-owned config: it
 collects **subjects** — the individual stories, routes, or fixtures being
@@ -147,7 +147,7 @@ does not decide. The verdict stays with `run`, `report` and `adjudicate`, which
 exit `1` when something needs review — one command per gate, so a workflow
 cannot lose its exit code to a question.
 
-`ask diff` reports what moved since the previous question was answered. An MCP
+`ask diff` reports what changed since the previous question was answered. An MCP
 connection holds that state in memory for as long as it lasts; a command line
 cannot, so the report each answer was read from is recorded beside the
 configured report as `asked.json`. Deleting it costs the next `ask diff` its
@@ -233,11 +233,11 @@ The token is the deployment's **ingest** token, never its review one: review
 promotes a baseline every later run is compared against, and a value that can do
 that has no business in a config a run reads. A build is filed under three
 things — its `build` id, the `commit` it was rendered from, and the `branch`
-somebody is deciding about — and the first two come from `--run`/`--commit` or
+somebody is deciding about — and the first two come from `--run` and `--commit` or
 from the CI environment, on exactly the terms `run` reads them. Neither is
 invented: a build filed under an id nobody chose cannot be found again.
 
-Separate from `run` on purpose. A sharded suite produces N reports and one build,
+It is separate from `run` on purpose. A sharded suite produces N reports and one build,
 so `push` takes the same report arguments `report` and `comment` take and pushes
 the merge; a service that was down does not turn a correct run red; and a build
 that failed to post can be posted again from the artifact, on a machine that
@@ -284,7 +284,7 @@ A change line leads with the fingerprint because that string is what
 `accept --shape` takes; `11/14` is promoted-of-reached, and a bare number means
 the shape reached exactly those. `Card src/Card.tsx` is where the shape was
 attributed, and reads `unattributed` when the run could not name a component —
-the promotion is no less real, it just cannot be pinned to one source. The line
+the promotion is no less real; it just cannot be pinned to one source. The line
 under the commit is that run's `--intent`, which is why a run started without
 one prints no such line.
 
@@ -306,7 +306,7 @@ Three failure modes are handled explicitly:
 ### Journeys: which part of a module two subjects took differently
 
 Every other reading here answers *which subject*. A recurrence count names a
-subject that keeps moving, a second reading names a subject that disagrees with
+subject that keeps changing, a second reading names a subject that disagrees with
 itself, and none of them can say **where in the source** the two readings parted,
 because none of them was inside the module while it ran.
 
@@ -337,7 +337,7 @@ what a cap left out is counted, not dropped.
 
 It exits `0` whatever it finds. Every suite with two stories per component has
 partings, so gating on one would fail every suite; this is where to look once
-something else has said something moved.
+something else has said something changed.
 
 **The pool is printed whether or not anything was found**, for `changelog`'s
 reason: an empty answer from a pool of one and an empty answer from a pool of
@@ -405,7 +405,7 @@ run before anybody has to look at a red build, and it is unreachable from a
 verdict — a green suite settles on its digests and never builds a comparison at
 all. The answer names the component, the file and the **band** — one of five
 categories (`a11y`, `geometry`, `token`, `content`, `texture`) a change is
-classified into by what kind of thing moved:
+classified into by what kind of thing changed:
 
 ```
 [unstable] story:case-surface--ticking: … Clock src/ds.jsx:118 read differently
@@ -550,11 +550,10 @@ declared comes back `overreached`. It changes no verdict and no exit code; it
 reports on the run `run` already judged. `variance serve` exposes the same
 check to an agent as `variance_adjudicate`.
 
-Those eight are the whole surface. **No command posts anything anywhere.**
-`comment` produces the body; sending it is
-`.github/actions/variance`'s job, with the
-operator's own token, and the exit code and the report remain what a CI job
-actually gates on.
+Those twelve are the whole surface. **No command posts anything anywhere.**
+`comment` produces the body; sending it is `.github/actions/variance`'s job,
+with the operator's own token, and the exit code and the report remain what a CI
+job actually gates on.
 
 ## Exit codes
 
@@ -615,9 +614,9 @@ process.exitCode = code;
 ```
 
 `deps` owns every integration seam: `Collector`, `RunDeps`, `CandidateReader`,
-`DoctorProbes`, and the `now` clock used for report timestamps. Supply only the hosts
-the integration owns; the workflow remains independent of a global browser,
-store, or wall clock.
+`DoctorProbes`, and the `now` clock used for report timestamps. Supply only the
+hosts the integration owns; the workflow remains independent of a global
+browser, store, or wall clock.
 
 ### Library option boundaries
 
@@ -724,8 +723,7 @@ downloaded, so the run's inputs are the ones in the repository.
 `subjects` is one of three kinds. `{ kind: "list", ids, collector }` and
 `{ kind: "storybook", index, collector }` name the subjects up front — **both
 need a collector**, and for Storybook that collector is
-`@variance-authority/storybook-collector` and five
-lines. For anything else, neither a list of ids nor a story index says how to
+`@variance-authority/storybook-collector` and five lines. For anything else, neither a list of ids nor a story index says how to
 mount, and the mounting half is code you write. `{ kind: "collector", collector }`
 is the third: the collector discovers the subject list itself, which is what a
 `sitemap` or a `directory` route collector needs, and the trade is the operator's
@@ -744,8 +742,7 @@ only components no baseline records narrows like any other, and the run names
 what it could not match — either nothing here watches that surface, or something
 here paints it without recording it, which a server component always does. Set it
 to `"whole"` for the second, and the run observes everything instead. `changes`
-asks
-`nx` or `turbo` what a diff affects and folds their answer in as **more changed
+asks `nx` or `turbo` what a diff affects and folds their answer in as **more changed
 input**, never as a second opinion: it is the one edge a specifier scan cannot
 see, since a workspace package imports its neighbour's built output. `turbo`
 needs a `task`, because it filters a task graph rather than describing a
