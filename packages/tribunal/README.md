@@ -10,16 +10,16 @@ storage adapters, review API, and optional React UI; it does not provide a hoste
 endpoint or an integration that posts runs for you.
 
 The deployment owns the database and the object store, the runtime has to serve
-`fetch`, and it takes two different bearer tokens of at least 16 characters.
+`fetch`, and the service takes two different bearer tokens of at least 16
+characters.
 
 **Two deployments ship, and they run the same router.** On Cloudflare the
 database is D1, the object store is R2, and the runtime is a Worker. On a machine
-you own — a laptop, an EC2 instance, a container, the package does not ask — the
+you own — a laptop, an EC2 instance, a container; the package does not ask — the
 database is a SQLite file through `node:sqlite` and the object store is a
 directory through `node:fs`. Every module above the bindings takes a `D1Like` and
 an `R2Like` and names no runtime, so the routes, the refusals and the status
-codes are the same code in both. The name says what it is, not where it
-runs.
+codes are the same code in both. The name says what it is, not where it runs.
 
 Anything else that satisfies those two interfaces is an adapter away, but the
 package makes no portability promise beyond the two it ships; the operator owns
@@ -203,7 +203,7 @@ VARIANCE_TRIBUNAL_PROJECT=todomvc VARIANCE_TRIBUNAL_INGEST_TOKEN=$INGEST VARIANC
 | `VARIANCE_TRIBUNAL_STORAGE` | `variance-tribunal-objects` | the directory holding baseline and candidate bytes |
 | `VARIANCE_TRIBUNAL_RETENTION_DAYS` | the package default | days of builds `POST /review/sweep` keeps |
 | `VARIANCE_TRIBUNAL_REVIEWER` | the OS user | the name written on decisions made through the served UI |
-| `VARIANCE_TRIBUNAL_TRUST_NETWORK` | unset | confirms a non-loopback bind, and see what it costs below |
+| `VARIANCE_TRIBUNAL_TRUST_NETWORK` | unset | confirms a non-loopback bind; what that costs is below |
 
 **On loopback, a browser is a reviewer.** The bare URL serves the review surface,
 and a caller with no token is treated as holding the review token — because
@@ -386,7 +386,7 @@ reviewer sees, in this order:
    and how many subjects that component reaches. Fetched when a reviewer clicks
    *Has this changed before?* rather than with the build — a build with three
    hundred changed subjects would otherwise make nine hundred history requests to
-   draw a page on which one is read.
+   draw a page on which only one of them is read.
 
 The docket ranks by cause pixels, not total area, so a large container
 that only reflowed does not outrank the smaller edit that caused it; `cause` is
@@ -435,8 +435,8 @@ belongs to people and decides. Construction refuses a token under 16 characters
 and refuses two identical tokens.
 
 **Authentication happens before routing.** A caller holding neither token gets
-one identical response for a wrong token, a missing token, and a path that does
-not exist; which of the two tokens a route requires is only revealed to a caller
+the same response for a wrong token, a missing token, and a path that does not
+exist; which of the two tokens a route requires is only revealed to a caller
 who already holds a valid one.
 
 **The Worker makes no outbound request.** Not a status check, not a PR comment,

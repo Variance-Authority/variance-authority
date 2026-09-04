@@ -24,7 +24,7 @@ the evidence it sees now with the evidence it saw one call ago.
 | `./tools` | nothing | observability answers as pure functions over their native evidence |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 
-Two of the three halves are pure, and that is deliberate. The question that
+Two of the three are pure, and that is deliberate. The question that
 matters — *does this actually help an agent fix it?* — has to stay cheap to ask,
 and it stops being asked the moment answering it requires speaking a protocol
 over a pipe.
@@ -77,8 +77,8 @@ crossings, not AAA intervals, so runtime files remain test-scoped rather than
 phase-scoped.
 
 The individual served sets remain available as `REPORTS`, `PRESENTATIONS`,
-`SOURCE_TESTS`, `VANTAGE`, `EYES`, and `SCENARIOS`. Use one when the integration owns only that
-domain. React Testing Library and Playwright remain optional peer dependencies
+`SOURCE_TESTS`, `VANTAGE`, `EYES`, and `SCENARIOS`. Use one when the integration
+owns only that domain. React Testing Library and Playwright remain optional peer dependencies
 of `@variance-authority/eyes`; installing MCP does not add either runner.
 
 ## Give an agent the tests for source
@@ -156,7 +156,7 @@ is told the address at the handshake and can see itself connected, so it needs
 this least — a reader that runs one command and exits has no handshake to look
 at, and asks it most.
 
-The second is the one a timeout cannot give. A runner reports what a test
+`variance_test_signals` is the one a timeout cannot give. A runner reports what a test
 *wanted*; this reports what its execution actually **heard**, and from whom.
 Nothing at all is a wiring fact — no listener installed, or code that does not
 announce yet. A page that spoke while a service did not is a request that never
@@ -182,16 +182,16 @@ edit — see [ask a run from the command line](../../docs/agent-cli.md).
 A **subject** is whatever data the server currently holds and answers questions
 about — a `RunReport` for the visual tools, an `ExecutionIndex` for the
 source-test tool, a `VantageState` for a suite that is still running, or an
-`ObservabilitySubject` carrying independently optional domains. (Inside a `RunReport`, each individually observed
-rendering, such as `story:card--dark`, is also called a subject; the tool
-contract below works at that finer grain.)
+`ObservabilitySubject` carrying independently optional domains. (Inside a
+`RunReport`, each individually observed rendering, such as `story:card--dark`,
+is also called a subject; the tool contract below works at that finer grain.)
 
 `variance_diff` compares the current supplied subject with the subject from the
 previous successful tool call. The first call records the current state and says
 there is nothing to compare. Each successful call then replaces that one value.
 
-The value lives only in the MCP process. It is not written to disk, does not move
-or replace a baseline, and disappears when the process exits. Initialization,
+The value lives only in the MCP process. It is not written to disk, does not
+touch or replace a baseline, and disappears when the process exits. Initialization,
 tool discovery, invalid calls, and failed calls do not replace it.
 
 `diffState(before, after)` exposes the same JSON-compatible state comparison
@@ -270,7 +270,7 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 | `variance_summary` | how the run came out across every subject, including the ones nobody observed | starting from nothing: *did anything change, and was anything missed?* |
 | `variance_diff` | how the current supplied state differs from the previous successful MCP tool invocation | after rerunning or replacing the supplied evidence |
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
-| `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, moved and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
+| `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, changed and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
 | `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it* | a change has no obvious author, or you are about to call something flaky |
 | `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature flag, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
 | `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will carry, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
@@ -305,8 +305,8 @@ A claim carrying a field this resolution cannot check is named rather than
 dropped. A **band** is a category of visual difference, such as `content` or
 `geometry`; an agent told `delivered` about a band nothing looked at has been
 told something the run never established, so the answer ends `Not checked here:
-bands`. `examples/agent-claim` runs the whole
-boundary — CLI and this tool, every verdict, one process.
+bands`. `examples/agent-claim` runs the whole boundary — CLI and this tool,
+every verdict, one process.
 
 `variance_changelog` previews what accepting this run would write into the
 baseline record, before the write happens — otherwise a baseline update is only
@@ -323,17 +323,18 @@ visual-regression example is a component built from components**: the example
 *is* a component at a boundary, and the same component appears again, with the
 same or different props, inside larger examples. Once those boundaries are
 addressable the run can say which of its examples are watching literally the
-same bytes, which of them disagree at one commit, and — for anything that moved
-— whether an edited file, a moved token or an edited *caller* accounts for it.
+same bytes, which of them disagree at one commit, and — for anything that
+changed — whether an edited file, a changed token or an edited *caller* accounts
+for it.
 
 This is also where an unexplained difference gets a **control group**: the
-subjects where that same component, with the same props, held — did not move —
+subjects where that same component, with the same props, held — did not change —
 the stable states to compare against. Given one, an unexplained difference is
 `flake` if the subject also failed to read the same way twice, or `suspect` — a
 shortlist, not a verdict — if nobody has read it twice yet.
 
 `variance_summary` labels a subject by what it *is*, which is not always its
-verdict. Three subjects can all be `changed` — the pixels did move — and need
+verdict. Three subjects can all be `changed` — the pixels did change — and need
 three different people:
 
 | label | what happened | what to do |
@@ -389,8 +390,8 @@ It is in the header rather than in a tool of its own because an option an agent
 is never told about is an option it does not have. Nothing about the line
 proposes that a run should have skipped anything; narrowing stays the operator's
 decision, and the header carries the coordinate the decision needs. It is omitted
-when there is nothing to offer: no index on disk, an index with no position, or a
-tree that has not moved from it.
+when there is nothing to offer: no index on disk, an index with no position, or
+a working tree that has not changed since.
 
 ## Serve a custom subject
 
@@ -414,7 +415,7 @@ Both return a function that detaches the server from its streams.
 `serveVantage()` is the third: it opens the listener, serves the watch tools over
 the same streams, and returns the `address` to start a run with alongside the
 call that stops both. Its subject is a snapshot taken per request, which is why a
-subject that is moving fits a surface built for one that is not.
+subject that keeps changing fits a surface built for one that does not.
 
 ## Stability
 
