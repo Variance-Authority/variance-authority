@@ -58,7 +58,7 @@ which baselines the run can see.
 
 ## Comparison and policy
 
-`compare` says **what moved**. `judge` says **whether anyone should mind**.
+`compare` says **what changed**. `judge` says **whether anyone should mind**.
 
 Between them sits `partingOf`, which says **which input moved**. Given two
 snapshots carrying holdings it walks the component boundaries for the shallowest
@@ -106,7 +106,7 @@ returns semantic roots and, when a raster mask is supplied, regions attributed t
 the candidate snapshot. A caller still chooses policy and a verdict in
 `core/judge` or in its own runner.
 
-`scale` is device pixels per CSS pixel, it is **required**, and it has no default
+`scale` is device pixels per CSS pixel. It is **required**, and it has no default
 on purpose: a 2x screenshot attributed at 1x lands every region in the top-left
 quadrant and names the wrong component for each — a full, plausible, entirely
 wrong report. That last step is where regions become components and files.

@@ -2,7 +2,7 @@
 
 # @variance-authority/eyes
 
-> Record which DOM elements a test addresses and preserve their React attribution before the rendered tree moves.
+> Record which DOM elements a test addresses and preserve their React attribution before the rendered tree changes under it.
 
 Eyes adds attention evidence to the test surface its adopter already owns. It
 exports neither a runner-owned `test` nor `expect`, and installing it does not
@@ -39,8 +39,8 @@ when the event reached it. React commits need the commit hook in place before
 `react-dom` loads; `watch` attaches to one and installs none, and a watch that
 finds no hook records `react-tap-refused` with the reason instead.
 
-The test authors Arrange, Act, and Assert boundaries; Eyes records them without
-guessing from library calls:
+The test declares its Arrange, Act, and Assert boundaries; Eyes records them
+without guessing from library calls:
 
 ```text
 attention.log.phase('arrange');
@@ -71,7 +71,7 @@ export const test = base.extend(eyesFixtures);
 export { expect };
 ```
 
-The fixture preserves Locator chaining, records action/read/assertion
+The fixture preserves Locator chaining, records action, read and assertion
 consumption, and installs capture-phase document listeners before navigation.
 Another fixture or an `afterEach` hook can read the per-test `eyes` journal:
 
@@ -101,7 +101,7 @@ and chronological attention for readers such as `@variance-authority/mcp`.
 The browser agent also installs the React commit tap before page code loads.
 Each commit records both components that performed render work and the
 structural paths of the live components in `memoizedUpdaters` that initiated the
-update. The commit belongs to the most recent authored phase in the same journal;
+update. The commit belongs to the most recent declared phase in the same journal;
 it does not infer an Act from the update.
 `readEyesArchive` from `@variance-authority/eyes/archive` validates an attached
 or consolidated JSON artifact before it crosses a process boundary.

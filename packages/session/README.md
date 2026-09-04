@@ -126,12 +126,12 @@ instead of a bare node.
 | `clearContainer` | `true` | empty the container between subjects. The one teardown a session still performs, because it is the one that is cheap: emptying is proportional to the last subject, rebuilding a document is proportional to everything. `false` models a suite that appends without cleaning up — a real pattern, and one the detector should describe rather than forbid |
 
 `verify(replay, sample?)` takes an optional second argument: the subject ids to
-re-run. Omitted, every subject the session saw is replayed. Pass a sample when
+re-run. When it is omitted, every subject the session saw is replayed. Pass a sample when
 confirmation is the expensive half and you already know which subjects are worth
 the second pass.
 
 `verify` needs the renderer back: confirming a suspicion means rendering the
-subject again and checking whether its hash moved.
+subject again and checking whether its hash changed.
 
 `probe`, `diffProbes` and `SheetRegistry` are the bracket itself — the
 snapshot-and-diff pair described above — exported for a caller running the
@@ -172,13 +172,12 @@ the session has one reusable container.
 
 **Detection generalises; attribution does not.** Detection is noticing that a
 subject's output is unstable; attribution is naming which other subject caused
-it. Module-level state — a singleton
-store, a cached client, a memoized selector, a mocked clock — is outside the DOM
-and so outside the probe, and there is no stack to fall back on: the write
+it. Module-level state — a singleton store, a cached client, a memoized
+selector, a mocked clock — is outside the DOM and so outside the probe, and there is no stack to fall back on: the write
 happened during an earlier subject's render, in a frame that returned before this
-subject was ever compared. Confirmation still catches the symptom, the same
-subject producing a different hash with no code change, and attribution reports no
-culprit rather than inventing one.
+subject was ever compared. Confirmation still catches the symptom — the same
+subject producing a different hash with no code change — and attribution reports
+no culprit rather than inventing one.
 
 **Confirmation varies time and holds the world fixed.** Re-running a subject in
 the same session proves that the subject is unstable. But a leak that happens

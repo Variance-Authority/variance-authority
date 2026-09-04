@@ -65,7 +65,7 @@ or annotation; commit evidence needs the hook React already offers renderers.
 
 | | |
 |---|---|
-| `wiringOf` | hook shape, wrapper chain, context subscriptions, reconciliation keys — a **band** (one of the categories VA reports changes under, like `style`), folded in beside `style` by `collect` |
+| `wiringOf` | hook shape, wrapper chain, context subscriptions, reconciliation keys — a **band** (one of the categories Variance Authority reports changes under, like `style`), folded in beside `style` by `collect` |
 | `holdingOf` | what a component was handed and what it retained — props, contexts and hook cells, each as a digest — **evidence**: it rides beside the snapshot, enters no hash, and is read by `partingOf` to say which input a difference came from |
 | `remountedSince` | which instances were destroyed and rebuilt rather than updated — a **finding**: a fact about this one reading, not a diff between two revisions |
 | `awaitSuspense` / `suspenseRefusal` | wait for every boundary under a node to settle, and rule on what to do if one did not |
@@ -99,7 +99,7 @@ the renderer did not expose the set. An empty array means it exposed the set and
 the commit had no retained updater, as on an initial mount.
 
 The traversal exports take raw Fiber objects rather than DOM nodes. Subtree
-walks do not cross the supplied root's sibling, parent walks follow the
+walks do not cross into the supplied root's siblings, parent walks follow the
 structural `return` chain rather than `_debugOwner`, and every result states
 whether its explicit `limit` or a malformed cycle truncated the read.
 
@@ -107,7 +107,7 @@ The readiness options are caller policy, not hidden defaults:
 
 | call | useful controls |
 |---|---|
-| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same portable record, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook` withholds the hook a caller that could not have loaded first would be writing for nobody |
+| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same portable record, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook: false` declines to write a hook at all, which is how a caller that knows it could not have loaded first avoids writing one nobody will read |
 | `awaitQuiet` | `quietFor` is the required silence, `timeout` bounds the wait, and `interval` controls polling; a timeout returns `settled: false` with restless component names |
 | `awaitSuspense` | `timeoutMs`, `pollMs`, and `confirmations` bound the boundary check; a pending or unobserved result is returned for the page agent to rule on |
 
@@ -169,6 +169,5 @@ matches by DOM position, and a reordered list looks like every item changed.
 
 If the element has no React fiber, or the application uses a production build
 without source metadata, the result is intentionally incomplete. `provenanceOf`
-does not guess a component from the DOM; use the name scan in `core/attribute` or
-install `@variance-authority/jsx-source` for production call-site
-locations.
+does not guess a component from the DOM; use the name scan in `core/attribute`, or
+install `@variance-authority/jsx-source` for production call-site locations.

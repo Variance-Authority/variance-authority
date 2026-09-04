@@ -91,7 +91,7 @@ to the side.
 
 What is still here is the plan that names one:
 `defaultPlan({ stabilization })` folds `recipeDigest` into the plan identity, so
-retuning the tricks moves the address of everything they produced.
+retuning the tricks changes the address of everything they produced.
 
 ## Stability gate
 
@@ -129,7 +129,7 @@ often, which is not the question.
 A second entrypoint, and a different question. Everything above compares an image
 against what it is supposed to be. `@variance-authority/raster/difference`
 measures the difference between two images that are *not* supposed to match, and
-then measures how that difference moved:
+then measures how that difference drifted:
 
 ```ts
 import {
@@ -172,9 +172,9 @@ The result pairs a difference field — one non-negative severity value per
 pixel, 0 meaning *measured and equal* — with a severity curve: `C(t)` is the
 proportion of the image differing at severity `t` or above, for each level in
 `severityLevels`. `compareDifferenceObservations` returns how that field and
-curve moved between two observations, as `fieldDelta` and `curveDelta`. The
+curve changed between two observations, as `fieldDelta` and `curveDelta`. The
 images must already share dimensions, colour space, and alpha mode. This
-entrypoint does not resize, decode, align, or decide whether a movement is
+entrypoint does not resize, decode, align, or decide whether a change is
 acceptable; those choices belong to the caller and to the PNG or policy
 packages.
 
@@ -204,11 +204,11 @@ Two boundaries matter when reading the field:
   only reaches `0.933`. A greyscale subject cannot produce a severity above that
   however wrong it is.
 
-**What the curve does not subsume** is `DiffPolicy`. That policy moves two knobs,
+**What the curve does not subsume** is `DiffPolicy`. That policy has two knobs,
 and antialiasing forgiveness is not the one on the severity axis: `pixelmatch`
 decides it from a neighbourhood of *both* images, so it can treat two pixels
 carrying an identical difference value oppositely. No threshold on any per-pixel
 field reproduces that, because the decision is not a property of the pixel.
 Keep both: the field for how far a change reaches, the policy for whether a
-renderer’s antialiasing counts as a change at all.
+renderer's antialiasing counts as a change at all.
 

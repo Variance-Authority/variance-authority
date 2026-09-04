@@ -14,7 +14,7 @@ painted under. Comparing two rasters clusters the changed pixels into
 **regions** — boxes of contiguous difference — and, given a semantic snapshot,
 attributes each region to the component and file line that produced it. A
 **band** classifies what kind of change a region is (accessibility, geometry,
-a style token, text, or sub-pixel texture), loudest first.
+a style token, text, or sub-pixel texture), rarest first.
 
 Use this package when you are building a custom integration below the CLI,
 Storybook, route, or Playwright surfaces: it fixes the order of render,
@@ -80,8 +80,8 @@ if (observation.verdict === 'changed') {
 ```
 
 `snapshot` is the normalized semantic snapshot of the same render and `source`
-is its component-to-file index. Both are optional, but omitting them deliberately
-reduces the result: without a snapshot the observation can report pixel regions,
+is its component-to-file index. Both are optional, and omitting them narrows the result by
+design: without a snapshot the observation can report pixel regions,
 not the nodes and components behind them; without a source index it cannot
 resolve a component to `file:line`.
 
@@ -144,7 +144,7 @@ structure, so `regions` comes back empty and attribution needs a document.
 | `changed` | A comparable image differs; regions contain as much attribution as the supplied snapshot and source allow. | Present the evidence and require review. |
 | `new` | No baseline exists for the durable key and renderer. | Review and explicitly approve or reject the candidate. Do not treat it as green. |
 | `incomparable` | The two sides were painted under incompatible identities — a baseline stored under another renderer identity, or two rasters from two declared painters. | Align renderer inputs or establish a separate baseline; do not accept the noise as a component change. |
-| `ignored` | Pixels moved, but every difference was absorbed by a declared exclusion or sensitivity. | Continue while recording that the green result depended on a rule. |
+| `ignored` | Pixels changed, but every difference was absorbed by a declared exclusion or sensitivity. | Continue while recording that the green result depended on a rule. |
 
 An observation also records whether rendering occurred, missing fonts,
 comparison and isolation details, ignored-pixel accounting, component causes

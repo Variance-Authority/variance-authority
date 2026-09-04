@@ -19,6 +19,7 @@ Point it at a checkout, built or not. It reads the root `package.json` for the
 `workspaces` field listing the members, and, for a package that publishes
 compiled declarations, the `tsconfig.json` saying which directory they were
 compiled from.
+
 ## Entrypoints
 
 | entrypoint | requires | holds |
@@ -68,7 +69,7 @@ just the first `export *`, so a package that re-exports groups of modules still
 has every name it makes available counted.
 
 Nothing here opens `dist`. A `types` target of `./dist/index.d.ts` is mapped back
-through that package's own `rootDir`/`outDir` to `src/index.ts`, so the names
+through that package's own `rootDir` and `outDir` to `src/index.ts`, so the names
 recorded are the ones somebody wrote, not the ones a build emitted.
 
 ## Rank names and find undocumented exports
@@ -84,7 +85,7 @@ const help = readHelp('.', { skip: ['fixtures'] });
 const core = help.packages.find((published) => published.name === '@variance-authority/core');
 core?.openings[0]?.entries[0]; // the name the most packages reach for, first
 
-undocumented(help).length; // names another package imports and which say nothing
+undocumented(help).length; // names another package imports that say nothing
 ```
 
 Entries arrive ordered by how many packages import them. `skip` adds directory
@@ -99,7 +100,7 @@ depends on internals the manifest never promised to keep stable.
 ## Compare two readings
 
 The value is JSON. Hand it to a snapshot assertion, to `jsondiffpatch`, to
-whatever you already have. Handed to `@variance-authority/core` it
+whatever you already have. Handed to `@variance-authority/core`, it
 gains the part neither a reader nor a comparison supplies: every delta carries a
 fingerprint that is stable across commits, so an approval keeps meaning the same
 thing next week.

@@ -98,8 +98,8 @@ The listening half is a separate entrypoint because it ships somewhere else. A
 product bundle imports the announcing half; a driver and a service under test
 import `@variance-authority/event/collect`, and nothing that reaches a user does.
 
-Using Playwright, none of this is written by hand — `@variance-authority/playwright-test`
-exposes the log as an `events` fixture. What follows is what that fixture does,
+Under Playwright, none of this is written by hand —
+`@variance-authority/playwright-test` exposes the log as an `events` fixture. What follows is what that fixture does,
 for a driver that is not Playwright.
 
 `createEventLog()` returns an `EventLog`:
@@ -121,9 +121,9 @@ They exist for a second reader — something watching the run from outside the
 worker, such as [`@variance-authority/vantage`](../vantage/README.md). They fire
 at the moment of recording rather than at teardown: the question worth asking of
 a running suite is what the test hanging *right now* has heard, and an answer
-that arrives once it finishes answers a different question. A
-watcher that throws is swallowed, for the reason a sink that throws is: an
-observer may not break its subject.
+that arrives once it finishes answers a different question. A watcher that
+throws is swallowed, for the reason a sink that throws is: an observer may not
+break its subject.
 
 A wait resolves against announcements **already heard** before it subscribes, so
 `await events.happened(...)` written one line too late still settles. Anything
@@ -170,7 +170,7 @@ The channel is the cookie the driver already sets, and it is not this package's:
 [`@variance-authority/wire`](../wire/README.md) carries announcements and
 coverage accounts on one medium under one execution id, and only reports which of
 the two was speaking. `enter` takes the request's `Cookie` header, or the pairs a
-service's own accessor holds joined the same way; a request the run did not drive
+service's own cookie accessor holds, joined the same way; a request the run did not drive
 carries neither, and announces to nobody.
 
 That the address is a cookie is why the wire refuses everything but loopback
@@ -183,7 +183,7 @@ wait that times out and prints what it did hear.
 `enabled`, whether to install a sink at all. They default to
 `VARIANCE_AUTHORITY_HEAD` and to whether `VARIANCE_AUTHORITY_EVENTS` is set — the
 first is the variable the journey collector reads, and the second is read by the
-driver too, so one environment block configures both ends. Not under a run,
+driver too, so one environment block configures both ends. When the process is not under a run,
 `collecting` is false, nothing is installed, and the call costs an `if`. `close`
 gives the global back.
 
@@ -201,7 +201,7 @@ needs to be told where it was answering instead.
 
 ## Read and act on failures
 
-- **“Nothing was announced at all, by any realm.”** A setup fact, not a product
+- **"Nothing was announced at all, by any realm."** A setup fact, not a product
   defect: either no listener is installed for this execution, or the code that
   decides does not call `vae` yet.
 - **A list of announcements that does not include the one you wanted.** The
