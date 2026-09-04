@@ -8,22 +8,24 @@ Use this package when a comparison needs baselines on a filesystem. Choose the
 plain durable backend for a directory owned by one runner, or the LFS backend
 when the baseline images must travel with a branch.
 
-Both backends implement the same `RasterStore` contract, and both want a
-directory they can write. The LFS one also runs `git`, and expects LFS smudging
-on checkout — when that could not be checked, the tracking diagnostic says so
-rather than letting an un-smudged clone read as a passing run.
+Both backends implement the same `RasterStore` contract, and both need a
+directory they can write to. The LFS one also shells out to `git`, and expects
+LFS smudging on checkout. When that cannot be verified, `tracking` says so, so
+an un-smudged clone does not read as a passing run.
 
 ```bash
 npm install --save-dev @variance-authority/store
 ```
 ## Choose a backend
 
-Everything about what a baseline *means* — the `RasterStore` contract, the
-refusal, and the checks a stored record (the JSON sidecar naming the
-**document digest**, a hash of the rendered document used to tell whether the
-subject could have changed without comparing images) passes before it is
-believed — lives in `@variance-authority/raster`, which requires nothing. Each
-backend here supplies bytes and metadata to that same contract.
+`@variance-authority/raster` defines what a baseline *means*: the `RasterStore`
+contract, the refusals, and the checks a stored record has to pass before it is
+believed. It requires nothing to install. Each backend here supplies bytes and
+metadata to that contract.
+
+A stored record is a PNG plus a JSON sidecar. The sidecar names the **document
+digest** — a hash of the rendered document, which answers whether the subject
+could have changed at all without comparing any images.
 
 | entrypoint | requires | holds, and when you want it |
 |---|---|---|
@@ -60,16 +62,16 @@ several images of one subject, such as a viewport or a state.
 A baseline written by one machine **cannot be silently picked up by another**:
 it is not in the directory the other machine reads.
 
-`find` also scans the sibling identity directories, so a wrong-machine run is
-reported as one **sentence** — a single line, ready to print, naming the
-platform that *was* found — instead of a mysterious mass failure.
+`find` also scans the sibling identity directories, so a wrong-machine run
+comes back as one printable line naming the platform that *was* found, instead
+of a suite-wide failure with no stated cause.
 
 The sidecar carries the identity in readable form, so a baseline can be
 attributed to the machine that wrote it and a reviewer can decide whether to
 discard it.
 
-`createDurableStore(root, options)` takes two, and `createLfsStore` passes both
-through:
+`createDurableStore(root, options)` takes two options, and `createLfsStore`
+passes both through:
 
 | option | default | what it decides |
 |---|---|---|
@@ -77,8 +79,9 @@ through:
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere |
 
 Both layouts keep the identity directory: a baseline from another machine
-still lands in a directory this one does not read. Neither layout enforces
-the one rule that matters — a committed root has to actually be committed.
+still lands in a directory this one does not read. Neither layout checks that
+the root is committed. If baselines are meant to travel with the branch, that
+is between you and your `.gitignore`.
 
 ## Missing and corrupt baselines
 
@@ -150,14 +153,16 @@ else for (const commit of answer.commits) console.log(commit.sha, commit.record.
 | `git` | `runCommand` | the `CommandRunner` git is invoked through, so this is testable without a repository |
 
 **An empty list is a real answer only when git ran, this is a repository, and no
-commit under the root carried a record.** Every other case is a sentence:
-`wasRead` narrows the union, and `because` names what could not be asked. "No
-baseline has ever been explained" and "nobody could ask" are opposite findings,
-and an operator acting on the first goes looking for a bug in the writer.
+commit under the root carried a record.** Every other case is a refusal:
+`wasRead` narrows the union, and `because` names what went wrong. "No baseline
+has ever been explained" and "git could not be reached" are opposite findings,
+and an operator who reads the second as the first goes hunting for a bug in the
+writer.
 
 A **shallow clone** is the case that would otherwise pass silently — CI checks
 out at depth 1, so a reading there sees one commit and would report it as the
-whole history. That is not refused, but the answer carries a `bounded` sentence
-saying what it could not see, alongside one for any commit whose record this
-reader could not decode and one for a limit the log filled.
+whole history. That is not refused: the answer carries a `bounded` line saying what
+it could not see. `bounded` collects the same kind of line for a commit whose
+record this reader could not decode, and for a read that stopped because it hit
+`limit`.
 
