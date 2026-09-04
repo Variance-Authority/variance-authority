@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ALL, ROOT, type Manifest } from './workspaces.js';
+import { ALL, PACKAGES, ROOT, type Manifest } from './workspaces.js';
 
 /**
  * Build tools are not product.
@@ -46,6 +46,45 @@ describe('no package ships a build tool', () => {
 
     expect(TOOLING.filter((tool) => anywhere.has(tool)).length).toBeGreaterThan(0);
   });
+});
+
+/**
+ * A package that declares a licence carries its text.
+ *
+ * npm packs each package from its own directory, so a LICENSE at the repository
+ * root reaches no tarball. Every `packages/*` manifest says `"license": "MIT"`,
+ * and MIT is the clause that requires the notice to travel with the copy — so a
+ * package declaring it and shipping without it is the one licence failure this
+ * layout produces by default rather than by mistake.
+ *
+ * The text is compared to the root's, because a per-directory copy is a file
+ * that can drift, and a licence that differs between packages is worse than the
+ * problem the copies solve. `examples/` and `cases/` are excluded by taking
+ * `PACKAGES`: they are `private: true` subjects, and nothing publishes them.
+ */
+describe('every published package carries the licence it claims', () => {
+  const ROOT_LICENSE = readFileSync(join(ROOT, 'LICENSE'), 'utf8');
+
+  it('reads a root licence, so this cannot pass by comparing nothing', () => {
+    expect(ROOT_LICENSE).toContain('MIT License');
+  });
+
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s ships LICENSE, matching the root',
+    (_name, workspace) => {
+      const path = join(workspace.dir, 'LICENSE');
+
+      expect(existsSync(path), `${workspace.name} declares a licence and ships no LICENSE file`).toBe(true);
+      expect(readFileSync(path, 'utf8')).toBe(ROOT_LICENSE);
+    },
+  );
+
+  it.each(PACKAGES.map((workspace) => [workspace.name, workspace] as const))(
+    '%s declares MIT',
+    (_name, workspace) => {
+      expect(workspace.manifest.license).toBe('MIT');
+    },
+  );
 });
 
 /**

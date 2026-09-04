@@ -61,6 +61,7 @@ export interface Workspace {
 
 export interface Manifest {
   readonly name: string;
+  readonly license?: string;
   readonly dependencies?: Readonly<Record<string, string>>;
   readonly peerDependencies?: Readonly<Record<string, string>>;
   readonly devDependencies?: Readonly<Record<string, string>>;
