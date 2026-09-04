@@ -1,122 +1,16 @@
+import ComparisonTable from "./ComparisonTable";
+
 /**
- * The competitor table, with a gate instead of a promise.
+ * The comparison table as the reference page frames it: pick by boundary, then
+ * read the sourced document.
  *
- * Every cell wrapped in the doc marker is a verbatim fragment of docs/comparison.md —
- * the document that cites each vendor's published pages and states what each
- * does better than this project. The claims check fails `yarn check` when a cell
- * drifts from that document, so this page cannot quietly out-claim the source
- * it compares against. Fairness here is checked, not intended.
+ * The table itself is shared — every vendor cell is a checked quote, and the
+ * rows live in ComparisonTable. What is here is the framing around it and the
+ * footnotes, which quote the same document and carry the same marker: doc()
+ * means this string appears verbatim in docs/comparison.md, and
+ * `docs-claims.check.ts` fails `yarn check` when it stops being true.
  */
 const doc = (fragment: string) => fragment;
-
-const VENDORS = ["Percy", "Chromatic", "Argos", "Applitools"] as const;
-
-const ROWS = [
-  {
-    q: "where pixels are made",
-    cells: [
-      doc("Percy cloud, or the Automate browser"),
-      doc("Capture Cloud"),
-      doc("Caller-owned browser"),
-      doc("Caller browser or Ultrafast Grid"),
-      doc("Caller-owned browser, local renderer, or operator-owned remote renderer"),
-    ],
-  },
-  {
-    q: "who owns review",
-    cells: [
-      doc("Hosted dashboard and approval workflow"),
-      doc("Hosted UI Test and UI Review"),
-      doc("Hosted test review, comments, and flake history"),
-      doc("Eyes Test Manager"),
-      {
-        text: doc(
-          "Self-hosted tribunal — builds, docket, region overlays, recorded decisions",
-        ),
-      },
-    ],
-  },
-  {
-    q: "browser coverage",
-    cells: [
-      doc("Managed desktop and mobile coverage"),
-      doc("Managed browser and mode matrix"),
-      doc("Whatever the caller's capture suite runs"),
-      doc("Managed grid plus mobile products"),
-      doc("Whatever the caller's capture suite runs"),
-    ],
-  },
-  {
-    q: "a diff points to",
-    cells: [
-      doc("DOM and CSS root-cause aids"),
-      doc("Story identity and dependency tracing"),
-      doc("Spec and story metadata"),
-      doc("DOM and CSS root-cause aids"),
-      doc(
-        "Pixel region → component → file:line, when the capture supplies matching provenance",
-      ),
-    ],
-  },
-  {
-    q: "compared against",
-    cells: [
-      doc("The approved baseline"),
-      doc("The approved baseline"),
-      doc("The approved baseline"),
-      doc("The approved baseline"),
-      doc(
-        "The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge",
-      ),
-    ],
-  },
-  {
-    q: "change-driven selection",
-    cells: [
-      doc("No documented equivalent"),
-      doc("TurboSnap uses the module graph to avoid snapshots a change cannot reach"),
-      doc("No documented equivalent"),
-      doc("No documented equivalent"),
-      doc(
-        "--since skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented test runs also select test files by what they executed",
-      ),
-    ],
-  },
-  {
-    q: "the meter counts",
-    cells: [
-      doc("screenshots"),
-      doc("snapshots with product-specific multipliers"),
-      doc("screenshots"),
-      doc("a Page independently of browser and device repetitions"),
-      doc("no vendor meter"),
-    ],
-  },
-  {
-    q: "who operates it",
-    cells: [
-      doc("Vendor"),
-      doc("Vendor"),
-      doc("Vendor, with an open-source self-host option outside the supported service contract"),
-      doc("Vendor or contracted on-premise deployment"),
-      doc("Adopter"),
-    ],
-  },
-  {
-    q: "choose it when",
-    cells: [
-      doc("managed browser coverage, organization-wide review, or a wide SDK catalog"),
-      doc(
-        "Storybook is your canonical UI inventory, and non-engineer review, branch semantics, and managed stability matter more to you than self-operation",
-      ),
-      doc("the suite should own pixels but the vendor should own review and history"),
-      doc("managed cross-browser and mobile coverage, perceptual match levels, enterprise workflow, or an on-premise commercial deployment"),
-      doc(
-        "a changed screenshot should arrive as one cause with its evidence, and be settled in one decision",
-      ),
-    ],
-  },
-] as const;
 
 export default function Comparison() {
   return (
@@ -136,57 +30,7 @@ export default function Comparison() {
         {" "}links each commercial claim to the vendor&apos;s published material.
       </p>
 
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-hairline bg-panel">
-        <table className="w-full min-w-[64rem] border-collapse text-left">
-          <thead>
-            <tr className="border-b border-hairline">
-              <th className="w-36 p-4 align-bottom font-mono text-[10px] font-normal tracking-[0.14em] text-warm uppercase" />
-              {VENDORS.map((vendor) => (
-                <th
-                  key={vendor}
-                  className="p-4 align-bottom text-sm font-semibold text-ivory"
-                >
-                  {vendor}
-                </th>
-              ))}
-              <th className="bg-orange/[0.04] p-4 align-bottom text-sm font-semibold text-orange">
-                Variance Authority
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {ROWS.map((row) => (
-              <tr
-                key={row.q}
-                className="border-b border-hairline align-top last:border-b-0"
-              >
-                <th
-                  scope="row"
-                  className="w-36 p-4 text-left font-mono text-[10px] font-normal tracking-[0.14em] text-warm uppercase"
-                >
-                  {row.q}
-                </th>
-                {row.cells.map((cell, index) => (
-                  <td
-                    key={VENDORS[index] ?? "variance-authority"}
-                    className={`p-4 text-xs leading-5 first-letter:uppercase ${
-                      index === row.cells.length - 1
-                        ? "bg-orange/[0.04] text-ivory"
-                        : "text-quiet"
-                    }`}
-                  >
-                    {typeof cell === "string" ? (
-                      cell
-                    ) : (
-                      cell.text
-                    )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ComparisonTable />
 
       <dl className="mt-5 max-w-4xl space-y-4">
         <div className="grid gap-1 sm:grid-cols-[11rem_1fr] sm:gap-5">

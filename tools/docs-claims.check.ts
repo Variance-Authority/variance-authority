@@ -275,20 +275,37 @@ describe('the site routes package visitors to adopter integrations', () => {
 });
 
 /**
- * The routed comparison page's competitor table quotes the compared document.
+ * Every competitor table on the site quotes the compared document.
  *
  * `docs/comparison.md` is the repository's one carefully sourced statement about
  * Percy, Chromatic, Argos, and Applitools — every vendor fact in it links the
  * vendor's own published page, and its second section states what each does
- * better than this project. The routed documentation does not get a second
- * opinion: every cell the table marks with `doc()` must be a verbatim fragment
- * of that document, so the page can claim fairness as a checked property rather
- * than a tone.
+ * better than this project. The site does not get a second opinion: every
+ * fragment a component marks with `doc()` must be a verbatim fragment of that
+ * document, so a page can claim fairness as a checked property rather than a
+ * tone.
+ *
+ * Read by glob, because the single-file version of this rule is what let the
+ * landing table drift. That page renders its own component with its own `doc()`
+ * marker and a comment promising this check; nothing read it, and five vendor
+ * cells had turned into slash-compounds the document never wrote. The shared
+ * rows now make one table, and the glob makes the marker mean the same thing in
+ * whichever component a future page puts its own words in.
+ *
  * Matching is case-insensitive and ignores line wrap, backticks, and curly
- * quotes, because those are formatting; the words are the claim.
+ * quotes, because those are formatting; the words are the claim. A fragment the
+ * document does not support is not exempted, it is unmarked: the landing page's
+ * footnotes say "this project" in the landing page's voice and carry no marker,
+ * so `doc()` never means "quoted, except where it isn't".
  */
-describe('the comparison table quotes the compared document', () => {
-  const TABLE = readFileSync(join(ROOT, 'site/app/components/Comparison.tsx'), 'utf8');
+describe('the comparison tables quote the compared document', () => {
+  const COMPONENTS = execFileSync('git', ['ls-files', 'site/app/components'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n')
+    .filter((file) => /Comparison[A-Za-z]*\.tsx$/.test(file));
 
   const flatten = (text: string): string =>
     text
@@ -300,25 +317,55 @@ describe('the comparison table quotes the compared document', () => {
       .toLowerCase();
 
   const COMPARED = flatten(readFileSync(join(ROOT, 'docs/comparison.md'), 'utf8'));
-  const CLAIMS = [...TABLE.matchAll(/doc\(\s*"((?:[^"\\]|\\.)+)"\s*,?\s*\)/g)].map(
-    (match) => JSON.parse(`"${match[1]!}"`) as string,
+
+  // Block comments blanked first, because every one of these components explains
+  // the marker by naming it and a header that says `doc()` is not a claim. Blanked
+  // rather than removed so the line a fragment is reported at is the line it is on.
+  const SOURCES = COMPONENTS.map(
+    (file) =>
+      [
+        file,
+        readFileSync(join(ROOT, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, (comment) =>
+          comment.replace(/[^\n]/g, ' '),
+        ),
+      ] as const,
   );
 
-  it('reads the cells, so an emptied table cannot pass by claiming nothing', () => {
+  const CLAIMS = SOURCES.flatMap(([file, text]) =>
+    [...text.matchAll(/doc\(\s*"((?:[^"\\]|\\.)+)"\s*,?\s*\)/g)].map(
+      (match) =>
+        [`${file}:${lineOf(text, match.index)}`, JSON.parse(`"${match[1]!}"`) as string] as const,
+    ),
+  );
+
+  it('reads every component that quotes, so a new page cannot arrive unchecked', () => {
+    // Three: the shared rows, and the framing each page puts around them. The
+    // floor is what stops the glob from silently narrowing back to one file.
+    expect(COMPONENTS.length).toBeGreaterThan(2);
     expect(CLAIMS.length).toBeGreaterThan(30);
   });
 
-  it('parses every doc() call, so a cell the extractor cannot read fails here', () => {
-    expect(CLAIMS.length).toBe((TABLE.match(/doc\(/g) ?? []).length);
-  });
+  it.each(SOURCES)(
+    '%s parses every doc() call, so a fragment the extractor cannot read fails here',
+    (file, text) => {
+      expect(CLAIMS.filter(([where]) => where.startsWith(`${file}:`)).length).toBe(
+        (text.match(/doc\(/g) ?? []).length,
+      );
+    },
+  );
 
-  it.each(CLAIMS)('backs "%s"', (claim) => {
+  it.each(CLAIMS)('%s backs "%s"', (_where, claim) => {
     expect(COMPARED).toContain(flatten(claim));
   });
 
   it('is rendered on the comparison page', () => {
     const page = readFileSync(join(ROOT, 'site/app/reference/comparison/page.tsx'), 'utf8');
     expect(page).toContain('<Comparison />');
+  });
+
+  it('is rendered on the landing page', () => {
+    const page = readFileSync(join(ROOT, 'site/app/page.tsx'), 'utf8');
+    expect(page).toContain('<LandingComparison />');
   });
 });
 
