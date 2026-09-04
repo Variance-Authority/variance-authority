@@ -20,6 +20,9 @@
  *   including the ones it did not observe, which is the failure this whole system
  *   exists to make impossible.
  * - `commands/report.ts` answers from that artifact and never re-runs.
+ * - `commands/ask.ts` answers from it one question at a time, in the words
+ *   `variance serve` gives an MCP client — the same functions, reached by a
+ *   shell, because a great many places this is useful cannot host a server.
  * - `commands/merge.ts` makes N shard artifacts into one, and refuses the pairs
  *   that were never one run — which is what lets a sharded suite have a single
  *   exit code and a single pull-request comment.
@@ -92,6 +95,13 @@ export type {
 export { formatReport } from './commands/report.js';
 export type { ReportFormat, ReportOptions } from './commands/report.js';
 
+export { ASKED, ask, questions } from './commands/ask.js';
+export { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './commands/asking.js';
+export type { Argument, Question } from './commands/asking.js';
+export { readVantage, watch, watching } from './commands/watch.js';
+export type { Watching } from './commands/watch.js';
+export type { AskRequest } from './commands/ask.js';
+
 export { mergeReports } from './commands/merge.js';
 export type { Shard } from './commands/merge.js';
 
@@ -133,4 +143,4 @@ export type {
  * knowing about the browser package, and means re-deciding `browser` and
  * `renderer` — two config fields — in every composition that does it.
  */
-export { rendererFor, openRenderer } from './dispatch.js';
+export { rendererFor, openRenderer } from './renderer.js';

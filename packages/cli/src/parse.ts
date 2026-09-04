@@ -3,6 +3,9 @@ import { noPositionals, readFlags } from './args.js';
 import type { ProfileId } from '@variance-authority/core';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
+import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand } from './usage.js';
+
+export { USAGE } from './usage.js';
 
 /**
  * The command line, parsed by hand.
@@ -34,10 +37,14 @@ import type { ReportFormat } from './commands/report.js';
  *
  * The hyphen-level work — reading `--flag=value`, honouring `--`, refusing a
  * repeated flag — is in `args.ts`, which is told what is accepted and decides
- * nothing about it. The table below is the part that is a statement about the
- * product: which commands exist, which flags each one takes, and what a reader
- * who gets it wrong is shown. Those two change for different reasons and are
- * read by different people, which is the whole of why they are apart.
+ * nothing about it. The part that is a statement about the *product* — which
+ * commands exist, which flags each one takes, and what a reader who gets it
+ * wrong is shown — is in `usage.ts`. Those three change for different reasons
+ * and are read by different people, which is the whole of why they are apart.
+ *
+ * What is left here is the middle: turning a validated flag bag into the shape
+ * `dispatch` switches on. It is the only one of the three that knows both what
+ * a flag is called and what it means.
  */
 
 export type Parsed =
@@ -81,6 +88,42 @@ export type Parsed =
       readonly format: ReportFormat;
       readonly subject?: string;
       readonly exitZeroOnChanges: boolean;
+      /** Reports to read instead of the configured one. More than one is merged. */
+      readonly reports: readonly string[];
+    }
+  | {
+      readonly command: 'ask';
+      readonly config: string;
+      /**
+       * The question, as the first positional. Absent lists the questions.
+       *
+       * A positional rather than `--question`, because the whole point of this
+       * command is that an agent with a shell can reach the answers an MCP client
+       * reaches, and `variance ask describe --subject story:card` is the shape
+       * that reads like the sentence somebody meant.
+       */
+      readonly question?: string;
+      readonly subject?: string;
+      /** `--subjects <id>[,...]`: the plural argument `changelog` takes, not `--subject`. */
+      readonly subjects?: readonly string[];
+      readonly component?: string;
+      readonly rule?: string;
+      readonly shape?: string;
+      /** `--claims <path>`: the declaration `adjudicate` reads, for the question of the same name. */
+      readonly claims?: string;
+      /** `--test <id>`: which test, for the questions about a suite still running. */
+      readonly test?: string;
+      readonly state?: string;
+      readonly file?: string;
+      readonly limit?: number;
+      /**
+       * `--at <address>`: a running watcher to ask, instead of the last report.
+       *
+       * Not resolved here. The default is an environment variable, and reading
+       * the environment is `dispatch`'s job — this file turns argv into a shape
+       * and would otherwise be the second place a default lives.
+       */
+      readonly at?: string;
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
@@ -133,6 +176,7 @@ export type Parsed =
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
+  | { readonly command: 'watch' }
   | { readonly command: 'serve'; readonly config: string }
   | { readonly command: 'doctor'; readonly config: string }
   | {
@@ -145,60 +189,6 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | { readonly command: 'help' };
-
-const COMMANDS = [
-  'run',
-  'report',
-  'adjudicate',
-  'accept',
-  'changelog',
-  'push',
-  'serve',
-  'doctor',
-  'comment',
-] as const;
-
-const DEFAULT_CONFIG = 'variance.config.json';
-
-/** Flags every command takes, listed once so the refusals stay accurate. */
-const GLOBAL = ['--config'] as const;
-
-const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
-  run: [
-    '--profile',
-    '--subjects',
-    '--intent',
-    '--run',
-    '--commit',
-    '--since',
-    '--against',
-    '--flakes',
-    '--exit-zero-on-changes',
-  ],
-  report: ['--format', '--subject', '--exit-zero-on-changes'],
-  adjudicate: ['--claims', '--exit-zero-on-changes'],
-  accept: ['--all', '--shape', '--message-file', '--message'],
-  changelog: ['--component', '--subject', '--limit', '--since'],
-  push: ['--run', '--commit', '--branch'],
-  serve: [],
-  doctor: [],
-  comment: ['--body-file', '--run-url', '--marker'],
-};
-
-export const USAGE = [
-  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
-  'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
-  'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
-  'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
-  'variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]',
-  'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
-  'variance serve   [--config <path>]              # MCP over stdio',
-  'variance doctor  [--config <path>]',
-  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
-  '',
-  'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',
-  'A verdict and a crash never share a code.',
-].join('\n');
 
 export function parseArgs(argv: readonly string[]): Parsed {
   const first = argv[0];
@@ -213,7 +203,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     );
   }
 
-  const flags = readFlags(argv.slice(1), first, [...GLOBAL, ...(PER_COMMAND[first] ?? [])], USAGE);
+  const flags = readFlags(argv.slice(1), first, flagsFor(first), USAGE);
   const config = resolve(flags.values.get('--config') ?? DEFAULT_CONFIG);
 
   switch (first) {
@@ -265,6 +255,52 @@ export function parseArgs(argv: readonly string[]): Parsed {
         // heard of — and once it names them, adding the configured report to the
         // pile would merge in a file the operator did not ask for (ADR-0020).
         reports: flags.positionals.map((path) => resolve(path)),
+      };
+    }
+
+    case 'ask': {
+      // The first positional is the question and the rest are reports, which is
+      // the same shape `report` already has with one word in front of it. A
+      // `--question` flag would read as though the question were an option on
+      // something else, and there is nothing else here.
+      const [question, ...reports] = flags.positionals;
+      const subjects = (flags.values.get('--subjects') ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value !== '');
+      const subject = flags.values.get('--subject');
+      const component = flags.values.get('--component');
+      const rule = flags.values.get('--rule');
+      const shape = flags.values.get('--shape');
+      const claims = flags.values.get('--claims');
+      const test = flags.values.get('--test');
+      const state = flags.values.get('--state');
+      const file = flags.values.get('--file');
+      const limit = flags.values.get('--limit');
+      const at = flags.values.get('--at');
+
+      if (limit !== undefined && !/^[1-9][0-9]*$/.test(limit)) {
+        throw new OperatorError(
+          `--limit is how many tests to list and must be a positive whole number, not \`${limit}\``,
+        );
+      }
+
+      return {
+        command: 'ask',
+        config,
+        ...(question !== undefined ? { question } : {}),
+        ...(subject !== undefined ? { subject } : {}),
+        ...(subjects.length > 0 ? { subjects } : {}),
+        ...(component !== undefined ? { component } : {}),
+        ...(rule !== undefined ? { rule } : {}),
+        ...(shape !== undefined ? { shape } : {}),
+        ...(claims !== undefined ? { claims: resolve(claims) } : {}),
+        ...(test !== undefined ? { test } : {}),
+        ...(state !== undefined ? { state } : {}),
+        ...(file !== undefined ? { file } : {}),
+        ...(limit !== undefined ? { limit: Number(limit) } : {}),
+        ...(at !== undefined ? { at } : {}),
+        reports: reports.map((path) => resolve(path)),
       };
     }
 
@@ -383,6 +419,14 @@ export function parseArgs(argv: readonly string[]): Parsed {
       };
     }
 
+    // No config, because a watcher is not about a project. It listens, holds
+    // what a suite says, and answers; none of that reads a subject list, a
+    // baseline or a report path, and requiring one would put a watcher out of
+    // reach in exactly the directories where somebody most wants to start one.
+    case 'watch':
+      noPositionals(flags.positionals, 'watch');
+      return { command: 'watch' };
+
     case 'serve':
       noPositionals(flags.positionals, 'serve');
       return { command: 'serve', config };
@@ -422,6 +466,3 @@ export function parseArgs(argv: readonly string[]): Parsed {
 }
 
 
-function isCommand(value: string): value is (typeof COMMANDS)[number] {
-  return (COMMANDS as readonly string[]).includes(value);
-}

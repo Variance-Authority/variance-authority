@@ -90,6 +90,8 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--limit <n>] [--at <address>] [<report>...]
+variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
@@ -109,10 +111,84 @@ across subjects) wherever that shape is the whole change, and refuses by name
 any subject where something else moved too; `changelog` reads back why the
 baselines are what they are; `push` sends a finished run to a review surface for
 somebody to decide; `doctor` says what this machine can observe
-before a run rather than after one. `serve` exposes the report the last run
+before a run rather than after one; `watch` holds a suite that is still running
+so `ask` has something live to ask. `serve` exposes the report the last run
 wrote to an MCP client — an agent asks it what changed, which component and
 which file, over stdio, without re-running anything; the tools are
-`@variance-authority/mcp`'s.
+`@variance-authority/mcp`'s, and `ask` is the same set without the client.
+
+### Ask: the agent answers, without an agent protocol
+
+```bash
+npx variance ask                          # the questions, and what each answers
+npx variance ask summary
+npx variance ask changes --component Toggle
+npx variance ask describe --subject story:card
+```
+
+`ask` calls the tools `serve` serves and prints what they return. The same
+function, so the two cannot describe the same run differently — and a shell is
+all it takes, which matters because an MCP server is a process the *client*
+launches from a config file that belongs to the client. A CI job, a sandboxed
+agent, a container with no editor in it, somebody else's harness: all of them
+have a shell, and many of them cannot add a server. The skill this package ships
+at `skill/SKILL.md` routes an agent through these questions in order.
+
+Every answer exits `0`, including one that describes changes. `ask` reads; it
+does not decide. The verdict stays with `run`, `report` and `adjudicate`, which
+exit `1` when something needs review — one command per gate, so a workflow
+cannot lose its exit code to a question.
+
+`ask diff` reports what moved since the previous question was answered. An MCP
+connection holds that state in memory for as long as it lasts; a command line
+cannot, so the report each answer was read from is recorded beside the
+configured report as `asked.json`. Deleting it costs the next `ask diff` its
+comparison and nothing else.
+
+### Watch: ask about a suite that has not finished
+
+A finished run leaves a file, so any number of processes can open it whenever
+they like. A run in flight leaves nothing, and the only copy of what it said is
+in the memory of whatever was listening at the time. So somebody has to be
+listening *before* the suite starts:
+
+```bash
+npx variance watch
+```
+
+It prints the one line the suite has to be started with, and stays up:
+
+```
+VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321
+```
+
+That variable goes wherever `VARIANCE_AUTHORITY_EVENTS` goes, and **none of it
+is about visual regression** — a test that takes no screenshot reports exactly
+what one that does reports. Start the suite in one shell and ask from another:
+
+```bash
+npx variance ask self --at http://127.0.0.1:54321
+npx variance ask run-signals --at http://127.0.0.1:54321
+npx variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
+```
+
+`--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
+it for the suite asks with nothing extra typed. Ask `self` first: it says where
+the watcher is listening and what it is holding, which is what separates a run
+that reported somewhere else from one that has not started. `run-signals` marks
+the test still going with `▸`; `test-signals` gives everything one test
+announced, in order, with the realm that said each and the work that started
+without finishing — the answer a timeout cannot give, because a runner reports
+what a test *wanted*.
+
+`ask diff --at` works here too, against the reading the watcher handed out last.
+The watcher holds that state rather than a file, because this process exits
+between questions and there is nothing to write down: the run lives in memory
+that ends with the watcher. Stop it and the run is gone.
+
+The same questions are served over stdio by `variance-authority-mcp --watch`,
+from [`@variance-authority/mcp`](../mcp/README.md), for a client that speaks it.
+Same functions, same text.
 
 ### Push: put a build in front of a reviewer
 

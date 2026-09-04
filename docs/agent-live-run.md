@@ -1,9 +1,9 @@
 # Inspect a live run
 
-Use the watching server when the question exists only while a Playwright suite
-is executing: which test is still running, what it has announced, and which
-work began without finishing. The watcher holds process-local signals; it does
-not create a run report.
+Use a watcher when the question exists only while a Playwright suite is
+executing: which test is still running, what it has announced, and which work
+began without finishing. The watcher holds process-local signals; it does not
+create a run report.
 
 ## Instrument the suite before it starts
 
@@ -23,7 +23,22 @@ second `test` export when the suite already extends `varianceFixtures`.
 
 ## Start the watcher first
 
-Install the MCP server where the client can launch it:
+Something must be listening before the suite starts, because nothing else keeps
+what the suite says. Two things can listen: the CLI, which needs a shell and no
+configuration, and the MCP server, for a client that speaks it. They hold the
+same state and answer with the same text; choose by what the agent has
+already.
+
+From a shell:
+
+```bash
+npx variance watch
+```
+
+It prints the listener address as a `VARIANCE_AUTHORITY_VANTAGE` assignment and
+stays up until it is interrupted.
+
+For an MCP client, install the server where the client can launch it:
 
 ```bash
 npm install @variance-authority/mcp
@@ -42,10 +57,10 @@ Configure a separate live connection:
 }
 ```
 
-When the connection initializes, its instructions contain the listener address
-as a `VARIANCE_AUTHORITY_VANTAGE` assignment. Start the suite with that exact
-address already present. The port below is illustrative; replace the complete
-URL with the one from the current watcher:
+When the connection initializes, its instructions contain the same assignment.
+
+Start the suite with that exact address already present. The port below is
+illustrative; replace the complete URL with the one from the current watcher:
 
 ```bash
 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
@@ -57,11 +72,26 @@ including tests that take no screenshot and destructure no event fixture.
 
 ## Locate the stalled work
 
-Ask `variance_run_signals` first. It lists tests in opening order and marks the
-one still running. Use the returned test id with `variance_test_signals` to read
-that test's announcements in order, the realm that sent each one, and work that
-started without a matching end. Ask `variance_diff` when the useful question is
-what changed since the preceding successful call.
+Ask `self` first. It reports where the watcher is listening and how much it
+holds, which is how a suite that reported to a different address is told apart
+from one that never started — a distinction every other question is blind to.
+
+Then `run-signals`: it lists tests in opening order and marks the one still
+running. Use the test id it returns with `test-signals` to read that test's
+announcements in order, the realm that sent each one, and work that started
+without a matching end. Ask `diff` when the useful question is what changed
+since the preceding successful call.
+
+```bash
+npx variance ask self
+npx variance ask run-signals
+npx variance ask test-signals --test '<id>'
+```
+
+`--at <address>` names the watcher and defaults to `VARIANCE_AUTHORITY_VANTAGE`,
+so a shell that exports it for the suite needs no flag. An MCP client asks the
+same four as `variance_self`, `variance_run_signals`, `variance_test_signals`
+and `variance_diff`.
 
 No announcements for a listed test are a wiring or application signal, not a
 fabricated empty trace. The listing itself establishes whether the suite
@@ -75,8 +105,10 @@ the watcher process. Observer failure does not fail the test subject. When the
 question must survive the process, inspect a completed artifact through the
 [retained-evidence workflow](agent-mcp.md).
 
-The command and live tool contract live in the
-[`@variance-authority/mcp` watch reference](../packages/mcp/README.md#watch-a-suite-that-has-not-finished).
+The shell contract lives in the [`@variance-authority/cli` watch
+reference](../packages/cli/README.md#watch-ask-about-a-suite-that-has-not-finished),
+the stdio one in the [`@variance-authority/mcp` watch
+reference](../packages/mcp/README.md#watch-a-suite-that-has-not-finished).
 The producing boundary is described by
 [`@variance-authority/playwright-test`](../packages/playwright-test/README.md#watch-the-run-from-outside-it),
 and the process-local store by

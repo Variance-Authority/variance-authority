@@ -1,0 +1,104 @@
+/**
+ * What this tool offers, written down once.
+ *
+ * The statement about the product, kept apart from the parser that enforces it
+ * and the lexer underneath that. A reader deciding what the tool *does* reads
+ * this file and nothing else; `parse.ts` reads it to refuse what is not here,
+ * the README shows it verbatim, and a repository check fails if those two ever
+ * say different things.
+ *
+ * Everything is one table per question a reader can ask: which commands exist,
+ * which flags each takes, and the synopsis each is printed back in. A command
+ * added to one table and not the others does not compile or does not pass, which
+ * is the point of them being adjacent rather than derived from each other — the
+ * synopsis carries an order and a spelling no list of flags could produce.
+ */
+
+export const COMMANDS = [
+  'run',
+  'report',
+  'ask',
+  'watch',
+  'adjudicate',
+  'accept',
+  'changelog',
+  'push',
+  'serve',
+  'doctor',
+  'comment',
+] as const;
+
+export const DEFAULT_CONFIG = 'variance.config.json';
+
+/** Flags every command that reads configuration takes, listed once so the refusals stay accurate. */
+export const GLOBAL = ['--config'] as const;
+
+export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> = {
+  run: [
+    '--profile',
+    '--subjects',
+    '--intent',
+    '--run',
+    '--commit',
+    '--since',
+    '--against',
+    '--flakes',
+    '--exit-zero-on-changes',
+  ],
+  report: ['--format', '--subject', '--exit-zero-on-changes'],
+  ask: [
+    '--subject',
+    '--subjects',
+    '--component',
+    '--rule',
+    '--shape',
+    '--claims',
+    '--test',
+    '--state',
+    '--file',
+    '--limit',
+    '--at',
+  ],
+  watch: [],
+  adjudicate: ['--claims', '--exit-zero-on-changes'],
+  accept: ['--all', '--shape', '--message-file', '--message'],
+  changelog: ['--component', '--subject', '--limit', '--since'],
+  push: ['--run', '--commit', '--branch'],
+  serve: [],
+  doctor: [],
+  comment: ['--body-file', '--run-url', '--marker'],
+};
+
+export const USAGE = [
+  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
+  'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
+  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--limit <n>] [--at <address>] [<report>...]',
+  'variance watch',
+  'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
+  'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
+  'variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]',
+  'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
+  'variance serve   [--config <path>]              # MCP over stdio',
+  'variance doctor  [--config <path>]',
+  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
+  '',
+  'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',
+  'A verdict and a crash never share a code.',
+].join('\n');
+
+/**
+ * The flags a command accepts, the configuration ones included where they apply.
+ *
+ * `watch` is the one command they do not apply to. It holds a port and some
+ * memory, and no configured value changes what it does — so it refuses
+ * `--config` rather than taking a path it would then not read. Its synopsis line
+ * shows no flags for the same reason.
+ */
+export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
+  return command === 'watch' ? PER_COMMAND[command] : [...GLOBAL, ...PER_COMMAND[command]];
+}
+
+/** Whether a word is one of the commands above, narrowed for the parser. */
+export function isCommand(value: string): value is (typeof COMMANDS)[number] {
+  return (COMMANDS as readonly string[]).includes(value);
+}

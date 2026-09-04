@@ -21,6 +21,7 @@
     { "path": "../remote" },
     { "path": "../report" },
     { "path": "../store" },
-    { "path": "../storybook" }
+    { "path": "../storybook" },
+    { "path": "../vantage" }
   ]
 }

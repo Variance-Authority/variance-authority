@@ -13,7 +13,8 @@
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
-        "mark.svg"
+        "mark.svg",
+        "skill"
       ],
       "bin": {
         "variance": "./dist/bin.js"
@@ -24,9 +25,12 @@
     },
     "names": {
       ".": {
+        "ASKED": "const",
         "AcceptOptions": "interface",
         "AcceptResult": "interface",
         "Accepted": "interface",
+        "Argument": "interface",
+        "AskRequest": "interface",
         "BaselineFinding": "interface",
         "BaselinesConfig": "type",
         "COMMENT_MARKER": "const",
@@ -64,6 +68,8 @@
         "PushDeps": "interface",
         "PushOptions": "interface",
         "PushResult": "interface",
+        "QUESTIONS": "const",
+        "Question": "interface",
         "Refused": "interface",
         "RemoteBaselines": "interface",
         "RendererFinding": "interface",
@@ -79,8 +85,11 @@
         "StorybookSubjects": "interface",
         "SubjectSource": "type",
         "SubjectsConfig": "type",
+        "Watching": "interface",
         "Withheld": "interface",
         "accept": "function",
+        "argumentsOf": "function",
+        "ask": "function",
         "collectorPath": "function",
         "doctor": "function",
         "exitFor": "function",
@@ -101,8 +110,12 @@
         "planList": "function",
         "planStorybook": "function",
         "push": "function",
+        "questionFor": "function",
+        "questionOf": "function",
+        "questions": "function",
         "readCandidate": "function",
         "readCliRunReport": "function",
+        "readVantage": "function",
         "recordOf": "function",
         "renderComment": "function",
         "rendererFor": "function",
@@ -110,6 +123,9 @@
         "serve": "function",
         "settle": "function",
         "storeFor": "function",
+        "takes": "function",
+        "watch": "function",
+        "watching": "function",
         "writeArtifactToDisk": "function",
         "writeCliRunReport": "function"
       }
@@ -3023,6 +3039,8 @@
       "./attach": {
         "AttachOptions": "interface",
         "AttachedVantage": "interface",
+        "VANTAGE_ASK": "const",
+        "VantageReading": "interface",
         "attachVantage": "function"
       }
     }

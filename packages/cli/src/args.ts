@@ -72,7 +72,7 @@ export function readFlags(
     if (!accepted.includes(name)) {
       throw new OperatorError(
         `\`${name}\` is not a flag \`variance ${command}\` accepts; it takes ` +
-          `${accepted.join(', ')}\n\n${usage}`,
+          `${accepted.length === 0 ? 'none' : accepted.join(', ')}\n\n${usage}`,
       );
     }
     if (present.has(name)) {

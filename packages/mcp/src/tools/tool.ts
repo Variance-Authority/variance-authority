@@ -30,7 +30,7 @@ export interface Tool<Subject = RunReport> {
   ): string;
 }
 
-/** State held for exactly one previous MCP tool invocation. */
+/** State held for exactly one previous tool invocation, by whatever is holding it. */
 export interface ToolInvocation<Subject> {
   readonly previous?: Subject;
 }

@@ -141,13 +141,20 @@ told it one run too late.
 
 | tool | answers | ask it when |
 |---|---|---|
+| `variance_self` | where this watcher is listening, what it is holding, and exactly what to start a suite with | first, and again whenever an answer is emptier than expected |
 | `variance_run_signals` | every test that has reported, in the order the run opened them, its state, and how much each has announced | you want to know where the suite has got to, or which test is the one still going |
 | `variance_test_signals` | everything one test has announced, in order, with the realm that said each, plus work that started and never ended | a test is hanging, or failed, and the assertion that did not settle is the part you already know |
 
 `variance_run_signals` takes `state`, `file` and `limit`, and marks a running
 test with `▸`. `variance_test_signals` takes `test` — an id from the listing, a
 title, or enough of one to be unambiguous; where it is not unambiguous, the
-answer is the candidates and their ids.
+answer is the candidates and their ids. `variance_self` takes nothing.
+
+`variance_self` is the one that separates the two reasons an answer is empty:
+nothing has run yet, or something ran and reported somewhere else. A connection
+is told the address at the handshake and can see itself connected, so it needs
+this least — a reader that runs one command and exits has no handshake to look
+at, and asks it most.
 
 The second is the one a timeout cannot give. A runner reports what a test
 *wanted*; this reports what its execution actually **heard**, and from whom.
@@ -164,6 +171,11 @@ was announced* from *the beginning was forgotten* draws the first conclusion.
 
 `variance_diff` is served here too, so *what changed since I last asked* works
 against a suite in flight the same way it works against a report.
+
+The same three questions, and `variance_diff` with them, are on the command line
+without a client: `variance watch` holds the run and `variance ask <question>
+--at <address>` reads it. Same functions, same text, no client configuration to
+edit — see [ask a run from the command line](../../docs/agent-cli.md).
 
 ## Diff the current state
 
@@ -215,6 +227,13 @@ reading its output yourself is `@variance-authority/cli` (`variance run`,
 `variance accept`), with no server or protocol involved. Reach for this package
 only to hand an already-finished run, or an execution index, to an agent that
 speaks MCP.
+
+An agent that cannot host a server is not held to a smaller product. `variance
+ask` offers the eleven report tools below as questions on the command line,
+calling these same functions and printing what they return, so nothing here is
+reachable only through a client. What a connection adds is the other subjects —
+an execution index, a live run, an attention archive, a presentation graph —
+which live with the integration that produced them rather than in a report file.
 
 ## Visual report tool contract
 

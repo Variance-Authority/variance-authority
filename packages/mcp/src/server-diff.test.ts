@@ -17,11 +17,11 @@ describe('the state held by the server', () => {
   it('diffs against exactly the previous successful invocation', async () => {
     const harness = start({ value: 'before' });
     try {
-      expect(await harness.call()).toContain('No previous MCP invocation state');
+      expect(await harness.call()).toContain('No previous invocation was recorded');
 
       harness.replace({ value: 'after' });
       expect(await harness.call()).toContain('~ $.value: "before" -> "after"');
-      expect(await harness.call()).toContain('matches the previous MCP invocation');
+      expect(await harness.call()).toContain('matches the previous invocation');
     } finally {
       harness.stop();
     }

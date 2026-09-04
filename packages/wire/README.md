@@ -129,6 +129,24 @@ report cannot claim an execution by writing one down. A body the listener cannot
 parse is answered as a refusal rather than thrown on, which is how a participant
 that acknowledges its reports learns it lost one.
 
+`answer` is the one way traffic goes the other direction. A listener given one
+serves a `GET` on its own origin from whatever that function returns; a listener
+without one answers `404` to every read, which is every listener that has not
+asked for a reader:
+
+```ts
+const wire = await listen({ answer: (path) => (path === '/' ? state() : undefined) });
+```
+
+Opt-in because a head and an event collector have nothing they mean to publish,
+and a medium that made them readable would have given each of them a surface it
+never agreed to. Where it is used — a watcher, in
+[`@variance-authority/vantage`](../vantage/README.md) — a reader asks on the same
+address a run reports to, so there is no second port to keep in step. Reading is
+separated from reporting by method rather than by path, so a reader's surface
+cannot collide with an execution id a participant chose. Returning `undefined`
+is a `404`, which is how a listener declines a path it has nothing for.
+
 `wire.carrier` is the same desk for a realm the driver is inside rather than
 beside, and `installCarrier(carrier)` puts it on the global. A suite that starts
 its server in-process configures nothing extra and loses nothing: the report is a

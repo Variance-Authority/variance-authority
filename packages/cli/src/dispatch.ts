@@ -1,7 +1,5 @@
 import { writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { Renderer } from '@variance-authority/raster';
-import { messageOf } from './config-values.js';
 import type { Config } from './config.js';
 import { loadConfig } from './config-load.js';
 import {
@@ -32,6 +30,8 @@ import {
   type CliRunReport,
   type Plan,
 } from './commands/run.js';
+import { ask, questions } from './commands/ask.js';
+import { watch, watching as watchingLines } from './commands/watch.js';
 import { formatReport } from './commands/report.js';
 import {
   adjudicateReport,
@@ -47,10 +47,12 @@ import { changelog, formatChangelog } from './commands/changelog.js';
 import { formatPush, push } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
-import { doctor, machineProbes, rendererOptionsFor } from './commands/doctor.js';
+import { doctor, machineProbes } from './commands/doctor.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
+import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './parse.js';
+import { rendererFor } from './renderer.js';
 
 /**
  * What each command *does*, and the two things every one of them needs.
@@ -67,12 +69,29 @@ export async function dispatch(
   parsed: Exclude<Parsed, { command: 'help' }>,
   streams: { out(text: string): void; err(text: string): void },
 ): Promise<ExitCode> {
-  // Before the config, because the marker is a constant this build carries and
-  // not a reading of anything. The poster needs it in exactly the case where
+  // Before the config, because both are constants this build carries rather than
+  // readings of anything. The poster needs the marker in exactly the case where
   // there is no body to find it in — a clean run, where the previous docket has
-  // to be located and cleared.
+  // to be located and cleared; and an agent finding out what it may ask has not
+  // reached a run to ask about, so answering it with the config would be a
+  // refusal to hold a conversation on the grounds that there is nothing to say yet.
   if (parsed.command === 'comment' && parsed.marker) {
     streams.out(`${COMMENT_MARKER}\n`);
+    return EXIT_CLEAN;
+  }
+  if (parsed.command === 'ask' && parsed.question === undefined) {
+    streams.out(questions());
+    return EXIT_CLEAN;
+  }
+  // A watcher is about a suite, not about a project: it listens, holds what a
+  // run says, and answers. Loading a config first would make it unstartable in
+  // the directories somebody most wants to start one from — somebody else's
+  // repository, a container, a checkout with no visual suite configured at all.
+  if (parsed.command === 'watch') {
+    const watching = await watch();
+    streams.out(watchingLines(watching.address));
+    await watching.until;
+    await watching.close();
     return EXIT_CLEAN;
   }
 
@@ -182,6 +201,25 @@ export async function dispatch(
       // that exited 0 while describing a change would make the two halves of this
       // tool disagree about the same file.
       return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
+    }
+
+    case 'ask': {
+      // The watcher address defaults to the variable the suite was started with,
+      // so a shell that has one exported asks a live question with no flag — and
+      // one that has not is told, by the question itself, what is missing.
+      const at = parsed.at ?? process.env[VANTAGE_VARIABLE];
+      streams.out(
+        await ask({
+          ...parsed,
+          ...(at === undefined ? {} : { at }),
+          report: config.report,
+          read: () => reportsFor(parsed.reports, config),
+        }),
+      );
+      // A reading is not a verdict. `report` and `adjudicate` are where a run is
+      // gated, and an agent working through a dozen questions must not be handed
+      // a dozen failures for having read a run that has something in it.
+      return EXIT_CLEAN;
     }
 
     case 'adjudicate': {
@@ -414,72 +452,4 @@ async function planFor(config: Config): Promise<Plan | undefined> {
   if (config.subjects.kind === 'collector') return undefined;
 
   return planList(config.subjects.ids);
-}
-
-/**
- * The renderer the config asks for, imported lazily.
- *
- * `import()` rather than a top-level import so that `report`, `accept`, and
- * `serve` — none of which may render — do not load a browser driver in order to
- * read a file. The failure it produces when there is no browser is an operator
- * error with the underlying message intact, which is what makes `run --profile
- * chromium` on a machine without Chromium exit 2 rather than 1.
- *
- * **Exported because the library half needs it (ADR-0024).** `deps.renderer` has
- * to be filled in by whoever composes a run, and this package's own README filled
- * it in with `createPlaywrightRenderer` from `@variance-authority/playwright` —
- * so the documented way to use the CLI as a library required knowing about the
- * browser package, which is the reach-through that ADR forbids. That example was
- * also wrong by then: it ignored `browser` and `renderer`, handing back a local
- * Chromium whatever the config said. One function answers both.
- */
-export async function rendererFor(config: Config): Promise<Renderer> {
-  // Somewhere else, if the config says so. Nothing downstream can tell: a remote
-  // renderer satisfies the same contract, answers `identityFor` by the same
-  // derivation, and is guarded by the same comparability check — which is what
-  // makes the offload a wiring decision rather than a second pipeline.
-  if (config.renderer !== undefined) {
-    const { connectRenderer } = await import('@variance-authority/remote');
-    const remote = config.renderer;
-    return openRenderer(() =>
-      connectRenderer({
-        endpoint: remote.endpoint,
-        ...(remote.timeoutMs === undefined ? {} : { timeoutMs: remote.timeoutMs }),
-      }),
-    );
-  }
-
-  const { createPlaywrightRenderer } = await import('@variance-authority/playwright');
-  // The same expression `doctor` probes with. Two spellings of "what the config
-  // says about the renderer" is how a green doctor and a failing run stop being
-  // about the same machine.
-  return openRenderer(() => createPlaywrightRenderer(rendererOptionsFor(config)));
-}
-
-/**
- * Any failure to open a renderer is an operator error, never a verdict.
- *
- * Exported, and taking the opener as an argument, for one reason: ADR-0017
- * requires `run --profile chromium` on a machine without Chromium to
- * exit 2 rather than 1, and until 2026-08-03 that was argued in a comment and
- * asserted by nothing — the only criterion in the spec still carried by prose.
- * It cannot be tested through `main` on a machine that *has* a browser, and
- * uninstalling one to check is not a test.
- *
- * The distinction is the whole of why exit 2 exists. Exit 1 means a component
- * changed and somebody should look; exit 2 means the run never happened. A
- * missing browser reported as 1 sends a reviewer to find a change nobody made,
- * and — worse — a CI step that treats 1 as "accept and move on" would record
- * baselines from a run that observed nothing.
- */
-export async function openRenderer(open: () => Promise<Renderer>): Promise<Renderer> {
-  try {
-    return await open();
-  } catch (error) {
-    throw new OperatorError(
-      `no renderer could be opened on this machine: ${messageOf(error)}. ` +
-        'Run `variance doctor` for what this machine can observe.',
-      { cause: error },
-    );
-  }
 }

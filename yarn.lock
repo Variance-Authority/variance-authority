@@ -2759,6 +2759,7 @@ __metadata:
     "@variance-authority/sense": "workspace:^"
     "@variance-authority/store": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
+    "@variance-authority/vantage": "workspace:^"
   bin:
     variance: ./dist/bin.js
   languageName: unknown
