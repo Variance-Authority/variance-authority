@@ -53,11 +53,23 @@ function evaluate(transformed: string): Currency {
 
 const listening: Wire[] = [];
 
+/**
+ * The collector this file found installed, which is the runner's when the suite
+ * is instrumenting itself and nothing at all otherwise.
+ *
+ * A collector that closes puts back what it displaced. One that a test leaves
+ * open has to be put back here, because the process outside these tests is
+ * still reporting through the global and the next thing to read it is not a
+ * fixture.
+ */
+const AMBIENT = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
+
 afterEach(async () => {
   for (const wire of listening.splice(0)) await wire.close();
   const global = globalThis as unknown as Record<string, unknown>;
   delete global['__head_test_currency'];
-  delete global['__VA__'];
+  if (AMBIENT === undefined) delete global['__VA__'];
+  else Object.defineProperty(globalThis, '__VA__', AMBIENT);
 });
 
 /** What a head answers to, and everything it has said so far. */

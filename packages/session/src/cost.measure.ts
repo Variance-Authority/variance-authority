@@ -22,6 +22,15 @@ import { createSession } from './session.js';
  * wall-clock speedup is therefore reported on every run and gated by nothing;
  * the claim behind it is gated by things that do not move.
  *
+ * One thing that moves it is the suite itself. `yarn test` instruments every
+ * product module it loads, and the share below has `new JSDOM` on one side and
+ * `collect` and `normalize` on the other — a library against the product, so
+ * probes land in one half and not the other. Instrumented, the reading falls
+ * from about two thirds to about half, which is the bound. So this file runs
+ * under `yarn measure` and `vitest.measure.config.ts`, where nothing is
+ * instrumented and the number describes the product rather than the product
+ * plus the apparatus watching it.
+ *
  * `new JSDOM()` per subject stands in for the family of per-subject setup costs:
  * a fresh test environment, a browser launch, a Storybook iframe reload. They
  * differ by orders of magnitude in absolute terms and behave identically in

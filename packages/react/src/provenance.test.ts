@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 //
-// The root `vitest.config.ts` runs the suite under `node`. This docblock is the
+// The root `vitest.config.mts` runs the suite under `node`. This docblock is the
 // per-file override, chosen over a project config so that adding a DOM-needing
 // package does not change how every other package's tests are executed.
 //

@@ -17,15 +17,17 @@
     "check": "vitest run --config vitest.checks.config.ts",
     "clean": "tsc --build --clean",
     "lint": "oxlint",
+    "measure": "vitest run --config vitest.measure.config.ts",
     "release:version": "changeset version",
     "release:publish": "changeset publish",
     "test": "vitest run",
+    "test:since": "node tools/test-since.mjs",
     "test:watch": "vitest",
     "unrun": "node tools/unrun.mjs",
     "surface": "node tools/surface.mjs",
     "documented": "node tools/documented.mjs",
     "typecheck": "tsc --build --force",
-    "verify": "yarn lint && yarn check && yarn test"
+    "verify": "yarn lint && yarn check && yarn measure && yarn test"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.1",

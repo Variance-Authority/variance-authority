@@ -243,9 +243,11 @@ describe('the cost of rebuilding the index per subject', () => {
       ].join('\n'),
     );
 
-    // Deliberately loose, and for the same reason the session's cost test is: the
-    // claim is "the index stopped dominating", not a particular multiple. A tight
-    // bound fails on a loaded CI box and teaches everyone to ignore the file.
+    // Deliberately loose, and for the same reason the session's cost measurement
+    // is: the claim is "the index stopped dominating", not a particular multiple.
+    // A tight bound fails on a loaded CI box and teaches everyone to ignore the
+    // file. Both halves are the same `collect`, so this one holds its reading
+    // under the suite's own instrumentation and stays a test.
     expect(ratio).toBeGreaterThan(2);
   });
 });

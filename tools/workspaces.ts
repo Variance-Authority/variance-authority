@@ -177,12 +177,15 @@ export function workspaces(): readonly Workspace[] {
         // A fixture workspace answers for its own imports; see `nestedManifests`.
         if (foreign.some((nested) => file.startsWith(`${nested}/`))) continue;
 
-        // `.spec.` counts as well as `.test.`, because the weaker rule is about
-        // *when* code runs and not about which runner runs it. A case driving a
-        // competitor's assertion library does so from a file that competitor's
-        // runner collects, and holding it to the production rule would put a
-        // second test runner in a workspace's `dependencies`.
-        const isTest = /\.(test|spec)\.(ts|tsx|js|jsx)$/.test(file) || file.includes('__fixtures__');
+        // `.spec.` and `.measure.` count as well as `.test.`, because the weaker
+        // rule is about *when* code runs and not about which runner runs it or
+        // which question it asks. A case driving a competitor's assertion
+        // library does so from a file that competitor's runner collects, and
+        // holding it to the production rule would put a second test runner in a
+        // workspace's `dependencies`; a measurement builds its own worlds with
+        // `jsdom` for the same reason a test does, and ships to nobody.
+        const isTest =
+          /\.(test|spec|measure)\.(ts|tsx|js|jsx)$/.test(file) || file.includes('__fixtures__');
         for (const specifier of specifiersIn(readFileSync(file, 'utf8'))) {
           const owner = packageOf(specifier);
           if (owner === null || owner === manifest.name) continue;

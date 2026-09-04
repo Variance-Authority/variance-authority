@@ -17,7 +17,8 @@
     "src/**/*"
   ],
   "exclude": [
-    "src/**/*.test.ts"
+    "src/**/*.test.ts",
+    "src/**/*.measure.ts"
   ],
   "references": [
     {

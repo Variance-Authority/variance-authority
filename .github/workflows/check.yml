@@ -79,6 +79,16 @@ jobs:
         shell: bash
         run: yarn check
 
+      # The cost arguments, timed. Separate from the suite because the suite
+      # instruments every product module it loads, and a bound on how long the
+      # product takes cannot be read through the thing reading it — see
+      # `vitest.measure.config.ts`. Before the suite because it is seconds, and
+      # because a machine that has just run three hundred files is not the one
+      # these numbers describe.
+      - name: measure
+        shell: bash
+        run: yarn measure
+
       # `vitest run` is the unit suites and the corpus. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
       # 2026-08-04 and now run in the step above.

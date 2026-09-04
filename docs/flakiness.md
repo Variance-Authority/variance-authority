@@ -287,7 +287,7 @@ pollution becomes a read-write conflict with a named writer:
 ```
 
 Measured at **3–4× faster** than rinsing, with the probe costing **~2%** of
-session time. The [session cost measurement](../packages/session/src/cost.test.ts)
+session time. The [session cost measurement](../packages/session/src/cost.measure.ts)
 re-measures it on every run and asserts only that it is materially cheaper,
 because the multiple moves with the machine and a tight bound would fail on a
 loaded CI box. Details in
