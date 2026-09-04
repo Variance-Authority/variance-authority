@@ -64,5 +64,5 @@ export {
 export type { JsonRpcRequest, JsonRpcResponse } from './protocol.js';
 export type { ObservabilitySubject } from './observability-subject.js';
 
-export { serve, serveReportFile, serveVantage } from './server.js';
+export { serve, serveEyesArchive, serveReportFile, serveVantage } from './server.js';
 export type { ReportFileOptions, ServerOptions, ServedVantage } from './server.js';

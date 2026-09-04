@@ -23,13 +23,34 @@ control to the test. A `findBy` promise registers the snapshot continuation
 before the caller receives the promise, so attribution precedes the caller's
 `await` continuation.
 
-A query returning `null` records `absent`. A plural query returning no nodes
-records `resolved` with an empty target list: the query determined that the set
-was empty. A thrown query records the error and rethrows the same value.
+A query returning anything that is neither a node nor an array of nodes records
+`absent` — `null`, `undefined`, or whatever else a query hands back. A plural
+query returning no nodes records `resolved` with an empty target list: the query
+determined that the set was empty. A thrown query records the error and rethrows
+the same value.
 
 `screen` is one bound query object. `within(container)` and the query functions
 returned by `render()` are other objects, so instrumenting `screen` does not
 claim to observe them.
+
+Watching a `screen` also installs capture-phase document listeners on the
+runner's document, ahead of React's delegated event handler. They arrive when
+that `screen` is first watched and are removed when the last log watching it
+closes, so an element removed by the handler its own click reached is in the
+record with its attribution after the element itself is gone. The listeners
+follow the realm: where there is no `document` to listen on, `watch` instruments
+the queries and installs nothing, so a runner with no DOM still records what its
+tests addressed.
+
+React commits reach the same journal, and they require the commit hook to exist
+before `react-dom` runs its module body. `watch` attaches to a hook and never
+installs one: a caller holding a `screen` object is already past the moment
+`react-dom` reads for it, and a hook written after that moment is one the
+renderer never calls. Installing it is a runner setup entry that loads ahead of
+the module importing React — `tapCommits()` from `@variance-authority/react`,
+described in [Stabilization](stabilization.md). Where there is no hook to attach
+to, every log on that screen records `react-tap-refused` with the reason, and
+records queries and document events as it otherwise would.
 
 ## Playwright
 
@@ -53,18 +74,22 @@ commit records `PerformedWork` component names separately from React's
 `memoizedUpdaters`: the first says which render bodies ran, while the second
 names the live component paths that initiated the update. Each updater path is
 innermost first and retains component name, reconciliation key, props digest,
-and a JSX source coordinate when React exposes one. Missing updater evidence
-means the renderer did not expose the set; an empty updater list is a completed
-reading.
+and the JSX source coordinate `@variance-authority/jsx-source` wrote onto its
+props, or onto the nearest enclosing composite that retained one; React ≤18's
+`_debugSource` is the fallback where that transform is not installed. Missing
+updater evidence means the renderer did not expose the set; an empty updater
+list is a completed reading.
 
 ## Test chronology
 
 An Eyes log is a monotonic journal within one test realm. `phase('arrange')`,
 `phase('act')`, and `phase('assert')` append authored boundaries; later attention
 belongs to the most recent marker when a reader presents the chronology. Calls
-before any marker remain explicitly unphased. React commits use the same rule,
-so an update can be related to the phase in which it occurred without claiming
-which callback, event, or source region caused it.
+before any marker remain explicitly unphased. A tapped React commit follows the
+same rule, so an update can be related to the phase in which it occurred without
+claiming which callback, event, or source region caused it. Where the tap was
+refused, `react-tap-refused` and its reason sit in the same journal, so an empty
+commit record and a page that rendered once and stopped are different readings.
 
 An Eyes archive groups journals under the runner's stable test identity. Every
 journal is either complete or partial with a reason. The archive is portable
@@ -79,9 +104,11 @@ markup, and a node whose Fiber has already been removed produce an explicit
 no-Fiber result. Production builds may omit author names and source candidates;
 those fields remain absent.
 
-The document event channel covers user-facing DOM events. A store mutation,
-network request, timer, or direct function call that emits no DOM event is not
-classified as an action by Eyes. A memoized updater identifies the component
-instance that scheduled work, not the source statement or callback that invoked
-it. Execution regions remain the responsibility of Sense, and cross-realm
-correlation remains the responsibility of Journey.
+The document event channel covers user-facing DOM events. Every record carries
+the event's `trusted` flag, so an event the browser raised from an input gesture
+is separable from one page script dispatched. A store mutation, network request,
+timer, or direct function call that emits no DOM event is not classified as an
+action by Eyes. A memoized updater identifies the component instance that
+scheduled work, not the source statement or callback that invoked it. Execution
+regions remain the responsibility of Sense, and cross-realm correlation remains
+the responsibility of Journey.

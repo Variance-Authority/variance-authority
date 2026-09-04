@@ -16,6 +16,12 @@ import { serveReportFile, serveVantage } from './server.js';
  * indistinguishable from a broken one, and one line at startup is the cheapest
  * place to make attaching obvious.
  */
+// TODO: `serveEyesArchive` is reachable from the library and from nothing on this
+// command line, because the third subject does not fit "one positional argument".
+// An eyes archive and a run report are both a path to a JSON file, so the argument
+// alone cannot say which reader to use — deciding that needs either a flag, which
+// this surface refuses on purpose, or sniffing the file's own version key, which
+// makes the two formats' futures depend on each other.
 const [, , path] = process.argv;
 
 if (path === '--watch') {

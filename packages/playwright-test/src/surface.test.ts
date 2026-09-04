@@ -38,6 +38,12 @@ describe('the Playwright integration is additive', () => {
     );
   });
 
+  it.todo(
+    'reports the remounts a spec caused — needs a mark the spec takes before its ' +
+      'own action, because `remountedSince` measures an interval and `acquire` is ' +
+      'one call with no before',
+  );
+
   it('publishes the page-agent identity and a bundle that installs it', async () => {
     expect(AGENT).toBe('__variance_authority_playwright_test__');
     expect(AGENT_VERSION).toBe('playwright-test@0');

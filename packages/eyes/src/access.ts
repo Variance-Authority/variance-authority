@@ -1,4 +1,4 @@
-import type { Commit, resolveProvenance } from '@variance-authority/react';
+import type { Commit, TapRefusal, resolveProvenance } from '@variance-authority/react';
 
 /** A DOM target copied while its identity and React Fiber are still live. */
 export interface TargetSnapshot {
@@ -92,17 +92,38 @@ export interface ReactCommitAttention {
   readonly commit: Commit;
 }
 
+/**
+ * The commit tap did not attach, and why.
+ *
+ * A journal with no commits in it says one of two things, and they are opposite:
+ * the application rendered nothing, or nobody was listening. This entry is what
+ * separates them, so a reader never reports a quiet page it never observed.
+ */
+export interface ReactTapRefusedAttention {
+  readonly kind: 'react-tap-refused';
+  readonly reason: TapRefusal;
+}
+
 export type AttentionDraft =
   | RtlQueryAttention
   | PlannedLocatorAttention
   | ConsumedLocatorAttention
   | DocumentEventAttention
   | PhaseAttention
-  | ReactCommitAttention;
+  | ReactCommitAttention
+  | ReactTapRefusedAttention;
 
 /** One ordered selector, Locator, event, or authored phase observation. */
 export type Attention = AttentionDraft & { readonly sequence: number };
 
+/**
+ * The ordered journal one realm writes into.
+ *
+ * `sequence` counts from construction and `drain` does not restart it, so the
+ * numbers a holder is handed remain absolute across drains. That is what lets a
+ * later reader tell a journal that recorded nothing from one whose entries were
+ * already taken; a per-drain counter would make the two indistinguishable.
+ */
 export interface EyesLog {
   /** Everything recorded since construction or the previous drain. */
   readonly seen: readonly Attention[];
@@ -176,4 +197,58 @@ export function createEyesArchive(tests: readonly EyesTestAttention[]): EyesArch
     };
   });
   return { eyesVersion: 1, tests: copied };
+}
+
+/** How a runner names the test whose journal this is. */
+export interface EyesTestIdentity {
+  /** Stable producer identity. Titles are not required to be unique. */
+  readonly id: string;
+  readonly title: string;
+  readonly file?: string;
+}
+
+/**
+ * Close one test's journal, deciding completeness from the log rather than hope.
+ *
+ * `createEyesLog` numbers entries from construction and `drain` does not reset
+ * that counter, so a sequence is a count of everything the log ever recorded and
+ * not of what is in hand. A journal that starts above zero, or skips a number,
+ * is therefore missing entries an earlier drain took — and those numbers are the
+ * only evidence left that they existed. Marking such a journal `complete` hands
+ * a reader a chronology with holes and no way to see them, which is the case the
+ * partial arm exists for.
+ *
+ * A caller that already knows the collection was cut short — a worker that died,
+ * a page whose receiver went away mid-test — says so in `because`, and that
+ * reason wins: it names a cause the sequence numbers cannot.
+ */
+export function eyesTestAttention(
+  identity: EyesTestIdentity,
+  attention: readonly Attention[],
+  because?: string,
+): EyesTestAttention {
+  const base = {
+    id: identity.id,
+    title: identity.title,
+    ...(identity.file === undefined ? {} : { file: identity.file }),
+    attention: attention.map((entry) => ({ ...entry })) as readonly Attention[],
+  };
+  const reason = because ?? dropped(attention);
+  if (reason === undefined) return { ...base, complete: true };
+  return { ...base, complete: false, because: reason };
+}
+
+/** How many entries this log recorded that are not in the journal handed over. */
+function dropped(attention: readonly Attention[]): string | undefined {
+  let expected = 0;
+  let missing = 0;
+  for (const entry of attention) {
+    if (entry.sequence > expected) missing += entry.sequence - expected;
+    expected = entry.sequence + 1;
+  }
+  if (missing === 0) return undefined;
+  return (
+    `${missing} attention ${missing === 1 ? 'entry was' : 'entries were'} recorded by this ` +
+    'log and taken by an earlier drain'
+  );
 }

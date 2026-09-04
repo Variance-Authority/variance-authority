@@ -55,6 +55,12 @@ if (!BROWSER_AVAILABLE) {
   );
 }
 
+// Top level on purpose: `chromium_` is `describe.skip` without a browser, and a
+// todo inside a skipped block is counted as skipped rather than as a gap.
+it.todo(
+  'a spec reaches the wiring band and a holding through `variance(locator)` — the readers and the request that carries them are asserted over the route path in `packages/route-collector/src/wiring.chromium.test.ts`, and all three page agents pass the same two into `collect`, so what is untested here is only this driver; needs a React mount in this suite, and this package declares neither the react nor the vite devDependency that makes one',
+);
+
 chromium_('the additive Playwright path', () => {
   it('reports a browser ARIA change whose pixels remain identical', async () => {
     await page!.setContent('<button id="pay" aria-label="Pay now">$12</button>');

@@ -105,6 +105,14 @@ export interface Commit {
   readonly updatersTruncated?: boolean;
 }
 
+/**
+ * Why no tap was installed, carried so silence can be read.
+ *
+ * A run that records no commits has two unrelated explanations — nothing
+ * rendered, or nobody was listening — and the whole point of `attached` is that
+ * they never look alike. Each member below names the distinct moment at which
+ * the hook was already out of reach.
+ */
 export type TapRefusal =
   /**
    * No hook existed and React had already mounted something, so `react-dom` has
@@ -116,7 +124,18 @@ export type TapRefusal =
    * A hook exists but does not look like one `react-dom` talks to. Wrapping it
    * would be writing over somebody else's object for no benefit.
    */
-  | 'unrecognised-hook';
+  | 'unrecognised-hook'
+  /**
+   * No hook existed and the caller declined to install one.
+   *
+   * The refusal a caller reached *through* React needs. `react-dom` binds the
+   * hook when its module body runs, so anything that had to import the
+   * application's own React to get here is already past the only moment an
+   * installed hook is read. Writing one anyway succeeds, and produces a tap
+   * attached to an object nothing will ever call: `attached` true, commits
+   * absent forever, and no way to tell that from a page that made none.
+   */
+  | 'no-hook';
 
 export interface CommitTap {
   /** False when nothing was instrumented. Never confuse with "no commits". */
@@ -162,6 +181,14 @@ export interface TapOptions {
    * that remounts per story is the case that motivates the option.
    */
   readonly refuseIfLoaded?: boolean;
+  /**
+   * Whether a missing hook may be installed.
+   *
+   * Default true, which is only correct where this runs before `react-dom` does
+   * — an init script, or a runner setup file loaded ahead of the suite. A caller
+   * that cannot promise it was first passes false and reads `'no-hook'`.
+   */
+  readonly createHook?: boolean;
 }
 
 const HOOK_KEY = '__REACT_DEVTOOLS_GLOBAL_HOOK__';
@@ -187,7 +214,9 @@ interface DevToolsHook {
  *
  * - **Nothing installed.** A minimal hook is written into `scope`. This is only
  *   correct *before* `react-dom` loads, so it refuses when the document already
- *   holds a React container — the observable proxy for "you are too late".
+ *   holds a React container — the observable proxy for "you are too late" — and
+ *   refuses outright when `createHook` is false, which is how a caller that
+ *   knows it cannot be first declines to write a hook nobody will read.
  * - **A hook exists.** Its `onCommitFiberRoot` is wrapped, the original still
  *   called first. That covers the DevTools extension and any other harness, and
  *   `stop()` puts the original back rather than deleting the field.
@@ -204,9 +233,13 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
   const updaterLimit = options.updaterLimit ?? DEFAULT_NAME_LIMIT;
   const keep = options.keep ?? DEFAULT_KEEP;
   const refuseIfLoaded = options.refuseIfLoaded ?? true;
+  const createHook = options.createHook ?? true;
 
   const existing = scope[HOOK_KEY] as DevToolsHook | undefined;
 
+  // Ahead of the container scan below, which cannot change the answer: a caller
+  // that will not install a hook has nothing to attach to either way.
+  if (existing === undefined && !createHook) return refused('no-hook');
   if (existing === undefined && refuseIfLoaded && reactHasMounted(scope)) {
     return refused('react-already-loaded');
   }

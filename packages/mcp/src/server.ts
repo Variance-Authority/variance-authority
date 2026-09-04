@@ -1,8 +1,17 @@
 import type { Readable, Writable } from 'node:stream';
+import type { EyesArchive } from '@variance-authority/eyes';
+import { readEyesArchive } from '@variance-authority/eyes/archive';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
 import { attachVantage } from '@variance-authority/vantage/attach';
-import { REPORTS, VANTAGE, createLineReader, handle, type JsonRpcRequest } from './protocol.js';
+import {
+  EYES,
+  REPORTS,
+  VANTAGE,
+  createLineReader,
+  handle,
+  type JsonRpcRequest,
+} from './protocol.js';
 import type { Served } from './tools/tool.js';
 
 /**
@@ -119,6 +128,41 @@ export async function serveReportFile(
         // A report that becomes unreadable mid-run — being rewritten, most
         // likely — must not take the server down. The previous one is stale,
         // not wrong.
+      }
+      return cached;
+    },
+  });
+}
+
+/**
+ * Serve the archive a run produced, on the same terms as a report file.
+ *
+ * Same reload, same reason: the agent asking about a test's attention is
+ * ordinarily the agent that just changed the component and re-ran, and answering
+ * it from the archive loaded at boot describes the run before the edit.
+ *
+ * The archive is what `@variance-authority/eyes`'s `gatherEyesArchive` folds a
+ * run's per-test journals into — one file, written when the run ended. A journal
+ * *directory* is deliberately not accepted here: gathering mid-run would serve
+ * an archive missing whichever workers had not finished, and an agent cannot
+ * tell that from a suite whose remaining tests looked at nothing.
+ */
+export async function serveEyesArchive(
+  path: string,
+  streams: ReportFileOptions = {},
+): Promise<() => void> {
+  let cached: EyesArchive = await readEyesArchive(path);
+
+  return serve({
+    input: streams.input ?? process.stdin,
+    output: streams.output ?? process.stdout,
+    served: EYES,
+    subject: async () => {
+      try {
+        cached = await readEyesArchive(path);
+      } catch {
+        // Mid-write, most likely. The previous archive is stale, not wrong, and
+        // taking the server down would lose the answer as well as the update.
       }
       return cached;
     },

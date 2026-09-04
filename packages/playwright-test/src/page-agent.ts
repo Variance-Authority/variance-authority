@@ -1,5 +1,11 @@
 import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
-import { awaitSuspense, portalContentOf, provenanceOf } from '@variance-authority/react';
+import {
+  awaitSuspense,
+  holdingOf,
+  portalContentOf,
+  provenanceOf,
+  wiringOf,
+} from '@variance-authority/react';
 import type { SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
 import type { Digest, RawCapture, RenderDocument, SubjectRef, Viewport } from '@variance-authority/core';
@@ -65,6 +71,26 @@ export interface AcquireRequest {
    * deliberately-captured loading state sends.
    */
   readonly suspense?: { readonly timeoutMs?: number };
+
+  /**
+   * Read the framework wiring band. Absent means *on*.
+   *
+   * Absent-means-on rather than a plain boolean because a suite reaches this
+   * through `variance(locator)` with no options at all, and a band every run
+   * wants should not be missing from the shortest call anyone writes.
+   */
+  readonly wiring?: boolean;
+
+  /**
+   * Read held state as evidence. Absent means *off*, and that asymmetry is the
+   * point rather than an oversight.
+   *
+   * A node carrying a holding suppresses the inert-wrapper collapse, so the same
+   * subtree read with holdings and without hashes to two different structures.
+   * That is a decision about both sides of a comparison at once, which is why
+   * nothing here makes it by default.
+   */
+  readonly holdings?: boolean;
 }
 
 export interface Acquired {
@@ -108,6 +134,13 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
   };
 
+  // FIXME: remounts are not read here, and `remountedSince` is why. It needs a
+  // mark taken *before* whatever the reader wants counted; `acquire` is a single
+  // call with no before, so a mark taken in this function reports nothing and a
+  // reading against the mount reports every fiber on the page. The interval
+  // belongs to the test body, which means the missing surface is a mark a spec
+  // takes before its own action — not another field on this request.
+
   // One mount, two products, deliberately. Two mounts would be two renders, and
   // any disagreement between the image and the names attached to it would be a
   // story about which of them was looking at what.
@@ -118,6 +151,8 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
     engine: request.engine,
     portalsOf: () => portals,
     provenanceOf,
+    ...(request.wiring === false ? {} : { wiringOf }),
+    ...(request.holdings === true ? { holdingOf } : {}),
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
   });
 

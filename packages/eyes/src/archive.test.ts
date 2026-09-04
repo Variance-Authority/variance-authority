@@ -54,6 +54,25 @@ describe('portable Eyes evidence', () => {
     }
   });
 
+  it('carries a tap refusal across the boundary, and rejects a reason it cannot read', () => {
+    const refused = (reason: string): unknown => ({
+      eyesVersion: 1,
+      tests: [{
+        id: 'test-1',
+        title: 'redraws',
+        complete: true,
+        attention: [{ kind: 'react-tap-refused', reason, sequence: 0 }],
+      }],
+    });
+
+    expect(parseEyesArchive(refused('no-hook'))).toMatchObject({
+      tests: [{ attention: [{ kind: 'react-tap-refused', reason: 'no-hook' }] }],
+    });
+    // A reason invented by a newer producer is not a refusal this reader can
+    // present, and passing it through would put an unexplained word in a report.
+    expect(() => parseEyesArchive(refused('gave-up'))).toThrow(/unknown tap refusal/);
+  });
+
   it('reads the same contract from a runner-owned JSON artifact', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'variance-eyes-'));
     const path = join(directory, 'eyes.json');

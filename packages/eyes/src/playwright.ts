@@ -58,6 +58,13 @@ export const eyesFixtures: Fixtures<
     { scope: 'worker' },
   ],
 
+  // TODO: this fixture opens a journal and nothing closes it, so a Playwright run
+  // records attention and publishes none of it. Closing it needs `eyesTestAttention`
+  // over `eyes.drain()` under `testInfo`'s identity and `recordEyesTest` into a
+  // directory the run resets once — which the README spells out by hand because a
+  // fixture cannot do it here: `@variance-authority/eyes/collect` is `node:fs`, and
+  // this module is loaded by the same config a browser bundle is built from.
+
   // eslint-disable-next-line no-empty-pattern
   eyes: async ({}, use) => {
     await use(createEyesLog());

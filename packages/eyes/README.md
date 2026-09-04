@@ -33,6 +33,12 @@ its entries. `attention.close()` restores every method once no watcher remains.
 The entrypoint watches bound `screen` queries; `within()` and queries returned by
 `render()` are distinct objects and remain outside it.
 
+Watching also installs capture-phase listeners on the runner's document, so an
+element removed by its own click handler is recorded with the attribution it had
+when the event reached it. React commits need the commit hook in place before
+`react-dom` loads; `watch` attaches to one and installs none, and a watch that
+finds no hook records `react-tap-refused` with the reason instead.
+
 The test authors Arrange, Act, and Assert boundaries; Eyes records them without
 guessing from library calls:
 
@@ -71,19 +77,18 @@ Another fixture or an `afterEach` hook can read the per-test `eyes` journal:
 
 ```ts
 import { test as base } from '@playwright/test';
-import { createEyesArchive } from '@variance-authority/eyes';
+import { createEyesArchive, eyesTestAttention } from '@variance-authority/eyes';
 import { eyesFixtures } from '@variance-authority/eyes/playwright';
 
 const test = base.extend(eyesFixtures);
 
 test.afterEach(async ({ eyes }, testInfo) => {
-  const archive = createEyesArchive([{
-    id: testInfo.testId,
-    title: testInfo.title,
-    file: testInfo.file,
-    complete: true,
-    attention: eyes.drain(),
-  }]);
+  const archive = createEyesArchive([
+    eyesTestAttention(
+      { id: testInfo.testId, title: testInfo.title, file: testInfo.file },
+      eyes.drain(),
+    ),
+  ]);
   await testInfo.attach('eyes.json', {
     body: Buffer.from(JSON.stringify(archive)),
     contentType: 'application/json',
@@ -103,6 +108,72 @@ or consolidated JSON artifact before it crosses a process boundary.
 
 The low-level `bundleEyesAgent` export is for custom fixture authors. The
 standard fixture reads and installs that same bundle.
+
+## Publish what a run recorded
+
+`@variance-authority/eyes/collect` is the Node half. It is a separate entrypoint
+because it imports `node:fs`, and `/rtl` is imported by test files a bundler may
+follow into a browser.
+
+A run spreads its tests over worker processes, so no object holds what the run
+saw. Each test publishes its own journal and the archive is what folding the
+directory produces once the run has ended. A journal is named by test id, so the
+directory has to hold one run: call `resetEyesJournals` from the runner's
+once-per-run hook — Vitest `globalSetup`, a Playwright setup project — and never
+from a test file, where it races the other workers.
+
+```ts
+import { resetEyesJournals } from '@variance-authority/eyes/collect';
+
+export async function setup(): Promise<void> {
+  await resetEyesJournals('.variance/eyes');
+}
+```
+
+`watchTest` pairs one log with the runner's identity for the span of one test,
+and its `close` returns the journal `recordEyesTest` publishes:
+
+```ts
+import { screen } from '@testing-library/react';
+import { recordEyesTest } from '@variance-authority/eyes/collect';
+import { watchTest } from '@variance-authority/eyes/rtl';
+
+let attention: ReturnType<typeof watchTest>;
+
+beforeEach(({ task }) => {
+  attention = watchTest(screen, { id: task.id, title: task.name, file: task.file?.name });
+});
+
+afterEach(async () => {
+  await recordEyesTest('.variance/eyes', attention.close());
+});
+```
+
+Completeness is derived, not asserted. `createEyesLog` numbers entries from
+construction and `drain` does not reset that counter, so a journal starting
+above zero or skipping a number is missing entries an earlier drain took —
+`eyesTestAttention` marks that one partial and says how many. A caller that
+already knows why collection stopped passes its own reason instead, and that
+reason wins.
+
+Publishing is a `link`, so a second journal under one test id fails the test
+that wrote it rather than replacing the first. `EYES_JOURNAL_SUFFIX` is what
+tells a journal apart from anything else the directory holds.
+
+Fold the directory once, where the run ends, and write the file a reader is
+pointed at:
+
+```ts
+import { gatherEyesArchive, writeEyesArchive } from '@variance-authority/eyes/collect';
+
+export async function teardown(): Promise<void> {
+  await writeEyesArchive('.variance/eyes.json', await gatherEyesArchive('.variance/eyes'));
+}
+```
+
+Every journal is validated on the way in by the same reader that guards the
+consolidated file, so a run that produced something a reader would refuse fails
+where it was written rather than hours later.
 
 ## Capture one node directly
 

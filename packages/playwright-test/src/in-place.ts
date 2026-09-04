@@ -12,7 +12,7 @@ import type { Locator, Page } from '@playwright/test';
 import { digestValue, documentDigest } from '@variance-authority/core';
 import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core';
 import { observeRasters } from '@variance-authority/observe';
-import type { InPlaceCaptureOptions } from './fixture.js';
+import type { InPlaceCaptureOptions } from './options.js';
 
 export async function stableRaster(
   page: Page,

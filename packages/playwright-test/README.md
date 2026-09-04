@@ -189,6 +189,8 @@ accessibility field means the boundary was not observed.
 | `source` | Failure output should resolve components to `file:line`. | Omitted; regions can still name components. |
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled (stopped showing its fallback). |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
+| `wiring` | The subtree is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off moves no stored digest. |
+| `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 
 ### `createVariance(page, testInfo, options)`
 

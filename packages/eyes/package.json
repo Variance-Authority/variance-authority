@@ -40,6 +40,10 @@
     "./archive": {
       "types": "./dist/archive.d.ts",
       "default": "./dist/archive.js"
+    },
+    "./collect": {
+      "types": "./dist/collect.d.ts",
+      "default": "./dist/collect.js"
     }
   },
   "main": "./dist/index.js",

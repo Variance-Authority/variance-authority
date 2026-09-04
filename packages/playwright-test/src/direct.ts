@@ -4,11 +4,8 @@ import { createPlaywrightRenderer } from '@variance-authority/playwright';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store';
 import { bundlePageAgent } from './bundle.js';
-import {
-  observeLocator,
-  type MaterializationOptions,
-  type VarianceOptions,
-} from './fixture.js';
+import { observeLocator } from './fixture.js';
+import type { MaterializationOptions, VarianceOptions } from './options.js';
 import {
   createExecutionRecorder,
   ownerOf,

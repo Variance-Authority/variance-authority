@@ -5,14 +5,8 @@ export type {
   VarianceSession,
 } from './direct.js';
 export { varianceFixtures } from './fixture.js';
-export type {
-  VarianceFixtures,
-  VarianceOptions,
-  InPlaceCaptureOptions,
-  MaterializationOptions,
-  VarianceRuntime,
-  VarianceWorkerFixtures,
-} from './fixture.js';
+export type { VarianceFixtures, VarianceRuntime, VarianceWorkerFixtures } from './fixture.js';
+export type { VarianceOptions, InPlaceCaptureOptions, MaterializationOptions } from './options.js';
 export { assertUnchanged, toBeUnchanged, varianceMatchers } from './matcher.js';
 export type { UnchangedOptions } from './matcher.js';
 export { AGENT, AGENT_VERSION, acquire } from './page-agent.js';

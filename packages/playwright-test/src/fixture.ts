@@ -16,7 +16,6 @@ import type {
   CaptureArtifact,
   AccessibilitySnapshot,
   SemanticSnapshot,
-  SourceIndex,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core';
@@ -30,6 +29,7 @@ import { settle, type BaselineKey, type RasterStore, type Renderer } from '@vari
 import { suspenseRefusal } from '@variance-authority/react';
 import { createDurableStore } from '@variance-authority/store';
 import { accepted } from './accepted.js';
+import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
 import { stableRaster } from './in-place.js';
@@ -77,62 +77,6 @@ import type { AcquireRequest } from './page-agent.js';
  * bought is a baseline any machine can reproduce from the document, including one
  * two networks away.
  */
-
-export interface VarianceOptions {
-  /**
-   * What the baseline is keyed on. Defaults to the test's title path.
-   *
-   * A default derived from titles means renaming a test orphans its baseline,
-   * which is the right failure — `new` rather than a silent comparison against
-   * something else — and is still worth overriding for anything long-lived.
-   */
-  readonly subjectId?: string;
-
-  /** Defaults to `route`, which is what a navigated page is. */
-  readonly subjectKind?: SubjectRef['kind'];
-
-  /**
-   * Fonts this machine is asserted to have, as `family/weight/style/hash`.
-   *
-   * Omitted here it stays omitted: the collector says so in a diagnostic rather
-   * than putting a confident value in the environment key. Supplying it is what
-   * makes a baseline written on a machine with a different font stack report
-   * `incomparable` instead of being compared.
-   */
-  readonly fonts?: readonly string[];
-
-  /** Component to file. Without it the docket names components and no lines. */
-  readonly source?: SourceIndex;
-
-  /** Milliseconds to wait for the subject's Suspense boundaries. Defaults to 5000. */
-  readonly suspenseTimeoutMs?: number;
-
-  /**
-   * This subject's *loading* state is what is being captured.
-   *
-   * The escape hatch. Without it, a subtree still showing a Suspense fallback
-   * **throws** rather than being recorded: a baseline over a skeleton that was
-   * never meant to be one turns every faster machine into a regression, and a
-   * failed assertion here is the only thing that reaches the person who can
-   * decide which of the two states this test is about.
-   */
-  readonly loading?: boolean;
-}
-
-export interface InPlaceCaptureOptions {
-  readonly kind: 'in-place';
-  /** Must describe the browser launch owned by the Playwright configuration. */
-  readonly browser: {
-    readonly headless: boolean;
-    readonly launchArgs: readonly string[];
-  };
-  /** Independent screenshots required to agree. Defaults to 2; minimum 2. */
-  readonly stabilityChecks?: number;
-}
-
-export type MaterializationOptions =
-  | { readonly kind: 'deferred' }
-  | InPlaceCaptureOptions;
 
 export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures {
   /** Observe one subtree against its stored baseline. */
@@ -337,6 +281,11 @@ export async function observeLocator(
       : options.suspenseTimeoutMs !== undefined
         ? { suspense: { timeoutMs: options.suspenseTimeoutMs } }
         : {}),
+    // Sent only when the test said something. The page agent holds the defaults,
+    // so a bundle and a driver built from different checkouts cannot disagree
+    // about what absent meant.
+    ...(options.wiring !== undefined ? { wiring: options.wiring } : {}),
+    ...(options.holdings !== undefined ? { holdings: options.holdings } : {}),
   };
 
   const acquired = await acquireFrom(page, locator, request);

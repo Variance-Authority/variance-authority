@@ -1018,6 +1018,10 @@
         "./archive": {
           "types": "./dist/archive.d.ts",
           "default": "./dist/archive.js"
+        },
+        "./collect": {
+          "types": "./dist/collect.d.ts",
+          "default": "./dist/collect.js"
         }
       },
       "files": [
@@ -1040,19 +1044,24 @@
         "EyesLog": "interface",
         "EyesPhase": "type",
         "EyesTestAttention": "type",
+        "EyesTestIdentity": "interface",
         "LocatorStep": "interface",
         "PhaseAttention": "interface",
         "PlannedLocatorAttention": "interface",
         "ReactCommitAttention": "interface",
+        "ReactTapRefusedAttention": "interface",
         "RtlQueryAttention": "type",
         "TargetSnapshot": "interface",
         "createEyesArchive": "function",
         "createEyesLog": "function",
+        "eyesTestAttention": "function",
         "snapshotNode": "function"
       },
       "./rtl": {
+        "RtlTestWatch": "interface",
         "RtlWatch": "interface",
-        "watch": "function"
+        "watch": "function",
+        "watchTest": "function"
       },
       "./playwright": {
         "EYES_AGENT": "const",
@@ -1066,6 +1075,13 @@
       "./archive": {
         "parseEyesArchive": "function",
         "readEyesArchive": "function"
+      },
+      "./collect": {
+        "EYES_JOURNAL_SUFFIX": "const",
+        "gatherEyesArchive": "function",
+        "recordEyesTest": "function",
+        "resetEyesJournals": "function",
+        "writeEyesArchive": "function"
       }
     }
   },
@@ -1346,6 +1362,7 @@
         "presentationToolByName": "function",
         "scenarioToolByName": "function",
         "serve": "function",
+        "serveEyesArchive": "function",
         "serveReportFile": "function",
         "serveVantage": "function",
         "sourceTestToolByName": "function",

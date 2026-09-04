@@ -71,6 +71,17 @@ describe('attaching', () => {
     mounted.remove();
   });
 
+  it('refuses to write a hook for a caller that could not have been first', () => {
+    // The shape of a collector reached through an import of the application's
+    // own React: no hook, and no standing to create one `react-dom` would read.
+    const scope: Record<string, unknown> = {};
+    const late = tapCommits({ scope, createHook: false });
+
+    expect(late.attached).toBe(false);
+    expect(late.reason).toBe('no-hook');
+    expect(scope['__REACT_DEVTOOLS_GLOBAL_HOOK__']).toBeUndefined();
+  });
+
   it('calls the handler it wrapped, and puts it back when it stops', async () => {
     const hook = (globalThis as Record<string, unknown>)['__REACT_DEVTOOLS_GLOBAL_HOOK__'] as {
       onCommitFiberRoot?: ((...args: unknown[]) => void) | undefined;

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as root from './index.js';
 import * as archive from './archive.js';
+import * as collect from './collect.js';
 import * as playwright from './playwright.js';
 import * as rtl from './rtl.js';
 
@@ -28,8 +29,23 @@ describe('Eyes entrypoints', () => {
     expect(root.createEyesLog).toBeTypeOf('function');
     expect(root.createEyesArchive).toBeTypeOf('function');
     expect(archive.readEyesArchive).toBeTypeOf('function');
+    expect(root.eyesTestAttention).toBeTypeOf('function');
     expect(root).not.toHaveProperty('watch');
     expect(root).not.toHaveProperty('eyesFixtures');
+  });
+
+  it('keeps the run-writing half in its own entrypoint', () => {
+    // `./rtl` is imported by a test file, which a bundler may follow into a
+    // browser. Journal writing is `node:fs` and belongs where a runner reaches
+    // it and a page never does.
+    expect(collect.recordEyesTest).toBeTypeOf('function');
+    expect(collect.resetEyesJournals).toBeTypeOf('function');
+    expect(collect.gatherEyesArchive).toBeTypeOf('function');
+    expect(collect.writeEyesArchive).toBeTypeOf('function');
+    expect(collect.EYES_JOURNAL_SUFFIX).toBe('.va-eyes.json');
+    expect(rtl.watchTest).toBeTypeOf('function');
+    expect(rtl).not.toHaveProperty('recordEyesTest');
+    expect(root).not.toHaveProperty('recordEyesTest');
   });
 
   it('exports an additive RTL mutation and unbound Playwright fixture parts', () => {

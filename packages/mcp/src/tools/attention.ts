@@ -124,6 +124,13 @@ function describe(entry: Attention): string {
     if (entry.outcome === 'absent') return `${call} → absent`;
     return `${call} → ${targetList(entry.targets)}`;
   }
+  if (entry.kind === 'react-tap-refused') {
+    // A journal with no commits in it has two unrelated causes — a page that
+    // rendered nothing, and a page nobody was listening to — and this entry is
+    // the only thing telling them apart. An agent reading a chronology without
+    // it would attribute the silence to the component.
+    return `React commit tap refused (${entry.reason}) → no commit can appear in this journal`;
+  }
   const locator = locatorLine(entry.locator);
   if (entry.operation === 'planned') return `planned ${locator}`;
   if (entry.outcome === 'threw') return `${entry.operation} ${entry.member} on ${locator} threw ${entry.error}`;

@@ -1,26 +1,10 @@
-import { tapCommits } from '@variance-authority/react';
+import { observeDocumentEvents, observeReactCommits } from './observe.js';
 import { snapshotNode } from './snapshot.js';
 import type { AttentionDraft, TargetSnapshot } from './access.js';
 
 export const EYES_AGENT = '__variance_authority_eyes__';
 export const EYES_AGENT_VERSION = 'eyes@1';
 export const EYES_RECORD = '__variance_authority_eyes_record__';
-
-const EVENTS = [
-  'pointerdown',
-  'pointerup',
-  'click',
-  'dblclick',
-  'keydown',
-  'keyup',
-  'input',
-  'change',
-  'submit',
-  'focusin',
-  'focusout',
-  'dragstart',
-  'drop',
-] as const;
 
 export interface InstalledEyesAgent {
   readonly version: typeof EYES_AGENT_VERSION;
@@ -47,38 +31,26 @@ export function installEyesAgent(): InstalledEyesAgent {
     throw new Error(`eyes page agent has no exposed ${EYES_RECORD} receiver`);
   }
 
+  // The observation is already a complete value when this is called; the Promise
+  // only carries it out of the realm. Losing the receiver must not turn a passing
+  // application interaction into an unhandled rejection inside that application.
+  const report = (attention: AttentionDraft): void => {
+    void record(attention).catch(() => undefined);
+  };
+
+  const commits = observeReactCommits(report, { createHook: true });
+  if (commits.refusal !== undefined) {
+    report({ kind: 'react-tap-refused', reason: commits.refusal });
+  }
+
   const installedDocuments = new WeakSet<Document>();
-  tapCommits({
-    onCommit: (commit) => {
-      // Losing an observer must not turn a passing application interaction into
-      // an unhandled rejection inside that application.
-      void record({ kind: 'react-commit', commit }).catch(() => undefined);
-    },
-  });
   const installDocument = (force = false): void => {
     if (!force && installedDocuments.has(document)) return;
     installedDocuments.add(document);
 
-    for (const type of EVENTS) {
-      document.addEventListener(
-        type,
-        (event) => {
-          const target = event.target;
-          if (!(target instanceof Node)) return;
-
-          // The snapshot is complete before the Promise crosses realms. In
-          // particular, React has not received this capture-phase event yet and
-          // therefore has not had an opportunity to unmount the target.
-          void record({
-            kind: 'document-event',
-            event: event.type,
-            trusted: event.isTrusted,
-            target: snapshotNode(target),
-          });
-        },
-        { capture: true },
-      );
-    }
+    // The stop function is dropped. A navigation replaces the document and takes
+    // its listeners with it, and the agent has no teardown of its own.
+    observeDocumentEvents(document, report);
   };
 
   const agent: InstalledEyesAgent = {

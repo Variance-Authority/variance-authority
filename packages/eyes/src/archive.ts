@@ -1,5 +1,10 @@
 import { readFile } from 'node:fs/promises';
-import type { Commit, CommitUpdater, CommitUpdaterFrame } from '@variance-authority/react';
+import type {
+  Commit,
+  CommitUpdater,
+  CommitUpdaterFrame,
+  TapRefusal,
+} from '@variance-authority/react';
 import {
   createEyesArchive,
   type ArgumentSnapshot,
@@ -63,6 +68,9 @@ function checkedAttention(value: unknown, where: string): Attention {
   if (kind === 'react-commit') {
     return { kind, commit: checkedCommit(attention['commit'], `${where} commit`), sequence };
   }
+  if (kind === 'react-tap-refused') {
+    return { kind, reason: checkedRefusal(attention['reason'], `${where} reason`), sequence };
+  }
   if (kind === 'document-event') {
     if (typeof attention['trusted'] !== 'boolean') throw new Error(`${where} trusted must be boolean`);
     return {
@@ -76,6 +84,16 @@ function checkedAttention(value: unknown, where: string): Attention {
   if (kind === 'rtl-query') return checkedRtl(attention, where, sequence);
   if (kind === 'playwright-locator') return checkedLocator(attention, where, sequence);
   throw new Error(`${where} has unknown kind`);
+}
+
+function checkedRefusal(value: unknown, where: string): TapRefusal {
+  // Listed rather than passed through. A reason a newer producer invented is one
+  // this reader cannot interpret, and the return type is what keeps the list
+  // honest when the producing union changes.
+  if (value !== 'react-already-loaded' && value !== 'unrecognised-hook' && value !== 'no-hook') {
+    throw new Error(`${where} has unknown tap refusal`);
+  }
+  return value;
 }
 
 function checkedCommit(value: unknown, where: string): Commit {
