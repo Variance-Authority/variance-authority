@@ -592,10 +592,10 @@ deployment machine over this package's own `scanRelations`:
 node node_modules/@variance-authority/sense/scripts/overhead.mjs
 ```
 
-Two arms differ only in how much of the clock is spent inside instrumented
-JavaScript: a cold arm dominated by the native parser, and a warm arm over a
-populated parse cache where nearly every millisecond carries probes. The warm
-arm is the closer bound.
+Two measurements differ only in how much of the clock is spent inside
+instrumented JavaScript. The cold one is dominated by the native parser; the
+warm one runs over a populated parse cache, where nearly every millisecond
+carries probes. The warm number is the closer bound.
 
 ## Find tests that cover source
 

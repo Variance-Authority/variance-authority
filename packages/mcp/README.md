@@ -272,7 +272,7 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, moved and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
 | `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each component that moved moved — including *nothing here explains it* | a change has no obvious author, or you are about to call something flaky |
-| `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature arm, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
+| `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature flag, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
 | `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will carry, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
 | `variance_describe` | what changed inside one subject — regions, components, files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
@@ -289,10 +289,10 @@ something that gets rejected.
 
 `variance_adjudicate` is the only tool that takes evidence *in*, and the only
 one that can report an **absence**. Everything else answers about the run;
-this answers about the agent. `variance_changes` can say that `Button` moved in
+this answers about the agent. `variance_changes` can say that `Button` changed in
 twelve subjects. It cannot say that `Card` — which the agent believes it just
-edited — did not move at all, because a diff has no opinion about what was
-supposed to happen. That third arm is where a wrong file, a dead branch, an
+edited — did not change at all, because a diff has no opinion about what was
+supposed to happen. That third case is where a wrong file, a dead branch, an
 overridden rule or a stale build surfaces, and no screenshot comparison reaches
 it.
 
@@ -326,9 +326,9 @@ addressable the run can say which of its examples are watching literally the
 same bytes, which of them disagree at one commit, and — for anything that moved
 — whether an edited file, a moved token or an edited *caller* accounts for it.
 
-This is also where an unexplained movement gets a **control group**: the
+This is also where an unexplained difference gets a **control group**: the
 subjects where that same component, with the same props, held — did not move —
-the stable states to compare against. Given one, an unexplained movement is
+the stable states to compare against. Given one, an unexplained difference is
 `flake` if the subject also failed to read the same way twice, or `suspect` — a
 shortlist, not a verdict — if nobody has read it twice yet.
 

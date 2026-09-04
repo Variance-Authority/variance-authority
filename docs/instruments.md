@@ -82,7 +82,7 @@ now_, and whether it moved there costs nothing to read
 ([`composition.md`](composition.md)).
 
 That is what turns _nothing explains this_ from a shrug into a finding. An
-unexplained movement beside four subjects where the component **held** is a
+unexplained difference beside four subjects where the component **held** is a
 different claim from one with nothing to compare against, and the report keeps
 them apart rather than calling both flaky.
 

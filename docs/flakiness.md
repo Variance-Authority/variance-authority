@@ -133,9 +133,9 @@ ds/chip--group · Chip (content)
 ```
 
 **Two names, and they are not two confidence levels in one claim.** `flake` is
-an unexplained movement in a subject that *also* failed to read the same way
+an unexplained difference in a subject that *also* failed to read the same way
 twice — both halves of the sentence, established by two different instruments,
-in one run. `suspect` is an unexplained movement in a subject nobody has read
+in one run. `suspect` is an unexplained difference in a subject nobody has read
 twice; it is a shortlist entry and the report says so in those words.
 
 Both are statements about a subject. Where the two readings carry component
@@ -157,7 +157,7 @@ than strengthening it, which is why it is a list rather than a flag.
 It costs no collection, no browser and no image: it is a fold over digests the
 run already produced. What it needs is [`--since`](selecting.md), because the
 top two rungs are unreachable without a change set — and a run that did not ask
-says so beside every unexplained movement instead of accusing anybody.
+says so beside every unexplained difference instead of accusing anybody.
 
 ### Which part of the module they took differently
 
@@ -256,7 +256,7 @@ all. It costs one collection per subject and no render, which is the shape that
 pays for itself nightly rather than on every pull request, and it exits `1` even
 when every verdict is green.
 
-**The sweep reads in plan order.** The shortlist an unexplained movement
+**The sweep reads in plan order.** The shortlist an unexplained difference
 produces is sorted by how much control the suite has over each entry, and
 nothing points the sweep at it. A subject with four held siblings and a subject
 with none get the same second reading in the order the plan emitted them.
@@ -477,10 +477,10 @@ up in a window. A visual-regression suite is also a set of examples built from
 shared components, so the same component with the same props is usually
 rendering somewhere else *right now*, and whether it moved there is a control
 the run can read for free ([`composition.md`](composition.md)). That is where
-*no related change* stops being an assumption: an unexplained movement beside
-four places the component held is a different claim from an unexplained movement
+*no related change* stops being an assumption: an unexplained difference beside
+four places the component held is a different claim from an unexplained difference
 with nothing to compare against, and the report distinguishes them rather than
-calling both flaky. What it does **not** do is decide — an unexplained movement
+calling both flaky. What it does **not** do is decide — an unexplained difference
 is still not a flake until something has read the subject twice.
 
 The honest cost of our bet: suspicion over-reports. A coupling can exist and

@@ -321,14 +321,14 @@ a ladder and stops at the first rung that holds:
 `edited` and `token` need [`--since`](selecting.md), and a run that did not ask
 cannot reach either. That degrades honestly, and it is checked in
 [`movement.ts`](../packages/core/src/attribute/movement.ts) rather than trusted to
-the caller: an unexplained movement in a run with no change set carries a sentence
+the caller: an unexplained difference in a run with no change set carries a sentence
 saying so instead of an accusation.
 
 **The `upstream` rung reads `created by` before `within`, and that is not a
 tie-break.** The component that wrote the element is the one whose edit changed
 this component's inputs. On todomvc, an edit to `src/app/todo.tsx` explains five
 chip movements through `TodoFooter`; a run consulting only `within` finds `Stack`,
-which nobody edited, and reports five unexplained movements instead of one caller.
+which nobody edited, and reports five unexplained differences instead of one caller.
 
 `token` is read off the component's own instances rather than off the subject,
 which is what makes it worth anything: every subject on a themed page resolves
@@ -343,7 +343,7 @@ component, with the same props, that this run did *not* report moving. Empty
 means there was no control, which weakens the finding, and is why it is a list
 rather than a flag.
 
-Composition stops at an unexplained movement. How the run orders its shortlist
+Composition stops at an unexplained difference. How the run orders its shortlist
 and turns a second reading into a verdict belongs to
 [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it).
 
@@ -369,7 +369,7 @@ the artifact, because a cap that says nothing reads as coverage.
 delete either: a component can be correct in one context and broken in the next,
 which is why the contexts are separate subjects in the first place.
 
-**An unexplained movement is not a flake.** It is a movement this run cannot
+**An unexplained difference is not a flake.** It is a change this run cannot
 explain, which is a statement about the evidence the run assembled and not about
 the subject. `variance run --flakes` is what settles one.
 
@@ -407,7 +407,7 @@ others ·
 [`attribution.md`](attribution.md) for how a changed pixel arrives with a
 component name on it ·
 [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it) for
-what an unexplained movement becomes ·
+what an unexplained difference becomes ·
 [`history.md`](history.md) for the same questions across runs ·
 [`packages/mcp`](../packages/mcp) for `variance_composition` ·
 [ADR-0033](context/adr/0033-the-component-that-mounted-it-is-not-the-one-it-sits-in.md)
