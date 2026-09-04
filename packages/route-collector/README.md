@@ -87,7 +87,7 @@ npx variance run --config variance.config.json
 
 The first successful run reports the routes as `new` and exits `1`. After the
 intended candidates are accepted, an unchanged run exits `0`; later changes are
-reported against the specific route and viewport that moved.
+reported against the specific route and viewport that changed.
 
 ## Sitemap and directory route sources
 
@@ -139,14 +139,14 @@ export default routeCollector({
 });
 ```
 
-Each width becomes its own subject—`home@375` and `home@1280`—with its own
+Each width becomes its own subject — `home@375` and `home@1280` — with its own
 navigation, baseline, and verdict. The page is navigated at the requested width
 so code that reads `matchMedia` during mount makes the correct decision.
 
 ## Options
 
-`widths` takes a viewport width set — an array of pixel widths — and renders
-each route once per width, independently.
+`widths` takes an array of pixel widths and renders each route once per width,
+independently.
 
 | Option | Use it when | Default and boundary |
 | --- | --- | --- |
@@ -164,7 +164,7 @@ each route once per width, independently.
 | `network` | Asset bytes at stable URLs must affect render identity. | `true`. |
 | `portable` | The pixels will be made on a machine with no route to your asset origin. | `false`. Requires `network`; a resource that cannot be closed fails its route and names itself. |
 | `hashAssets` | Your asset URLs already carry their own content hash. | `true`. Read only while `network` is on; GIF freezing, blanking and `portable` retention stay. |
-| `wiring` | This route is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off moves no stored digest. |
+| `wiring` | This route is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `stabilize` | The application has its own determinism strategy. | The standard collection recipe; `[]` records an untouched page. |
 
@@ -172,7 +172,7 @@ each route once per width, independently.
 
 Before each route is read, the collector waits for every React Suspense
 boundary under the selected roots to **settle** — resolve its real content,
-as opposed to still-arriving, where a fallback is still on screen. This runs
+rather than still be arriving behind a fallback. This runs
 before stabilization, because content that arrives late brings its own
 images and fonts.
 

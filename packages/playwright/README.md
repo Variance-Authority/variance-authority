@@ -26,7 +26,7 @@ npm install --save-dev @variance-authority/playwright
 npx playwright install chromium
 ```
 
-This is the only box in the repository that will ever ask you to install a
+This is the only package in this repository that will ever ask you to install a
 browser. Everything downstream of a render — comparison, isolation, attribution,
 storage — sits elsewhere and stays reachable without one.
 
@@ -87,12 +87,12 @@ subjects into one document and let one decide the other's verdict.
 
 `createHarness` takes:
 
-| option | | what it decides |
+| option | default | what it decides |
 |---|---|---|
 | `url` | required | the page navigated once and reused |
 | `bundle` | required | IIFE source installing a `PageAgent` at `AGENT_GLOBAL`. Not ESM: a module evaluates asynchronously, so the harness would poll instead of failing the moment the bundle is broken |
 | `viewport` | required | width, height, scale, colour scheme |
-| `fonts` | optional | families this capture is asserted to have; omitted means the capture says so |
+| `fonts` | optional | families this capture is asserted to have; when it is omitted the capture records that nothing was asserted |
 | `features` | optional | environment facts recorded with the capture |
 | `assets` | optional | asset digests recorded with the capture |
 | `subjectId` | `fixture:<subject>` | how a subject name becomes a capture id |
@@ -135,15 +135,15 @@ const harness = await createHarness({
 This closes a false `unchanged` a page cannot see about itself: a logo
 re-exported at the same URL is the same markup, the same CSS and the same
 document, so every comparison tier — DOM, CSS, layout — settles and the run
-reports that nothing moved, even though the served image is different bytes.
+reports that nothing changed, even though the served image is different bytes.
 Only the party that watched the network response knows otherwise.
 
 | option | default | what it decides |
 |---|---|---|
 | `hashAssets` | `true` | fold asset bodies into the environment key. Off is a real position for a build whose URLs are content-addressed already: the URL is then the identity, and hashing the bytes again buys a read and nothing else |
-| `hashCeilingBytes` | 8 MiB | above this an asset is recorded as `size:<n>` rather than by content. A ceiling, not a cliff — the weaker claim still moves the key when the file moves, and says in the value that it is weaker. Skipping it silently would leave a hole in the key, and a hole in this key is a false `unchanged` |
+| `hashCeilingBytes` | 8 MiB | above this an asset is recorded as `size:<n>` rather than by content. A ceiling, not a cliff — the weaker claim still changes the key when the file changes, and says in the value that it is weaker. Skipping it silently would leave a hole in the key, and a hole in this key is a false `unchanged` |
 | `freezeAnimatedImages` | `true` | serve animated GIFs as their first frame. Done on the wire rather than in the page — see [`gif.ts`](src/gif.ts) |
-| `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and moved the key with its bytes. It knows the URL and the intrinsic size, and does not know the DOM |
+| `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It knows the URL and the intrinsic size, and does not know the DOM |
 | `retainResources` | `false` | keep the bytes, not just the digest, so the document can be painted somewhere with no route to this origin. Retention rather than acquisition: every hashed body is already fetched and held long enough to digest, so a portable document costs a map and not a second crawl |
 
 `retainResources` keeps **what was served** — the blank an image became, the
@@ -184,7 +184,7 @@ Firefox or WebKit.
 makes Chromium's text independent of host defaults, and there is no equivalent
 for Firefox or WebKit. Their text is painted the way the host paints text.
 WebKit's one lever is the page's own `-webkit-font-smoothing`, which is not a
-substitute: it moves 4,204 pixels of a 500x160 subject, so it changes the subject
+substitute: it changes 4,204 pixels of a 500x160 subject, so it changes the subject
 rather than the conditions the subject is photographed under.
 
 On macOS none of this bites. The system has had no subpixel antialiasing since
@@ -192,8 +192,8 @@ On macOS none of this bites. The system has had no subpixel antialiasing since
 headed or headless at 1x and 2x. Where fontconfig is live — Linux, so most CI —
 the flags are load-bearing for Chromium and absent for the other two. Measured in
 `mcr.microsoft.com/playwright:v1.62.1-noble`: Chromium painting a webfont emits
-6,662 chromatic pixels, the two flags take that to zero, and Firefox and WebKit do
-not move because the flags never reached them.
+6,662 chromatic pixels, the two flags take that to zero, and Firefox and WebKit are
+unaffected because the flags never reached them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
 `RenderIdentity` carries `platform`, so a laptop's baseline and a container's are
@@ -203,7 +203,7 @@ produced in a container, produce them only there — a local WebKit renderer rec
 baselines nothing will ever compare against, and pays the raster tier for them.
 The semantic tier is unaffected and stays local (ADR-0010).
 
-Choosing the container is cheap, which is not the assumption. Measured on an M4 Max
+The container is cheap, which is not what people assume. Measured on an M4 Max
 under Docker Desktop 29.0.1, `mcr.microsoft.com/playwright:v1.62.1-noble` costs
 Chromium 1.17x and WebKit 1.66x per paint against native macOS, and costs Firefox
 nothing at all — it is *faster* in the container, 7.5 ms against 8.3. The same
@@ -263,8 +263,8 @@ partitions baselines instead of appearing as a product diff.
 
 A resource-closed document is rendered without network access: archived
 resource bytes satisfy matching requests and every unresolved request is
-aborted. A document without a `resources` field remains a local, environment-
-dependent input and may use the network available to the renderer.
+aborted. A document without a `resources` field remains a local,
+environment-dependent input and may use the network available to the renderer.
 
 **The viewport is not a renderer setting.** It arrives with each document, and
 the renderer keeps one page per viewport and reuses it — so one renderer serves

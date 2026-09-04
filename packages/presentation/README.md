@@ -8,7 +8,7 @@ Sense one rendered subject and return a machine-readable presentation graph. The
 report keeps semantic anchors attached to concrete element references, and
 measures geometry and presentation relationships.
 
-Two of its findings are deterministic. **Collapse** is a gap that should separate
+Two kinds of finding are deterministic. **Collapse** is a gap that should separate
 repeated instances, or a size difference that should separate a heading from body
 text, disappearing. **Drift** is one instance's position, baseline, or
 presentation diverging from the dominant pattern. Neither recommends a layout or
@@ -52,12 +52,13 @@ console.log(ownerReading.owner, ownerReading.findings, ownerReading.nested);
 
 Playwright supplies the live layout and its ARIA snapshot. The browser agent
 can paint from the same report it returns, but acquisition is normally left
-unpainted. Its default settlement — the waits, for fonts, images, and
-animations, that hold a page still before it is measured — covers images inside
+unpainted. Its default settlement — the waits for fonts, images and
+animations that hold a page still before it is measured — covers images inside
 the subject and its React portals, not unrelated images elsewhere in the
 document.
-`focusPresentation` reads one owner from that report without touching
-the page again. Its default `owner` depth includes the owner and its immediate
+
+`focusPresentation` reads one owner from that report without touching the page
+again. Its default `owner` depth includes the owner and its immediate
 children; evidence owned by nested boxes is counted in `nested` rather than
 folded into the current reading. Use `depth: 'subtree'` only when the product
 question deliberately treats the complete composition as one subject.
@@ -151,7 +152,7 @@ painting reuses the report and does not acquire the page.
 ## Inspect spacing at a composition owner
 
 Select consecutive immediate children at the owner that arranges them — they
-don't need matching semantic shape to belong to one composition:
+do not need matching semantic shape to belong to one composition:
 
 ```ts
 import {
@@ -241,8 +242,8 @@ contain measurements before prose: the involved nodes, pattern, coordinates,
 ratios, distances, or cluster identities.
 
 The browser accessibility snapshot is retained as an independent semantic
-reading. The `accessibility` option omits that reading only when the browser did
-not observe it. An empty root or a root with no parent or children is an observed
+reading. That reading is absent only when the browser did not
+observe it. An empty root or a root with no parent or children is an observed
 value and remains present without repair.
 
 A capture whose profile cannot observe layout still produces content telemetry
@@ -266,9 +267,9 @@ console.log(change.findings, change.information);
 `change.findings` and `change.information` are reported separately, never
 folded into a global score or verdict. `information` holds the content identity
 plus the element, character, and repeated-object counts. A matching content
-identity proves content held while presentation moved; it is derived before
+identity proves content held while presentation changed; it is derived before
 layout analysis, so the same check works for a capture whose layout is
-unobserved. Re-sensing can therefore show fewer findings resolved alongside an
+unobserved. Re-sensing can therefore report findings resolved alongside an
 unchanged content identity, and no stored baseline is required.
 
 ## Carry presentation impact into a run report

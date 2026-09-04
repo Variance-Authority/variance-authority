@@ -4,7 +4,7 @@
 
 > The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
 
-What a run leaves behind. A run compares one or more **subjects** — the pages,
+A run compares one or more **subjects** — the pages,
 routes, or components under test — and produces its answers in memory before the
 process ends. A **`RunReport`** is the shape those answers take, so they can be
 read afterwards: from a different process, on a different machine, by whoever or
@@ -30,13 +30,13 @@ like `@variance-authority/mcp` or `@variance-authority/store`.
 
 ## Package boundary
 
-It has several readers. The CLI writes it, a PR comment renders it, the MCP tools
-read it, and none of those is the format's home — a format owned by one reader
+The format has several readers. The CLI writes it, a PR comment renders it, the
+MCP tools read it, and none of those is its home — a format owned by one reader
 bends towards that reader.
 
-The failure that shape produces is concrete: with these types living in
-`@variance-authority/mcp`, the CLI depends on an agent protocol to describe its
-own output.
+What that would cost is concrete: with these types living in
+`@variance-authority/mcp`, the CLI would depend on an agent protocol to describe
+its own output.
 
 ## Entrypoints
 
@@ -47,7 +47,7 @@ own output.
 
 The split exists because a run happening on a pinned machine in CI and the
 questions being asked on a laptop is exactly why this artifact exists — and a
-consumer who moves it some other way (an object store, a PR comment, a socket)
+consumer who carries it some other way (an object store, a PR comment, a socket)
 wants the shapes and not the disk.
 
 ## Smallest working path
@@ -120,7 +120,7 @@ An `ObservationRecord` can carry one or more **signals** —
 that boundary was never measured, not that it was clean.
 `ObservationRecord.signals.presentation` retains what changed in rendered
 relationships beside the document, pixel, and accessibility boundaries. It is
-orthogonal to the renderer's `layout`/`paint`/`composite` impact and does not
+orthogonal to the renderer's layout, paint and composite impact, and does not
 change the observation verdict.
 
 A comparable signal carries the two presentation-report digests, information
@@ -132,14 +132,14 @@ an absent `presentation` member means nothing measured that boundary.
 Product-aware collectors return the signal with their collected subject. The
 CLI carries it through both a pixel-compared path and a **digest-settled**
 one — a subject whose document digest matched the baseline's, so it was
-declared unchanged without ever being repainted — and the JSON file,
-HTML report, text report, MCP description, and Tribunal record read the same
-stored value without re-running presentation analysis. The producing API and a complete
+declared unchanged without ever being repainted — and the JSON file, HTML
+report, text report, MCP description, and Tribunal record read the same stored
+value without re-running presentation analysis. The producing API and a complete
 example live with `@variance-authority/presentation`.
 
 ## Format derivations
 
-None has a home in a reader. `clusterChanges` groups a run's changed subjects
+None of these has a home in a reader. `clusterChanges` groups a run's changed subjects
 by fingerprint — the shape digest carried on each region — into a **cluster**:
 the set of subjects a single accept-or-reject decision covers. A token edit
 across forty stories becomes one cluster, so it is **one decision presented
@@ -179,7 +179,7 @@ would be told its band claim held.
 A baseline update lands in a run of its own — `variance accept` promotes what a
 reviewer looked at — and the artifact that lands says *what* the new baseline is
 and nothing about **what the change was**. A month later, at the twelfth 2px
-approval, the report that could have said is gone with the CI job.
+approval, the report that could have said so is gone with the CI job.
 
 `changelogOf` folds a report and the subjects that were actually accepted into
 one record, and `renderCommitMessage` puts it where the baseline is: in the
@@ -221,7 +221,7 @@ if (isRecorded(record)) {
 | option | what it decides |
 |---|---|
 | `report` | the run the reviewer read. Nothing is re-derived from bytes; the entry is evidence about a decision rather than a second opinion about an image |
-| `accepted` | the subjects actually promoted. The entries are the **intersection** with each cluster, never the cluster's own list — `accept --shape` refuses by name any subject where something else also moved, and an entry that copied the cluster would claim those too |
+| `accepted` | the subjects actually promoted. The entries are the **intersection** with each cluster, never the cluster's own list — `accept --shape` refuses by name any subject where something else also changed, and an entry that copied the cluster would claim those too |
 | `selection` | `named`, `shape` or `all`. Recorded rather than inferred: a regeneration under `--all` and a reviewed subject are different amounts of review, and a record that flattened them would let one read as the other |
 | `at` | ISO 8601, injected. Nothing written into a record may come from a hidden clock |
 | `project` | optional; the name the run is scoped by |
