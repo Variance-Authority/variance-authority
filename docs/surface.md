@@ -10,14 +10,13 @@ A suite connects to Variance Authority by composing independent choices:
 
 The host adapter owns discovery, lifecycle, and naming. It does not replace the
 host's test runner, assertions, configuration, build, or teardown. The resulting
-constellation is chosen for the suite's privacy, latency, repeatability, and
+combination is chosen for the suite's privacy, latency, repeatability, and
 coverage requirements; in-place and deferred rendering are both first-class.
 
 ## 1. The three things you write
 
 The smallest integration names a subject, acquires its state, and chooses where
-the resulting material goes. Host surfaces remove one or more of those
-steps.
+the resulting material goes. Host surfaces remove one or more of those steps.
 
 ### The collector — three methods
 
@@ -32,12 +31,12 @@ interface Collector {
 ```
 
 `plan` names what the run intends to observe. `collect` returns a render document
-and optional semantic/source evidence. `close` releases the host. The
+and optional semantic and source evidence. `close` releases the host. The
 Storybook, route, and unit-capture surfaces implement this contract.
 
 Collectors do not choose the renderer or baseline store. `variance run` wires
 their documents to the configured local or remote renderer and then to the
-ordinary observation/report path.
+ordinary observation and report path.
 
 ### The page agent — one method
 
@@ -49,9 +48,9 @@ interface PageAgent {
 }
 ```
 
-The Storybook and route collectors include their own agent. The
-Playwright Test surface also bundles one, because the suite's existing `Locator`
-already identifies the root.
+The Storybook and route collectors include their own agent. The Playwright Test
+surface also bundles one, because the suite's existing `Locator` already
+identifies the root.
 
 ### Provenance — one function
 
@@ -145,8 +144,8 @@ renderer with equivalent resource access; this adapter does not archive external
 resource bytes.
 
 The explicit in-place option captures the caller-owned locator twice, refuses
-same-run pixel disagreement, and sends the agreeing raster directly to baseline
-observation. It requires the suite to declare the browser launch recipe used by
+same-run pixel disagreement, and hands the agreeing raster straight to baseline
+comparison. It requires the suite to declare the browser launch recipe used by
 its Playwright configuration; the declaration enters renderer identity.
 
 Both placements acquire Playwright-native ARIA snapshots from the locator and
@@ -168,7 +167,7 @@ const variance = await createVariance(page, testInfo, {
 The package exports neither `test` nor `expect`. Fixtures and matcher parts are
 unbound values for suites that already own a shared extension module.
 
-### jest and vitest
+### Jest and Vitest
 
 Vanilla Jest or Vitest has a DOM and no rasterizer. The unit surface therefore
 does acquisition only:
@@ -217,7 +216,7 @@ policy; those fields remain absent rather than being inferred from pixels.
 | Seam | Library contract | CLI composition |
 | --- | --- | --- |
 | Document material | `Renderer.render(document)` | Local Playwright renderer or configured remote endpoint. |
-| Raster material | `observeCaptureAgainstBaseline` / `observeRasters` | No foreign-image command; in-place Playwright uses the library seam directly. |
+| Raster material | `observeCaptureAgainstBaseline` or `observeRasters` | No foreign-image command; in-place Playwright uses the library seam directly. |
 | Retention | `RasterStore` and `RenderCache` | Durable directory or configured remote backend. |
 
 The distinction is intentional: a library accepts injected capabilities; a
@@ -229,9 +228,9 @@ The material and placement choices trade different costs:
 
 | Choice | Saves | Pays | Best fit |
 | --- | --- | --- | --- |
-| In-place raster | reconstruction and a second browser | host-browser identity discipline; repeated screenshots; raster egress if remote review follows | state already reached in a stable, pinned browser; DOM disclosure is unacceptable |
+| In-place raster | reconstruction and a second browser | host-browser identity discipline; repeated screenshots; raster egress if remote review follows | state already reached in a stable, pinned browser, where disclosing the DOM is unacceptable |
 | Deferred local document | application rerun; enables render caching | resource closure or equivalent-access discipline, plus local browser cost | browserless acquisition or one pinned local renderer |
-| Deferred remote document | pinning the acquisition machine; enables remote fan-out | document/resource disclosure and transport; environment-dependent documents require equivalent resource access | shared render service; cross-environment portability only for closed documents |
+| Deferred remote document | pinning the acquisition machine; enables remote fan-out | disclosure of the document and its resources, plus transport; environment-dependent documents require equivalent resource access | shared render service; cross-environment portability only for closed documents |
 | Existing raster library input | all acquisition and rendering work | reduced semantic evidence unless the caller supplies it | another trusted capture system already owns pixels and identity |
 
 Renderer identity partitions durable baselines by engine, platform, scale,

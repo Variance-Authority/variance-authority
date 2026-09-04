@@ -94,10 +94,10 @@ attribution. Runtime execution is inside the SUT host and is broader than visual
 regression: an execution can produce crossings without a capture, and those
 crossings still power later test selection.
 
-The capture/frame-to-runtime edge does not copy the execution record into every
-snapshot. Per-observation attribution requires the capture or frame and the
-runtime recorder to share an instrumentation generation and recorder-issued
-start/end markers. Without those markers, both records belong to the same SUT
+The dotted edge from a capture or a frame to runtime does not copy the execution
+record into every snapshot. Per-observation attribution requires the capture or
+frame and the runtime recorder to share an instrumentation generation and
+recorder-issued start and end markers. Without those markers, both records belong to the same SUT
 execution but cannot support a frame-level execution claim.
 
 ## What exists while the SUT executes
@@ -137,9 +137,9 @@ outcome carries diagnostics and terminates the witnessed prefix. Several
 executions fold into a partial state machine without inventing unwitnessed
 edges.
 
-The scenario path is per SUT. Runtime coverage is run-wide. A shared host explains
-why they occurred in one execution; only shared interval identity attributes
-particular source crossings to one frame.
+The scenario path is per SUT. Runtime coverage is run-wide. A shared host
+explains why the two arose in one execution; only a shared interval identity
+attributes particular source crossings to one frame.
 
 ### Presentation readings
 
@@ -185,8 +185,8 @@ Pixel bytes have three distinct homes:
   `~/.cache/variance-authority/renders`. A miss or cache failure costs a paint.
 - **Run images:** candidate, baseline, and diff PNGs retained for review. They
   default beside `.variance/report.json`, under `.variance/images`, and the
-  report references them by relative path. A CI artifact must upload the report
-  and image directory together.
+  report references them by relative path. A CI job must upload the report and
+  the image directory together.
 - **Approved visual reference:** the authoritative PNG plus readable sidecar at
   a baseline key and painter partition. It lives in a configured directory, in
   Git LFS, or in an operator-controlled remote store.
@@ -213,7 +213,7 @@ sections; reach trails and query results remain run-wide in-process values.
 The index lives in the configured source-index root. The CLI's local namespace
 is `$XDG_CACHE_HOME/variance-authority/scans/<checkout-digest>`, falling back to
 `~/.cache/variance-authority/scans/<checkout-digest>`. A generation names its
-format, source contents, repository layout, and resolution/toolchain basis.
+format, source contents, repository layout, and resolution and toolchain basis.
 Readers reject an incompatible, foreign, incomplete, or corrupt generation and
 rebuild from the checkout rather than accepting part of it as an empty graph.
 
@@ -232,8 +232,8 @@ falling back to `~/.cache`. `coverageFile` gives it an explicit path when CI mus
 publish, restore, or share the artifact. Temporary journals are removed after
 consolidation.
 
-This record stores the instrumentation recipe, test files and their
-preconditions/completeness, source modules and blocks, and block-to-test
+This record stores the instrumentation recipe, the test files with their
+preconditions and completeness, source modules and blocks, and block-to-test
 crossings. Compatible partial runs add crossings; an incomplete or focused run
 cannot erase earlier evidence by silence. A changed instrumentation generation
 replaces the incompatible block universe.
@@ -266,9 +266,8 @@ edges have incompatible meanings.
 
 An MCP connection can receive the run report, full presentation readings,
 execution index, live Vantage state, Eyes archive, and scenario manifests as
-optional fields of one subject.
-This is a view over separately supplied records, not a global run object. Tool
-discovery is shared; evidence identity, completeness, retention, and storage
+optional fields of one subject. This is a view over separately supplied records,
+not a global run object. Tool discovery is shared; evidence identity, completeness, retention, and storage
 remain native to each domain.
 
 The inventory distinguishes an unavailable field from a present empty record.
@@ -291,7 +290,8 @@ discarded. At that boundary it can consume:
 - the resolved plan, including every planned, excluded, and failed subject;
 - per-subject acquisition diagnostics and stabilization declarations;
 - semantic snapshots and source provenance for findings and attribution;
-- candidate/reference comparison, changed regions, ignores, and sensitivity;
+- the candidate-to-reference comparison, changed regions, ignores, and
+  sensitivity;
 - paired presentation readings, when the caller supplied one for each side;
 - review-image addresses written beside the report;
 - same-run snapshots needed for suite composition and named variations; and
@@ -299,9 +299,9 @@ discarded. At that boundary it can consume:
 
 The canonical `RunReport` persists the resulting observations, subject-coverage
 ledger, warnings, run/painter identity, image references, variation and
-composition readings, presentation signals, and bounded history answers. `variance report`, its HTML
-form, and MCP tools over the report read that artifact; they do not reopen a
-browser or query the history service again.
+composition readings, presentation signals, and bounded history answers.
+`variance report`, its HTML form, and MCP tools over the report read that
+artifact; they do not reopen a browser or query the history service again.
 
 Full HTML, semantic trees, masks, baseline bytes, the source graph, runtime
 coverage, scenario executions, and whole presentation readings do not enter
@@ -311,9 +311,9 @@ content identity, and information deltas are copied into the observation, while
 the graph and paint geometry they were measured from stay with the caller. A
 view that shows source-to-test evidence or scenario paths beside the visual
 report must be given the separate coverage or scenario artifact and may join it
-only through shared identities.
-Relative image paths are the exception carried directly by the report because
-the page must know where its review pixels live.
+only through shared identities. Relative image paths are the one exception the
+report carries directly, because the page must know where its review pixels
+live.
 
 Test results contribute at two levels. Runner completion, preconditions, and
 probe hits form runtime coverage even when no visual subject is captured.

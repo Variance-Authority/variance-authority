@@ -129,8 +129,8 @@ components, and the answer is the five that resolve through that token rather
 than everything on a page containing one.
 
 What the placeholder still carries is the *number* of children handed in, so a
-caller passing three where it passed two changes the container. That residual limit
-is stated in
+caller passing three where it passed two changes the container. That residual
+limit is stated in
 [ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md).
 
 ### What the join key must not depend on
@@ -158,7 +158,7 @@ regression.
 
 **Layout output is not style.** Under a profile with a layout engine the snapshot
 carries resolved values, so a block element's computed `height` is whatever its
-contents made it — and a button two levels down growing by six pixels moves the
+contents made it — and a button two levels down growing by six pixels changes the
 computed height of every ancestor. Measured on
 [`cases/storybook-case`](../cases/storybook-case), one padding edit inside
 `Button` made `Tokens`, `Stack`, `Card` and the unattributed root all report a
@@ -290,14 +290,14 @@ as two boundaries under one owner frame — one `TextField` becoming a label-sha
 rendering and an input-shaped one — so renderings that co-occur in a single
 subject are one instance in two pieces, indistinguishable from two that genuinely
 disagree. And `propsDigest` excludes `children` deliberately, so
-`<Card><Stack/></Card>` and `<Card><Text/></Card>` share one; two proxies for
-"the children differed" are required to be quiet, the child components mounted
+`<Card><Stack/></Card>` and `<Card><Text/></Card>` share one; so two proxies for
+"the children differed" are required to be quiet: the child components mounted,
 and the boundary's own text.
 
 The asymmetry is the reason those checks are code, not prose: a difference
 wrongly dismissed as `contradicted` is an explanation nobody can act on, while
-the same difference left unexplained lands on the suspect shortlist, where a second
-reading settles it.
+the same difference left unexplained lands on the suspect shortlist, where a
+second reading settles it.
 
 Zero is a real and common answer, and it means nothing in the suite renders two
 ways from one input. `Card` keeps one props class and two renderings, which is the
@@ -320,15 +320,16 @@ a ladder and stops at the first rung that holds:
 
 `edited` and `token` need [`--since`](selecting.md), and a run that did not ask
 cannot reach either. That degrades honestly, and it is checked in
-[`movement.ts`](../packages/core/src/attribute/movement.ts) rather than trusted to
-the caller: an unexplained difference in a run with no change set carries a sentence
-saying so instead of an accusation.
+[`movement.ts`](../packages/core/src/attribute/movement.ts) rather than trusted
+to the caller: an unexplained difference in a run with no change set carries a
+sentence saying so instead of an accusation.
 
 **The `upstream` rung reads `created by` before `within`, and that is not a
 tie-break.** The component that wrote the element is the one whose edit changed
 this component's inputs. On todomvc, an edit to `src/app/todo.tsx` explains five
 chip changes through `TodoFooter`; a run consulting only `within` finds `Stack`,
-which nobody edited, and reports five unexplained differences instead of one caller.
+which nobody edited, and reports five unexplained differences instead of one
+caller.
 
 `token` is read off the component's own instances, not off the subject,
 which is what makes it worth anything: every subject on a themed page resolves
@@ -336,10 +337,10 @@ through every token in the theme, so a subject-level intersection names them all
 and explains nothing.
 
 Two things ride beside every difference. **`alsoIn`** is the other subjects the
-same component changed in this run — a reviewer reading eleven changed subjects is
-often reading one edit, and the count is the difference between a frightening
+same component changed in this run — a reviewer reading eleven changed subjects
+is often reading one edit, and the count is the difference between a frightening
 report and an accurate one. **`held`** is the control group: sites of the same
-component, with the same props, that this run did *not* report moving. Empty
+component, with the same props, that this run did *not* report as changed. Empty
 means there was no control, which weakens the finding, and is why it is a list
 and not a flag.
 
@@ -356,8 +357,8 @@ that reaches the artifact is sorted by code unit, not by locale, because a
 report is committed, diffed and read back on another runner, and a locale-aware
 comparison makes the byte order a promise about `LANG`.
 
-What reaches the artifact is smaller than what produced it. The full graph carries
-one entry per boundary per subject — tens of thousands of objects on a real suite
+What reaches the artifact is smaller than what produced it. The full graph
+carries one entry per boundary per subject — tens of thousands of objects on a real suite
 — and a report is a file people open, so the record keeps the names, the counts
 and the subject lists, and a consumer that wants the graph recomputes it from the
 snapshots. The echo list is capped at 100 and what the cap left out is counted in
@@ -388,14 +389,13 @@ and the report's own types say so.
 
 **Provenance is React's.** The boundaries come from the fiber tree, so a suite
 built on anything else composes nothing at all — the raster tier's answer, with
-the same honest absence.
-Suites on other frameworks retain raster comparison without composition
-attribution.
+the same honest absence. A suite on another framework keeps its raster comparison
+and gets no composition attribution.
 
 **It is measured on one application.** Fifteen stories, twelve components, one
 framework, one development build, one machine, and a change set declared by the
-example rather than read from a repository's history. Every number is an assertion
-in
+example rather than read from a repository's history. Every number is an
+assertion in
 [`composition.test.tsx`](../examples/todomvc/src/composition.test.tsx) and
 [`closure.test.tsx`](../examples/todomvc/src/closure.test.tsx), which are small
 enough that their measurements are the claim.

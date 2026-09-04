@@ -39,7 +39,7 @@ const ROWS = [
   {
     q: "browser coverage",
     cells: [
-      doc("Managed desktop/mobile coverage"),
+      doc("Managed desktop and mobile coverage"),
       doc("Managed browser and mode matrix"),
       doc("Whatever the caller's capture suite runs"),
       doc("Managed grid plus mobile products"),
@@ -49,10 +49,10 @@ const ROWS = [
   {
     q: "a diff points to",
     cells: [
-      doc("DOM/CSS root-cause aids"),
+      doc("DOM and CSS root-cause aids"),
       doc("Story identity and dependency tracing"),
-      doc("Spec/story metadata"),
-      doc("DOM/CSS root-cause aids"),
+      doc("Spec and story metadata"),
+      doc("DOM and CSS root-cause aids"),
       doc(
         "Pixel region → component → file:line, when the capture supplies matching provenance",
       ),
@@ -88,7 +88,7 @@ const ROWS = [
       doc("screenshots"),
       doc("snapshots with product-specific multipliers"),
       doc("screenshots"),
-      doc("a Page independently of browser/device repetitions"),
+      doc("a Page independently of browser and device repetitions"),
       doc("no vendor meter"),
     ],
   },
@@ -110,7 +110,7 @@ const ROWS = [
         "Storybook is your canonical UI inventory, and non-engineer review, branch semantics, and managed stability matter more to you than self-operation",
       ),
       doc("the suite should own pixels but the vendor should own review and history"),
-      doc("managed cross-browser/mobile coverage, perceptual match levels, enterprise workflow, or an on-premise commercial deployment"),
+      doc("managed cross-browser and mobile coverage, perceptual match levels, enterprise workflow, or an on-premise commercial deployment"),
       doc(
         "a changed screenshot should arrive as one cause with its evidence, and be settled in one decision",
       ),

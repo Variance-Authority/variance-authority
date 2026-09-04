@@ -1,7 +1,7 @@
 # From a pixel to a line
 
-A pixel differ answers one question — how many pixels moved — and *5482* is not a
-finding. It cannot be read, it cannot be assigned, and the only available
+A pixel differ answers one question — how many pixels differ — and *5482* is not
+a finding. It cannot be read, it cannot be assigned, and the only available
 response to it is to open the image and look, which is the expensive act the tool
 was supposed to replace.
 
@@ -254,7 +254,7 @@ and rank by area as:
 
 Every one of those attributions is correct — the pixels really are inside those
 nodes. The *ordering* is wrong, because **area measures displacement, not
-cause**. An edit that reflows its surroundings moves far more of them than of
+cause**. An edit that reflows its surroundings displaces far more of them than of
 itself, so `Stack`, which nothing edited, outranks `Toggle`, which is the edit.
 
 Geometry cannot fix this; it has no access to why. The semantic tier does — it
@@ -293,7 +293,7 @@ nothing — and nothing is printed as nothing.
 
 ---
 
-**Further:** [`composition.md`](composition.md) for what explains a movement once
+**Further:** [`composition.md`](composition.md) for what explains a change once
 it has a name · [`source.md`](source.md) for the other direction, from a diff to
 the subjects it could have reached ·
 [`packages/jsx-source`](../packages/jsx-source) for the exact locations ·

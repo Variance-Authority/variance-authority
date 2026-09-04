@@ -8,8 +8,8 @@ files, resolves what they point at, and hands back one record per file.
 It is a *reader*, not a builder. Nothing here executes the code it reads, loads a
 config that a bundler would load, or asks a package manager anything. The whole
 mechanism is a parse, a resolver and one source index — which is why a cold scan
-of a thirty-thousand-file repository is three seconds, every scan after it is a
-fraction of that, and neither is the minutes a build costs.
+of a thirty-thousand-file repository takes three seconds, every scan after it a
+fraction of that, and neither of them the minutes a build costs.
 
 The package is [`packages/sense`](../packages/sense), and it is named for what it
 is for: sensing what is there. The graph it feeds lives in
@@ -33,7 +33,7 @@ Nothing in the reader resolves a specifier. `readModule` in
 [`packages/sense/src/read.ts`](../packages/sense/src/read.ts) turns a file's text
 into **requests** — specifiers exactly as written — with **bindings** hanging off
 each one, and where a specifier points is a separate question, answered further
-down by a disk.
+down, against the disk.
 
 ```ts
 import { Card, type Props } from './ui';
@@ -99,7 +99,7 @@ Three resolvers, because one set of options cannot answer all three questions:
 | exact | no extension rewriting, for the one request where the rewrite is the bug |
 
 Conditions default to `source, import, require, default` — source before built
-output, because a package that publishes both is worth more as source. Sass'
+output, because a package that publishes both is worth more as source. Sass's
 partial convention is tried as a second spelling, since `./colors` finding
 `_colors.scss` is a naming rule, not a resolver option. `tsconfig: 'auto'`
 discovers the nearest config per file, which is what a workspace of many packages
@@ -272,7 +272,7 @@ whose blocks are unknown is *not instrumented*, never *not executed*
 The transform alone does not select tests. The runner records crossings first;
 `selectTestFiles` then joins the persisted coverage data to a diff and returns the
 test files whose recorded regions intersect it. Missing or indeterminate
-coverage widens selection instead of turning absence into no reach. See
+coverage widens selection rather than reading absence as no reach. See
 [`selecting.md`](selecting.md) for the decision boundary.
 
 ## What this refuses to conclude

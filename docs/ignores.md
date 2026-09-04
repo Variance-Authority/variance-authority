@@ -1,7 +1,7 @@
 # Ignores
 
 Some of what a page renders is not the subject. A clock, a carousel, an embed
-somebody else controls — they move on every run, and no amount of correctness
+somebody else controls — they change on every run, and no amount of correctness
 elsewhere makes a suite usable while they do.
 
 An ignore declares that boundary, and every run accounts for what the
@@ -29,7 +29,7 @@ An ignore is the opposite in every respect that matters.
 | Author | whoever chose the default | you, in your config, by name |
 | Reason | none is recorded | required — a rule without one is refused |
 | What it hides | anything that fits under the number | exactly what it says, counted every run |
-| When it stops | never | the run it absorbs nothing, it is reported |
+| When it stops | never | the first run it absorbs nothing, it is reported |
 | Verdict it produces | `unchanged` | `ignored`, which is a different word |
 
 Dead-rule accounting exposes a mask that outlives its flake. Every run names the
@@ -48,7 +48,7 @@ The common case. You know which element is noisy.
   "ignore": [
     {
       "id": "dashboard-clock",
-      "reason": "renders wall time, which moves every run",
+      "reason": "renders wall time, which changes on every run",
       "select": ".site-header time"
     }
   ]
@@ -297,7 +297,7 @@ IGNORED — 1284 pixel(s) absorbed by 3 rule(s); 12 subject(s) differed only the
     is silenced is being reported
 ```
 
-Five states, and they need different actions:
+Each line asks for a different action:
 
 | Line | What happened | What to do |
 |---|---|---|
@@ -390,7 +390,7 @@ from a different run, and that is worth being told.
 - **It cannot change what is rendered.** Ignores sit outside the environment key,
   so editing one never invalidates a baseline — and never changes an image.
 - **It cannot silence a size change.** A subject that resized is reported whatever
-  its exclusions cover, because the canvas itself moved.
+  its exclusions cover, because the canvas itself changed.
 - **It cannot hide from the ledger.** There is no quiet ignore.
 
 ## Coming from somewhere else
@@ -401,6 +401,6 @@ from a different run, and that is worth being told.
 | Percy's `data-percy-ignore-region` | `data-variance-ignore="<rule id>"` |
 | Argos's `data-visual-test="transparent"` | `data-variance-ignore="<rule id>"` |
 | Argos's fingerprint-scoped ignore | a `fingerprints` rule — the same idea |
-| Chromatic's `.chromatic-ignore` / `data-chromatic="ignore"` | `data-variance-ignore="<rule id>"` |
+| Chromatic's `.chromatic-ignore` or `data-chromatic="ignore"` | `data-variance-ignore="<rule id>"` |
 | A coordinate mask | a `select` rule; there is no coordinate form, [and why](#by-place--a-selector) |
 | A global pixel threshold | nothing. There is no equivalent, [on purpose](#an-ignore-is-not-a-tolerance) |

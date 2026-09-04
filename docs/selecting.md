@@ -1,8 +1,8 @@
 # Running less of the suite
 
 A 300-subject suite where one component changed pays for 300 collections and 300
-comparisons to report two changed subjects. That is the largest single saving available in this
-category, and every product in it has an answer:
+comparisons to report the two subjects that changed. That is the largest single
+saving available in this category, and every product in it has an answer:
 
 - **Chromatic's TurboSnap** traces a change through the *bundler's* dependency
   graph and tests the stories it reaches.
@@ -48,7 +48,7 @@ report to be missing from. So every uncertainty resolves toward observing:
 |---|---|
 | The subject has no baseline | Observed. It is new; nothing is known about it |
 | Its baseline records no component list | Observed. Absent is *unknown*, never *renders nothing* |
-| A changed file under `source.dirs` declares no component | **The whole suite runs.** A stylesheet, a token file or a shared helper moves subjects without naming itself in any of them. This is the row [a file graph retires](#the-expensive-row-and-what-retires-it) |
+| A changed file under `source.dirs` declares no component | **The whole suite runs.** A stylesheet, a token file or a shared helper repaints subjects without naming itself in any of them. This is the row [a file graph retires](#the-expensive-row-and-what-retires-it) |
 | The diff reaches components and **no baseline records any of them** | Narrowed, and **named**: the run prints what it reached and could not match. The one row that does not resolve toward observing, and the one [`source.unrendered` controls](#a-change-nothing-has-been-seen-rendering) |
 | The diff touched nothing under `source.dirs` | The whole suite runs, and says so |
 | `git` could not list the diff | The run refuses. An empty diff read as "nothing changed" would narrow to nothing and report success |
@@ -102,7 +102,7 @@ facts wearing one shape:
   ordinary reason to run nothing, and running nothing is the whole point of
   `--since`.
 - **something here paints it without recording it.** A server component. Then the
-  skip is a green run over a stylesheet that repainted the shop.
+  skip is a green run over a stylesheet that repainted every page.
 
 Nothing in the selector separates them: both are components declared in files no
 subject imports. An observation surface narrower than the source tree is the
@@ -133,7 +133,8 @@ server tree is always that, and for now so is anything outside the browser.
 
 `src/tokens.css` is the file every design system is most afraid of, and so is the
 shared helper, the theme provider, the icon nobody thinks about. None of them
-declares a component, so each one runs three hundred subjects to report two changed subjects.
+declares a component, so each one runs three hundred subjects to report the two
+that changed.
 
 The answer is two hops away, and the hops are written down in the source:
 
@@ -188,10 +189,10 @@ that has one has already configured it:
 ```
 
 Their answer is **more changed input, never a second opinion**. Every file under
-an affected project is treated as though the diff named it, and the selection
-narrows outward from there like it does from any other change; the two answers
-union, and neither overrules the other. Taken as the selection instead, it would
-give back most of what selection is for — a project is hundreds of subjects, and
+an affected project is treated as though the diff named it, and selection
+proceeds from there as it does from any other change; the two answers union, and
+neither overrules the other. Taken as the selection instead, it would give up
+most of what selection is for — a project is hundreds of subjects, and
 a one-line change to a leaf component marks the whole package affected.
 
 `turbo` needs the `task` because its filter answers *what would run*, not
