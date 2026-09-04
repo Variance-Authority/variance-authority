@@ -1,6 +1,7 @@
-import { propsDigest, type Digest, type SourceLocation } from '@variance-authority/core';
+import type { Digest, SourceLocation } from '@variance-authority/core';
 import { currentFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
+import { boundaryPropsDigest } from './props.js';
 import { componentFiberPath, fiberSourceLocation } from './traversal.js';
 
 /** The FiberRoot fields React uses to expose the initiators of one commit. */
@@ -65,19 +66,8 @@ function commitUpdater(fiber: Fiber): CommitUpdater {
   const path = componentFiberPath(fiber).fibers.map((frame): CommitUpdaterFrame => ({
     name: fiberComponentName(frame),
     key: frame.key,
-    propsDigest: propsDigest(digestableProps(frame.memoizedProps)),
+    propsDigest: boundaryPropsDigest(frame.memoizedProps),
   }));
   const source = fiberSourceLocation(fiber);
   return { path, ...(source === undefined ? {} : { source }) };
-}
-
-function digestableProps(
-  props: Readonly<Record<string, unknown>> | null,
-): Readonly<Record<string, unknown>> {
-  if (props === null || typeof props !== 'object') return {};
-  const shaped: Record<string, unknown> = {};
-  for (const key of Object.keys(props)) {
-    if (key !== 'children') shaped[key] = props[key];
-  }
-  return shaped;
 }
