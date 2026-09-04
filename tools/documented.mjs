@@ -26,9 +26,18 @@ import { readHelp, undocumented } from '@variance-authority/package/help';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const BASELINE = join(ROOT, 'tools/documented.baseline.json');
 
-/** One line per silent name: where it is, and how big the audience is. */
+/**
+ * One line per silent name: where it is, and how big the audience is.
+ *
+ * `docs-examples` is skipped because it is generated: every fenced block in
+ * every README, compiled, in a directory with no manifest of its own — so the
+ * reader attributes each snippet to the root package and eleven names that
+ * nothing imports read as names that cross a boundary. A ratchet whose value
+ * depends on whether the examples have been built is a ratchet that moves when
+ * nobody edited anything, which is the one thing it exists not to do.
+ */
 export function silent() {
-  return undocumented(readHelp(ROOT)).map((entry) => ({
+  return undocumented(readHelp(ROOT, { skip: ['docs-examples'] })).map((entry) => ({
     name: entry.name,
     kind: entry.kind,
     at: entry.at,

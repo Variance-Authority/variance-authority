@@ -368,9 +368,9 @@ describe('the architecture inventory lists every package', () => {
 describe('the documented vocabulary is the real one', () => {
   const INDEX = readFileSync(join(ROOT, 'docs/README.md'), 'utf8');
 
-  /** The backticked words in one table row of the glossary. */
+  /** The backticked words in one glossary row. Column alignment is not part of it. */
   const worded = (term: string) =>
-    [...(new RegExp(`^\\| \\*\\*${term}\\*\\* \\|(.+)$`, 'm').exec(INDEX)?.[1] ?? '').matchAll(
+    [...(new RegExp(`^\\|\\s*\\*\\*${term}\\*\\*\\s*\\|(.+)$`, 'm').exec(INDEX)?.[1] ?? '').matchAll(
       /`([a-z-]+)`/g,
     )].map((match) => match[1]!);
 
