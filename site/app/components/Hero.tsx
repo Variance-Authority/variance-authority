@@ -32,7 +32,7 @@ export default function Hero() {
             Variance Authority is a set of composable evidence tools for
             software that changes. Visual review is one composition: it connects
             a changed pixel to the document and accessibility evidence behind
-            it, to the React component that owns it and the inputs that moved,
+            it, to the React component that owns it and the inputs that changed,
             and to the source that rendered it. States that changed the same way
             are reviewed as one decision. A state with extra or missing evidence
             stays open.

@@ -4,14 +4,14 @@ const PASSES = [
     name: "again",
     world: "held",
     time: "advanced",
-    asks: "Does this state move on its own?",
+    asks: "Does this state drift on its own?",
     answer: "unstable",
   },
   {
     name: "alone",
     world: "rebuilt",
     time: "held",
-    asks: "Did another state move this one?",
+    asks: "Did another state change this one?",
     answer: "order-dependent",
   },
 ] as const;
@@ -30,12 +30,12 @@ const LADDER = [
   },
   {
     reading: "documentDigest",
-    settles: "whether anything that can reach a renderer moved",
+    settles: "whether anything that can reach a renderer changed",
     cost: "a read of a page already mounted",
   },
   {
     reading: "the image",
-    settles: "whether the pixels moved",
+    settles: "whether the pixels changed",
     cost: "a raster, roughly eighteen times a reading",
   },
 ] as const;
@@ -43,15 +43,15 @@ const LADDER = [
 /** What a row moving under a row that held actually means. */
 const CONVERSE = [
   {
-    when: "the fiber moved, the document did not",
+    when: "the fiber changed, the document did not",
     means: "Components re-rendered and the page did not follow. That is the receipt a refactor never gets.",
   },
   {
-    when: "the document moved, the image did not",
+    when: "the document changed, the image did not",
     means: "Something reached the browser and the picture came back the same: sub-pixel geometry, a repeated colour, a rule that lost the cascade.",
   },
   {
-    when: "nothing that was read moved, the image did",
+    when: "nothing that was read changed, the image did",
     means: "Every input the run looked at agreed and the picture changed anyway. This is the one place the report says flake.",
   },
 ] as const;
@@ -126,7 +126,7 @@ export default function Flakes() {
             <span className="font-mono text-[0.95em] text-ivory">again</span>{" "}
             asks first, because{" "}
             <span className="font-mono text-[0.95em] text-ivory">alone</span>{" "}
-            infers that the world moved a state — which is only evidence if two
+            infers that the world changed a state — which is only evidence if two
             readings of one world would have agreed. Asked the other way round,
             a page with a clock in it produces a confident sentence about suite
             pollution and sends somebody to bisect a run order that has nothing
@@ -151,12 +151,12 @@ export default function Flakes() {
               one question, four prices
             </p>
             <h3 className="mt-2 text-xl font-bold tracking-tight text-ivory">
-              Has this state stopped moving?
+              Has this state stopped drifting?
             </h3>
           </div>
           <p className="max-w-md text-sm leading-6 text-quiet">
             A component tree that did not re-render cannot have produced a
-            different document, and a document that did not move cannot paint a
+            different document, and a document that did not change cannot paint a
             different image. The cheapest reading that answers ends the
             question.
           </p>
@@ -187,7 +187,7 @@ export default function Flakes() {
 
         <p className="mt-5 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
           A document byte-identical to the one its baseline was painted from is
-          never photographed again. On a suite where nothing moved, that is the
+          never photographed again. On a suite where nothing changed, that is the
           whole run.
         </p>
 
@@ -202,7 +202,7 @@ export default function Flakes() {
           ))}
         </div>
         <p className="mt-4 text-sm leading-6 text-quiet">
-          A row that moves while the row above it held is not a wasted check. It
+          A row that changes while the row above it held is not a wasted check. It
           is the finding, and climbing until two samples agree is what throws it
           away.
         </p>

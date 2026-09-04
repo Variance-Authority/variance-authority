@@ -7,7 +7,7 @@ const STEPS = [
   {
     n: "02",
     label: "observe",
-    detail: "11 states moved · one repeated component-level cause",
+    detail: "11 states changed · one repeated component-level cause",
   },
   {
     n: "03",

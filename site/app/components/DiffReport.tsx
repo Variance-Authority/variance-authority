@@ -31,7 +31,7 @@ const REGIONS = [
 ] as const;
 
 /**
- * The mock subject: the same page before and after a spacing token moved. Laid
+ * The mock subject: the same page before and after a spacing token changed. Laid
  * out in absolute percentages rather than flow, so the region boxes above can
  * be authored against the same coordinates the shot draws in.
  */

@@ -45,7 +45,7 @@ export default function Page() {
               label="five readings"
               title="One UI. Several independent readings."
             >
-              A pixel diff says that something moved. Variance Authority also
+              A pixel diff says that something changed. Variance Authority also
               reads the text, the accessibility tree, the layout, and the
               authored styles. Whatever pixels still differ after those four are
               the fifth reading. The readings stay separate, so a reviewer can
@@ -176,7 +176,7 @@ export default function Page() {
               regression, at a rate nobody measures. A changed state is read a
               second time in the same world, then rendered again with the world
               rebuilt around it&mdash;two experiments, one variable each. What
-              comes back is a component, and which of the readings moved:{" "}
+              comes back is a component, and which of the readings changed:{" "}
               <span className="font-mono text-[0.95em] text-ivory">
                 Clock (content)
               </span>
@@ -190,11 +190,11 @@ export default function Page() {
                 no two are alike
               </p>
               <h3 className="mt-3 text-lg font-semibold text-ivory">
-                The run says what else in it could explain the movement.
+                The run says what else in it could explain the change.
               </h3>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-quiet">
-                Every component seen to move is walked down a ladder&mdash;an
-                edited file, a moved token, an edited caller, a contradiction
+                Every component seen to change is walked down a ladder&mdash;an
+                edited file, an updated token, an edited caller, a contradiction
                 elsewhere in the suite&mdash;and stops at the first rung that
                 holds. The last rung is <em>unexplained</em>, and it arrives
                 beside the states where the same component with the same props

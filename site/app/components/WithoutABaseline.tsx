@@ -137,15 +137,15 @@ export default function WithoutABaseline() {
             A journey is a named sequence of states and the Acts between them.
             Two executions are compared edge by edge, and each edge carries a
             digest derived from the semantic deltas it produced&mdash;so an
-            unrelated edit that moves both sides of an edge together leaves it
+            unrelated edit that changes both sides of an edge together leaves it
             alone.
           </p>
           <ul className="mt-5 grid gap-2">
             {[
-              ["variation", "the Act moved state and the page followed"],
+              ["variation", "the Act changed state and the page followed"],
               [
                 "absorbed",
-                "an input moved and the page did not. It landed on nothing",
+                "an input changed and the page did not. It landed on nothing",
               ],
               [
                 "reshaped",
@@ -196,7 +196,7 @@ export default function WithoutABaseline() {
               rendering(s) from one props digest{"\n"}
               {"  "}2 subject(s): price, receipt{"\n"}
               {"  "}1 subject(s): promo{"\n"}
-              {"    "}variation &mdash; an input moved and the page followed
+              {"    "}variation &mdash; an input changed and the page followed
               {"\n"}
               {"    "}Price inherited a different `color` &mdash; an ancestor
               declared it
