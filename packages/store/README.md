@@ -75,7 +75,7 @@ passes both through:
 
 | option | default | what it decides |
 |---|---|---|
-| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` reads the subject id as a path and walks it down from the root — `src/ui/Button/<identityDigest>/primary.png` — so baselines sit in the source tree, arrive with the checkout, and move when the component moves. An id with a `..` or an empty segment is refused rather than resolved |
+| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` reads the subject id as a path and walks it down from the root — `src/ui/Button/<identityDigest>/primary.png` — so baselines sit in the source tree, arrive with the checkout, and are relocated with the component's own files. An id with a `..` or an empty segment is refused rather than resolved |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere |
 
 Both layouts keep the identity directory: a baseline from another machine

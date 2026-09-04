@@ -13,7 +13,7 @@ call site from the JSX transform through to the rendered element, so
 element's **provenance** — the resolved record of where it came from.
 
 You need a build whose JSX transform you control, and a React runtime for it to
-resolve. Nothing imports this package directly — a compiler or a bundler
+resolve. Application code never imports this package — a compiler or a bundler
 does, because a setting told it to.
 
 ```bash
@@ -174,7 +174,7 @@ runtime request and `jsxDev` setting before changing application code.
   React's place has already resolved the real thing.
 
 There is no default entrypoint. Importing this package from application code
-is not a thing to do; the only correct callers are a compiler and a bundler.
+is a mistake; the only correct callers are a compiler and a bundler.
 
 This package does not render components, collect a DOM, or resolve source
 maps. It only supplies the JSX runtime module the build already requests;
@@ -196,7 +196,7 @@ happens.
 ## When it does not work
 
 - **Call sites are absent everywhere:** `jsxDev` is off, so the transform is
-  emitting calls to `jsx`/`jsxs` and passing no source. Check the setting in
+  emitting calls to `jsx` and `jsxs` and passing no source. Check the setting in
   the build that actually produced the bundle, not the one in the
   development server.
 - **Call sites are absent in one package:** a dependency shipped

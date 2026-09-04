@@ -18,9 +18,9 @@ arrive as immutable bytes: capture closes over the document by resolving every
 resource it references into bytes the artifact carries, and refuses to write a
 capture it cannot close this way.
 
-Browserless describes this half. The capture carries markup, CSS and resources —
-not pixels — so the later `variance run` opens a browser to paint it and refuses
-the run if it cannot.
+Browserless describes this half only. The capture carries markup, CSS and
+resources — not pixels — so the later `variance run` opens a browser to paint it
+and refuses the run if it cannot.
 
 Install the package and the DOM environment used by the test runner:
 
@@ -169,11 +169,10 @@ number, naming the JSON Pointer where it was found. Dropping it silently would
 put a key in the baseline that a later run reads as removed.
 
 `captureCollector` accepts document captures for the normal `variance run` path.
-If its directory contains a value capture, collection
-reports that the material is a value capture while the run compares rendered
-documents; it does not turn that refusal into an unchanged result. The
-value-writing API is therefore usable independently, but the CLI/raster path
-does not compare value artifacts.
+If its directory contains a value capture, collection reports
+that the material is a value capture while the run compares rendered documents; it does not turn that refusal into an unchanged result. The
+value-writing API is therefore usable independently, but the CLI's raster path does
+not compare value artifacts.
 
 ## Render later
 
