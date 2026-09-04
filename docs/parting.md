@@ -173,9 +173,8 @@ to refuse.
 ## What this does not do
 
 - **It does not locate the hook in your source.** `useState #0` is a call
-  position, not a `file:line`. Naming the fork is the job; a tool that wants to
-  read the component and reason about which state that is has been told where to
-  start.
+  position, not a `file:line`. Naming the fork is the job. A tool that then reads
+  the component to work out which state that is has been told where to start.
 - **It gives no verdict.** `compare` says what moved and `judge` says whether
   anyone should mind; a parting is an explanation and joins neither. It takes
   two snapshots without refusing a subject mismatch, because two variants of an

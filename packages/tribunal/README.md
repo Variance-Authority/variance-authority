@@ -436,7 +436,7 @@ and refuses two identical tokens.
 
 **Authentication happens before routing.** A caller holding neither token gets
 one identical response for a wrong token, a missing token, and a path that does
-not exist; which of the two tokens a route wants is only revealed to a caller
+not exist; which of the two tokens a route requires is only revealed to a caller
 who already holds a valid one.
 
 **The Worker makes no outbound request.** Not a status check, not a PR comment,

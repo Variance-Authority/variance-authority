@@ -1,7 +1,7 @@
 # Reading the source
 
-A run that wants to skip work has to know what a change could have reached, and
-it has to know it before anything renders. That answer is a graph of the
+To skip work, a run has to know what a change could have reached, and it has to
+know it before anything renders. That answer is a graph of the
 repository, and this is the part of the system that builds one: a walk that reads
 files, resolves what they point at, and hands back one record per file.
 
