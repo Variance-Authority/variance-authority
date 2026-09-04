@@ -31,10 +31,11 @@ Playwright, or if you need to exclude individual test cases rather than whole
 files. Code instrumented in an adopter's own build reports through
 [`@variance-authority/sense/journal`](#record-what-a-driven-page-executed), which
 carries the same probes over a different transport; a *stringified* function is
-still the exception, since text evaluated in another realm has lost the
-generated declarations and throws at its first probe. `coveringTests` is the exception: it queries
-execution data from any collector, independent of the runner — and independent
-of whether this package produced it.
+the one case that cannot work, since text evaluated in another realm has lost
+the generated declarations and throws at its first probe. `coveringTests` stands
+apart from all of this: it queries execution data from any collector,
+independent of the runner — and independent of whether this package produced
+it.
 
 ```bash
 npm install --save-dev @variance-authority/sense
@@ -158,7 +159,7 @@ original line count is preserved; columns shift because the transform does not
 print or source-map the file.
 
 Test selection is added to a runner configuration or CI job; adopters do not
-write an adapter or collector. It instruments modules after the runner’s
+write an adapter or collector. It instruments modules after the runner's
 transform and records coverage at test-file granularity. Its selector returns
 test files to run, never individual test cases or a replacement runner.
 
@@ -190,12 +191,10 @@ export default withTestSelection(
 ```
 
 The optional second argument accepts `root`, `coverageFile`, `include`, and
-`preconditions`.
-`root` defaults to the configuration root, then the current directory.
-`coverageFile` overrides the cache path, including when CI needs a named artifact.
-`include` receives each absolute module
-path after Vitest transforms it; use it to restrict instrumentation to product
-source. By default, JavaScript and TypeScript modules are included while test,
+`preconditions`. `root` defaults to the configuration root, then the current
+directory. `coverageFile` overrides the cache path, including when CI needs a
+named artifact. `include` receives each absolute module path after Vitest
+transforms it; use it to restrict instrumentation to product source. By default, JavaScript and TypeScript modules are included while test,
 spec, dependency, and built-output files are excluded. `preconditions` names
 additional files whose contents govern every test, such as runner configuration.
 Configured setup files are included automatically.
@@ -261,7 +260,7 @@ The unit of a change is the **line**, in the coordinates of the diff's own base
 revision, which is the side the snapshot is indexed by. A hunk header is not the
 change: the context lines printed around an edit are unchanged, and charging
 them selects the tests that entered the lines a reader was shown rather than the
-lines that moved. Within a hunk, each changed line is answered by the narrowest
+lines that actually changed. Within a hunk, each changed line is answered by the narrowest
 recorded region containing it, and the selection is the union over lines — one
 commit that edits an import and a click handler selects everything the module
 selects, not what the handler selects. A run of additions replacing a run of
@@ -365,8 +364,8 @@ export function handled<Result>(cookie: string | undefined, run: () => Result): 
 ordinal means something only against the inventory that minted it — and it
 defaults to `VARIANCE_AUTHORITY_HEAD`, as `enabled` defaults to whether
 `VARIANCE_AUTHORITY_JOURNEYS` is set, so one `env` block configures a service
-that names neither. **Told neither, `collectJourneys` installs nothing and
-`enter` is the identity**, which is what lets the call above ship to production
+that names neither. **Told neither of them, `collectJourneys` installs nothing
+and `enter` is the identity**, which is what lets the call above ship to production
 rather than being conditional on a build flag.
 
 `enter` takes the request's `Cookie` header, and where the account goes from
@@ -454,7 +453,7 @@ does not has nothing to trace.
 instrumented build for the service, an environment block, a line where requests
 already pass — and extra setup is always extra: it can be forgotten, it can be
 skipped in one CI job, and the service can fail to start. Absence is exactly what
-the coverage ground already reads as *unknown*, so the two states this cannot be
+the coverage index already reads as *unknown*, so the two states this cannot be
 allowed to confuse are **the head executed nothing** and **the head was not
 watched**.
 
@@ -507,7 +506,7 @@ recorded granularity, not a limit of this reader; see
 
 ## See where two observers parted
 
-`journeyDivergences` answers a question no static reading of the same code can:
+`journeysApart` answers a question no static reading of the same code can:
 **one file, two observers, and not the same path through it.** Three stories
 mount `CartCard`, one of them clicks Remove, and the `onClick` body is a region
 the other two have never been inside — same file, same import graph, same props.
@@ -592,7 +591,7 @@ deployment machine over this package's own `scanRelations`:
 node node_modules/@variance-authority/sense/scripts/overhead.mjs
 ```
 
-Two measurements differ only in how much of the clock is spent inside
+The two measurements differ only in how much of the clock is spent inside
 instrumented JavaScript. The cold one is dominated by the native parser; the
 warm one runs over a populated parse cache, where nearly every millisecond
 carries probes. The warm number is the closer bound.

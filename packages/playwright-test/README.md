@@ -156,9 +156,9 @@ silently comparing against a baseline that may describe another scenario.
 
 ## Choose the subject deliberately
 
-The observation accepts a `Locator`, never an unbounded page. A bounded subtree keeps shared
-application chrome and unrelated CSS out of the comparison, and gives changed
-regions a useful component context.
+The observation accepts a `Locator`, never an unbounded page. A bounded subtree
+keeps shared application chrome and unrelated CSS out of the comparison, and
+gives changed regions a useful component context.
 
 The helper always acquires the live subtree and semantic evidence. Deferred mode
 then paints the document through a renderer. In-place mode screenshots the live
@@ -170,7 +170,7 @@ subject and on React portal content belonging to it. This is separate from the
 collector's portable role/name approximation: browser CSS visibility and the
 engine's accessible-name computation are the evidence. The trees are retained
 beside the image, so the document-digest shortcut cannot report `unchanged`
-while the accessibility tree moved.
+while the accessibility tree changed.
 
 ARIA evidence is boundary-relative. An empty snapshot means the browser exposed
 no accessibility nodes for that root; a snapshot need not include a parent or
@@ -189,7 +189,7 @@ accessibility field means the boundary was not observed.
 | `source` | Failure output should resolve components to `file:line`. | Omitted; regions can still name components. |
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled (stopped showing its fallback). |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
-| `wiring` | The subtree is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off moves no stored digest. |
+| `wiring` | The subtree is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 
 ### `createVariance(page, testInfo, options)`
@@ -208,10 +208,10 @@ opens and closes the rest itself.
 | `materialization` | Pixels should come from the browser the suite already pinned. | `{ kind: 'deferred' }`. |
 
 `materialization` selects how pixels are produced; its `kind` field picks the
-strategy. `kind: 'in-place'` requires
-`browser`, the declared launch of the suite's own Chromium (`headless` and the
-ordered `launchArgs`), which is what enters renderer identity; `stabilityChecks`
-defaults to `2` and cannot go lower than two captures.
+strategy. `kind: 'in-place'` requires `browser`, the declared launch of the
+suite's own Chromium (`headless` and the ordered `launchArgs`), which is what
+enters renderer identity; `stabilityChecks` defaults to `2` and cannot go lower
+than two captures.
 
 ### Optional fixture composition
 
@@ -439,9 +439,9 @@ a person or an agent — trying to understand a suite that is *still going*.
 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
 ```
 
-Unset, nothing happens and the run pays one environment read per worker — the
-same bargain the heads make above. Set, the watcher is told each test as it
-opens, each announcement as it is recorded rather than at teardown, the
+With it unset, nothing happens and the run pays one environment read per worker
+— the same bargain the heads make above. With it set, the watcher is told each
+test as it opens, each announcement as it is recorded rather than at teardown, the
 listener's remarks, and how each test ended. It is
 [`@variance-authority/vantage`](../vantage/README.md) on the other end, over the
 medium the announcements already travel, and none of it is written down.
@@ -483,7 +483,7 @@ test('the cart is reviewed while it loads', async ({ page }, testInfo) => {
 
 `loading` is a **declared** state, checked against what actually happened: a
 subtree declared as a loading capture that turns out to have **settled** by
-the time it's read throws as well.
+the time it is read throws as well.
 
 ## Read and act on failures
 
@@ -514,6 +514,6 @@ This package does not merge Playwright shards into one docket. Playwright's
 Use a different package when a Playwright test isn't the right place to start:
 for a Storybook inventory use `@variance-authority/storybook-collector`; for a
 map of served pages use `@variance-authority/route-collector`; for two
-documents already in hand, or a custom renderer/store composition, use
+documents already in hand, or a custom renderer and store composition, use
 `@variance-authority/observe`; for browserless Jest or Vitest acquisition
 followed by a later renderer, use `@variance-authority/unit-test`.
