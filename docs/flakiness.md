@@ -52,7 +52,7 @@ reading. What differs here is the last column.
 | **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while the wire knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
 | **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. The state of the art screenshots until two consecutive images agree — a raster per poll, and a timeout that names nothing. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
 | **A Suspense boundary that has not resolved** | **construction**, and **refused** | A subject read mid-arrival records a skeleton on a slow machine and its content on a fast one, with every band agreeing and both passes consistent — invisible to every other mechanism here, and to `storyRendered` and `readySelector` besides, because a component that suspends renders no markup to hang a marker on. Every collector waits on the boundary's own `memoizedState` before it reads, two clean readings deep so a waterfall cannot slip through the gap. A boundary still open at the timeout is **refused by name** rather than captured — the one escape hatch is declaring the subject a loading-state capture, which is then checked in the other direction too ([ADR-0037](context/adr/0037-a-subject-still-arriving-is-refused.md)). |
-| **An asset whose bytes moved behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Where your bundler content-addresses, it already fixed this and there is nothing to pay: `logo.4f2a91.svg` **is** the identity, that string is in the markup the capture already hashes, and reading the bytes would record the same fact a second time — `hashAssets: false` is the right setting and costs you nothing. It is on by default because not every URL is built that way: a file served from `public/`, a CDN path, a font behind a stable name. For those the driver hashes the response, being the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carries the digest into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
+| **An asset whose bytes changed behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Where your bundler content-addresses, it already fixed this and there is nothing to pay: `logo.4f2a91.svg` **is** the identity, that string is in the markup the capture already hashes, and reading the bytes would record the same fact a second time — `hashAssets: false` is the right setting and costs you nothing. It is on by default because not every URL is built that way: a file served from `public/`, a CDN path, a font behind a stable name. For those the driver hashes the response, being the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carries the digest into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
 | **Animated GIFs** | **construction** | No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. |
 | **Random seeds, unsorted data** | **nothing**, and reported | Absorbed by nothing — this is a real change and the fixture is the bug. What it does not arrive as is a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. The run also says whether *anything in it* explains the difference, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. Known blind spot, [ADR-0009](context/adr/0009-sessions-detect-instead-of-rinse.md). |
@@ -154,11 +154,11 @@ to refer to, and the suite supplies them for free, because they are the other
 sites of the same rendering. An empty `held` list *weakens* a finding rather
 than strengthening it, which is why it is a list and not a flag.
 
-It costs no collection, no browser and no image: it is a fold over digests the
-run already produced. What it needs is [`--since`](selecting.md), because the
-top two answers — an edited file and a changed token — are unreachable without a
-change set, and a run that did not ask
-says so beside every unexplained difference instead of accusing anybody.
+The whole ladder costs no collection, no browser and no image: it is a fold over
+digests the run already produced. What it needs is [`--since`](selecting.md),
+because the top two answers — an edited file and a changed token — are
+unreachable without a change set, and a run given none says so beside every
+unexplained difference instead of accusing anybody.
 
 ### Which part of the module they took differently
 
@@ -168,7 +168,7 @@ inside it*, and for the flake that only appears once a handler has run, the
 region is the fix.
 
 Neither reading can, because neither was inside the module while it ran. The
-execution journal was: a preview built with `testSelectionProbes()` records which
+execution journal was. A preview built with `testSelectionProbes()` records which
 regions of which modules each subject crossed while it was painted. Two subjects
 that render one module and enter different regions of it have **parted**, and a
 parting is a place:
@@ -307,9 +307,9 @@ statement about examinations; "three weeks" is a statement about the calendar, a
 a suite that stopped running would look increasingly healthy the longer nobody
 looked at it.
 
-**No record answering is said out loud.** A subject with no history entry prints
-*that is silence, not a first occurrence* — because the reader most wants the
-opposite to be true, and nothing in a single run supports it.
+**Silence from the record is printed as silence.** A subject with no history
+entry prints *that is silence, not a first occurrence* — because the reader most
+wants the opposite to be true, and nothing in a single run supports it.
 
 What it takes to have one: a `history` block in the config pointing at a service
 you run, and a run that can name itself — `--run` and `--commit`, or the pair the
@@ -322,8 +322,8 @@ The instability it catches need not be in the page. It can be in the observer,
 and that is the case no assertion about a verdict can reach — because the verdict
 stays right.
 
-Browser attribute materialization can otherwise make the same element serialize
-in a different order after it has been read once. The observer materializes those
+Left alone, browser attribute materialization makes the same element serialize in
+a different order after it has been read once. The observer materializes those
 attributes before it stamps provenance, so two readings of one stable subject
 produce one document digest. A disagreement is reported as instability even when
 the pixels and verdict still agree.

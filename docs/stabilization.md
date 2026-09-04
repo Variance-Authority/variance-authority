@@ -68,9 +68,10 @@ The collection and render recipes differ in exactly one trick and it is not a
 preference: `hold-animations` is a *screenshot* option, and at collection nobody
 takes a screenshot, so it would be a trick that silently does nothing.
 
-Filtered by tier, so a jsdom collection applies **nothing** — no layout engine and
-no animation clock means there is nothing to hold still, and a `fonts.ready` wait
-per subject on the tier that exists to be cheap is the trade that tier refuses.
+Both recipes are filtered by tier, so a jsdom collection applies **nothing**. No
+layout engine and no animation clock means there is nothing to hold still, and a
+`fonts.ready` wait per subject on the tier that exists to be cheap is the trade
+that tier refuses.
 
 ## What runs, and what it absorbs
 
@@ -293,8 +294,8 @@ Most of the time your build already closed it. A bundler that emits
 markup the capture already hashes — hashing the bytes would record the same fact
 a second time and pay [what the wire costs](#what-the-wire-costs) to do it. Turn
 it off for a build like that. Storybook and Next name assets this way for
-anything you `import`; what neither does it for is what they serve verbatim — a
-file in `public/`, a CDN path, a font behind a stable name. Those are what the
+anything you `import`; neither does it for what they serve verbatim — a file in
+`public/`, a CDN path, a font behind a stable name. Those are what the
 wire is for, and why it is on by default.
 
 Hashed: `image`, `font`, `media`. Not hashed: documents, scripts and stylesheets,
@@ -461,9 +462,9 @@ rather than a run that had nothing.
 ### Which assets belong to which subject
 
 Wired into both collectors, and narrowed per subject on the way in.
-**The wire sees a page; a verdict is about a subject.** A request carries no idea which story will end up using it, so a
-Storybook run — one navigation, three hundred subjects — would give story 200 the
-page's whole asset set, which depends on which stories ran before it. That is not
+**The wire sees a page; a verdict is about a subject.** A request carries no idea
+which story will end up using it, so a Storybook run — one navigation, three
+hundred subjects — would give story 200 the page's whole asset set, which depends on which stories ran before it. That is not
 over-invalidation, which would merely be noise. It is **order dependence in the
 identity a baseline is stored under**: shard the suite differently and every key
 in it changes.
@@ -566,7 +567,8 @@ flight.
 Every collector waits for that reading to come back clean before it reads the
 page. `awaitSuspense` is the *first* thing a page agent does, ahead of
 stabilization — content that arrives late brings its own images and fonts, and a
-`waitForImages` that ran before it waited for the fallback's.
+`waitForImages` that ran first would have waited for the fallback's images
+instead of the content's.
 
 ```ts
 { outcome: 'settled' | 'pending' | 'unobserved', waitedMs, boundaries, pending }
@@ -669,7 +671,7 @@ itself the reading.
 
 ## What holding a page still costs
 
-Measured, because a stabilization claim is only free if you do not check.
+Measured, because stabilization is only free until somebody checks.
 
 ```
 STABILIZATION COST — 12 collections of one subject, warm
@@ -696,7 +698,7 @@ subject costs a third of a second on a ten-story Storybook and about six on two
 hundred — arithmetic, not a reading. There is no control to measure it against:
 `stabilize` is fixed when a collector is built and the sheet survives every
 collection after the first, so nothing the option can express reaches the
-unconditional path, so the saving stays a bound and is labelled as one.
+unconditional path. The saving stays a bound, and is labelled as one.
 
 Produced by
 [`packages/route-collector/src/stabilization.chromium.test.ts`](../packages/route-collector/src/stabilization.chromium.test.ts),
@@ -708,9 +710,9 @@ attributes to anything.
 
 ## What stabilization does not cover
 
-The standard observation path combines stabilization recipes for CSS animation,
-fonts, images, scrollbars, and carets with network observation of asset bytes
-and a Suspense readiness check. It does not redefine application state or
+The standard observation path holds CSS animation, fonts, images, scrollbars and
+carets still, watches the wire for the bytes behind each asset, and checks that
+Suspense has resolved. It does not redefine application state, and it does not
 install framework hooks before the application loads.
 
 Collectors inspect Suspense directly, but they do not install `tapCommits` or
