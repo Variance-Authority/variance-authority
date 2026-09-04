@@ -19,6 +19,8 @@
  * looked at. Over-reporting one costs a collection.
  */
 
+// compass: variance-authority.reach
+
 export {
   DEFAULT_NAME,
   MODULE_EXTENSIONS,

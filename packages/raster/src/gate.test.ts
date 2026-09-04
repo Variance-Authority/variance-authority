@@ -56,3 +56,8 @@ describe('what it tells the reader', () => {
     expect(text).toContain('the fix is in the component');
   });
 });
+
+// The gate is exported and unit-tested, and no run composes it. Until a session
+// calls it between acquisition and the shutter, the second reading a run
+// performs happens downstream — after the image has already been paid for.
+it.todo('refuses the render before the shutter — needs a session that composes the gate between acquisition and capture');

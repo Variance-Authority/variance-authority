@@ -1,3 +1,5 @@
+// compass: variance-authority.presentation
+
 export { analyzePresentation } from './analyze.js';
 export type { AnalyzePresentationOptions } from './analyze.js';
 export { inspectPresentationAlignment } from './alignment.js';

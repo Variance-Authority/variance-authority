@@ -108,6 +108,35 @@ A marker beats a paragraph on all three counts that matter: it sits where the
 reader is already looking, it moves when the code moves, and **closing the gap
 deletes the claim** rather than leaving it to be noticed.
 
+## Architecture chart
+
+The Compass chart root is `.compass/`. It charts the logical system, not the
+repository: its blocks are cut by the question each one answers and
+deliberately do not line up with `packages/`. The `compass` skill, installed at
+`~/.agents/skills/compass`, owns how the chart is read and how it changes; this
+section only routes to it.
+
+For non-local work — crossing a boundary, changing a rule or an invariant,
+adding a party, asking whether something belongs here, or building any
+capability — search the chart first:
+
+```bash
+python3 ~/.agents/skills/compass/scripts/compass_search.py --chart-root .compass "<task terms>"
+```
+
+Consult the matched owning sections, then follow the skill's Consume route
+through every chart level present; BM25-related results are leads, not semantic
+proof. For a one-file fix, a rename, or a bug with a stack trace pointing at the
+line, read the code. Consume never authorizes a chart edit: changing the chart,
+a coordinate, or this section is a Create task with its own authority.
+
+- A source file carries `// compass: <address>` at its top. The address resolves
+  in the chart and locates the implementation; it does not define the boundary.
+- "Why is this code shaped this way?" follows the coordinate first. A reason
+  specific to this implementation lives with the code, not in the chart.
+- When chart and code disagree, classify before changing either side: semantic
+  change, implementation remapping, or implementation violation.
+
 ## Standing rules
 
 - **Commit to `main`.** No branch, no PR, unless asked.

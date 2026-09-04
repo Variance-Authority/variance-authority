@@ -1,3 +1,5 @@
+// compass: variance-authority.acquisition
+
 import { pathToFileURL } from 'node:url';
 import type {
   CallSiteResolver,

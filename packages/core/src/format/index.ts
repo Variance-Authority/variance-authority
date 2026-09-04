@@ -12,6 +12,8 @@
  * interpret it or the verdicts drawn from it.
  */
 
+// compass: variance-authority.normalization
+
 export type { CanonicalValue } from './canonical.js';
 export { canonicalize, canonicalNumber } from './canonical.js';
 

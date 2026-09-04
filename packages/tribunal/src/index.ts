@@ -1,3 +1,5 @@
+// compass: variance-authority.review
+
 /**
  * The contract half — what a deployment is made of, with nothing that runs.
  *

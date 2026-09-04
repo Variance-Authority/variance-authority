@@ -26,6 +26,8 @@
  * `@variance-authority/report/file` reads and writes it on a disk.
  */
 
+// compass: variance-authority.report
+
 export type {
   RunReport,
   ObservationRecord,

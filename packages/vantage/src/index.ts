@@ -27,6 +27,8 @@
  * suite that never takes a screenshot reports exactly the same four sentences.
  */
 
+// compass: variance-authority.runtime
+
 export { createObservatory } from './observatory.js';
 export type { Observatory, ObservatoryOptions } from './observatory.js';
 export { VANTAGE_VERSION, isVantageReport } from './report.js';

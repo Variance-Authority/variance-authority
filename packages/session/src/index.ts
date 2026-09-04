@@ -34,6 +34,8 @@
  * caller's `mount`, so a session runs whatever a caller can put on a page.
  */
 
+// compass: variance-authority.stability
+
 export { createSession, Session } from './session.js';
 export type { SessionOptions, SubjectRun, Finding, SessionStats } from './session.js';
 

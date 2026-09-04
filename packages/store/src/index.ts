@@ -18,6 +18,8 @@
  * verdict cannot depend on where the bytes were kept.
  */
 
+// compass: variance-authority.retention
+
 export { createDurableStore } from './durable.js';
 export type { BaselineLayout, DurableStoreOptions } from './durable.js';
 

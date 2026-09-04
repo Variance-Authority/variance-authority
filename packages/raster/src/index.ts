@@ -30,6 +30,8 @@
  * Nothing here imports any of them.
  */
 
+// compass: variance-authority.materialization
+
 export { assemble, SUBJECT_PATH } from './assemble.js';
 export type { AssembleOptions } from './assemble.js';
 
