@@ -21,7 +21,7 @@ snapshots answers three questions no per-subject comparison can reach:
 - **Which of them disagree at this commit.** Not a regression — there is no
   baseline in it — but proof that something outside a component's own inputs
   decides part of its output.
-- **What, in this run, explains each thing that moved.** An edited file, a moved
+- **What, in this run, explains each thing that moved.** An edited file, an updated
   token, an edited *caller* — or nothing, which is a finding of its own.
 
 No second render, no second image, no store. It is a fold over digests the
@@ -116,20 +116,20 @@ That containment is the property the whole page rests on, so it is measured
 against the whole suite rather than argued
 ([`closure.test.tsx`](../examples/todomvc/src/closure.test.tsx)):
 
-| edit | components whose own content moves |
+| edit | components whose own content changes |
 |---|---|
 | padding on `.va-button` | `Button` |
 | the corner-radius token | `Button`, `Card`, `Chip`, `TextField`, `Toggle` |
 
 The first row is the claim a design system needs to be able to make about its own
-change: one component moved, and **the eleven others did not** — including every
+change: one component changed, and **the eleven others did not** — including every
 component that encloses a `Button` on every page in the suite. The second is the
 same rule in the other direction: a foundation edit is *supposed* to cross
 components, and the answer is the five that resolve through that token rather
 than everything on a page containing one.
 
 What the placeholder still carries is the *number* of children handed in, so a
-caller passing three where it passed two moves the container. That residual limit
+caller passing three where it passed two changes the container. That residual limit
 is stated in
 [ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md).
 
@@ -162,7 +162,7 @@ contents made it — and a button two levels down growing by six pixels moves th
 computed height of every ancestor. Measured on
 [`cases/storybook-case`](../cases/storybook-case), one padding edit inside
 `Button` made `Tokens`, `Stack`, `Card` and the unattributed root all report a
-moved style hash, so every component in every affected story was named a cause.
+changed style hash, so every component in every affected story was named a cause.
 Those properties fold into `geometry` instead, `transform-origin` included — it
 computes to half the border box, so it moves whenever the box does, on every
 element.
@@ -177,7 +177,7 @@ a props class like any other.
 
 | level | key | why |
 |---|---|---|
-| component | name | the unit an edit moves |
+| component | name | the unit an edit changes |
 | props class | props digest | the same inputs, or unknown |
 | rendering | the four content digests | the same output |
 | site | subject and path | the third `Chip`, which is a sentence |
@@ -251,7 +251,7 @@ inside a relaxed band can be dismissed without opening it.
 Every rendering after the first also says **why**. Each is lifted out of the page
 it was found in, re-rooted at the component, and read against the first for
 [where the two parted](parting.md) — so the report does not stop at *`Price`
-rendered two ways*, it says which input moved:
+rendered two ways*, it says which input changed:
 
 ```text
 Price (token) — 2 rendering(s) from one props digest
@@ -294,9 +294,9 @@ disagree. And `propsDigest` excludes `children` deliberately, so
 "the children differed" are required to be quiet, the child components mounted
 and the boundary's own text.
 
-The asymmetry is the reason those checks are code, not prose: a movement
+The asymmetry is the reason those checks are code, not prose: a difference
 wrongly dismissed as `contradicted` is an explanation nobody can act on, while
-the same movement left unexplained lands on the suspect shortlist, where a second
+the same difference left unexplained lands on the suspect shortlist, where a second
 reading settles it.
 
 Zero is a real and common answer, and it means nothing in the suite renders two
@@ -313,7 +313,7 @@ a ladder and stops at the first rung that holds:
 | rung | what it found | what it prints |
 |---|---|---|
 | `edited` | a file declaring this component is in the change set | the file |
-| `token` | a custom property *its own nodes* resolve through moved in this run | the tokens |
+| `token` | a custom property *its own nodes* resolve through changed in this run | the tokens |
 | `upstream` | a component that mounted it, or encloses it, was edited | the caller |
 | `contradicted` | it renders two ways from one input at this commit | the divergence |
 | `unexplained` | none of the above | the finding |
@@ -327,7 +327,7 @@ saying so instead of an accusation.
 **The `upstream` rung reads `created by` before `within`, and that is not a
 tie-break.** The component that wrote the element is the one whose edit changed
 this component's inputs. On todomvc, an edit to `src/app/todo.tsx` explains five
-chip movements through `TodoFooter`; a run consulting only `within` finds `Stack`,
+chip changes through `TodoFooter`; a run consulting only `within` finds `Stack`,
 which nobody edited, and reports five unexplained differences instead of one caller.
 
 `token` is read off the component's own instances, not off the subject,
@@ -335,8 +335,8 @@ which is what makes it worth anything: every subject on a themed page resolves
 through every token in the theme, so a subject-level intersection names them all
 and explains nothing.
 
-Two things ride beside every movement. **`alsoIn`** is the other subjects the
-same component moved in this run — a reviewer reading eleven changed subjects is
+Two things ride beside every difference. **`alsoIn`** is the other subjects the
+same component changed in this run — a reviewer reading eleven changed subjects is
 often reading one edit, and the count is the difference between a frightening
 report and an accurate one. **`held`** is the control group: sites of the same
 component, with the same props, that this run did *not* report moving. Empty

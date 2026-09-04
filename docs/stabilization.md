@@ -6,7 +6,7 @@ your subject is read, on every run, whether or not you knew it was a problem.
 
 Three reliability questions meet here, and none of them is configuration:
 
-- **Something still moved.** Go to [what stabilization does not
+- **Something still changed.** Go to [what stabilization does not
   cover](#what-stabilization-does-not-cover).
 - **You want to know what was done to your page.** The run tells you — see [the
   run says what it did](#the-run-says-what-it-did) — and the table below is the
@@ -234,7 +234,7 @@ apart through the real collector.
 
 | | |
 |---|---|
-| observed untouched | the render hash **moves** |
+| observed untouched | the render hash **changes** |
 | under `COLLECT_RECIPE` | the render hash **holds** |
 | the two together | different `semanticDigest`, so they are never compared |
 | the injected sheet | appears nowhere in the subject |
@@ -248,7 +248,7 @@ and
 |---|---|
 | an animated GIF, unwatched | screenshots of it **differ** |
 | the same GIF, frozen on the wire | three seconds of screenshots, all **identical** |
-| an image swapped behind its URL | the environment key **moves**, with no DOM change at all |
+| an image swapped behind its URL | the environment key **changes**, with no DOM change at all |
 | the same run with `network: false` | the asset map is empty, and visibly so |
 
 The GIF fixture is built byte by byte in the test, with real LZW, and every
@@ -478,7 +478,7 @@ no attribute at all.
 
 Every candidate rather than the one this device would pick, deliberately: which
 `srcset` entry loads depends on the device pixel ratio, and a key holding only the
-chosen one lets the 2× asset change without moving a 1× runner's key.
+chosen one lets the 2× asset change without changing a 1× runner's key.
 
 A URL nothing requested is **absent, never a placeholder** — an asset served from
 the browser's cache before the observation started has bytes nobody here saw, and
@@ -490,7 +490,7 @@ contradict.
 Putting the assets in the *capture* alone is not enough, and the shortfall has no
 symptom. `settle` skips a render when this run's document digest equals the digest
 the baseline was painted from — so a document that omits the assets produces the
-same digest after a logo's bytes move, the render is skipped, and the run reports
+same digest after a logo's bytes change, the render is skipped, and the run reports
 `unchanged`. That is exactly the false verdict hashing the bytes exists to close,
 reappearing one layer in. Both keys carry the same scoped set, asserted in
 `packages/route-collector/src/network.chromium.test.ts`.
@@ -519,7 +519,7 @@ Each commit records the components that actually rendered, read from the
 `PerformedWork` flag React sets on the fibers it worked on — so a memoized
 sibling that bailed out is **absent**, not listed as unchanged. `awaitQuiet(tap)`
 resolves when no commit has arrived for `quietFor` milliseconds, and on a page
-that never settles it names what is moving:
+that never settles it names what keeps changing:
 
 ```ts
 { settled: false, commits: 41, restless: [{ name: 'Ticker', commits: 39 }] }
@@ -627,22 +627,22 @@ and a boundary that never resolves, refused and then declared.
 ## The order the questions are asked in
 
 The instruments above are not four independent checks. They are one question —
-*has this subject stopped moving* — asked at four prices, and each answer settles
+*has this subject stopped drifting* — asked at four prices, and each answer settles
 the ones beneath it:
 
 | the reading | what it settles | what it costs |
 | --- | --- | --- |
 | `pendingSuspense` | whether the subject has arrived at all | a fiber traversal |
 | `awaitQuiet` | whether the application has stopped working | a hook installed before React |
-| `documentDigest` | whether anything that reaches a renderer moved | a read of a page already mounted |
+| `documentDigest` | whether anything that reaches a renderer changed | a read of a page already mounted |
 | the image | whether the pixels moved | a raster, ~65ms against ~3.4ms |
 
 The implication runs one way. A component tree that did not re-render cannot
-have produced a different document, and a document that did not move cannot
+have produced a different document, and a document that did not change cannot
 paint a different image — so the cheapest reading that answers ends the
 question. `settle()` is that early return at the third row: a document
 byte-identical to the one the baseline was painted from is not photographed
-again, and on a suite where nothing moved that is the whole value of a run.
+again, and on a suite where nothing changed that is the whole value of a run.
 
 **The converse is where the findings are.** A row moving while the row above it
 holds is not a wasted check, it is the fact somebody wanted:

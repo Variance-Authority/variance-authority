@@ -1,7 +1,7 @@
 # Instruments
 
 Finding that something moved is the easy third of the job. The other two are
-deciding whether the movement is real, and saying what caused it — and in most
+deciding whether the difference is real, and saying what caused it — and in most
 of this category they are the reader's problem, handed over as a red rectangle.
 
 Three stages, and they are not equally expensive here:
@@ -9,7 +9,7 @@ Three stages, and they are not equally expensive here:
 | stage          | the question                                      | what it costs                                                                                                             |
 | -------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | **detect**     | did anything move?                                | almost nothing — a subject whose document digest equals the one its baseline was painted from is settled without a render |
-| **adjudicate** | is the movement real, and is it _this_ subject's? | one collection per changed subject, and never a paint                                                                     |
+| **adjudicate** | is the difference real, and is it _this_ subject's? | one collection per changed subject, and never a paint                                                                   |
 | **attribute**  | what caused it, and where is it written?          | a fold over digests the run already produced                                                                              |
 
 That profile is inverted from the usual one, and it is the whole design. Because
@@ -31,7 +31,7 @@ budget line.
 | instrument                                                              | varies                  | holds                  | names                                                                         |
 | ----------------------------------------------------------------------- | ----------------------- | ---------------------- | ----------------------------------------------------------------------------- |
 | **baseline comparison**                                                 | the revision            | the subject, the world | a component, a band, a `file:line`                                            |
-| **[`again`](flakiness.md#what-still-gets-through-and-how-it-is-found)** | time                    | the world              | `unstable`, with the component and band that moved                            |
+| **[`again`](flakiness.md#what-still-gets-through-and-how-it-is-found)** | time                    | the world              | `unstable`, with the component and band that changed                          |
 | **[`alone`](flakiness.md#test-order-and-shared-state)**                 | the world               | time                   | `order-dependent`, and `accept` refuses it                                    |
 | **[composition](composition.md)**                                       | the subject             | the revision           | echoes, divergences, and why each component moved                             |
 | **[variation](variations.md)**                                          | the subject, on purpose | the revision           | what a declared variant changes, and whether that changed                     |
@@ -58,12 +58,12 @@ different people.
 
 |             | world   | time     | answers                                 | reported as       |
 | ----------- | ------- | -------- | --------------------------------------- | ----------------- |
-| **`again`** | held    | advanced | does this subject move on its own?      | `unstable`        |
-| **`alone`** | rebuilt | same     | did some _other_ subject move this one? | `order-dependent` |
+| **`again`** | held    | advanced | does this subject drift on its own?      | `unstable`       |
+| **`alone`** | rebuilt | same     | did some _other_ subject change this one? | `order-dependent` |
 
 **The order is load-bearing, not an optimization.** `again` runs first, and when
 it finds something `alone` is not asked — its whole inference is _the clean
-reading differs from the shared one, therefore the world moved it_, which is only
+reading differs from the shared one, therefore the world changed it_, which is only
 evidence if two readings of one world would have agreed. Asked the other way
 round, a page with a clock in it produces a confident sentence about suite
 pollution and sends somebody to bisect a run order that has nothing to do with
@@ -78,7 +78,7 @@ every later run is measured against.
 The instruments above are longitudinal: the same subject, read again or looked up
 in a window. A suite is also a set of examples built from shared components, so
 the same component with the same props is usually rendering somewhere else _right
-now_, and whether it moved there costs nothing to read
+now_, and whether it changed there costs nothing to read
 ([`composition.md`](composition.md)).
 
 That is what turns _nothing explains this_ from a shrug into a finding. An
@@ -105,7 +105,7 @@ baselines:
 The last row of that argument is the one worth stating separately, because it is
 about the instrument, not the page: **reading a subject twice catches
 instability in the observer, which no assertion about a verdict can reach.** The
-worked case is a Blink attribute-order effect that moved a document digest while
+worked case is a Blink attribute-order effect that changed a document digest while
 leaving the verdict entirely correct, silently switching off the cheap tier
 depending on the collection history of the run that recorded the baseline
 ([`flakiness.md`](flakiness.md#the-class-of-defect-a-second-reading-reaches)).
@@ -152,7 +152,7 @@ than three tools stapled together.
 | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | A diff names a cause, a place and a file, against a real incumbent's runner | `cases/incumbent-case` — **6 hit, 1 false alarm, 1 deferral** against 3 hit, 3 miss                                               |
 | Both tiers agree on the dimensions both can observe                         | 38/38 under jsdom, 39/39 under Chromium, on `examples/kitchen-sink`                                                               |
-| A component's hash covers its own nodes, so one edit moves one component    | `examples/todomvc/src/closure.test.tsx`                                                                                           |
+| A component's hash covers its own nodes, so one edit changes one component    | `examples/todomvc/src/closure.test.tsx`                                                                                         |
 | The suite shares renderings, and which examples watch the same bytes        | `examples/todomvc/src/composition.test.tsx` — 26 shared renderings, 0 divergences                                                 |
 | Wiring separates two byte-identical documents                               | `examples/todomvc/src/fiber.test.tsx`                                                                                             |
 | A remount is invisible to the document                                      | `packages/react/src/identity.test.tsx` — the two renders serialize identically, while the UI reads `1 of 1` against `0 of 1`      |
