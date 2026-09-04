@@ -48,7 +48,7 @@ result omits it.
 
 Give the state an id that survives a test-title or route-name change, such as
 `cart/empty`. Select the smallest root that contains the behavior under review,
-such as the cart rather than the whole application page. Shared chrome and
+such as the cart, not the whole application page. Shared chrome and
 unrelated updates then stay outside this subject by construction.
 
 Keep the first state deliberately ordinary:

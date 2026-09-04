@@ -53,7 +53,7 @@ generation both readings share.
 
 An assertion is a question written before the run, and the answer is one bit. The
 execution knew a great deal more, and all of it is reachable at a breakpoint, on
-a live page, with somebody watching — which is three conditions CI never meets.
+a live page, with somebody watching — three conditions CI never meets.
 [Ask a question the test did not ask](observability.md) is the record taken
 instead: gathered while the page is alive, kept once it is gone, with the test
 unchanged.
@@ -68,7 +68,7 @@ name the Act where two executions part.
 alignment, and emphasis from one interface. A
 [divergence](composition.md) is the same question one layer down: one props
 digest producing more than one rendering at a single commit, each rendering
-after the first naming the input that moved it.
+after the first naming the input that changed it.
 
 ### An existing screenshot suite already owns the workflow
 
@@ -114,7 +114,7 @@ not silently choose the others.
 The paths join at observation, retention, and reporting; they do not produce
 identical evidence. Browser accessibility, component provenance, resource
 closure, and in-place paint are present only when the chosen surface supplies
-them. An unavailable reading is absent rather than represented as an empty
+them. An unavailable reading is absent, not represented as an empty
 result.
 
 ## Check a claim at its instrument
