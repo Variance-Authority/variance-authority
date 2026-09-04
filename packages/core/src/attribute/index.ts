@@ -60,6 +60,9 @@ export type { BandDigests, ComponentBands, ComponentHash } from './component-has
 export { componentInstances, attributed } from './instances.js';
 export type { ComponentInstance } from './instances.js';
 
+export { nodeClosures, sharedClosures } from './closure.js';
+export type { ClosureSite, NodeClosure, SharedClosure, SharedClosureOptions, SubjectTree } from './closure.js';
+
 export { composeSubjects } from './composition.js';
 export type {
   Composition,

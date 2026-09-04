@@ -304,6 +304,61 @@ ways from one input. `Card` keeps one props class and two renderings, which is t
 honest residue: the count says the pair exists and the refusals say it is not
 evidence.
 
+### The subtree that recurs, at every depth
+
+The join above is at one grain. `rendering` covers a component's own nodes with
+its children named and never included, so a suite compared to itself answers
+*which boundaries render the same* and nothing finer. A `<tbody>` of forty rows
+that three pages render identically under three different components is three
+renderings, because no boundary sits on it.
+
+`nodeClosures(root)` hashes every node of a snapshot's tree over everything under
+it, the way [`closureOf`](../packages/sense/src/tree.ts) hashes a file over its
+input closure: bottom-up, so a subtree's digest is a function of its children's
+digests and never of where the subtree sits. Two digests per node:
+
+| digest | covers | agrees when |
+|---|---|---|
+| `structure` | the tag, and the children's structure digests | the same shape, whatever it says |
+| `semantics` | the structure, and what the semantics band keeps for every node in it | the same shape saying the same thing |
+
+An id contributes its presence and never its value, so an identical widget with
+a different generated id is one digest. A reference — `for`, `aria-labelledby`,
+an in-page `href` — is a fact about two nodes, and it enters at the lowest node
+holding both, as the pair of paths relative to that node: a label naming the
+input beside it reads the same on every page, and a label naming something
+outside the subtree stays an unbound reference at every digest up to the one
+that contains its target. Text enters `semantics`; style enters neither.
+
+```ts
+const shared = sharedClosures([
+  { subject: 'inbox', root: inbox.root },
+  { subject: 'archive', root: archive.root },
+]);
+// [{ tag: 'table', nodes: 41, semantics: 'held',
+//    sites: [{ subject: 'archive', path: '…' }, { subject: 'inbox', path: '…' }], … }]
+```
+
+`sharedClosures` files every node of every subject by its structure digest and
+reports the entries that recur in two or more subjects — the two-subject rule
+again, at every depth at once. One rule keeps the list to what is worth reading:
+an entry is reported only where its parent does not recur over exactly the same
+places, which is the rule that makes an echo's example the shallowest boundary,
+applied to every node. Two identical rows under one `<tbody>` are subsumed by
+the body, the body by the table, up to the node that recurs on its own. Each
+entry names the tag, the number of nodes beneath it, the sites by subject and
+path, and whether `semantics` is **held** across the sites or **parted**: the
+same shape saying different things, which is the divergence
+[ADR-0034](context/adr/0034-a-divergence-must-survive-the-children-it-excludes.md)
+permits, at a node no boundary claims. `floor` drops entries under a node count,
+and where the floor sits is the report's to choose.
+
+Neither digest enters a baseline or a join key. The component hash stays
+own-with-holes so that an edit stays local
+([ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md)); a
+closure is computed by a run over what it already collected and compared within
+that run.
+
 ### Why a component moved
 
 For every component the run found to have moved — from a diff region it named as

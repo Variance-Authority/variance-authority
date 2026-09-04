@@ -120,6 +120,7 @@ The options that change scope are explicit at the call site:
 | `fingerprintOfMask` | `grid` controls the shape sample and `coverage` controls the minimum occupied share |
 | `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
 | `buildDocket` / dependency reach | `sampleSize` limits review examples and `through` selects graph edge kinds |
+| `sharedClosures` | `floor` drops a shared subtree below a node count |
 | report summaries | `source` maps component names to files when `summarizeAdjudication` or `summarizeFindings` needs an actionable path |
 | screenshot stabilization | `animations` and `caret` are explicit intervention settings; omitted means the caller did not assert either intervention |
 
