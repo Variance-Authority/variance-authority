@@ -116,6 +116,19 @@ export interface RouteCollectorOptions {
   readonly network?: boolean;
 
   /**
+   * Hash the bytes the wire served into `EnvironmentInputs.assets`. Defaults to
+   * `true`, and is read only while `network` is on.
+   *
+   * Separate from `network` because the observation does four things and this is
+   * one of them: it also freezes animated GIFs, serves the blanking rules, and
+   * retains the bytes a `portable` document ships. A build whose asset URLs
+   * already contain their own content hash wants the redundant digest gone and
+   * the other three kept, and `network: false` is the setting that takes all
+   * four.
+   */
+  readonly hashAssets?: boolean;
+
+  /**
    * Emit documents that carry the bytes they need, not just references to them.
    * Defaults to `false`.
    *
@@ -134,6 +147,34 @@ export interface RouteCollectorOptions {
    * hundred of them holds their bytes too.
    */
   readonly portable?: boolean;
+
+  /**
+   * Read the framework wiring of each node — props, context, hook cells, keys.
+   * Defaults to `true`.
+   *
+   * On because a run that has a React adapter in it already paid for the fiber
+   * walk, and wiring is the dimension that says *a prop moved* about a node whose
+   * markup did not. It is a band of its own rather than part of `rendering`, so
+   * a subject that never had it read still hashes to what it hashed before.
+   *
+   * Off is for a page this project's adapter cannot read anyway — a non-React
+   * host mounted into the same route table — where the walk buys an absent band
+   * at the price of visiting every node.
+   */
+  readonly wiring?: boolean;
+
+  /**
+   * Read the held state behind each node — the digests of the application values
+   * a component was rendered with. Defaults to `false`.
+   *
+   * Opt-in rather than symmetric with `wiring`, because it changes what a
+   * `structureHash` is: a node carrying a holding suppresses the inert-wrapper
+   * collapse, so the same page read with holdings and without produces two
+   * different structures. Both sides of a comparison must therefore be read the
+   * same way, which is a decision a project makes rather than one a default
+   * makes for it.
+   */
+  readonly holdings?: boolean;
 
   /**
    * Stabilization tricks to hold each page still with, by id. Defaults to

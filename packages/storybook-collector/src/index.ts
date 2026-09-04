@@ -2,24 +2,12 @@ import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import {
-  createCallSiteResolver,
-  matchesGlob,
-  normalize as normalizeCapture,
-} from '@variance-authority/core';
-import {
-  acquireFromAgent,
-  createHarness,
-  fetchModules,
-  observeNetwork,
-  unresizable,
-  type Harness,
-  type NetworkObservation,
-} from '@variance-authority/playwright';
-import { suspenseRefusal } from '@variance-authority/react';
-import { collectStory, harnessPage } from '@variance-authority/storybook';
-import { createStoryRecorder, type StoryExecutionOptions } from './execution.js';
-import type { AcquireRequest, Acquired } from './page-agent.js';
+import { createCallSiteResolver } from '@variance-authority/core';
+import { fetchModules } from '@variance-authority/playwright';
+import { createStoryRecorder } from './execution.js';
+import type { StorybookCollectorOptions } from './options.js';
+import { readStory, type Reading } from './read.js';
+import { openWorld, type World, type WorldRecipe } from './world.js';
 export type {
   Collected,
   Collector,
@@ -35,7 +23,7 @@ import { operatorError } from './operator.js';
 const WRONG_KIND =
   'this collector expects `subjects.kind: "storybook"`, which is what supplies the plan';
 import { serveStatic, type StaticServer } from './serve.js';
-import { scanSource, type SourceScan } from './source.js';
+import { scanSource } from './source.js';
 
 /**
  * The Storybook collector, shipped.
@@ -68,116 +56,6 @@ import { scanSource, type SourceScan } from './source.js';
  * [`@variance-authority/playwright-test`](../playwright-test) for the surface
  * where the adopter's own test body plays that part instead.
  */
-
-
-export interface StorybookCollectorOptions {
-  /**
-   * Story id to the selector that says it is ready.
-   *
-   * Per story, not per project, and that is the design rather than an
-   * ergonomics gap. A button needs no marker and demanding one from it would
-   * time out every story to solve a problem one of them has. A story that
-   * declares a marker and never attaches it times out saying which selector it
-   * waited for — there is no fallback, because falling back is how you
-   * photograph a spinner and call it a component.
-   */
-  readonly ready?: Readonly<Record<string, string>>;
-
-  /**
-   * Where the components live, for `file:line` attribution.
-   *
-   * Omitted, the report names components and no files — which is still ahead of
-   * every product in the category and is not what this is for.
-   */
-  readonly source?: SourceScan;
-
-  /**
-   * A Storybook that is already served, e.g. `http://localhost:6006`.
-   *
-   * Preferred when it exists: then nothing here has an opinion about how the
-   * build is hosted. Omitted, the directory holding `subjects.index` is served
-   * on a loopback port for the life of the run.
-   */
-  readonly baseUrl?: string;
-
-  /** Defaults to `true`. Set false to watch a run by hand. */
-  readonly headless?: boolean;
-
-  /**
-   * Watch the wire: hash asset bodies into the environment key, and serve
-   * animated GIFs as their first frame. Defaults to `true`.
-   *
-   * On, this is what closes a false `unchanged` that a page cannot see about
-   * itself. A logo re-exported at the same URL is the same markup, the same CSS
-   * and the same document — so every tier settles, and the run reports that
-   * nothing moved while the image on the page is different bytes. Only the party
-   * that saw the response knows otherwise.
-   *
-   * The assets are narrowed **per story** before they reach a key, from the URLs
-   * that story's own subtree references (`assetsFor`). Without that, a run that
-   * reads three hundred stories out of one page would give story 200 a key that
-   * depends on which stories ran before it, and sharding the suite would change
-   * every baseline's identity.
-   *
-   * Off is a position for a build whose asset URLs already contain their own
-   * content hash: the URL is then the identity, and hashing the bytes again buys
-   * a read and nothing else.
-   */
-  readonly network?: boolean;
-
-  /** Overrides the roots the story is read from. Tightest first. */
-  readonly roots?: readonly string[];
-
-  /** Milliseconds for Storybook or a declared marker to report readiness. Defaults to 15000. */
-  readonly readyTimeoutMs?: number;
-
-  /**
-   * Milliseconds to wait for a story's Suspense boundaries. Defaults to 5000.
-   *
-   * Paid only by stories that are actually waiting: a subtree with no boundary
-   * in it returns on the first read. `0` turns the wait off and keeps the
-   * reading, which is a position for a project whose readiness markers already
-   * cover its data — the refusal below still fires, so the boundary is reported
-   * rather than photographed.
-   */
-  readonly suspenseTimeoutMs?: number;
-
-  /**
-   * Record what each story executed, into the shared test-selection index.
-   *
-   * Off unless asked for, and it asks something of the build rather than of this
-   * package: the Storybook preview has to have been built with
-   * `testSelectionProbes()` from `@variance-authority/sense/journal`, which is
-   * what puts probes in the source and writes down what their ordinals mean.
-   * Without it a run records nothing and says so on stderr — the next selection
-   * then runs everything, which is the direction every uncertainty here
-   * resolves.
-   *
-   * A story is its own owner in that index. Storybook is an execution surface
-   * this tool drives one subject at a time, so unlike a test runner — where the
-   * file is the smallest thing a runner can be asked to execute — the crossings
-   * of one story belong to that story and to nothing else.
-   */
-  readonly tests?: boolean | StoryExecutionOptions;
-
-  /**
-   * Stories whose *loading* state is the subject, as id globs.
-   *
-   * The escape hatch, and the only one. A story left showing its fallback is
-   * otherwise refused, because a subject that records a skeleton on a slow
-   * machine and a component on a fast one is a flake nobody wrote — so a
-   * skeleton somebody *does* want a baseline over has to be said out loud.
-   *
-   * Declared here rather than sensed, and checked in both directions: a story
-   * named by this that turns out to settle is refused too. A declaration that
-   * outlived its subject is the same nondeterminism arriving from the other side.
-   *
-   * Matched against the story id and the subject id both, so
-   * `case-surface--feed` and `story:case-surface--feed` name the same story —
-   * `ready` above is keyed by the first.
-   */
-  readonly loading?: readonly string[];
-}
 
 const STORY_ROOTS = ['#storybook-root', '#root'];
 
@@ -268,44 +146,65 @@ export function storybookCollector(
     if (options.baseUrl === undefined) served = await serveStatic(staticDir);
     const baseUrl = options.baseUrl ?? served!.baseUrl;
 
-    let harness: Harness | undefined;
-    // Installed in `prepare`, which runs before the first navigation: an
-    // observation that starts afterwards has already missed the assets the
-    // preview loaded on its way up, and a URL nobody saw is a hole in the key.
-    let network: NetworkObservation | undefined;
-    try {
-      // Pointed at the preview, so `collectStory` finds itself already there and
-      // does not navigate: one navigation for a whole run is the saving ADR-0009
-      // rests on, and it is easiest to keep by never taking a second one.
-      harness = await createHarness({
+    // The recipe both worlds are built from, written down once.
+    //
+    // `collectAlone` opens its world from this same value, which is what makes
+    // "identical except for isolation" a property of the code rather than a
+    // discipline two call sites keep by hand: the viewport, the fonts, the
+    // bundle, the preview address and the network options cannot differ between
+    // the two worlds, because there is only one of each. See `world.ts`.
+    //
+    // Pointed at the preview, so `collectStory` finds itself already there and
+    // does not navigate: one navigation for a whole run is the saving ADR-0009
+    // rests on, and it is easiest to keep by never taking a second one. The
+    // isolated world opens on the same address for a second reason — the preview
+    // shell is not a subject, so landing on it is not something having run first.
+    const recipe: WorldRecipe = {
+      harness: {
         url: `${baseUrl}/iframe.html`,
         bundle,
         viewport: config.viewport,
         ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
         ...(options.headless !== undefined ? { headless: options.headless } : {}),
-        ...(options.network === false
-          ? {}
-          : {
-              prepare: async (page): Promise<void> => {
-                network = await observeNetwork(
-                  page,
-                  config.blank !== undefined ? { blank: config.blank } : {},
-                );
-              },
-            }),
-      });
+      },
+      // Installed in `prepare`, which runs before the first navigation: an
+      // observation that starts afterwards has already missed the assets the
+      // preview loaded on its way up, and a URL nobody saw is a hole in the key.
+      ...(options.network === false
+        ? {}
+        : {
+            network: {
+              ...(config.blank !== undefined ? { blank: config.blank } : {}),
+              ...(options.hashAssets !== undefined ? { hashAssets: options.hashAssets } : {}),
+            },
+          }),
+    };
+
+    let world: World;
+    try {
+      world = await openWorld(recipe);
     } catch (error) {
       await served?.close();
       throw error;
     }
 
-    const page = harness.page;
-    const engine = harness.engine;
+    // Every input to a `Collected` that is not the world, computed once and
+    // handed to both readings — so the only thing that differs between a shared
+    // collection and an isolated one is what else has run.
+    const reading: Reading = {
+      config,
+      options,
+      baseUrl,
+      roots,
+      ...(source !== undefined ? { source } : {}),
+    };
 
     // One per run, not one per story. Every story in a Storybook is written in
     // the same handful of modules, so the second story onward resolves its call
-    // sites out of this cache without a single fetch.
-    const callSites = createCallSiteResolver(fetchModules(page));
+    // sites out of this cache without a single fetch. Built over the run's own
+    // page, because an isolated world is closed before anyone could ask it for a
+    // frame — and it would resolve the same modules from the same server anyway.
+    const callSites = createCallSiteResolver(fetchModules(world.page));
 
     return {
       async plan(): Promise<Plan> {
@@ -316,168 +215,57 @@ export function storybookCollector(
       },
 
       async collect(planned: PlannedSubject): Promise<Collected> {
-        const storyId = planned.subject.id.replace(/^story:/, '');
+        return readStory(world, reading, planned, recorder);
+      },
 
-        const viewport = planned.viewport ?? config.viewport;
-        const readySelector = options.ready?.[storyId];
-
-        // Applied, not merely recorded. A story that declares its own viewport
-        // was being painted at the run's width while its environment key said
-        // otherwise — a baseline whose key describes a render that never
-        // happened, and a verdict over it that is green for the wrong reason.
-        // The resize precedes the mount, so a component that reads `matchMedia`
-        // when it mounts reads the width it is about to be shown at.
-        const fixed = unresizable(viewport, config.viewport);
-        if (fixed !== undefined) return { ok: false, because: fixed };
-
-        const current = page.viewportSize();
-        if (current?.width !== viewport.width || current?.height !== viewport.height) {
-          await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      /**
+       * The same reading, out of a world nothing else has touched.
+       *
+       * A fresh browser, a fresh context and a fresh page on the same preview,
+       * showing this story and no other. Everything else is held identical by
+       * construction: the world comes from the same {@link WorldRecipe} the run
+       * was opened with, and the reading from the same {@link Reading} — same
+       * viewport, same fonts, same ready selector, same ignore rules, same
+       * wiring and holdings, same suspense budget, same roots, same source
+       * index, and the same static server, so every asset URL and therefore the
+       * environment key is the one the shared world produced.
+       *
+       * That last one is why the server is reused rather than restarted. A
+       * second server answers on a second port, every asset URL moves, the key
+       * moves with it, and the run gets `incomparable` back — a clean collection
+       * that cannot be compared to the dirty one settles nothing.
+       *
+       * The cost is a browser launch per subject, which is why `alone.limit`
+       * exists and why the run only spends it on subjects it already called
+       * `changed`.
+       */
+      async collectAlone(planned: PlannedSubject): Promise<Collected> {
+        const alone = await openWorld(recipe);
+        try {
+          return await readStory(alone, reading, planned);
+        } finally {
+          // Always, including after a throw. A world left open is a browser
+          // process and a port held for the rest of the run, and the run is
+          // still going: this is called per changed subject, up to `alone.limit`
+          // of them.
+          await alone.close();
         }
-
-        const outcome = await collectStory(harnessPage({ page }), storyId, {
-          baseUrl,
-          ...(options.readyTimeoutMs !== undefined ? { timeoutMs: options.readyTimeoutMs } : {}),
-          ...(readySelector !== undefined ? { readySelector } : {}),
-        });
-
-        // A story that did not render is a hole in this run's coverage, and it
-        // travels as a value rather than an exception: one component that throws
-        // must not cost the others their observations, and must not be silently
-        // absent either.
-        if (outcome.status !== 'rendered') {
-          // A story that rendered a fallback still executed code, and counters left
-          // in the page would be handed to whichever story drained next.
-          await recorder?.note(page, planned.subject.id, false);
-          return {
-            ok: false,
-            because:
-              `the story did not render (${outcome.status}, readiness ${outcome.readiness})` +
-              (outcome.error === undefined ? '' : `: ${outcome.error.message}`),
-          };
-        }
-
-        // After the story has mounted and before it is read. A story whose
-        // image is still in flight is a story whose bytes nobody hashed, and the
-        // wait is the driver's because the page cannot see its own requests.
-        // Never a failure: a page that keeps fetching is reported, not refused.
-        await network?.settle();
-
-        // Either form matches. A subject is `story:case-surface--x` and a story
-        // is `case-surface--x`, and `ready` above is keyed by the second — so a
-        // declaration written the way the neighbouring option is written has to
-        // work, or the escape hatch fails silently and the story it was written
-        // for is refused anyway.
-        const declaredLoading = (options.loading ?? []).some(
-          (pattern) => matchesGlob(planned.subject.id, pattern) || matchesGlob(storyId, pattern),
-        );
-
-        const worn = new Set(planned.tags ?? []);
-        const selectable = (config.ignore ?? []).flatMap((rule) =>
-          rule.select === undefined ||
-          (rule.subjects !== undefined &&
-            !rule.subjects.some((pattern) => matchesGlob(planned.subject.id, pattern))) ||
-          (rule.tags !== undefined && !rule.tags.some((tag) => worn.has(tag)))
-            ? []
-            : [{ id: rule.id, select: rule.select }],
-        );
-
-        const request: AcquireRequest = {
-          subjectId: planned.subject.id,
-          viewport,
-          engine,
-          ...(config.fonts !== undefined ? { fonts: config.fonts } : {}),
-          // Only the rules that name a selector cross into the page. A
-          // fingerprint rule has nothing for a document to resolve, and sending
-          // one would put a digest in a browser that cannot use it.
-          ...(selectable.length > 0 ? { ignore: selectable } : {}),
-          // A story declared as a loading capture waits for nothing: the whole
-          // point of it is the fallback, and paying the timeout to be told the
-          // boundary is still there would cost five seconds per story to learn
-          // what the declaration already said.
-          ...(declaredLoading
-            ? { suspense: { timeoutMs: 0 } }
-            : options.suspenseTimeoutMs !== undefined
-              ? { suspense: { timeoutMs: options.suspenseTimeoutMs } }
-              : {}),
-          roots,
-        };
-
-        // The page's whole observed set goes in there, narrowed inside the page
-        // to the URLs this story references: the driver cannot know which of
-        // them the story uses, and the page cannot know what the bytes were.
-        // Never reset between stories — one page serves the whole run, and a
-        // story whose asset was fetched during an earlier story still
-        // references it.
-        const raw = await acquireFromAgent(page, network, request);
-
-        const acquired = JSON.parse(raw) as Acquired;
-
-        // The symptom of a page agent older than this driver, named rather than
-        // read past: `undefined` here would make `suspenseRefusal` throw inside
-        // one story and take the run with it, and defaulting it to "settled"
-        // would silently restore the behaviour this exists to end.
-        if (acquired.suspense === undefined) {
-          await recorder?.note(page, planned.subject.id, false);
-          return {
-            ok: false,
-            because:
-              'the page agent returned no Suspense reading, which means the bundle in ' +
-              '`@variance-authority/storybook-collector` predates it — rebuild the package',
-          };
-        }
-
-        // The forced decision. A story still showing a fallback is refused with
-        // the boundary named, unless somebody declared that this is the subject.
-        const unsettled = suspenseRefusal(acquired.suspense, {
-          subjectId: planned.subject.id,
-          declaredLoading,
-        });
-        if (unsettled !== undefined) {
-          await recorder?.note(page, planned.subject.id, false);
-          return { ok: false, because: unsettled };
-        }
-
-        await recorder?.note(page, planned.subject.id, true);
-
-        // No frames are spent here, and that is deliberate: a story that settles
-        // on its document digest has nobody to hand a location to. They ride the
-        // snapshot as provenance — which no hash projects — and `locateSites`
-        // spends them for the few nodes a region or a finding names.
-        return {
-          ok: true,
-          document: acquired.document,
-          // Normalized here rather than in the page: the ruleset is the one the
-          // jsdom path uses, and running it in the browser would make the two
-          // profiles two implementations of it.
-          // `sourceRoot` for the same reason `scanSource` is rooted at the cwd
-          // above: both answers name files, and a report that mixes a
-          // repository-relative declaration with an absolute call site is one
-          // nobody can paste into anything.
-          snapshot: normalizeCapture(acquired.capture, { sourceRoot: process.cwd() }),
-          ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
-            ? { stabilization: acquired.stabilization }
-            : {}),
-          ...(source !== undefined ? { source } : {}),
-          // No `causes`. Naming the roots of a change needs the *previous*
-          // snapshot, and a durable run has a baseline image without one — so
-          // ranking falls back to area, which `rankRegions` documents as honest
-          // and not good.
-        };
       },
 
       callSites,
 
       async close(): Promise<void> {
         await recorder?.close();
-        await network?.close();
-        await harness?.close();
+        // Only the run's own world. An isolated one is opened and closed inside
+        // `collectAlone`, so there is never a second world alive at this point.
+        await world.close();
         await served?.close();
       },
     };
   };
 }
 
+export type { StorybookCollectorOptions } from './options.js';
 export type { StoryExecutionOptions } from './execution.js';
 export type { SourceScan } from './source.js';
 export type { AcquireRequest, Acquired } from './page-agent.js';

@@ -147,5 +147,28 @@ export interface Collector {
    * this bounded, and a suite's subjects share their modules.
    */
   readonly callSites?: CallSiteResolver;
+
+  /**
+   * Collect this subject again, in a world nothing else has touched.
+   *
+   * The saving this whole tool is built on is that the world is *not* rebuilt
+   * between subjects (ADR-0009): one browser, one page, one Storybook, for the
+   * length of a run. What it buys is the possibility that story B renders
+   * differently because story A ran first — and a comparison cannot tell that
+   * apart from a regression, because both arrive as "the pixels moved".
+   *
+   * One clean collection settles it. If the difference is gone with nothing else
+   * in the world, the baseline was right and the session moved this subject, and
+   * the run reports `order-dependent` rather than asking anybody to accept it.
+   *
+   * Optional in the contract the CLI declares, because a collector holding a
+   * single page open has no clean world to offer and the run says so rather than
+   * reading silence as "nothing leaked". This collector implements it: a
+   * Storybook preview can be opened twice, and the second one costs a browser
+   * launch — which is why the run only spends it on subjects it already called
+   * `changed`, up to `alone.limit`.
+   */
+  collectAlone?(subject: PlannedSubject): Promise<Collected>;
+
   close(): Promise<void>;
 }

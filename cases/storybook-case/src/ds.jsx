@@ -318,3 +318,45 @@ export function AsyncPanel({ delayMs = 120 }) {
     </div>
   );
 }
+
+/**
+ * Writes a rule into the document and never takes it back.
+ *
+ * The one failure a shared page makes possible and a fresh one cannot. This
+ * component renders correctly, settles immediately and would pass any check
+ * applied to it — and it leaves behind a rule that belongs to no story. Every
+ * subject read after it *in the same page* is read through that rule, so a
+ * button in some other story grows and the comparison reports that its pixels
+ * moved. Which is true, and is not a regression, and nothing in the image can
+ * tell the two apart.
+ *
+ * Not contrived. A chart library that appends its theme on first use, a modal
+ * that injects a scroll lock, a font loader, a tooltip that ships its own
+ * positioning rules: all of them do exactly this, all of them are correct in
+ * isolation, and all of them are invisible until something reads the stories in
+ * a different order.
+ *
+ * The rule targets a property `Button` does not declare inline, because an
+ * inline declaration would win and the leak would be silent — which would make
+ * this a component that *looks* dangerous and is not, and prove the opposite of
+ * what it is here for.
+ */
+export function SheetLeak() {
+  useEffect(() => {
+    const sheet = document.createElement('style');
+    sheet.dataset.caseLeak = 'sheet';
+    sheet.textContent = '#storybook-root button{letter-spacing:0.35em;text-transform:uppercase}';
+    document.head.append(sheet);
+
+    // No cleanup, deliberately. Returning a remover here would make this a
+    // well-behaved component and delete the only order dependence in the case —
+    // and the whole point is that the author of a component like this believes
+    // they wrote the well-behaved version.
+  }, []);
+
+  return (
+    <span data-testid="case-leak" style={{ color: 'var(--case-text)' }}>
+      left a sheet in the document
+    </span>
+  );
+}

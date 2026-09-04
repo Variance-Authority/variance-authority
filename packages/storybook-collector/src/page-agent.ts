@@ -4,7 +4,13 @@ import {
   collect,
   stabilizeForObservation,
 } from '@variance-authority/dom';
-import { awaitSuspense, portalContentOf, provenanceOf } from '@variance-authority/react';
+import {
+  awaitSuspense,
+  holdingOf,
+  portalContentOf,
+  provenanceOf,
+  wiringOf,
+} from '@variance-authority/react';
 import type { SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
 import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core';
@@ -72,6 +78,27 @@ export interface AcquireRequest {
    * and is what a story deliberately captured mid-arrival sends.
    */
   readonly suspense?: { readonly timeoutMs?: number };
+
+  /**
+   * Read the framework wiring band. Absent means *on*.
+   *
+   * Absent-means-on rather than a plain boolean because the bundle's `capture`
+   * entry builds its request from a `CaptureRequest`, which has no such field: a
+   * band every run wants would otherwise go missing on the one surface that
+   * cannot ask for it.
+   */
+  readonly wiring?: boolean;
+
+  /**
+   * Read held state as evidence. Absent means *off*, and that asymmetry is the
+   * point rather than an oversight.
+   *
+   * A node carrying a holding suppresses the inert-wrapper collapse, so the same
+   * story read with holdings and without hashes to two different structures.
+   * That is a decision about both sides of a comparison at once, which is why
+   * nothing here makes it by default.
+   */
+  readonly holdings?: boolean;
 
   /** Story mount points, tightest first. */
   readonly roots: readonly string[];
@@ -162,6 +189,8 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     engine: request.engine,
     portalsOf: portalContentOf,
     provenanceOf,
+    ...(request.wiring === false ? {} : { wiringOf }),
+    ...(request.holdings === true ? { holdingOf } : {}),
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
     ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
   });

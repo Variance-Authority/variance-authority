@@ -89,7 +89,7 @@ jobs:
       # ## What this job does not do, stated rather than discovered
       #
       # **No browser.** Nothing here runs `npx playwright install`, so the suites
-      # across 33 files that need a Chromium announce themselves as skipped, each
+      # across 36 files that need a Chromium announce themselves as skipped, each
       # carrying the command that would fix it. That sentence is not taken on
       # trust: `tools/skips.check.ts` asserts every gated file announces, and pins
       # the count in this comment to the number of gated files it finds.

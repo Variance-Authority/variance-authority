@@ -191,11 +191,14 @@ between subjects. It collects one subject twice, in two worlds, and subtracts.
 
 ## Known limits
 
-- **`collectAlone` is the adopter's to implement**, and a wrong one — a "clean"
-  world that is not clean — makes order dependence unreachable and every leak
-  look like a regression. That is exactly the status quo, so a bad
-  implementation costs the wasted renders and nothing else. It cannot be
-  verified from this side, and the run does not pretend to.
+- **A wrong `collectAlone`** — a "clean" world that is not clean — makes order
+  dependence unreachable and every leak look like a regression. That is exactly
+  the status quo, so a bad implementation costs the wasted renders and nothing
+  else. It cannot be verified from this side, and the run does not pretend to.
+  The two shipped collectors build the clean world from the same recipe value as
+  the shared one, which is what makes "identical except for isolation" a property
+  of the code rather than a discipline two call sites keep by hand; a bespoke
+  collector is still the adopter's, and still unverifiable from here.
 - **A leak that also reaches the clean world is invisible.** State written to
   disk, to a shared server, or to a `localStorage` the fresh world inherits
   survives the second collection and the change reproduces. The classification

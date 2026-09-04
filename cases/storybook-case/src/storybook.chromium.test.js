@@ -230,5 +230,9 @@ it.todo(
 );
 
 it.todo(
+  'the three options this collector forwards — `hashAssets`, `wiring` and `holdings` — do to a story what they do to a route, where `packages/route-collector/src/wiring.chromium.test.ts` and `packages/route-collector/src/network.chromium.test.ts` assert them against the same page agent and the same `observeNetwork`; needs one story collected here whose component holds state behind an asset the wire serves, which is one mount for all three',
+);
+
+it.todo(
   'no rule from Storybook’s own chrome — the addon layout, the error overlay, the toolbar — reaches a story’s snapshot, read off `styleProvenance[].selector` against the sheets a real Storybook ships rather than the fixture copy in `packages/dom/src/collect.test.ts` — needs one story collected through `@variance-authority/storybook-collector` here; the preview reset is a separate question, since ADR-0028 admits a rule that matches an ancestor of the subject and the reset matches `html`',
 );

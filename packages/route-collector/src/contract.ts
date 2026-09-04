@@ -130,5 +130,29 @@ export interface Collector {
    * this bounded, and a suite's subjects share their modules.
    */
   readonly callSites?: CallSiteResolver;
+
+  /**
+   * Collect this subject again, in a world nothing else has touched.
+   *
+   * A route run navigates per subject, so the shared thing is not a document —
+   * it is the browser and the origin beneath it. Cookies, `localStorage`,
+   * `sessionStorage`, IndexedDB, the HTTP cache and any registered service
+   * worker all survive a navigation, and a route whose render depends on one of
+   * them renders differently because another route ran first. A comparison
+   * cannot tell that apart from a regression, because both arrive as "the pixels
+   * moved".
+   *
+   * One clean collection settles it. If the difference is gone with nothing else
+   * in the world, the run reports `order-dependent` rather than asking anybody to
+   * accept it.
+   *
+   * Optional in the contract the CLI declares, because a collector with no clean
+   * world to offer must say so rather than have silence read as "nothing
+   * leaked". This collector implements it, at a browser launch per subject —
+   * which is why the run only spends it on subjects it already called `changed`,
+   * up to `alone.limit`.
+   */
+  collectAlone?(subject: PlannedSubject): Promise<Collected>;
+
   close(): Promise<void>;
 }

@@ -84,7 +84,13 @@ function writeConfig(path, index) {
         profile: 'chromium',
         viewport: { width: 1024, height: 768, deviceScaleFactor: 1, colorScheme: 'light' },
         retention: 'durable',
-        subjects: { kind: 'storybook', index, collector: COLLECTOR },
+        // `excludeTags` matches the case's own `variance.config.json`, and is not
+        // a convenience for this file: `Sheet — left in the document` appends a
+        // rule to the page and never removes it, so a run that planned it would
+        // read every subject after it through that rule and the workflow below
+        // would be measuring story order rather than an edit. It is a cause the
+        // case runs — in `alone.chromium.test.js` — and never a subject.
+        subjects: { kind: 'storybook', index, collector: COLLECTOR, excludeTags: ['no-variance'] },
         baselines: { kind: 'directory', root: join(workspace, 'baselines') },
         fonts: ['ui-sans-serif/400/normal/sha256-case-system-stack'],
         report: join(workspace, 'run.json'),
@@ -159,12 +165,22 @@ live('the durable workflow, end to end', () => {
     // The whole reason the report carries a second list. A summary that says
     // nothing needs review because eleven subjects failed to render is worse
     // than no summary.
-    expect(out).toContain('coverage: every planned subject was observed.');
+    //
+    // The list is not empty here, and that is the branch worth running end to
+    // end: the thirteenth story is held out by tag, so the header says twelve of
+    // thirteen, the second list separates a subject nobody could render from a
+    // subject nobody asked for, and it names the tag that did it. The empty
+    // branch is asserted over a hand-built report in
+    // `packages/cli/src/commands/report.test.ts`; this one had no exercise
+    // anywhere until a real run had something real to leave out.
+    expect(out).toContain('12 of 13 subject(s) observed');
+    expect(out).toContain('0 the run could not see, 1 excluded by configuration');
+    expect(out).toContain('[excluded] story:case-surface--leaks-a-sheet: excluded by tag `no-variance`');
 
     // Exactly once. It was printed twice by two formatters over one artifact,
     // and every test asserting it used `toContain`, which the first copy
     // satisfies.
-    expect(out.split('coverage: every planned subject was observed.').length - 1).toBe(1);
+    expect(out.split('not observed: 1 subject(s)').length - 1).toBe(1);
   }, 240_000);
 
   it('promotes the images the run already produced, without rendering again', () => {
@@ -220,7 +236,7 @@ live('the durable workflow, end to end', () => {
   it('reports exactly the stories that render the edited component', () => {
     // A source edit, judged against the baselines the trunk build recorded. The
     // interesting number is not that something changed — it is *which* subjects
-    // did. `Button` appears in five of the twelve stories, and the run has to
+    // did. `Button` appears in five of the twelve subjects, and the run has to
     // find five, not twelve and not one.
     const { status, out } = varianceWith(changedConfigPath, 'run');
 
@@ -401,4 +417,8 @@ it.todo(
 
 it.todo(
   'the same story, captured as an in-place raster from the preview page the runner already painted, reaches the same verdict as the document this case renders later — ADR-0044 calls this cell coherent because the preview is a painted page, and nothing builds it: the collector needs an in-place material option and the host launch recipe declared the way `@variance-authority/playwright-test` declares it',
+);
+
+it.todo(
+  'a `run` whose plan reads `Sheet — left in the document` before `Card — with actions` reports that card `order-dependent` rather than `changed`, and `accept` refuses it — `alone.chromium.test.js` proves the two readings the collector answers with and `packages/cli/src/commands/alone.test.ts` proves the verdict over a fake, so the missing piece is the join: needs a way to declare or permute subject order in a run, because the plan is in index order and the leaking story is last in it',
 );

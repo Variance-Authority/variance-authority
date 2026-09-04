@@ -42,10 +42,12 @@ yarn workspace @variance-authority/case-storybook storybook
 ## What is in the stories
 
 A small design system — `Button`, `Stack`, `Card`, `Spinner`, `Clock`,
-`AsyncPanel`, `Panel`, and three Suspense trees — chosen so the twelve stories
-cover the cases that actually decide whether an adapter is any good.
+`AsyncPanel`, `Panel`, `SheetLeak`, and three Suspense trees — chosen so the
+thirteen stories cover the cases that actually decide whether an adapter is any
+good. Twelve of them are subjects; the thirteenth is tagged `no-variance` and is
+a cause rather than a subject, which the table below says why about.
 
-The ten stable stories are collected through **one navigation**; the deferred
+The eleven stable stories are collected through **one navigation**; the deferred
 and ticking stories are exercised separately:
 
 | story | what it is for |
@@ -58,6 +60,7 @@ and ticking stories are exercised separately:
 | `Panel — revealed by its play function` | a subject that does not exist until an interaction runs |
 | `Suspense — settles` | a boundary no marker could cover: the component that would carry one has not rendered |
 | `Suspense — waterfall` | a boundary that only exists once the first one resolves, so one clean reading is not enough |
+| `Sheet — left in the document` | leaves a rule in the document, so the next story read in the same page is a different subject — the case `collectAlone` exists for, and the reason it is tagged out of the run |
 | `Suspense — stalled` | a boundary that never resolves, which is a flake source and is refused unless declared |
 
 Those last seven are the seven that hold when `Button` changes.
@@ -82,8 +85,33 @@ candidate—there are two readings and neither may become the baseline—then ex
 **2** because the requested acceptance has no safe action.
 
 **Boundary:** this is one timer, one Chromium environment, and one immediate
-second read. It does not measure recurrence, a fleet-wide flake rate,
-cross-machine rasterization, or order dependence between subjects.
+second read. It does not measure recurrence, a fleet-wide flake rate, or
+cross-machine rasterization.
+
+## Order dependence is separated from a regression
+
+`Sheet — left in the document` renders correctly, settles immediately, and
+appends a rule to the document that it never takes back. Every story read after
+it *in the same page* is read through that rule, so `Card — with actions` grows —
+and the comparison says its pixels moved, which is what an edit to `Button` also
+says.
+
+```bash
+yarn workspace @variance-authority/case-storybook build-storybook
+yarn vitest run cases/storybook-case/src/alone.chromium.test.js
+```
+
+The card is collected five times through the shipped collector: twice before the
+leaking story runs, once out of a browser nothing else has touched, then again
+in the page that story went through, then alone once more. The clean subject
+reads identically alone and in company — same viewport, same fonts, same source
+index, and the same static server, so the same environment key — and the
+polluted one does not, until it is read alone. That gap is `collectAlone`, and it
+is what a run reports as `order-dependent` rather than offering the difference to
+somebody to accept.
+
+The leaking story carries `no-variance`, so it is a cause the case runs and never
+a subject the case records.
 
 ## Readiness is a declared contract
 
@@ -122,7 +150,7 @@ Four steps, which is the workflow a team actually runs:
 | `variance run` on the changed build | 7 unchanged, **5 changed** | **1** |
 
 The last row is the one worth reading. `Button` appears in five of the twelve
-stories, and the run finds exactly those five. The report resolves to source:
+subjects, and the run finds exactly those five. The report resolves to source:
 
 ```
 [changed] story:case-surface--button-primary

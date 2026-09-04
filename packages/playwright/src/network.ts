@@ -65,6 +65,20 @@ import { freezeGif } from './gif.js';
 /** Resource types whose *bytes* change the render without entering the capture. */
 const HASHED_TYPES: ReadonlySet<string> = new Set(['image', 'font', 'media']);
 
+/**
+ * What a collector decides about the wire, and every default it can move.
+ *
+ * A value rather than a set of arguments because a collector that can open a
+ * second world has to open both from the same one. `collectAlone` asks whether a
+ * subject differs because another subject ran first, and the only reading that
+ * answers it is one where isolation is the *only* difference — so the two worlds
+ * share this object, and a hash setting or a blanking rule that drifted between
+ * them would come back looking exactly like the pollution being hunted.
+ *
+ * Every field is a position rather than a preference: each one is either in the
+ * environment key or in what the page was served, so changing it makes a
+ * baseline read against a different recipe.
+ */
 export interface NetworkOptions {
   /**
    * Serve animated GIFs as their first frame. Defaults to `true`.

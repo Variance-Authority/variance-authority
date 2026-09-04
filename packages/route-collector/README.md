@@ -163,6 +163,9 @@ each route once per width, independently.
 | `headless` | You need to watch collection while debugging. | `true`. |
 | `network` | Asset bytes at stable URLs must affect render identity. | `true`. |
 | `portable` | The pixels will be made on a machine with no route to your asset origin. | `false`. Requires `network`; a resource that cannot be closed fails its route and names itself. |
+| `hashAssets` | Your asset URLs already carry their own content hash. | `true`. Read only while `network` is on; GIF freezing, blanking and `portable` retention stay. |
+| `wiring` | This route is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off moves no stored digest. |
+| `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `stabilize` | The application has its own determinism strategy. | The standard collection recipe; `[]` records an untouched page. |
 
 ## Readiness and loading

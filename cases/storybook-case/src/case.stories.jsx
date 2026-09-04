@@ -4,6 +4,7 @@ import {
   Card,
   Clock,
   Disclosure,
+  SheetLeak,
   Spinner,
   Stack,
   StalledFeed,
@@ -206,6 +207,33 @@ export const Composed = {
           <Button variant="secondary">Export</Button>
         </Card>
       </Stack>
+    </Tokens>
+  ),
+};
+
+/**
+ * The story that changes what the stories after it mean.
+ *
+ * Everything above is a subject. This one is a *cause*: it appends a rule to
+ * the document and leaves it there, so `Card — with actions` read after it in
+ * the same page is a wider card than `Card — with actions` read on its own. Both
+ * readings are reproducible. Neither is wrong. The comparison between them says
+ * the pixels moved, which is what an edit to `Button` also says.
+ *
+ * `tags: ['no-variance']` keeps it out of the run, and `excludeTags` in
+ * `variance.config.json` is what honours the tag. Recording a baseline for it
+ * would be recording a baseline for the act of contaminating the page, and the
+ * twelve subjects the case reports stay twelve.
+ *
+ * `src/alone.chromium.test.js` is the file that uses it, by collecting a second
+ * story before and after this one runs.
+ */
+export const LeaksASheet = {
+  name: 'Sheet — left in the document',
+  tags: ['no-variance'],
+  render: () => (
+    <Tokens>
+      <SheetLeak />
     </Tokens>
   ),
 };

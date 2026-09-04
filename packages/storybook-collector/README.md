@@ -135,6 +135,9 @@ complete cycle against a Storybook-built artifact: new → accept → unchanged 
 | `baseUrl` | Storybook is already running. | Omitted; the directory containing `subjects.index` is served on loopback for the run. |
 | `headless` | You need to watch collection while debugging. | `true`; set `false` locally. |
 | `network` | Asset bytes at stable URLs must participate in render identity. | `true`; set `false` only when asset URLs are already content-addressed. |
+| `hashAssets` | Your asset URLs already carry their own content hash. | `true`. Read only while `network` is on, so GIF freezing and blanking survive it — this, not `network: false`, is the setting for a content-addressed build. |
+| `wiring` | Your preview's renderer is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off moves no stored digest. |
+| `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `roots` | Your preview mounts somewhere other than the standard roots. | `['#storybook-root', '#root']`, tightest match first. |
 | `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires a preview built with `testSelectionProbes()` from `@variance-authority/sense/journal`; without a collector in the page the run says so on stderr and records nothing. |
 

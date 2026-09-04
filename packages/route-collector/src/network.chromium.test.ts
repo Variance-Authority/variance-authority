@@ -3,7 +3,13 @@ import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { documentDigest } from '@variance-authority/core';
-import { routeCollector, type Collected, type Collector, type Plan } from './index.js';
+import {
+  routeCollector,
+  type Collected,
+  type Collector,
+  type CollectorConfig,
+  type Plan,
+} from './index.js';
 
 /**
  * What the wire knows that the page cannot.
@@ -218,7 +224,10 @@ const PLAN: Plan = {
   warnings: [],
 };
 
-async function collect(options: { network?: boolean } = {}): Promise<Collected> {
+async function collect(
+  options: { network?: boolean; hashAssets?: boolean } = {},
+  blank?: CollectorConfig['blank'],
+): Promise<Collected> {
   const collector: Collector = await (
     await routeCollector({
       routes: { 'page/assets': `${base}/page` },
@@ -229,6 +238,7 @@ async function collect(options: { network?: boolean } = {}): Promise<Collected> 
     config: {
       viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' },
       fonts: [],
+      ...(blank === undefined ? {} : { blank }),
     },
     plan: PLAN,
   });
@@ -306,6 +316,22 @@ describe.skipIf(!BROWSER_AVAILABLE)('the bytes a page was served', () => {
     // Not "absent". An empty asset map is a run that recorded nothing about its
     // assets, and it should be possible to tell that from a run that had none.
     expect(assetsOf(await collect({ network: false }))).toEqual({});
+  }, 60_000);
+
+  it('drops the digests for `hashAssets: false` and keeps everything else the wire does', async () => {
+    // The distinction `docs/flakiness.md` sends a reader here for. A build whose
+    // asset URLs already carry their own hash wants the redundant read gone and
+    // has no reason to give up GIF freezing, blanking, or the retention a
+    // portable document needs — and `network: false` is the setting that takes
+    // all four together.
+    const rule = { id: 'logo', url: '**/logo.png' } as const;
+    const assets = assetsOf(await collect({ hashAssets: false }, [rule]));
+
+    // The blanked URL is still in the map, because the blank *is* the value: a
+    // rule that fired is an input, and recording it is how the environment key
+    // says which run was blanked. Its neighbour, hashed on any other run, is
+    // gone. Both facts come from the same routing being alive.
+    expect(assets).toEqual({ [`${base}/logo.png`]: 'blank:logo:1x1' });
   }, 60_000);
 });
 
