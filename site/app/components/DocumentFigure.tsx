@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Attribution from "./Attribution";
 import DiffReport from "./DiffReport";
 import EvidenceSlices from "./EvidenceSlices";
+import Journeys from "./Journeys";
 import RuntimeEvidence from "./RuntimeEvidence";
 import Since from "./Since";
 import Subjects from "./Subjects";
@@ -20,6 +21,8 @@ const CAPTIONS: Record<string, string> = {
     "Static reach explains what a change could affect; prior execution evidence names the tests that actually entered it.",
   instruments:
     "Independent readings stay independent, so an absent signal cannot be mistaken for an observed empty result.",
+  journeys:
+    "One decision is one mark, however many regions the run records for it. An arm that entered is lit, and the line that fell through is dashed.",
 };
 
 function Figure({ children, caption }: { children: ReactNode; caption: string }) {
@@ -70,6 +73,12 @@ export default function DocumentFigure({ slug }: { slug: string }) {
       return (
         <Figure caption={CAPTIONS.instruments!}>
           <EvidenceSlices />
+        </Figure>
+      );
+    case "journeys":
+      return (
+        <Figure caption={CAPTIONS.journeys!}>
+          <Journeys />
         </Figure>
       );
     default:

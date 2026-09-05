@@ -1,3 +1,5 @@
+import { CART, Forks, JourneyTimeline } from "./Journeys";
+
 /** What each instrument reads, and the thing it can say that a diff cannot. */
 const CLOSING = [
   {
@@ -246,24 +248,26 @@ export default function WithoutABaseline() {
               </p>
             </div>
             <div>
-              <pre className="overflow-x-auto rounded-xl border border-hairline bg-deep p-4 font-mono text-[11px] leading-5 text-quiet">
-                <code>
-                  app/src/components/CartCard.tsx{"  "}3 observers{"\n"}
-                  {"  "}
-                  <span className="text-orange">parted</span>
-                  {"     "}function CartCard/onClick{"  "}51-58{"\n"}
-                  {"    "}entered{"  "}story:cart-card--removing{"\n"}
-                  {"    "}missed{"   "}story:cart-card--item,
-                  story:cart-card--verbose{"\n"}
-                  {"  "}
-                  <span className="text-warm">unentered</span>
-                  {"  "}branch CartCard/empty{"  "}62-64
-                </code>
-              </pre>
-              <p className="mt-3 text-sm leading-6 text-quiet">
-                A parting is a place with lines, and it is where to look once
-                something else has said that something changed. The same record
-                is what narrows a run to the subjects whose journeys crossed
+              <div className="overflow-x-auto rounded-xl border border-hairline bg-deep p-3">
+                <JourneyTimeline picture={CART} />
+              </div>
+              <Forks
+                forks={[
+                  {
+                    regions: [
+                      { region: "function CartCard/onClick", lines: "lines 51–58" },
+                    ],
+                    file: "app/src/components/CartCard.tsx",
+                  },
+                ]}
+              />
+              <p className="mt-4 text-sm leading-6 text-quiet">
+                The stories of one component are one timeline. The trunk is
+                the story the others vary from, with every story that took its
+                path, and an arm leaves it where one story entered a region the
+                rest did not: a file and a line range, which is where to look
+                once a comparison has said that something changed. The same
+                record narrows a run to the subjects whose journeys crossed
                 the changed code.
               </p>
             </div>
