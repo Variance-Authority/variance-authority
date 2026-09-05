@@ -5,11 +5,11 @@ import type { BuildDetail, SubjectView } from '../review-types.js';
 import { familiesOf, JourneysPanel } from './journeys.js';
 
 /**
- * The grid, held to the one thing the panel does: cut the module record into
+ * The rows, held to the one thing the panel decides: cut the module record into
  * families and keep only the rows a family is split on, without inventing a
  * finding the report did not carry. The failures that read as a working page
  * are a family split by a region it agreed on, and an empty pool drawn as
- * agreement.
+ * agreement. The tree grown from the rows has its own test.
  */
 
 const ITEM = 'story:cart-card--item';
@@ -164,16 +164,18 @@ describe('the panel', () => {
     expect(renderToStaticMarkup(<JourneysPanel build={build([subject()], null)} />)).toBe('');
   });
 
-  it('draws the family as a grid, and names the region, its lines and its file once', () => {
+  it('draws the family as a timeline, and lists each fork with its full coordinate', () => {
     const html = renderToStaticMarkup(<JourneysPanel build={build([subject()], journeys())} />);
 
     expect(html).toContain('<h3>story:cart-card</h3>');
+    expect(html).toContain('<svg class="va-timeline"');
+    expect(html).toContain('CartCard/onClick:51');
+    expect(html).toContain('class="va-timeline-line va-lit"');
+    expect(html).toContain('class="va-timeline-line va-dim"');
+    expect(html).toContain('<title>story:cart-card--removing</title>');
     expect(html).toContain('function CartCard/onClick');
     expect(html).toContain('lines 51–58');
-    expect(html.split('app/src/components/CartCard.tsx')).toHaveLength(3);
-    expect(html).toContain('title="removing entered it"');
-    expect(html).toContain('title="item did not enter it"');
-    expect(html).toContain('title="quiet did not enter the module"');
+    expect(html).toContain('app/src/components/CartCard.tsx');
     expect(html).toContain('1 region no subject entered');
     expect(html).toContain('branch CartCard/empty');
     expect(html).toContain('4f2a1c9d0b73');
@@ -183,13 +185,13 @@ describe('the panel', () => {
     const alone = renderToStaticMarkup(
       <JourneysPanel build={build([subject()], journeys({ whole: [ITEM], found: [] }))} />,
     );
-    expect(alone).toContain('no agreement to report');
+    expect(alone).toContain('nothing to compare');
     expect(alone).not.toContain('one path');
 
     const agreed = renderToStaticMarkup(
       <JourneysPanel build={build([subject()], journeys({ found: [] }))} />,
     );
-    expect(agreed).toContain('one path through every module they share');
+    expect(agreed).toContain('stories took one path through every module they share');
     expect(agreed).toContain('<code>story:cart-card</code> (3 subjects)');
   });
 

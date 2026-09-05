@@ -127,13 +127,14 @@ look once something else has said that something changed.
   are on machines without one, so the run asks once and writes the answer beside
   its verdicts.
 - The [review service](../packages/tribunal/README.md#review-surface) draws one
-  grid per component: its stories across, each [variation](variations.md) after
-  the story it varies from, and down, only the regions on which those stories
-  differ. `cart-card--removing` differs from `cart-card--item` in one
-  region, the click handler; `product-card--sale` differs from
-  `product-card--control` in none, so the variation executes what it renders.
-  The regions a component's own stories agree on are not drawn, whichever other
-  component they differ from.
+  timeline per component: a line for the story nothing varies from, marked at
+  every region where its stories took different paths, in source order, and a
+  branch lit for the story that entered the region. `cart-card--removing`
+  enters one region `cart-card--item` does not, the click handler, and branches
+  there; `product-card--sale` enters exactly what `product-card--control`
+  enters, so the [variation](variations.md) executes what it renders. A region
+  a component's own stories agree on is no mark, whatever other components did
+  there.
 - [Selection](selecting.md) narrows a run to the subjects and spec files whose
   journeys crossed the changed code, and where the record cannot say, it selects
   more rather than less.

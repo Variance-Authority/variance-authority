@@ -14,11 +14,14 @@
  * not only rendering the control but executing it.
  *
  * So the pool is cut into families, one per component, and each family is one
- * grid: its stories across, and down, only the regions on which they parted.
- * A region the family agrees on is not a row, whichever other family it parts
- * from. The columns follow the variation lattice where the run found one, so
- * an arm sits beside what it varies from. Nothing is computed that the report
- * did not carry; the grid is a filter over `found`.
+ * timeline: a trunk, and a fork at every region where its stories parted, in
+ * source order. A region the family agrees on is not a fork, whichever other
+ * family it parts from. The columns follow the variation lattice where the run
+ * found one, so the trunk is the story nothing varies from and an arm leaves
+ * it. The rows here are the forks; [`journey-tree.ts`](./journey-tree.ts)
+ * grows the tree from them and [`journey-timeline.tsx`](./journey-timeline.tsx)
+ * draws it. Nothing is computed that the report did not carry; a row is a
+ * filter over `found`.
  *
  * ## The pool is drawn even when nothing parted
  *
@@ -32,9 +35,11 @@
 import type { ReactElement } from 'react';
 import type { JourneyRegionRecord, JourneysReport, VariationRecord } from '@variance-authority/report';
 import type { BuildDetail } from '../review-types.js';
+import { Timeline, forkLabel } from './journey-timeline.js';
+import { forksOf, treeOf } from './journey-tree.js';
 import { count } from './text.js';
 
-/** One story of a family, as a column of its grid. */
+/** One story of a family, as a column of its rows. */
 export interface JourneyColumn {
   readonly subject: string;
   /** The part of the id that names it within the family. */
@@ -153,8 +158,8 @@ function rowsOf(journeys: JourneysReport, columns: readonly JourneyColumn[]): re
 /** How many families are drawn before the rest are counted. */
 const FAMILIES = 6;
 
-/** How many rows of one grid are drawn before the rest are counted. */
-const ROWS = 8;
+/** How many forks of one timeline are drawn before the rest are counted. */
+const FORKS = 8;
 
 export function JourneysPanel({ build }: { readonly build: BuildDetail }): ReactElement | null {
   const journeys = build.journeys;
@@ -178,7 +183,7 @@ export function JourneysPanel({ build }: { readonly build: BuildDetail }): React
       {journeys.whole.length >= 2 ? null : <p className="va-note">{ONE}</p>}
 
       {parted.slice(0, FAMILIES).map((family) => (
-        <Grid family={family} key={family.name} />
+        <Family family={family} key={family.name} />
       ))}
       {parted.length <= FAMILIES ? null : (
         <p className="va-note">
@@ -189,7 +194,7 @@ export function JourneysPanel({ build }: { readonly build: BuildDetail }): React
 
       {agreed.length === 0 ? null : (
         <p className="va-note">
-          Stories that took one path through every module they share:{' '}
+          Components whose stories took one path through every module they share:{' '}
           {agreed.map((family, index) => (
             <span key={family.name}>
               {index === 0 ? null : ', '}
@@ -229,9 +234,7 @@ export function JourneysPanel({ build }: { readonly build: BuildDetail }): React
 }
 
 /** A pool of one, said apart from a pool that agreed. */
-const ONE =
-  'Only one subject has a complete journal, so there is nothing to compare — and no agreement ' +
-  'to report.';
+const ONE = 'Only one subject has a complete journal, so there is nothing to compare.';
 
 function Pool({ journeys }: { readonly journeys: JourneysReport }): ReactElement {
   return (
@@ -256,101 +259,48 @@ function Pool({ journeys }: { readonly journeys: JourneysReport }): ReactElement
   );
 }
 
-const MARK: Readonly<Record<JourneyCell, string>> = { entered: '●', missed: '○', absent: '·' };
-
-/** The cell's sentence, for a pointer resting on it and for a reader without the legend. */
-function said(column: JourneyColumn, row: JourneyRow, cell: JourneyCell): string {
-  if (row.region === null) {
-    return cell === 'entered' ? `${column.member} entered the module` : `${column.member} did not enter the module`;
-  }
-  if (cell === 'absent') return `${column.member} did not enter the module`;
-  return cell === 'entered' ? `${column.member} entered it` : `${column.member} did not enter it`;
-}
-
-function Grid({ family }: { readonly family: JourneyFamily }): ReactElement {
-  const shown = family.rows.slice(0, ROWS);
-  const width = family.columns.length + 1;
+/** One family: its timeline, and beneath it the forks by number, each region at its full coordinate. */
+function Family({ family }: { readonly family: JourneyFamily }): ReactElement {
+  const forks = forksOf(family.rows);
+  const shown = forks.slice(0, FORKS);
+  const tree = treeOf(family, shown);
 
   return (
     <section className="va-band">
       <h3>{family.name}</h3>
-      <div className="va-journey-scroll">
-        <table className="va-journey-grid">
-          <thead>
-            <tr>
-              <th />
-              {family.columns.map((column) => (
-                <th key={column.subject} scope="col" title={column.subject}>
-                  {column.member}
-                  {column.from === undefined ? null : <small>from {column.from}</small>}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((row, index) => (
-              <Row
-                row={row}
-                columns={family.columns}
-                first={index === 0 || shown[index - 1]?.file !== row.file}
-                width={width}
-                key={`${row.file}:${row.region === null ? 'module' : String(row.region.startLine)}`}
-              />
+      <Timeline family={family} forks={shown} tree={tree} />
+      <ol className="va-journey-forks">
+        {shown.map((fork, index) => (
+          <li key={forkLabel(fork)}>
+            <span className="va-timeline-n">{String(index + 1)}</span>
+            {fork.rows.map((row) => (
+              <span className="va-journey-region" key={`${row.file}:${row.region === null ? 'module' : String(row.region.startLine)}`}>
+                {row.region === null ? (
+                  <>
+                    the module itself, <code>{row.file}</code>
+                  </>
+                ) : (
+                  <>
+                    <code>
+                      {row.region.kind} {row.region.name}
+                    </code>{' '}
+                    <span className="va-note">
+                      {lines(row.region)} in <code>{row.file}</code>
+                    </span>
+                  </>
+                )}
+              </span>
             ))}
-          </tbody>
-        </table>
-      </div>
-      {family.rows.length <= shown.length ? null : (
-        <p className="va-note">{count(family.rows.length - shown.length, 'more region')} not listed.</p>
+          </li>
+        ))}
+      </ol>
+      {forks.length <= shown.length ? null : (
+        <p className="va-note">
+          {count(forks.length - shown.length, 'later region')} not drawn:{' '}
+          {forks.slice(shown.length).map((fork) => forkLabel(fork)).join(', ')}.
+        </p>
       )}
     </section>
-  );
-}
-
-function Row({
-  row,
-  columns,
-  first,
-  width,
-}: {
-  readonly row: JourneyRow;
-  readonly columns: readonly JourneyColumn[];
-  /** The first row of its file, which carries the file above it. */
-  readonly first: boolean;
-  readonly width: number;
-}): ReactElement {
-  return (
-    <>
-      {first ? (
-        <tr className="va-journey-file">
-          <th colSpan={width} scope="colgroup">
-            <code>{row.file}</code>
-          </th>
-        </tr>
-      ) : null}
-      <tr>
-        <th scope="row">
-          {row.region === null ? (
-            'the module itself'
-          ) : (
-            <>
-              <code>
-                {row.region.kind} {row.region.name}
-              </code>{' '}
-              <span className="va-note">{lines(row.region)}</span>
-            </>
-          )}
-        </th>
-        {row.cells.map((cell, index) => {
-          const column = columns[index];
-          return column === undefined ? null : (
-            <td className={`va-journey-cell va-${cell}`} key={column.subject} title={said(column, row, cell)}>
-              {MARK[cell]}
-            </td>
-          );
-        })}
-      </tr>
-    </>
   );
 }
 
