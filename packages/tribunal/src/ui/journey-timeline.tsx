@@ -53,15 +53,32 @@ export function regionLabel(row: JourneyRow): string {
   return `${row.region.name}${span}`;
 }
 
+/** A region's lines alone, for an arm whose fork already named the declaration. */
+export function spanLabel(row: JourneyRow): string {
+  const label = regionLabel(row);
+  return row.region === null ? label : label.slice(label.lastIndexOf(':'));
+}
+
 /**
- * A fork's label: its first region, and how many more split the family the same
- * way. Cut to `width` characters, and the count survives the cut.
+ * A fork's label: what divides the line there — one region, or the span of a
+ * `switch`'s cases — and how many later regions divide it the same way. Cut to
+ * `width` characters, and the count survives the cut.
  */
 export function forkLabel(fork: Fork, width = Number.POSITIVE_INFINITY): string {
-  const [first, ...rest] = fork.rows;
-  if (first === undefined) return '';
-  const more = rest.length === 0 ? '' : ` +${String(rest.length)}`;
-  return `${cut(regionLabel(first), width - more.length)}${more}`;
+  const first = fork.rows[0];
+  const last = fork.rows[fork.rows.length - 1];
+  if (first === undefined || last === undefined) return '';
+  const more = fork.alike.length === 0 ? '' : ` +${String(fork.alike.length)}`;
+  const label =
+    first === last || first.region === null || last.region === null
+      ? regionLabel(first)
+      : `${first.region.name}:${String(first.region.startLine)}–${String(last.region.endLine)}`;
+  return `${cut(label, width - more.length)}${more}`;
+}
+
+/** How far past its fork a branch is still curving. */
+function bendOf(branch: Branch): number {
+  return Math.min(STEP * 0.55, x(branch.at) - x(branch.from));
 }
 
 /** A branch's line: a curve out of its fork, then level to where it forks or ends. */
@@ -71,7 +88,7 @@ function path(branch: Branch, parentY: number): string {
   const y0 = y(parentY);
   const y1 = y(branch.y);
   if (y0 === y1) return `M ${String(x0)} ${String(y0)} L ${String(x1)} ${String(y1)}`;
-  const bend = Math.min(STEP * 0.55, x1 - x0);
+  const bend = bendOf(branch);
   const c = bend / 2;
   return (
     `M ${String(x0)} ${String(y0)} ` +
@@ -81,7 +98,7 @@ function path(branch: Branch, parentY: number): string {
 }
 
 function Line({ branch, parentY }: { readonly branch: Branch; readonly parentY: number }): ReactElement {
-  const tone = branch.cell === null ? 'va-trunk' : branch.cell === 'entered' ? 'va-lit' : 'va-dim';
+  const tone = branch.from < 0 ? 'va-trunk' : branch.entered.length > 0 ? 'va-lit' : 'va-dim';
   return (
     <>
       <path className={`va-timeline-line ${tone}`} d={path(branch, parentY)} />
@@ -97,7 +114,9 @@ function Line({ branch, parentY }: { readonly branch: Branch; readonly parentY: 
  *
  * The label sits above and to the left of the mark, over the level line that
  * arrives at it: the arms leave to the right, and a label there would sit on
- * one of them.
+ * one of them. A fork with more than one dividing region — a `switch` — names
+ * the lines of each case under the arm that entered it, where the arm has
+ * straightened, so a reader can tell the arms apart.
  */
 function Marks({ branch, forks }: { readonly branch: Branch; readonly forks: readonly Fork[] }): ReactElement | null {
   if (branch.branches.length === 0) return null;
@@ -116,6 +135,20 @@ function Marks({ branch, forks }: { readonly branch: Branch; readonly forks: rea
           {String(branch.at + 1)}
         </text>
       </g>
+      {fork === undefined || fork.rows.length < 2
+        ? null
+        : branch.branches
+            .filter((child) => child.entered.length > 0)
+            .map((child) => (
+              <text
+                className="va-timeline-label"
+                key={child.stories.map((story) => story.subject).join('\n')}
+                x={x(child.from) + bendOf(child) + 4}
+                y={y(child.y) + 13}
+              >
+                {child.entered.map((row) => spanLabel(row)).join(' ')}
+              </text>
+            ))}
       {branch.branches.map((child) => (
         <Marks branch={child} forks={forks} key={child.stories.map((story) => story.subject).join('\n')} />
       ))}
@@ -163,7 +196,7 @@ export function Timeline({
         height={height}
         viewBox={`0 0 ${String(width)} ${String(height)}`}
         role="img"
-        aria-label={`${family.name}: ${count(family.columns.length, 'story', 'stories')} part at ${count(forks.length, 'region')} into ${count(tree.leaves, 'path')}`}
+        aria-label={`${family.name}: ${count(family.columns.length, 'story', 'stories')} part at ${count(forks.length, 'place')} into ${count(tree.leaves, 'path')}`}
       >
         <Line branch={tree.root} parentY={tree.root.y} />
         <Marks branch={tree.root} forks={forks} />

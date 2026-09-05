@@ -128,13 +128,16 @@ look once something else has said that something changed.
   its verdicts.
 - The [review service](../packages/tribunal/README.md#review-surface) draws one
   timeline per component: a line for the story nothing varies from, marked at
-  every region where its stories took different paths, in source order, and a
-  branch lit for the story that entered the region. `cart-card--removing`
+  every place its stories took different paths, in source order, and a branch
+  lit for the story that entered the region there. `cart-card--removing`
   enters one region `cart-card--item` does not, the click handler, and branches
   there; `product-card--sale` enters exactly what `product-card--control`
-  enters, so the [variation](variations.md) executes what it renders. A region
-  a component's own stories agree on is no mark, whatever other components did
-  there.
+  enters, so the [variation](variations.md) executes what it renders. A
+  `switch` whose cases different stories entered is one mark with a branch per
+  case, so a loading story, an error story and the stories that fell through
+  part at one place; a chain of `if`s is a mark per `if`, in the order the code
+  asks them. A region a component's own stories agree on is no mark, whatever
+  other components did there.
 - [Selection](selecting.md) narrows a run to the subjects and spec files whose
   journeys crossed the changed code, and where the record cannot say, it selects
   more rather than less.

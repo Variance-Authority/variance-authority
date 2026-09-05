@@ -18,9 +18,9 @@
  * source order. A region the family agrees on is not a fork, whichever other
  * family it parts from. The columns follow the variation lattice where the run
  * found one, so the trunk is the story nothing varies from and an arm leaves
- * it. The rows here are the forks; [`journey-tree.ts`](./journey-tree.ts)
- * grows the tree from them and [`journey-timeline.tsx`](./journey-timeline.tsx)
- * draws it. Nothing is computed that the report did not carry; a row is a
+ * it. The rows here are the divergence points; [`journey-tree.ts`](./journey-tree.ts)
+ * folds them into forks and grows the tree, and
+ * [`journey-timeline.tsx`](./journey-timeline.tsx) draws it. Nothing is computed that the report did not carry; a row is a
  * filter over `found`.
  *
  * ## The pool is drawn even when nothing parted
@@ -36,7 +36,7 @@ import type { ReactElement } from 'react';
 import type { JourneyRegionRecord, JourneysReport, VariationRecord } from '@variance-authority/report';
 import type { BuildDetail } from '../review-types.js';
 import { Timeline, forkLabel } from './journey-timeline.js';
-import { forksOf, treeOf } from './journey-tree.js';
+import { treeOf } from './journey-tree.js';
 import { count } from './text.js';
 
 /** One story of a family, as a column of its rows. */
@@ -261,9 +261,9 @@ function Pool({ journeys }: { readonly journeys: JourneysReport }): ReactElement
 
 /** One family: its timeline, and beneath it the forks by number, each region at its full coordinate. */
 function Family({ family }: { readonly family: JourneyFamily }): ReactElement {
-  const forks = forksOf(family.rows);
-  const shown = forks.slice(0, FORKS);
-  const tree = treeOf(family, shown);
+  const tree = treeOf(family, FORKS);
+  const shown = tree.forks.slice(0, FORKS);
+  const later = tree.forks.slice(FORKS);
 
   return (
     <section className="va-band">
@@ -273,7 +273,7 @@ function Family({ family }: { readonly family: JourneyFamily }): ReactElement {
         {shown.map((fork, index) => (
           <li key={forkLabel(fork)}>
             <span className="va-timeline-n">{String(index + 1)}</span>
-            {fork.rows.map((row) => (
+            {[...fork.rows, ...fork.alike].map((row) => (
               <span className="va-journey-region" key={`${row.file}:${row.region === null ? 'module' : String(row.region.startLine)}`}>
                 {row.region === null ? (
                   <>
@@ -294,10 +294,9 @@ function Family({ family }: { readonly family: JourneyFamily }): ReactElement {
           </li>
         ))}
       </ol>
-      {forks.length <= shown.length ? null : (
+      {later.length === 0 ? null : (
         <p className="va-note">
-          {count(forks.length - shown.length, 'later region')} not drawn:{' '}
-          {forks.slice(shown.length).map((fork) => forkLabel(fork)).join(', ')}.
+          {count(later.length, 'later place')} not drawn: {later.map((fork) => forkLabel(fork)).join(', ')}.
         </p>
       )}
     </section>
