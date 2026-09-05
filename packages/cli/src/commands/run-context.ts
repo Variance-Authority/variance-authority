@@ -104,7 +104,9 @@ export interface RunDeps {
    *
    * Injected for the same reason. The run names its own subjects so the pool
    * is this run's and not every observer the journal ever held; an answer with
-   * no `recorded` is *no journal*, and the report carries no section.
+   * no `recorded` is *no journal*, and the report carries no section. Asked
+   * after the collector is closed, because closing is when the journal is
+   * written — the answer is this run's, not the last one's.
    */
   readJourneys?(subjects: readonly string[]): Promise<JourneyReading>;
 }

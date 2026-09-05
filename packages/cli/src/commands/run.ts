@@ -369,16 +369,19 @@ async function observeAll(
     else notObserved.push(outcome.entry);
   }
 
+  // Closed here rather than by the caller: a Storybook collector writes the
+  // journal as it closes, and `journeys` below reads that journal. Closed after
+  // the report, the report carried the run before this one, or nothing at all.
+  await deps.collector.close();
+
   const intent = options.intent ?? config.intent;
   const at = deps.now();
 
   // Folded from the observations rather than accumulated during the loop, so it
-  // is a function of the report and not of the order subjects finished in — and
-  // so a rule that resolved nowhere is visible, which no per-subject count can
-  // say on its own.
-  // The plan's vocabulary, so a rule naming a tag nothing wears can be reported.
-  // Read from the plan rather than the config: what words *exist* is the
-  // artifact's to say, and what they *mean* is the operator's.
+  // is a function of the report and not of the order subjects finished in, and a
+  // rule that resolved nowhere is visible. The vocabulary is the plan's, not the
+  // config's: what words *exist* is the artifact's to say, what they *mean* the
+  // operator's — so a rule naming a tag nothing wears can be reported.
   const worn = new Set(plan.subjects.flatMap((planned) => planned.tags ?? []));
   const ignores = ledgerOf(config.ignore ?? [], observations, at, worn);
 
@@ -415,15 +418,12 @@ async function observeAll(
   // tokens that moved are the record's answer and they are what turns "this
   // component's output changed and nobody edited it" into an explanation.
   //
-  // The change set comes off the selection rather than off the options, because
-  // there are two flags that read a diff and only one of them narrows. Choosing
-  // between them here read `--since` alone, so an `--against` run walked the
-  // diff, wrote `reach` into the report, and then handed this nothing. `edited`
-  // and `upstream` are the two rungs that read a change set, so both were
-  // unreachable and every movement fell past them — to `contradicted` where the
-  // same props had already rendered more than one way, and to `unexplained`
-  // otherwise, under a sentence asking the reader for the diff they had
-  // supplied.
+  // The change set comes off the selection rather than off the options: two
+  // flags read a diff and only one narrows, and choosing here by `--since` alone
+  // left an `--against` run with `reach` in its report and nothing handed to
+  // `edited` and `upstream` — so every movement fell past both rungs, to
+  // `contradicted` or `unexplained`, under a sentence asking for the diff the
+  // reader had already supplied.
   const composition = compositionOf({
     subjects: compositions,
     observations,

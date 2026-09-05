@@ -194,7 +194,25 @@ export interface Collector {
    */
   collectAlone?(subject: PlannedSubject): Promise<Collected>;
 
+  /**
+   * Once, after the last subject and before the report. Whatever a collector
+   * writes on the way out — the execution journal, for one — is on disk by the
+   * time the report is assembled, so the report can carry it.
+   */
   close(): Promise<void>;
+}
+
+/**
+ * The same collector, closing its source once.
+ *
+ * The run closes the collector itself (see `close` above), and the command that
+ * loaded it closes it again on the way out so a run that threw before reaching
+ * that point still releases the browser. A source is told once; the second call
+ * joins the first.
+ */
+export function closingOnce(collector: Collector): Collector {
+  let closing: Promise<void> | undefined;
+  return { ...collector, close: () => (closing ??= collector.close()) };
 }
 
 /** What the collector module's default export is called with. */
@@ -312,7 +330,7 @@ export async function loadCollector(
     );
   }
 
-  return (source as SubjectSource)(context);
+  return closingOnce(await (source as SubjectSource)(context));
 }
 
 function messageOf(error: unknown): string {

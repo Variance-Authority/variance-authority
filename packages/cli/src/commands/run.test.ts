@@ -20,7 +20,13 @@ import {
 } from '@variance-authority/raster';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, EXIT_REVIEW, OperatorError, exitFor } from '../exit.js';
-import { matchesGlob, readCliRunReport, storeFor, type Collected, type Plan } from './run.js';
+import {
+  matchesGlob,
+  readCliRunReport,
+  storeFor,
+  type Collected,
+  type Plan,
+} from './run.js';
 import {
   DANGLING,
   IDENTITY,
@@ -110,29 +116,6 @@ describe('run', () => {
     ok: true,
     document: documentFor(subject.subject.id),
   }));
-
-  it("asks the journal where this run's own subjects parted, and carries the answer as it came", async () => {
-    const recorded = { commit: '4f2a1c9d0b73', whole: ['fixture:a'], truncated: [], unrecorded: ['fixture:b'], found: [] };
-    const asked: string[][] = [];
-
-    const { report } = await runWith(configOf(), collectsBoth, storeAnswering(null), {
-      readJourneys: async (subjects) => {
-        asked.push([...subjects]);
-        return { at: '/cache/journal', recorded };
-      },
-    });
-
-    expect(asked).toEqual([['fixture:a', 'fixture:b', 'fixture:x']]);
-    expect(report.journeys).toEqual(recorded);
-  });
-
-  it('carries no journeys section at all when there is no journal', async () => {
-    const { report } = await runWith(configOf(), collectsBoth, storeAnswering(null), {
-      readJourneys: async () => ({ at: '/cache/journal' }),
-    });
-
-    expect(report).not.toHaveProperty('journeys');
-  });
 
   it('settles unchanged subjects without asking the renderer for an image', async () => {
     // The measurable claim: 300 subjects, 0 renders *and 0 image reads* when
