@@ -5,6 +5,11 @@ made, and who operates review. Those decisions determine privacy, browser
 coverage, reproducibility, latency, and price more directly than the name of the
 test runner adapter.
 
+They also decide what the practice costs. Visual review is paid for twice: once
+in the meter, and once in the hours somebody spends deciding whether a diff
+mattered. Both bills are driven by one quantity — how many comparisons reach a
+person — and an architecture fixes that quantity long before a report does.
+
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
 Variance Authority entries state the capture and operational contracts available
@@ -51,7 +56,7 @@ The Variance integration matrix and exact material/placement choices are in
 [`surface.md`](surface.md). The underlying decision is recorded in
 [ADR-0044](context/adr/0044-capture-material-and-rendering-placement-are-independent.md).
 
-### The one commercial fact worth isolating
+### The cost of a comparison
 
 Hosted products meter different units. Percy and Argos count screenshots;
 Chromatic counts snapshots with product-specific multipliers; Applitools defines
@@ -61,6 +66,28 @@ starts with the vendor's unit, not with a raw subject count:
 ```text
 subjects × viewports × browsers × modes × selected builds
 ```
+
+The same multiplication drives the other bill. Every comparison that survives to
+a person is a decision somebody makes, and a suite that surfaces more than it
+should is a standing assignment rather than a test run.
+
+What separates the products is where intelligence sits relative to the spend.
+Perceptual match levels, hosted review queues, and classifiers that read a
+produced result all run after a comparison has been captured, rendered, and
+metered: they can reduce the review bill and not the meter. TurboSnap is the
+exception in this set, and the honest peer — it prunes before the capture, from
+the static module graph.
+
+This project prunes twice, and neither prune is a prediction. `--since` skips a
+subject when its stored baseline lists none of the components the change reached,
+so the skip rests on what the last run recorded the subject to be made of. What
+survives is then decided at the cheapest representation that can decide it (§3.3):
+structure, semantics, authored CSS, and provenance settle a question without a
+raster, and raster comparison runs for the questions that need pixels.
+
+None of that is a universal speed claim, and one path deliberately spends more.
+In-place capture takes repeated agreeing screenshots to classify same-run
+instability: it buys an answer rather than a saving.
 
 Variance Authority has no vendor meter. Compute, storage, renderer capacity,
 retention, upgrades, and operational labour belong to the adopter. “No per-shot
@@ -90,17 +117,26 @@ and [review workflow](https://www.browserstack.com/docs/percy/visual-testing-wor
 
 ### Chromatic
 
-Chromatic makes Storybook the product boundary: stories are the subject catalog,
-Capture Cloud owns rendering, and the review system connects tests, branches,
-baselines, and reviewers. TurboSnap uses the module graph to avoid snapshots a
+Chromatic makes Capture Cloud the product boundary. Stories are one subject
+catalog and Playwright or Cypress runs are another, contributing full-page
+archives of DOM, styling, and assets taken from a real application; Capture Cloud
+owns rendering, and the review system connects tests, branches, baselines, and
+reviewers. TurboSnap uses the module graph to avoid snapshots a
 change cannot reach. SteadySnap adds render stabilization and repeated-capture
 techniques within the managed service.
 
-Choose Chromatic when Storybook is your canonical UI inventory, and
-non-engineer review, branch semantics, and managed stability matter more to you
-than self-operation.
+Component isolation is therefore a choice an adopter makes rather than a limit
+the product imposes: a page-level story and an archived end-to-end flow both
+reach the same review surface. What an archive fixes is the moment of capture — a
+recorded DOM is repainted later, so the run that produced it is no longer there
+to be asked a question.
+
+Choose Chromatic when review should be a product — Storybook inventory, E2E
+archives, or both — and non-engineer review, branch semantics, and managed
+stability matter more to you than self-operation.
 
 Sources: [Storybook workflow](https://www.chromatic.com/docs/storybook/),
+[Playwright visual tests](https://www.chromatic.com/docs/playwright/),
 [TurboSnap](https://www.chromatic.com/docs/turbosnap/), and
 [SteadySnap](https://www.chromatic.com/features/steadysnap).
 
@@ -202,20 +238,56 @@ cache reuse.
 See [`architecture.md`](architecture.md), [`instruments.md`](instruments.md),
 and [`flakiness.md`](flakiness.md).
 
+### 3.4 Comparisons that need no prior good state
+
+Every product in §1 compares a subject against its approved baseline, which
+answers one question: did this change since the last time somebody said it was
+right. Two comparisons here answer different questions, and neither consults
+history.
+
+A subject declared as a variation of another — `variance-parent:<id>` — is
+compared against the subject it varies, in the same run. The reported difference
+carries a digest taken over the difference itself, so it holds still while both
+sides move together and moves when the variation gains or loses something its
+parent does not have. A token edit that turns the whole suite red leaves that
+digest where it was. That separates *everything moved and the flag still does
+what it did* from *the flag now does something else* — a distinction a reviewer
+otherwise draws by hand, on every diff. Nothing on this axis reaches the exit
+code, `accept`, or the baseline store. See [`variations.md`](variations.md) and
+[ADR-0045](context/adr/0045-a-subject-may-be-a-variation-of-another-subject.md).
+
+A changed subject is also read a second time, and the two second passes vary one
+thing each: `again` holds the world and advances time, `alone` rebuilds the world
+and holds time. Each compares two readings of one input rather than a reading
+against a baseline, and because a document carries its component hashes the
+answer is a component and a band instead of a page to re-examine. The order is
+load-bearing — `again` runs first, because `alone`'s inference is only evidence
+once two readings of one world are known to agree. See
+[`flakiness.md`](flakiness.md) and
+[ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md).
+
+Both are the labour half of the cost of a comparison made structural. A
+difference a digest has already settled, and a movement already named as an
+unstable component, are two things nobody is asked to look at twice.
+
 ## 4. Operational boundaries
 
-Variance Authority provides libraries and a CLI for infrastructure the adopter
-operates. It does not provide a managed browser fleet, hosted reviewer accounts,
-support SLA, contractual data residency, or vendor-operated retention.
+Adopter operation is what the absent meter is bought with. Variance Authority
+provides libraries and a CLI for infrastructure the adopter operates, and the
+arrangement that removes the per-shot bill is the same one that puts compute,
+storage, renderer capacity, and the pager on the team. It does not provide a
+managed browser fleet, hosted reviewer accounts, support SLA, contractual data
+residency, or vendor-operated retention.
+
+That ownership is also where data placement is decided. Remote rendering and
+storage use operator-supplied endpoints. Resource-closed documents may cross that
+boundary; in-place raster capture can keep DOM material inside the test
+environment and move only pixels to later systems.
 
 The CLI supports Storybook, explicit routes and static directories, artifact-backed
 unit capture, and custom collectors. The additive Playwright package operates
 inside the suite and leaves `test` and `expect` with Playwright. Raster input is a
 library seam; the CLI has no arbitrary-PNG ingest workflow.
-
-Remote rendering and storage use operator-supplied endpoints. Resource-closed
-documents may cross that boundary; in-place raster capture can keep DOM material
-inside the test environment and move only pixels to later systems.
 
 ## 5. When not to choose this
 

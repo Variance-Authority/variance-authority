@@ -110,7 +110,7 @@ const ROWS = [
     cells: [
       doc("managed browser coverage, organization-wide review, or a wide SDK catalog"),
       doc(
-        "Storybook is your canonical UI inventory, and non-engineer review, branch semantics, and managed stability matter more to you than self-operation",
+        "review should be a product — Storybook inventory, E2E archives, or both — and non-engineer review, branch semantics, and managed stability matter more to you than self-operation",
       ),
       doc("the suite should own pixels but the vendor should own review and history"),
       doc("managed cross-browser and mobile coverage, perceptual match levels, enterprise workflow, or an on-premise commercial deployment"),
