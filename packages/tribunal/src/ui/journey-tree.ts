@@ -28,7 +28,8 @@
  * ## The trunk is the lattice's root
  *
  * Columns arrive in lattice order, so the first column is the story nothing
- * varies from, and the bundle holding it is the one drawn straight through:
+ * varies from — or, where the run read no lattice among them, the shortest
+ * name — and the bundle holding it is the one drawn straight through:
  * `control` runs level and `sale-dark` forks off it, not the other way round.
  * At a fork, the branch that goes on straight is the one holding the trunk's
  * story, and the rest leave it above and below.

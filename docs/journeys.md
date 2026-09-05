@@ -127,9 +127,10 @@ look once something else has said that something changed.
   are on machines without one, so the run asks once and writes the answer beside
   its verdicts.
 - The [review service](../packages/tribunal/README.md#review-surface) draws one
-  timeline per component: a line for the story nothing varies from, marked at
-  every place its stories took different paths, in source order, and a branch
-  lit for the story that entered the region there. `cart-card--removing`
+  timeline per component: a line for the story nothing varies from, or the
+  shortest name where none of them is a [variation](variations.md) of another,
+  marked at every place its stories took different paths, in source order, and
+  a branch lit for the story that entered the region there. `cart-card--removing`
   enters one region `cart-card--item` does not, the click handler, and branches
   there; `product-card--sale` enters exactly what `product-card--control`
   enters, so the [variation](variations.md) executes what it renders. A

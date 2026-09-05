@@ -74,7 +74,9 @@ function split(id: string): { readonly family: string; readonly member: string }
 
 /**
  * The family's members in the lattice's order: what nothing varies from first,
- * then what varies from it, depth first, each rank by name.
+ * then what varies from it, depth first. Within a rank the shortest name leads,
+ * then the name: a base is the name its variations add to, so where the run
+ * read no lattice among them, `full` still comes before `loading`.
  */
 function columnsOf(
   members: readonly { readonly subject: string; readonly member: string }[],
@@ -87,12 +89,12 @@ function columnsOf(
       parents.set(variation.subject, variation.parent);
     }
   }
-  const byName = (a: { readonly member: string }, b: { readonly member: string }): number =>
-    a.member.localeCompare(b.member);
+  const byRank = (a: { readonly member: string }, b: { readonly member: string }): number =>
+    a.member.length - b.member.length || a.member.localeCompare(b.member);
   const armsOf = (parent: string | undefined): readonly JourneyColumn[] =>
     members
       .filter((member) => parents.get(member.subject) === parent)
-      .sort(byName)
+      .sort(byRank)
       .flatMap((member): readonly JourneyColumn[] => {
         const from = parent === undefined ? undefined : own.get(parent);
         return [

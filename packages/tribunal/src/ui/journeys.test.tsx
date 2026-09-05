@@ -152,10 +152,17 @@ describe('a family is split only by what its own stories did differently', () =>
 
     expect(family?.columns).toEqual([
       { subject: CONTROL, member: 'control' },
-      { subject: DARK, member: 'control-dark', from: 'control' },
       { subject: SALE, member: 'sale', from: 'control' },
       { subject: SALE_DARK, member: 'sale-dark', from: 'sale' },
+      { subject: DARK, member: 'control-dark', from: 'control' },
     ]);
+  });
+
+  it('leads with the shortest name where the run read no lattice, then the name', () => {
+    const whole = ['loading', 'error', 'empty', 'full'].map((member) => `story:panel--${member}`);
+    const [family] = familiesOf(journeys({ whole, found: [] }), []);
+
+    expect(family?.columns.map((column) => column.member)).toEqual(['full', 'empty', 'error', 'loading']);
   });
 });
 
