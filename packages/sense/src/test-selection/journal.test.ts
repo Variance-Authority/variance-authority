@@ -232,6 +232,8 @@ describe('a browser run records what it executed', () => {
     });
   });
 
+  it.todo('gives every region entered during module initialization every subject the page served');
+
   it('stamps the commit the checkout was at, and nothing when there is none', async () => {
     // An index's whole position in time and space. A reader diffs from here to
     // the working tree to learn what has changed since; without it there is

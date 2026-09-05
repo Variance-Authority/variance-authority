@@ -36,7 +36,7 @@ reports success.
 
 **2. Move what only shifted.** A hunk yields a line delta. Every block lying
 wholly in an unchanged region moves by the accumulated delta and **keeps its
-identity, its counts and its trie prefixes**. Adding an import above a function
+identity and its record**. Adding an import above a function
 re-keys nothing. This is the step that makes identity tractable at all, and it
 is nearly free because `git` already computed the alignment.
 

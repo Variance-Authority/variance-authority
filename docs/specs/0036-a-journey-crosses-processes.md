@@ -169,10 +169,12 @@ empties the suite says so once, at the tally, instead of once per subject in a
 list nobody reads to the end. That does not make the answer right. It makes the
 two ways of reaching 0 of 21 tell themselves apart.
 
-**Distance does not cross a process.** A crossing carries the call-stack depth at
-which it was observed, and no stack runs from a click in a page into a request
-handler. A cross-head crossing carries its own head's distance or it carries
-nothing; joining the two would be arithmetic on unrelated units.
+**Depth does not cross a process, and the record holds none.** This project's
+record carries no call-stack depth
+([ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)); a foreign
+execution index may supply one per crossing, and no stack runs from a click in a
+page into a request handler. A cross-head crossing carries its own head's depth
+or it carries nothing; joining the two would be arithmetic on unrelated units.
 
 **A journey is not a new coordinate.** It is one owner observed in several realms.
 Nothing in the index, the report or the selector starts naming journeys where it

@@ -21,6 +21,12 @@ the call went, not in what order, not how many times, and never a value. Two
 subjects with one journey ran the same code; two with different journeys parted
 somewhere, and the parting is a place with lines.
 
+It is a memory of where the execution has been, not a route through the file.
+One subject can have entered both arms of one decision — a component that
+rendered twice with different state, a loop that went both ways — and the record
+keeps both. The map is not the territory: two executions that walked the same
+places are one record, however differently they walked them.
+
 A region is named by its kind and by the declaration enclosing it —
 `function CartCard/onClick` — rather than by where it sits in the file, so an
 edit that moves a line under it moves the diff and not the name. The lines are

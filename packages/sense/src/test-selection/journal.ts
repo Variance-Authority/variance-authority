@@ -243,8 +243,13 @@ export async function recordExecution(
   const byFile = new Map(inventory.modules.map((module) => [module.file, module]));
   const owners = subjects.map((subject) => subject.owner);
 
-  // Module initialization runs once per page, for whichever subject was first.
-  // It is every subject's, and this is the line that says so.
+  // Module initialization runs once per page, in whichever subject's window
+  // the module first evaluated. It is every subject's, and this is the line
+  // that says so.
+  // FIXME: only the root region is shared. Every other region entered during
+  // that initialization — a helper the root calls, a module-scope branch — is
+  // charged to that one subject, so a later subject is not selected by a
+  // change to it: the unsafe direction (ADR-0056).
   const shared = new Set<string>(owners);
   const crossings = new Map<string, Map<number, Set<string>>>();
   const entered = new Map<string, Set<string>>();

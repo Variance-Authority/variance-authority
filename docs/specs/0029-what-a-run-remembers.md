@@ -107,8 +107,8 @@ observed.
 
 ## What it forecloses
 
-**Compaction may only widen.** Counts, trie nodes and distances may be dropped.
-A `(block, test)` presence bit may not. Dropping a whole row is permitted and
+**Compaction may only widen.** Anything the record holds beside presence may
+be dropped. A `(block, test)` presence bit may not. Dropping a whole row is permitted and
 converts that block to *unknown*, which climbs the ladder — never to *empty*,
 which does not.
 

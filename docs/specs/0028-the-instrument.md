@@ -1,9 +1,9 @@
 # Spec 0028 — the instrument that records the path, not the percentage
 
-**Missing:** the worker runtime's maintained stack, the runner seams, and every
+**Missing:** the worker runtime, the runner seams, and every
 consumer. `@variance-authority/sense/instrument` emits presence probes, but
-nothing runs source and tests to produce coverage data, records how a block was
-reached, or joins that data to a diff to select tests.
+nothing runs source and tests to produce coverage data, or joins that data to a
+diff to select tests.
 **Built on:** [ADR-0038](../context/adr/0038-a-change-reaches-a-component-through-files.md)
 and [ADR-0041](../context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)
 (the `oxc` reader this shares a parse with),
@@ -43,12 +43,16 @@ file is untouched. Nothing is re-printed, so the source map stays trivial and
 the output stays diffable. The transform shares its parse with the reader that
 already runs.
 
-**3. The worker runtime, and the flow is the point.** A per-worker `Uint32Array`
-of counters indexed by block ordinal, plus a maintained stack so each crossing
-records *how it was reached*. Exception correctness is required — an unwound
-frame must pop. This stage executes instrumented source and tests and produces
-coverage data attributed to test files; it is not complete until that data feeds
-the diff-based selection stage in [0030](0030-a-diff-lands-on-blocks.md).
+**3. The worker runtime, and presence is the whole of it.** A per-worker set
+of block ordinals, drained per completed test file. No stack is maintained and
+nothing records how a block was reached
+([ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)): an
+`async` body is resumed once per `await` between other executions, so there is
+no frame to pop, and a `catch` or `finally` is a region with its own probe
+rather than an unwinding to track. This stage executes instrumented source and
+tests and produces coverage data attributed to test files; it is not complete
+until that data feeds the diff-based selection stage in
+[0030](0030-a-diff-lands-on-blocks.md).
 
 **4. Four runner seams, by real name.**
 

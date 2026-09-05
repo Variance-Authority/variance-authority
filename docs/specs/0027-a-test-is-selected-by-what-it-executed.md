@@ -100,13 +100,13 @@ those blocks, and runs those.
 ```
 7 tests crossed the 3 changed blocks · 2165 total · 12s vs 38s
 
-  src/cart/total.ts  priceOf/entry              4 tests   distance 2-5
-  src/cart/total.ts  priceOf/if#0/else          5 tests   distance 2-4
-  src/cart/rules.ts  applyTier/reduce.arg0      2 tests   distance 7-9
+  src/cart/total.ts  priceOf/entry              4 tests
+  src/cart/total.ts  priceOf/if#0/else          5 tests
+  src/cart/rules.ts  applyTier/reduce.arg0      2 tests
                      └ renamed — widened to the module for this run
 
   cart.test.ts › applies the staff discount
-    priceOf ← computeTotal ← Cart.render ← test
+    entered  priceOf/entry, priceOf/if#0/else
 ```
 
 Configuration joins the existing `source` key, off by default:
@@ -117,9 +117,8 @@ Configuration joins the existing `source` key, off by default:
 
 Two flags carry the honest cases. `--all` ignores the index and runs
 everything, which is what CI does on a schedule to keep observations fresh.
-`--explain <test>` prints the recorded paths by which that test reaches the
-changed blocks, because a selection nobody can check is a selection nobody
-trusts.
+`--explain <test>` prints the changed blocks that test's record entered,
+because a selection nobody can check is a selection nobody trusts.
 
 **What it does when it does not know.** The same discipline
 [`selecting.md`](../selecting.md) already holds: a file that could not be
@@ -145,15 +144,18 @@ everything before the first decision; each branch outcome; the continuation
 region after a decision, which is why editing the line after a guard does not
 resolve to the whole function; and the resumption after an `await`.
 
-**The historical execution stack is the dependency graph.** If `c` changes and
-the record says `T1 → a → b → c`, then `T1` is affected. There is no static
-propagation from `c` back to `a`, no purity inference, no effect summary, no
-data-flow. This is what makes the system tractable, and it is also exactly what
-bounds it: it can only answer about paths it watched.
+**The record is the dependency graph.** If `c` changes and the record says
+`T1` entered a block of `c`, then `T1` is affected. There is no static
+propagation from `c` back to whatever called it, no purity inference, no effect
+summary, no data-flow. This is what makes the system tractable, and it is also
+exactly what bounds it: it can only answer about blocks it watched.
 
-**The path is stored as a trie.** Common prefixes are shared, test sets are
-compressed per node, and the same structure answers *which tests crossed this
-block* and *by what route*.
+**The record is presence.** One bit per block and test, and nothing that would
+say by what route, in what order or how many times. An `async` function is
+entered once and resumed once per `await`, interleaved with every other
+execution on the page, so a route is not a fact the page can write down
+([ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md)). The
+structure answers *which tests crossed this block*; *by what route* is not asked.
 
 ### How a diff moves the index
 
