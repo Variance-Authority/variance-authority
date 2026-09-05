@@ -14,7 +14,7 @@ const CLOSING = [
   },
 ] as const;
 
-/** Eyes, Vantage, journeys and divergence: four readings of the run in front of you. */
+/** Eyes, Vantage, scenarios, divergence and journeys: five readings of the run in front of you. */
 export default function WithoutABaseline() {
   return (
     <div className="grid gap-4">
@@ -134,7 +134,7 @@ export default function WithoutABaseline() {
             At which Act did two executions stop agreeing?
           </h3>
           <p className="mt-3 text-sm leading-6 text-quiet">
-            A journey is a named sequence of states and the Acts between them.
+            A scenario is a named sequence of states and the Acts between them.
             Two executions are compared edge by edge, and each edge carries a
             digest derived from the semantic deltas it produced&mdash;so an
             unrelated edit that changes both sides of an edge together leaves it
@@ -171,7 +171,7 @@ export default function WithoutABaseline() {
             href="/docs/scenarios"
             className="mt-5 inline-block font-mono text-xs text-orange transition-colors hover:text-ivory"
           >
-            compare runtime journeys &rarr;
+            compare state transitions &rarr;
           </a>
         </article>
 
@@ -203,11 +203,9 @@ export default function WithoutABaseline() {
             </code>
           </pre>
           <p className="mt-5 text-sm leading-6 text-quiet">
-            The same question is asked of source, one layer down. Where a run
-            recorded execution, one module read by several observers has regions
-            some of them entered and others never did&mdash;a function body, a
-            branch, a handler, a resume point. Same file, same imports, same
-            props, a different path through them, and nothing static says it.
+            The same question is asked of source, one layer down, by the
+            instrument below: one file, several observers, and not the same
+            path through it.
           </p>
           <a
             href="/docs/composition"
@@ -216,11 +214,72 @@ export default function WithoutABaseline() {
             one input, two renderings &rarr;
           </a>
         </article>
+
+        <article className="flex flex-col rounded-2xl border border-hairline bg-panel p-6 sm:p-7 lg:col-span-2">
+          <p className="font-mono text-[10px] tracking-[0.16em] text-warm uppercase">
+            journeys
+          </p>
+          <h3 className="mt-2 text-xl font-bold tracking-tight text-ivory">
+            Which path did this execution take through the source?
+          </h3>
+          <div className="mt-3 grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+            <div>
+              <p className="text-sm leading-6 text-quiet">
+                Three stories mount the same component. One of them clicks
+                Remove, and the handler body is a region the other two have
+                never been inside&mdash;same file, same imports, same props,
+                and nothing static can tell the three apart. A build carrying
+                probes records, for every subject, which regions of which
+                modules it entered while it was painted: a function body, a
+                branch, a loop, the resumption after an{" "}
+                <span className="font-mono text-[0.95em] text-ivory">await</span>
+                . That record is the subject&apos;s journey.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-quiet">
+                It is a path and not a stack: which regions were entered, never
+                how deep, never a value. It is bounded by the execution and
+                never by a time window, which is what lets it follow one
+                execution into a service&mdash;one opaque id per execution
+                rides a cookie on requests the browser was already sending,
+                the service reports what it entered under that id, and only
+                the driver knows which subject the id was.
+              </p>
+            </div>
+            <div>
+              <pre className="overflow-x-auto rounded-xl border border-hairline bg-deep p-4 font-mono text-[11px] leading-5 text-quiet">
+                <code>
+                  app/src/components/CartCard.tsx{"  "}3 observers{"\n"}
+                  {"  "}
+                  <span className="text-orange">parted</span>
+                  {"     "}function CartCard/onClick{"  "}51-58{"\n"}
+                  {"    "}entered{"  "}story:cart-card--removing{"\n"}
+                  {"    "}missed{"   "}story:cart-card--item,
+                  story:cart-card--verbose{"\n"}
+                  {"  "}
+                  <span className="text-warm">unentered</span>
+                  {"  "}branch CartCard/empty{"  "}62-64
+                </code>
+              </pre>
+              <p className="mt-3 text-sm leading-6 text-quiet">
+                A parting is a place with lines, and it is where to look once
+                something else has said that something changed. The same record
+                is what narrows a run to the subjects whose journeys crossed
+                the changed code.
+              </p>
+            </div>
+          </div>
+          <a
+            href="/docs/journeys"
+            className="mt-5 inline-block font-mono text-xs text-orange transition-colors hover:text-ivory"
+          >
+            the path an execution took &rarr;
+          </a>
+        </article>
       </div>
 
       <div className="rounded-2xl border border-hairline bg-panel p-6 sm:p-7">
         <h3 className="text-xl font-bold tracking-tight text-ivory">
-          None of the four opens a baseline.
+          None of the five opens a baseline.
         </h3>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-quiet">
           Approval answers <em>is this different from what we agreed?</em> These
@@ -241,7 +300,7 @@ export default function WithoutABaseline() {
         <p className="mt-6 border-l-2 border-orange pl-4 text-sm leading-6 text-ivory">
           Adopt any one of them on its own. Eyes installs beside the React
           Testing Library or Playwright already in the suite; Vantage is one
-          environment variable; a journey is a test you already wrote, named.
+          environment variable; a scenario is a test you already wrote, named.
         </p>
       </div>
     </div>

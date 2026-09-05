@@ -58,12 +58,14 @@ a live page, with somebody watching — three conditions CI never meets.
 instead: gathered while the page is alive, kept once it is gone, with the test
 unchanged.
 
-Four instruments read the run in front of you and open no baseline at all.
+Five instruments read the run in front of you and open no baseline at all.
 [Eyes](eyes.md) records which elements a test addressed and attributes each to
 the React tree that produced it. [Vantage](vantage.md) makes an unfinished run
 readable — what each test heard, from which realm, and which work opened and
 never closed. [Runtime scenarios](scenarios.md) compare state transitions and
-name the Act where two executions part.
+name the Act where two executions part. [Journeys](journeys.md) record the path
+each execution took through the source, in every process it touched, and name
+the region where two subjects parted.
 [Presentation intelligence](presentation.md) reads grouping, separation,
 alignment, and emphasis from one interface. A
 [divergence](composition.md) is the same question one layer down: one props

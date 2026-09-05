@@ -19,6 +19,7 @@ import ignores from "../../../docs/ignores.md?raw";
 import index from "../../../docs/README.md?raw";
 import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
+import journeys from "../../../docs/journeys.md?raw";
 import metrics from "../../../docs/metrics.md?raw";
 import observability from "../../../docs/observability.md?raw";
 import parting from "../../../docs/parting.md?raw";
@@ -84,6 +85,7 @@ const documents = [
   ["selecting", selecting, "docs/selecting.md"],
   ["source-index", sourceIndex, "docs/source-index.md"],
   ["observability", observability, "docs/observability.md"],
+  ["journeys", journeys, "docs/journeys.md"],
   ["presentation", presentation, "docs/presentation.md"],
   ["scenarios", scenarios, "docs/scenarios.md"],
   ["vantage", vantage, "docs/vantage.md"],

@@ -171,8 +171,13 @@ export const NAVIGATION = [
         cluster: "Read without a baseline",
       },
       {
+        href: "/docs/journeys",
+        label: "Read the path an execution took",
+        cluster: "Read without a baseline",
+      },
+      {
         href: "/docs/scenarios",
-        label: "Compare runtime journeys",
+        label: "Compare state transitions",
         cluster: "Read without a baseline",
       },
       {

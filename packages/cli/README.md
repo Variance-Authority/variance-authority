@@ -321,12 +321,13 @@ npx variance journeys --file CartCard
 
 ```
 app/src/components/CartCard.tsx  3 observers
-  parted     handler CartCard/onClick  51-58
+  parted     function CartCard/onClick  51-58
     entered  story:cart-card--removing
     missed   story:cart-card--item, story:cart-card--verbose
   unentered  branch CartCard/empty  62-64
 
 pool: 3 observations the journal recorded whole, out of 3 subjects the report names
+
 note: recorded at 4f2a1c9d0b73
 ```
 

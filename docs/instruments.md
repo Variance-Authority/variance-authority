@@ -111,7 +111,7 @@ for later runs, and whether it does depends on the collection history of the run
 that recorded the baseline
 ([`flakiness.md`](flakiness.md#the-class-of-defect-a-second-reading-reaches)).
 
-### Four instruments that never open one
+### Five instruments that never open one
 
 Those rows are about defects a comparison cannot reach. These are readings that
 do not attempt one: each answers _what happened in this run_, which is a
@@ -123,7 +123,8 @@ on its own.
 | --------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------- |
 | **[Eyes](eyes.md)**                                       | which elements did this test address, and who rendered them?  | the React Testing Library or Playwright already in the suite          |
 | **[Vantage](vantage.md)**                                 | what is this run saying, while it is still saying it?         | one environment variable, and a process to watch from                 |
-| **[scenarios](scenarios.md)**                             | at which Act did two executions stop agreeing?                | a journey named in the test that already walks it                     |
+| **[scenarios](scenarios.md)**                             | at which Act did two executions stop agreeing?                | a scenario named in the test that already walks it                    |
+| **[journeys](journeys.md)**                               | which path through the source did this execution take?        | a build carrying the probes, and nothing else for one process         |
 | **[divergence](composition.md#one-input-two-renderings)** | one props digest, more than one rendering — from which input? | two renderings in one run, which a suite is usually already producing |
 
 None of them writes a baseline, an approval, a history row or an exit code.

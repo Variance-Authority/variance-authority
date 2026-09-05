@@ -237,13 +237,14 @@ export default function Page() {
               <WhatTheRunKnew />
             </div>
             <h3 className="mt-16 text-2xl font-bold tracking-tight text-ivory">
-              Four instruments read the run in front of you. Not one opens a
+              Five instruments read the run in front of you. Not one opens a
               baseline.
             </h3>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-quiet">
               What the test addressed, what the run is saying while it says it,
-              where two executions parted, and where one set of inputs produced
-              two results. Each is installable on its own.
+              at which step of a scenario two executions parted, where one set
+              of inputs produced two results, and which path through the source
+              each execution took. Each is installable on its own.
             </p>
             <div className="mt-8">
               <WithoutABaseline />

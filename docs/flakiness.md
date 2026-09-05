@@ -179,12 +179,13 @@ variance journeys
 
 ```
 app/src/components/CartCard.tsx  3 observers
-  parted     handler CartCard/onClick  51-58
+  parted     function CartCard/onClick  51-58
     entered  story:cart-card--removing
     missed   story:cart-card--item, story:cart-card--verbose
   unentered  branch CartCard/empty  62-64
 
 pool: 3 observations the journal recorded whole, out of 3 subjects the report names
+
 note: recorded at 4f2a1c9d0b73
 ```
 
@@ -352,7 +353,7 @@ smaller place than the one above it:
 | **an input** — an ancestor's `color`, a context, a hook cell, or nothing readable at all | the divergence's parting lines ([`composition.md`](composition.md)) | two renderings of one input inside one run, which the suite is usually already producing |
 | **an Act** — the step at which two executions of one journey stopped agreeing | scenario execution divergence ([`scenarios.md`](scenarios.md)) | a recorded scenario. It writes no verdict and no baseline; it is evidence to read |
 | **an element** — the query the test issued, what it resolved to, and the component that rendered it | [Eyes](eyes.md) | installing it beside the React Testing Library or Playwright the suite already has |
-| **a region of source** — the lines some observers of a module entered and others did not | `journeyDivergences` in [`@variance-authority/sense`](../packages/sense) | execution recording, and an API call over the coverage it produced |
+| **a region of source** — the lines some observers of a module entered and others did not | the [journey](journeys.md) each subject recorded | a build carrying the probes, and `variance journeys` over what they recorded |
 
 Read down until something names a thing you can change, then stop. These are not
 confidence levels on one claim; they are different claims, each from an

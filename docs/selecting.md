@@ -262,7 +262,7 @@ variance journeys
 
 ```
 app/src/components/CartCard.tsx  3 observers
-  parted     handler CartCard/onClick  51-58
+  parted     function CartCard/onClick  51-58
     entered  story:cart-card--removing
     missed   story:cart-card--item, story:cart-card--verbose
   unentered  branch CartCard/empty  62-64
