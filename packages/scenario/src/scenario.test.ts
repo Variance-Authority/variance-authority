@@ -408,10 +408,10 @@ describe('what an act did to the subject', () => {
     if (effect.kind !== 'measured') return;
     expect(effect.variance.parting.slice).toBe('variation');
     expect(effect.variance.parting.lines[0]).toBe(
-      'variation — an input moved and the page followed',
+      'variation — an input changed and the page followed',
     );
     expect(effect.variance.parting.lines).toContainEqual(
-      'Counter chose differently — useState #0 moved',
+      'Counter chose differently — useState #0 changed',
     );
   });
 
@@ -459,7 +459,7 @@ describe('what an act did to the subject', () => {
     if (effect.kind !== 'measured') return;
     expect(effect.variance.parting.slice).toBe('unread');
     expect(effect.variance.parting.lines).toStrictEqual([
-      'unread — the page moved and what would explain it was not read',
+      'unread — the page changed and what would explain it was not read',
       '  no framework boundary was read, so nothing can be said about why',
     ]);
   });

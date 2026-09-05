@@ -88,8 +88,8 @@ describe('the rung a reading reaches', () => {
   it('speaks the origin and hangs its manifestations under it', () => {
     const lines = explainParting(part(tree({ expanded: false }), tree({ expanded: true })));
 
-    expect(lines[0]).toBe('variation — an input moved and the page followed');
-    expect(lines[1]).toBe('Cart chose differently — useState #0 moved');
+    expect(lines[0]).toBe('variation — an input changed and the page followed');
+    expect(lines[1]).toBe('Cart chose differently — useState #0 changed');
     expect(lines).toContain('  manifests as Summary was handed a different `expanded`');
   });
 });
@@ -147,7 +147,7 @@ describe('what this refuses to claim', () => {
     expect(parting.deltas.length).toBeGreaterThan(0);
     expect(parting.slice).toBe('unread');
     expect(explainParting(parting)).toEqual([
-      'unread — the page moved and what would explain it was not read',
+      'unread — the page changed and what would explain it was not read',
       '  no framework boundary was read, so nothing can be said about why',
     ]);
   });
@@ -264,7 +264,7 @@ describe('a value an ancestor decided', () => {
 /**
  * Two readings whose component trees are not the same tree.
  *
- * The row that used to be answered `variation` — "an input moved and the page
+ * The row that used to be answered `variation` — "an input changed and the page
  * followed" — while no input had moved at all.
  */
 describe('a tree that is a different tree', () => {

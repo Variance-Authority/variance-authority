@@ -363,16 +363,26 @@ The same fingerprint serves both, which is the point of having one:
 variance accept --shape v1:2c4f9a1e0b7d3856a91c4e2f8b06d735
 ```
 
-That promotes every subject where the shape is **the whole change**, in one
-action, and refuses by name every subject where something else also moved —
-because a bulk accept that swept those along would baseline the other change
-silently, which is the failure it is most likely to cause and the one nobody
-would find afterwards. Subjects the run capped the region list for are refused on
-the same grounds: a truncated list is not evidence of what the whole change was.
+The command selects subjects whose complete region list carries only the
+requested fingerprints, then applies the normal baseline-promotion checks.
+Matching a fingerprint alone does not authorize promotion.
 
-If the fingerprint appears in no region of the run at all, the command refuses
-outright rather than reporting "accepted 0" — the likely cause is a digest pasted
-from a different run, and that is worth being told.
+| Evidence in the run | Result for `accept --shape` |
+| --- | --- |
+| Every region matches a requested fingerprint, the candidate image and sidecar are readable, and no promotion refusal applies | Accept |
+| A requested fingerprint matches, but another region has a different or missing fingerprint | Refuse that subject: the selection does not cover the whole change |
+| A requested fingerprint matches, but the region list is truncated | Refuse that subject: the unrecorded differences are unknown |
+| No region matches, including a subject with no recorded regions | Leave the subject out of the selection; refuse the command if no subject matches |
+| A selected subject has unabsorbed instability | Refuse, even if its verdict is `unchanged` |
+| A declaration absorbs the instability | Apply the remaining checks; absorption alone does not authorize promotion |
+| A selected subject is already `unchanged`, with no unabsorbed instability | Report that it is already the baseline; promote nothing |
+| A selected, changed subject does not reproduce in a clean world | Refuse: the candidate depends on shared state |
+| A selected subject has no candidate image, or its image or sidecar cannot be read | Refuse: approval never renders a replacement |
+| Captures are incomparable | No comparison image is produced, so there is no candidate to promote |
+
+The command reports refusals by subject and promotes eligible subjects. Review
+additional changes before accepting a refused subject by name. A fingerprint
+absent from the run may have been copied from another report.
 
 ## What an ignore cannot do
 

@@ -58,8 +58,9 @@ export default function Integration() {
         label="start here"
         title="Start where the UI already runs."
       >
-        All four paths produce the same evidence and the same report format.
-        They differ in which tool drives the run, what you have to stand up, and
+        All four paths share observation and reporting contracts. Available signals
+        depend on the capture method and instrumentation. The paths also differ
+        in which tool drives the run, what you have to stand up, and
         where baseline approval happens. Pick the one that matches the host your
         UI already runs in.
       </SectionHead>

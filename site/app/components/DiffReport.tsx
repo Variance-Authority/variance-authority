@@ -264,9 +264,10 @@ export default function DiffReport() {
           </span>
         </p>
         <p className="mt-3 text-xs leading-5 text-quiet">
-          Paths, commands, fingerprints, and ignore rules are printed as text you can select and paste. The
-          report is one self-contained HTML file with no network dependency, so
-          it opens directly from a CI artifact.
+          Paths, commands, fingerprints, and ignore rules are text you can select
+          and paste. The HTML report opens from a CI artifact directory. Keep it
+          beside the JSON report and accompanying images so relative image paths
+          resolve; scripts, styles, and fonts need no network access.
         </p>
       </div>
     </div>

@@ -18,7 +18,7 @@ gated in CI.
 | Several widths | **yes** — each width is a distinct planned subject |
 | Local or remote deferred render | **yes** — `portable: true` closes the collected document over the bytes the wire served |
 | Vendor-hosted device and rendering fleet | **no** — engines and capacity are operator-owned |
-| Hosted review UI | **partial** — `@variance-authority/tribunal` ships a self-hosted review surface with per-subject decisions; nothing posts a build to it, and nothing is vendor-hosted |
+| Hosted review UI | **partial** — `@variance-authority/tribunal` provides self-hosted review with per-subject decisions; [`variance push`](../packages/cli/README.md#push-put-a-build-in-front-of-a-reviewer) uploads runs using an operator-supplied review endpoint and ingest token |
 
 **Verdict:** suitable for an explicit route/static suite when operator-owned
 rendering and review are acceptable. Choose Percy when managed breadth or hosted

@@ -10,7 +10,7 @@ import type { PartingSlice } from './slice.js';
  * ```text
  * a <div> rendered <p> on one side and <span> on the other
  * Summary was handed a different `total`
- * Cart chose differently — useState #2 moved, and Summary's `total` follows
+ * Cart chose differently — useState #2 changed, and Summary's `total` follows
  * ```
  *
  * The first is a diff. The second localises. Only the third names a cause, and
@@ -80,9 +80,9 @@ function sentence(boundary: PartedBoundary): string {
 
   switch (boundary.rung) {
     case 'stateful':
-      return `${component} chose differently — ${list(inputs.filter(isHook))} moved`;
+      return `${component} chose differently — ${list(inputs.filter(isHook))} changed`;
     case 'external':
-      return `${component} read a different external store — ${list(inputs.filter(isHook))} moved`;
+      return `${component} read a different external store — ${list(inputs.filter(isHook))} changed`;
     case 'provided':
       return `${component} was given a different ${list(inputs.filter((i) => i.kind === 'context'))}`;
     case 'handed':
@@ -170,17 +170,17 @@ function slice(kind: PartingSlice): string {
     case 'settled':
       return 'settled — the component tree, its inputs and its output all held';
     case 'variation':
-      return 'variation — an input moved and the page followed';
+      return 'variation — an input changed and the page followed';
     case 'flake':
-      return 'flake — every input agreed, the component tree held, and the page moved anyway';
+      return 'flake — every input agreed, the component tree held, and the page changed anyway';
     case 'reshaped':
       return 'reshaped — the component tree is a different tree and the page followed';
     case 'refactor':
-      return 'refactor — the component tree moved and the page did not';
+      return 'refactor — the component tree changed and the page did not';
     case 'absorbed':
-      return 'absorbed — an input moved and the page did not';
+      return 'absorbed — an input changed and the page did not';
     case 'unread':
-      return 'unread — the page moved and what would explain it was not read';
+      return 'unread — the page changed and what would explain it was not read';
   }
 }
 

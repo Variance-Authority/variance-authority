@@ -36,7 +36,7 @@ const LADDER = [
   {
     reading: "the image",
     settles: "whether the pixels changed",
-    cost: "a raster, roughly eighteen times a reading",
+    cost: "a raster, about 18× a reading on the todomvc benchmark",
   },
 ] as const;
 
@@ -133,13 +133,19 @@ export default function Flakes() {
             to do with it.
           </p>
           <p className="mt-3 text-sm leading-6 text-quiet">
-            Both outcomes of both passes are reported and neither clears
-            anything.{" "}
+            Both passes report their outcomes. Disagreement establishes observed
+            instability; it does not establish which edit introduced it.{" "}
             <span className="font-mono text-[0.95em] text-ivory">
               variance accept
             </span>{" "}
-            refuses either: promoting a reading chosen by a race makes the coin
-            flip the thing every later run is measured against.
+            refuses unabsorbed instability and differences that disappear in a
+            clean world. The full eligibility rules are in the{" "}
+            <a
+              href="/docs/ignores#accepting-a-shape-instead-of-silencing-it"
+              className="text-ivory underline"
+            >
+              approval documentation
+            </a>.
           </p>
         </div>
       </div>

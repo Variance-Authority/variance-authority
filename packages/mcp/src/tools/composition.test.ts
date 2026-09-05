@@ -111,7 +111,7 @@ const COMPOSED: CompositionReport = {
         {
           rendering: 1,
           lines: [
-            'variation — an input moved and the page followed',
+            'variation — an input changed and the page followed',
             'Chip inherited a different `color` — an ancestor declared it',
             '  2 deltas here (token) — color',
           ],
@@ -247,7 +247,7 @@ describe('the suite compared to itself', () => {
 
     expect(answer).toContain(
       '  1 subject(s): ds/chip--group\n' +
-        '    variation — an input moved and the page followed\n' +
+        '    variation — an input changed and the page followed\n' +
         '    Chip inherited a different `color` — an ancestor declared it\n' +
         '      2 deltas here (token) — color',
     );

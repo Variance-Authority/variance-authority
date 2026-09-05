@@ -275,7 +275,7 @@ describe('why a divergence diverged', () => {
       (entry) => entry.component === 'Price',
     )!.partings![0]!;
 
-    expect(parting.lines[0]).toBe('variation — an input moved and the page followed');
+    expect(parting.lines[0]).toBe('variation — an input changed and the page followed');
   });
 
   it('is absent, never empty, when the run kept no documents', () => {

@@ -17,7 +17,7 @@ const STEPS = [
   {
     n: "04",
     label: "expose",
-    detail: "undelivered 1 · unclaimed 0",
+    detail: "11 within the declared scope · unclaimed 0",
   },
   {
     n: "05",

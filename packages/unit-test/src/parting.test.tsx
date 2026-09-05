@@ -116,8 +116,8 @@ describe('one page, read twice, with a hook moved between the readings', () => {
     });
     const lines = explainParting(partingOf(before, await read()));
 
-    expect(lines[0]).toBe('variation — an input moved and the page followed');
-    expect(lines[1]).toBe('Cart chose differently — useState #0 moved');
+    expect(lines[0]).toBe('variation — an input changed and the page followed');
+    expect(lines[1]).toBe('Cart chose differently — useState #0 changed');
     expect(lines).toContain('  manifests as Summary was handed a different `expanded`');
   });
 
@@ -167,7 +167,7 @@ describe('the slice, decided before which input moved', () => {
     expect(parting.deltas).toEqual([]);
     expect(parting.slice).toBe('refactor');
     expect(explainParting(parting)[0]).toBe(
-      'refactor — the component tree moved and the page did not',
+      'refactor — the component tree changed and the page did not',
     );
   });
 
@@ -209,7 +209,7 @@ describe('the slice, decided before which input moved', () => {
     // Nine boundaries carrying one decision is nine lines that say the same
     // thing. The fork is the finding; the list is still on `boundaries`.
     const lines = explainParting(parting);
-    expect(lines[1]).toBe('Grid chose differently — useState #0 moved');
+    expect(lines[1]).toBe('Grid chose differently — useState #0 changed');
     expect(lines).toContain('  manifests across 9 boundaries below it, 12 deltas in all');
     expect(lines.some((line) => line.startsWith('  manifests as '))).toBe(false);
   });
@@ -300,7 +300,7 @@ describe('a component whose inputs did not move and whose output did', () => {
     expect(parting.origins?.[0]).toMatchObject({ component: 'Seat', rung: 'undetermined' });
     expect(parting.slice).toBe('flake');
     expect(explainParting(parting)).toEqual([
-      'flake — every input agreed, the component tree held, and the page moved anyway',
+      'flake — every input agreed, the component tree held, and the page changed anyway',
       'Seat rendered differently from inputs that all agreed — nondeterministic',
       '  1 delta here (content)',
     ]);
@@ -348,7 +348,7 @@ describe('state that does not live in React', () => {
 
     expect(parting.origins?.[0]).toMatchObject({ component: 'Arm', rung: 'external' });
     expect(explainParting(parting)[1]).toBe(
-      'Arm read a different external store — useSyncExternalStore #0 moved',
+      'Arm read a different external store — useSyncExternalStore #0 changed',
     );
   });
 });

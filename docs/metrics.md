@@ -24,10 +24,10 @@ subjects, and non-React subjects. A headline rate without those strata hides
 where component and source attribution is available and where it is structurally
 absent.
 
-## M1. File attribution
+## M1. Changed-file hit rate
 
-**Question:** does the top-ranked changed region name a repository file that
-contains the responsible edit?
+**Question:** does the top-ranked changed region name a file in the declared
+changed-file set?
 
 **Unit:** one changed subject.
 
@@ -39,8 +39,11 @@ contains the responsible edit?
 | `named-wrong` | A file is named but is outside that set |
 | `not-named` | The observation offers no file |
 
-Report top-1 precision as the primary result and top-3 recall separately. A long
-list containing the answer is not equivalent to attribution.
+Report the top-1 hit rate and the fraction of subjects with a hit among the top
+three files separately. Membership in the changed-file set does not establish
+causal correctness: with several edited files, an unrelated edit can count as a
+hit. Measuring responsible-file attribution requires a per-case set of files
+whose edits caused the observed change.
 
 The repository's kitchen-sink corpus is self-authored. Its agreement tests guard
 the implementation against regression; they do not estimate accuracy on an

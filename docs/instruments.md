@@ -21,12 +21,12 @@ is affordable at all.
 
 There is one move underneath all of them: **hold everything still, vary exactly
 one thing, and read a representation cheap enough to read again.** A semantic
-snapshot is text, and painting the same page in the same process costs
-**roughly eighteen times as much** — 3.0 ms against 54.0 ms on the machine that
-last ran `yarn workspace @variance-authority/example-todomvc pixel`, 3.4 against
-65.4 on an earlier one. The milliseconds are machine-bound and the ratio is not,
-and it is the ratio that makes "read it again" a design option, not a
-budget line.
+snapshot is text. In the todomvc Chromium benchmark,
+`yarn workspace @variance-authority/example-todomvc pixel`, reading the document
+takes 3.0 ms and painting the same page in the same process takes 54.0 ms:
+**roughly eighteen times as much**. Both the timings and their ratio describe
+that workload and measurement environment. They support repeated semantic
+readings on this fixture, not a machine-independent performance guarantee.
 
 | instrument                                                              | varies                  | holds                  | names                                                                         |
 | ----------------------------------------------------------------------- | ----------------------- | ---------------------- | ----------------------------------------------------------------------------- |

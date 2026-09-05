@@ -7,38 +7,39 @@ branch ran, and guessing why.
 `partingOf` takes the same two snapshots and says something else:
 
 ```text
-variation — an input moved and the page followed
-Cart chose differently — useState #0 moved
+variation — an input changed and the page followed
+Cart chose differently — useState #0 changed
   manifests as Summary was handed a different `expanded`
     1 delta here (content)
 ```
 
-Same evidence, three rungs up. The first line is triage — whether this is worth
-opening at all. The second names a cause. The rest is what fell out of it.
+The same evidence connects the output to its inputs. The first line classifies
+the difference. The second names the changed input at its origin; the remaining
+lines show its effects.
 
 The two readings need not be two revisions. Two variants of an experiment, two
 breakpoints, or **the same subject read twice** are all pairs, and the last one
 connects directly to [`flakiness.md`](flakiness.md): a flake is the case where
-every input agreed and the output moved anyway, the same question asked of one
+every input agreed and the output changed anyway, the same question asked of one
 page instead of two.
 
 ---
 
 ## The slice: what kind of parting this is
 
-Before *which input moved* comes *whether anybody should look*. Seven answers,
-decided from three facts — did the component tree hold, did any input move, did
-the output move:
+Before *which input changed* comes *whether anybody should look*. Seven answers,
+decided from three facts — did the component tree hold, did any input change, did
+the output change:
 
 | slice | reading |
 |---|---|
-| `settled` | nothing moved: not the tree, not an input, not the output |
-| `variation` | an input moved and the output followed — **the only one where the rungs below are worth reading** |
-| `flake` | every input agreed, the component tree held, and the output moved anyway |
-| `reshaped` | the component tree is a different tree, no input moved, and the output followed |
-| `refactor` | the component tree moved and the output did not |
-| `absorbed` | an input moved and the output did not — a variant was assigned differently and rendered the same |
-| `unread` | the output moved and what would explain it was not read |
+| `settled` | nothing changed: not the tree, not an input, not the output |
+| `variation` | an input changed and the output followed — **the only one where the attribution categories below are worth reading** |
+| `flake` | every input agreed, the component tree held, and the output changed anyway |
+| `reshaped` | the component tree is a different tree, no input changed, and the output followed |
+| `refactor` | the component tree changed and the output did not |
+| `absorbed` | an input changed and the output did not — a variant was assigned differently and rendered the same |
+| `unread` | the output changed and what would explain it was not read |
 
 `refactor` is the slice a pixel diff cannot reach at all, because there is
 nothing to diff: component identity is outside `renderHash` and outside every
@@ -50,7 +51,7 @@ is what notices.
 output landing on opposite sides. A tree that is a different tree and an output
 that followed is a component that chose a different shape — a branch taken
 differently between two variants, or a rewrite between two revisions — and in
-neither case is there a moved input for the rungs below to name.
+neither case has a changed input for attribution to name.
 
 `unread` is why `flake` is safe to say. Nondeterminism is an accusation, and a
 run that read no boundaries has not found the inputs agreeing — it has not asked
@@ -59,37 +60,37 @@ slices so silence can never be reported as agreement.
 
 ---
 
-## The rungs: how far up it traced
+## Attribution categories and their evidence
 
 At every component boundary, one rule: *a component whose inputs agreed and
-whose output moved decided differently.* Walking up to the shallowest boundary
+whose output changed decided differently.* Walking up to the shallowest boundary
 where that holds is what turns a page of deltas into one sentence.
 
-| rung | what it means | where to look |
+| category | evidence | where to look |
 |---|---|---|
 | `handed` | a named prop differs | the parent decided this — up |
 | `provided` | a context value differs | a provider above decided this — up |
 | `inherited` | a style value differs that this boundary declares none of | an ancestor's cascade — up |
-| `external` | a `useSyncExternalStore` snapshot differs | the store moved, outside React |
+| `external` | a `useSyncExternalStore` snapshot differs | the store changed, outside React |
 | `stateful` | an own hook cell differs | **here. This is the cause** |
-| `unread` | the output moved and something this boundary depends on could not be read | nowhere yet |
-| `undetermined` | every input was read, every input agreed, and the output moved | the component itself |
+| `unread` | the output changed and something this boundary depends on could not be read | nowhere yet |
+| `undetermined` | every input was read, every input agreed, and the output changed | the component itself |
 | `unpaired` | the boundary exists on one side only | — |
 
-Anything arriving from outside settles the question, so `handed` and `provided`
-outrank the state rungs however much state the boundary is also holding. The
-boundaries whose output moved with no incoming input to explain it are the
+A changed prop or context value takes precedence over local state, so `handed`
+and `provided` identify incoming changes even when hook cells also differ. The
+boundaries whose output changed with no incoming input to explain it are the
 **origins**, and they are what the report leads with.
 
 `inherited` is the input nobody passes. `styleProvenance` records where every
 winning declaration came from, so a property a node ended up with and no
 declaration set *there* arrived from above — `color` from a card, a token from
 `:root`. It needs no framework adapter: the boundary is found from the owner
-chain and the cascade is read from the snapshot, which is why it is the rung a
+chain and the cascade is read from the snapshot, which is why it is the category a
 browser run reaches first.
 
 `external` is one row and covers the ecosystem. Redux, Zustand, Jotai, valtio
-and a URL all reach React through `useSyncExternalStore`, so a store that moved
+and a URL all reach React through `useSyncExternalStore`, so a store that changed
 between two readings is named as a store rather than blamed on the component
 that happened to subscribe.
 
@@ -102,7 +103,7 @@ count and a band has stopped one link short of the thing a reader is chasing.
 `PartedBoundary.moved` closes it:
 
 ```text
-Inbox chose differently — useState #0 moved
+Inbox chose differently — useState #0 changed
   manifests as Badge was handed a different `tone`
     7 deltas here (a11y, token) — color, padding-bottom, padding-left, padding-right and 1 more
 ```
@@ -125,8 +126,8 @@ result is a page of lines that all say the same thing, so above a small fan-out
 the fork is reported and the spread is counted:
 
 ```text
-variation — an input moved and the page followed
-Grid chose differently — useState #0 moved
+variation — an input changed and the page followed
+Grid chose differently — useState #0 changed
   manifests across 9 boundaries below it, 12 deltas in all
 ```
 
@@ -149,7 +150,7 @@ display name, and hook cells in authored call order.
 can hold the same record with a session token beside it, so what travels is a
 digest — enough for an equality comparison, and not reversible into what a user
 was looking at. The cost is the one `propsDigest` already accepts: shape rather
-than identity, so a re-created inline closure does not register as moved. That
+than identity, so a re-created inline closure does not register as changed. That
 is tolerable here for the same reason it is tolerable there: this decides *who is
 responsible* for a difference the semantic diff already found, never *whether*
 there is one.
@@ -176,15 +177,15 @@ to refuse.
 - **It does not locate the hook in your source.** `useState #0` is a call
   position, not a `file:line`. Naming the fork is the job. A tool that then reads
   the component to work out which state that is has been told where to start.
-- **It gives no verdict.** `compare` says what moved and `judge` says whether
+- **It gives no verdict.** `compare` says what changed and `judge` says whether
   anyone should mind; a parting is an explanation and joins neither. It takes
   two snapshots without refusing a subject mismatch, because two variants of an
   experiment are two subjects on purpose.
 - **Its reach is what was read.** Boundaries come back absent — never `[]` —
   when no node on either side started a component, which puts the parting in the
   `unread` slice rather than in `settled` or `flake`. Boundaries present and
-  every one of them at rung `unread` is the next reading up: the components were
-  found and their props and hook cells were not, which is every run without a
+  every one of them in category `unread` means the components were found but
+  their props and hook cells were not read, as in a run without a
   framework adapter attached.
 - **It is React.** `holdingOf` is a callback, exactly as `provenanceOf` is, so
   another framework supplies its own; no other implementation exists.

@@ -159,13 +159,10 @@ regression.
 **Layout output is not style.** Under a profile with a layout engine the snapshot
 carries resolved values, so a block element's computed `height` is whatever its
 contents made it — and a button two levels down growing by six pixels changes the
-computed height of every ancestor. Measured on
-[`cases/storybook-case`](../cases/storybook-case), one padding edit inside
-`Button` made `Tokens`, `Stack`, `Card` and the unattributed root all report a
-changed style hash, so every component in every affected story was named a cause.
-Those properties fold into `geometry` instead, `transform-origin` included — it
-computes to half the border box, so it moves whenever the box does, on every
-element.
+computed height of every ancestor. These resolved layout properties belong to
+`geometry`, so their changes do not produce a different style digest and
+misidentify an ancestor as a cause. This includes `transform-origin`, whose
+default resolved value follows the centre of the border box.
 
 ## The fold
 
@@ -257,7 +254,7 @@ rendered two ways*, it says which input changed:
 Price (token) — 2 rendering(s) from one props digest
   2 subject(s): price, receipt
   1 subject(s): promo
-    variation — an input moved and the page followed
+    variation — an input changed and the page followed
     Price inherited a different `color` — an ancestor declared it
       2 deltas here (token) — color
 ```
@@ -361,11 +358,11 @@ that run.
 
 ### Why a component moved
 
-For every component the run found to have moved — from a diff region it named as
-a *cause*, or from a second reading that disagreed with the first — the run walks
-a ladder and stops at the first rung that holds:
+For each changed component — named as a *cause* in a diff region or found to
+differ between repeated readings — the run checks attribution rules in order
+and stops at the first matching rule:
 
-| rung | what it found | what it prints |
+| rule | evidence | output |
 |---|---|---|
 | `edited` | a file declaring this component is in the change set | the file |
 | `token` | a custom property *its own nodes* resolve through changed in this run | the tokens |
@@ -379,8 +376,7 @@ cannot reach either. That degrades honestly, and it is checked in
 to the caller: an unexplained difference in a run with no change set carries a
 sentence saying so instead of an accusation.
 
-**The `upstream` rung reads `created by` before `within`, and that is not a
-tie-break.** The component that wrote the element is the one whose edit changed
+**The `upstream` rule checks `created by` before `within`.** The component that wrote the element is the one whose edit changed
 this component's inputs. On todomvc, an edit to `src/app/todo.tsx` explains five
 chip changes through `TodoFooter`; a run consulting only `within` finds `Stack`,
 which nobody edited, and reports five unexplained differences instead of one

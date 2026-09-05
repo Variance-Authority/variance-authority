@@ -193,10 +193,10 @@ export default function Page() {
                 The run says what else in it could explain the change.
               </h3>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-quiet">
-                Every component seen to change is walked down a ladder&mdash;an
-                edited file, an updated token, an edited caller, a contradiction
-                elsewhere in the suite&mdash;and the walk stops at the first
-                rung that holds. The last rung is <em>unexplained</em>, and it
+                Each changed component is checked against attribution rules in order:
+                an edited file, an updated token, an edited caller, then a
+                contradiction elsewhere in the suite. The first matching rule
+                supplies the explanation. Otherwise, <em>unexplained</em>
                 arrives beside the states where the same component with the same
                 props held. That control group is the rest of the suite at this
                 commit, and it was already collected.

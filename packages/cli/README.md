@@ -368,9 +368,9 @@ names the file it looked for and what writes one.
 npx variance report --format html > out/report.html
 ```
 
-One file, written beside `report.json`, uploaded by whatever already uploads your
-CI artifacts. No account, no upload step, no retention policy, nothing to keep
-running — the cheapest presentation infrastructure available.
+Write the HTML beside `report.json` and include both files and the accompanying
+image directory in the CI artifact. This portable report directory needs no
+report server or account.
 
 It renders the same **docket** the pull-request body does: one entry per root
 cause, grouping every subject that cause reached, instead of one entry per
@@ -383,12 +383,12 @@ cause*, so it is never read as an explanation. Coverage failures, meaning
 subjects the run could not observe at all, sit above the **findings**, so the
 page cannot look complete when it is not.
 
-Two constraints worth knowing. **Image paths are relative to the report**, so the
-page belongs beside it — a report written elsewhere shows broken images rather
-than wrong ones. And the page fetches nothing: no script, no stylesheet, no font,
-because a page that loads anything renders differently for the reviewer than it
-did in CI. `--subject` is refused here rather than honoured: a page narrowed to
-one subject says nothing about coverage while looking like a whole run.
+**Image paths are relative to the JSON report.** Keep the HTML beside it and
+preserve the image directory layout when copying or uploading the artifact.
+Scripts and styles are inline, fonts use local system fallbacks, and images
+remain separate files.
+`--subject` is refused for HTML so the page retains the whole run's coverage
+accounting.
 
 ### Detect instability with `run --flakes`
 
@@ -551,10 +551,11 @@ declared comes back `overreached`. It changes no verdict and no exit code; it
 reports on the run `run` already judged. `variance serve` exposes the same
 check to an agent as `variance_adjudicate`.
 
-Those twelve are the whole surface. **No command posts anything anywhere.**
-`comment` produces the body; sending it is `.github/actions/variance`'s job,
-with the operator's own token, and the exit code and the report remain what a CI
-job actually gates on.
+Those twelve commands cover capture, inspection, approval and delivery.
+`push` uploads a finished run and its images to the configured review endpoint
+using the operator's ingest token. `comment` generates a comment body;
+`.github/actions/variance` posts it with the operator's token. The exit code and
+report are what a CI job gates on.
 
 ## Exit codes
 
