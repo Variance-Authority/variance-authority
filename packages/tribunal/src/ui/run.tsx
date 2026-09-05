@@ -21,6 +21,7 @@ import type { ReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
 import { DeclarationsPanel } from './declarations.js';
 import { DivergenceOf } from './divergence.js';
+import { JourneysPanel } from './journeys.js';
 import { ReachPanel } from './reach.js';
 import { Settled } from './settled.js';
 import { Prose } from './shell.js';
@@ -56,6 +57,12 @@ export function RunPage({
         <section className="va-card">
           <ReachPanel client={client} build={build} />
         </section>
+
+        {build.journeys === null ? null : (
+          <section className="va-card">
+            <JourneysPanel build={build} />
+          </section>
+        )}
 
         <section className="va-card">
           <DivergenceOf crossing={crossing} />

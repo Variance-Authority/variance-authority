@@ -399,6 +399,16 @@ zero, deliberately: a flake rate is **absent** until a run has read every subjec
 twice (`RunRecord.swept`), and a coverage that was never stated is unknown rather
 than clean.
 
+The run page — *what this run read*, one link from the docket — carries **where
+the subjects parted** when the build was instrumented with probes and so carries
+a [journey](../../docs/journeys.md) for each subject. The record `variance
+journeys` prints per module is turned round to face the subject: the stretches
+of source (a function body, a branch, a `case`) this subject entered that
+another subject of the same module did not, and the ones it missed that another
+entered, with the file and the lines. The count of subjects the journal holds is
+drawn even when nothing parted: no partings among five subjects is agreement,
+and among one it is nothing at all. A build with no journal draws no panel.
+
 The `Changelog` tab is the same evidence at project scale — every approval,
 grouped by the shape that was approved, with the approvals nothing could
 attribute listed, not dropped.

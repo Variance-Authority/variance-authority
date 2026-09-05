@@ -305,8 +305,8 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
   // 14 → 15: where the run's subjects parted in the source.
   [
     // The report carries `journeys`, answered on the machine that holds the
-    // journal, and the review page is the one surface that can put a parting
-    // beside the render it belongs to. One row per build, the section as
+    // journal, and the review service is where a parting sits beside the rest
+    // of the run's reading. One row per build, the section as
     // written: the pool is three lists, and the page reads the findings per
     // subject as a filter over a list every open review already loads.
     // Normalising per module would give the page a join it never asks for and

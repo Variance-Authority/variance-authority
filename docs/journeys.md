@@ -122,9 +122,14 @@ look once something else has said that something changed.
 ## What reads it
 
 - The [run report](../packages/report/README.md#the-shape) carries the partings
-  among the run's own subjects, answered where the journal is. Every reader of
-  the report is on a machine without one, so the run asks once and writes the
-  answer beside its verdicts.
+  among the run's own subjects, answered where the journal is. The readers this
+  section is for — the pull-request comment, the MCP tools, the review service —
+  are on machines without one, so the run asks once and writes the answer beside
+  its verdicts.
+- The [review service](../packages/tribunal/README.md#review-surface) turns the
+  same rows round to face the subject: on its page for the whole run, beside
+  what the commit reaches, what this subject entered that the other observers of
+  the module did not.
 - [Selection](selecting.md) narrows a run to the subjects and spec files whose
   journeys crossed the changed code, and where the record cannot say, it selects
   more rather than less.

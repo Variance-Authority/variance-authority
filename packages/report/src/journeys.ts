@@ -2,8 +2,8 @@
  * Where this run's subjects parted in the source, carried in the report.
  *
  * The journal a build with probes writes is a cache on the machine that ran
- * the suite, and everything that reads a report reads it somewhere else: the
- * pull-request comment, the MCP tools, the review service. So the run answers
+ * the suite, and the readers this section is for read the report somewhere
+ * else: the pull-request comment, the MCP tools, the review service. So the run answers
  * the question once, over its own subjects, and writes the answer down beside
  * the verdicts — the rule `flakiness` and `drift` already follow.
  *
@@ -30,7 +30,7 @@ export interface JourneyRegionRecord {
   readonly missed: readonly string[];
 }
 
-/** What one module's observers did not do alike. */
+/** One module, its observers, and the regions they did not all enter. */
 export interface JourneyParting {
   /** Repository-relative path, as the instrument recorded it. */
   readonly file: string;
@@ -55,10 +55,10 @@ export interface JourneysReport {
   readonly commit?: string;
   /** This run's subjects the journal recorded whole: the pool every parting is about. */
   readonly whole: readonly string[];
-  /** This run's subjects whose recording stopped early — out of the pool, and counted so the drop shows. */
+  /** This run's subjects whose journal was cut short — out of the pool, and counted so the drop shows. */
   readonly truncated: readonly string[];
   /** This run's subjects the journal holds no row for at all. */
   readonly unrecorded: readonly string[];
-  /** Every module whose observers took different paths through it, in the instrument's order. */
+  /** Every module with a parted or unentered region, in the instrument's order. */
   readonly found: readonly JourneyParting[];
 }

@@ -67,6 +67,7 @@ import { Nowhere } from './shell.js';
 export { RegionOverlay, RegionTable, Viewer, modesFor, type ViewerMode } from './viewer.js';
 export { ChangelogEntries, ChangelogPage, ChurnLine, StabilityLine, SubjectHistory } from './history.js';
 export { ReachPanel, crossReach, type Crossing } from './reach.js';
+export { JourneysPanel, partingsOf, type PartingRow, type SubjectPartings } from './journeys.js';
 export { BuildList, CoverageLine } from './builds.js';
 export { OriginsPanel } from './origins.js';
 export { SubjectPanel } from './subject.js';
