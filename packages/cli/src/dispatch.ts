@@ -166,6 +166,7 @@ export async function dispatch(
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) => relationsFor(process.cwd(), dirs),
             readJourney: async (diff) => journeyAgainst(process.cwd(), diff),
+            readJourneys: async (subjects) => recordedJourneys(process.cwd(), subjects),
             ...(effective.source?.changes === undefined
               ? {}
               : {

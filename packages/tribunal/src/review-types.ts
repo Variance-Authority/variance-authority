@@ -2,6 +2,7 @@ import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/
 import type {
   FindingRecord,
   IgnoreLedger,
+  JourneysReport,
   NotObserved,
   ObservationRecord,
   ReachHole,
@@ -227,6 +228,18 @@ export interface BuildDetail extends BuildSummary {
    * reaching it.
    */
   readonly reach: ReachView | null;
+
+  /**
+   * Where this build's subjects parted in the source, as the run wrote it.
+   *
+   * `null` is a run that carried no journal — a build with no probes, which is
+   * most builds — and never an empty pool: `found` empty with `whole` naming
+   * the subjects is the run saying they agreed everywhere, a finding about the
+   * suite rather than the absence of one. Per subject it reads as a filter:
+   * the regions this subject entered that its co-observers did not, and the
+   * ones it missed that they entered.
+   */
+  readonly journeys: JourneysReport | null;
 
   /**
    * What the config declared, and what each declaration did in this run.

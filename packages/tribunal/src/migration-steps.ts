@@ -302,4 +302,28 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
     `ALTER TABLE build_movements ADD COLUMN compared INTEGER`,
     `UPDATE schema_version SET version = 14`,
   ],
+  // 14 → 15: where the run's subjects parted in the source.
+  [
+    // The report carries `journeys`, answered on the machine that holds the
+    // journal, and the review page is the one surface that can put a parting
+    // beside the render it belongs to. One row per build, the section as
+    // written: the pool is three lists, and the page reads the findings per
+    // subject as a filter over a list every open review already loads.
+    // Normalising per module would give the page a join it never asks for and
+    // the store a second vocabulary for the instrument's.
+    //
+    // `journal_commit` nullable is *recorded outside a checkout*, which the
+    // report says the same way.
+    `CREATE TABLE build_journeys (
+       project        TEXT NOT NULL,
+       build          TEXT NOT NULL,
+       journal_commit TEXT,
+       whole          TEXT NOT NULL,
+       truncated      TEXT NOT NULL,
+       unrecorded     TEXT NOT NULL,
+       found          TEXT NOT NULL,
+       PRIMARY KEY (project, build)
+     ) STRICT`,
+    `UPDATE schema_version SET version = 15`,
+  ],
 ];

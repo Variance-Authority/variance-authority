@@ -75,6 +75,7 @@ function build(over: Partial<BuildDetail> = {}): BuildDetail {
     movements: [],
     composition: CENSUS,
     reach: null,
+    journeys: null,
     ...over,
   };
 }

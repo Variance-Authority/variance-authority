@@ -16,6 +16,7 @@ import {
 } from '@variance-authority/raster';
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
+import type { JourneyReading } from './journeys.js';
 import {
   run,
   type CliRunReport,
@@ -321,6 +322,7 @@ export async function runWith(
     };
     scanSource?: (dirs: readonly string[]) => Promise<SourceIndex>;
     readJourney?: (diff: string) => Promise<ExecutionNarrowing | undefined>;
+    readJourneys?: (subjects: readonly string[]) => Promise<JourneyReading>;
   } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {
   const written: Written = { artifacts: new Map(), reports: [] };
@@ -334,6 +336,7 @@ export async function runWith(
     deps: {
       ...(options.scanSource !== undefined ? { scanSource: options.scanSource } : {}),
       ...(options.readJourney !== undefined ? { readJourney: options.readJourney } : {}),
+      ...(options.readJourneys !== undefined ? { readJourneys: options.readJourneys } : {}),
       collector,
       store,
       renderer: async () => options.renderer ?? fakeRenderer(),

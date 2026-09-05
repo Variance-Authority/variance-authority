@@ -53,6 +53,7 @@ function build(subjects: readonly SubjectView[]): BuildDetail {
     movements: [],
     composition: null,
     reach: null,
+    journeys: null,
   };
 }
 

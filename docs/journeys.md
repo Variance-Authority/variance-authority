@@ -121,6 +121,10 @@ look once something else has said that something changed.
 
 ## What reads it
 
+- The [run report](../packages/report/README.md#the-shape) carries the partings
+  among the run's own subjects, answered where the journal is. Every reader of
+  the report is on a machine without one, so the run asks once and writes the
+  answer beside its verdicts.
 - [Selection](selecting.md) narrows a run to the subjects and spec files whose
   journeys crossed the changed code, and where the record cannot say, it selects
   more rather than less.

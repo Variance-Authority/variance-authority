@@ -51,6 +51,7 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     causes: [],
     variations: [],
     reach: null,
+    journeys: null,
   };
 }
 

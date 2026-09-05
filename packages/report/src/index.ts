@@ -46,6 +46,8 @@ export type {
   VariationRecord,
 } from './format.js';
 
+export type { JourneysReport, JourneyParting, JourneyRegionRecord } from './journeys.js';
+
 export type {
   CompositionReport,
   ComponentRecord,

@@ -112,6 +112,12 @@ visible to a reader who never passed one. Absent `index` means there is nothing
 to diff from, either because no index was recorded or because the one on disk has
 no position; it never means the index is current, which is `changed: 0`.
 
+A build carrying probes also carries **`journeys`**: where this run's subjects
+parted in the source, with the pool the answer is drawn from — which of them the
+journal recorded whole, which it cut short, and which it never held. Absent is
+*no journal*, never *nobody parted*; `found` empty is the pool agreeing
+everywhere. The terms are in [journeys](../../docs/journeys.md).
+
 ## Presentation consequence is a signal, not a verdict
 
 An `ObservationRecord` can carry one or more **signals** —

@@ -13,7 +13,7 @@ import { MIGRATIONS } from './migration-steps.js';
 import { INITIAL } from './migrations.js';
 
 /** Bumped when the stored shape changes in a way an older build would misread. */
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export { MIGRATIONS } from './migration-steps.js';
 export { INITIAL, INITIAL_VERSION } from './migrations.js';

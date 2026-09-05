@@ -442,6 +442,8 @@ async function observeAll(
     ...(config.names !== undefined ? { names: config.names } : {}),
   });
 
+  // Where this run's own subjects parted, off the journal `--since` narrows by.
+  const parted = await deps.readJourneys?.([...observations, ...notObserved].map((o) => o.subject));
   const report: CliRunReport = {
     runVersion: 1,
     at,
@@ -459,6 +461,7 @@ async function observeAll(
     ...(recorded.flakiness !== undefined ? { flakiness: recorded.flakiness } : {}),
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),
+    ...(parted?.recorded !== undefined ? { journeys: parted.recorded } : {}),
     ...(composition !== undefined ? { composition } : {}),
     ...(variations !== undefined ? { variations } : {}),
     // The third axis, and the only one that names a file somebody edited. Carried

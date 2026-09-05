@@ -10,6 +10,7 @@ import type { ReachReport } from './reach.js';
 import type { PresentationSignalRecord } from './presentation-record.js';
 import type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 import type { VariationRecord } from './variation.js';
+import type { JourneysReport } from './journeys.js';
 
 /**
  * The run report — the artifact an agent actually reads.
@@ -209,6 +210,16 @@ export interface RunReport {
   readonly ignores?: IgnoreLedger;
   /** The same, for rules that relax an assertion rather than remove a region. */
   readonly sensitivities?: SensitivityLedger;
+
+  /**
+   * Where this run's subjects parted in the source, read off the execution
+   * journal the build's probes wrote — the shape is in `journeys.ts`.
+   *
+   * **Absent is not "nobody parted."** It is *no journal*: a build carrying no
+   * probes, which is most builds. Present with `found` empty is the pool named
+   * in `whole` agreeing everywhere, which is a finding about the suite.
+   */
+  readonly journeys?: JourneysReport;
 }
 
 /**

@@ -2,6 +2,8 @@ import { identityFrom } from '@variance-authority/raster';
 import type {
   FindingRecord,
   IgnoreLedger,
+  JourneyParting,
+  JourneysReport,
   NotObserved,
   ObservationRecord,
   ReachHole,
@@ -432,4 +434,23 @@ export function toDeclarations(row: Row): Declarations {
 function countOf(rows: readonly Row[], kind: string): number {
   const found = rows.find((row) => row['kind'] === kind);
   return found === undefined ? 0 : number(found, 'n', 'a coverage count');
+}
+
+/**
+ * The journeys row, read back as the section the run wrote.
+ *
+ * Parsed and not checked, for the reason `toReach` gives: the row is the
+ * report's own JSON, written by this service from a shape the report package
+ * owns.
+ */
+export function toJourneys(row: Row): JourneysReport {
+  const what = 'a build journeys';
+  const commit = row['journal_commit'];
+  return {
+    ...(typeof commit === 'string' ? { commit } : {}),
+    whole: JSON.parse(text(row, 'whole', what)) as string[],
+    truncated: JSON.parse(text(row, 'truncated', what)) as string[],
+    unrecorded: JSON.parse(text(row, 'unrecorded', what)) as string[],
+    found: JSON.parse(text(row, 'found', what)) as JourneyParting[],
+  };
 }

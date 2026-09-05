@@ -8,6 +8,7 @@ import {
   toNotObserved,
   toMovement,
   toPlacement,
+  toJourneys,
   toReach,
   toSubjectView,
   toVariation,
@@ -154,6 +155,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         .prepare('SELECT * FROM build_reach WHERE project = ? AND build = ?')
         .bind(project, id)
         .first<Row>();
+      const journeyRow = await db
+        .prepare('SELECT * FROM build_journeys WHERE project = ? AND build = ?')
+        .bind(project, id)
+        .first<Row>();
       const census = await db
         .prepare(
           'SELECT * FROM build_composition WHERE project = ? AND build = ? ORDER BY component',
@@ -188,6 +193,7 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
         causes: docket(subjects),
         variations: variations.results.map(toVariation),
         reach: reachRow === null ? null : toReach(reachRow, reachSubjects?.results ?? []),
+        journeys: journeyRow === null ? null : toJourneys(journeyRow),
         // No rows is `null`, not `[]`. A run that produced no semantic snapshots
         // has no graph to join, and an empty list would say the opposite — that
         // the suite was read and found to contain no component at all.
@@ -362,6 +368,10 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
           .run();
         await db
           .prepare('DELETE FROM build_reach WHERE project = ? AND build = ?')
+          .bind(project, id)
+          .run();
+        await db
+          .prepare('DELETE FROM build_journeys WHERE project = ? AND build = ?')
           .bind(project, id)
           .run();
         await db.prepare('DELETE FROM builds WHERE project = ? AND build = ?').bind(project, id).run();

@@ -6,6 +6,7 @@ import type { ExecutionNarrowing } from '@variance-authority/sense/test-selectio
 import type { Config } from '../config.js';
 import type { Collector } from './collector.js';
 import type { RunIdentity } from './history.js';
+import type { JourneyReading } from './journeys.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
 
 /**
@@ -97,6 +98,15 @@ export interface RunDeps {
    * answer for a build nobody put probes in — see [`journey.ts`](./journey.ts).
    */
   readJourney?(diff: string): Promise<ExecutionNarrowing | undefined>;
+
+  /**
+   * Where this run's subjects parted in the source, read off the same journal.
+   *
+   * Injected for the same reason. The run names its own subjects so the pool
+   * is this run's and not every observer the journal ever held; an answer with
+   * no `recorded` is *no journal*, and the report carries no section.
+   */
+  readJourneys?(subjects: readonly string[]): Promise<JourneyReading>;
 }
 
 export interface RunOptions {

@@ -200,6 +200,30 @@ export async function ingestBuild(
     );
   }
 
+  // One row, the section as written. Absent writes nothing, so a reader finding
+  // no row knows the build carried no journal rather than no partings — `found`
+  // empty is the row saying the second.
+  const journeys = report.journeys;
+  if (journeys !== undefined) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT OR REPLACE INTO build_journeys
+             (project, build, journal_commit, whole, truncated, unrecorded, found)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          project,
+          build.build,
+          journeys.commit ?? null,
+          JSON.stringify(journeys.whole),
+          JSON.stringify(journeys.truncated),
+          JSON.stringify(journeys.unrecorded),
+          JSON.stringify(journeys.found),
+        ),
+    );
+  }
+
   // The build row is written whenever the run carried a diff, including when
   // the walk refused to attribute it: a refusal with its reason is a fact a
   // reviewer reads, and dropping the row would make it indistinguishable

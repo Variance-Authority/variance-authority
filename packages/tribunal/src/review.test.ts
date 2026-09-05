@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core';
-import type { RunReport, VariationRecord } from '@variance-authority/report';
+import type { JourneysReport, RunReport, VariationRecord } from '@variance-authority/report';
 import type { BuildIngest, ReviewStore } from './review.js';
 import { ReviewError } from './review.js';
 import { CANDIDATE, POSTED, PREVIOUS, VARIATIONS, ingest, openReview, report } from './__fixtures__/review.js';
@@ -377,6 +377,71 @@ describe('a variation is carried, and is never a verdict', () => {
     // them as its own.
     const rows = await db
       .prepare('SELECT COUNT(*) AS n FROM build_variations')
+      .bind()
+      .first<{ readonly n: number }>();
+    expect(rows?.n).toBe(0);
+  });
+});
+
+describe("where the run's subjects parted is carried with the build", () => {
+  const JOURNEYS: JourneysReport = {
+    commit: '4f2a1c9d0b73',
+    whole: ['story:cart-card--item', 'story:cart-card--removing'],
+    truncated: ['story:cart-card--verbose'],
+    unrecorded: ['route/home'],
+    found: [
+      {
+        file: 'app/src/components/CartCard.tsx',
+        observers: ['story:cart-card--item', 'story:cart-card--removing'],
+        parted: [
+          {
+            kind: 'function',
+            name: 'CartCard/onClick',
+            startLine: 51,
+            endLine: 58,
+            entered: ['story:cart-card--removing'],
+            missed: ['story:cart-card--item'],
+          },
+        ],
+        unentered: [
+          {
+            kind: 'branch',
+            name: 'CartCard/empty',
+            startLine: 62,
+            endLine: 64,
+            entered: [],
+            missed: ['story:cart-card--item', 'story:cart-card--removing'],
+          },
+        ],
+      },
+    ],
+  };
+  const carrying = (journeys: JourneysReport, build = 'ci-1001'): BuildIngest =>
+    ingest({ build, report: { ...report(), journeys } });
+
+  it('reads the section back as the run wrote it, pool and all', async () => {
+    await review.ingest(carrying(JOURNEYS));
+
+    expect((await review.build('ci-1001'))?.journeys).toEqual(JOURNEYS);
+  });
+
+  it('keeps a run with no journal apart from a pool that agreed everywhere', async () => {
+    await review.ingest(ingest());
+    expect((await review.build('ci-1001'))?.journeys).toBeNull();
+
+    const agreed: JourneysReport = { whole: JOURNEYS.whole, truncated: [], unrecorded: [], found: [] };
+    await review.ingest(carrying(agreed, 'ci-1002'));
+    expect((await review.build('ci-1002'))?.journeys).toEqual(agreed);
+  });
+
+  it('goes when the build goes', async () => {
+    await review.ingest(carrying(JOURNEYS));
+    clock = new Date('2026-07-01T12:00:00.000Z');
+
+    await review.sweep(7);
+
+    const rows = await db
+      .prepare('SELECT COUNT(*) AS n FROM build_journeys')
       .bind()
       .first<{ readonly n: number }>();
     expect(rows?.n).toBe(0);

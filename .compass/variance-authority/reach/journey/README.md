@@ -68,7 +68,7 @@ first.
   `mintJourney`, and the per-execution factory behind the probe's global
 - `packages/sense/src/test-selection/stitch.ts` — `stitchJourneys`, the driver's
   join, and the name unattributed regions report under
-- `packages/cli/src/commands/journeys.ts` — the ground the joined observations become
+- `packages/cli/src/commands/journey.ts` — the ground the joined observations become
 
 ## Diagram
 

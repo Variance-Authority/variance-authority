@@ -1,4 +1,4 @@
-import type { JourneyDivergence, JourneyRegion } from '@variance-authority/sense/test-selection';
+import type { JourneyParting, JourneyRegionRecord, JourneysReport } from '@variance-authority/report';
 import { many } from './reach.js';
 
 /**
@@ -60,39 +60,12 @@ const MAX_REGIONS = 20;
 /**
  * The snapshot, as this command needs it: the findings, and who the pool was.
  *
- * The pool is carried beside the findings rather than recomputed from them,
- * because an observer that entered no module with source of its own appears in
- * no finding at all — and a pool of three that produced findings naming two is
- * exactly the state a reader has to be able to see.
+ * The report's own section, because `variance run` writes the same reading
+ * beside its verdicts for every reader on a machine without the journal —
+ * one vocabulary, carried rather than recomputed at the far end. The pool
+ * travels beside the findings for the reason the section gives.
  */
-export interface RecordedJourneys {
-  /**
-   * The commit it was recorded at.
-   *
-   * Absent when the recording happened outside a checkout. Printed either way:
-   * how stale the record is decides how much of it is about code that still
-   * exists, and a reading that cannot say is a reading with a different weight.
-   */
-  readonly commit?: string;
-  /** In-scope observations recorded whole: the pool every finding below is about. */
-  readonly whole: readonly string[];
-  /**
-   * In-scope observations that were truncated.
-   *
-   * Dropped from the pool by the instrument rather than counted as having missed
-   * anything, and counted here so the drop is visible.
-   */
-  readonly truncated: readonly string[];
-  /**
-   * Named observers the snapshot holds no row for at all.
-   *
-   * Empty whenever no filter was given — a snapshot cannot fail to hold a row
-   * for a name nobody asked about.
-   */
-  readonly unrecorded: readonly string[];
-  /** What the instrument found under that pool, in its own order. */
-  readonly found: readonly JourneyDivergence[];
-}
+export type RecordedJourneys = JourneysReport;
 
 /**
  * How the pool was chosen.
@@ -133,8 +106,8 @@ export interface JourneysInput extends JourneyReading {
 export interface ShownModule {
   readonly file: string;
   readonly observers: readonly string[];
-  readonly parted: readonly JourneyRegion[];
-  readonly unentered: readonly JourneyRegion[];
+  readonly parted: readonly JourneyRegionRecord[];
+  readonly unentered: readonly JourneyRegionRecord[];
   /** Regions of this module the cap left out, counted rather than dropped. */
   readonly elidedParted: number;
   readonly elidedUnentered: number;
@@ -194,7 +167,7 @@ function matches(file: string, filter: string | undefined): boolean {
   return filter === undefined || file.toLowerCase().includes(filter.toLowerCase());
 }
 
-function shownModule(divergence: JourneyDivergence): ShownModule {
+function shownModule(divergence: JourneyParting): ShownModule {
   return {
     file: divergence.file,
     observers: divergence.observers,
@@ -348,7 +321,7 @@ function block(module: ShownModule): string {
 }
 
 /** A region, in the shape the instrument's own examples print it. */
-function where(region: JourneyRegion): string {
+function where(region: JourneyRegionRecord): string {
   const lines =
     region.startLine === region.endLine
       ? String(region.startLine)
