@@ -126,10 +126,14 @@ look once something else has said that something changed.
   section is for — the pull-request comment, the MCP tools, the review service —
   are on machines without one, so the run asks once and writes the answer beside
   its verdicts.
-- The [review service](../packages/tribunal/README.md#review-surface) turns the
-  same rows round to face the subject: on its page for the whole run, beside
-  what the commit reaches, what this subject entered that the other observers of
-  the module did not.
+- The [review service](../packages/tribunal/README.md#review-surface) draws one
+  grid per component: its stories across, each [variation](variations.md) after
+  the story it varies from, and down, only the regions on which those stories
+  differ. `cart-card--removing` differs from `cart-card--item` in one
+  region, the click handler; `product-card--sale` differs from
+  `product-card--control` in none, so the variation executes what it renders.
+  The regions a component's own stories agree on are not drawn, whichever other
+  component they differ from.
 - [Selection](selecting.md) narrows a run to the subjects and spec files whose
   journeys crossed the changed code, and where the record cannot say, it selects
   more rather than less.

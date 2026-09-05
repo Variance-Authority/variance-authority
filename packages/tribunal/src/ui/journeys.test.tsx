@@ -1,14 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { JourneysReport } from '@variance-authority/report';
+import type { JourneysReport, VariationRecord } from '@variance-authority/report';
 import type { BuildDetail, SubjectView } from '../review-types.js';
-import { JourneysPanel, partingsOf } from './journeys.js';
+import { familiesOf, JourneysPanel } from './journeys.js';
 
 /**
- * The rows, held to the one thing the panel does: turn a module's record round
- * to face each subject without inventing a finding the report did not carry.
- * The failures that read as a working page are a subject listed with nothing
- * to say, and an empty pool drawn as agreement.
+ * The grid, held to the one thing the panel does: cut the module record into
+ * families and keep only the rows a family is split on, without inventing a
+ * finding the report did not carry. The failures that read as a working page
+ * are a family split by a region it agreed on, and an empty pool drawn as
+ * agreement.
  */
 
 const ITEM = 'story:cart-card--item';
@@ -58,7 +59,11 @@ function subject(overrides: Partial<SubjectView> = {}): SubjectView {
   };
 }
 
-function build(subjects: readonly SubjectView[], recorded: JourneysReport | null): BuildDetail {
+function build(
+  subjects: readonly SubjectView[],
+  recorded: JourneysReport | null,
+  variations: readonly VariationRecord[] = [],
+): BuildDetail {
   return {
     project: 'snkr-shop',
     build: '4',
@@ -76,36 +81,81 @@ function build(subjects: readonly SubjectView[], recorded: JourneysReport | null
     movements: [],
     composition: null,
     causes: [],
-    variations: [],
+    variations,
     reach: null,
     journeys: recorded,
   };
 }
 
-describe('a module row is turned round to face each subject', () => {
-  it('puts one region on the entered side of one subject and the missed side of the other', () => {
-    const partings = partingsOf(journeys(), []);
+describe('a family is split only by what its own stories did differently', () => {
+  it('puts a region one sibling entered and another missed on one row, a cell per sibling', () => {
+    const [family] = familiesOf(journeys(), []);
 
-    expect(partings.map((parting) => parting.subject)).toEqual([ITEM, REMOVING]);
-    expect(partings[1]?.entered).toEqual([
-      { file: 'app/src/components/CartCard.tsx', region: ON_CLICK, others: [ITEM] },
-    ]);
-    expect(partings[0]?.missed).toEqual([
-      { file: 'app/src/components/CartCard.tsx', region: ON_CLICK, others: [REMOVING] },
+    expect(family?.name).toBe('story:cart-card');
+    expect(family?.columns.map((column) => column.member)).toEqual(['item', 'quiet', 'removing']);
+    // `QUIET` observes the module and is on neither side of the region: the
+    // report left it out, so the grid does too, and it is not a `missed`.
+    expect(family?.rows).toEqual([
+      { file: 'app/src/components/CartCard.tsx', region: ON_CLICK, cells: ['missed', 'absent', 'entered'] },
     ]);
   });
 
-  it('lists a changed subject first and a subject that parted from nobody not at all', () => {
-    // `QUIET` is in the pool and in the module's observers, and entered exactly
-    // what everybody entered. Two empty lists under its name would read as a
-    // finding; the pool line is where it is counted.
-    const partings = partingsOf(journeys(), [
-      subject({ subject: ITEM, verdict: 'unchanged' }),
-      subject({ subject: REMOVING, verdict: 'changed' }),
-      subject({ subject: QUIET, verdict: 'changed' }),
+  it('is not split by a region it agrees on, whichever other family it parts from', () => {
+    const CONTROL = 'story:product-card--control';
+    const SALE = 'story:product-card--sale';
+    const families = familiesOf(
+      journeys({
+        whole: [ITEM, REMOVING, CONTROL, SALE],
+        found: [
+          {
+            file: 'app/src/components/ui/card.tsx',
+            observers: [ITEM, REMOVING, CONTROL, SALE],
+            parted: [
+              { ...ON_CLICK, name: 'forwardRef.arg0', entered: [CONTROL, SALE], missed: [ITEM, REMOVING] },
+            ],
+            unentered: [],
+          },
+        ],
+      }),
+      [],
+    );
+
+    expect(families.map((family) => [family.name, family.rows.length])).toEqual([
+      ['story:cart-card', 0],
+      ['story:product-card', 0],
+    ]);
+  });
+
+  it('rows the module itself when part of the family never entered it', () => {
+    const [family] = familiesOf(
+      journeys({
+        found: [{ file: 'app/src/components/Undo.tsx', observers: [REMOVING], parted: [], unentered: [] }],
+      }),
+      [],
+    );
+
+    expect(family?.rows).toEqual([
+      { file: 'app/src/components/Undo.tsx', region: null, cells: ['missed', 'missed', 'entered'] },
+    ]);
+  });
+
+  it('orders the columns by the lattice, an arm after what it varies from', () => {
+    const CONTROL = 'story:product-card--control';
+    const DARK = 'story:product-card--control-dark';
+    const SALE = 'story:product-card--sale';
+    const SALE_DARK = 'story:product-card--sale-dark';
+    const [family] = familiesOf(journeys({ whole: [SALE_DARK, SALE, DARK, CONTROL], found: [] }), [
+      { subject: SALE, parent: CONTROL },
+      { subject: DARK, parent: CONTROL },
+      { subject: SALE_DARK, parent: SALE },
     ]);
 
-    expect(partings.map((parting) => parting.subject)).toEqual([REMOVING, ITEM]);
+    expect(family?.columns).toEqual([
+      { subject: CONTROL, member: 'control' },
+      { subject: DARK, member: 'control-dark', from: 'control' },
+      { subject: SALE, member: 'sale', from: 'control' },
+      { subject: SALE_DARK, member: 'sale-dark', from: 'sale' },
+    ]);
   });
 });
 
@@ -114,30 +164,42 @@ describe('the panel', () => {
     expect(renderToStaticMarkup(<JourneysPanel build={build([subject()], null)} />)).toBe('');
   });
 
-  it('names the region, its lines, its file and who was on the other side', () => {
+  it('draws the family as a grid, and names the region, its lines and its file once', () => {
     const html = renderToStaticMarkup(<JourneysPanel build={build([subject()], journeys())} />);
 
+    expect(html).toContain('<h3>story:cart-card</h3>');
     expect(html).toContain('function CartCard/onClick');
     expect(html).toContain('lines 51–58');
-    expect(html).toContain('app/src/components/CartCard.tsx');
-    expect(html).toContain(`missed by ${ITEM}`);
-    expect(html).toContain(`entered by ${REMOVING}`);
-    expect(html).toContain('Regions no subject entered');
+    expect(html.split('app/src/components/CartCard.tsx')).toHaveLength(3);
+    expect(html).toContain('title="removing entered it"');
+    expect(html).toContain('title="item did not enter it"');
+    expect(html).toContain('title="quiet did not enter the module"');
+    expect(html).toContain('1 region no subject entered');
     expect(html).toContain('branch CartCard/empty');
     expect(html).toContain('4f2a1c9d0b73');
   });
 
-  it('keeps a pool that cannot hold two apart from a pool that agreed', () => {
+  it('keeps a pool that cannot hold two apart from a family that agreed', () => {
     const alone = renderToStaticMarkup(
       <JourneysPanel build={build([subject()], journeys({ whole: [ITEM], found: [] }))} />,
     );
-    expect(alone).toContain('nothing here says they agreed');
-    expect(alone).not.toContain('same path');
+    expect(alone).toContain('no agreement to report');
+    expect(alone).not.toContain('one path');
 
     const agreed = renderToStaticMarkup(
       <JourneysPanel build={build([subject()], journeys({ found: [] }))} />,
     );
-    expect(agreed).toContain('took the same path through every module they share');
+    expect(agreed).toContain('one path through every module they share');
+    expect(agreed).toContain('<code>story:cart-card</code> (3 subjects)');
+  });
+
+  it('counts a story with no sibling apart from a family that agreed', () => {
+    const html = renderToStaticMarkup(
+      <JourneysPanel build={build([subject()], journeys({ whole: [ITEM, REMOVING, 'story:footer--only'], found: [] }))} />,
+    );
+
+    expect(html).toContain('1 subject is the only story of its component');
+    expect(html).toContain('<code>story:cart-card</code> (2 subjects)');
   });
 
   it('counts what the journal cut short or never held, beside the pool', () => {
@@ -147,7 +209,7 @@ describe('the panel', () => {
       />,
     );
 
-    expect(html).toContain('1 subject cut short');
+    expect(html).toContain('1 subject with a journal that ended early');
     expect(html).toContain('2 subjects with no journal at all');
   });
 });

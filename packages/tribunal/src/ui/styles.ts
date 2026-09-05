@@ -41,6 +41,7 @@
  * handed over as text, so it can ask for a face and must not require one.
  */
 import { DOCKET_STYLES } from './styles-docket.js';
+import { JOURNEY_STYLES } from './styles-journeys.js';
 import { STAGE_STYLES } from './styles-stage.js';
 
 /**
@@ -277,8 +278,7 @@ export const REVIEW_STYLES = `
 .va-reach .va-band.va-alarm { border-left-color: var(--va-bad); }
 .va-journeys .va-band { border-left: 2px solid var(--va-line-firm); margin-top: 1.1rem; padding-left: 0.85rem; }
 .va-journeys .va-band h3 { font-family: var(--va-mono); letter-spacing: 0; text-transform: none; }
-.va-journey-rows { list-style: none; margin: 0.2rem 0 0.6rem; padding: 0; }
-.va-journey-rows li { font-size: 0.8rem; margin: 0.15rem 0; }
+${JOURNEY_STYLES}
 .va-reach .va-band.va-inert { border-left-color: var(--va-warn); }
 .va-reach .va-band h3 { font-size: 0.95rem; margin-bottom: 0.25rem; }
 .va-reach .va-stability, .va-reach .va-churn { margin: 0.2rem 0 0; }
