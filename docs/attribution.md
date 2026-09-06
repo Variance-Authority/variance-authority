@@ -225,6 +225,32 @@ to fetch differs by caller — a browser-driving collector should fetch from the
 page's own context, where the origin, the cookies and the dev server's module
 graph are already correct.
 
+### Asking the engine
+
+A call site says who *wrote* an element. The other question a report needs
+answered is where the component that rendered it is *declared*, and the scan
+below answers it by name: every declaration in the configured directories that
+spells `Button`, ambiguous when two do. The page holds something better than a
+name. The fiber carries the function React called, and the engine knows where
+every function it compiled begins — V8 exposes it as `[[FunctionLocation]]`, a
+script and a position, read over the debugger protocol.
+
+So the page agent keeps every component function provenance names, held by
+identity and never serialized, and the collector asks Chromium about each one
+after a subject is read. The position is in the served module, which is the
+same coordinate a stack frame carries, so it goes through the same maps and the
+same vendor rule as a call site. What comes back is a source index whose refs
+say `via: 'engine'`, and it is laid over the scan rather than merged with it: a
+name the engine located replaces the scan's candidates for it, and a name the
+engine never met keeps them. That is what turns an ambiguous name into one
+file, because the engine can only speak for a component that rendered, which is
+exactly the one the report is about.
+
+The engine's answer reaches the run's own `source` and the composed report's
+`files` field, and `@variance-authority/playwright-test` lays it over the
+`source` an observation was given. Chromium only: the property is V8's, and on
+another engine the reader answers nothing and the scan stands as it did.
+
 ### The fallback nobody configures
 
 `indexSource` reads a file and returns component name → where it is declared,

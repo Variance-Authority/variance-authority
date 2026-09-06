@@ -7,6 +7,7 @@ import {
   type SourceLocation,
   type StackFrame,
 } from '@variance-authority/core';
+import type { DeclarationSink } from './declared.js';
 import { FiberTag, findFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { debugOwnerName, fiberComponentName } from './names.js';
 import { boundaryPropsDigest } from './props.js';
@@ -89,8 +90,13 @@ const MAX_CHAIN_DEPTH = 10_000;
  * Never throws. A collector runs this once per node across an entire document;
  * an exception on one malformed fiber would abort a capture, and a capture that
  * fails is strictly worse than a capture with one unattributed node.
+ *
+ * `declared`, when given, is told every component this walk names — the owner
+ * frames and whoever authored the element — so the functions behind the names
+ * are held somewhere the engine can be asked about them (see `declared.ts`).
+ * The chain itself is the same with or without it.
  */
-export function resolveProvenance(node: Node): ProvenanceResult {
+export function resolveProvenance(node: Node, declared?: DeclarationSink): ProvenanceResult {
   let fiber: Fiber | null;
   try {
     fiber = findFiber(node);
@@ -108,7 +114,7 @@ export function resolveProvenance(node: Node): ProvenanceResult {
   }
 
   try {
-    return { status: 'resolved', provenance: provenanceFromFiber(fiber) };
+    return { status: 'resolved', provenance: provenanceFromFiber(fiber, declared) };
   } catch {
     return NO_FIBER;
   }
@@ -120,8 +126,8 @@ export function resolveProvenance(node: Node): ProvenanceResult {
  * Discards *why* provenance is missing. Use `resolveProvenance` where the reason
  * belongs in a diagnostic.
  */
-export function provenanceOf(node: Node): Provenance | undefined {
-  const result = resolveProvenance(node);
+export function provenanceOf(node: Node, declared?: DeclarationSink): Provenance | undefined {
+  const result = resolveProvenance(node, declared);
   return result.status === 'resolved' ? result.provenance : undefined;
 }
 
@@ -135,9 +141,10 @@ function hasStaleFiber(node: Node): boolean {
   return false;
 }
 
-function provenanceFromFiber(fiber: Fiber): Provenance {
-  const owners = ownerChain(fiber);
+function provenanceFromFiber(fiber: Fiber, declared?: DeclarationSink): Provenance {
+  const owners = ownerChain(fiber, declared);
   const createdBy = debugOwnerName(fiber._debugOwner);
+  noteOwner(fiber._debugOwner, declared);
   const source = sourceLocation(fiber);
 
   // Built by assignment rather than a literal with `undefined` values:
@@ -222,7 +229,7 @@ const MAX_CALL_SITE_FRAMES = 4;
  * and is skipped, so a React release that adds or renumbers work tags shortens
  * a chain instead of crashing the collector (see `fiber.ts`).
  */
-function ownerChain(fiber: Fiber): readonly OwnerFrame[] {
+function ownerChain(fiber: Fiber, declared?: DeclarationSink): readonly OwnerFrame[] {
   const frames: OwnerFrame[] = [];
   let node: Fiber | null = fiber;
 
@@ -231,6 +238,8 @@ function ownerChain(fiber: Fiber): readonly OwnerFrame[] {
 
     if (isOwnerFrame(node)) {
       const authoredBy = debugOwnerName(node._debugOwner);
+      declared?.note(node);
+      noteOwner(node._debugOwner, declared);
       frames.push({
         name: fiberComponentName(node),
         propsDigest: boundaryPropsDigest(node.memoizedProps),
@@ -245,6 +254,16 @@ function ownerChain(fiber: Fiber): readonly OwnerFrame[] {
   }
 
   return frames;
+}
+
+/**
+ * The author of an element, when it is a client component and somebody is
+ * listening. A server component's owner is a record with a name and no function
+ * in this realm, so there is nothing for the engine to be asked about.
+ */
+function noteOwner(owner: Fiber['_debugOwner'], declared: DeclarationSink | undefined): void {
+  if (declared === undefined || !owner) return;
+  if (typeof (owner as Fiber).tag === 'number') declared.note(owner as Fiber);
 }
 
 /**

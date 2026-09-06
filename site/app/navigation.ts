@@ -191,6 +191,7 @@ export const NAVIGATION = [
     label: "Agents",
     items: [
       { href: "/agents", label: "Choose an agent workflow" },
+      { href: "/agents/questions", label: "Everything an agent can ask" },
       {
         href: "/agents/cli",
         label: "Ask a run from the command line",

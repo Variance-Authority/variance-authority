@@ -2,8 +2,8 @@ import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { createCallSiteResolver } from '@variance-authority/core';
-import { fetchModules } from '@variance-authority/playwright';
+import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core';
+import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
 import { createStoryRecorder } from './execution.js';
 import type { StorybookCollectorOptions } from './options.js';
 import { readStory, type Reading } from './read.js';
@@ -206,6 +206,20 @@ export function storybookCollector(
     // frame — and it would resolve the same modules from the same server anyway.
     const callSites = createCallSiteResolver(fetchModules(world.page));
 
+    // Asked of the engine, laid over the scan. The scan answers names it found in
+    // the configured directories; the engine answers the functions this page
+    // rendered, and where the two name the same component the engine's file is
+    // the one that ran. Read after each subject so the union grows with the run,
+    // and shared with the isolated collection because a file is not a fact about
+    // a world.
+    const declared = createDeclarationReader(world.page);
+    async function withDeclared(collected: Collected): Promise<Collected> {
+      if (!collected.ok) return collected;
+      const engine = await declared.read();
+      if (Object.keys(engine).length === 0) return collected;
+      return { ...collected, source: overlaySourceIndex(collected.source ?? {}, engine) };
+    }
+
     return {
       async plan(): Promise<Plan> {
         if (plan === undefined) {
@@ -215,7 +229,7 @@ export function storybookCollector(
       },
 
       async collect(planned: PlannedSubject): Promise<Collected> {
-        return readStory(world, reading, planned, recorder);
+        return withDeclared(await readStory(world, reading, planned, recorder));
       },
 
       /**
@@ -242,7 +256,7 @@ export function storybookCollector(
       async collectAlone(planned: PlannedSubject): Promise<Collected> {
         const alone = await openWorld(recipe);
         try {
-          return await readStory(alone, reading, planned);
+          return await withDeclared(await readStory(alone, reading, planned));
         } finally {
           // Always, including after a throw. A world left open is a browser
           // process and a port held for the rest of the run, and the run is
@@ -256,6 +270,7 @@ export function storybookCollector(
 
       async close(): Promise<void> {
         await recorder?.close();
+        await declared.close();
         // Only the run's own world. An isolated one is opened and closed inside
         // `collectAlone`, so there is never a second world alive at this point.
         await world.close();

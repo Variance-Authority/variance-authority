@@ -157,6 +157,41 @@ ledgers rather than counts — blanking is the one intervention here that can
 hide a real regression, so an operator who blanked more than they meant to can
 read back exactly what disappeared.
 
+## Where a component is declared, asked of the engine
+
+The source scan answers a name: every declaration in the configured directories
+that spells `Button`, and when two do, the name is ambiguous and the report says
+so. The page holds something better than a name. The fiber carries the function
+React called, and V8 knows where every function it compiled begins. So the page
+agent keeps the functions it met, and `createDeclarationReader(page)` asks
+Chromium over CDP for each one's `[[FunctionLocation]]`, then maps the position
+through the served module's source map to a repository file and line.
+
+```ts
+const declared = createDeclarationReader(page);
+// ...after the agent has read a subject...
+const engine = await declared.read(); // SourceIndex, every ref `via: 'engine'`
+const source = overlaySourceIndex(scanned, engine);
+await declared.close();
+```
+
+`read()` is incremental: the registry in the page only grows, each read asks
+about what is new and returns the union, and a registry rebuilt by a navigation
+starts the count over. `stats` counts what was asked and what mapped to a file
+the project wrote; the vendor rule is the call-site resolver's, so a component
+declared in `node_modules` is not an answer.
+
+Chromium only. On WebKit and Firefox `newCDPSession` throws, the reader notes it
+once, and `read()` answers the empty index for the rest of the page's life.
+Nothing downstream tells that from a page with no components, and the scan still
+stands underneath.
+
+`global` names the global the agent is installed at, `AGENT_GLOBAL` unless the
+bundle chose another. `fetchModule` supplies the fetch for served modules and
+their maps, from inside the page unless told otherwise — the same choice the
+call-site path makes, and for the same reason. `root` is the path an answer is
+made relative to, the working directory unless told otherwise.
+
 ## Which engine paints
 
 ```ts

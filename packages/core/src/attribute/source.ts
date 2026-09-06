@@ -29,8 +29,15 @@ export interface SourceRef {
   /** Repository-relative, so a report is portable between machines and CI. */
   readonly file: string;
   readonly line: number;
-  /** How the declaration was recognised. Carried so a bad match is debuggable. */
-  readonly via: 'function' | 'const' | 'class' | 'declared';
+  /**
+   * How the declaration was recognised. Carried so a bad match is debuggable.
+   *
+   * The first four are shapes a scan of the source text matched by name.
+   * `engine` is the one that is not a match at all: the browser was asked where
+   * the function it rendered was compiled from, and that position was mapped
+   * back to the file. It names the component that ran, whatever it was called.
+   */
+  readonly via: 'function' | 'const' | 'class' | 'declared' | 'engine';
 }
 
 /**
@@ -126,4 +133,17 @@ export function mergeSourceIndexes(indexes: readonly SourceIndex[]): SourceIndex
   }
 
   return merged;
+}
+
+/**
+ * One index laid over another: a name the overlay holds replaces the base's refs.
+ *
+ * Not a merge. A scan finds every file that declares a `Button`, and reports the
+ * pair as ambiguous because the text cannot say which one a page rendered. The
+ * engine can, and when it has answered for a name the scan's guesses for that
+ * name are no longer the question. A name the overlay never saw keeps what the
+ * base had, so a component the page did not mount still has a file.
+ */
+export function overlaySourceIndex(base: SourceIndex, overlay: SourceIndex): SourceIndex {
+  return { ...base, ...overlay };
 }

@@ -70,6 +70,7 @@ or annotation; commit evidence needs the hook React already offers renderers.
 | `remountedSince` | which instances were destroyed and rebuilt rather than updated — a **finding**: a fact about this one reading, not a diff between two revisions |
 | `awaitSuspense` / `suspenseRefusal` | wait for every boundary under a node to settle, and rule on what to do if one did not |
 | `tapCommits` / `awaitQuiet` | which components performed work, and which live component instances initiated each commit — the one instrument here with a precondition: it must be installed before `react-dom` loads, and refuses rather than reporting a page it reached too late |
+| `createDeclarationRegistry` | the functions behind the names provenance reports, held by identity so an engine can be asked where each was declared — handed to `provenanceOf` as its second argument, read by `@variance-authority/playwright`'s `createDeclarationReader` |
 | `memoizedUpdatersOf` | React's `memoizedUpdaters` set as portable structural component paths, with an optional JSX source coordinate |
 | `walkFiberSubtree` / `fiberParentChain` / `componentFiberPath` / `fiberSourceLocation` | bounded read-only traversal for a caller that already has a Fiber |
 

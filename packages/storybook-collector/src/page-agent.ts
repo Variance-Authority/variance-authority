@@ -6,6 +6,7 @@ import {
 } from '@variance-authority/dom';
 import {
   awaitSuspense,
+  createDeclarationRegistry,
   holdingOf,
   portalContentOf,
   provenanceOf,
@@ -188,7 +189,7 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...shared,
     engine: request.engine,
     portalsOf: portalContentOf,
-    provenanceOf,
+    provenanceOf: (node: Node) => provenanceOf(node, declared),
     ...(request.wiring === false ? {} : { wiringOf }),
     ...(request.holdings === true ? { holdingOf } : {}),
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
@@ -197,5 +198,13 @@ export async function acquire(request: AcquireRequest): Promise<string> {
 
   return JSON.stringify({ document, capture, stabilization: held.ids, suspense });
 }
+
+/**
+ * The components this bundle has met, kept for the engine to be asked where
+ * each is declared (`createDeclarationReader` on the Node side). One per
+ * bundle installation: the reader keys its progress on `id`, and a page that
+ * installs the bundle again is a page whose functions are new objects.
+ */
+export const declared = createDeclarationRegistry();
 
 export const AGENT_VERSION = 'storybook-collector@0';

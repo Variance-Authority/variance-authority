@@ -5,6 +5,7 @@ import type {
   EchoRecord,
   MovementRecord,
 } from '@variance-authority/report';
+import { recall } from './recall.js';
 import type { Tool } from './tool.js';
 
 /**
@@ -56,14 +57,22 @@ export const composition: Tool = {
     'explains it. Movements nothing explains are named here: `flake` where the subject also ' +
     'failed to read the same way twice, `suspect` where nobody has read it twice yet. Pass ' +
     '`component` for one component’s census entry, the subjects it holds in, and the examples ' +
-    'that watch it. Ask this when a change has no obvious author, when you need the component ' +
-    'behind a set of diffs, or before calling anything flaky.',
+    'that watch it; pass `subject` for what one subject is made of — its boundaries as a tree, ' +
+    'who mounted each, how many of each and in how many variants, and which of its renderings ' +
+    'other subjects share. Ask this when a change has no obvious author, when you need the ' +
+    'component behind a set of diffs, before calling anything flaky, or when `variance_locate` ' +
+    'named a subject and you need to see inside it.',
   inputSchema: {
     type: 'object',
     properties: {
       component: {
         type: 'string',
         description: 'Optional. One component’s entry in the graph, instead of the whole suite.',
+      },
+      subject: {
+        type: 'string',
+        description:
+          'Optional. One subject’s composition — its boundaries as a tree — instead of the whole suite.',
       },
     },
     additionalProperties: false,
@@ -72,6 +81,9 @@ export const composition: Tool = {
   run(report, input) {
     const composed = report.composition;
     if (composed === undefined) return ABSENT;
+
+    const subject = typeof input?.['subject'] === 'string' ? input['subject'] : undefined;
+    if (subject !== undefined) return recall(report, composed, subject);
 
     const wanted = typeof input?.['component'] === 'string' ? input['component'] : undefined;
     return wanted === undefined ? whole(composed) : one(composed, wanted);
@@ -153,7 +165,10 @@ function headline(composed: CompositionReport, unexplained: number): string {
   return (
     `${composed.components.length} component(s) across ${composed.subjects.length} subject(s) — ` +
     `${echoes} shared rendering(s), ${composed.divergences.length} divergence(s), ${movements}\n` +
-    `  components: ${preview(composed.components.map((entry) => entry.component), 20)}`
+    `  components: ${preview(
+      composed.components.map((entry) => entry.component),
+      20,
+    )}`
   );
 }
 
@@ -337,7 +352,10 @@ function orphanSection(components: readonly ComponentRecord[]): string {
 
   return (
     `no example of their own (${orphans.length}): ` +
-    `${preview(orphans.map((entry) => entry.component), 12)}\n` +
+    `${preview(
+      orphans.map((entry) => entry.component),
+      12,
+    )}\n` +
     '  These appear only inside larger subjects, so a change to one is reviewed through ' +
     'whatever page happens to contain it.'
   );
@@ -387,10 +405,10 @@ function census(entry: ComponentRecord): string {
  *
  * A component that renders nothing but other components owns no DOM node, is a
  * boundary nowhere, and has no entry — while being exactly the file a reviewer
- * has to open, because it is where the props are written. Measured on
- * `examples/todomvc`: `TodoFooter` is in no entry and is the `createdBy` of
- * every `Chip`. Answering that with "no such component" would send an agent
- * looking for a typo in the one name that would have explained the run.
+ * has to open, because it is where the props are written. A wrapper that only
+ * forwards to a design-system primitive is the ordinary case. Answering that
+ * with "no such component" would send an agent looking for a typo in the one
+ * name that would have explained the run.
  */
 function missing(composed: CompositionReport, wanted: string): string {
   const mounted = composed.components

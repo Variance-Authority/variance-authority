@@ -1,5 +1,5 @@
 import { AGENT_GLOBAL, type CaptureRequest } from '@variance-authority/playwright/agent';
-import { AGENT_VERSION, acquire, type AcquireRequest } from './page-agent.js';
+import { AGENT_VERSION, acquire, declared, type AcquireRequest } from './page-agent.js';
 
 /**
  * The bundle's entry point, and the only module here with a side effect.
@@ -35,6 +35,7 @@ async function acquireFor(request: CaptureRequest): Promise<string> {
 
 (globalThis as unknown as Record<string, unknown>)[AGENT_GLOBAL] = {
   version: AGENT_VERSION,
+  declared,
   acquire: (request: AcquireRequest) => acquire(request),
   capture: async (request: CaptureRequest) =>
     JSON.stringify(JSON.parse(await acquireFor(request)).capture),

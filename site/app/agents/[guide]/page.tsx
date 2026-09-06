@@ -14,7 +14,7 @@ interface PageProps {
 
 export const dynamicParams = false;
 
-const GUIDES = ["cli", "mcp", "live-run", "workspace-api"] as const;
+const GUIDES = ["questions", "cli", "mcp", "live-run", "workspace-api"] as const;
 
 export function generateStaticParams() {
   return GUIDES.map((guide) => ({ guide }));

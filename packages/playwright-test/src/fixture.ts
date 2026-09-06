@@ -11,11 +11,13 @@ import {
   documentDigest,
   hashComponents,
   normalize,
+  overlaySourceIndex,
 } from '@variance-authority/core';
 import type {
   CaptureArtifact,
   AccessibilitySnapshot,
   SemanticSnapshot,
+  SourceIndex,
   SubjectRef,
   Viewport,
 } from '@variance-authority/core';
@@ -24,7 +26,7 @@ import {
   observeCaptureAgainstBaseline,
   type Observation,
 } from '@variance-authority/observe';
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import { createDeclarationReader, createPlaywrightRenderer, type DeclarationReader } from '@variance-authority/playwright';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
 import { createDurableStore } from '@variance-authority/store';
@@ -47,7 +49,7 @@ import {
 import { varianceVantageFixtures } from './vantage.js';
 import type { VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
-import type { AcquireRequest } from './page-agent.js';
+import { AGENT, type AcquireRequest } from './page-agent.js';
 
 /**
  * The optional Playwright fixture parts, for a suite that already owns a shared
@@ -111,6 +113,11 @@ export interface VarianceRuntime {
   readonly renderer?: Renderer;
   readonly store: RasterStore;
   readonly materialization?: MaterializationOptions;
+  /**
+   * Where the components this page rendered are declared, asked of the engine.
+   * Laid over `options.source` for the artifact; absent when nobody opened one.
+   */
+  readonly declared?: DeclarationReader;
 }
 
 /**
@@ -236,6 +243,7 @@ export const varianceFixtures: Fixtures<
     void varianceJourney;
     await page.addInitScript(varianceBundle);
     const owner = varianceRecorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
+    const declared = createDeclarationReader(page, { global: AGENT });
     await use(async (locator, options) => {
       try {
         return await observeLocator(
@@ -244,6 +252,7 @@ export const varianceFixtures: Fixtures<
             testInfo,
             renderer: varianceRenderer,
             store: varianceStore,
+            declared,
           },
           locator,
           options,
@@ -255,10 +264,20 @@ export const varianceFixtures: Fixtures<
         if (owner !== undefined) await varianceRecorder!.note(page, owner);
       }
     });
+    await declared.close();
     // After `use`, which is where the runner has already decided this test.
     if (owner !== undefined) varianceRecorder!.mark(owner, testInfo.status === 'passed');
   },
 };
+
+async function sourceOf(
+  runtime: VarianceRuntime,
+  given: SourceIndex | undefined,
+): Promise<SourceIndex | undefined> {
+  const engine = await runtime.declared?.read();
+  if (engine === undefined || Object.keys(engine).length === 0) return given;
+  return overlaySourceIndex(given ?? {}, engine);
+}
 
 export async function observeLocator(
   runtime: VarianceRuntime,
@@ -290,6 +309,11 @@ export async function observeLocator(
 
   const acquired = await acquireFrom(page, locator, request);
   const { document, capture, suspense, stabilization, accessibility } = acquired;
+
+  // The engine's answer laid over the caller's index, read after the acquisition
+  // that registered this subject's components. Absent altogether when neither
+  // has anything to say, so an artifact without a source index stays one.
+  const source = await sourceOf(runtime, options.source);
   const unsettled = suspenseRefusal(suspense, {
     subjectId: subject.id,
     declaredLoading: options.loading === true,
@@ -332,7 +356,7 @@ export async function observeLocator(
       material: { kind: 'raster', raster: candidate },
       snapshot,
       accessibility,
-      ...(options.source === undefined ? {} : { source: options.source }),
+      ...(source === undefined ? {} : { source }),
       stabilization: stabilization.ids,
     };
     const observation = await observeCaptureAgainstBaseline(artifact, key, { store });
@@ -386,7 +410,7 @@ export async function observeLocator(
     store,
     snapshot,
     accessibility,
-    ...(options.source !== undefined ? { source: options.source } : {}),
+    ...(source !== undefined ? { source } : {}),
   });
 
   if (accepting(testInfo) && observation.verdict !== 'unchanged') {

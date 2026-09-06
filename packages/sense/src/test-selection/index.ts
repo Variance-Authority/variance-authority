@@ -75,6 +75,14 @@ export interface CoverageTest {
   readonly preconditions: readonly CoveragePrecondition[];
 }
 
+/**
+ * The execution journal as a whole: every test the recording held, every module
+ * it instrumented, and for each region of a module the tests that entered it.
+ *
+ * One presence bit per region and test is the entire record; what a run reads
+ * off it — where two subjects parted, which subjects a diff reaches, the places
+ * each subject entered — is derived from these lists and never written back.
+ */
 export interface TestCoverage {
   readonly version: 3;
   /** Probe recipe that produced every block and crossing in this snapshot. */

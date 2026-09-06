@@ -306,3 +306,62 @@ describe('globs that overlap', () => {
     ).toThrow(/disagree about whether it was looked at/);
   });
 });
+
+describe('the section a split keeps', () => {
+  // A subject's names are a fact about one subject, and one subject is in one
+  // shard — so the entries concatenate and nothing is a lower bound.
+  const named = (): readonly Shard[] => [
+    shard('one.json', {
+      observations: [observation('story:a')],
+      lexicon: {
+        version: 1,
+        fields: ['example', 'components', 'createdBy', 'regions', 'tokens'],
+        subjects: [
+          {
+            subject: 'story:a',
+            boundaries: 2,
+            terms: { components: ['Button'], regions: ['Button/onPress'] },
+            elided: { regions: 3 },
+          },
+        ],
+      },
+    }),
+    shard('two.json', {
+      observations: [observation('story:b')],
+      lexicon: {
+        version: 1,
+        fields: ['example', 'components', 'createdBy', 'tokens'],
+        subjects: [{ subject: 'story:b', boundaries: 1, terms: { components: ['Chip'] } }],
+      },
+    }),
+    shard('three.json', { observations: [observation('story:c')] }),
+  ];
+
+  it('carries every subject, in shard order', () => {
+    expect(mergeReports(named()).lexicon?.subjects.map((entry) => entry.subject)).toEqual([
+      'story:a',
+      'story:b',
+    ]);
+  });
+
+  it('claims only the fields every shard read, and cuts the entries to them', () => {
+    // `two.json` ran without a journal. A merged report listing `regions` would
+    // send a reader searching a field half the suite never had, and no match
+    // there would read as "no subject entered it".
+    const merged = mergeReports(named()).lexicon!;
+    expect(merged.fields).toEqual(['example', 'components', 'createdBy', 'tokens']);
+    expect(merged.subjects[0]).toEqual({
+      subject: 'story:a',
+      boundaries: 2,
+      terms: { components: ['Button'] },
+    });
+  });
+
+  it('is absent when no shard wrote one', () => {
+    expect(mergeReports(split())).not.toHaveProperty('lexicon');
+  });
+
+  it('is not what the composition warning is about', () => {
+    expect(mergeReports(named()).warnings).toBeUndefined();
+  });
+});

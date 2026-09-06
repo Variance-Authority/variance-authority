@@ -11,6 +11,7 @@ import { describe } from './tools/describe.js';
 import { diff, diffState, type StateDifference } from './tools/diff.js';
 import { explain } from './tools/explain-verdict.js';
 import { findings } from './tools/findings.js';
+import { locate } from './tools/locate.js';
 import { summarize } from './tools/summary.js';
 import { attention } from './tools/attention.js';
 import { observability, testingSurface } from './tools/observability.js';
@@ -60,12 +61,20 @@ import { variations } from './tools/variations.js';
  * says, which is *three things happened and one of them explains thirty-one*.
  *
  * `variance_composition` follows `adjudicate`, and the boundary it sits on is
- * the one worth seeing: the first seven answer about the *suite* and the last four narrow to a
+ * the one worth seeing: the first eight answer about the *suite* and the last four narrow to a
  * subject. It goes after `changes` rather than before because the two reshape
  * the same run along different axes and only one of them is about this run's
  * diff — `changes` says which decisions there are, and this says which component
  * and which caller is behind one, including when the answer is *nothing in this
  * run*.
+ *
+ * `variance_locate` follows `composition` because it is the door into it. Every
+ * tool from here on takes a subject id, and on a suite too large for
+ * `variance_summary` to be read the id is the one thing an agent does not
+ * hold; it holds a description. This is the only tool here whose answer is a
+ * list of ids and nothing else — no verdict, no pixel, no file — because a
+ * ranked orientation is allowed to be wrong at the top in a way a finding is
+ * not, and the answer is shaped so that being wrong costs one more call.
  *
  * `variance_variations` follows it, on the same axis and one step further out. Both
  * compare this run to itself; `composition` compares subjects that were never
@@ -141,7 +150,7 @@ export function vantageToolByName(name: string): Tool<VantageState> | undefined 
  * The report tools, in the order argued above.
  *
  * Exported as a list, and not only through `toolByName`, because `variance ask`
- * offers the same eleven questions from a shell to the agents that cannot host a
+ * offers the same twelve questions from a shell to the agents that cannot host a
  * server. A set enumerated on that side would be short by one the day a tool is
  * added here, and short in the direction nobody checks: the CLI would keep
  * working and would quietly be a smaller product than the connection.
@@ -155,6 +164,7 @@ export const TOOLS: readonly Tool[] = [
   changes,
   adjudicate,
   composition,
+  locate,
   variations,
   changelog,
   describe,

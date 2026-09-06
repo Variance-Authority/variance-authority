@@ -201,8 +201,26 @@ export async function recordedJourneys(
   const held = new Set(coverage.tests.map((test) => test.file));
   const inScope = coverage.tests.filter((test) => wanted === undefined || wanted.has(test.file));
 
+  const entered = new Map<string, Set<string>>();
+  for (const module of coverage.modules) {
+    if (!module.instrumented) continue;
+    for (const block of module.blocks) {
+      if (!block.source) continue;
+      for (const test of block.testFiles) {
+        if (wanted !== undefined && !wanted.has(test)) continue;
+        let names = entered.get(test);
+        if (names === undefined) entered.set(test, (names = new Set()));
+        names.add(block.name);
+      }
+    }
+  }
+
   return {
     at: file,
+    entered: new Map(
+      [...entered].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([subject, names]) => [subject, sorted([...names])]),
+    ),
     recorded: {
       ...(coverage.commit === undefined ? {} : { commit: coverage.commit }),
       whole: sorted(inScope.filter((test) => test.complete).map((test) => test.file)),

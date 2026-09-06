@@ -42,6 +42,8 @@ An agent asks for it by name:
 ```ts
 toolByName('variance_composition')?.run(report, {});
 toolByName('variance_composition')?.run(report, { component: 'Chip' });
+toolByName('variance_composition')?.run(report, { subject: 'page/footer--counts' });
+toolByName('variance_locate')?.run(report, { query: 'footer chips' });
 ```
 
 **Absent on a raster-only or ephemeral tier**, which has no boundaries to join.
@@ -53,7 +55,11 @@ which is a different claim and a false one.
 — and the merge says so in a warning rather than leaving a hole. Two subjects
 sharing a rendering *are* the finding, so a pair that landed in different shards
 is in neither shard's report and a union of the shard graphs would be a graph
-with every cross-shard edge missing and nothing marking where.
+with every cross-shard edge missing and nothing marking where. The structure
+rows go with it. The lexicon does not: a subject's names are a fact about one
+subject, and one subject is in one shard, so the merged report carries every
+entry under the fields all the shards read. A slice run without a journal keeps
+`regions` out of the whole, and the tool says so.
 
 ## Where a boundary is placed
 
@@ -399,6 +405,126 @@ Composition stops at an unexplained difference. How the run orders its shortlist
 and turns a second reading into a verdict belongs to
 [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it).
 
+## The subject in hand, and the one you can only describe
+
+The census runs component-first: which component, in how many subjects, mounted
+by whom. An agent arriving at a report asks the other way round — *what is
+`page/footer--counts` made of*, and before that, *which subject is the one I
+mean*. Both are answered from what the run wrote, and neither re-reads a
+snapshot.
+
+### One subject, as rows
+
+`variance_composition {subject}` prints the subject's boundaries as a tree, in
+document order, with identical rows folded: same component, same depth, same
+enclosing boundary, same creator. What differed among the folded boundaries
+survives as a variant count, so three chips under one stack are one row that
+says there were three and that their props differed.
+
+```
+page/footer--counts — 5 component(s), 7 boundaries; the example of TodoFooter
+    TodoFooter
+      Stack · created by TodoFooter
+        Text · created by TodoFooter
+        Chip ×3 (3 variants) · created by TodoFooter
+        Button · created by TodoFooter
+
+shared with other subjects (7) — one diff to read, wherever it is read
+  Chip @ v1:16628bcc05678b80b95cd555242b6b35 also in ds/chip--group, page/todos--empty, page/todos--populated, page/todos--drafting
+  TodoFooter @ v1:2421300f2b85f97bb876a64f2651a2d7 also in page/todos--populated, page/todos--drafting (example page/footer--counts)
+  …
+```
+
+The rows are the `structure` section of the report, one record per composed
+subject, written by the run beside the census. A subject whose nodes carry no
+provenance gets an empty record rather than none, because *nothing attributed*
+and *never composed* are different facts. The second half is the echo list
+filtered to this subject and folded by rendering: the census keys an echo under
+the props class it was found in, so one rendering reached from three props
+digests is three records there and one row here.
+
+Three absences, three sentences. A report with no structure section says the
+tier did not compose; a subject the plan held and the run did not observe says
+so and points at `variance_explain_verdict`; an id the run never planned lists
+what it did plan and points at `variance_locate`.
+
+### The subject you can only describe
+
+The run writes a **lexicon**: per subject, per field, the distinct values the
+subject carried, code-unit sorted, capped at 200 with the overflow counted. The
+fields, and where each comes from:
+
+| field | from |
+|---|---|
+| `example` | the census: the components this subject is the narrow example of |
+| `names` | the semantic snapshot: accessible name, description, `placeholder`, `alt`, `title` |
+| `text` | the snapshot's text band, minus any text the policy digested as volatile |
+| `components`, `createdBy` | every attributed boundary |
+| `regions` | the execution journal: the lexical names of the regions this subject entered |
+| `files` | call-site provenance on the nodes, and the source index for each component |
+| `roles` | the snapshot |
+| `tokens` | the custom properties the boundaries resolved through |
+
+A field the run could not read is absent from the report's field list, not
+present and empty. No snapshot means no `names`, `text` or `roles`; no journal
+means no `regions`; a production build with the owner links stripped has an
+empty `createdBy` on every subject; and the tool says which of these it is
+looking at, per field, before it says what matched.
+
+`variance_locate {query}` tokenises the query by the rule the values were
+tokenised by — split on separators and camel case, fold ASCII case and a
+trailing plural, keep the unsplit compound so `TodoFooter` typed whole still
+meets `TodoFooter`. A term matches a value when every part of the term matches
+a token of the value, exactly or by a prefix of three or more characters.
+
+```
+7 of 15 subject(s) match `footer chips`.
+Read: id, example, names, text, components, createdBy, files, roles, tokens.
+Not read: regions (no execution journal was read).
+
+page/footer--counts · 7 boundaries · example of TodoFooter
+  footer: id `page/footer--counts`; example `TodoFooter`; components `TodoFooter`; createdBy `TodoFooter`
+  chips: components `Chip`
+page/todos--empty · 17 boundaries · example of TodoApp
+  footer: components `TodoFooter`; createdBy `TodoFooter`
+  chips: components `Chip`
+…
+ds/chip--group · 4 boundaries · example of Stack
+  chips: id `ds/chip--group`; components `Chip`
+
+next: variance_composition {subject: "page/footer--counts"} · variance_describe {subject: "page/footer--counts"}
+```
+
+The order is orientation, never evidence. A hit ranks by how many of the
+query's terms it matched, then by an integer weight per field times an integer
+rarity of the word in that field across the subjects, then by fewer
+boundaries, then by id. Rarity is per field because the fields hold different
+populations: every subject enters `createCard` while the cards module
+evaluates, and that says nothing about the one id that says `card`. No float
+reaches the sort, and every hit prints the field and the value it matched on,
+so the fact stands under the order. A term no subject holds is named as such,
+beside the accessible names the run did record, so the next query is asked in
+the suite's vocabulary rather than the agent's. There is no thesaurus and no
+model. `checkbox` finds `ds/toggle--states` because the run wrote down that
+the toggle's role is `checkbox`; `footer` finds the footer story because its
+id, its example and its creator all say so.
+
+Measured on todomvc — twenty questions, each with the subject a person would
+open, and five the suite holds no subject for:
+
+| | |
+|---|---|
+| the person's subject is the first hit | 19 of 20 |
+| the person's subject is among the first three | 20 of 20 |
+| a question with no answer gets no hit | 5 of 5 |
+
+The miss is `clear completed`, where the page whose id holds `completed`
+outranks the footer that holds the button, and the footer is second. The
+control is printed beside it: fifteen ids fit in one `variance_summary`, and an
+agent that can read them scores 20 of 20 by scanning. The tool earns its place
+on a suite whose ids do not fit in one answer; on this one, the measurement
+shows only that it agrees with the reader.
+
 ## What it costs
 
 One pass over the instances every subject already reported, after the worker pool
@@ -413,7 +539,9 @@ carries one entry per boundary per subject — tens of thousands of objects on a
 — and a report is a file people open, so the record keeps the names, the counts
 and the subject lists, and a consumer that wants the graph recomputes it from the
 snapshots. The echo list is capped at 100 and what the cap left out is counted in
-the artifact, because a cap that says nothing reads as coverage.
+the artifact, because a cap that says nothing reads as coverage. The structure
+rows and the lexicon join the artifact on the same terms — rows and names, never
+the graph — and on todomvc each is about a third of the report.
 
 ## What this refuses to conclude
 
@@ -447,8 +575,9 @@ and gets no composition attribution.
 framework, one development build, one machine, and a change set declared by the
 example rather than read from a repository's history. Every number is an
 assertion in
-[`composition.test.tsx`](../examples/todomvc/src/composition.test.tsx) and
-[`closure.test.tsx`](../examples/todomvc/src/closure.test.tsx), which are small
+[`composition.test.tsx`](../examples/todomvc/src/composition.test.tsx),
+[`closure.test.tsx`](../examples/todomvc/src/closure.test.tsx) and
+[`locate.test.tsx`](../examples/todomvc/src/locate.test.tsx), which are small
 enough that their measurements are the claim.
 
 ---
@@ -460,7 +589,10 @@ component name on it ·
 [`flakiness.md`](flakiness.md#nothing-in-this-run-explains-it) for
 what an unexplained difference becomes ·
 [`history.md`](history.md) for the same questions across runs ·
-[`packages/mcp`](../packages/mcp) for `variance_composition` ·
+[`packages/mcp`](../packages/mcp) for `variance_composition` and
+`variance_locate` ·
+[ADR-0057](context/adr/0057-the-run-writes-every-name-it-saw.md)
+for why the names are a section of the report and the order is never evidence ·
 [ADR-0033](context/adr/0033-the-component-that-mounted-it-is-not-the-one-it-sits-in.md)
 for why `created by` is recorded beside `within` ·
 [ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md)

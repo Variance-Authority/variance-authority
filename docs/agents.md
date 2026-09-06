@@ -13,7 +13,9 @@ different owners and lifetimes, so they use different agent paths.
 | What is an executing suite doing, and where did one test stop making progress? | Process-local test lifecycle and announcement signals | [Inspect a live run](agent-live-run.md) |
 | What does this workspace publish, where is a symbol declared, and which packages import it? | Manifests and current TypeScript source | [Inspect the workspace public API](agent-workspace-api.md) |
 
-These are alternate entrances, not stages of one workflow. A live signal does
+These are alternate entrances, not stages of one workflow, and they ask from
+one list: [everything an agent can ask](agent-questions.md) is the whole of it
+in the order the shipped skill follows. A live signal does
 not become retained evidence, and a public-API reading says nothing about what a
 test executed.
 

@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createCallSiteResolver } from '@variance-authority/core';
-import { fetchModules } from '@variance-authority/playwright';
+import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core';
+import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
 import { operatorError } from './operator.js';
 import { readRoute, type RouteReading } from './read.js';
 import { scanSource } from './source.js';
@@ -167,6 +167,20 @@ export function routeCollector(
     // isolated world is closed before anyone could ask it for a frame.
     const callSites = createCallSiteResolver(fetchModules(world.page));
 
+    // Asked of the engine, laid over the scan. The scan answers names it found in
+    // the configured directories; the engine answers the functions this page
+    // rendered, and where the two name the same component the engine's file is
+    // the one that ran. Read after each subject so the union grows with the run,
+    // and shared with the isolated collection because a file is not a fact about
+    // a world.
+    const declared = createDeclarationReader(world.page);
+    async function withDeclared(collected: Collected): Promise<Collected> {
+      if (!collected.ok) return collected;
+      const engine = await declared.read();
+      if (Object.keys(engine).length === 0) return collected;
+      return { ...collected, source: overlaySourceIndex(collected.source ?? {}, engine) };
+    }
+
     // Filled by `plan()` when the routes are discovered rather than declared.
     let resolved: Readonly<Record<string, string>> | undefined;
     // Held for the run's lifetime when a directory is being served, and closed
@@ -242,7 +256,7 @@ export function routeCollector(
       },
 
       async collect(planned: PlannedSubject): Promise<Collected> {
-        return readRoute(world, reading(), planned);
+        return withDeclared(await readRoute(world, reading(), planned));
       },
 
       /**
@@ -272,7 +286,7 @@ export function routeCollector(
       async collectAlone(planned: PlannedSubject): Promise<Collected> {
         const alone = await openWorld({ ...recipe, harness: { ...recipe.harness, url: 'about:blank' } });
         try {
-          return await readRoute(alone, reading(), planned);
+          return await withDeclared(await readRoute(alone, reading(), planned));
         } finally {
           // Always, including after a throw. A world left open is a browser
           // process held for the rest of the run, and the run is still going:
@@ -284,6 +298,7 @@ export function routeCollector(
       callSites,
 
       async close(): Promise<void> {
+        await declared.close();
         // Only the run's own world. An isolated one is opened and closed inside
         // `collectAlone`, so there is never a second world alive at this point.
         await world.close();

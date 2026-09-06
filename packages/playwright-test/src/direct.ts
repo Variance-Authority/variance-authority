@@ -1,6 +1,6 @@
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import type { Observation } from '@variance-authority/observe';
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import { createDeclarationReader, createPlaywrightRenderer } from '@variance-authority/playwright';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store';
 import { bundlePageAgent } from './bundle.js';
@@ -101,6 +101,8 @@ export async function createVariance(
       ? options.renderer ?? (await createPlaywrightRenderer())
       : options.renderer;
 
+  const declared = createDeclarationReader(page, { global: AGENT });
+
   return {
     observe: async (locator, varianceOptions) => {
       if (closed) throw new Error('the variance session is closed');
@@ -111,6 +113,7 @@ export async function createVariance(
             testInfo,
             store,
             materialization,
+            declared,
             ...(renderer === undefined ? {} : { renderer }),
           },
           locator,
@@ -129,6 +132,7 @@ export async function createVariance(
     close: async () => {
       if (closed) return;
       closed = true;
+      await declared.close();
       await recorder?.close();
       if (ownsRenderer) await renderer!.close();
     },

@@ -92,6 +92,15 @@ export interface JourneyReading {
   readonly at: string;
   /** What was read there. Absent when this repository has no snapshot. */
   readonly recorded?: RecordedJourneys;
+  /**
+   * Subject → the lexical names of the regions its recording entered, over the
+   * modules the instrument holds source for. The journal's own shape read the
+   * other way: it keeps a region and the tests that entered it, and the lexicon
+   * wants a subject and the regions it entered. Absent with `recorded`, and
+   * carrying only subjects the journal holds, complete or not; a truncated
+   * recording entered what it entered.
+   */
+  readonly entered?: ReadonlyMap<string, readonly string[]>;
 }
 
 export interface JourneysInput extends JourneyReading {

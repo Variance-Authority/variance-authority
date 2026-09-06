@@ -381,3 +381,87 @@ describe('a run that composed nothing', () => {
     expect(answer).not.toContain('components: ');
   });
 });
+
+describe('one subject — the recall the run wrote down', () => {
+  const structured: RunReport = {
+    ...REPORT,
+    notObserved: [{ subject: 'page/skipped', reason: 'render failed', because: 'threw' }],
+    composition: {
+      ...COMPOSED,
+      structure: [
+        {
+          subject: 'page/all',
+          rows: [
+            { component: 'TodoApp', depth: 0, count: 1, variants: 1 },
+            { component: 'Card', depth: 1, within: 'TodoApp', createdBy: 'TodoApp', count: 1, variants: 1 },
+            { component: 'Stack', depth: 2, within: 'Card', createdBy: 'TodoApp', count: 1, variants: 1 },
+            { component: 'Chip', depth: 3, within: 'Stack', createdBy: 'TodoFooter', count: 3, variants: 2 },
+            { component: 'Button', depth: 3, within: 'Stack', createdBy: 'TodoHeader', count: 1, variants: 1 },
+          ],
+        },
+        { subject: 'page/bare', rows: [] },
+      ],
+    },
+  };
+
+  it('prints the tree in document order, with who mounted each row and how many it stands for', () => {
+    const answer = composition.run(structured, { subject: 'page/all' });
+    const lines = answer.split('\n');
+
+    expect(lines[0]).toBe('page/all — 5 component(s), 7 boundaries');
+    expect(lines.slice(1, 6)).toEqual([
+      '  TodoApp',
+      '    Card · created by TodoApp',
+      '      Stack · created by TodoApp',
+      '        Chip ×3 (2 variants) · created by TodoFooter',
+      '        Button · created by TodoHeader',
+    ]);
+  });
+
+  it('follows with the renderings this subject shares, and only those', () => {
+    const answer = composition.run(structured, { subject: 'page/all' });
+
+    expect(answer).toContain('shared with other subjects (2)');
+    expect(answer).toContain('Chip @ v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa also in ds/chip--group, page/active (example ds/chip--group)');
+    expect(answer).toContain('Stack @ v1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb also in page/active');
+  });
+
+  it('folds one rendering found under several props classes into one row', () => {
+    const twice = {
+      ...structured,
+      composition: {
+        ...structured.composition!,
+        echoes: [
+          { component: 'TodoItem', rendering: 'v1:cccccccccccccccccccccccccccccccc', subjects: ['page/all', 'page/active'], sites: 2 },
+          { component: 'TodoItem', rendering: 'v1:cccccccccccccccccccccccccccccccc', subjects: ['page/all', 'page/done'], sites: 2, example: 'page/done' },
+        ],
+      },
+    };
+    const answer = composition.run(twice, { subject: 'page/all' });
+
+    expect(answer).toContain('shared with other subjects (1)');
+    expect(answer).toContain('TodoItem @ v1:cccccccccccccccccccccccccccccccc also in page/active, page/done (example page/done)');
+  });
+
+  it('names the component a subject is the example of', () => {
+    const answer = composition.run(
+      { ...structured, composition: { ...structured.composition!, structure: [{ subject: 'page/active', rows: [{ component: 'Card', depth: 0, count: 1, variants: 1 }] }] } },
+      { subject: 'page/active' },
+    );
+    expect(answer.split('\n')[0]).toBe('page/active — 1 component(s), 1 boundary; the example of Card');
+  });
+
+  it('says when a composed subject carries no attributed boundary at all', () => {
+    const answer = composition.run(structured, { subject: 'page/bare' });
+    expect(answer).toContain('no attributed boundary');
+    expect(answer).not.toContain('shared with');
+  });
+
+  it('keeps three absences apart: no structure, planned and unobserved, unknown', () => {
+    expect(composition.run(REPORT, { subject: 'page/all' })).toContain('carries no per-subject structure');
+    expect(composition.run(structured, { subject: 'page/skipped' })).toContain('planned and not observed');
+    const unknown = composition.run(structured, { subject: 'page/typo' });
+    expect(unknown).toContain('not among the 4 subject(s) this run composed');
+    expect(unknown).toContain('variance_locate');
+  });
+});

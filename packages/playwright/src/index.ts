@@ -40,6 +40,9 @@ export type { BlankRule, ImageSize } from './blank.js';
 
 export { fetchModules } from './modules.js';
 
+export { createDeclarationReader } from './declarations.js';
+export type { DeclarationReader, DeclarationReaderOptions, DeclarationStats } from './declarations.js';
+
 export { AGENT_GLOBAL } from './agent.js';
 export { acquireFromAgent } from './acquire.js';
-export type { CaptureRequest, PageAgent } from './agent.js';
+export type { CaptureRequest, DeclaredComponents, PageAgent } from './agent.js';

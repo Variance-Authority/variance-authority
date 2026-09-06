@@ -2,6 +2,7 @@ import {
   componentInstances,
   profileById,
   type SemanticSnapshot,
+  type SourceIndex,
   type SubjectComposition,
 } from '@variance-authority/core';
 import { RasterStoreError } from '@variance-authority/raster';
@@ -12,7 +13,7 @@ import { observeOne } from './observe-one.js';
 import type { SubjectHistory } from './history.js';
 import { customProperties } from './history-rows.js';
 import { recordIfConfigured } from './history-report.js';
-import { compositionOf } from './compose.js';
+import { composeReports } from './compose.js';
 import { variationsOf, variationsWanted } from './variations.js';
 import { ledgerOf } from './ignores.js';
 import { sensitivityLedgerOf } from './sensitivities.js';
@@ -20,8 +21,7 @@ import { decoderFor } from './resources.js';
 import { concurrencyOf, pool, serial } from './schedule.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
-import { shardFilterBecause } from './run-report.js';
-import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
+import { shardFilterBecause, type CliObservationRecord, type CliRunReport, type NotObserved } from './run-report.js';
 
 /**
  * `variance run` — collect, decide, and write down what was decided.
@@ -67,15 +67,16 @@ export type {
   PlannedSubject,
   SubjectSource,
 } from './collector.js';
-export { settle } from '@variance-authority/raster';
-export type { Settlement } from '@variance-authority/raster';
-export { ledgerOf, liveIgnores, summarizeLedger } from './ignores.js';
-export { sensitivityLedgerOf, summarizeSensitivities } from './sensitivities.js';
-export type { SensitivityLedger, SensitivityUsage } from './sensitivities.js';
-export type { IgnoreLedger, IgnoreUsage } from './ignores.js';
+export { settle, type Settlement } from '@variance-authority/raster';
+export { ledgerOf, liveIgnores, summarizeLedger, type IgnoreLedger, type IgnoreUsage } from './ignores.js';
+export {
+  sensitivityLedgerOf,
+  summarizeSensitivities,
+  type SensitivityLedger,
+  type SensitivityUsage,
+} from './sensitivities.js';
 export { recordOf } from './record.js';
-export { compositionOf } from './compose.js';
-export type { ComposeInput } from './compose.js';
+export { compositionOf, lexiconReportOf, type ComposeInput } from './compose.js';
 export {
   decoderFor,
   historyFor,
@@ -88,18 +89,11 @@ export {
   writeArtifactToDisk,
 } from './resources.js';
 export { changedSince, diffSince, indexPosition, narrowingFor } from './since.js';
-export { affectedProjects } from './changes.js';
-export type { AffectedProjects, ChangeSource, ChangeTool } from './changes.js';
+export { affectedProjects, type AffectedProjects, type ChangeSource, type ChangeTool } from './changes.js';
 export { readCliRunReport, subjectsInReport, writeCliRunReport } from './run-report.js';
-export type {
-  CliObservationRecord,
-  CliRunReport,
-  NotObserved,
-  NotObservedKind,
-} from './run-report.js';
+export type { CliObservationRecord, CliRunReport, NotObserved, NotObservedKind } from './run-report.js';
 export type { RunDeps, RunOptions } from './run-context.js';
-export { identityOf } from './history.js';
-export type { RunIdentity } from './history.js';
+export { identityOf, type RunIdentity } from './history.js';
 
 /**
  * Run, and write the report.
@@ -203,6 +197,7 @@ async function observeAll(
   // The check is here rather than inside the recorder so that a run with no
   // history configured never hashes a snapshot it is not going to send.
   const recording = options.identity !== undefined && config.history !== undefined;
+  let declared: SourceIndex | undefined; // the last carried; the engine's answers only grow
   const readings: (SubjectHistory | null)[] = Array.from(
     { length: plan.subjects.length },
     () => null,
@@ -283,6 +278,7 @@ async function observeAll(
     }
 
     const collected = await collecting(async () => deps.collector.collect(planned));
+    if (collected.ok && collected.source !== undefined) declared = collected.source;
     if (!collected.ok) {
       slots[index] = {
         kind: 'not-observed',
@@ -424,12 +420,18 @@ async function observeAll(
   // `edited` and `upstream` — so every movement fell past both rungs, to
   // `contradicted` or `unexplained`, under a sentence asking for the diff the
   // reader had already supplied.
-  const composition = compositionOf({
+  //
+  // The journal is read first: only it can say which regions each subject
+  // entered, and the lexicon indexes those beside every other name.
+  const parted = await deps.readJourneys?.([...observations, ...notObserved].map((o) => o.subject));
+  const composed = composeReports({
     subjects: compositions,
     observations,
     ...(selected?.changed !== undefined ? { changed: selected.changed } : {}),
     ...(selected?.source !== undefined ? { source: selected.source } : {}),
+    ...(declared !== undefined ? { declared } : {}),
     ...(recorded.movedTokens !== undefined ? { tokens: recorded.movedTokens } : {}),
+    ...(parted?.entered !== undefined ? { regions: parted.entered } : {}),
   });
 
   // Last, and outside every verdict above it. A variation is a difference
@@ -442,8 +444,6 @@ async function observeAll(
     ...(config.names !== undefined ? { names: config.names } : {}),
   });
 
-  // Where this run's own subjects parted, off the journal `--since` narrows by.
-  const parted = await deps.readJourneys?.([...observations, ...notObserved].map((o) => o.subject));
   const report: CliRunReport = {
     runVersion: 1,
     at,
@@ -462,7 +462,7 @@ async function observeAll(
     ...(recorded.churn !== undefined ? { churn: recorded.churn } : {}),
     ...(recorded.drift !== undefined ? { drift: recorded.drift } : {}),
     ...(parted?.recorded !== undefined ? { journeys: parted.recorded } : {}),
-    ...(composition !== undefined ? { composition } : {}),
+    ...composed,
     ...(variations !== undefined ? { variations } : {}),
     // The third axis, and the only one that names a file somebody edited. Carried
     // rather than consumed: the selector used this to decide what not to look at,

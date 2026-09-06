@@ -47,6 +47,7 @@ export const CROSSES = [
   'packages/eyes/src/playwright',
   'packages/playwright/src/acquire',
   'packages/playwright/src/capture',
+  'packages/playwright/src/declarations',
   'packages/playwright/src/harness',
   'packages/playwright/src/modules',
   'packages/playwright/src/renderer',

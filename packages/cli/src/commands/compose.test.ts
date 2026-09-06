@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { ComponentInstance, SourceIndex, SubjectComposition } from '@variance-authority/core';
 import { compositionOf } from './compose.js';
 import type { CliObservationRecord } from './run-report.js';
+import {
+  SOURCE,
+  SUITE,
+  causedByButton,
+  causedByIcon,
+  instance,
+  observation,
+} from './compose-fixture.js';
 
 /**
  * The fold, tested where it is dangerous: at the edges of what a run knows.
@@ -14,146 +21,24 @@ import type { CliObservationRecord } from './run-report.js';
  * shortlist made entirely of components somebody had just edited.
  */
 
-function instance(over: Partial<ComponentInstance> & { component: string }): ComponentInstance {
-  return {
-    path: '0',
-    depth: 1,
-    rendering: 'v1:r',
-    structure: 'v1:s',
-    semantics: 'v1:a',
-    text: 'v1:t',
-    style: 'v1:y',
-    renders: [],
-    nodes: 1,
-    tokens: [],
-    ...over,
-  };
-}
-
-const button = (path: string, depth: number, over: Partial<ComponentInstance> = {}) =>
-  instance({
-    component: 'Button',
-    path,
-    depth,
-    props: 'v1:danger',
-    rendering: 'v1:button-danger',
-    tokens: ['--va-danger'],
-    renders: ['Icon'],
-    ...over,
-  });
-
-const icon = (path: string, depth: number, over: Partial<ComponentInstance> = {}) =>
-  instance({
-    component: 'Icon',
-    path,
-    depth,
-    within: 'Button',
-    props: 'v1:icon',
-    rendering: 'v1:icon-warn',
-    tokens: ['--va-warn'],
-    ...over,
-  });
-
-/**
- * One story that *is* a `Button`, and two pages that each mount another one.
- *
- * Two components on purpose. `Button` renders two ways from one props digest, so
- * it is a standing contradiction and can never reach `unexplained`; `Icon`
- * renders identically everywhere, which is what a control group looks like and
- * therefore the only kind of component a shortlist entry can be made of.
- *
- * The quiet button gets a page of its own rather than sitting beside the danger
- * one, and that is not tidiness. `divergencesOf` refuses to call two renderings a
- * contradiction when they were both observed in a single subject, because one
- * boundary interrupted by a nested component is walked as two — so a fixture with
- * both renderings on one page tests the refusal rather than the rung.
- */
-const SUITE: readonly SubjectComposition[] = [
-  {
-    subject: 'story:ds-button--danger',
-    instances: [button('0', 0), icon('0/0', 1)],
-  },
-  {
-    subject: 'story:page--default',
-    instances: [
-      instance({ component: 'App', path: '0', depth: 0, renders: ['Footer'] }),
-      instance({
-        component: 'Footer',
-        path: '0/1',
-        within: 'App',
-        props: 'v1:footer',
-        renders: ['Button'],
-      }),
-      // `<Footer><Button><Icon/></Button></Footer>`: the icon *sits inside* the
-      // button and was *written by* the footer, which is the ordinary shape and
-      // the reason the two edges are recorded separately.
-      button('0/1/0', 2, { within: 'Footer', createdBy: 'Footer' }),
-      icon('0/1/0/0', 3, { createdBy: 'Footer' }),
-    ],
-  },
-  {
-    subject: 'story:page--quiet',
-    instances: [
-      instance({ component: 'App', path: '0', depth: 0, renders: ['Footer'] }),
-      instance({
-        component: 'Footer',
-        path: '0/1',
-        within: 'App',
-        props: 'v1:footer',
-        renders: ['Button'],
-      }),
-      button('0/1/0', 2, {
-        within: 'Footer',
-        createdBy: 'Footer',
-        rendering: 'v1:button-quiet',
-        style: 'v1:quiet',
-      }),
-    ],
-  },
-];
-
-function observation(over: Partial<CliObservationRecord> & { subject: string }): CliObservationRecord {
-  return {
-    verdict: 'changed',
-    because: 'pixels differ',
-    changedPixels: 120,
-    regions: [],
-    ...over,
-  };
-}
-
-/** A region that named `Button` as the root of the change. */
-const causedByButton = {
-  x: 0,
-  y: 0,
-  width: 10,
-  height: 10,
-  pixels: 100,
-  component: 'Button',
-  cause: true,
-};
-
-/** A region that named `Icon` as the root of the change. */
-const causedByIcon = { ...causedByButton, component: 'Icon' };
-
-const SOURCE: SourceIndex = {
-  Button: [{ file: 'src/ds/Button.tsx', line: 12, via: 'function' }],
-  Icon: [{ file: 'src/ds/Icon.tsx', line: 4, via: 'function' }],
-  Footer: [{ file: 'src/Footer.tsx', line: 3, via: 'function' }],
-};
-
 describe('compositionOf — what it refuses to build', () => {
   it('says nothing at all when no subject supplied a snapshot', () => {
     // A raster-only tier has no boundaries to join. An empty graph in the
     // artifact would read as "this suite shares nothing", which is false and
     // unfalsifiable.
     expect(
-      compositionOf({ subjects: [null, null], observations: [observation({ subject: 'a' })] }),
+      compositionOf({
+        subjects: [null, null],
+        observations: [observation({ subject: 'a' })],
+      }),
     ).toBeUndefined();
   });
 
   it('skips the plan slots nothing filled, and keeps the rest in plan order', () => {
-    const report = compositionOf({ subjects: [null, SUITE[1]!, null, SUITE[0]!], observations: [] });
+    const report = compositionOf({
+      subjects: [null, SUITE[1]!, null, SUITE[0]!],
+      observations: [],
+    });
 
     expect(report?.subjects).toEqual(['story:page--default', 'story:ds-button--danger']);
   });
@@ -226,7 +111,12 @@ describe('compositionOf — what moved, and where it was read from', () => {
   it('records no band from a region, because a region names no band', () => {
     const report = compositionOf({
       subjects: SUITE,
-      observations: [observation({ subject: 'story:page--default', regions: [causedByButton] })],
+      observations: [
+        observation({
+          subject: 'story:page--default',
+          regions: [causedByButton],
+        }),
+      ],
     });
 
     // `[]` here is `Moved.bands`' documented *not known*, and the report says the
@@ -293,7 +183,10 @@ describe('compositionOf — attribution degrades honestly', () => {
             regions: [causedByIcon],
             moved: [{ component: 'Icon', bands: ['geometry'], cause: true }],
           }),
-          observation({ subject: 'story:ds-button--danger', ...(moved === undefined ? {} : { moved }) }),
+          observation({
+            subject: 'story:ds-button--danger',
+            ...(moved === undefined ? {} : { moved }),
+          }),
         ],
         changed: ['docs/readme.md'],
         source: SOURCE,
@@ -364,7 +257,12 @@ describe('compositionOf — attribution degrades honestly', () => {
   it('calls it contradicted when the component renders two ways at one commit', () => {
     const report = compositionOf({
       subjects: SUITE,
-      observations: [observation({ subject: 'story:page--default', regions: [causedByButton] })],
+      observations: [
+        observation({
+          subject: 'story:page--default',
+          regions: [causedByButton],
+        }),
+      ],
       changed: ['src/unrelated.ts'],
       source: SOURCE,
     });
@@ -394,7 +292,12 @@ describe('compositionOf — the standing an unexplained movement gets', () => {
   it('is a suspect when nothing has read the subject twice', () => {
     const report = compositionOf({
       ...unexplained,
-      observations: [observation({ subject: 'story:page--default', regions: [causedByIcon] })],
+      observations: [
+        observation({
+          subject: 'story:page--default',
+          regions: [causedByIcon],
+        }),
+      ],
     });
 
     // A shortlist entry, not a verdict: one reading cannot establish instability
@@ -427,8 +330,14 @@ describe('compositionOf — the standing an unexplained movement gets', () => {
     const report = compositionOf({
       ...unexplained,
       observations: [
-        observation({ subject: 'story:page--default', regions: [causedByIcon] }),
-        observation({ subject: 'story:ds-button--danger', regions: [causedByIcon] }),
+        observation({
+          subject: 'story:page--default',
+          regions: [causedByIcon],
+        }),
+        observation({
+          subject: 'story:ds-button--danger',
+          regions: [causedByIcon],
+        }),
       ],
     });
 
@@ -484,12 +393,28 @@ describe('compositionOf — a cap that says nothing reads as coverage', () => {
 describe('compositionOf — the same inputs produce the same bytes', () => {
   it('does not depend on the order the workers finished in', () => {
     const observations = [
-      observation({ subject: 'story:page--default', regions: [causedByButton] }),
-      observation({ subject: 'story:ds-button--danger', regions: [causedByButton] }),
+      observation({
+        subject: 'story:page--default',
+        regions: [causedByButton],
+      }),
+      observation({
+        subject: 'story:ds-button--danger',
+        regions: [causedByButton],
+      }),
     ];
 
-    const once = compositionOf({ subjects: SUITE, observations, source: SOURCE, changed: [] });
-    const again = compositionOf({ subjects: SUITE, observations, source: SOURCE, changed: [] });
+    const once = compositionOf({
+      subjects: SUITE,
+      observations,
+      source: SOURCE,
+      changed: [],
+    });
+    const again = compositionOf({
+      subjects: SUITE,
+      observations,
+      source: SOURCE,
+      changed: [],
+    });
 
     expect(JSON.stringify(once)).toBe(JSON.stringify(again));
   });

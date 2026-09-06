@@ -11,6 +11,7 @@ import type { PresentationSignalRecord } from './presentation-record.js';
 import type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
 import type { VariationRecord } from './variation.js';
 import type { JourneysReport } from './journeys.js';
+import type { LexiconReport } from './lexicon.js';
 
 /**
  * The run report — the artifact an agent actually reads.
@@ -136,6 +137,13 @@ export interface RunReport {
    * are different claims.
    */
   readonly composition?: CompositionReport;
+
+  /**
+   * Every name the run held for each subject, for the question asked before a
+   * subject has a name. See `lexicon.ts` for why it is written by the run and
+   * why the values are raw. Absent under the same conditions as `composition`.
+   */
+  readonly lexicon?: LexiconReport;
 
   /**
    * Subjects that declared themselves variations of another subject, and what

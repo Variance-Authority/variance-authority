@@ -115,6 +115,7 @@ const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
   "agent-live-run": "/agents/live-run",
   "agent-cli": "/agents/cli",
   "agent-mcp": "/agents/mcp",
+  "agent-questions": "/agents/questions",
   "agent-workspace-api": "/agents/workspace-api",
   comparison: "/reference/comparison",
   start: "/start",

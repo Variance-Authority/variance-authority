@@ -62,6 +62,13 @@ question requires that detail. After replacing the report with a completed
 rerun, `variance_diff` compares the current supplied state with the one held from
 the preceding successful tool call.
 
+A question that names a thing rather than a subject id goes to
+`variance_locate`. It finds subjects from a description over the names the
+run wrote down, and each hit prints the field it matched on, so the order is
+checkable and a wrong first hit costs one more call. `variance_composition`
+with a `subject` then prints what that subject is made of. Both are absent on a
+tier that composed nothing, and both say so rather than matching nothing.
+
 On a connection that serves several observability domains, begin instead with
 `variance_observability`. Its inventory distinguishes an unavailable domain
 from one that was supplied and measured zero members. Then ask the native tool

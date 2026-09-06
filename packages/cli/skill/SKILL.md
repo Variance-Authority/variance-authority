@@ -19,6 +19,7 @@ variance ask                          # the questions, and what each one answers
 variance ask summary                  # start here; every other question takes an id it prints
 variance ask changes                  # the distinct changes behind the changed subjects
 variance ask describe --subject <id>  # one subject: regions, components, files, fingerprints
+variance ask locate --query "<words>" # the subject you can only describe, by the names the run saw
 ```
 
 Each answer is text, produced by the same function an MCP client would call, so
@@ -42,9 +43,15 @@ from those as a crash — a crash is `2`.
 4. **`composition`** before calling anything flaky: it names what explains a
    movement, and separates `flake` (read twice, differed) from `suspect` (never
    read twice).
-5. **`describe`, `explain-verdict`, `trace-component`, `findings`** — narrow, one
+5. **`locate --query <words>`** when you can describe the subject but do not
+   hold its id: it matches over every name the run wrote down — ids, examples,
+   accessible names, text, components, creators, files, roles, tokens, and the
+   regions a journey entered — and each hit prints the field it matched. The
+   order is orientation; a wrong first hit costs one more question, never a
+   finding. `composition --subject <id>` then says what that subject is made of.
+6. **`describe`, `explain-verdict`, `trace-component`, `findings`** — narrow, one
    subject or one component at a time, once you know which one matters.
-6. **`changelog`** before proposing an accept, and never after: it previews what
+7. **`changelog`** before proposing an accept, and never after: it previews what
    acceptance would write down.
 
 `variance ask diff` compares the run against whatever the previous question was

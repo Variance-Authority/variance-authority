@@ -29,6 +29,9 @@ export type {
 } from './resolve.js';
 export { resolveProvenance, provenanceOf, NO_FIBER, UNMOUNTED } from './resolve.js';
 
+export type { DeclaredComponents, DeclarationRegistry, DeclarationSink } from './declared.js';
+export { createDeclarationRegistry, componentFunction } from './declared.js';
+
 export type { Fiber, ContextDependency, DebugComponentInfo, DebugSource } from './fiber.js';
 export {
   FiberTag,

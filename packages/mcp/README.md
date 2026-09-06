@@ -229,7 +229,7 @@ only to hand an already-finished run, or an execution index, to an agent that
 speaks MCP.
 
 An agent that cannot host a server is not held to a smaller product. `variance
-ask` offers the eleven report tools below as questions on the command line,
+ask` offers the twelve report tools below as questions on the command line,
 calling these same functions and printing what they return, so nothing here is
 reachable only through a client. What a connection adds is the other subjects —
 an execution index, a live run, an attention archive, a presentation graph —
@@ -237,9 +237,9 @@ which live with the integration that produced them rather than in a report file.
 
 ## Visual report tool contract
 
-Eleven tools, all answering from the artifact and **never re-running anything**.
+Twelve tools, all answering from the artifact and **never re-running anything**.
 The run may have happened on a pinned machine in CI an hour ago; the questions
-are asked wherever the agent is. One compares invocations; the other ten inspect
+are asked wherever the agent is. One compares invocations; the other eleven inspect
 the current artifact.
 
 A **component** is a named unit inside a rendering, such as `Button`; the same
@@ -257,6 +257,8 @@ toolByName('variance_adjudicate')?.run(report, {
   claims: [{ root: 'component:Button', reason: 'new brand accent', maxSubjects: 3 }],
 });
 toolByName('variance_composition')?.run(report, {});
+toolByName('variance_composition')?.run(report, { subject: 'story:card--populated' });
+toolByName('variance_locate')?.run(report, { query: 'card footer' });
 toolByName('variance_variations')?.run(report, { subject: 'story:card--dark' });
 toolByName('variance_changelog')?.run(report, { shape: 'v1:9a3f1c2e04' });
 toolByName('variance_describe')?.run(report, { subject: 'story:card--populated' });
@@ -271,7 +273,8 @@ toolByName('variance_explain_verdict')?.run(report, { subject: 'story:card--popu
 | `variance_diff` | how the current supplied state differs from the previous successful MCP tool invocation | after rerunning or replacing the supplied evidence |
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, changed and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
-| `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it* | a change has no obvious author, or you are about to call something flaky |
+| `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it*; with `subject`, what one subject is made of and which of its renderings other subjects share | a change has no obvious author, or you are about to call something flaky |
+| `variance_locate` | the subjects a `query` describes, matched over every name the run wrote down — ids, examples, accessible names, text, components, creators, files, roles, tokens, and the regions a journey entered — each hit printing the field it matched | you can describe the subject and do not know its id |
 | `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature flag, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
 | `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will carry, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
 | `variance_describe` | what changed inside one subject — regions, components, files | the summary named a subject and you need the detail |

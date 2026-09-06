@@ -121,6 +121,7 @@ The options that change scope are explicit at the call site:
 | `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
 | `buildDocket` / dependency reach | `sampleSize` limits review examples and `through` selects graph edge kinds |
 | `sharedClosures` | `floor` drops a shared subtree below a node count |
+| `lexiconOf` | `examples`, `declaredIn` and `regions` supply what the instances cannot: which components a subject is the example of, the files declaring each component, and the regions its journey entered |
 | report summaries | `source` maps component names to files when `summarizeAdjudication` or `summarizeFindings` needs an actionable path |
 | screenshot stabilization | `animations` and `caret` are explicit intervention settings; omitted means the caller did not assert either intervention |
 

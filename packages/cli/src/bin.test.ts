@@ -4,6 +4,7 @@ import { BOOLEAN } from './args.js';
 import { USAGE, parseArgs } from './parse.js';
 import { openRenderer } from './renderer.js';
 import { EXIT_OPERATOR, OperatorError } from './exit.js';
+import { QUESTIONS, argumentsOf, questionOf } from './commands/asking.js';
 
 describe('parseArgs', () => {
   it('reads a bare command with the default config path, made absolute', () => {
@@ -303,6 +304,24 @@ describe('parseArgs', () => {
     }
 
     expect(missing).toEqual([]);
+  });
+
+  it('accepts every argument every question takes', () => {
+    // The last hand-written link. `asking.ts` reads what a question takes off
+    // the tool's own schema, so a new tool arrives already asked; the flags
+    // `ask` lets through are still a list here, and a list is short by one the
+    // day a tool takes an argument nobody else took. This holds the list to the
+    // schemas, so the usage line advertises nothing the parser refuses.
+    const refused: string[] = [];
+    const accepted = flagsOf('ask');
+
+    for (const question of QUESTIONS) {
+      for (const argument of argumentsOf(question.tool)) {
+        if (!accepted.includes(argument.flag)) refused.push(`${questionOf(question.tool)}: ${argument.flag}`);
+      }
+    }
+
+    expect(refused).toEqual([]);
   });
 
   it('documents the three exit codes in its usage text', () => {

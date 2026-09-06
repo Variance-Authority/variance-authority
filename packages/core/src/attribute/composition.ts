@@ -121,9 +121,11 @@ export interface ComponentEntry {
    * element. They are the same thing only for a component that authors a node of
    * its own, and a real application is full of components that do not: measured
    * on `examples/todomvc`, every `Chip` reports `within: ['Stack']` and
-   * `createdBy: ['TodoFooter']`. `TodoFooter` renders nothing but other
-   * components, so it owns no node, is a boundary nowhere, and appears in this
-   * graph *only* here — while being the file a reviewer has to open.
+   * `createdBy: ['TodoFooter']`: the `Stack` that encloses a chip is a layout
+   * primitive that knows nothing about it, and the footer that wrote the element
+   * stands one boundary further out. A component that renders nothing but other
+   * components owns no node, is a boundary nowhere, and appears in this graph
+   * *only* here — while being the file a reviewer has to open.
    *
    * Empty on a production build, where `_debugOwner` is absent (ADR-0007). Empty
    * is *not* "nothing mounted it": a component with no caller is the subject root

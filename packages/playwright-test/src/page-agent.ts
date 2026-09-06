@@ -1,12 +1,13 @@
 import { acquireDocument, collect, stabilizeForObservation } from '@variance-authority/dom';
 import {
   awaitSuspense,
+  createDeclarationRegistry,
   holdingOf,
   portalContentOf,
   provenanceOf,
   wiringOf,
 } from '@variance-authority/react';
-import type { SuspenseSettlement } from '@variance-authority/react';
+import type { DeclaredComponents, SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core';
 import type { Digest, RawCapture, RenderDocument, SubjectRef, Viewport } from '@variance-authority/core';
 
@@ -150,7 +151,7 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
     ...shared,
     engine: request.engine,
     portalsOf: () => portals,
-    provenanceOf,
+    provenanceOf: (node: Node) => provenanceOf(node, declared),
     ...(request.wiring === false ? {} : { wiringOf }),
     ...(request.holdings === true ? { holdingOf } : {}),
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
@@ -182,6 +183,8 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
 export interface InstalledAgent {
   readonly acquire: (root: Element, request: AcquireRequest) => Promise<string>;
   readonly version: string;
+  /** What `createDeclarationReader` reads, keyed on `AGENT` rather than `AGENT_GLOBAL`. */
+  readonly declared: DeclaredComponents;
 }
 
 /**
@@ -189,4 +192,12 @@ export interface InstalledAgent {
  * here. This file is imported by the Node half for its types, and a module that
  * writes to `globalThis` on import would do it in a process that has no page.
  */
+/**
+ * The components this bundle has met, kept for the engine to be asked where
+ * each is declared (`createDeclarationReader` on the Node side). One per
+ * bundle installation: the reader keys its progress on `id`, and a page that
+ * installs the bundle again is a page whose functions are new objects.
+ */
+export const declared = createDeclarationRegistry();
+
 export const AGENT_VERSION = 'playwright-test@0';

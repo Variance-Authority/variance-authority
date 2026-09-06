@@ -1,13 +1,17 @@
 import {
   attributeMovement,
   composeSubjects,
+  lexiconOf,
+  structureOf,
   BANDS,
   type Band,
   type Divergence,
   type Echo,
   type Evidence,
+  type LexiconField,
   type Moved,
   type Movement,
+  overlaySourceIndex,
   type SourceIndex,
   type SubjectComposition,
 } from '@variance-authority/core';
@@ -15,9 +19,10 @@ import type {
   CompositionReport,
   DivergenceRecord,
   EchoRecord,
+  LexiconReport,
   MovementRecord,
 } from '@variance-authority/report';
-import type { CliObservationRecord } from './run-report.js';
+import type { CliObservationRecord, CliRunReport } from './run-report.js';
 
 /**
  * The run's second axis: its subjects compared to each other.
@@ -77,8 +82,23 @@ export interface ComposeInput {
   /** The component index the same `--since` scan built. */
   readonly source?: SourceIndex;
 
+  /**
+   * Where the components the run rendered are declared, asked of the engine by
+   * the collector and carried on each collection. Laid over `source`: a name the
+   * engine located replaces the scan's candidates for it, which is how an
+   * ambiguous name becomes one file, and a name it never met keeps the scan's.
+   */
+  readonly declared?: SourceIndex;
+
   /** Custom properties that took a new value in this run, from the record. */
   readonly tokens?: readonly string[];
+
+  /**
+   * Subject → the regions its journey entered, off the journal. Absent when no
+   * journal was read, which the lexicon records as a field it did not read
+   * rather than as every subject having entered nothing.
+   */
+  readonly regions?: ReadonlyMap<string, readonly string[]>;
 }
 
 /**
@@ -120,9 +140,75 @@ export function compositionOf(input: ComposeInput): CompositionReport | undefine
     movements: attribution.movements.map((movement) =>
       movementRecord(movement, attribution.flakes, attribution.suspects),
     ),
+    structure: present.map((subject) => ({
+      subject: subject.subject,
+      rows: structureOf(subject),
+    })),
     ...(echoes.length > MAX_ECHOES ? { truncated: { echoes: echoes.length - MAX_ECHOES } } : {}),
   };
 }
+
+/**
+ * Every name each subject carries, written for the readers that hold no snapshot.
+ *
+ * The same `undefined` as `compositionOf`, for the same reason: a raster-only
+ * tier read no boundaries, and an index with every field empty would answer
+ * "nothing matched" to a reader whose true answer is "nothing was read".
+ *
+ * `fields` is the run's admission of what it looked at. `regions` is read only
+ * when a journal was; `files` only when a source index or a snapshot with
+ * provenance was at hand; the snapshot's own fields only when a subject carried
+ * one. A locator answering over this report prints the absent fields beside its
+ * hits, so a miss on a field nobody read is never reported as a miss.
+ */
+export function lexiconReportOf(input: ComposeInput): LexiconReport | undefined {
+  const present = input.subjects.filter((subject) => subject !== null);
+  if (present.length === 0) return undefined;
+
+  const composition = composeSubjects(present);
+  const examples = new Map<string, string[]>();
+  for (const entry of composition.components) {
+    for (const subject of entry.examples) {
+      let held = examples.get(subject);
+      if (held === undefined) examples.set(subject, (held = []));
+      held.push(entry.component);
+    }
+  }
+
+  const declaredIn = new Map<string, readonly string[]>();
+  for (const [component, refs] of Object.entries(input.source ?? {})) {
+    declaredIn.set(component, [...new Set(refs.map((ref) => ref.file))]);
+  }
+
+  const withSnapshot = present.some((subject) => subject.snapshot !== undefined);
+  const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens'];
+  if (withSnapshot) fields.push('names', 'text', 'roles');
+  if (withSnapshot || input.source !== undefined) fields.push('files');
+  if (input.regions !== undefined) fields.push('regions');
+
+  return {
+    version: 1,
+    fields: FIELD_ORDER.filter((field) => fields.includes(field)),
+    subjects: lexiconOf(present, {
+      examples,
+      ...(input.source === undefined ? {} : { declaredIn }),
+      ...(input.regions === undefined ? {} : { regions: input.regions }),
+    }),
+  };
+}
+
+/** The order fields are named in, wherever a report or a tool lists them. */
+const FIELD_ORDER: readonly LexiconField[] = [
+  'example',
+  'names',
+  'text',
+  'components',
+  'createdBy',
+  'regions',
+  'files',
+  'roles',
+  'tokens',
+];
 
 /**
  * Every component this run found to have moved, and in which subject.
@@ -150,7 +236,11 @@ function movedIn(observations: readonly CliObservationRecord[]): readonly Moved[
       if (!region.cause || region.component === undefined) continue;
       const key = `${record.subject} ${region.component}`;
       if (!moved.has(key)) {
-        moved.set(key, { subject: record.subject, component: region.component, bands: [] });
+        moved.set(key, {
+          subject: record.subject,
+          component: region.component,
+          bands: [],
+        });
       }
     }
 
@@ -292,4 +382,27 @@ function distinct(values: readonly string[]): readonly string[] {
  */
 function bandsOf(bands: readonly string[]): readonly Band[] {
   return BANDS.filter((band) => bands.includes(band));
+}
+
+/**
+ * Both folds over one input, as the sections the report carries.
+ *
+ * One call rather than two because the census and the lexicon describe the
+ * same subjects the two ways round, and a run that handed them different
+ * inputs would write a lexicon naming subjects its census never counted.
+ */
+export function composeReports(given: ComposeInput): Pick<CliRunReport, 'composition' | 'lexicon'> {
+  const input = withDeclared(given);
+  const composition = compositionOf(input);
+  const lexicon = lexiconReportOf(input);
+  return {
+    ...(composition === undefined ? {} : { composition }),
+    ...(lexicon === undefined ? {} : { lexicon }),
+  };
+}
+
+/** The scan under what the engine said, as one `source`; the input unchanged when the engine said nothing. */
+function withDeclared({ declared, ...input }: ComposeInput): ComposeInput {
+  if (declared === undefined) return input;
+  return { ...input, source: overlaySourceIndex(input.source ?? {}, declared) };
 }

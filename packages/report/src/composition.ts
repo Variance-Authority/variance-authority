@@ -57,8 +57,10 @@ export interface ComponentRecord {
    * `within` is where the boundary sits and this is who wrote the element, and in
    * a real application they are mostly different: measured on
    * `examples/todomvc`, every `Chip` is `within: ["Stack"]` and
-   * `createdBy: ["TodoFooter"]`. `TodoFooter` renders nothing but other
-   * components, so it owns no DOM node, is a boundary nowhere, and would be
+   * `createdBy: ["TodoFooter"]`: the `Stack` that encloses a chip is a layout
+   * primitive that knows nothing about it, and the footer that wrote the element
+   * stands one boundary further out. A component that renders nothing but other
+   * components owns no DOM node at all, is a boundary nowhere, and would be
    * absent from this graph entirely if only `within` were recorded — while being
    * the file a reviewer has to open.
    *
@@ -237,6 +239,37 @@ export interface MovementRecord {
 }
 
 /**
+ * One subject's boundaries, in document order, identical rows folded together.
+ *
+ * Document order is what makes the indentation a tree: every row's enclosing
+ * boundary is the nearest row above it with a smaller depth. Nothing about the
+ * order is a rank.
+ */
+export interface SubjectStructureRecord {
+  readonly subject: string;
+  readonly rows: readonly BoundaryRow[];
+}
+
+/** Boundaries of one component at one place in one subject's tree. */
+export interface BoundaryRow {
+  readonly component: string;
+  /** Boundaries between this one and the subject root. The root is `0`. */
+  readonly depth: number;
+  /** The enclosing boundary's component. Absent on the subject root. */
+  readonly within?: string;
+  /** Who wrote the element. Absent on a production build, which is not *nobody*. */
+  readonly createdBy?: string;
+  /** Boundaries folded into this row. At least 1. */
+  readonly count: number;
+  /**
+   * Distinct props digests among them. `count: 3, variants: 2` is three chips
+   * of which one received different inputs — the selected one — said without
+   * printing a digest nobody can read.
+   */
+  readonly variants: number;
+}
+
+/**
  * What one run learned by comparing its subjects to each other.
  *
  * Absent from a report whose collection produced no semantic snapshots — a
@@ -254,6 +287,20 @@ export interface CompositionReport {
   readonly divergences: readonly DivergenceRecord[];
   /** Every component the run found moved, in the order the observations came. */
   readonly movements: readonly MovementRecord[];
+
+  /**
+   * Each subject's boundaries, as a tree collapsed to its distinct rows.
+   *
+   * The graph above is component-first and loses *which subject* holds what
+   * under what; this is the same walk kept subject-first, so a reader can recall
+   * one subject's composition without the snapshot. Rows rather than boundaries
+   * — three chips under one `Stack` from one `TodoFooter` are one row counted
+   * three — because that is what keeps it the size of a report on a suite with
+   * hundreds of subjects.
+   *
+   * Absent from a report written before it was carried. Never empty when present.
+   */
+  readonly structure?: readonly SubjectStructureRecord[];
 
   /**
    * What was left out of the lists above, when anything was.

@@ -1,4 +1,5 @@
 import { identityDigest } from '@variance-authority/core';
+import type { LexiconField, LexiconReport, SubjectLexicon } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
 import { ledgerOf, type IgnoreLedger } from './ignores.js';
@@ -38,12 +39,14 @@ import { ledgerOf, type IgnoreLedger } from './ignores.js';
  * property that makes sharding safe here, and it costs the operator nothing: a
  * correct split never produces one.
  *
- * ## The one section a merge cannot carry
+ * ## The one section a merge cannot carry, and the one it can
  *
  * Everything above is a fold over per-subject answers, and folds shard. The
  * composition section is not one: it is the run's subjects compared to *each
  * other*, and the split is exactly what destroys it. It is dropped, out loud —
- * see `unmergeable`.
+ * see `unmergeable`. The lexicon is the other kind: every name a subject carried,
+ * per subject, and a subject is in exactly one shard. It is carried — see
+ * `lexiconOf` — under the fields every shard read.
  */
 
 export interface Shard {
@@ -85,6 +88,58 @@ export function mergeReports(shards: readonly Shard[]): CliRunReport {
     ...coverageOf(shards),
     ...warningsOf(shards, unmergeable(shards)),
     ...ignoresOf(shards),
+    ...lexiconOf(shards),
+  };
+}
+
+/**
+ * Every shard's lexicon entries, in shard order, under the fields all of them read.
+ *
+ * A subject's names are a fact about that subject, so concatenating the per-subject
+ * entries is the union — `observationsOf` has already refused a subject two shards
+ * both claim. The field list is the intersection, and the entries are cut to it:
+ * `fields` is the run's admission of what it looked at, and one shard that ran
+ * without a journal did not look at `regions` for its subjects. A merged report
+ * listing `regions` would send a reader searching a field half the suite never
+ * had, and a no-match there would read as *no subject entered it*.
+ *
+ * Absent when no shard wrote one, and present when any did: a shard that
+ * composed nothing (a raster-only slice) contributes no subjects, and the
+ * remaining entries are still every name the suite held for the subjects that
+ * were composed.
+ */
+function lexiconOf(shards: readonly Shard[]): { lexicon?: LexiconReport } {
+  const written = shards.filter((shard) => shard.report.lexicon !== undefined);
+  const [first] = written.map((shard) => shard.report.lexicon!);
+  if (first === undefined) return {};
+
+  agree(written, 'lexicon version', (shard) => String(shard.report.lexicon!.version));
+
+  const fields = first.fields.filter((field) =>
+    written.every((shard) => shard.report.lexicon!.fields.includes(field)),
+  );
+  const read = new Set<LexiconField>(fields);
+
+  const subjects = written.flatMap((shard) =>
+    shard.report.lexicon!.subjects.map((entry) => cut(entry, read)),
+  );
+
+  return { lexicon: { version: first.version, fields, subjects } };
+}
+
+/** One subject's entry restricted to the fields the merged report may claim. */
+function cut(entry: SubjectLexicon, read: ReadonlySet<LexiconField>): SubjectLexicon {
+  const keep = <T>(record: Partial<Record<LexiconField, T>> | undefined) =>
+    Object.fromEntries(
+      Object.entries(record ?? {}).filter(([field]) => read.has(field as LexiconField)),
+    ) as Partial<Record<LexiconField, T>>;
+
+  const elided = keep(entry.elided);
+  return {
+    subject: entry.subject,
+    boundaries: entry.boundaries,
+    terms: keep(entry.terms),
+    ...(Object.keys(elided).length === 0 ? {} : { elided }),
   };
 }
 
@@ -295,6 +350,8 @@ function unmergeable(shards: readonly Shard[]): readonly string[] {
     `composition dropped: ${composed} of ${shards.length} shard(s) compared their subjects to ` +
       'each other, and that comparison does not survive a split — two subjects sharing a ' +
       'rendering are the finding, and a pair that landed in different shards is in neither ' +
-      'report. Run the suite unsharded to ask for the component graph.',
+      'report. Each subject\'s structure rows go with it. Run the suite unsharded to ask ' +
+      'for the component graph or one subject\'s composition; the lexicon is per subject ' +
+      'and is carried.',
   ];
 }

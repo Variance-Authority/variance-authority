@@ -91,6 +91,7 @@ export interface AskRequest {
   readonly test?: string;
   readonly state?: string;
   readonly file?: string;
+  readonly query?: string;
   readonly limit?: number;
   /** `--at <address>`: a running watcher, instead of the last report. */
   readonly at?: string;
@@ -186,6 +187,7 @@ async function inputFrom(
     test: request.test,
     state: request.state,
     file: request.file,
+    query: request.query,
     limit: request.limit,
     // The one argument that is a file rather than a word, read through the same
     // validation `variance adjudicate` reads it through — an agent that declared

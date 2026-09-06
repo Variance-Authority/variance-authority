@@ -2,6 +2,7 @@ import architecture from "../../../docs/architecture.md?raw";
 import agentCli from "../../../docs/agent-cli.md?raw";
 import agentLiveRun from "../../../docs/agent-live-run.md?raw";
 import agentMcp from "../../../docs/agent-mcp.md?raw";
+import agentQuestions from "../../../docs/agent-questions.md?raw";
 import agents from "../../../docs/agents.md?raw";
 import agentWorkspaceApi from "../../../docs/agent-workspace-api.md?raw";
 import attribution from "../../../docs/attribution.md?raw";
@@ -59,6 +60,7 @@ const documents = [
   ["start-custom", startCustom, "docs/start-custom.md"],
   ["start-cli", startCli, "docs/start-cli.md"],
   ["agents", agents, "docs/agents.md"],
+  ["agent-questions", agentQuestions, "docs/agent-questions.md"],
   ["agent-cli", agentCli, "docs/agent-cli.md"],
   ["agent-mcp", agentMcp, "docs/agent-mcp.md"],
   ["agent-live-run", agentLiveRun, "docs/agent-live-run.md"],

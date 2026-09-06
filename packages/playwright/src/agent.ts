@@ -74,4 +74,23 @@ export interface PageAgent {
   readonly capture: (request: CaptureRequest) => string | Promise<string>;
   /** Bundle identity, echoed into diagnostics when a run looks wrong. */
   readonly version?: string;
+  /**
+   * The components the bundle has met, held so the engine can be asked where
+   * each one is declared (see `createDeclarationReader`). Described structurally
+   * because this module imports nothing: it is the shape of a
+   * `DeclaredComponents` from `@variance-authority/react`, which is what a
+   * bundle installs here.
+   */
+  readonly declared?: DeclaredComponents;
+}
+
+/**
+ * Names and the functions behind them, parallel by index, in the order they
+ * were met. `id` is new with every installation of the bundle: a reader that
+ * counted how far it had read must start over when the page it read is gone.
+ */
+export interface DeclaredComponents {
+  readonly id: string;
+  readonly names: readonly string[];
+  readonly functions: readonly Function[];
 }

@@ -55,7 +55,11 @@ export type {
   DivergenceRecord,
   PartingRecord,
   MovementRecord,
+  SubjectStructureRecord,
+  BoundaryRow,
 } from './composition.js';
+
+export type { LexiconReport, LexiconField, SubjectLexicon } from './lexicon.js';
 
 export type {
   ReachReport,

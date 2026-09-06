@@ -30,7 +30,13 @@ export type {
 export { attributeRegions, rankRegions } from './region.js';
 export type { AttributedRegion, AttributionOptions, RankedRegion } from './region.js';
 
-export { resolveSource, formatSource, indexSource, mergeSourceIndexes } from './source.js';
+export {
+  resolveSource,
+  formatSource,
+  indexSource,
+  mergeSourceIndexes,
+  overlaySourceIndex,
+} from './source.js';
 export type { SourceIndex, SourceRef, Resolution } from './source.js';
 
 export { parseStackFrames, isVendorPath, writerLocationOf } from './stack.js';
@@ -75,6 +81,9 @@ export type {
 } from './composition.js';
 
 export type { Divergence, DivergenceParting } from './divergence.js';
+
+export { lexiconOf, structureOf, LEXICON_CAP } from './lexicon.js';
+export type { BoundaryRow, LexiconField, LexiconOptions, SubjectLexicon } from './lexicon.js';
 
 export { attributeMovement } from './movement.js';
 export type { Attribution, Cause, Evidence, Moved, Movement } from './movement.js';

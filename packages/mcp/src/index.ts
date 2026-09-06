@@ -46,6 +46,8 @@ export {
   diffState,
 } from './tools.js';
 export type { Served, StateDifference, Tool, ToolInvocation } from './tools.js';
+export { locateSubjects, tokensOf, FIELD_WEIGHTS } from './tools/locate.js';
+export type { Located, LocateHit, LocateMatch, LocateField } from './tools/locate.js';
 
 export {
   EYES,
