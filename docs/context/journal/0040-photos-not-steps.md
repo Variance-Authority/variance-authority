@@ -71,12 +71,19 @@ been walked. A journey is a memory of the real trip — a map, and the map is no
 the territory. Every tree and every deviation the rounds argued over was drawn
 on the map, and the premise is now the first line under the decision.
 
-**Found on the way.** [`journal.ts`](../../../packages/sense/src/test-selection/journal.ts)
-shares a module's root region with every drained subject and charges every other
+**Found on the way, then fixed.** [`journal.ts`](../../../packages/sense/src/test-selection/journal.ts)
+shared a module's root region with every drained subject and charged every other
 region entered during module evaluation to the subject in whose window the
-module first evaluated. A helper called at module initialization is invisible to
-every later subject's selection. Marked at the site with a `FIXME` and an
-`it.todo`, not fixed here.
+module first evaluated, so a helper called at module initialization was
+invisible to every later subject's selection. The first pass marked the site
+with a `FIXME` and an `it.todo`. The user asked for the fix rather than the
+marker, and the marker was the wrong shape for it: the join cannot tell a
+region entered during evaluation from one entered later, only the realm can.
+So the instrument's runtime now keeps an evaluating window and sets a high bit
+on every counter that fires inside it, every collector reports those ordinals
+as `shared`, and every join gives them to every owner. The probe recipe moved
+to `presence-v3` so a build from before the window is refused rather than
+read.
 
 **Corrected by review.** A blind reading of the first draft against the code
 found the block-name examples wrong — the instrument names a component's entry

@@ -139,14 +139,16 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
 
   // Everything a process did outside any journey is everybody's: it ran, it is
   // product source, and no subject can be excluded on the claim that it did not.
+  // So is what a module did while evaluating inside a journey — the request
+  // that first needed it paid for an initialization every later one depends on.
   const shared = new Map<string, Map<string, Set<number>>>();
   const held = new Map<string, Map<string, Map<string, Set<number>>>>();
   let unclaimed = 0;
 
   for (const report of reports) {
+    const common = shared.get(report.head) ?? new Map<string, Set<number>>();
     if (report.journey === UNATTRIBUTED) {
-      const common = shared.get(report.head) ?? new Map<string, Set<number>>();
-      add(common, report.modules);
+      add(common, report.modules, (module) => module.hits);
       shared.set(report.head, common);
       continue;
     }
@@ -155,9 +157,13 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
       unclaimed += 1;
       continue;
     }
+    if (report.modules.some((module) => module.shared.length > 0)) {
+      add(common, report.modules, (module) => module.shared);
+      shared.set(report.head, common);
+    }
     const byOwner = held.get(report.head) ?? new Map<string, Map<string, Set<number>>>();
     const modules = byOwner.get(owner) ?? new Map<string, Set<number>>();
-    add(modules, report.modules);
+    add(modules, report.modules, (module) => module.hits);
     byOwner.set(owner, modules);
     held.set(report.head, byOwner);
   }
@@ -184,6 +190,7 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
       }
       if (modules.size === 0) continue;
       const preconditions = options.preconditions?.get(owner);
+      const ascending = (left: number, right: number): number => left - right;
       subjects.push({
         owner,
         complete: complete && options.incomplete?.has(owner) !== true,
@@ -192,7 +199,8 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
           modules: [...modules]
             .map(([file, ordinals]) => ({
               file,
-              hits: [...ordinals].sort((left, right) => left - right),
+              hits: [...ordinals].sort(ascending),
+              shared: [...(common?.get(file) ?? [])].sort(ascending),
             }))
             .sort((left, right) => codeUnitOrder(left.file, right.file)),
         },
@@ -205,11 +213,15 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
   return { heads, silent, unclaimed, complete, ...(because === undefined ? {} : { because }) };
 }
 
-function add(into: Map<string, Set<number>>, modules: readonly ExecutedModule[]): void {
+function add(
+  into: Map<string, Set<number>>,
+  modules: readonly ExecutedModule[],
+  of: (module: ExecutedModule) => readonly number[],
+): void {
   for (const module of modules) {
     const ordinals = into.get(module.file) ?? new Set<number>();
-    for (const ordinal of module.hits) ordinals.add(ordinal);
-    into.set(module.file, ordinals);
+    for (const ordinal of of(module)) ordinals.add(ordinal);
+    if (ordinals.size > 0) into.set(module.file, ordinals);
   }
 }
 

@@ -321,12 +321,14 @@ subject's window, and hand the journals to `recordExecution`.
 Recording refuses in one direction only. A missing inventory, an inventory from
 another probe recipe, and a page with no collector each record **nothing** and
 say why — costing the next run its full suite — because half a journal written
-as though it were whole is the failure that silently skips a subject. Module-kind
-blocks are attributed to *every* subject the run drained: a module initializes
-once per page, for whichever subject happened to be first, and charging it to
-that one subject would leave every other story that reads the same top-level
-constant unselected. Concurrent workers merge under a lock on the index file, so
-two processes cannot each write over the other's contribution.
+as though it were whole is the failure that silently skips a subject. Every region
+entered while a module was evaluating is attributed to *every* subject the run
+drained: a module initializes once per page, for whichever subject happened to
+be first, and charging its root and the helpers it called to that one subject
+would leave every other story that reads the same top-level constant unselected.
+The instrumented module marks that window itself, and the join reads the mark.
+Concurrent workers merge under a lock on the index file, so two processes cannot
+each write over the other's contribution.
 
 ## Follow one execution into a service
 

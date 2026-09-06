@@ -7,7 +7,7 @@ import { readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { createExecutionRecorder } from './execution.js';
 
-const INSTRUMENTATION = 'sense:instrument/presence-v2';
+const INSTRUMENTATION = 'sense:instrument/presence-v3';
 
 /** A page that hands over whatever the test says it entered, once per drain. */
 function pageReporting(...journals: readonly (ExecutionJournal | undefined)[]): Page {
@@ -47,8 +47,8 @@ describe('a Playwright worker records what its specs executed', () => {
 
       const recorder = createExecutionRecorder({ root, modulesFile, coverageFile });
       const page = pageReporting(
-        { instrumentation: INSTRUMENTATION, modules: [{ file: 'price.js', hits: [ordinals[0]!] }] },
-        { instrumentation: INSTRUMENTATION, modules: [{ file: 'price.js', hits: [ordinals[1]!] }] },
+        { instrumentation: INSTRUMENTATION, modules: [{ file: 'price.js', hits: [ordinals[0]!], shared: [0] }] },
+        { instrumentation: INSTRUMENTATION, modules: [{ file: 'price.js', hits: [ordinals[1]!], shared: [] }] },
       );
       await recorder.note(page, 'tests/checkout.spec.ts');
       await recorder.note(page, 'tests/checkout.spec.ts');
@@ -72,7 +72,7 @@ describe('a Playwright worker records what its specs executed', () => {
       await recorder.note(
         pageReporting({
           instrumentation: INSTRUMENTATION,
-          modules: [{ file: 'price.js', hits: [0] }],
+          modules: [{ file: 'price.js', hits: [0], shared: [0] }],
         }),
         'tests/checkout.spec.ts',
       );

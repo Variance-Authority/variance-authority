@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { digestString } from '@variance-authority/core';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
-import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
+import { EVALUATING, INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
 import { commitOf } from './commit.js';
 import { encodeTestCoverage } from './format.js';
@@ -52,7 +52,12 @@ interface VitePlugin {
 
 interface Journal {
   readonly testFile: string;
-  readonly modules: ReadonlyArray<{ readonly file: string; readonly hits: readonly number[] }>;
+  readonly modules: ReadonlyArray<{
+    readonly file: string;
+    readonly hits: readonly number[];
+    /** Entered while a module was evaluating, so every file the run ran owns it. */
+    readonly shared: readonly number[];
+  }>;
 }
 
 interface RunnerTask {
@@ -148,15 +153,20 @@ function selectionReporter(
     async onFinished(files) {
       const journals = await readJournals(runDirectory);
       const observed = new Map<string, Map<number, Set<string>>>();
+      // A worker that keeps its module graph between files evaluates a module
+      // once for all of them, so what it did while evaluating is every file's.
+      const everyTest = journals.map((journal) => projectPath(root, journal.testFile));
 
       for (const journal of journals) {
         const testFile = projectPath(root, journal.testFile);
         for (const module of journal.modules) {
           const moduleFile = projectPath(root, module.file);
           const byOrdinal = observed.get(moduleFile) ?? new Map<number, Set<string>>();
+          const shared = new Set(module.shared);
           for (const ordinal of module.hits) {
             const tests = byOrdinal.get(ordinal) ?? new Set<string>();
-            tests.add(testFile);
+            if (shared.has(ordinal)) for (const test of everyTest) tests.add(test);
+            else tests.add(testFile);
             byOrdinal.set(ordinal, tests);
           }
           observed.set(moduleFile, byOrdinal);
@@ -213,6 +223,7 @@ afterAll(async () => {
   const journal = { testFile, modules: [...modules].map(([file, counters]) => ({
     file,
     hits: [...counters].flatMap((count, ordinal) => count === 0 ? [] : [ordinal]),
+    shared: [...counters].flatMap((count, ordinal) => count >= ${EVALUATING} ? [ordinal] : []),
   })) };
   await mkdir(${JSON.stringify(runDirectory)}, { recursive: true });
   await writeFile(${JSON.stringify(`${runDirectory}/`)} + process.pid + '-' + randomUUID() + '.json', JSON.stringify(journal));

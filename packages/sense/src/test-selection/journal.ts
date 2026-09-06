@@ -32,10 +32,12 @@
  * A module's own initialization runs once per realm, for whichever subject
  * happened to be first. Attributing it to that subject would be a lie the shape
  * of a skipped test: edit a top-level constant and the three hundred stories
- * that also read it are not selected. So module-kind blocks are attributed to
- * **every subject the run drained** — over-including, in the direction
- * [`selecting.md`](../../../../docs/selecting.md) already argues for, and
- * without pretending a page can tell which story caused a module to evaluate.
+ * that also read it are not selected. So every region entered while a module
+ * was evaluating — its root, a helper the top level called — is attributed to
+ * **every subject the run drained**, over-including in the direction
+ * [`selecting.md`](../../../../docs/selecting.md) already argues for. The page
+ * marks those regions itself ([`instrument`](../instrument/index.ts)); the
+ * join only reads the mark.
  */
 
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
@@ -243,14 +245,9 @@ export async function recordExecution(
   const byFile = new Map(inventory.modules.map((module) => [module.file, module]));
   const owners = subjects.map((subject) => subject.owner);
 
-  // Module initialization runs once per page, in whichever subject's window
-  // the module first evaluated. It is every subject's, and this is the line
-  // that says so.
-  // FIXME: only the root region is shared. Every other region entered during
-  // that initialization — a helper the root calls, a module-scope branch — is
-  // charged to that one subject, so a later subject is not selected by a
-  // change to it: the unsafe direction (ADR-0056).
-  const shared = new Set<string>(owners);
+  // What a module entered while evaluating — once per page, in whichever
+  // subject's window it was first needed — is every subject's.
+  const everyOwner = new Set<string>(owners);
   const crossings = new Map<string, Map<number, Set<string>>>();
   const entered = new Map<string, Set<string>>();
 
@@ -258,11 +255,11 @@ export async function recordExecution(
     for (const module of subject.journal.modules) {
       const known = byFile.get(module.file);
       if (known === undefined || !known.instrumented) continue;
-      const kinds = new Map(known.blocks.map((block) => [block.ordinal, block.kind]));
+      const evaluating = new Set(module.shared);
       const byOrdinal = crossings.get(module.file) ?? new Map<number, Set<string>>();
       for (const ordinal of module.hits) {
         const holders = byOrdinal.get(ordinal) ?? new Set<string>();
-        if (kinds.get(ordinal) === 'module') for (const owner of shared) holders.add(owner);
+        if (evaluating.has(ordinal)) for (const owner of everyOwner) holders.add(owner);
         else holders.add(subject.owner);
         byOrdinal.set(ordinal, holders);
       }
@@ -389,24 +386,28 @@ export function joinObservations(
 ): readonly ObservedSubject[] {
   interface Held {
     readonly modules: Map<string, Set<number>>;
+    readonly shared: Map<string, Set<number>>;
     readonly preconditions: Map<string, CoveragePrecondition>;
     complete: boolean;
     instrumentation: string;
   }
   const byOwner = new Map<string, Held>();
+  const union = (into: Map<string, Set<number>>, file: string, ordinals: readonly number[]): void => {
+    into.set(file, new Set([...(into.get(file) ?? []), ...ordinals]));
+  };
 
   for (const subjects of sources) {
     for (const subject of subjects) {
       const held = byOwner.get(subject.owner) ?? {
         modules: new Map<string, Set<number>>(),
+        shared: new Map<string, Set<number>>(),
         preconditions: new Map<string, CoveragePrecondition>(),
         complete: true,
         instrumentation: INSTRUMENTATION_ID,
       };
       for (const module of subject.journal.modules) {
-        const ordinals = held.modules.get(module.file) ?? new Set<number>();
-        for (const ordinal of module.hits) ordinals.add(ordinal);
-        held.modules.set(module.file, ordinals);
+        union(held.modules, module.file, module.hits);
+        union(held.shared, module.file, module.shared);
       }
       for (const precondition of subject.preconditions ?? []) {
         held.preconditions.set(precondition.name, precondition);
@@ -429,7 +430,11 @@ export function joinObservations(
       journal: {
         instrumentation: held.instrumentation,
         modules: [...held.modules]
-          .map(([file, ordinals]) => ({ file, hits: [...ordinals].sort((a, b) => a - b) }))
+          .map(([file, ordinals]) => ({
+            file,
+            hits: [...ordinals].sort((a, b) => a - b),
+            shared: [...(held.shared.get(file) ?? [])].sort((a, b) => a - b),
+          }))
           .sort((left, right) => codeUnitOrder(left.file, right.file)),
       },
       ...(held.preconditions.size === 0

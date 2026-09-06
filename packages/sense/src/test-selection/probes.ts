@@ -10,7 +10,7 @@
  */
 import { resolve } from 'node:path';
 import { digestString } from '@variance-authority/core';
-import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
+import { EVALUATING, INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import {
   cleanId,
   coverageBlock,
@@ -35,6 +35,13 @@ export const EXECUTION_GLOBAL = '__variance_authority_execution__';
 export interface ExecutedModule {
   readonly file: string;
   readonly hits: readonly number[];
+  /**
+   * The ordinals among `hits` entered while a module was evaluating: the root,
+   * and whatever the top level called. A module evaluates once per realm, in
+   * whichever subject's window it was first needed, so these are every
+   * subject's and the join gives them to every subject the run drained.
+   */
+  readonly shared: readonly number[];
 }
 
 /** Everything a page entered between two drains. */
@@ -240,13 +247,15 @@ globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
     const entered = [];
     for (const [file, counters] of modules) {
       const hits = [];
+      const shared = [];
       for (let ordinal = 0; ordinal < counters.length; ordinal += 1) {
         if (counters[ordinal] > 0) {
           hits.push(ordinal);
+          if (counters[ordinal] >= ${EVALUATING}) shared.push(ordinal);
           counters[ordinal] = 0;
         }
       }
-      if (hits.length > 0) entered.push({ file, hits });
+      if (hits.length > 0) entered.push({ file, hits, shared });
     }
     return { instrumentation: ${JSON.stringify(INSTRUMENTATION_ID)}, modules: entered };
   },

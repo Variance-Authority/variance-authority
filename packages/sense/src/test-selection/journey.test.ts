@@ -43,7 +43,21 @@ const SOURCE = [
 const EURO_LINE = 6;
 const DOLLAR_LINE = 8;
 
+/** A module whose top level calls a helper once, the moment it is first needed. */
+const LAZY = [
+  'function label(locale) {',
+  '  if (locale === "de") return "euros";',
+  '  return "dollars";',
+  '}',
+  'globalThis.__head_test_default = label("de");',
+  'globalThis.__head_test_currency = async (locale) => label(locale);',
+].join('\n');
+
+const LAZY_EURO_LINE = 2;
+const LAZY_DOLLAR_LINE = 3;
+
 type Currency = (locale: string) => Promise<string>;
+const unevaluated: Currency = () => Promise.reject(new Error('the module has not been evaluated'));
 
 /** Evaluate the transformed module the way a service's loader would. */
 function evaluate(transformed: string): Currency {
@@ -107,28 +121,53 @@ function diffAt(file: string, line: number): string {
   return `--- a/${file}\n+++ b/${file}\n@@ -${line},1 +${line},1 @@\n`;
 }
 
+/** Stitch what the driver heard to its owners, and record the `api` head's part. */
+async function record(
+  root: string,
+  parts: Head,
+  driven: Driver,
+  owners: readonly (readonly [string, string])[],
+): Promise<{ stitched: ReturnType<typeof stitchJourneys>; recorded: Awaited<ReturnType<typeof recordExecution>> }> {
+  const stitched = stitchJourneys({ reports: driven.reports, heads: ['api'], owners: new Map(owners) });
+  const recorded = await recordExecution({
+    root,
+    modulesFile: parts.modulesFile,
+    coverageFile: parts.coverageFile,
+    subjects: stitched.heads.get('api')!,
+  });
+  return { stitched, recorded };
+}
+
+type HeadOptions = { readonly source?: string; readonly lazy?: boolean };
+
 interface Head {
   readonly modulesFile: string;
   readonly coverageFile: string;
   readonly currency: Currency;
+  readonly code: string;
 }
 
-/** Instrument the module, install the collector, and evaluate — in that order. */
-async function head(root: string, label = 'build'): Promise<Head> {
+/**
+ * Instrument the module, install the collector, and evaluate — in that order.
+ * `lazy` leaves it unevaluated, for a test that loads it inside a journey.
+ */
+async function head(root: string, label = 'build', options: HeadOptions = {}): Promise<Head> {
+  const source = options.source ?? SOURCE;
   const modulesFile = resolve(root, `modules-${label}.json`);
   const module = resolve(root, 'currency.js');
-  await writeFile(module, SOURCE, 'utf8');
+  await writeFile(module, source, 'utf8');
   const plugin = testSelectionProbes({ root, modulesFile });
   const transformed = plugin.transform.call(
     { getCombinedSourcemap: () => ({ mappings: '' }) },
-    SOURCE,
+    source,
     module,
   )!;
   await plugin.buildEnd();
   return {
     modulesFile,
     coverageFile: resolve(root, 'coverage.bin'),
-    currency: evaluate(transformed.code),
+    currency: options.lazy ? unevaluated : evaluate(transformed.code),
+    code: transformed.code,
   };
 }
 
@@ -150,22 +189,11 @@ describe('a head reports what each journey entered', () => {
       await collector.close();
       expect([first, second]).toEqual(['1200 euros', '1200 dollars']);
 
-      const stitched = stitchJourneys({
-        reports: driven.reports,
-        heads: ['api'],
-        owners: new Map([
-          [german, 'euros.spec.ts'],
-          [english, 'dollars.spec.ts'],
-        ]),
-      });
+      const { stitched, recorded } = await record(root, parts, driven, [
+        [german, 'euros.spec.ts'],
+        [english, 'dollars.spec.ts'],
+      ]);
       expect(stitched).toMatchObject({ complete: true, silent: [], unclaimed: 0 });
-
-      const recorded = await recordExecution({
-        root,
-        modulesFile: parts.modulesFile,
-        coverageFile: parts.coverageFile,
-        subjects: stitched.heads.get('api')!,
-      });
       expect(recorded).toMatchObject({ recorded: true, subjects: 2 });
 
       expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', EURO_LINE))).toEqual([
@@ -196,24 +224,47 @@ describe('a head reports what each journey entered', () => {
       await collector.enter(driven.carrying(german), () => 0);
       await collector.close();
 
-      const stitched = stitchJourneys({
-        reports: driven.reports,
-        heads: ['api'],
-        owners: new Map([
-          [german, 'euros.spec.ts'],
-          [mintJourney(), 'dollars.spec.ts'],
-        ]),
-      });
-      await recordExecution({
-        root,
-        modulesFile: parts.modulesFile,
-        coverageFile: parts.coverageFile,
-        subjects: stitched.heads.get('api')!,
-      });
+      await record(root, parts, driven, [
+        [german, 'euros.spec.ts'],
+        [mintJourney(), 'dollars.spec.ts'],
+      ]);
 
       expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', EURO_LINE))).toEqual([
         'dollars.spec.ts',
         'euros.spec.ts',
+      ]);
+    });
+  });
+
+  it('gives what a module did while evaluating inside one journey to every subject', async () => {
+    // A service loads a module the first time a request needs it, inside that
+    // request's journey; what the top level called, the other subject depends on.
+    await inRoot(async (root) => {
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
+      const parts = await head(root, 'build', { source: LAZY, lazy: true });
+      const german = mintJourney();
+      const english = mintJourney();
+
+      let loaded: Currency | undefined;
+      const currency = await collector.enter(driven.carrying(german), () => {
+        loaded = evaluate(parts.code);
+        return loaded('de');
+      });
+      expect(currency).toBe('euros');
+      await collector.enter(driven.carrying(english), () => loaded!('en'));
+      await collector.close();
+      await record(root, parts, driven, [
+        [german, 'euros.spec.ts'],
+        [english, 'dollars.spec.ts'],
+      ]);
+
+      expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', LAZY_EURO_LINE))).toEqual([
+        'dollars.spec.ts',
+        'euros.spec.ts',
+      ]);
+      expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', LAZY_DOLLAR_LINE))).toEqual([
+        'dollars.spec.ts',
       ]);
     });
   });

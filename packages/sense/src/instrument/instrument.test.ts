@@ -1,6 +1,7 @@
 import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { instrument } from './index.js';
+import { parseSync } from 'oxc-parser';
+import { EVALUATING, instrument } from './index.js';
 
 /**
  * Differential execution, in miniature.
@@ -44,8 +45,13 @@ function realm(out: unknown[], extra: Record<string, unknown> = {}): object {
   });
 }
 
-/** The counters one evaluation set, by block ordinal. */
+/** The counters one evaluation set, by block ordinal, without the evaluating bit. */
 async function hits(source: string): Promise<Uint32Array> {
+  return (await raw(source)).map((count) => (count & ~EVALUATING) >>> 0);
+}
+
+/** The counters as the collector sees them, evaluating bit and all. */
+async function raw(source: string): Promise<Uint32Array> {
   const instrumented = instrument(source, 'fixture.js');
   expect(instrumented).toBeDefined();
 
@@ -268,6 +274,63 @@ describe('the probes record what was entered', () => {
 
     expect(instrumented.blocks[0]).toMatchObject({ ordinal: 0, kind: 'module', path: 'module' });
     expect((await hits(`out.push(1);`))[0]).toBe(1);
+  });
+
+  it('marks what ran while the module was evaluating, and nothing after', async () => {
+    // The top level calls `f` once, and a microtask calls it again after the
+    // last statement has run: the first call is every subject's, the second is
+    // whoever was painted.
+    const source = `function f(n) { if (n) out.push('y'); else out.push('n'); }
+      f(1); done = Promise.resolve().then(() => f(0));`;
+    const instrumented = instrument(source, 'fixture.js')!;
+    const counted = await raw(source);
+    const at = (path: string): number =>
+      counted[instrumented.blocks.find((block) => block.path === path)!.ordinal]!;
+
+    expect(at('module')).toBe(EVALUATING + 1);
+    expect(at('if#0/then')).toBe(EVALUATING + 1);
+    expect(at('entry')).toBe(EVALUATING + 2);
+    expect(at('if#0/else')).toBe(1);
+  });
+
+  it('closes the window after the last statement, whatever follows it', () => {
+    const shapes = [
+      `out.push(1); // a trailing comment, with no newline after it`,
+      `export default out
+/* nothing after this */`,
+      `export const one = 1`,
+      `'use strict';`,
+      `// only a comment`,
+      `#!/usr/bin/env node
+import x from 'y';`,
+      ``,
+    ];
+    for (const source of shapes) {
+      const code = instrument(source, 'fixture.js')!.code;
+      expect(code, source).toContain(';__vaE();');
+      expect(code.indexOf(';__vaE();'), source).toBeGreaterThan(code.indexOf('__va(0);'));
+      expect(code.split('\n'), source).toHaveLength(source.split('\n').length);
+      expect(parseSync('fixture.js', code, { sourceType: 'module' }).errors, source).toEqual([]);
+    }
+  });
+
+  it('keeps marking after a module threw while evaluating', async () => {
+    // The window never closed, so what runs later on this realm is shared too:
+    // over-including is the direction a failed evaluation may err in.
+    const source = `function f() { out.push('later'); }
+      done = Promise.resolve().then(() => f());
+      throw new Error('mid-evaluation');`;
+    const instrumented = instrument(source, 'fixture.js')!;
+    const counters = new Uint32Array(instrumented.blocks.length);
+    const context = realm([], { __VA__: () => counters });
+
+    expect(() => runInContext(instrumented.code, context, { filename: 'fixture.js' })).toThrow(
+      'mid-evaluation',
+    );
+    await (context as { done?: unknown }).done;
+
+    const entry = instrumented.blocks.find((block) => block.path === 'entry')!.ordinal;
+    expect(counters[entry]).toBe(EVALUATING + 1);
   });
 
   it('makes each outcome and later decision name the arrival region that governs it', () => {

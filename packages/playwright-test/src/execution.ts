@@ -92,6 +92,8 @@ export interface ExecutionRecorder {
 
 interface Accumulated {
   readonly hits: Map<string, Set<number>>;
+  /** Of `hits`, the ordinals a module entered while evaluating: every spec's. */
+  readonly shared: Map<string, Set<number>>;
   complete: boolean;
 }
 
@@ -144,11 +146,14 @@ export function createExecutionRecorder(
       if (journal === undefined) return;
       seen = true;
       instrumentation = journal.instrumentation;
-      const accumulated = owners.get(owner) ?? { hits: new Map(), complete: true };
+      const accumulated = owners.get(owner) ?? { hits: new Map(), shared: new Map(), complete: true };
       for (const module of journal.modules) {
         const ordinals = accumulated.hits.get(module.file) ?? new Set<number>();
         for (const ordinal of module.hits) ordinals.add(ordinal);
         accumulated.hits.set(module.file, ordinals);
+        const shared = accumulated.shared.get(module.file) ?? new Set<number>();
+        for (const ordinal of module.shared) shared.add(ordinal);
+        accumulated.shared.set(module.file, shared);
       }
       owners.set(owner, accumulated);
     },
@@ -251,6 +256,7 @@ export function createExecutionRecorder(
           modules: [...accumulated.hits].map(([file, ordinals]) => ({
             file,
             hits: [...ordinals],
+            shared: [...(accumulated.shared.get(file) ?? [])],
           })),
         },
         ...(preconditions.has(owner) ? { preconditions: preconditions.get(owner)! } : {}),

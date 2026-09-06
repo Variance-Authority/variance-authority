@@ -38,7 +38,23 @@ import { walkBlocks, type Block, type BlockKind, type Edit } from './blocks.js';
 export type { Block, BlockKind, Edit };
 
 /** Changes whenever two instrumented block universes must not share observations. */
-export const INSTRUMENTATION_ID = 'sense:instrument/presence-v2';
+export const INSTRUMENTATION_ID = 'sense:instrument/presence-v3';
+
+/**
+ * The bit a counter carries when its region was entered while the module was
+ * evaluating: the top-level statements, and everything they called.
+ *
+ * A module evaluates once per realm, inside whichever subject's window it was
+ * first needed, and what it did then is every subject's. The page cannot tell
+ * that entry from the subject's own, so the runtime marks it at the site: a
+ * depth on the factory that the header raises and the end of the module lowers,
+ * and every probe fired while it is raised sets this bit on its counter. The low
+ * bits still count; the collectors mask it out and report the ordinal as
+ * shared. A module that throws before its end leaves the depth raised, and every
+ * later region on that page is then shared — over-including, in the direction
+ * [`selecting.md`](../../../../docs/selecting.md) argues for.
+ */
+export const EVALUATING = 0x80000000;
 
 export interface Instrumented {
   /** Identity of the exact source string whose offsets and blocks follow. */
@@ -70,7 +86,17 @@ export function instrument(source: string, id: string): Instrumented | undefined
   const walked = walkBlocks(parsed.program, source, PROBES);
   const header = runtime(id, walked.blocks.length);
 
-  const edits = [...walked.edits, { at: walked.prologue, text: header }];
+  // The window closes after the last top-level statement, never at the end of
+  // the text: a trailing comment would swallow the call. A module with no body
+  // closes right after it opens, at the same offset, and the stable sort below
+  // keeps the header in front.
+  const body = parsed.program.body as readonly { readonly end: number }[];
+  const last = body.length === 0 ? walked.prologue : body[body.length - 1]!.end;
+  const edits = [
+    ...walked.edits,
+    { at: walked.prologue, text: header },
+    { at: Math.max(walked.prologue, last), text: ';__vaE();' },
+  ];
   // Stable by construction: `Array.prototype.sort` keeps insertion order for equal
   // keys, and closing braces are emitted after the subtree that opened them, so an
   // inner `}` lands in front of an outer one at the same offset.
@@ -93,7 +119,7 @@ const PROBES = {
 };
 
 /**
- * The two hoisted declarations every instrumented module carries.
+ * The three hoisted declarations every instrumented module carries.
  *
  * Function declarations rather than a `const`, because a circular import can call
  * back into this module before its own top level has run — a binding in the
@@ -101,15 +127,23 @@ const PROBES = {
  * instrumented builds, which is the worst kind of difference to chase.
  *
  * The module's own probe fires here, at the end of the prologue rather than at
- * offset 0, so it sits below anything vitest hoisted.
+ * offset 0, so it sits below anything vitest hoisted. It then raises the
+ * evaluating depth on the factory it resolved, and marks its own counter, so
+ * that the module's root and everything the top level calls carry
+ * {@link EVALUATING} until `__vaE` lowers the depth after the last statement.
+ * A depth rather than a flag, because a module can evaluate another one inside
+ * its top level. The depth lives on the factory and not in this module, because
+ * it is the realm's fact: the module evaluating is not the only module whose
+ * probes fire while it does.
  */
 function runtime(id: string, count: number): string {
   const module = JSON.stringify(id);
 
   return (
-    `function __va(i){const r=globalThis.__VA__;if(__va.c===undefined||__va.r!==r){__va.r=r;__va.c=globalThis.__VA__(${module},${count})}__va.c[i]++}` +
+    `function __va(i){const r=globalThis.__VA__;if(__va.c===undefined||__va.r!==r){__va.r=r;__va.c=globalThis.__VA__(${module},${count})}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
     `function __vaR(v,i){__va(i);return v}` +
-    `__va(0);`
+    `function __vaE(){const r=globalThis.__VA__;r.e=r.e>1?r.e-1:0}` +
+    `__va(0);__va.r.e=(__va.r.e|0)+1;__va.c[0]|=${EVALUATING};`
   );
 }
 

@@ -67,7 +67,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
-import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import { EVALUATING, INSTRUMENTATION_ID } from '../instrument/index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
@@ -237,10 +237,17 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     const entered: ExecutedModule[] = [];
     for (const [file, counted] of modules) {
       const hits: number[] = [];
+      const shared: number[] = [];
       for (let ordinal = 0; ordinal < counted.length; ordinal += 1) {
-        if (counted[ordinal]! > 0) hits.push(ordinal);
+        const count = counted[ordinal]!;
+        if (count === 0) continue;
+        hits.push(ordinal);
+        // A module a request was the first to need evaluated inside that
+        // journey, and what it did then is every subject's: the driver folds
+        // it in beside the process's own unattributed crossings.
+        if (count >= EVALUATING) shared.push(ordinal);
       }
-      if (hits.length > 0) entered.push({ file, hits });
+      if (hits.length > 0) entered.push({ file, hits, shared });
     }
     if (entered.length === 0) return;
     if (over === undefined) return;

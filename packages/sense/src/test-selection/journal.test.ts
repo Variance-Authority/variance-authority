@@ -29,6 +29,26 @@ const SOURCE = [
 const PREMIUM_LINE = 3;
 const PLAIN_LINE = 5;
 
+/**
+ * The same decision, and a helper the top level calls once while the module
+ * evaluates: a region no subject enters on its own, and every subject depends
+ * on.
+ */
+const INITIALIZING = [
+  'function label(amount) {',
+  '  if (amount > 10) {',
+  '    return "premium";',
+  '  }',
+  '  return "plain";',
+  '}',
+  'const DEFAULT = label(1);',
+  ...SOURCE.split('\n'),
+].join('\n');
+
+const LABEL_PREMIUM_LINE = 3;
+const LABEL_PLAIN_LINE = 5;
+const LATER_PLAIN_LINE = 7 + PLAIN_LINE;
+
 interface Realm {
   readonly price: (amount: number) => number;
   readonly collector: ExecutionCollector;
@@ -232,7 +252,47 @@ describe('a browser run records what it executed', () => {
     });
   });
 
-  it.todo('gives every region entered during module initialization every subject the page served');
+  it('gives every region entered during module initialization every subject the page served', async () => {
+    await inRoot(async (root) => {
+      const modulesFile = resolve(root, 'modules.json');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const module = resolve(root, 'price.js');
+      await writeFile(module, INITIALIZING, 'utf8');
+
+      const plugin = testSelectionProbes({ root, modulesFile });
+      const transformed = plugin.transform(INITIALIZING, module)!;
+      await plugin.buildEnd();
+
+      // `label(1)` runs once, while the module evaluates, inside the first
+      // subject's window. The second subject never calls it and depends on it.
+      const realm = evaluate(transformed.code);
+      realm.price(20);
+      const first = realm.collector.drain();
+      realm.price(1);
+      const second = realm.collector.drain();
+
+      await recordExecution({
+        root,
+        modulesFile,
+        coverageFile,
+        subjects: [
+          { owner: 'story:price--premium', journal: first },
+          { owner: 'story:price--plain', journal: second },
+        ],
+      });
+
+      expect(await selectTestFiles(coverageFile, diffAt('price.js', LABEL_PLAIN_LINE))).toEqual([
+        'story:price--plain',
+        'story:price--premium',
+      ]);
+      // The window closed with the last statement: what the second subject
+      // did on its own is its own, and what nobody entered selects nobody.
+      expect(await selectTestFiles(coverageFile, diffAt('price.js', LATER_PLAIN_LINE))).toEqual([
+        'story:price--plain',
+      ]);
+      expect(await selectTestFiles(coverageFile, diffAt('price.js', LABEL_PREMIUM_LINE))).toEqual([]);
+    });
+  });
 
   it('stamps the commit the checkout was at, and nothing when there is none', async () => {
     // An index's whole position in time and space. A reader diffs from here to
@@ -303,7 +363,7 @@ describe('a browser run records what it executed', () => {
         subjects: [
           {
             owner: 'story:price--premium',
-            journal: { instrumentation: 'sense:instrument/presence-v2', modules: [] },
+            journal: { instrumentation: 'sense:instrument/presence-v3', modules: [] },
           },
         ],
       });

@@ -102,14 +102,19 @@ has mistaken the map for the trip.
 
 ## Consequences
 
-The join gives a module's root region to every subject the run drained. Every
-other region entered during module evaluation — a helper the root calls, a
-module-scope branch or loop — is charged to whichever subject's window the
-module first evaluated in. A later subject whose only crossing of a changed
-region was at module initialization is therefore not selected by a change to
-it. That is the unsafe direction; the
-site in [`journal.ts`](../../../packages/sense/src/test-selection/journal.ts)
-carries the marker.
+Every region entered while a module is evaluating — its root, a helper the
+root calls, a module-scope branch or loop — belongs to every subject the run
+drained, because the module evaluated once, in whichever subject's window
+happened to be open, and a subject whose only crossing of a changed region was
+at initialization must still be selected by a change to it. The instrumented
+module marks the window itself: the runtime keeps an evaluating depth on the
+collector, raises it after the root probe and lowers it after the last
+top-level statement, and a probe that fires inside the window sets a high bit
+on its counter. Every collector reports the marked ordinals as `shared` beside
+`hits`, and every join — the page's, the Vitest seam's, the service head's —
+gives a shared ordinal to every owner. A module that throws while evaluating
+leaves the window open on that realm, so everything after it is shared: more
+selection, never less.
 
 Region names come from source and component names from the function, so any
 reader that joins the two needs an instrumented build that does not minify
