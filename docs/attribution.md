@@ -167,11 +167,15 @@ the instances.
 
 ### What each build already knows
 
-| | automatic transform | classic transform |
+Do not instrument a development build by default. React already supplies the
+exact call site in every common development configuration.
+
+| Subject build | Call-site source | Build change |
 |---|---|---|
-| **React 19** | `_debugStack` | `_debugStack` |
-| **React 18** | `_debugSource` | nothing — install [`packages/jsx-source`](../packages/jsx-source) |
-| **production** | nothing — install [`packages/jsx-source`](../packages/jsx-source) | same |
+| **React 19 development**, automatic or classic JSX | `_debugStack` | none |
+| **React 18 development**, automatic JSX | `_debugSource` | none |
+| **React 18 development**, classic `createElement` output | none | switch to automatic development JSX and add [`jsx-source`](../packages/jsx-source), when exact lines are required |
+| **production React artifact** | none | automatic development JSX plus [`jsx-source`](../packages/jsx-source), when exact lines are required |
 
 React 19 constructs an `Error` inside its own element factory and keeps it on
 every fiber, so a call site is present in any development build — every dev
@@ -180,9 +184,12 @@ server, every Vitest run, every Jest run, with nothing installed and no
 lineNumber, columnNumber}` as `_debugSource`, which is cheaper still because
 nothing has to be resolved.
 
-Where `@variance-authority/jsx-source` is installed it wins, because it is exact
-without a map, and it survives minification — so it is the answer for a built
-Storybook or a statically served bundle, where no capture exists at all.
+`@variance-authority/jsx-source` is optional production-build instrumentation.
+It preserves the compiler's exact location without a map and survives
+minification, so a built Storybook or statically served bundle can distinguish
+several instances of one component. Without it, observation and attribution
+still run; the report falls back to the component declaration where one can be
+resolved.
 
 ### Spending a stack
 
@@ -322,7 +329,7 @@ nothing — and nothing is printed as nothing.
 **Further:** [`composition.md`](composition.md) for what explains a change once
 it has a name · [`source.md`](source.md) for the other direction, from a diff to
 the subjects it could have reached ·
-[`packages/jsx-source`](../packages/jsx-source) for the exact locations ·
+[`packages/jsx-source`](../packages/jsx-source) for optional production call-site instrumentation ·
 [`packages/react`](../packages/react) for what the fiber gives up ·
 [ADR-0007](context/adr/0007-subject-boundary-is-the-component-tree.md) for the
 subject boundary ·

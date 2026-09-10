@@ -135,7 +135,7 @@ matches by DOM position, and a reordered list looks like every item changed.
 
 ## Honest limits
 
-- **A source location needs a React development build, and nothing else.**
+- **Exact call sites normally need no extra package.**
   React 19 drops what the transform computed — `jsxDEV` takes four parameters and
   overwrites the fifth, `createElement` skips `__source` by name — and replaces
   it with something better: an `Error` captured inside its own element factory,
@@ -147,10 +147,12 @@ matches by DOM position, and a reordered list looks like every item changed.
   no plugin, no `jsxImportSource`, no `jsxDev`. It reaches the classic transform
   too, because React captures the same error in `createElement`.
 
-  A **production** build has no such error, and that is where
-  `@variance-authority/jsx-source` comes in — a bundler plugin
-  or a Jest resolver, still without taking `jsxImportSource`. An element whose
-  props were rebuilt by a custom runtime records one fiber up, and
+  A **production** build has no such error. When a report must name the exact
+  JSX expression rather than the component declaration,
+  `@variance-authority/jsx-source` can instrument that build through a bundler
+  plugin or Jest resolver, still without taking `jsxImportSource`. It is not a
+  prerequisite for observation or component attribution. An element whose props
+  were rebuilt by a custom runtime records one fiber up, and
   `resolveProvenance` climbs composite ancestors to find it.
 
   **React 18 is served first and more cheaply.** It kept the transform's own
@@ -158,9 +160,10 @@ matches by DOM position, and a reordered list looks like every item changed.
   `resolveProvenance` reads before it looks at any stack — a location the
   compiler already computed needs no frame, no module fetch and no source map.
   A React 18 dev server therefore costs nothing at all for what React 19 spends
-  a map hop on. The one combination with no answer is React 18 *and* the classic
-  transform, where the compiler emits no `__source` and React captures no error
-  to replace it; that corner is the plugin's.
+  a map hop on. React 18 with classic `createElement` output has neither field.
+  The recording runtime does not intercept `createElement`; exact locations in
+  that configuration require changing the compiler to emit automatic
+  development JSX as well as installing the package.
 
   With none of the three, attribution falls back to resolving a component *name*
   against a repository scan (`core/attribute`'s `indexSource`) — the
@@ -171,4 +174,5 @@ matches by DOM position, and a reordered list looks like every item changed.
 If the element has no React fiber, or the application uses a production build
 without source metadata, the result is intentionally incomplete. `provenanceOf`
 does not guess a component from the DOM; use the name scan in `core/attribute`, or
-install `@variance-authority/jsx-source` for production call-site locations.
+use `@variance-authority/jsx-source` only when a production report requires
+exact per-element call-site locations.

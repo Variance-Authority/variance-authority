@@ -11,10 +11,9 @@ three entrances to ask it through.
 The questions are read off the MCP tools themselves, so the three ways of
 asking cannot differ by one:
 
-- **A skill.** [`packages/cli/skill/SKILL.md`](../packages/cli/skill/SKILL.md)
-  routes an agent through the questions in the order below. It is a file, so it
-  travels with the repository or with the installed package, and it needs no
-  client configuration.
+- **The `variance-authority` skill.** [Install it in
+  Codex](agent-cli.md#point-an-agent-at-it), then it routes an agent through the
+  questions in the order below without client configuration.
 - **A shell.** `variance ask <question>` calls the same functions an MCP
   connection calls and prints the same text. It is what a CI job or a sandboxed
   agent uses: [ask a run from the command line](agent-cli.md).

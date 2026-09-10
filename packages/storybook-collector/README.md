@@ -56,25 +56,23 @@ still name components, but it cannot point to their declarations.
 
 Against a built Storybook those names arrive minified — a run reports the cause
 as `Ce`, not `Button`, because the bundler renamed it and nothing in the browser
-remembers otherwise. `file:line` is the identifier that survives minification,
-which is what makes the plugin below load-bearing there rather than an
-enhancement.
+remembers otherwise. Preserve component names when the report must use them.
 
 That scan names where a component is *declared* — one line however many times
 that component is rendered.
 
-For the line the changed element is actually written on: against a
-**development** Storybook, source locations work automatically — nothing to
-configure. Against a **built, minified** Storybook it needs the
-`@variance-authority/jsx-source` plugin in your `viteFinal` with
-`esbuild.jsxDev` on; a report prefers the exact location wherever it comes
-from, and this collector makes it repository-relative. The plugin does not
-take `jsxImportSource`, so a Storybook already compiling against Emotion or
-theme-ui keeps doing exactly that.
+For the line the changed element is actually written on, a **development**
+Storybook needs no instrumentation. A **built** Storybook can opt into that
+extra precision with `@variance-authority/jsx-source`; collection, comparison
+and declaration-level attribution work without it. The build must emit
+automatic development JSX, and the plugin belongs in `viteFinal`:
 
 ```bash
 npm install --save-dev @variance-authority/jsx-source
 ```
+
+See [`@variance-authority/jsx-source`](../jsx-source) for the Vite configuration
+and for builds that already use Emotion, theme-ui or another custom JSX runtime.
 
 ### 3. Point the CLI at the Storybook index and collector
 
@@ -203,13 +201,12 @@ the other side.
   Production minification must also preserve component function names; the
   worked case uses `esbuild.keepNames: true` for this reason.
 - **Elements report their component's declaration rather than their own line:**
-  against a built Storybook, the `jsx-source` plugin is not installed or
-  `esbuild.jsxDev` is off in the build that produced this artifact. Locations
-  survive minification, so it is worth turning on. Against a development
-  Storybook nothing needs installing — if lines are missing there, React is not
-  its development build, the dev server is emitting no source maps, or this is
-  React 18 compiled with the classic transform, which records no location for
-  either mechanism to read.
+  this is the expected fallback for an uninstrumented built Storybook. Install
+  `jsx-source` only when the report must distinguish the exact element instance,
+  and make that build emit automatic development JSX. Against a development
+  Storybook nothing normally needs installing; missing lines there mean React
+  is not its development build, the dev server emits no source maps, or React 18
+  is still compiled to classic `createElement` calls.
 - **Images change without a document change:** leave `network` enabled so asset
   response bodies participate in the environment key. Disable it only when the
   URL already identifies the bytes.

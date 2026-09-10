@@ -122,10 +122,16 @@ one boundary whichever transport asks: [inspect a live run](agent-live-run.md).
 
 ## Point an agent at it
 
-The CLI package ships a skill at
-[`packages/cli/skill/SKILL.md`](../packages/cli/skill/SKILL.md) that routes an
-agent through these questions in the order above. It is a file, so it travels
-with the repository or with the installed package.
+For Codex, install the `variance-authority` skill from this repository:
+
+```text
+$skill-installer install https://github.com/Variance-Authority/variance-authority/tree/main/packages/cli/skill as variance-authority
+```
+
+Invoke it as `$variance-authority`, or let Codex select it when a Variance
+Authority report, watcher or connection is in scope. Installing
+`@variance-authority/cli` supplies the commands and the same skill source, but
+does not register the skill with Codex; skill installation is a separate step.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection

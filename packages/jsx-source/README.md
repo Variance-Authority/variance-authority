@@ -4,80 +4,62 @@
 
 > Carry the file and line that wrote a JSX element as far as the rendered DOM node.
 
-The **subject** is that rendered tree — the page or component under test on a
-given run. To report *which* component changed, Variance Authority needs to
-know where in your source each DOM node came from: the file and line whose
-JSX produced it, its **call site**. This package's only job is carrying that
-call site from the JSX transform through to the rendered element, so
-`@variance-authority/react` can read it back off the fiber as part of that
-element's **provenance** — the resolved record of where it came from.
+Most projects do not need this package. Variance Authority reads exact JSX call
+sites from React development builds without a plugin, a custom JSX runtime or a
+build change.
 
-You need a build whose JSX transform you control, and a React runtime for it to
-resolve. Application code never imports this package — a compiler or a bundler
-does, because a setting told it to.
+Install this package only when a production-built React artifact must identify
+the JSX expression that wrote each changed element. A built Storybook or a
+statically served application is the common case. Observation, comparison and
+component attribution work without it; when the collector has a source index, a
+production report can instead point to the line where the component is declared.
+
+This is build instrumentation, not an application dependency. Application code
+never imports it.
+
+## Decide whether to install it
+
+| Subject build | Exact call site without this package | Install it? |
+| --- | --- | --- |
+| React 19 development, automatic or classic JSX | Yes, from `_debugStack` and the development source map | No |
+| React 18 development, automatic JSX | Yes, from `_debugSource` | No |
+| React 18 development, classic `createElement` output | No | Only after changing the transform; see below |
+| Production React artifact | No | Only when exact per-element lines are required |
+
+The package is useful only when all of these are true:
+
+- the rendered subject uses React;
+- the fiber metadata path has no call site;
+- the report must distinguish element instances, not merely find the component
+  declaration;
+- the build that compiles the relevant JSX is under your control; and
+- that build can emit automatic `jsxDEV` calls with source metadata.
+
+If any one is false, do not install it.
 
 ```bash
 npm install --save-dev @variance-authority/jsx-source
 ```
 
-## Use this package when
-
-Install it for a production React bundle, or for React 18 using the classic
-JSX transform — in both cases the call site is not on the fiber and nothing
-else supplies it.
-
-For a React **development** build, check the next section first: React 18 and
-19 already put enough on the fiber to read the call site straight off it, with
-no build change required. That route — reading `_debugSource` or
-`_debugStack` directly — is what this README calls the **fiber metadata
-path**. Reach for this package only where that path comes up empty.
-
-Either way, a bundler plugin or Jest resolver does the installing; application
-code never imports this package.
-
 ## Package boundary
 
-Every JSX transform in ordinary use already computes the call site. The
-automatic transform in development mode passes `{fileName, lineNumber,
-columnNumber}` to the runtime as the fifth argument of `jsxDEV`; the classic
-transform passes the same object as a `__source` prop. The information is
-already there.
+An automatic transform in development mode computes the call site and passes
+`{fileName, lineNumber, columnNumber}` to the runtime as the fifth argument of
+`jsxDEV`. React 19 discards that argument. A production React runtime also
+carries no development fiber metadata from which the call site could be
+recovered.
 
-React 19 throws it away on both paths: its `jsxDEV` export takes four
-parameters and synthesizes its own `Error` for the fifth, and `createElement`
-skips `__source` by name while copying the rest of `config` into props.
+This package supplies that last hop. Its `jsxDEV` wrapper writes the transform's
+location onto props under a symbol, then hands the element to React. The symbol
+arrives at `fiber.memoizedProps`, where `@variance-authority/react` reads it. It
+survives minification and does not enter the document or any compared digest.
 
-So the last hop is the one to supply. This package is React's JSX runtime with
-one line added: the call site is written onto the props object under a
-symbol, and the props object is handed to React unchanged. React creates the
-element, React owns it, React validates it — and the call site arrives at
-`fiber.memoizedProps`, where `@variance-authority/react` reads it.
-
-## Check whether you need it
-
-**Against a React development build, you probably do not.**
-`@variance-authority/react` reads two fields off the fiber before anything
-here is involved — the fiber metadata path above — and between them they
-cover every dev server, Vitest and Jest:
-
-| | automatic transform | classic transform |
-| --- | --- | --- |
-| **React 19** | `_debugStack` | `_debugStack` |
-| **React 18** | `_debugSource` | **nothing — install this** |
-
-React 19 captures an `Error` inside its own element factory, `createElement`
-included, and the frame in it is resolved through the source map your dev
-server already emits — no plugin, no `jsxImportSource`, no `jsxDev`. React 18
-kept the transform's own location as `_debugSource`, which is cheaper still
-because nothing has to be resolved. React 18 with the classic transform is the
-one development corner with neither: esbuild writes no `__source` on that path
-and React 18 captures no error to replace it.
-
-What has no capture at all is a **production** build: a built Storybook, a
-statically served bundle, anything compiled with `NODE_ENV=production`. That
-is what this package is mainly for, and it is the case where the call site is
-worth the most, because it survives minification while component names do
-not.
+It does not intercept `React.createElement`. React 18 with an unchanged classic
+esbuild transform therefore remains uninstrumented: `jsxDev: true` alone does
+not change classic output. To use this package for that build, switch the
+transform to automatic JSX and enable its development emission. A classic
+transform that already emits `__source` gives React 18 its native
+`_debugSource`, so this package is unnecessary there.
 
 ## Install it in the build
 
@@ -98,7 +80,7 @@ import { jsxSource } from '@variance-authority/jsx-source/vite';
 
 export default {
   plugins: [jsxSource()],
-  esbuild: { jsxDev: true },
+  esbuild: { jsx: 'automatic', jsxDev: true },
 };
 ```
 
@@ -106,8 +88,9 @@ export default {
 Vite is three build tools at once here: the same plugin serves a Vite
 application, Storybook's React builder, and Vitest.
 
-Jest has no plugin hook that can answer a module request, so it gets a
-resolver instead:
+Jest has no plugin hook that can answer a module request, so it gets a resolver
+instead. Its transformer must also emit automatic development JSX; the resolver
+cannot create source metadata after compilation.
 
 ```js
 // jest.config.js
@@ -139,17 +122,16 @@ export default {
 };
 ```
 
-For Babel, the equivalent is `importSource` on `@babel/preset-react` with
-`development: true`. For TypeScript's own emit, it is `"jsx": "react-jsx"`
-with `"jsxImportSource": "@variance-authority/jsx-source"`, and TypeScript
-emits the development runtime whenever `"jsx": "react-jsxdev"`.
+For Babel, set `runtime: 'automatic'`, `development: true` and `importSource` on
+`@babel/preset-react`. For TypeScript's own emit, use `"jsx": "react-jsxdev"`
+with `"jsxImportSource": "@variance-authority/jsx-source"`.
 
-### Either way, `jsxDev` is the setting that decides everything
+### Either way, the transform must emit `jsxDEV`
 
-Neither route supplies it, and neither works without it — it is what makes
-the transform emit a call site at all. Turning it on in a production build is
-supported and useful: a call site is data the compiler emitted, so unlike a
-component name it survives minification.
+Neither install route supplies it, and neither works without automatic
+development JSX emission — it is what makes the transform emit a call site at
+all. Turning it on in a production build is supported: a call site is data the
+compiler emitted, so unlike a component name it survives minification.
 
 After that build runs, render an element and inspect it through
 `@variance-authority/react`'s `provenanceOf`. Its result should carry a
@@ -199,6 +181,9 @@ happens.
   emitting calls to `jsx` and `jsxs` and passing no source. Check the setting in
   the build that actually produced the bundle, not the one in the
   development server.
+- **The build still emits `React.createElement`:** this package wraps
+  `react/jsx-dev-runtime`; it does not patch `createElement`. Select the automatic
+  transform as well as enabling `jsxDev`.
 - **Call sites are absent in one package:** a dependency shipped
   pre-compiled JSX. Its elements were transformed by its own build and never
   passed through this runtime.
