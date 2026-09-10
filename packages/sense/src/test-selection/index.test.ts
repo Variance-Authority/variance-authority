@@ -1,74 +1,11 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { decodeTestCoverage, encodeTestCoverage, openTestCoverage } from './format.js';
-import { readTestCoverage, testCoverageFile, type TestCoverage } from './index.js';
+import { readTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from './index.js';
+import { coverage, testFiles } from './__fixtures__/coverage.js';
 import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
-
-const testFiles = ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.test.ts'];
-const coverage: TestCoverage = {
-  version: 3,
-  instrumentation: 'fixture-instrumentation',
-  tests: testFiles.map((file) => ({
-    file,
-    complete: true,
-    preconditions: [
-      { name: file, digest: `source:${file}` },
-      { name: 'vitest.config.ts', digest: 'source:config' },
-    ],
-  })),
-  modules: [
-    {
-      file: 'src/aaa.ts',
-      sourceDigest: 'source:aaa',
-      instrumented: true,
-      blocks: [
-        {
-          ordinal: 0,
-          kind: 'module',
-          digest: 'block:aaa',
-          name: '',
-          path: 'module',
-          startLine: 1,
-          endLine: 1,
-          source: true,
-          testFiles: ['test/aaa.test.ts'],
-        },
-      ],
-    },
-    {
-      file: 'src/decide.ts',
-      sourceDigest: 'source:decide',
-      instrumented: true,
-      blocks: [
-        {
-          ordinal: 0,
-          kind: 'module',
-          digest: 'block:decide',
-          name: '',
-          path: 'module',
-          startLine: 1,
-          endLine: 8,
-          source: true,
-          testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'],
-        },
-        {
-          ordinal: 2,
-          kind: 'branch',
-          owner: 0,
-          digest: 'block:decide:then',
-          name: 'decide',
-          path: 'if#0/then',
-          startLine: 3,
-          endLine: 5,
-          source: true,
-          testFiles: ['test/alpha.test.ts'],
-        },
-      ],
-    },
-  ],
-};
 
 describe('narrowByExecution', () => {
   const diff = `--- a/src/decide.ts
@@ -85,7 +22,45 @@ describe('narrowByExecution', () => {
       whole: testFiles,
       entered: ['test/alpha.test.ts'],
       unread: [],
+      because: [
+        {
+          test: 'test/alpha.test.ts',
+          via: [
+            { kind: 'region', file: 'src/decide.ts', name: 'decide', path: 'if#0/then', startLine: 3, endLine: 5 },
+          ],
+        },
+      ],
     });
+  });
+
+  it('says which precondition selected a test, and which regions, in one list', () => {
+    // The three ways in are fixed in three different places — a probe, a
+    // declaration, a dependency — and a list of paths cannot say which one
+    // put a test there. The reasons are the facts the loop held anyway.
+    const diff = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -1,1 +1,1 @@
+-import { a } from './a';
++import { a, b } from './a';
+--- a/test/beta.test.ts
++++ b/test/beta.test.ts
+@@ -1,1 +1,1 @@
+-old
++new`;
+
+    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff).because).toEqual([
+      {
+        test: 'test/alpha.test.ts',
+        via: [{ kind: 'region', file: 'src/decide.ts', name: '', path: 'module', startLine: 1, endLine: 8 }],
+      },
+      {
+        test: 'test/beta.test.ts',
+        via: [
+          { kind: 'region', file: 'src/decide.ts', name: '', path: 'module', startLine: 1, endLine: 8 },
+          { kind: 'precondition', name: 'test/beta.test.ts' },
+        ],
+      },
+    ]);
   });
 
   it('leaves a partial observation out of `whole` while it stays in `entered`', () => {
@@ -98,7 +73,7 @@ describe('narrowByExecution', () => {
       ),
     };
 
-    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(partial)), diff)).toEqual({
+    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(partial)), diff)).toMatchObject({
       whole: ['test/aaa.test.ts', 'test/beta.test.ts'],
       entered: ['test/alpha.test.ts'],
       unread: [],
@@ -184,6 +159,7 @@ describe('selectTestFiles', () => {
       whole: testFiles,
       entered: [],
       unread: ['README.md'],
+      because: [],
     });
   });
 
@@ -221,6 +197,7 @@ describe('selectTestFiles', () => {
       whole: testFiles,
       entered: [],
       unread: ['src/unparsed.ts'],
+      because: [],
     });
   });
 
@@ -282,12 +259,11 @@ describe('selectTestFiles', () => {
     ]);
   });
 
-  it('charges three lines replacing one to the region the one was in', () => {
-    // A run’s removals and additions have no correspondence in count, and the
-    // extra additions are not a separate insertion after them. Read as one,
-    // guarding an `onClick` with a confirmation charges the two lines below the
-    // handler — the component body — and the two subjects that never clicked it
-    // are selected by an edit they cannot reach.
+  it('charges three lines replacing one to the region the one was in, and the gap they open after it', () => {
+    // A run’s removals and additions have no correspondence in count. The
+    // additions past the count removed open a gap after the removed line, and
+    // the gap is charged to the regions on both sides of it; here both sides
+    // are the branch, so guarding the `return` selects alpha alone.
     const diff = `--- a/src/decide.ts
 +++ b/src/decide.ts
 @@ -4,1 +4,3 @@
@@ -365,6 +341,24 @@ describe('readTestCoverage', () => {
       await expect(readTestCoverage(file)).rejects.toThrow(
         /not a variance-authority test coverage artifact/,
       );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('writeTestCoverage', () => {
+  it('writes what readTestCoverage reads back, creating the directory on the way', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-write-coverage-'));
+    const file = resolve(directory, 'test-selection', 'nested', 'coverage.bin');
+
+    try {
+      await writeTestCoverage(file, coverage);
+
+      expect(await readTestCoverage(file)).toEqual(decoded(coverage));
+      // Whole or not at all: the temporary file the rename came from is gone,
+      // so a reader of the directory sees one snapshot and never a half of one.
+      expect(await readdir(resolve(directory, 'test-selection', 'nested'))).toEqual(['coverage.bin']);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

@@ -103,6 +103,18 @@ export interface JourneyReading {
   readonly entered?: ReadonlyMap<string, readonly string[]>;
 }
 
+/** What landing a fold of shard snapshots left on disk. */
+export interface LandedJourneys {
+  /** The file written. */
+  readonly at: string;
+  /** How many snapshots were folded into it. */
+  readonly shards: number;
+  readonly commit?: string;
+  /** Whole and truncated observations the landed snapshot now holds. */
+  readonly observations: number;
+  readonly modules: number;
+}
+
 export interface JourneysInput extends JourneyReading {
   readonly pool: JourneyPool;
   /** `--file <text>`: only modules whose recorded path contains this, case-insensitively. */
@@ -297,6 +309,22 @@ function listed(names: readonly string[]): string {
  * parted among the four subjects anything recorded", and only the second is ever
  * true.
  */
+/**
+ * The sentence a fold prints before the reading it made possible.
+ *
+ * Counts, not names: the shards were named on the command line and the reading
+ * that follows names the modules. What the operator cannot otherwise see is
+ * where the file went and where it now stands, which is what a laptop that just
+ * installed a baseline fetched from CI needs to check against `git merge-base`.
+ */
+export function formatLanding(landed: LandedJourneys): string {
+  return [
+    `folded ${many(landed.shards, 'snapshot')} into ${landed.at}`,
+    `  ${many(landed.observations, 'observation')} over ${many(landed.modules, 'module')}` +
+      (landed.commit === undefined ? '' : `, recorded at ${landed.commit.slice(0, 12)}`),
+  ].join('\n');
+}
+
 export function formatJourneys(result: Journeys): string {
   const blocks = result.modules.map(block);
 

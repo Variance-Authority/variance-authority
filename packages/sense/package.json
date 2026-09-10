@@ -52,7 +52,21 @@
     "./vitest": {
       "types": "./dist/test-selection/vitest.d.ts",
       "default": "./dist/test-selection/vitest.js"
-    }
+    },
+    "./jest": {
+      "types": "./dist/test-selection/jest.d.ts",
+      "default": "./dist/test-selection/jest.js"
+    },
+    "./jest-transform": {
+      "types": "./dist/test-selection/jest-transform.d.ts",
+      "default": "./dist/test-selection/jest-transform.js"
+    },
+    "./jest-reporter": {
+      "types": "./dist/test-selection/jest-reporter.d.ts",
+      "default": "./dist/test-selection/jest-reporter.js"
+    },
+    "./jest-setup": "./dist/test-selection/jest-setup.cjs",
+    "./jest-globals": "./dist/test-selection/jest-globals.cjs"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -71,7 +85,8 @@
     "@variance-authority/core": "workspace:^",
     "@variance-authority/wire": "workspace:^",
     "oxc-parser": "^0.144.0",
-    "oxc-resolver": "^11.24.2"
+    "oxc-resolver": "^11.24.2",
+    "picomatch": "^4.0.7"
   },
   "peerDependencies": {
     "vitest": "^2.1.9"
@@ -80,5 +95,12 @@
     "vitest": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "@jest/globals": "^30.5.1",
+    "@swc/core": "^1.16.2",
+    "@swc/jest": "^0.2.39",
+    "@types/picomatch": "^4.0.3",
+    "jest": "^30.5.1"
   }
 }

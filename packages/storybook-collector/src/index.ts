@@ -209,13 +209,17 @@ export function storybookCollector(
     // Asked of the engine, laid over the scan. The scan answers names it found in
     // the configured directories; the engine answers the functions this page
     // rendered, and where the two name the same component the engine's file is
-    // the one that ran. Read after each subject so the union grows with the run,
-    // and shared with the isolated collection because a file is not a fact about
-    // a world.
+    // the one that ran. Read after each subject so the union grows with the run.
+    //
+    // The run's reader, not the only one. What the engine has met is a fact
+    // about the page it met them in: a name registered by an earlier subject
+    // stays in this registry for the rest of the run, so an isolated reading
+    // laid over it would carry what else has run — the one thing it exists to
+    // leave out. `collectAlone` reads the engine of the world it opened.
     const declared = createDeclarationReader(world.page);
-    async function withDeclared(collected: Collected): Promise<Collected> {
+    async function withDeclared(collected: Collected, reader = declared): Promise<Collected> {
       if (!collected.ok) return collected;
-      const engine = await declared.read();
+      const engine = await reader.read();
       if (Object.keys(engine).length === 0) return collected;
       return { ...collected, source: overlaySourceIndex(collected.source ?? {}, engine) };
     }
@@ -255,13 +259,17 @@ export function storybookCollector(
        */
       async collectAlone(planned: PlannedSubject): Promise<Collected> {
         const alone = await openWorld(recipe);
+        // This world's engine. The run's reader has met every function every
+        // earlier subject rendered, and would lay all of them over this reading.
+        const declaredAlone = createDeclarationReader(alone.page);
         try {
-          return await withDeclared(await readStory(alone, reading, planned));
+          return await withDeclared(await readStory(alone, reading, planned), declaredAlone);
         } finally {
           // Always, including after a throw. A world left open is a browser
           // process and a port held for the rest of the run, and the run is
           // still going: this is called per changed subject, up to `alone.limit`
           // of them.
+          await declaredAlone.close();
           await alone.close();
         }
       },

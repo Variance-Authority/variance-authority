@@ -2416,7 +2416,21 @@
         "./vitest": {
           "types": "./dist/test-selection/vitest.d.ts",
           "default": "./dist/test-selection/vitest.js"
-        }
+        },
+        "./jest": {
+          "types": "./dist/test-selection/jest.d.ts",
+          "default": "./dist/test-selection/jest.js"
+        },
+        "./jest-transform": {
+          "types": "./dist/test-selection/jest-transform.d.ts",
+          "default": "./dist/test-selection/jest-transform.js"
+        },
+        "./jest-reporter": {
+          "types": "./dist/test-selection/jest-reporter.d.ts",
+          "default": "./dist/test-selection/jest-reporter.js"
+        },
+        "./jest-setup": "./dist/test-selection/jest-setup.cjs",
+        "./jest-globals": "./dist/test-selection/jest-globals.cjs"
       },
       "files": [
         "dist",
@@ -2483,6 +2497,7 @@
         "CoverageBlock": "interface",
         "CoverageModule": "interface",
         "CoveragePrecondition": "interface",
+        "CoverageShard": "interface",
         "CoverageTest": "interface",
         "CoveringTest": "interface",
         "DeviationOptions": "interface",
@@ -2491,10 +2506,14 @@
         "ExecutionIndex": "interface",
         "ExecutionModule": "interface",
         "ExecutionNarrowing": "interface",
+        "ExecutionNarrowingOptions": "interface",
         "ExecutionTest": "interface",
+        "ImporterReason": "interface",
         "JourneyDivergence": "interface",
         "JourneyDivergenceOptions": "interface",
         "JourneyRegion": "interface",
+        "SelectionCause": "interface",
+        "SelectionReason": "type",
         "SourceTestRange": "interface",
         "SourceTestTarget": "type",
         "TestCoverage": "interface",
@@ -2503,12 +2522,15 @@
         "coveringTests": "function",
         "coveringTestsInFile": "function",
         "deviationOfTests": "function",
+        "foldTestCoverage": "function",
         "journeyDivergences": "function",
         "journeysApart": "function",
+        "mergeCoverage": "function",
         "narrowByExecution": "function",
         "readTestCoverage": "function",
         "selectTestFiles": "function",
-        "testCoverageFile": "function"
+        "testCoverageFile": "function",
+        "writeTestCoverage": "function"
       },
       "./journal": {
         "EXECUTION_GLOBAL": "const",
@@ -2549,6 +2571,32 @@
         "TestSelectionOptions": "interface",
         "mergeCoverage": "function",
         "withTestSelection": "function"
+      },
+      "./jest": {
+        "JestConfig": "interface",
+        "JestTestSelectionOptions": "interface",
+        "RUN_DIRECTORY_VARIABLE": "const",
+        "SELECTION_GLOBALS": "const",
+        "SELECTION_REPORTER": "const",
+        "SELECTION_SETUP": "const",
+        "SELECTION_TRANSFORM": "const",
+        "SelectionReporterConfig": "interface",
+        "SelectionTransformerConfig": "interface",
+        "inventoryFile": "function",
+        "mergeCoverage": "function",
+        "withTestSelection": "function"
+      },
+      "./jest-transform": {
+        "JestProjectConfig": "interface",
+        "JestTransformRequest": "interface",
+        "JestTransformedSource": "interface",
+        "JestTransformer": "interface",
+        "createTransformer": "function"
+      },
+      "./jest-reporter": {
+        "JestRunResults": "interface",
+        "JestTestContext": "interface",
+        "default": "class"
       }
     }
   },

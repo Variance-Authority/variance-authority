@@ -29,8 +29,6 @@
  * declarations and throws, exposing that configuration error at its first probe.
  */
 
-// TODO: add a maintained Jest integration. Vitest, Storybook and Playwright have one.
-
 import { digestString } from '@variance-authority/core';
 import { parseSync } from 'oxc-parser';
 import { walkBlocks, type Block, type BlockKind, type Edit } from './blocks.js';
@@ -135,12 +133,20 @@ const PROBES = {
  * its top level. The depth lives on the factory and not in this module, because
  * it is the realm's fact: the module evaluating is not the only module whose
  * probes fire while it does.
+ *
+ * A module that finds a different factory than the one it registered with has
+ * outlived a test file: a runner that shares one module graph across files —
+ * Vitest without isolation — installs a factory per file and evaluates the
+ * module once. Its top level ran for the first file only, and every later file
+ * consumed what it exported without a module probe firing. So re-registering
+ * counts the module's own block once, the way evaluation would have: the file
+ * entered this module, and an edit to its top level is an edit that file ran.
  */
 function runtime(id: string, count: number): string {
   const module = JSON.stringify(id);
 
   return (
-    `function __va(i){const r=globalThis.__VA__;if(__va.c===undefined||__va.r!==r){__va.r=r;__va.c=globalThis.__VA__(${module},${count})}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
+    `function __va(i){const r=globalThis.__VA__;if(__va.c===undefined||__va.r!==r){const again=__va.c!==undefined;__va.r=r;__va.c=globalThis.__VA__(${module},${count});if(again)__va.c[0]+=1}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
     `function __vaR(v,i){__va(i);return v}` +
     `function __vaE(){const r=globalThis.__VA__;r.e=r.e>1?r.e-1:0}` +
     `__va(0);__va.r.e=(__va.r.e|0)+1;__va.c[0]|=${EVALUATING};`

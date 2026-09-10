@@ -35,7 +35,7 @@ interface Header {
  * `BlockKind` to `indexOf`, whose parameter is this tuple's own element type, so
  * a member added to the union stops the build there until it is appended here.
  */
-const KINDS = [
+export const KINDS = [
   'module',
   'function',
   'branch',

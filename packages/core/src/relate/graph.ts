@@ -174,10 +174,12 @@ export function keyOf(kind: NodeKind, name: string): string {
   return `${kind}:${name}`;
 }
 
+/** The id a node is known by in these relations, or `undefined` for a name the scan never met. */
 export function idOf(relations: Relations, kind: NodeKind, name: string): NodeId | undefined {
   return relations.index.get(keyOf(kind, name));
 }
 
+/** The node an id names: its kind and name, or `undefined` past the end. */
 export function nodeAt(relations: Relations, id: NodeId): Node | undefined {
   const name = relations.names[id];
   if (name === undefined) return undefined;

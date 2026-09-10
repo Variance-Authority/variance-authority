@@ -220,7 +220,7 @@ export async function selectionFor(
   // Absent all the way down: no diff text, no reader, or a reader that found no
   // snapshot. Each of those is *the journal was not consulted*, which narrows
   // nothing and is not an error — the probes are a build the operator opts into.
-  const journal = diff === undefined ? undefined : await deps.readJourney?.(diff);
+  const journal = diff === undefined ? undefined : await deps.readJourney?.(diff, relations);
   const journey =
     journal === undefined
       ? undefined

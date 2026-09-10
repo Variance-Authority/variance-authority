@@ -47,7 +47,7 @@ import { digestString } from '@variance-authority/core';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { commitOf } from './commit.js';
 import { encodeTestCoverage } from './format.js';
-import { existingCoverage, mergeCoverage } from './merge.js';
+import { digestsOnDisk, existingCoverage, mergeCoverage } from './merge.js';
 import {
   codeUnitOrder,
   coverageModule,
@@ -318,7 +318,8 @@ export async function recordExecution(
   try {
     const previous = await existingCoverage(coverageFile);
     const temporary = `${coverageFile}.${process.pid}-${randomUUID()}.tmp`;
-    await writeFile(temporary, encodeTestCoverage(mergeCoverage(previous, current)));
+    const onDisk = await digestsOnDisk(root, previous, current);
+    await writeFile(temporary, encodeTestCoverage(mergeCoverage(previous, current, onDisk)));
     await rename(temporary, coverageFile);
   } finally {
     await rm(lock, { force: true });

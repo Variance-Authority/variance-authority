@@ -241,7 +241,8 @@ repeated semantic shapes and their dominant presentation signatures. `findings`
 contain measurements before prose: the involved nodes, pattern, coordinates,
 ratios, distances, or cluster identities.
 
-The browser accessibility snapshot is retained as an independent semantic
+`accessibility` carries the browser-computed ARIA snapshot observed beside the
+capture, and the report retains it as an independent semantic
 reading. That reading is absent only when the browser did not
 observe it. An empty root or a root with no parent or children is an observed
 value and remains present without repair.

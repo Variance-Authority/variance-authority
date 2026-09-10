@@ -138,16 +138,21 @@ function cacheRoot(kind: string): string {
  * nothing rather than refusing. A snapshot that exists and cannot be read is the
  * other case entirely: something wrote it, and a run that silently ignored it
  * would look identical to one that never had it.
+ *
+ * With `relations`, a changed file the journal holds no row for is asked of
+ * the graph: its importers, and theirs, until one has a row. Without, that
+ * file stays `unread` and the run keeps every subject.
  */
 export async function journeyAgainst(
   root: string,
   diff: string,
+  relations?: Relations,
 ): Promise<ExecutionNarrowing | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   const file = selection.testCoverageFile(root);
 
   try {
-    return await selection.narrowByExecution(file, diff);
+    return await selection.narrowByExecution(file, diff, relations === undefined ? {} : { relations });
   } catch (error) {
     if (isMissing(error)) return undefined;
     throw new OperatorError(
@@ -177,9 +182,11 @@ export async function journeyAgainst(
 export async function recordedJourneys(
   root: string,
   observers?: readonly string[],
+  /** A snapshot somewhere other than this repository's cache — one `landJourneys` just wrote. */
+  at?: string,
 ): Promise<JourneyReading> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const file = selection.testCoverageFile(root);
+  const file = at ?? selection.testCoverageFile(root);
 
   let coverage;
   try {
@@ -242,7 +249,7 @@ function sorted(names: readonly string[]): readonly string[] {
   return [...new Set(names)].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
-function isMissing(error: unknown): boolean {
+export function isMissing(error: unknown): boolean {
   return (
     typeof error === 'object' &&
     error !== null &&
@@ -416,6 +423,6 @@ export async function writeArtifactToDisk(path: string, bytes: Buffer): Promise<
   await writeFile(path, bytes);
 }
 
-function messageOf(error: unknown): string {
+export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

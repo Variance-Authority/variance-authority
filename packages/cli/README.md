@@ -95,7 +95,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
-variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>]
+variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]]
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
@@ -109,7 +109,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
 | `changelog` | reads back why the baselines are what they are |
-| `journeys` | reads back which regions of one module this run's subjects entered differently |
+| `journeys` | reads back which regions of one module this run's subjects entered differently, and folds shard snapshots into the one this checkout reads |
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
 | `watch` | holds a suite that is still running, so `ask` has something live to ask |
@@ -466,6 +466,53 @@ in your own collector reaches the adopter as a stack trace claiming this tool is
 broken. Leave the marker off anything they cannot act on — a bug in the collector
 should still read as a bug.
 
+### Sharding: `journeys` takes more than one file too
+
+The execution journal shards the same way the report does. A suite split
+across CI jobs records one snapshot per job — each runner's seam takes a
+`coverageFile`, and the job uploads it as an artifact — and every question
+anybody asks is about the suite. Name them all and `journeys` folds them into
+one snapshot, lands it, and reads it:
+
+```bash
+npx variance journeys shard-1/coverage.bin shard-2/coverage.bin shard-3/coverage.bin
+```
+
+```
+folded 3 snapshots into /home/ci/.cache/variance-authority/test-selection/1f3a…/coverage.bin
+  342 observations over 1204 modules, recorded at 4f2a1c9d0b73
+
+app/src/components/CartCard.tsx  3 observers
+  …
+```
+
+The fold refuses shards that were not one run, naming both files: recorded
+under different probe recipes, or at different commits — and a shard recorded
+outside a checkout names no commit, which is a disagreement rather than a
+blank. A test file two shards both recorded means the split overlapped, which
+only the operator can resolve. A module one shard could not instrument is
+unread in the fold however many others measured it, because that row is the
+one a selector widens on.
+
+Where it lands is this checkout's own cache, the file every run on this
+machine layers over, unless `--into <path>` names somewhere else — a job that
+folds and uploads names the artifact it uploads. Landing is a layer, not a
+replacement: what was already there is merged under the fold, so the result
+stands at the fold's commit, retires every observation the fold re-recorded
+whole, and keeps the ones it did not. That is the whole of the recipe for a
+laptop:
+
+```bash
+base=$(git merge-base origin/main HEAD)
+# fetch the snapshot your CI folded and uploaded for $base, however it stores artifacts
+npx variance journeys ./coverage-$base.bin
+```
+
+The full suite on the default branch records the floor; each local run layers
+its own evidence on top; and a selection made against the result is measured
+from the commit the fold named, which is what `variance run --since` and the
+journal both read.
+
 ### Sharding: `report` takes more than one file
 
 A suite big enough to split across CI jobs runs `variance run --subjects <glob>`
@@ -738,7 +785,9 @@ changed file inside it that reaches no component forces a whole run, a changed
 file outside it was never claimed to affect a render. `relations: true` reads
 what imports what, so `tokens.css` is answered by walking to the components that
 rest on it instead of running the suite — it costs one scan of the tree,
-which is cached by content and by tree shape and so is paid once. `unrendered`
+which is cached by content and by tree shape and so is paid once. The same
+graph answers the execution journal for a changed file it holds no row of: the
+importers of that file, and theirs, until one the journal did record. `unrendered`
 answers the case where the walk succeeds and lands nowhere: a change reaching
 only components no baseline records narrows like any other, and the run names
 what it could not match — either nothing here watches that surface, or something

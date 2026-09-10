@@ -174,6 +174,9 @@ export type Parsed =
       /** `--file <text>`: substring, case-insensitive, over the recorded module path. */
       readonly file?: string;
       readonly limit?: number;
+      /** Shard snapshots to fold and land before reading, and `--into <path>`, where they land; this repository's cache otherwise. */
+      readonly shards: readonly string[];
+      readonly into?: string;
     }
   | {
       readonly command: 'adjudicate';
@@ -412,9 +415,12 @@ export function parseArgs(argv: readonly string[]): Parsed {
     }
 
     case 'journeys': {
-      noPositionals(flags.positionals, 'journeys');
       const file = flags.values.get('--file');
       const limit = countOf(flags.values.get('--limit'), 'modules to name');
+      const into = flags.values.get('--into');
+      if (into !== undefined && flags.positionals.length === 0) {
+        throw new OperatorError('`--into` says where a fold lands, and nothing was named to fold');
+      }
 
       return {
         command: 'journeys',
@@ -422,6 +428,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
         all: flags.present.has('--all'),
         ...(file !== undefined ? { file } : {}),
         ...(limit !== undefined ? { limit } : {}),
+        shards: flags.positionals.map((path) => resolve(path)),
+        ...(into !== undefined ? { into: resolve(into) } : {}),
       };
     }
 

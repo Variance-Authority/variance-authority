@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { INERT, inSnapshotCoordinates } from './test-since.mjs';
+import { INERT, explain, inSnapshotCoordinates } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
 /**
@@ -84,6 +84,27 @@ describe('a changed source file is asked about under every name it was loaded by
     expect(rewritten).toContain('--- a/packages/dom/dist/collect.js');
   });
 
+  it('reads a hunk by the counts in its header, so a removed line that starts with dashes is body', () => {
+    const rewritten = inSnapshotCoordinates(
+      `--- a/packages/dom/src/collect.ts\n+++ b/packages/dom/src/collect.ts\n@@ -12,2 +12,2 @@\n--- a comment of dashes\n+++ another\n`,
+      byStem,
+    );
+    expect(rewritten.split('\n').filter((line) => line.startsWith('--- a/'))).toEqual([
+      '--- a/packages/dom/dist/collect.js',
+      '--- a/packages/dom/src/collect.ts',
+    ]);
+    expect(rewritten).toContain('--- a comment of dashes');
+  });
+
+  it('passes a file named without a hunk through under its own name', () => {
+    const rewritten = inSnapshotCoordinates(
+      `diff --git a/logo.png b/logo.png\nBinary files a/logo.png and b/logo.png differ\ndiff --git a/packages/dom/src/collect.ts b/packages/dom/src/collect.ts\n--- a/packages/dom/src/collect.ts\n+++ b/packages/dom/src/collect.ts\n${HUNK}`,
+      byStem,
+    );
+    expect(rewritten).toContain('diff --git a/logo.png b/logo.png');
+    expect(rewritten).toContain('--- a/packages/dom/dist/collect.js');
+  });
+
   it('leaves a file the snapshot never saw under its own name', () => {
     const rewritten = inSnapshotCoordinates(
       `--- a/packages/dom/src/nothing-knows-this.ts\n+++ b/packages/dom/src/nothing-knows-this.ts\n${HUNK}`,
@@ -99,5 +120,25 @@ describe('the tool is reachable the way its comments say', () => {
       scripts: Record<string, string>;
     };
     expect(manifest.scripts['test:since']).toBe('node tools/test-since.mjs');
+  });
+});
+
+describe('why a file runs is printed in one line', () => {
+  it('names the region, the precondition, or the trail, and counts the rest', () => {
+    expect(
+      explain({
+        test: 't',
+        via: [
+          { kind: 'region', file: 'packages/core/src/a.ts', name: 'a', path: 'if#0/then', startLine: 3, endLine: 5 },
+          { kind: 'precondition', name: 'package.json' },
+        ],
+      }),
+    ).toBe('packages/core/src/a.ts:3-5 if#0/then (+1)');
+    expect(explain({ test: 't', via: [{ kind: 'precondition', name: 'package.json' }] })).toBe(
+      'precondition package.json',
+    );
+    expect(
+      explain({ test: 't', via: [{ kind: 'importer', trail: ['src/rules.ts', 'src/decide.ts'] }] }),
+    ).toBe('src/rules.ts → src/decide.ts');
   });
 });

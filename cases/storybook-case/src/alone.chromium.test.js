@@ -152,4 +152,15 @@ live('a subject an earlier story polluted', () => {
     expect(aloneAfter).toEqual(clean);
     expect(JSON.stringify(aloneAfter.document)).not.toContain('0.35em');
   });
+
+  it('carries the engine of the world it was read in, not the run', () => {
+    // The source index is one of the inputs held identical, and the engine's
+    // half of it is where that is easiest to lose. The run's page has met
+    // `SheetLeak` by now and says where it was compiled from; the clean world
+    // never rendered it, and a reading laid over the run's registry would name
+    // the story that polluted it in its own source index.
+    expect(polluted.source.SheetLeak).toEqual([expect.objectContaining({ via: 'engine' })]);
+    expect(aloneAfter.source.SheetLeak).toEqual(clean.source.SheetLeak);
+    expect(aloneAfter.source.SheetLeak).toEqual([expect.objectContaining({ via: 'function' })]);
+  });
 });

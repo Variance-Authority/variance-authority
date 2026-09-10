@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseSync } from 'oxc-parser';
 
 /**
  * The workspace graph, read from disk once.
@@ -103,25 +104,34 @@ export function packageOf(specifier: string): string | null {
 /**
  * Import specifiers, and only import specifiers.
  *
- * Comments go first, because this repository's comments talk about packages by
- * name constantly and a checker that reads prose reports imports nobody wrote.
- * What is left is matched at line starts: a statement cannot cross a `;`, so an
- * `export const` cannot reach a `from` several lines below it.
+ * Read from the module record `oxc` has already computed for the file — every
+ * static import, every re-export, every literal `import()` — rather than from
+ * the text. This tree holds fixtures whose template literals contain
+ * `import x from 'y'` and rationales whose strings mention `from`; a string
+ * that looks like a statement is not one, and only a parser knows the
+ * difference.
+ *
+ * A parse error is thrown rather than rounded down to "no imports": a file this
+ * rule cannot read is a file whose requirements it cannot vouch for.
  */
-// `(` and `=` are excluded from the span, not merely `;`. A clause between
-// `import`/`export` and `from` is a name list and never contains either — while
-// `export function report(…)` opens a body that may run for pages, and a string
-// inside it ending in the word `from` is then read as a specifier and reported
-// as an undeclared dependency, with the file's own source quoted as its name.
-const PATTERNS = [
-  /^[ \t]*(?:import|export)\b[^;()=]*?\bfrom[ \t]*['"]([^'"]+)['"]/gm,
-  /^[ \t]*import[ \t]*['"]([^'"]+)['"]/gm,
-  /\bimport\([ \t]*['"]([^'"]+)['"][ \t]*\)/g,
-];
+export function specifiersIn(file: string, text: string): readonly string[] {
+  const { module: record, errors } = parseSync(file, text);
+  if (errors.length > 0) throw new Error(`${file} could not be parsed: ${errors[0]!.message}`);
 
-export function specifiersIn(text: string): readonly string[] {
-  const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
-  return PATTERNS.flatMap((pattern) => [...code.matchAll(pattern)].map((match) => match[1]!));
+  const found: string[] = [];
+  for (const entry of record.staticImports) found.push(entry.moduleRequest.value);
+  for (const entry of record.staticExports) {
+    for (const binding of entry.entries) {
+      if (binding.moduleRequest !== null) found.push(binding.moduleRequest.value);
+    }
+  }
+  for (const entry of record.dynamicImports) {
+    // The record carries the span of the argument, not its value: an `import()`
+    // of a variable names no package this rule can check.
+    const literal = /^(['"])([^'"]+)\1$/.exec(text.slice(entry.moduleRequest.start, entry.moduleRequest.end));
+    if (literal !== null) found.push(literal[2]!);
+  }
+  return found;
 }
 
 /**
@@ -187,7 +197,7 @@ export function workspaces(): readonly Workspace[] {
         // `jsdom` for the same reason a test does, and ships to nobody.
         const isTest =
           /\.(test|spec|measure)\.(ts|tsx|js|jsx)$/.test(file) || file.includes('__fixtures__');
-        for (const specifier of specifiersIn(readFileSync(file, 'utf8'))) {
+        for (const specifier of specifiersIn(file, readFileSync(file, 'utf8'))) {
           const owner = packageOf(specifier);
           if (owner === null || owner === manifest.name) continue;
           (isTest ? test : source).add(owner);

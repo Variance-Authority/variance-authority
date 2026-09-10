@@ -1,6 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { digestString, type FileRecord } from '@variance-authority/core';
 import type { BlockKind } from '../instrument/index.js';
 import { deviationFromView } from './deviation.js';
@@ -10,11 +11,16 @@ import {
   type JourneyDivergenceOptions,
   type JourneyRegion,
 } from './divergence.js';
-import { decodeTestCoverage, openTestCoverage } from './format.js';
+import { decodeTestCoverage, encodeTestCoverage, openTestCoverage } from './format.js';
+import { foldTestCoverage, mergeCoverage, type CoverageShard } from './merge.js';
 import {
   narrowByExecutionFromView,
   selectTestFilesFromView,
   type ExecutionNarrowing,
+  type ExecutionNarrowingOptions,
+  type ImporterReason,
+  type SelectionCause,
+  type SelectionReason,
 } from './select.js';
 
 export {
@@ -30,9 +36,11 @@ export {
   type SourceTestRange,
 } from './reverse.js';
 export type { BlockKind };
-export type { ExecutionNarrowing };
+export type { ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { journeyDivergences };
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
+export { foldTestCoverage, mergeCoverage };
+export type { CoverageShard };
 
 export interface CoverageBlock {
   readonly ordinal: number;
@@ -52,7 +60,11 @@ export interface CoverageBlock {
 
 export interface CoverageModule {
   readonly file: string;
-  /** Identity of the exact source string whose blocks were instrumented. */
+  /**
+   * Digest of the module's text as it is on disk: the text whose lines the
+   * blocks are coordinates in, and what a later run compares against to know
+   * whether those coordinates still hold.
+   */
   readonly sourceDigest: string;
   /** False records module-level unknown evidence; consumers widen without consulting its blocks. */
   readonly instrumented: boolean;
@@ -152,23 +164,58 @@ export function testCoverageFile(
  * binary artifact, and a consumer who cannot decode it cannot see the evidence
  * its own runs produced, only the two summaries this module chose to compute.
  *
- * It is the counterpart to `mergeCoverage`, which takes and returns this same
- * shape.
+ * It is the counterpart to {@link writeTestCoverage}; `mergeCoverage` and
+ * `foldTestCoverage` take and return this same shape between the two.
  */
 export async function readTestCoverage(file: string): Promise<TestCoverage> {
   return decodeTestCoverage(await readFile(file));
 }
 
 /**
- * Query one persisted coverage snapshot and return whole test-file paths.
- * Only the section index and strings present in the result are decoded.
+ * Write one snapshot where readers will find it, whole or not at all.
+ *
+ * The counterpart to {@link readTestCoverage}, and the only writer: every seam
+ * that records — the Vitest reporter, a journal transport draining a driven
+ * page, a job folding shards — lands its result through here. It is a rename
+ * over a temporary file in the same directory, so a reader that opens the path
+ * sees the previous snapshot or this one and never the bytes between; a
+ * selector reading a half-written file would not fail, it would narrow on a
+ * truncated record, and that is the one outcome a writer of this file must make
+ * impossible.
+ *
+ * It does not merge. A caller landing a run over what was already recorded
+ * reads the existing file, folds with {@link mergeCoverage}, and writes the
+ * result; a caller installing a baseline fetched from elsewhere writes it as it
+ * came. Which of those is wanted is the caller's knowledge, and a writer that
+ * merged on its own would make the second one impossible.
  */
-export async function selectTestFiles(file: string, diff: string): Promise<readonly string[]> {
-  return selectTestFilesFromView(openTestCoverage(await readFile(file)), diff);
+export async function writeTestCoverage(file: string, coverage: TestCoverage): Promise<void> {
+  await mkdir(dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
+  await writeFile(temporary, encodeTestCoverage(coverage));
+  await rename(temporary, file);
 }
 
 /**
- * The same query, plus the tests the snapshot is entitled to speak for.
+ * Query one persisted coverage snapshot and return whole test-file paths.
+ * Only the section index and strings present in the result are decoded.
+ *
+ * Hand the file graph in through `options.relations` and a changed file no
+ * probe can sit in — a stylesheet, an image — is answered by the module that
+ * imports it; without it, such a file selects nothing, and only
+ * `narrowByExecution` says so.
+ */
+export async function selectTestFiles(
+  file: string,
+  diff: string,
+  options: ExecutionNarrowingOptions = {},
+): Promise<readonly string[]> {
+  return selectTestFilesFromView(openTestCoverage(await readFile(file)), diff, options);
+}
+
+/**
+ * The same query, plus the tests the snapshot is entitled to speak for, what it
+ * could not answer, and why each selected test is there.
  *
  * Read this rather than `selectTestFiles` whenever the answer will *exclude*
  * something. See `ExecutionNarrowing`.
@@ -176,8 +223,9 @@ export async function selectTestFiles(file: string, diff: string): Promise<reado
 export async function narrowByExecution(
   file: string,
   diff: string,
+  options: ExecutionNarrowingOptions = {},
 ): Promise<ExecutionNarrowing> {
-  return narrowByExecutionFromView(openTestCoverage(await readFile(file)), diff);
+  return narrowByExecutionFromView(openTestCoverage(await readFile(file)), diff, options);
 }
 
 /**

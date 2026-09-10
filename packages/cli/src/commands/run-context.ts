@@ -96,8 +96,10 @@ export interface RunDeps {
    * of a user cache, and a rule that reads a cache is a rule no test can make
    * claims about. `undefined` from it is *no journal*, which is the ordinary
    * answer for a build nobody put probes in — see [`journey.ts`](./journey.ts).
+   * Handed the run's `relations` when it scanned them, so a changed file the
+   * journal never recorded is asked of the graph rather than widening the run.
    */
-  readJourney?(diff: string): Promise<ExecutionNarrowing | undefined>;
+  readJourney?(diff: string, relations?: Relations): Promise<ExecutionNarrowing | undefined>;
 
   /**
    * Where this run's subjects parted in the source, read off the same journal.

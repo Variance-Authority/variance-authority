@@ -14,6 +14,7 @@ export default withTestSelection(
     test: {
       include: ['test/*.case.ts'],
       environment: 'node',
+      setupFiles: ['test/setup.ts'],
     },
   }),
   {

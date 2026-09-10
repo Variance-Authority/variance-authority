@@ -26,8 +26,8 @@ product source, attributes entered regions to completed test files, and writes
 the coverage index used for selection. Vitest still collects and executes every
 test inside each selected file.
 
-Skip it if tests run under something other than Vitest 2, Storybook, or
-Playwright, or if you need to exclude individual test cases rather than whole
+Skip it if tests run under something other than Vitest 2, Jest 30, Storybook,
+or Playwright, or if you need to exclude individual test cases rather than whole
 files. Code instrumented in an adopter's own build reports through
 [`@variance-authority/sense/journal`](#record-what-a-driven-page-executed), which
 carries the same probes over a different transport; a *stringified* function is
@@ -101,9 +101,11 @@ recorded without that widening, because it lies outside the repository's diff.
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
+| `@variance-authority/sense/jest` | adding instrumentation, collection, and persistence to Jest, around the transformer the project already uses | Jest 30 and product tests |
+| `@variance-authority/sense/jest-transform`, `@variance-authority/sense/jest-globals`, `@variance-authority/sense/jest-setup`, `@variance-authority/sense/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
 | `@variance-authority/sense/journal` | instrumenting an adopter's build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |
 | `@variance-authority/sense/journey` | carrying one execution across processes, so a service's crossings join the subject that caused them | a service running Node, its own instrumented build, and a driver that sets a cookie |
-| `@variance-authority/sense/test-selection` | mapping a unified diff to test files, reading the recorded snapshot, and measuring test-file deviation | the coverage file a runner or journal seam wrote |
+| `@variance-authority/sense/test-selection` | mapping a unified diff to test files, reading, folding, and writing the recorded snapshot, and measuring test-file deviation | the coverage file a runner or journal seam wrote |
 | `@variance-authority/sense/test-selection` (same import) | querying named-test reach with `coveringTests` | an execution index from a collector; this package ships no producer for one |
 
 ## Keep repeated scans cheap
@@ -197,7 +199,16 @@ named artifact. `include` receives each absolute module path after Vitest
 transforms it; use it to restrict instrumentation to product source. By default, JavaScript and TypeScript modules are included while test,
 spec, dependency, and built-output files are excluded. `preconditions` names
 additional files whose contents govern every test, such as runner configuration.
-Configured setup files are included automatically.
+Configured setup files are included automatically, and the runtime's own setup
+file is placed ahead of them, so a setup file that loads an instrumented module
+finds the counter factory it needs; a setup entry that names a package rather
+than a file is not a precondition, since no diff carries it. A run that shares
+one module graph across files — `isolate: false` — still records every file
+that consumed a module as having entered it, and what the module did while
+evaluating is credited to those files and to no other. A file consumes a module
+by running something in it: a module of nothing but constants, evaluated once
+for an earlier file and only read by the next, is recorded for the file that
+evaluated it and not for the reader.
 
 Every run contributes coverage data. An observation is **complete** only when
 every leaf task in its file passes; a focused, skipped, or failed run is
@@ -213,23 +224,29 @@ the selector and hand the returned paths to Vitest:
 ```ts
 import { readFile } from 'node:fs/promises';
 import {
-  selectTestFiles,
+  narrowByExecution,
   testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 
 const diff = await readFile('change.diff', 'utf8');
-const testFiles = await selectTestFiles(
+const { entered, unread } = await narrowByExecution(
   testCoverageFile(process.cwd()),
   diff,
 );
 ```
 
-Hand `testFiles` to Vitest as path filters — for example
-`execFileSync('npx', ['vitest', 'run', ...testFiles], { stdio: 'inherit' })` —
-since each returned path already matches Vitest's own file-path filter. A
-module the instrumenter could not parse is recorded with `instrumented: false`;
-selection then widens to the whole module, since it cannot attribute reach to
-individual tests without that module's crossings.
+Hand `entered` to Vitest as path filters — for example
+`execFileSync('npx', ['vitest', 'run', ...entered], { stdio: 'inherit' })` when
+it names anything — since each returned path already matches Vitest's own
+file-path filter. Run nothing when it is empty: Vitest with no filter runs the
+whole suite, and an empty answer is the record saying nobody ran what changed.
+`selectTestFiles` returns `entered` alone. A module the instrumenter could not
+parse is recorded with `instrumented: false`; selection then widens to every
+test that loaded it, each of which holds the module as a precondition, since it
+cannot attribute reach to individual tests without that module's crossings.
+`unread` names the changed paths nothing recorded holds — a README, a fixture
+read with `fs`, a script the tests spawn — and a suite that depends on one
+declares it as a precondition.
 
 The result is a code-unit-sorted list of test-file paths relative to the Vitest
 root. It never names individual Vitest cases and does not replace the runner.
@@ -240,9 +257,39 @@ A changed file selects by how the **snapshot** — the persisted coverage file
 `withTestSelection` writes — records it. A product module selects the tests
 that entered the changed region. A test file selects itself: nothing enters a
 test, so its own edit is the only thing that can run it. A precondition selects
-every test it governs, which is what declaring one is for. A file the snapshot
-never recorded selects nothing, and `narrowByExecution` returns it under
-`unread` so a caller can tell that from *nothing entered it*.
+every test it governs, which is what declaring one is for.
+
+A changed file with no row is dead or an asset. A module nobody executed —
+every test that imports it mocks it, or nothing loaded it — has no row, and
+the tests that import it never ran a line of it: it selects nobody, and so does
+everything only it imports. A stylesheet, an image, a JSON file can hold no
+probe, so it never has a row, and whether a test ran it is a question about the
+module that imported it. `narrowByExecution(file, diff, { relations })` takes
+the `Relations` that `relationsOfFiles` in `@variance-authority/core` builds
+from a `scanRelations` pass and walks from the changed file through `asset`
+edges, which is the kind the scan gives an import of anything that is not a
+module: through the stylesheets that import the stylesheet, to the modules that
+import those, and no further, since nothing imports a module as an asset. A
+module reached with a row selects every test that entered it; a module reached
+without one is dead. A file whose own edges the scan could not read may reach
+the asset by an edge nobody saw, so its tests are selected as well. A snapshot
+that holds a file under another name — the built twin a sibling package's
+tests loaded — is looked up under every name `knownAs` returns for it, the
+changed file and each module reached alike.
+
+What comes back under `unread` is a changed path nothing recorded holds: no
+row, no precondition, and no place in the graph, or a caller with no graph. It
+is a report rather than a widening. A fixture the tests read with `fs`, a
+script they spawn, a file loaded any way an import graph cannot see, is
+declared as a precondition, which is what declaring one is for.
+
+`narrowByExecution` also returns `because`: one entry per selected test, in the
+order of `entered`, holding every reason it is there. A reason is a `region` —
+the file, the name and the path of the innermost recorded block a changed line
+fell in, with its lines — a `precondition` by name, or an `importer` with the
+trail from the changed file to the file the test was found through. A watch
+loop prints it beside each path it runs, which is how a selection stops being
+an oracle.
 
 The snapshot carries the commit it was recorded at, which is the whole of its
 position in time and space. There is one master branch and every other checkout
@@ -263,12 +310,75 @@ them selects the tests that entered the lines a reader was shown rather than the
 lines that actually changed. Within a hunk, each changed line is answered by the narrowest
 recorded region containing it, and the selection is the union over lines — one
 commit that edits an import and a click handler selects everything the module
-selects, not what the handler selects. A run of additions replacing a run of
-removals is charged to the removed lines, however far the two counts differ; an
-addition replacing nothing is charged to the regions on both sides of the gap it
-opens. A line no region covers widens to the whole module. A deleted file is
+selects, not what the handler selects. A line that opens or closes the
+narrowest region is the enclosing region's line as well — the condition of an
+`if`, the other props beside a one-line handler — and charges it too, out to
+the first region that holds the line in its interior. A run of additions replacing a run of
+removals is charged to the removed lines, and any addition past the count
+removed to the gap it opens after the last of them; an addition replacing
+nothing is charged to the regions on both sides of the gap it opens. A line no region covers widens to the whole module. A deleted file is
 read from its `--- a/` path, since its hunks are entirely old lines and the
-snapshot still holds every crossing it had.
+snapshot still holds every crossing it had; a renamed file's hunks are read
+under its old name the same way, and its new name is asked of the graph.
+
+A run that loads only some of the modules the index holds carries the rest as
+they were. A carried module whose text on disk is no longer the text its rows
+were recorded over has rows no diff can be placed in, so every test that
+entered it is marked partial and runs at the next selection regardless.
+
+## Select Jest files from a change
+
+Wrap the existing configuration once. `withTestSelection` preserves configured
+transforms, setup files, and reporters. Each `transform` entry is wrapped so the
+project's own transformer — `@swc/jest`, `ts-jest`, `babel-jest`, any module
+with Jest's transformer shape — still runs first, on its own pattern with its
+own options, and the probes land on what it produced. `setupFiles` keep their
+order and gain the runtime's counter factory at the start, ahead of a setup
+file of the project's that loads an instrumented module; `setupFilesAfterEnv`
+keep theirs and gain the journal writer at the end; reporters keep theirs and
+gain one at the end, and a configuration with no reporters keeps Jest's default
+one.
+
+```js
+// jest.config.mjs
+import { withTestSelection } from '@variance-authority/sense/jest';
+
+export default withTestSelection({
+  testEnvironment: 'jsdom',
+  transform: {
+    '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript', tsx: true } } }],
+  },
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
+});
+```
+
+The optional second argument accepts `root`, `coverageFile`, and
+`preconditions`, with the meanings the Vitest seam gives them; there is no
+`include`, because product source is every JavaScript and TypeScript module the
+configuration's `testMatch` or `testRegex` does not name, less dependencies and
+built output, and a test file selects itself and is not a module. A setup
+entry that names a package rather than a file — `dotenv/config` — is left
+alone and is not a precondition, since no diff carries it. A configuration
+with `projects` is instrumented project by project, each keeping its own
+transform and setup files, with one reporter for the run; a project named by
+path rather than spelled inline is refused, because its transform cannot be
+wrapped from here.
+
+Jest transforms inside the workers it forks and keeps the transformed text on
+disk under a content key. The probes ride that cache. A module whose content
+and transform options have not changed is neither transformed nor parsed again
+on any later run or in any worker, and the record of what its probes mean is
+stored under the same key inside Jest's `cacheDirectory`, so `jest --clearCache`
+discards both halves together. Each test file writes one journal to disk from
+`afterAll`; nothing crosses the worker channel, and the reporter folds the
+journals when the run completes and lands the result through `mergeCoverage`.
+The snapshot is the file the Vitest seam and the journal seam write, so a
+repository whose unit tests run under Jest and whose pages are driven by
+Playwright selects from one index.
+
+Selection is the same call as for Vitest: `selectTestFiles` over a unified diff
+returns test-file paths relative to the Jest root, and each is a path pattern
+Jest accepts on its command line — `jest test/alpha.case.ts test/beta.case.ts`.
 
 ## Record what a driven page executed
 
@@ -498,13 +608,72 @@ for (const module of coverage.modules) {
 ```
 
 The snapshot is a binary artifact, so this is the only way to read the evidence
-your own runs produced rather than the two summaries above. `mergeCoverage` from
-`@variance-authority/sense/vitest` takes and returns this same shape, which is
-how a job combines shard snapshots before querying them.
+your own runs produced rather than the two summaries above. `writeTestCoverage`
+is the other direction — the same shape, landed whole under a rename, where
+`readTestCoverage` and every runner seam will find it.
 
 Crossings here name **test files** and carry no call-stack depth. That is the
 recorded granularity, not a limit of this reader; see
 [Where the index comes from](#where-the-index-comes-from).
+
+## Fold shards into one snapshot
+
+A suite too large for one machine runs across N jobs and ends with N snapshots,
+each a whole observation of its own test files and a partial one of every module
+they share. Every question is about the suite, and no shard can answer it.
+`foldTestCoverage` is the union the unsharded run would have written, and it is
+the same union in any order:
+
+```ts
+import { readFile } from 'node:fs/promises';
+import {
+  foldTestCoverage,
+  mergeCoverage,
+  readTestCoverage,
+  testCoverageFile,
+  writeTestCoverage,
+} from '@variance-authority/sense/test-selection';
+
+const shards = await Promise.all(
+  ['shard-1/coverage.bin', 'shard-2/coverage.bin'].map(async (path) => ({
+    path,
+    coverage: await readTestCoverage(path),
+  })),
+);
+
+const suite = foldTestCoverage(shards);
+await writeTestCoverage('coverage.bin', suite);
+```
+
+It refuses by name, on the rule `variance report` folds reports under: the
+result must not be able to say anything one run could not. Shards recorded
+under different probe recipes or at different commits were not one run — and
+*absent* is a value there, so a shard recorded outside a checkout does not fold
+under a commit it never named. A test file two shards both recorded is a split
+that overlapped, and a module two shards built from different source has
+regions that do not name each other. Where the shards agree, unknown wins: a
+module one shard could not instrument is unread in the fold, because the row a
+reader widens on must not be outvoted by the shards that measured it.
+
+A fold is a fan-in and `mergeCoverage` is a layer; the two are not
+interchangeable. A layer positions the result where the newer side stands and
+retires what that side re-recorded whole, which is what landing a run over a
+baseline means and would make a fold depend on the order its shards were named
+in. A test the newer side did not run is carried as it was, unless a region it
+entered was rewritten underneath it: then it is carried incomplete, runs at the
+next selection whatever changed, and is recorded whole again by that run. Land
+a fold the way a runner lands a run:
+
+```ts
+const file = testCoverageFile(process.cwd());
+const previous = await readTestCoverage(file).catch(() => undefined);
+await writeTestCoverage(file, mergeCoverage(previous, suite));
+```
+
+Each shard is recorded by its own runner through the ordinary seams, with
+`coverageFile` pointing at the job's artifact; `variance journeys` performs the
+fold and the landing from the command line, and its README carries the CI
+recipe.
 
 ## See where two observers parted
 

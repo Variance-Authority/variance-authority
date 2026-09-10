@@ -3,6 +3,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { relationsOfFiles } from '@variance-authority/core';
+import { openSourceIndex, scanRelations } from '@variance-authority/sense';
 import {
   narrowByExecution,
   readTestCoverage,
@@ -22,14 +24,18 @@ import { sourceStem } from './page-side.mjs';
  * ## What it will not do
  *
  * Narrow on a guess. The snapshot speaks for the modules the build carried
- * probes into. Every other changed path is a fact it has no opinion about — a
- * fixture, a manifest, a page-side module that cannot hold a probe, a file added
- * since the recording — and *no row* reads identically to *nobody entered this*
- * while meaning the opposite. So an unmeasured change runs everything and says
- * which path did it. `unenteredSubjects` in
- * `packages/cli/src/commands/journey.ts` is where that rule is argued, over
- * subjects rather than files; this restates it because the CLI does not export
- * it.
+ * probes into. A changed path it has no row for — a page-side module that
+ * cannot hold a probe, a file every test mocks, a file added since the
+ * recording — is asked of the import graph instead: whoever imports it, and
+ * whoever imports them, until the chain reaches a module the snapshot did
+ * record or a test file. That answer is the tests those importers reach, which
+ * is wider than the truth and never narrower. Every other changed path — a
+ * fixture, a manifest, anything the scan does not read — is a fact nothing here
+ * has an opinion about, and *no row* reads identically to *nobody entered this*
+ * while meaning the opposite. So that change runs everything and says which
+ * path did it. `unenteredSubjects` in `packages/cli/src/commands/journey.ts` is
+ * where that rule is argued, over subjects rather than files; this restates it
+ * because the CLI does not export it.
  *
  * Two kinds of path are exempt, and both are exempt for a reason about reach
  * rather than convenience. A test file is its own row: nothing instruments one,
@@ -75,6 +81,43 @@ export const INERT = [
 const git = (...args) =>
   execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
+/** The diff an untracked file would have, had it been added. */
+const diffOfNew = (path) =>
+  spawnSync('git', ['diff', '--no-index', '--', '/dev/null', path], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  }).stdout;
+
+/** Where the suite's imports point, scanned from the same directories `yarn test` collects. */
+async function importGraph(snapshotFile) {
+  const source = await openSourceIndex(resolve(dirname(snapshotFile), 'source-index.bin'));
+  const records = await scanRelations({
+    root: ROOT,
+    dirs: ['packages', 'tools', 'cases'],
+    cache: source.cache,
+    reuse: source.reuse,
+  });
+  await source.save();
+  return relationsOfFiles(records);
+}
+
+/** One line for why a test file is in the run. */
+export function explain(cause) {
+  const reason = cause.via[0];
+  const more = cause.via.length > 1 ? ` (+${cause.via.length - 1})` : '';
+  switch (reason.kind) {
+    case 'region':
+      return `${reason.file}:${reason.startLine}-${reason.endLine} ${reason.path}${more}`;
+    case 'precondition':
+      return `precondition ${reason.name}${more}`;
+    case 'importer':
+      return `${reason.trail.join(' → ')}${more}`;
+    default:
+      return reason.kind;
+  }
+}
+
 const say = (...lines) => process.stdout.write(`${lines.join('\n')}\n`);
 
 const isTest = (path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
@@ -119,16 +162,48 @@ export function inSnapshotCoordinates(diff, byStem) {
   };
 
   let removed;
+  let oldLeft = 0;
+  let newLeft = 0;
   for (const line of diff.split('\n')) {
+    // A hunk header says how many lines of each side follow, and every one of
+    // them is body: a removed line that begins with two dashes and a space is
+    // not the next file's header. A context line counts against both sides.
+    if (oldLeft > 0 || newLeft > 0) {
+      if (body !== undefined) body.push(line);
+      if (line.startsWith('-')) oldLeft -= 1;
+      else if (line.startsWith('+')) newLeft -= 1;
+      else if (!line.startsWith('\\')) {
+        oldLeft -= 1;
+        newLeft -= 1;
+      }
+      continue;
+    }
+    const hunk = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
+    if (hunk !== null) {
+      oldLeft = Number(hunk[1] ?? '1');
+      newLeft = Number(hunk[2] ?? '1');
+      if (body !== undefined) body.push(line);
+      continue;
+    }
+    // A file the diff names without lines — a binary, a rename, a mode — has
+    // this line and no header, and the selector charges it whole by this name.
+    if (line.startsWith('diff --git ')) {
+      flush();
+      path = undefined;
+      body = undefined;
+      out.push(line);
+      continue;
+    }
     if (line.startsWith('--- ')) {
       removed = line.slice(4).replace(/^a\//, '');
       continue;
     }
-    if (line.startsWith('+++ ')) {
+    if (line.startsWith('+++ ') && removed !== undefined) {
       flush();
       const named = line.slice(4).replace(/^b\//, '');
       // A deletion writes `+++ /dev/null` and names the file on the line above.
       path = named === '/dev/null' ? removed : named;
+      removed = undefined;
       body = [];
       continue;
     }
@@ -186,10 +261,12 @@ async function main() {
   /**
    * Where to measure from, and why it is always the working tree on the other side.
    *
-   * A ref is resolved to its merge base first, so a branch behind `main` is not
-   * told that everything anybody else merged has changed here — the same reason
-   * `packages/cli/src/commands/since.ts` reaches for three dots. With no ref the
-   * snapshot names the exact commit it was written at, which needs no resolving.
+   * The snapshot's own commit whenever it names one: its line ranges are in that
+   * commit's coordinates and no other's, and a hunk read anywhere else lands on
+   * lines it never numbered once `main` has moved. A ref only decides the base
+   * for a snapshot that names no commit, and is resolved to its merge base so a
+   * branch behind `main` is not told that everything anybody else merged has
+   * changed here — the same reason `packages/cli/src/commands/since.ts` does.
    *
    * The comparison is against the working tree either way, because uncommitted
    * edits are what the loop before `yarn test` is about. The corollary is that a
@@ -197,8 +274,7 @@ async function main() {
    * labelled with the commit, and everything already uncommitted at that moment
    * reads as changed since. Record on a clean tree for a sharp answer.
    */
-  const base =
-    ref === undefined ? coverage.commit : git('merge-base', ref, 'HEAD').trim();
+  const base = coverage.commit ?? git('merge-base', ref, 'HEAD').trim();
 
   const byStem = new Map();
   for (const module of coverage.modules) {
@@ -232,24 +308,28 @@ async function main() {
   const touched = consequential.filter((path) => isTest(path));
   const product = consequential.filter((path) => !isTest(path));
 
-  const narrowing = await narrowByExecution(
-    snapshotFile,
-    inSnapshotCoordinates(git('diff', '--no-renames', base), byStem),
-  );
+  // An untracked file has no diff of its own, and the graph may still know who
+  // imports it, so it is asked about as the addition it is.
+  const diff = [
+    git('diff', '--no-renames', base),
+    ...product.filter((path) => untracked.has(path)).map(diffOfNew),
+  ].join('\n');
+  const narrowing = await narrowByExecution(snapshotFile, inSnapshotCoordinates(diff, byStem), {
+    relations: await importGraph(snapshotFile),
+    knownAs: (file) => byStem.get(stemOf(file)) ?? [file],
+  });
   const whole = new Set(narrowing.whole);
   const entered = new Set(narrowing.entered);
+  const because = new Map(narrowing.because.map((cause) => [cause.test, cause]));
 
   /**
    * Why this run cannot be narrowed, if it cannot.
    *
-   * An untracked file has no diff at all, so nothing above it could have noticed.
-   * A tracked one the snapshot holds nothing about — no row, or a row saying the
-   * build never read this module — arrives as `unread`.
+   * A changed path the snapshot holds nothing about — no row, or a row saying
+   * the build never read this module — and which the graph holds no importer
+   * for either arrives as `unread`.
    */
-  const unmeasured = [
-    ...product.filter((path) => untracked.has(path)),
-    ...narrowing.unread.filter((path) => !isInert(path) && !isTest(path)),
-  ];
+  const unmeasured = narrowing.unread.filter((path) => !isInert(path) && !isTest(path));
 
   const widen = (because) => {
     say(`test:since: running the whole suite — ${because}.`, `  ${suite.length} files`, '');
@@ -279,13 +359,21 @@ async function main() {
     (file) => !whole.has(file) || entered.has(file) || touched.includes(file),
   );
 
+  const why = (file) => {
+    const cause = because.get(file);
+    if (cause !== undefined) return explain(cause);
+    if (touched.includes(file)) return 'changed';
+    return 'no whole observation';
+  };
+  const width = Math.max(...selected.slice(0, 25).map((file) => file.length), 0);
+
   say(
     `test:since: ${selected.length} of ${suite.length} files.`,
     `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
     `  changed  ${changed.length} path(s): ${product.length} measured, ${touched.length} test file(s), ${changed.length - consequential.length} the suite cannot open`,
     `  skipped  ${suite.length - selected.length} file(s) the snapshot saw whole and which entered none of it`,
     '',
-    ...selected.slice(0, 25).map((file) => `  ${file}`),
+    ...selected.slice(0, 25).map((file) => `  ${file.padEnd(width)}  ${why(file)}`),
     ...(selected.length > 25 ? [`  … and ${selected.length - 25} more`] : []),
     '',
   );

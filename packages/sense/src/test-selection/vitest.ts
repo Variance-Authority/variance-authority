@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { digestString } from '@variance-authority/core';
 import type { Reporter } from 'vitest/reporters';
@@ -7,12 +8,12 @@ import type { UserConfig } from 'vitest/config';
 import { EVALUATING, INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
 import { commitOf } from './commit.js';
-import { encodeTestCoverage } from './format.js';
-import { existingCoverage, mergeCoverage } from './merge.js';
+import { digestsOnDisk, existingCoverage, mergeCoverage } from './merge.js';
 import {
   cleanId,
   codeUnitOrder,
   coverageBlock,
+  crossingsOf,
   defaultInclude,
   isMissing,
   projectPath,
@@ -21,6 +22,7 @@ import {
 import { sourceLines } from './source-lines.js';
 import {
   testCoverageFile,
+  writeTestCoverage,
   type CoverageModule,
   type CoveragePrecondition,
   type CoverageTest,
@@ -84,9 +86,13 @@ export function withTestSelection(
   const include = options.include ?? defaultInclude;
   const plugin = selectionPlugin(root, runDirectory, setupId, modules, include);
   const setupFiles = array(config.test?.setupFiles);
-  const preconditions = [...setupFiles, ...(options.preconditions ?? [])]
-    .filter((file): file is string => typeof file === 'string')
-    .map((file) => resolve(root, file));
+  // A setup entry may be a package — `dotenv/config` — rather than a file of
+  // the project's; a package is no precondition a diff can carry, and read as a
+  // path it is a missing file that fails the reporter and loses the snapshot.
+  const preconditions = [
+    ...setupFiles.filter((file): file is string => typeof file === 'string' && existsSync(resolve(root, file))),
+    ...(options.preconditions ?? []),
+  ].map((file) => resolve(root, file));
   const reporter = selectionReporter(coverageFile, runDirectory, modules, root, preconditions);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
 
@@ -95,7 +101,9 @@ export function withTestSelection(
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
-      setupFiles: [...setupFiles, setupId],
+      // First, so a setup file of the project's that loads an instrumented
+      // module finds the counter factory its header resolves.
+      setupFiles: [setupId, ...setupFiles],
       reporters: [...reporters, reporter],
     },
   };
@@ -108,23 +116,32 @@ function selectionPlugin(
   modules: Map<string, CapturedModule>,
   include: (file: string) => boolean,
 ): VitePlugin {
-  const virtualId = '\0variance-authority:test-selection-setup';
-
   return {
     name: 'variance-authority:test-selection',
     enforce: 'post',
-    resolveId: (id) => (id === setupId ? virtualId : null),
-    load: (id) => (id === virtualId ? setupSource(runDirectory) : null),
+    // The setup module keeps its path as its id rather than taking a virtual
+    // one. Vitest drops every setup file from the module cache by path before
+    // each test file so setup runs again without isolation; a module cached
+    // under another id would survive that and run once for the whole worker.
+    resolveId: (id) => (id === setupId ? setupId : null),
+    load: (id) => (id === setupId ? setupSource(runDirectory) : null),
     transform(code, id) {
+      // The setup module installs the counter factory; instrumented, its own
+      // header would ask for the factory before the module has installed it.
+      if (id === setupId) return null;
       const file = cleanId(id);
       if (!include(file)) return null;
       const lineOf = sourceLines(code, priorMap(this), file);
+      // The digest is of the text on disk, which is what the block lines are
+      // coordinates in once the prior transforms' maps are read back through;
+      // `code` here is what those transforms made of it.
+      const sourceDigest = digestOfFile(file, code);
 
       const done = instrument(code, file);
       if (done === undefined) {
         modules.set(file, {
           file: projectPath(root, file),
-          sourceDigest: digestString(code),
+          sourceDigest,
           instrumented: false,
           blocks: [],
         });
@@ -133,7 +150,7 @@ function selectionPlugin(
 
       modules.set(file, {
         file: projectPath(root, file),
-        sourceDigest: done.sourceDigest,
+        sourceDigest,
         instrumented: true,
         blocks: done.blocks.map((block) => coverageBlock(code, block, lineOf)),
       });
@@ -152,26 +169,10 @@ function selectionReporter(
   return {
     async onFinished(files) {
       const journals = await readJournals(runDirectory);
-      const observed = new Map<string, Map<number, Set<string>>>();
-      // A worker that keeps its module graph between files evaluates a module
-      // once for all of them, so what it did while evaluating is every file's.
-      const everyTest = journals.map((journal) => projectPath(root, journal.testFile));
-
-      for (const journal of journals) {
-        const testFile = projectPath(root, journal.testFile);
-        for (const module of journal.modules) {
-          const moduleFile = projectPath(root, module.file);
-          const byOrdinal = observed.get(moduleFile) ?? new Map<number, Set<string>>();
-          const shared = new Set(module.shared);
-          for (const ordinal of module.hits) {
-            const tests = byOrdinal.get(ordinal) ?? new Set<string>();
-            if (shared.has(ordinal)) for (const test of everyTest) tests.add(test);
-            else tests.add(testFile);
-            byOrdinal.set(ordinal, tests);
-          }
-          observed.set(moduleFile, byOrdinal);
-        }
-      }
+      const observed = crossingsOf(journals.map((journal) => ({
+        testFile: projectPath(root, journal.testFile),
+        modules: journal.modules.map((module) => ({ ...module, file: projectPath(root, module.file) })),
+      })));
 
       const tests = await Promise.all(
         files.flatMap((file) => file.filepath === undefined
@@ -197,10 +198,10 @@ function selectionReporter(
           .sort((left, right) => codeUnitOrder(left.file, right.file)),
       };
       const previous = await existingCoverage(coverageFile);
-      await mkdir(dirname(coverageFile), { recursive: true });
-      const temporary = `${coverageFile}.${process.pid}-${randomUUID()}.tmp`;
-      await writeFile(temporary, encodeTestCoverage(mergeCoverage(previous, current)));
-      await rename(temporary, coverageFile);
+      await writeTestCoverage(
+        coverageFile,
+        mergeCoverage(previous, current, await digestsOnDisk(root, previous, current)),
+      );
       await rm(runDirectory, { recursive: true, force: true });
     },
   };
@@ -212,9 +213,14 @@ import { afterAll, expect } from 'vitest';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 const modules = new Map();
+// A module \`vi.resetModules\` evaluates again resolves this again, and keeps
+// what it counted before the reset: same name and block count, same counters.
 globalThis.__VA__ = (file, count) => {
-  const counters = new Uint32Array(count);
-  modules.set(file, counters);
+  let counters = modules.get(file);
+  if (counters === undefined || counters.length !== count) {
+    counters = new Uint32Array(count);
+    modules.set(file, counters);
+  }
   return counters;
 };
 afterAll(async () => {
@@ -276,6 +282,15 @@ async function readJournals(directory: string): Promise<readonly Journal[]> {
   return Promise.all(names.map(async (name) => JSON.parse(await readFile(resolve(directory, name), 'utf8')) as Journal));
 }
 
+
+/** The digest of the file's text, or of `code` when the id is not a file on disk. */
+function digestOfFile(file: string, code: string): string {
+  try {
+    return digestString(readFileSync(file, 'utf8'));
+  } catch {
+    return digestString(code);
+  }
+}
 
 function array<T>(value: T | readonly T[] | undefined): T[] {
   return value === undefined ? [] : Array.isArray(value) ? [...value] : [value as T];

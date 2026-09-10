@@ -23,6 +23,7 @@ describe('what the recorded journeys rule out', () => {
       whole: PLANNED,
       entered: ['story:cart-card--removing'],
       unread: [],
+      because: [],
     });
 
     expect(skipped.map((entry) => entry.subject)).toEqual([
@@ -40,6 +41,7 @@ describe('what the recorded journeys rule out', () => {
       whole: ['story:cart-card--removing'],
       entered: ['story:cart-card--removing'],
       unread: [],
+      because: [],
     });
 
     expect(skipped).toEqual([]);
@@ -55,6 +57,7 @@ describe('what the recorded journeys rule out', () => {
       whole: ['story:main-nav--empty'],
       entered: [],
       unread: [],
+      because: [],
     });
 
     expect(skipped).toEqual([]);
@@ -70,6 +73,7 @@ describe('what the recorded journeys rule out', () => {
       whole: [...PLANNED, 'story:main-nav--empty'],
       entered: ['story:cart-card--removing'],
       unread: [],
+      because: [],
     });
 
     expect(skipped.map((entry) => entry.subject)).toEqual(['story:cart-card--item']);
@@ -82,6 +86,7 @@ describe('what the recorded journeys rule out', () => {
       whole: PLANNED,
       entered: PLANNED,
       unread: [],
+      because: [],
     });
 
     expect(skipped).toEqual([]);

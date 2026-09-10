@@ -31,12 +31,58 @@ describe('the Vitest integration', () => {
     expect(configured.test?.reporters).toHaveLength(2);
   });
 
+  it('runs under the default include, which leaves the seam\'s own setup module alone', async () => {
+    // The setup module is a JavaScript file under the root like any other, and
+    // instrumented it would ask for the counter factory it has not yet installed.
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    await execute(
+      process.execPath,
+      [vitest, 'run', 'test/beta.case.ts', '--config', resolve(fixture, 'vitest.default.config.ts')],
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile } },
+    );
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([['test/beta.case.ts', true]]);
+    // The default instruments every file under the root, the suite's own
+    // setup included; the seam's setup module is not among them.
+    expect(coverage.modules.map((module) => module.file)).toEqual(['src/decide.ts', 'test/beta.case.ts', 'test/setup.ts']);
+  });
+
+  it('counts a module every file consumed when the runner shares one module graph across files', async () => {
+    // `--no-isolate` evaluates `src/decide.ts` once, for the first file; the
+    // others consume its exports without its top level running again. Each
+    // file installs its own factory, and a module that meets a new factory
+    // counts its own block once, so an edit to a top-level line reaches every
+    // file that consumed the module and not only the first — and not delta,
+    // which ran in the same worker and never entered it.
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    await execute(
+      process.execPath,
+      [vitest, 'run', '--no-isolate', '--no-file-parallelism', '--config', resolve(fixture, 'vitest.config.ts')],
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile } },
+    );
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.tests.map((test) => test.file)).toContain('test/delta.case.ts');
+    expect(coverage.modules[0]?.blocks[0]?.testFiles).toEqual([
+      'test/alpha.case.ts',
+      'test/beta.case.ts',
+      'test/gamma.case.ts',
+    ]);
+  });
+
   it('records external tests and selects only the test file that covered a changed path', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
     temporary.push(directory);
     const coverageFile = resolve(directory, 'coverage.bin');
 
-    for (const testFile of ['test/alpha.case.ts', 'test/beta.case.ts']) {
+    for (const testFile of ['test/alpha.case.ts', 'test/beta.case.ts', 'test/gamma.case.ts']) {
       await execute(
         process.execPath,
         [vitest, 'run', testFile, '--config', resolve(fixture, 'vitest.config.ts')],
@@ -55,6 +101,14 @@ describe('the Vitest integration', () => {
 -    return 'A';
 +    return 'Alpha';`;
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual(['test/alpha.case.ts']);
+    // gamma entered the `G` branch, reset the registry, and evaluated the
+    // module again: the second evaluation must not zero what the first counted.
+    const gammaLine = source.slice(0, source.indexOf("return 'G'")).split('\n').length;
+    await expect(selectTestFiles(coverageFile, `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -${gammaLine},1 +${gammaLine},1 @@
+-    return 'G';
++    return 'Gamma';`)).resolves.toEqual(['test/gamma.case.ts']);
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.instrumentation).toBe(INSTRUMENTATION_ID);
@@ -66,12 +120,17 @@ describe('the Vitest integration', () => {
       {
         file: 'test/alpha.case.ts',
         complete: false,
-        preconditions: ['src/decide.ts', 'test/alpha.case.ts', 'vitest.config.ts'],
+        preconditions: ['src/decide.ts', 'test/alpha.case.ts', 'test/setup.ts', 'vitest.config.ts'],
       },
       {
         file: 'test/beta.case.ts',
         complete: true,
-        preconditions: ['src/decide.ts', 'test/beta.case.ts', 'vitest.config.ts'],
+        preconditions: ['src/decide.ts', 'test/beta.case.ts', 'test/setup.ts', 'vitest.config.ts'],
+      },
+      {
+        file: 'test/gamma.case.ts',
+        complete: true,
+        preconditions: ['src/decide.ts', 'test/gamma.case.ts', 'test/setup.ts', 'vitest.config.ts'],
       },
     ]);
     expect(coverage.modules[0]).toMatchObject({
@@ -91,9 +150,9 @@ describe('the Vitest integration', () => {
     const deviation = await deviationOfTests(coverageFile, { root: fixture, records });
     expect(deviation).toEqual({
       baseline: { files: 1, loc: 9 },
-      coverage: { files: 1, loc: 6 },
-      coverageRatio: 6 / 9,
-      sensitivity: ((5 / 9) + (3 / 9)) / 2,
+      coverage: { files: 1, loc: 9 },
+      coverageRatio: 1,
+      sensitivity: ((5 / 9) + (3 / 9) + (6 / 9)) / 3,
       tests: [
         {
           testFile: 'test/alpha.case.ts',
@@ -108,6 +167,14 @@ describe('the Vitest integration', () => {
           slice: { files: 1, loc: 3 },
           sensitivity: 3 / 9,
           deviation: 1 - (3 / 9),
+        },
+        {
+          // Both branches: `G` before the registry reset, `B` after it.
+          testFile: 'test/gamma.case.ts',
+          baseline: { files: 1, loc: 9 },
+          slice: { files: 1, loc: 6 },
+          sensitivity: 6 / 9,
+          deviation: 1 - (6 / 9),
         },
       ],
     });

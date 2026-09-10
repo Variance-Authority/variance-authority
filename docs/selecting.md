@@ -29,10 +29,14 @@ variance run --since origin/main
 { "source": { "dirs": ["src"] } }
 ```
 
-The diff is `git diff --name-only origin/main...HEAD` — **three dots**, so the
-comparison is against the merge base. Two dots on a branch that is behind `main`
-reports every file anybody else merged as changed here, and the selection widens
-to the whole suite for a reason nobody can see.
+The file list is taken from the **merge base** of `origin/main` and `HEAD` to
+the working tree, uncommitted edits included. Against the tip of `origin/main`,
+a branch that is behind it would report every file anybody else merged as
+changed here, and the selection would widen to the whole suite for a reason
+nobody can see. The hunks the execution index reads are taken from the commit
+the index was recorded at, when it names one: its line ranges are in that
+commit's coordinates, and a diff from anywhere else lands on lines it never
+numbered.
 
 ## What it will not do
 

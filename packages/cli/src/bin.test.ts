@@ -142,6 +142,7 @@ describe('parseArgs', () => {
       command: 'journeys',
       config: resolve('variance.config.json'),
       all: false,
+      shards: [],
     });
 
     expect(parseArgs(['journeys', '--all', '--file', 'CartCard', '--limit', '5'])).toEqual({
@@ -150,7 +151,32 @@ describe('parseArgs', () => {
       all: true,
       file: 'CartCard',
       limit: 5,
+      shards: [],
     });
+  });
+
+  it('takes shard snapshots as journeys positionals, landing where --into says', () => {
+    // `report`'s shape, resolved the same way: relative to where the operator
+    // typed it. `--into` is resolved too, because a fold that landed relative
+    // to the process's directory would be found by nobody who typed the path.
+    expect(parseArgs(['journeys', 'shard-1/coverage.bin', 'shard-2/coverage.bin'])).toEqual({
+      command: 'journeys',
+      config: resolve('variance.config.json'),
+      all: false,
+      shards: [resolve('shard-1/coverage.bin'), resolve('shard-2/coverage.bin')],
+    });
+
+    expect(parseArgs(['journeys', 'a.bin', '--into', 'folded.bin'])).toEqual({
+      command: 'journeys',
+      config: resolve('variance.config.json'),
+      all: false,
+      shards: [resolve('a.bin')],
+      into: resolve('folded.bin'),
+    });
+  });
+
+  it('refuses --into with nothing to fold', () => {
+    expect(attempt(['journeys', '--into', 'folded.bin']).message).toContain('--into');
   });
 
   it('refuses a journeys --limit that is not a count', () => {

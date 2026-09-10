@@ -21,11 +21,14 @@ import { OperatorError } from '../exit.js';
 /**
  * Files a diff against `ref` touched, named the way the run names files.
  *
- * `git diff --name-only ref...HEAD` — three dots, so the comparison is against
- * the **merge base** rather than against the tip of the other branch. Two dots on
- * a branch that is behind `main` reports every file anybody else merged as
- * changed here, which would widen a selection to the whole suite for a reason
- * nobody could see.
+ * The comparison is against the **merge base** of `ref` and `HEAD`, never
+ * against the tip of the other branch: on a branch that is behind `main`, the
+ * tip reports every file anybody else merged as changed here, which would widen
+ * a selection to the whole suite for a reason nobody could see. And it is
+ * against the working tree, not `HEAD`. A watch loop asks about the edit that
+ * was just saved, and `ref...HEAD` answers about the last commit instead — an
+ * uncommitted change to a module every subject crosses would narrow the run to
+ * whatever the previous commit touched.
  *
  * ## Two coordinate systems, and the join between them is the whole feature
  *
@@ -59,16 +62,10 @@ export async function changedSince(
   const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
 
   try {
-    const { stdout } = await run('git', ['diff', '--name-only', `${ref}...HEAD`], {
-      cwd: repository,
-      maxBuffer: 32 * 1024 * 1024,
-    });
-
-    return stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line !== '')
-      .map((file) => relative(here, join(repository, file)));
+    const base = await mergeBase(run, ref, repository);
+    return [...(await changedFiles(run, repository, base)), ...(await untrackedFiles(run, repository))].map(
+      (file) => relative(here, join(repository, file)),
+    );
   } catch (error) {
     throw new OperatorError(
       `\`--since ${ref}\` could not list what changed: ${messageOf(error)}. ` +
@@ -90,6 +87,15 @@ export async function changedSince(
  * must name one file the same way or the journal answers about a module nobody
  * changed.
  *
+ * Measured from `from` when the caller has one — the commit the execution
+ * index was recorded at, which is the only coordinate its line ranges are in.
+ * The merge base with `ref` is where the *file list* is measured from, and the
+ * two part company the moment `main` moves after the recording: a hunk read at
+ * the merge base then lands on lines the journal never numbered. Without a
+ * recorded commit the merge base is all there is, and the journal answers over
+ * whatever drifted; that is wider than the truth, never narrower, because a line
+ * the diff misplaces still lands in the module that was edited.
+ *
  * `undefined` rather than a throw. A repository that cannot produce a diff has
  * already refused the file list a moment earlier with a sentence naming the ref;
  * failing twice for one cause would replace that sentence with this one. And the
@@ -99,33 +105,124 @@ export async function changedSince(
 export async function diffSince(
   ref: string,
   roots: readonly string[] = [],
+  from?: string,
 ): Promise<string | undefined> {
   const run = promisify(execFile);
   const here = process.cwd();
   const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
 
   try {
-    const { stdout } = await run('git', ['diff', `${ref}...HEAD`], {
+    const { stdout } = await run('git', [...PLAIN, 'diff', ...NO_DECORATION, '--no-renames', from ?? (await mergeBase(run, ref, repository))], {
       cwd: repository,
       maxBuffer: 64 * 1024 * 1024,
     });
+    // An untracked file has no diff of its own: it is shown as the addition it
+    // is, so its every line is charged and the graph is asked who imports it.
+    const added: string[] = [];
+    for (const file of await untrackedFiles(run, repository)) added.push(await diffOfNew(run, repository, file));
 
-    return inCoordinates(stdout, here, repository);
+    return inCoordinates([stdout, ...added].join('\n'), here, repository);
   } catch {
     return undefined;
   }
 }
 
+type Run = (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>;
 
-/** Rewrite the two header lines a hunk reader looks at, and leave the rest alone. */
+/**
+ * Configuration a diff is read under, whatever the operator's own says.
+ *
+ * `core.quotePath` writes a path with a byte outside ASCII as a C string, and
+ * a reader given `"src/caf\303\251.ts"` matches it against nothing; a prefix
+ * other than `a/` and `b/` — `diff.noprefix`, `diff.mnemonicPrefix` — is one
+ * the hunk reader does not strip; `diff.external` replaces the output with a
+ * tool's. Each turns every changed file into one the selector cannot read,
+ * which widens the run and never says why.
+ */
+const PLAIN = ['-c', 'core.quotePath=false', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false'];
+const NO_DECORATION = ['--no-color', '--no-ext-diff'];
+
+/** Files a diff from `base` to the working tree names, one per record. */
+async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
+  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', base], {
+    cwd: repository,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  return stdout.split('\0').filter((file) => file !== '');
+}
+
+/**
+ * Files the working tree holds and no commit does. A diff never lists them,
+ * and "uncommitted edits included" is a lie without them: the new module and
+ * the edit that imports it arrive together, and only the edit would show.
+ */
+async function untrackedFiles(run: Run, repository: string): Promise<readonly string[]> {
+  const { stdout } = await run('git', [...PLAIN, 'ls-files', '--others', '--exclude-standard', '-z'], {
+    cwd: repository,
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  return stdout.split('\0').filter((file) => file !== '');
+}
+
+/** The whole of a new file as one hunk of additions. `--no-index` exits 1 when the sides differ, which they do. */
+async function diffOfNew(run: Run, repository: string, file: string): Promise<string> {
+  try {
+    const { stdout } = await run('git', [...PLAIN, 'diff', '--no-index', ...NO_DECORATION, '--', '/dev/null', file], {
+      cwd: repository,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return stdout;
+  } catch (error) {
+    const failed = error as { readonly code?: unknown; readonly stdout?: unknown };
+    if (failed.code === 1 && typeof failed.stdout === 'string') return failed.stdout;
+    throw error;
+  }
+}
+
+
+/**
+ * Where `ref` and `HEAD` part: the commit a two-dot diff from it measures the
+ * same distance as `ref...HEAD`, with the working tree included.
+ */
+async function mergeBase(run: Run, ref: string, repository: string): Promise<string> {
+  const { stdout } = await run('git', ['merge-base', ref, 'HEAD'], { cwd: repository });
+  return stdout.trim();
+}
+
+/**
+ * Rewrite the header lines a hunk reader looks at, and leave the rest alone.
+ *
+ * `diff --git a/X b/Y` is one of them: it is the line a file with no hunk —
+ * a binary, a mode change — is named by, and the reader charges that file
+ * whole under whatever name the line carries. A rename is shown as the removal
+ * and the addition it is, so the removed name is charged whole under the rows
+ * the index has for it and the added one is asked of the graph. A path with a
+ * space or a
+ * character outside ASCII arrives quoted, and a quoted path is passed through
+ * untouched for the reader to decode; it is repository-relative then, which is
+ * the run's coordinate only when the run is at the top level.
+ */
 function inCoordinates(diff: string, here: string, repository: string): string {
+  const move = (path: string): string => relative(here, join(repository, path));
   return diff
     .split('\n')
     .map((line) => {
+      if (line.startsWith('diff --git a/')) {
+        const rest = line.slice('diff --git a/'.length);
+        // Equal halves first: `a/x b/x` is the common case, and a path that
+        // itself contains ` b/` is told apart by that.
+        const halves = rest.split(' b/');
+        const left = halves.slice(0, halves.length / 2).join(' b/');
+        const right = halves.slice(halves.length / 2).join(' b/');
+        if (halves.length % 2 === 0 && left === right) return `diff --git a/${move(left)} b/${move(right)}`;
+        const at = rest.indexOf(' b/');
+        if (at === -1) return line;
+        return `diff --git a/${move(rest.slice(0, at))} b/${move(rest.slice(at + 3))}`;
+      }
       for (const mark of ['--- a/', '+++ b/']) {
         if (!line.startsWith(mark)) continue;
         const path = line.slice(mark.length);
-        return `${mark}${relative(here, join(repository, path))}`;
+        return `${mark}${move(path)}`;
       }
       return line;
     })
@@ -144,9 +241,10 @@ function inCoordinates(diff: string, here: string, repository: string): string {
  * cost — and a coordinate that cannot be read is simply one the report does not
  * carry.
  *
- * The diff is two-dot and against the working tree, not `...HEAD`. There is no
- * merge base to find: the index names the exact commit it was written at, and
- * the question is what has moved since, uncommitted edits included.
+ * The diff is from the commit itself, with no merge base to find: the index
+ * names the exact commit it was written at, and the question is what has moved
+ * since, uncommitted edits included. Untracked files are not counted here: the
+ * count is a distance, and a new file is at no distance from any commit.
  */
 export async function indexPosition(
   root: string,
@@ -156,14 +254,21 @@ export async function indexPosition(
   const selection = await import('@variance-authority/sense/test-selection');
 
   try {
-    const { commit } = await selection.readTestCoverage(selection.testCoverageFile(root));
-    if (commit === undefined) return undefined;
     const repository = await topLevel(run, roots[0] === undefined ? root : join(root, roots[0]));
-    const { stdout } = await run('git', ['diff', '--name-only', commit], {
-      cwd: repository,
-      maxBuffer: 32 * 1024 * 1024,
-    });
-    const changed = stdout.split('\n').filter((line) => line.trim() !== '').length;
+    // The seams key the index by the runner's root, which is the repository
+    // for a single-package checkout and the package for one inside a monorepo;
+    // a run started from either is asked for from both.
+    let commit: string | undefined;
+    for (const candidate of new Set([root, repository])) {
+      try {
+        ({ commit } = await selection.readTestCoverage(selection.testCoverageFile(candidate)));
+        if (commit !== undefined) break;
+      } catch {
+        // Not here; the next candidate may hold it.
+      }
+    }
+    if (commit === undefined) return undefined;
+    const changed = (await changedFiles(run, repository, commit)).length;
     return { commit, changed };
   } catch {
     return undefined;
@@ -218,7 +323,9 @@ export interface NarrowingRequest {
  * `index` is read whether or not the run narrows, because it is the answer to
  * *what would `--since` have cost* — and a run that never asks cannot put that
  * in the report, which leaves narrowing an option nobody reading the run knows
- * is there. It is carried and never acted on: narrowing is the operator's
+ * is there. Its commit is also where the journal's diff is measured from, since
+ * the journal's line ranges are in that commit's coordinates and nothing else's;
+ * beyond that it is carried and never acted on. Narrowing is the operator's
  * decision and stays one.
  */
 export async function narrowingFor(
@@ -229,7 +336,9 @@ export async function narrowingFor(
   readonly against?: { readonly ref: string; readonly changed: readonly string[] };
   readonly index?: { readonly commit: string; readonly changed: number };
 }> {
-  const diff = request.since === undefined ? undefined : await diffSince(request.since, dirs);
+  const index = await indexPosition(process.cwd(), dirs);
+  const diff =
+    request.since === undefined ? undefined : await diffSince(request.since, dirs, index?.commit);
   const since =
     request.since === undefined
       ? undefined
@@ -245,7 +354,6 @@ export async function narrowingFor(
       : againstRef === since?.ref
         ? { ref: againstRef, changed: since.changed }
         : { ref: againstRef, changed: await changedSince(againstRef, dirs) };
-  const index = await indexPosition(process.cwd(), dirs);
 
   return {
     ...(since === undefined ? {} : { since }),

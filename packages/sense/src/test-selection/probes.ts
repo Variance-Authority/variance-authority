@@ -8,6 +8,7 @@
  * it was cut from — and knows nothing about who executed it.
  * {@link EvaluatingPage} and the join live next door.
  */
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { digestString } from '@variance-authority/core';
 import { EVALUATING, INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
@@ -172,6 +173,13 @@ export function testSelectionProbes(
       const source = cleanId(id);
       if (source === RESOLVED_COLLECTOR || !include(source)) return null;
       const lineOf = sourceLines(code, priorMap(this), source);
+      // Of the text on disk, which is what the block lines are coordinates in.
+      let sourceDigest: string;
+      try {
+        sourceDigest = digestString(readFileSync(source, 'utf8'));
+      } catch {
+        sourceDigest = digestString(code);
+      }
 
       // Instrumented under its repository-relative name, which is what the page
       // then reports. A journal that named absolute paths would be a journal
@@ -182,7 +190,7 @@ export function testSelectionProbes(
       if (done === undefined) {
         modules.set(source, {
           file,
-          sourceDigest: digestString(code),
+          sourceDigest,
           instrumented: false,
           blocks: [],
         });
@@ -192,7 +200,7 @@ export function testSelectionProbes(
 
       modules.set(source, {
         file,
-        sourceDigest: done.sourceDigest,
+        sourceDigest,
         instrumented: true,
         blocks: done.blocks.map((block) => coverageBlock(code, block, lineOf)),
       });

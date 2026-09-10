@@ -173,6 +173,58 @@ export function projectPath(root: string, file: string): string {
   return relative(root, file).split(sep).join('/');
 }
 
+/** What one test file's run counted, per module, already under project paths. */
+export interface ReadJournal {
+  readonly testFile: string;
+  readonly modules: ReadonlyArray<{
+    readonly file: string;
+    readonly hits: readonly number[];
+    /** Entered while the module was evaluating: every file that consumed the module owns it. */
+    readonly shared: readonly number[];
+  }>;
+}
+
+/**
+ * Which test files crossed each ordinal of each module, folded from every
+ * journal of one run.
+ *
+ * An ordinal a file hit on its own is that file's. An ordinal hit while the
+ * module was evaluating is every file's that consumed the module: a worker
+ * that keeps its module graph between files evaluates a module once, in
+ * whichever file's window came first, and every later file that entered the
+ * module read what that evaluation made. A file that never entered the module
+ * did not consume it, and under isolation — where each file evaluates the
+ * module itself and holds its own window — that is every other file in the
+ * run. Crediting them would put a top-level edit in front of the whole suite.
+ */
+export function crossingsOf(
+  journals: readonly ReadJournal[],
+): ReadonlyMap<string, ReadonlyMap<number, ReadonlySet<string>>> {
+  const consumers = new Map<string, Set<string>>();
+  for (const journal of journals) {
+    for (const module of journal.modules) {
+      const holders = consumers.get(module.file) ?? new Set<string>();
+      holders.add(journal.testFile);
+      consumers.set(module.file, holders);
+    }
+  }
+  const observed = new Map<string, Map<number, Set<string>>>();
+  for (const journal of journals) {
+    for (const module of journal.modules) {
+      const byOrdinal = observed.get(module.file) ?? new Map<number, Set<string>>();
+      const shared = new Set(module.shared);
+      for (const ordinal of module.hits) {
+        const tests = byOrdinal.get(ordinal) ?? new Set<string>();
+        if (shared.has(ordinal)) for (const test of consumers.get(module.file)!) tests.add(test);
+        else tests.add(journal.testFile);
+        byOrdinal.set(ordinal, tests);
+      }
+      observed.set(module.file, byOrdinal);
+    }
+  }
+  return observed;
+}
+
 export function codeUnitOrder(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }

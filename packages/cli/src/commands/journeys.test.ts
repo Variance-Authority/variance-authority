@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JourneyDivergence } from '@variance-authority/sense/test-selection';
-import { formatJourneys, journeysOf, type JourneysInput } from './journeys.js';
+import { formatJourneys, formatLanding, journeysOf, type JourneysInput } from './journeys.js';
 
 /**
  * The surface over the one instrument that narrows a flake to a place.
@@ -214,6 +214,29 @@ describe('the recorded partings a run can reach', () => {
     expect(result.elided).toBe(3);
     expect(result.notes).toContainEqual(
       expect.stringContaining('3 more parted modules not shown; raise --limit'),
+    );
+  });
+});
+
+describe('formatLanding', () => {
+  it('says where the fold went and where it stands, in counts', () => {
+    expect(
+      formatLanding({
+        at: '/cache/variance-authority/test-selection/abc/coverage.bin',
+        shards: 3,
+        commit: '0123456789abcdef0123456789abcdef01234567',
+        observations: 342,
+        modules: 1204,
+      }),
+    ).toBe(
+      'folded 3 snapshots into /cache/variance-authority/test-selection/abc/coverage.bin\n' +
+        '  342 observations over 1204 modules, recorded at 0123456789ab',
+    );
+  });
+
+  it('leaves the position out when the shards had none', () => {
+    expect(formatLanding({ at: '/tmp/coverage.bin', shards: 1, observations: 1, modules: 1 })).toBe(
+      'folded 1 snapshot into /tmp/coverage.bin\n  1 observation over 1 module',
     );
   });
 });

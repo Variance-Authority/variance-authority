@@ -8,9 +8,144 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { digestString } from '@variance-authority/core';
 import { decodeTestCoverage } from './format.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
+
+/** One shard's snapshot and where it was read from, so a refusal can name both sides. */
+export interface CoverageShard {
+  readonly path: string;
+  readonly coverage: TestCoverage;
+}
+
+/**
+ * N shard snapshots of one suite into the snapshot that suite would have written
+ * unsharded, or a refusal naming which two disagreed.
+ *
+ * A suite too large for one machine runs its files across N jobs and ends with N
+ * snapshots, each of them a whole observation of its own test files and a partial
+ * one of every module they share. `mergeCoverage` is the wrong tool for that:
+ * it layers a run *over* a baseline, positions the result where the newer side
+ * stands, and retires whatever the newer side re-recorded — an order-dependent
+ * answer, which is what a layer is and what a fan-in must not be. The shards were
+ * one run. Folding them is a union, and a union has to be the same union in any
+ * order.
+ *
+ * The rule is `mergeReports`'s: **the fold must not be able to say anything a
+ * single unsharded run could not.** Every field singular in a run has to agree
+ * across the shards or the fold is refused by name — the probe recipe, because
+ * two recipes number regions differently and a crossing under one is a fiction
+ * under the other; the commit, because the snapshot stands at exactly one place
+ * and a shard recorded elsewhere is evidence about different source. *Absent* is
+ * a value there, not a skip: a shard recorded outside a checkout cannot say where
+ * it stands, and folding it under a commit it never named would.
+ *
+ * Two more things one run could not contain. A test file recorded by two shards
+ * is a split that overlapped, and picking either observation would attribute the
+ * other's crossings to nobody; it is refused. And a module the shards saw as
+ * different source — same path, different `sourceDigest` — was built twice, and
+ * the region ordinals of one do not name the regions of the other.
+ *
+ * Where the shards agree, unknown wins. A module one shard could not instrument
+ * is recorded as unread in the fold even if another shard read it whole, because
+ * the row saying *this build never measured this module* is the one a reader
+ * widens on, and a fold that let the measured shards outvote it would have turned
+ * an unknown into a narrowing.
+ */
+export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage {
+  const [first, ...rest] = shards;
+  if (first === undefined) throw new Error('folding needs at least one coverage snapshot');
+  if (rest.length === 0) return first.coverage;
+
+  agree(shards, 'instrumentation', (shard) => shard.coverage.instrumentation);
+  agree(shards, 'commit', (shard) => shard.coverage.commit ?? '(none)');
+
+  const tests = new Map<string, { test: CoverageTest; path: string }>();
+  for (const shard of shards) {
+    for (const test of shard.coverage.tests) {
+      const seen = tests.get(test.file);
+      if (seen !== undefined) {
+        throw new Error(
+          `\`${test.file}\` was recorded by ${seen.path} and again by ${shard.path}. ` +
+            'A test file belongs to one shard, and two observations of it cannot both be ' +
+            "the suite's.",
+        );
+      }
+      tests.set(test.file, { test, path: shard.path });
+    }
+  }
+
+  const modules = new Map<string, { module: CoverageModule; path: string; entered: Map<number, Set<string>> }>();
+  for (const shard of shards) {
+    for (const module of shard.coverage.modules) {
+      const seen = modules.get(module.file);
+      if (seen === undefined) {
+        modules.set(module.file, {
+          module,
+          path: shard.path,
+          entered: new Map(module.blocks.map((block) => [block.ordinal, new Set(block.testFiles)])),
+        });
+        continue;
+      }
+      if (seen.module.sourceDigest !== module.sourceDigest) {
+        throw new Error(
+          `\`${module.file}\` is different source in ${seen.path} and ${shard.path}: ` +
+            'the two shards built it from different text, so the regions of one do not ' +
+            'name the regions of the other.',
+        );
+      }
+      if (!module.instrumented) {
+        seen.module = module;
+        seen.entered.clear();
+        continue;
+      }
+      if (!seen.module.instrumented) continue;
+      for (const block of module.blocks) {
+        const crossings = seen.entered.get(block.ordinal) ?? new Set<string>();
+        for (const test of block.testFiles) crossings.add(test);
+        seen.entered.set(block.ordinal, crossings);
+      }
+    }
+  }
+
+  return {
+    version: 3,
+    instrumentation: first.coverage.instrumentation,
+    ...(first.coverage.commit === undefined ? {} : { commit: first.coverage.commit }),
+    tests: [...tests.values()]
+      .map(({ test }) => test)
+      .sort((left, right) => codeUnitOrder(left.file, right.file)),
+    modules: [...modules.values()]
+      .map(({ module, entered }): CoverageModule => ({
+        file: module.file,
+        sourceDigest: module.sourceDigest,
+        instrumented: module.instrumented,
+        blocks: module.blocks.map((block) => ({
+          ...block,
+          testFiles: [...(entered.get(block.ordinal) ?? [])].sort(codeUnitOrder),
+        })),
+      }))
+      .sort((left, right) => codeUnitOrder(left.file, right.file)),
+  };
+}
+
+function agree(
+  shards: readonly CoverageShard[],
+  what: string,
+  read: (shard: CoverageShard) => string,
+): void {
+  const [first, ...rest] = shards as readonly [CoverageShard, ...CoverageShard[]];
+  const expected = read(first);
+  const other = rest.find((shard) => read(shard) !== expected);
+  if (other !== undefined) {
+    throw new Error(
+      `${first.path} and ${other.path} disagree about the ${what} (\`${expected}\` against ` +
+        `\`${read(other)}\`), so they are not shards of one run and cannot be folded into one.`,
+    );
+  }
+}
 
 /**
  * Merge independent runs and shards without transferring evidence across generations.
@@ -22,10 +157,33 @@ import { codeUnitOrder } from './instrumented-modules.js';
  * an individual block's crossings survive that is decided per block by
  * {@link reusableBlock}, which compares the region's own digest and is a finer
  * question than the commit.
+ *
+ * A crossing that does not survive was somebody's evidence. When the test that
+ * made it is in `current` it has been re-recorded — whole, and so retired, or in
+ * part, and so already marked as something no reader may skip. When it is not,
+ * it is carried from `previous` as a whole observation of code that has since
+ * changed under it: a subset run — one file by hand, a watch loop — layered over
+ * a full one moves the index to where the subset stands and leaves every other
+ * test standing where it was recorded. Dropping the crossing and keeping the
+ * test whole would turn *entered this region* into *did not*, and a later diff
+ * of that region would skip the one test known to have reached it. So a carried
+ * test that loses a crossing here is demoted to incomplete. It runs at the next
+ * selection regardless of what changed, and that run records it whole again.
+ *
+ * A module the run never loaded is carried with its rows as they were, and
+ * those rows are line ranges in the text the module had when it was recorded.
+ * The index moves to where this run stands, and a diff is later taken from
+ * there — so a carried module whose text is no longer the recorded one has rows
+ * in coordinates no diff will be in. `onDisk` says what each carried module's
+ * text is now, by the same digest the rows were recorded under; every test that
+ * entered a module whose text moved is demoted the same way, since its
+ * crossings can no longer be placed. A module `onDisk` does not name — deleted,
+ * or not asked about — is carried as it was.
  */
 export function mergeCoverage(
   previous: TestCoverage | undefined,
   current: TestCoverage,
+  onDisk: ReadonlyMap<string, string> = new Map(),
 ): TestCoverage {
   if (previous === undefined) return current;
   if (previous.instrumentation !== current.instrumentation) return current;
@@ -38,34 +196,49 @@ export function mergeCoverage(
       ? [test.file]
       : [];
   }));
-  const tests = [
-    ...previous.tests.filter((test) => !currentTests.has(test.file)),
-    ...current.tests,
-  ].sort((left, right) => codeUnitOrder(left.file, right.file));
   const currentFiles = new Map(current.modules.map((module) => [module.file, module]));
+  const stale = new Set<string>();
   const modules = current.modules.map((module): CoverageModule => {
     const old = previous.modules.find((candidate) => candidate.file === module.file);
+    const surviving = new Map<CoverageBlock, CoverageBlock>();
+    for (const before of old?.blocks ?? []) {
+      const block = module.blocks.find(
+        (candidate) => candidate.name === before.name && candidate.path === before.path,
+      );
+      if (block !== undefined && module.instrumented && old!.instrumented &&
+        reusableBlock(block, before, module, old!)) {
+        surviving.set(block, before);
+        continue;
+      }
+      for (const test of before.testFiles) if (!currentTests.has(test)) stale.add(test);
+    }
     return {
       file: module.file,
       sourceDigest: module.sourceDigest,
       instrumented: module.instrumented,
-      blocks: module.blocks.map((block) => {
-        const before = old?.blocks.find(
-          (candidate) => candidate.name === block.name && candidate.path === block.path,
-        );
-        const reusable = module.instrumented && old?.instrumented === true &&
-          before !== undefined &&
-          reusableBlock(block, before, module, old);
-        return {
-          ...block,
-          testFiles: [...new Set([
-            ...(reusable ? before.testFiles.filter((test) => !retired.has(test)) : []),
-            ...block.testFiles,
-          ])].sort(codeUnitOrder),
-        };
-      }),
+      blocks: module.blocks.map((block) => ({
+        ...block,
+        testFiles: [...new Set([
+          ...(surviving.get(block)?.testFiles ?? []).filter((test) => !retired.has(test)),
+          ...block.testFiles,
+        ])].sort(codeUnitOrder),
+      })),
     };
   });
+  for (const module of previous.modules) {
+    if (currentFiles.has(module.file)) continue;
+    const now = onDisk.get(module.file);
+    if (now === undefined || now === module.sourceDigest) continue;
+    for (const block of module.blocks) {
+      for (const test of block.testFiles) if (!currentTests.has(test)) stale.add(test);
+    }
+  }
+  const tests = [
+    ...previous.tests
+      .filter((test) => !currentTests.has(test.file))
+      .map((test) => (stale.has(test.file) ? { ...test, complete: false } : test)),
+    ...current.tests,
+  ].sort((left, right) => codeUnitOrder(left.file, right.file));
   for (const module of previous.modules) {
     if (!currentFiles.has(module.file)) {
       modules.push({
@@ -85,6 +258,31 @@ export function mergeCoverage(
     tests,
     modules,
   };
+}
+
+/**
+ * The digest of every module's text as it is under `root` now, for the modules
+ * `previous` holds that `current` did not record: what {@link mergeCoverage}
+ * needs to know which carried rows still have coordinates. A file that is not
+ * there is not named, and is carried as it was.
+ */
+export async function digestsOnDisk(
+  root: string,
+  previous: TestCoverage | undefined,
+  current: TestCoverage,
+): Promise<ReadonlyMap<string, string>> {
+  const digests = new Map<string, string>();
+  if (previous === undefined) return digests;
+  const recorded = new Set(current.modules.map((module) => module.file));
+  for (const module of previous.modules) {
+    if (recorded.has(module.file)) continue;
+    try {
+      digests.set(module.file, digestString(await readFile(resolve(root, module.file), 'utf8')));
+    } catch {
+      // Not on disk under that name: nothing to compare against.
+    }
+  }
+  return digests;
 }
 
 /**

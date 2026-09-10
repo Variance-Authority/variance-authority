@@ -5,6 +5,7 @@ import {
   type Raster,
   type RenderDocument,
   type RenderIdentity,
+  type Relations,
   type SourceIndex,
   type Viewport,
 } from '@variance-authority/core';
@@ -321,7 +322,7 @@ export async function runWith(
       readonly diff?: string;
     };
     scanSource?: (dirs: readonly string[]) => Promise<SourceIndex>;
-    readJourney?: (diff: string) => Promise<ExecutionNarrowing | undefined>;
+    readJourney?: (diff: string, relations?: Relations) => Promise<ExecutionNarrowing | undefined>;
     readJourneys?: (subjects: readonly string[]) => Promise<JourneyReading>;
   } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {

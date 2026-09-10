@@ -108,7 +108,7 @@ The readiness options are caller policy, not hidden defaults:
 
 | call | useful controls |
 |---|---|
-| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same portable record, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook: false` declines to write a hook at all, which is how a caller that knows it could not have loaded first avoids writing one nobody will read |
+| `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same portable record, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook` decides whether a missing hook is written at all; `false` is how a caller that knows it could not have loaded first avoids writing one nobody will read |
 | `awaitQuiet` | `quietFor` is the required silence, `timeout` bounds the wait, and `interval` controls polling; a timeout returns `settled: false` with restless component names |
 | `awaitSuspense` | `timeoutMs`, `pollMs`, and `confirmations` bound the boundary check; a pending or unobserved result is returned for the page agent to rule on |
 

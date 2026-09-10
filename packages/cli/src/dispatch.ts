@@ -46,7 +46,8 @@ import { mergeReports } from './commands/merge.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
-import { formatJourneys, journeysOf, type JourneyPool } from './commands/journeys.js';
+import { formatJourneys, formatLanding, journeysOf, type JourneyPool } from './commands/journeys.js';
+import { landJourneys } from './commands/land.js';
 import { formatPush, push } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
@@ -165,7 +166,7 @@ export async function dispatch(
             writeReport: writeCliRunReport,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) => relationsFor(process.cwd(), dirs),
-            readJourney: async (diff) => journeyAgainst(process.cwd(), diff),
+            readJourney: async (diff, relations) => journeyAgainst(process.cwd(), diff, relations),
             readJourneys: async (subjects) => recordedJourneys(process.cwd(), subjects),
             ...(effective.source?.changes === undefined
               ? {}
@@ -300,6 +301,14 @@ export async function dispatch(
     }
 
     case 'journeys': {
+      // Shards land first, so the reading below is of the suite and not of the
+      // slice this machine last ran; and a write that happened is said first.
+      const landed =
+        parsed.shards.length === 0
+          ? undefined
+          : await landJourneys(process.cwd(), parsed.shards, parsed.into);
+      if (landed !== undefined) streams.out(`${formatLanding(landed)}\n\n`);
+
       // The pool is chosen before the snapshot is read, because the instrument
       // narrows on the way out: `journeyDivergences` decides who is entitled to
       // be missing from a region, and a filter applied afterwards would be a
@@ -315,7 +324,7 @@ export async function dispatch(
       streams.out(
         `${formatJourneys(
           journeysOf({
-            ...(await recordedJourneys(process.cwd(), named)),
+            ...(await recordedJourneys(process.cwd(), named, landed?.at)),
             pool,
             ...(parsed.file !== undefined ? { file: parsed.file } : {}),
             ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),

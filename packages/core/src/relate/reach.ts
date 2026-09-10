@@ -30,6 +30,11 @@
 
 import { EDGE_KINDS, type Adjacency, type EdgeKind, type NodeId, type Relations } from './graph.js';
 
+/**
+ * What one walk from a set of seeds reached: a mark over every node, the node
+ * each one was reached through, and the reached ids in the order they were
+ * found. `trailOf` reads the chain from any reached node back to its seed.
+ */
 export interface Reach {
   /** `1` where the node was reached, including the seeds themselves. */
   readonly mask: Uint8Array;
