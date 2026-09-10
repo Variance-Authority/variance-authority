@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { GITHUB } from "../links";
 import Mark from "./Mark";
 
@@ -21,15 +22,15 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-hairline/70 bg-deep/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <a href="/" className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3">
           <Mark />
           <span className="text-sm font-medium tracking-[0.22em] text-ivory">
             VARIANCE&nbsp;AUTHORITY
           </span>
-        </a>
+        </Link>
         <nav className="flex items-center gap-6 text-sm text-quiet">
           {SECTIONS.map((section) => (
-            <a
+            <Link
               key={section.href}
               href={section.href}
               className={`transition-colors hover:text-ivory ${
@@ -37,7 +38,7 @@ export default function SiteHeader() {
               }`}
             >
               {section.label}
-            </a>
+            </Link>
           ))}
           <a
             href={GITHUB}

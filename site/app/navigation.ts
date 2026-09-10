@@ -261,3 +261,16 @@ export function navigationNeighbors(href: string): {
     next: readingOrder[index + 1],
   };
 }
+
+/**
+ * The section a path reads under. Package pages are not listed one by one, so
+ * they answer for their reference section rather than falling out of the frame.
+ */
+export function navigationSection(href: string): string {
+  return (
+    navigationItem(href)?.section ??
+    (href.startsWith("/reference/packages/")
+      ? "Package reference"
+      : "Documentation")
+  );
+}

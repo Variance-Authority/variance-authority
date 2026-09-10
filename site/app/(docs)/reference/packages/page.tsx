@@ -1,6 +1,6 @@
-import DocsShell from "../../components/DocsShell";
-import Packages from "../../components/Packages";
-import { pageMetadata } from "../../metadata";
+import DocsPage from "../../../components/DocsPage";
+import Packages from "../../../components/Packages";
+import { pageMetadata } from "../../../metadata";
 
 const TITLE = "Package map";
 const DESCRIPTION =
@@ -14,7 +14,7 @@ export const metadata = pageMetadata(
 
 export default function Page() {
   return (
-    <DocsShell
+    <DocsPage
       current="/reference/packages"
       eyebrow="Reference"
       title={TITLE}
@@ -22,6 +22,6 @@ export default function Page() {
       toc={[{ id: "packages", label: "Packages by responsibility" }]}
     >
       <Packages />
-    </DocsShell>
+    </DocsPage>
   );
 }

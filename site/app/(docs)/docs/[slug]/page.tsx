@@ -1,20 +1,20 @@
 import { notFound } from "next/navigation";
-import DocsShell from "../../components/DocsShell";
-import DocumentFigure from "../../components/DocumentFigure";
+import DocsPage from "../../../components/DocsPage";
+import DocumentFigure from "../../../components/DocumentFigure";
 import MarkdownDocument, {
   documentDescription,
   documentTitle,
   documentToc,
-} from "../../components/MarkdownDocument";
+} from "../../../components/MarkdownDocument";
 import {
   PRODUCT_DOCUMENTS,
   productDocument,
-} from "../../content/product-docs";
-import { pageMetadata } from "../../metadata";
+} from "../../../content/product-docs";
+import { pageMetadata } from "../../../metadata";
 import {
   navigationItem,
   type NavigationPath,
-} from "../../navigation";
+} from "../../../navigation";
 
 interface PageProps {
   readonly params: Promise<{ slug: string }>;
@@ -51,7 +51,7 @@ export default async function Page({ params }: PageProps) {
   const description = documentDescription(document.source);
 
   return (
-    <DocsShell
+    <DocsPage
       current={current}
       eyebrow={item.section}
       title={title}
@@ -63,6 +63,6 @@ export default async function Page({ params }: PageProps) {
         source={document.source}
         sourcePath={document.sourcePath}
       />
-    </DocsShell>
+    </DocsPage>
   );
 }

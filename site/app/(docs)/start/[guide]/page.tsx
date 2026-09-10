@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
-import DocsShell from "../../components/DocsShell";
+import DocsPage from "../../../components/DocsPage";
 import MarkdownDocument, {
   documentDescription,
   documentTitle,
   documentToc,
-} from "../../components/MarkdownDocument";
-import { productDocument } from "../../content/product-docs";
-import { pageMetadata } from "../../metadata";
+} from "../../../components/MarkdownDocument";
+import { productDocument } from "../../../content/product-docs";
+import { pageMetadata } from "../../../metadata";
 
 interface PageProps {
   readonly params: Promise<{ guide: string }>;
@@ -48,7 +48,7 @@ export default async function Page({ params }: PageProps) {
   const description = documentDescription(document.source);
 
   return (
-    <DocsShell
+    <DocsPage
       current={`/start/${slug}`}
       eyebrow="Get started"
       title={title}
@@ -59,6 +59,6 @@ export default async function Page({ params }: PageProps) {
         source={document.source}
         sourcePath={document.sourcePath}
       />
-    </DocsShell>
+    </DocsPage>
   );
 }

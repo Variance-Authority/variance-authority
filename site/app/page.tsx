@@ -12,8 +12,6 @@ import Reveal from "./components/Reveal";
 import RuntimeEvidence from "./components/RuntimeEvidence";
 import SectionHead from "./components/SectionHead";
 import Since from "./components/Since";
-import SiteFooter from "./components/SiteFooter";
-import SiteHeader from "./components/SiteHeader";
 import WithoutABaseline from "./components/WithoutABaseline";
 import WhatTheRunKnew from "./components/WhatTheRunKnew";
 import { GITHUB } from "./links";
@@ -23,16 +21,14 @@ export default function Page() {
     <div className="relative overflow-x-clip">
       <div
         aria-hidden="true"
-        className="dot-grid absolute inset-x-0 top-0 h-[42rem]"
+        className="dot-grid absolute inset-x-0 -top-16 h-[42rem]"
       />
       <div
         aria-hidden="true"
         className="absolute -top-40 right-[-10rem] h-[34rem] w-[34rem] rounded-full bg-orange/[0.07] blur-3xl"
       />
 
-      <SiteHeader />
-
-      <main className="relative mx-auto max-w-6xl px-6">
+      <main id="main-content" className="relative mx-auto max-w-6xl px-6">
         <Hero />
 
         <Reveal>
@@ -433,8 +429,6 @@ export default function Page() {
           <ClosingCall />
         </Reveal>
       </main>
-
-      <SiteFooter />
     </div>
   );
 }

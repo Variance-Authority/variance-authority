@@ -1,12 +1,12 @@
-import Comparison from "../../components/Comparison";
-import DocsShell from "../../components/DocsShell";
+import Comparison from "../../../components/Comparison";
+import DocsPage from "../../../components/DocsPage";
 import MarkdownDocument, {
   documentDescription,
   documentTitle,
   documentToc,
-} from "../../components/MarkdownDocument";
-import { productDocument } from "../../content/product-docs";
-import { pageMetadata } from "../../metadata";
+} from "../../../components/MarkdownDocument";
+import { productDocument } from "../../../content/product-docs";
+import { pageMetadata } from "../../../metadata";
 
 const document = productDocument("comparison")!;
 const title = documentTitle(document.source);
@@ -20,7 +20,7 @@ export const metadata = pageMetadata(
 
 export default function Page() {
   return (
-    <DocsShell
+    <DocsPage
       current="/reference/comparison"
       eyebrow="Reference"
       title={title}
@@ -34,6 +34,6 @@ export default function Page() {
         source={document.source}
         sourcePath={document.sourcePath}
       />
-    </DocsShell>
+    </DocsPage>
   );
 }

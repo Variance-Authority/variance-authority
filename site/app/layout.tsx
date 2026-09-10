@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import SiteFooter from "./components/SiteFooter";
+import SiteHeader from "./components/SiteHeader";
 import { ROOT_DESCRIPTION, ROOT_TITLE, SITE, SITE_NAME } from "./metadata";
 
 export const metadata: Metadata = {
@@ -75,7 +77,17 @@ export default function RootLayout({
           <style>{".reveal{opacity:1;transform:none}"}</style>
         </noscript>
       </head>
-      <body>{children}</body>
+      <body>
+        <a
+          href="#main-content"
+          className="skip-link rounded-md bg-orange px-4 py-2 text-sm font-semibold text-deep"
+        >
+          Skip to content
+        </a>
+        <SiteHeader />
+        {children}
+        <SiteFooter />
+      </body>
     </html>
   );
 }

@@ -231,7 +231,7 @@ html {
   scrollbar-color: #383e41 transparent;
 }
 
-.docs-skip-link {
+.skip-link {
   position: fixed;
   top: 0.75rem;
   left: 0.75rem;
@@ -240,7 +240,7 @@ html {
   transition: transform 120ms ease-out;
 }
 
-.docs-skip-link:focus { transform: translateY(0); }
+.skip-link:focus { transform: translateY(0); }
 
 .docs-mobile-navigation summary::-webkit-details-marker { display: none; }
 

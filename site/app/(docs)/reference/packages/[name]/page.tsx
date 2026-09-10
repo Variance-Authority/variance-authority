@@ -1,15 +1,15 @@
 import { notFound } from "next/navigation";
-import DocsShell from "../../../components/DocsShell";
+import DocsPage from "../../../../components/DocsPage";
 import MarkdownDocument, {
   documentDescription,
   documentTitle,
   documentToc,
-} from "../../../components/MarkdownDocument";
+} from "../../../../components/MarkdownDocument";
 import {
   PACKAGE_DOCUMENTS,
   packageDocument,
-} from "../../../content/package-docs";
-import { pageMetadata } from "../../../metadata";
+} from "../../../../content/package-docs";
+import { pageMetadata } from "../../../../metadata";
 
 interface PageProps {
   readonly params: Promise<{ name: string }>;
@@ -41,7 +41,7 @@ export default async function Page({ params }: PageProps) {
   const description = documentDescription(document.source);
 
   return (
-    <DocsShell
+    <DocsPage
       current={`/reference/packages/${name}`}
       eyebrow="Package reference"
       title={title}
@@ -52,6 +52,6 @@ export default async function Page({ params }: PageProps) {
         source={document.source}
         sourcePath={document.sourcePath}
       />
-    </DocsShell>
+    </DocsPage>
   );
 }

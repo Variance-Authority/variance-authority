@@ -1,11 +1,11 @@
-import DocsShell from "../components/DocsShell";
+import DocsPage from "../../components/DocsPage";
 import MarkdownDocument, {
   documentDescription,
   documentTitle,
   documentToc,
-} from "../components/MarkdownDocument";
-import { productDocument } from "../content/product-docs";
-import { pageMetadata } from "../metadata";
+} from "../../components/MarkdownDocument";
+import { productDocument } from "../../content/product-docs";
+import { pageMetadata } from "../../metadata";
 
 const document = productDocument("agents")!;
 const title = documentTitle(document.source);
@@ -15,7 +15,7 @@ export const metadata = pageMetadata("/agents", title, description);
 
 export default function Page() {
   return (
-    <DocsShell
+    <DocsPage
       current="/agents"
       eyebrow="Agents"
       title={title}
@@ -26,6 +26,6 @@ export default function Page() {
         source={document.source}
         sourcePath={document.sourcePath}
       />
-    </DocsShell>
+    </DocsPage>
   );
 }

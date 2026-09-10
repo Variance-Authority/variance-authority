@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { GITHUB, MACHINE_GARDEN, MACHINE_GARDEN_GITHUB } from "../links";
 import Mark from "./Mark";
 
@@ -53,12 +54,12 @@ export default function SiteFooter() {
             <ul className="mt-4 space-y-2.5 text-sm">
               {col.links.map((l) => (
                 <li key={l.href}>
-                  <a
+                  <Link
                     href={l.href}
                     className="text-quiet transition-colors hover:text-ivory"
                   >
                     {l.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>

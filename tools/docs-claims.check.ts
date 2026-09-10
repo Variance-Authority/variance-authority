@@ -268,7 +268,7 @@ describe('the site routes package visitors to adopter integrations', () => {
   });
 
   it('renders the canonical first-observation guide', () => {
-    const page = readFileSync(join(ROOT, 'site/app/start/page.tsx'), 'utf8');
+    const page = readFileSync(join(ROOT, 'site/app/(docs)/start/page.tsx'), 'utf8');
     expect(page).toContain('productDocument("start")');
     expect(page).toContain('<MarkdownDocument');
   });
@@ -359,7 +359,7 @@ describe('the comparison tables quote the compared document', () => {
   });
 
   it('is rendered on the comparison page', () => {
-    const page = readFileSync(join(ROOT, 'site/app/reference/comparison/page.tsx'), 'utf8');
+    const page = readFileSync(join(ROOT, 'site/app/(docs)/reference/comparison/page.tsx'), 'utf8');
     expect(page).toContain('<Comparison />');
   });
 
