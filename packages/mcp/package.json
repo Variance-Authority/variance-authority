@@ -51,6 +51,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
+    "@variance-authority/distill": "workspace:^",
     "@variance-authority/eyes": "workspace:^",
     "@variance-authority/presentation": "workspace:^",
     "@variance-authority/report": "workspace:^",

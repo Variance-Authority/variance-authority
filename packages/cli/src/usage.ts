@@ -18,6 +18,7 @@ export const COMMANDS = [
   'run',
   'report',
   'ask',
+  'distill',
   'watch',
   'adjudicate',
   'accept',
@@ -61,6 +62,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--limit',
     '--at',
   ],
+  distill: ['--test', '--eyes', '--execution', '--format'],
   watch: [],
   adjudicate: ['--claims', '--exit-zero-on-changes'],
   accept: ['--all', '--shape', '--message-file', '--message'],
@@ -76,6 +78,7 @@ export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--query <words>] [--limit <n>] [--at <address>] [<report>...]',
+  'variance distill --test <id> [--eyes <path>] [--execution <path>] [--format text|json]',
   'variance watch',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
@@ -93,13 +96,13 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch` is the one command they do not apply to. It holds a port and some
- * memory, and no configured value changes what it does — so it refuses
- * `--config` rather than taking a path it would then not read. Its synopsis line
- * shows no flags for the same reason.
+ * `watch` and `distill` do not read project configuration. One holds a live
+ * listener; the other reads evidence paths named on the command line.
  */
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
-  return command === 'watch' ? PER_COMMAND[command] : [...GLOBAL, ...PER_COMMAND[command]];
+  return command === 'watch' || command === 'distill'
+    ? PER_COMMAND[command]
+    : [...GLOBAL, ...PER_COMMAND[command]];
 }
 
 /** Whether a word is one of the commands above, narrowed for the parser. */

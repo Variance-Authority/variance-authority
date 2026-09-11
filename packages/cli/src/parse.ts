@@ -4,9 +4,9 @@ import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand } from './usage.js';
+import { parseDistill, type ParsedDistill } from './distill-args.js';
 
 export { USAGE } from './usage.js';
-
 /**
  * The command line, parsed by hand.
  *
@@ -129,6 +129,7 @@ export type Parsed =
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
+  | ParsedDistill
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -214,7 +215,6 @@ export type Parsed =
 
 export function parseArgs(argv: readonly string[]): Parsed {
   const first = argv[0];
-
   if (first === undefined || first === '--help' || first === '-h' || first === 'help') {
     return { command: 'help' };
   }
@@ -321,6 +321,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
         reports: reports.map((path) => resolve(path)),
       };
     }
+
+    case 'distill': return parseDistill(flags);
 
     case 'adjudicate': {
       const claims = flags.values.get('--claims');
@@ -495,5 +497,3 @@ export function parseArgs(argv: readonly string[]): Parsed {
     }
   }
 }
-
-

@@ -60,7 +60,7 @@ describe('the props digest both records are joined on', () => {
     expect(updater?.path.map((frame) => frame.name)).toEqual(['Counter', 'Panel', 'Shell']);
     expect(owners?.map((frame) => frame.name)).toEqual(['Counter', 'Panel', 'Shell']);
 
-    // The comparison `variance_testing_surface` actually performs: walk the
+    // The comparison `variance_distill` actually performs: walk the
     // common suffix of an updater's path and an addressed component path, and
     // require name *and* digest equality at every frame. Frame by frame, one
     // projection or the answer silently degrades to "outside addressed component

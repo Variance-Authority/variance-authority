@@ -65,17 +65,22 @@ members. Native tools remain available on the same connection:
 | `variance_run_signals`, `variance_test_signals` | Vantage state | what an in-flight suite and one test have announced |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
 | `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
+| `variance_distill` | Eyes archive and/or Sense execution index | one test's addressed AAA surface, React update initiators, and source reduction opportunities |
 
-`variance_testing_surface` is the deliberate cross-domain answer. It maps the
+`variance_distill` is the deliberate cross-domain answer. It maps the
 DOM owners and source locations a test addressed in each authored phase, then
 places React update initiators inside or outside those exact structural component
 paths and contrasts both with files that the same exact test id entered.
 `PerformedWork` says a render body ran; it is not substituted for an updater.
-An executed file with no addressed target is a replay candidate, not proof that
+An entered file with no addressed target is a distillation opportunity, not proof that
 the branch is unrelated or safe to mock. The tool does not join by title or file
 when stable producer identities disagree. `ExecutionIndex` retains whole-test
 crossings, not AAA intervals, so runtime files remain test-scoped rather than
 phase-scoped.
+
+The CLI exposes the same analyzer and formatter over portable files as
+`variance distill`. The agent verification workflow is described in
+[distil a test](../../docs/distill.md).
 
 The individual served sets remain available as `REPORTS`, `PRESENTATIONS`,
 `SOURCE_TESTS`, `VANTAGE`, `EYES`, and `SCENARIOS`. Use one when the integration

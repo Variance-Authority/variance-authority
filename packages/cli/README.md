@@ -91,6 +91,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--query <words>] [--limit <n>] [--at <address>] [<report>...]
+variance distill --test <id> [--eyes <path>] [--execution <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
@@ -113,6 +114,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
 | `watch` | holds a suite that is still running, so `ask` has something live to ask |
+| `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
 | `serve` | exposes the last run's report to an MCP client over stdio |
 | `ask` | the same questions `serve` answers, without an MCP client |
 
@@ -152,6 +154,30 @@ connection holds that state in memory for as long as it lasts; a command line
 cannot, so the report each answer was read from is recorded beside the
 configured report as `asked.json`. Deleting it costs the next `ask diff` its
 comparison and nothing else.
+
+### Distill: find a smaller test boundary
+
+```bash
+npx variance distill \
+  --test 'checkout submits' \
+  --eyes .variance/eyes.json \
+  --execution .variance/execution.json
+```
+
+`distill` reads the paths named on the command line and does not read project
+configuration. It reports addressed targets by authored Arrange/Act/Assert
+phase, React update initiators inside and outside those target paths, and files
+entered by the exact test id without addressed source attribution. Either
+evidence file may be omitted; the missing domain remains unavailable.
+Execution alone lists entered source but cannot produce opportunities, because
+missing attention is not an empty addressed surface.
+
+The command options are `test`, `eyes`, `execution`, and `format`; their flag
+forms are shown in the synopsis above.
+
+`--format json` returns the same ordered analysis as data. The command always
+reads: a distillation opportunity is not a verdict that a file is safe to mock.
+The verification workflow is in [distil a test](../../docs/distill.md).
 
 ### Watch: ask about a suite that has not finished
 
@@ -906,4 +932,3 @@ anything.
 | A clean pull request has no comment body | This is expected. `variance comment` emits an empty body for a clean report. | Keep the CI gate on `variance run`; let the posting integration delete or skip its prior comment. |
 | A merged shard report is refused | The shards did not describe one compatible run or observed the same subject twice. | Align renderer identity, retention, and intent, then make the subject globs disjoint. |
 | A change is green but reported as `ignored` | Differences existed and declarations absorbed all of them. | Read the ignore and sensitivity registers; `ignored` is intentionally distinct from `unchanged`. |
-

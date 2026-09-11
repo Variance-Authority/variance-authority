@@ -131,8 +131,8 @@ export const OBSERVABILITY: Served<ObservabilitySubject> = {
       'to learn which independent evidence domains were supplied.',
     '',
     'Unavailable evidence is not an empty measurement. Cross-domain answers join only on ' +
-      'exact identities emitted by both producers. `variance_testing_surface` reports replay ' +
-      'candidates; it does not establish that a branch is safe to mock.',
+      'exact identities emitted by both producers. `variance_distill` reports distillation ' +
+      'opportunities; it does not establish that a branch is safe to mock.',
   ].join('\n'),
 };
 

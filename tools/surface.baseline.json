@@ -468,6 +468,7 @@
         "Node": "interface",
         "NodeId": "type",
         "NodeKind": "type",
+        "RUNTIME_EDGES": "const",
         "Reach": "interface",
         "ReachOptions": "interface",
         "Reached": "interface",
@@ -562,6 +563,38 @@
         "planForTier": "function",
         "planIdentity": "function",
         "validatePlan": "function"
+      }
+    }
+  },
+  "@variance-authority/distill": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "AddressedPhase": "interface",
+        "DistillInput": "interface",
+        "Distillation": "interface",
+        "EnteredFile": "interface",
+        "UpdatePhase": "interface",
+        "distill": "function",
+        "formatDistillation": "function",
+        "parseExecutionIndex": "function"
       }
     }
   },

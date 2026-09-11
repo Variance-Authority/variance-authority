@@ -3,7 +3,7 @@ import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import type { ObservabilitySubject } from '../observability-subject.js';
 import { observabilityToolByName } from '../tools.js';
-import { observability, testingSurface } from './observability.js';
+import { distillTool, observability } from './observability.js';
 
 const TARGET: TargetSnapshot = {
   nodeName: 'button',
@@ -82,14 +82,14 @@ describe('the composite observability surface', () => {
 
   it('joins Eyes and Sense only by exact test id and calls reduction targets candidates', () => {
     const subject: ObservabilitySubject = { eyes: EYES, execution: EXECUTION };
-    const text = testingSurface.run(subject, { test: 'redraw-test' });
+    const text = distillTool.run(subject, { test: 'redraw-test' });
 
     expect(text).toContain('act:\n  components: DrawingPanel\n  source: src/panel.tsx');
     expect(text).toContain('inside addressed component paths: DrawingPanel');
     expect(text).toContain('outside addressed component paths: Clock');
     expect(text).toContain('ExecutionIndex retains test crossings, not AAA intervals');
-    expect(text).toContain('replay candidate at depth 5 — src/top-nav.tsx');
-    expect(text).toContain('Neither Eyes nor Sense establishes that it is safe to mock');
+    expect(text).toContain('distillation opportunity at depth 5 — src/top-nav.tsx');
+    expect(text).toContain('does not establish that it is safe to mock');
   });
 
   it('refuses title and file guesses when the exact runtime identity is absent', () => {
@@ -97,7 +97,7 @@ describe('the composite observability surface', () => {
       ...EXECUTION,
       tests: [{ ...EXECUTION.tests[0]!, id: 'another-id' }],
     };
-    const text = testingSurface.run({ eyes: EYES, execution: mismatched }, { test: 'redraw-test' });
+    const text = distillTool.run({ eyes: EYES, execution: mismatched }, { test: 'redraw-test' });
 
     expect(text).toContain('contains no test with exact id redraw-test');
     expect(text).toContain('No title or file join was guessed.');

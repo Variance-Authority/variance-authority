@@ -11,6 +11,8 @@
   "exclude": ["src/**/*.test.ts","src/**/*.measure.ts"],
   "references": [
     { "path": "../core" },
+    { "path": "../distill" },
+    { "path": "../eyes" },
     { "path": "../mcp" },
     { "path": "../observe" },
     { "path": "../sense" },

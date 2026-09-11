@@ -26,6 +26,9 @@
       "path": "./packages/eyes"
     },
     {
+      "path": "./packages/distill"
+    },
+    {
       "path": "./packages/jsx-source"
     },
     {

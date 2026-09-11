@@ -29,13 +29,13 @@ describe('the all-instrument MCP surface', () => {
       'variance_source_tests',
       'variance_run_signals',
       'variance_test_attention',
-      'variance_testing_surface',
+      'variance_distill',
       'variance_scenarios',
       'variance_diff',
     ]));
   });
 
-  it('teaches an agent the discovery call and the limit of a testing-surface answer', () => {
+  it('teaches an agent the discovery call and the limit of a distillation answer', () => {
     const response = handle(
       { jsonrpc: '2.0', id: 2, method: 'initialize' },
       () => ({}),

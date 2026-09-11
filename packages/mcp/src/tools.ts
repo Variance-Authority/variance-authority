@@ -14,7 +14,7 @@ import { findings } from './tools/findings.js';
 import { locate } from './tools/locate.js';
 import { summarize } from './tools/summary.js';
 import { attention } from './tools/attention.js';
-import { observability, testingSurface } from './tools/observability.js';
+import { distillTool, observability } from './tools/observability.js';
 import { presentations, type PresentationEvidence } from './tools/presentations.js';
 import { scenarios, type ScenarioEvidence } from './tools/scenarios.js';
 import { sourceTests } from './tools/source-tests.js';
@@ -220,7 +220,7 @@ export const OBSERVABILITY_TOOLS: readonly Tool<ObservabilitySubject>[] = [
     lift(tool, 'live journey/events', (subject) => subject.vantage)),
   ...EYES_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
     lift(tool, 'Eyes attention', (subject) => subject.eyes)),
-  testingSurface,
+  distillTool,
   ...SCENARIO_TOOLS.filter((tool) => tool.name !== 'variance_diff').map((tool) =>
     lift(tool, 'scenario AAA', (subject) => subject.scenarios)),
   diff as Tool<ObservabilitySubject>,

@@ -52,12 +52,12 @@ import { formatPush, push } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
 import { doctor, machineProbes } from './commands/doctor.js';
+import { distillFiles, formatDistill } from './commands/distill.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { ChangelogSelection } from '@variance-authority/report';
 import type { Parsed } from './parse.js';
 import { rendererFor } from './renderer.js';
-
 /**
  * What each command *does*, and the two things every one of them needs.
  *
@@ -68,7 +68,6 @@ import { rendererFor } from './renderer.js';
  * for different reasons, and the only thing crossing between them is `Parsed` —
  * which is exactly the point of parsing into a value first.
  */
-
 export async function dispatch(
   parsed: Exclude<Parsed, { command: 'help' }>,
   streams: { out(text: string): void; err(text: string): void },
@@ -98,9 +97,11 @@ export async function dispatch(
     await watching.close();
     return EXIT_CLEAN;
   }
-
+  if (parsed.command === 'distill') {
+    streams.out(formatDistill(await distillFiles(parsed), parsed.format));
+    return EXIT_CLEAN;
+  }
   const config = await loadConfig(parsed.config);
-
   switch (parsed.command) {
     case 'run': {
       const effective: Config =

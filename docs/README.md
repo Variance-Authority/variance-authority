@@ -74,6 +74,12 @@ alignment, and emphasis from one interface. A
 digest producing more than one rendering at a single commit, each rendering
 after the first naming the input that changed it.
 
+[Distill](distill.md) joins a test's authored AAA attention to the source it
+entered, names React update initiators outside the addressed paths, and turns
+the unaddressed residue into opportunities for one-at-a-time counterfactual
+checks. [Agent workflows](agents.md) route the same readings through the CLI,
+the shipped skill, or MCP according to the evidence already in hand.
+
 ### An existing screenshot suite already owns the workflow
 
 [Replacing a screenshot suite](replacing.md) maps an existing host and baseline

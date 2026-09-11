@@ -93,14 +93,41 @@ The same questions arrive as `variance_*` tools — the report ones, and the liv
 ones from `variance-authority-mcp --watch`. The routing above is unchanged. A
 connection additionally serves subjects the CLI does not read:
 
-- Test-surface reduction: `variance_testing_surface`, then
-  `variance_test_attention`; `variance_source_tests` for an exact source point.
-  Read React update initiators before execution-only replay candidates.
+- Test distillation: `variance_distill`, then `variance_test_attention` for the
+  chronology or `variance_source_tests` for an exact source point. Read React
+  update initiators before execution-only opportunities.
 - `variance_observability` first when several domains are connected at once, to
   see which are actually present.
 
 Treat an unavailable domain as unknown, not as an empty reading. Do not
 reconstruct runtime evidence from repository files.
+
+## Distill, then verify
+
+When portable Eyes and execution files are available without MCP, start with:
+
+```
+variance distill --test checkout-submits --eyes eyes.json --execution execution.json
+```
+
+The CLI and `variance_distill` MCP tool return the same deterministic reading.
+For each distillation opportunity:
+
+1. Preserve the original output as the witness.
+2. Identify the narrowest reversible substitution at one dependency boundary.
+3. Change only that boundary and rerun the exact test.
+4. Collect the same evidence and distill it again.
+5. Keep the edit only when the assertion's causal path and addressed targets
+   remain, and no outside update initiator newly reaches the retained surface.
+
+Never batch opportunities into one experiment: a passing test would not say
+which substitution was justified. An entered file without addressed attribution
+is a queue for counterfactual checks, not permission to mock it.
+
+A plain test or fake component is valid input. With execution evidence and no
+Eyes archive, report entered source but call the opportunity comparison and
+attention unavailable. A complete empty Eyes journal licenses the comparison.
+Do not invent a Fiber denominator.
 
 ## Read the evidence literally
 
@@ -112,7 +139,7 @@ reconstruct runtime evidence from repository files.
 - Updater paths retain name, key, and props digest. Eyes owner paths retain name
   and props digest, so their overlap uses those shared structural frames. A name
   match alone does not place an updater inside an addressed target.
-- Executed source without an addressed target is a replay candidate. It is not
+- Entered source without an addressed target is a distillation opportunity. It is not
   proof that the code is unrelated, mockable, or removable.
 - Join evidence only on producer identities the tool accepts. Do not fall back
   from a stable test id to a title or file path.
@@ -128,6 +155,8 @@ Observer failure must not fail the test subject: a watcher that was not there
 changes nothing about what the suite did. Once the process is gone the question
 belongs to a retained artifact, not to a reconstruction.
 
-Do not add active page callbacks, event replay, a fixed-port helper, or browser
-ownership to answer an inspection question. Those are different capabilities and
-require an explicit product decision.
+Do not add active page callbacks, event replay, or browser ownership to answer
+an inspection question. Those are different capabilities and require an
+explicit product decision. Vantage's environment value is both opt-in and the
+collision-free address of the current watcher; a constant port does not remove
+the need for the opt-in boundary.

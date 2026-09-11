@@ -3836,6 +3836,8 @@ __metadata:
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/distill": "workspace:^"
+    "@variance-authority/eyes": "workspace:^"
     "@variance-authority/history": "workspace:^"
     "@variance-authority/mcp": "workspace:^"
     "@variance-authority/observe": "workspace:^"
@@ -3857,6 +3859,15 @@ __metadata:
 "@variance-authority/core@workspace:^, @variance-authority/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@variance-authority/core@workspace:packages/core"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/distill@workspace:^, @variance-authority/distill@workspace:packages/distill":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/distill@workspace:packages/distill"
+  dependencies:
+    "@variance-authority/eyes": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -4073,6 +4084,7 @@ __metadata:
   resolution: "@variance-authority/mcp@workspace:packages/mcp"
   dependencies:
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/distill": "workspace:^"
     "@variance-authority/eyes": "workspace:^"
     "@variance-authority/presentation": "workspace:^"
     "@variance-authority/report": "workspace:^"

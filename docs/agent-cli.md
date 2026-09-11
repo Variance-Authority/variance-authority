@@ -1,11 +1,10 @@
 # Ask a run from the command line
 
-`variance ask` answers questions about a run: the completed one from the report
-it wrote, and a suite still executing from a watcher listening to it. It calls
-the same functions an MCP connection calls, so the answers are the same text —
-but it needs only a shell and the CLI, which is what makes the agent path
-available to a CI job, a sandboxed agent, or any harness whose client
-configuration is not yours to edit.
+The CLI gives an agent a shell entrance to three evidence lifetimes: `variance
+ask` reads a completed visual report, `variance ask --at` reads a suite still
+executing from its watcher, and `variance distill` reads portable Eyes and Sense
+evidence for one test. Each calls the same analyzer its MCP counterpart calls,
+but needs no client configuration.
 
 ## Find out what may be asked
 
@@ -119,6 +118,22 @@ the run lives in memory that ends with the watcher.
 The suite reaches the watcher only if it extends `varianceFixtures`. That
 instrumentation, the ordering rule, and what the answers may be read to mean are
 one boundary whichever transport asks: [inspect a live run](agent-live-run.md).
+
+## Distill one completed test
+
+```bash
+npx variance distill \
+  --test 'checkout submits' \
+  --eyes .variance/eyes.json \
+  --execution .variance/execution.json
+```
+
+This command does not read `variance.config.json`. It combines one test's
+authored AAA attention, React update initiators and entered source, and returns
+the same reading as the MCP tool `variance_distill`. Either evidence path may be
+omitted; the absent domain is not replaced by an empty one. The deterministic
+reading and the skill's counterfactual verification loop are described in
+[distil a test](distill.md).
 
 ## Point an agent at it
 

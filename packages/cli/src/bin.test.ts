@@ -133,6 +133,18 @@ describe('parseArgs', () => {
     });
   });
 
+  it('reads distillation evidence without project configuration', () => {
+    expect(parseArgs(['distill', '--test', 'redraw', '--eyes', 'eyes.json', '--format', 'json']))
+      .toEqual({
+        command: 'distill',
+        test: 'redraw',
+        eyes: resolve('eyes.json'),
+        format: 'json',
+      });
+    expect(attempt(['distill', '--test', 'redraw']).message).toContain('needs --eyes');
+    expect(attempt(['distill', '--execution', 'execution.json']).message).toContain('--test');
+  });
+
   it('reads journeys with no pool named, which is the run rather than the record', () => {
     // `--all` absent is the default and it is not a value the parser invents: the
     // pool it produces is decided in `dispatch`, from the report, because the

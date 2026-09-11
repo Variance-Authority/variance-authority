@@ -132,6 +132,7 @@ entrypoints.
 | `route-collector` | a browser, and an application to reach or a directory to serve | pages an application already serves, opened and collected |
 | `sense` | a readable checkout | the source read rather than run: a row per request, per binding and per export, and the probes that mark which regions a run entered |
 | `eyes` | a live DOM, with optional RTL or Playwright host APIs | selector and locator attention with React attribution captured before the addressed node moves |
+| `distill` | portable Eyes attention and/or a Sense execution index | deterministic reduction opportunities for one exact test identity |
 | `package` | a readable workspace, built or not | what a package offers an adopter: every entrypoint a manifest opens, and the names behind it, read from manifests and the source they point at |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |
 | `react` | React internals | fibers → owner chains, props digests, portals |

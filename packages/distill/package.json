@@ -1,0 +1,44 @@
+{
+  "name": "@variance-authority/distill",
+  "version": "0.1.1",
+  "description": "Distil one test's addressed UI, React update initiators, and entered source into reduction opportunities.",
+  "keywords": [
+    "variance-authority",
+    "testing",
+    "test-reduction",
+    "coverage",
+    "react"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/distill",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/distill"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/eyes": "workspace:^",
+    "@variance-authority/sense": "workspace:^"
+  }
+}
