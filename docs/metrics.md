@@ -26,6 +26,44 @@ current product claims are in [Evidence instruments](instruments.md);
 [replacement gates](gates.md) turn those readings into an adoption decision, and
 [product comparison](comparison.md) covers capability and ownership differences.
 
+Use these definitions when deciding whether Variance Authority should augment or
+replace a visual-regression workflow, when publishing a product claim, or when
+checking whether a result transfers to another corpus, host or machine. They are
+not needed to review an individual run: a run already presents its verdict,
+causes and unresolved docket.
+
+## Who produces a measurement
+
+M1–M9 are evaluation metrics, not fields emitted by `variance run`. Variance
+Authority produces one side of the evidence: observations, verdicts, attributed
+regions, grouped causes, renderer identities and, when configured, history rows.
+An evaluator supplies the other side: the known edit or unchanged state, the
+responsible file or component, the comparison environment, and the work required
+to adopt the tool.
+
+That separation is necessary. A tool cannot measure its own attribution accuracy
+from the file it chose to name, or its own false-miss rate from the changes it
+failed to observe. Those questions require ground truth declared independently
+of the result.
+
+| Metric | What Variance Authority supplies | Who completes the measurement |
+| --- | --- | --- |
+| M1 | Ranked changed regions and source locations | A test or case author compares them with a declared changed-file or responsible-file set |
+| M2 | Changed subjects, regions, component causes, collateral and docket roots | A test or case author declares one intentional edit and scores false merges and splits |
+| M3 | The acquisition and comparison workflow being timed | A benchmark runner records phase and total machine time under a named environment |
+| M4 | A verdict and the dimensions the selected profile could observe | A corpus author declares unchanged and intentionally changed cases before running them |
+| M5 | A resource-closed document, renderer identity and comparison refusal | An evaluator renders it on both declared machines and compares the results |
+| M6 | The documented installation and baseline workflow | An evaluator starts from a clean repository and records the human and machine cost |
+| M7 | Regions ranked as causes or collateral | A corpus author declares the responsible component and scores the ordering |
+| M8 | Observations and approvals written by configured runs | The history calculation applies a declared drift policy to those retained rows |
+| M9 | The capabilities declared by the selected capture surface and observation profile | The integration author inventories the conclusions outside that evidence boundary |
+
+The evaluator may be a project maintainer establishing a product claim or an
+adopter testing the claim on their own repository. A test, case or benchmark can
+automate the calculation only when it carries the independent ground truth the
+metric requires. [Evidence instruments](instruments.md#where-each-claim-is-measured)
+links the repository's executable readings and states where each one stops.
+
 ## What the measurements decide
 
 | Decision | What the evidence must establish | Metrics |
