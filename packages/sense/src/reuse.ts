@@ -34,7 +34,8 @@
  */
 
 import { basename } from 'node:path';
-import { digestString, type Digest, type FileRecord } from '@variance-authority/core';
+import { digestString, type Digest } from '@variance-authority/core/format';
+import type { FileRecord } from '@variance-authority/core/relate';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { readSourceIndex, writeSourceIndex } from './source-index-file.js';
 

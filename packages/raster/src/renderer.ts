@@ -1,4 +1,4 @@
-import type { Raster, RenderDocument, RenderIdentity } from '@variance-authority/core';
+import type { Raster, RenderDocument, RenderIdentity } from '@variance-authority/core/format';
 
 /**
  * Rendering — phase two, and the only phase that is allowed to be expensive.

@@ -1,4 +1,4 @@
-import { JSX_SOURCE, type SourceLocation } from '@variance-authority/core';
+import { JSX_SOURCE, type SourceLocation } from '@variance-authority/core/format';
 
 /**
  * Recording the location the transform already computed.

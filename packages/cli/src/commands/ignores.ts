@@ -1,4 +1,4 @@
-import { matchesGlob } from '@variance-authority/core';
+import { matchesGlob } from '@variance-authority/core/judge';
 import {
   ignoreShare,
   ignoreState,

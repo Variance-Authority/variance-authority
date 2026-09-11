@@ -1,13 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import {
-  applyIgnores,
-  diffSnapshots,
-  normalize,
-  type IgnoreRule,
-  type SemanticSnapshot,
-  type Viewport,
-} from '@variance-authority/core';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import type { SemanticSnapshot, Viewport } from '@variance-authority/core/format';
+import { applyIgnores, type IgnoreRule } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from './collect.js';
 import { IGNORE_ATTRIBUTE, MARKED_RULE, resolveIgnores } from './ignore.js';
 

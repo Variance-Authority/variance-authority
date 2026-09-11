@@ -4,11 +4,10 @@ import {
   attributeMovement,
   composeSubjects,
   componentInstances,
-  normalize,
-  type SemanticSnapshot,
   type SubjectComposition,
-  type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { SemanticSnapshot, Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { renderStory } from './render.js';

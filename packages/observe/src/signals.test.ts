@@ -4,7 +4,7 @@ import {
   accessibilitySnapshot,
   type Raster,
   type RenderIdentity,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { observeRasters } from './observe.js';
 
 const IDENTITY: RenderIdentity = {

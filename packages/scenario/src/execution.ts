@@ -5,7 +5,7 @@ import {
   type Diagnostic,
   type Digest,
   type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import type {
   PreconditionLink,
   ScenarioAct,

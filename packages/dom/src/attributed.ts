@@ -1,4 +1,4 @@
-import { digestValue, type Provenance, type OwnerFrame } from '@variance-authority/core';
+import { digestValue, type Provenance, type OwnerFrame } from '@variance-authority/core/format';
 
 /**
  * Provenance carried on the elements themselves.

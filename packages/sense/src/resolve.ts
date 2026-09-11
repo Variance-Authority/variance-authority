@@ -25,7 +25,7 @@
 import { realpathSync } from 'node:fs';
 import { basename, dirname, extname, isAbsolute, relative, sep } from 'node:path';
 import { ResolverFactory } from 'oxc-resolver';
-import type { EdgeKind } from '@variance-authority/core';
+import type { EdgeKind } from '@variance-authority/core/relate';
 import { MODULE_EXTENSIONS, STYLE_EXTENSIONS } from './read.js';
 
 /** What a caller may say about resolution, and nothing about what to scan. */

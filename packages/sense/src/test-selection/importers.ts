@@ -6,7 +6,7 @@ import {
   trailOf,
   type NodeId,
   type Relations,
-} from '@variance-authority/core';
+} from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format.js';
 import { findModule, findTest, testsGovernedBy } from './lookup.js';
 

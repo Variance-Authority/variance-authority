@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseCommitMessage } from '@variance-authority/report';
-import type { ChangelogCommit } from '@variance-authority/store';
+import type { ChangelogCommit } from '@variance-authority/store/changelog';
 import { OperatorError } from '../exit.js';
 import type { Config } from '../config.js';
 import { changelogRootFor, formatChangelog } from './changelog.js';

@@ -2,8 +2,8 @@ import {
   causesBetween,
   movedBandsBetween,
   type ComponentBands,
-  type ComponentHash,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { ComponentHash } from '@variance-authority/core/format';
 
 /**
  * What two sets of component hashes say about who moved, and in what sense.

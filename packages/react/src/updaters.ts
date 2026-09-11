@@ -1,4 +1,4 @@
-import type { Digest, SourceLocation } from '@variance-authority/core';
+import type { Digest, SourceLocation } from '@variance-authority/core/format';
 import { currentFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
 import { boundaryPropsDigest } from './props.js';

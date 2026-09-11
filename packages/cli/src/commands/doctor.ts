@@ -4,7 +4,7 @@ import {
   type RenderDocument,
   type RenderIdentity,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
 import type { Config } from '../config.js';
 import type { DoctorProbes } from './doctor-probes.js';

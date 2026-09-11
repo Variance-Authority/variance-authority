@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { digestValue } from '@variance-authority/core';
+import { digestValue } from '@variance-authority/core/format';
 import type { ObservationRecord, PresentationSignalRecord, RunReport } from '@variance-authority/report';
 import { describePresentation, presentationSummary } from './presentation.js';
 

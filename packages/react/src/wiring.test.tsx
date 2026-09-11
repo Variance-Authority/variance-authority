@@ -10,7 +10,7 @@
 import { createElement as h, act, createContext, forwardRef, memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { keyedByPosition } from '@variance-authority/core';
+import { keyedByPosition } from '@variance-authority/core/format';
 import { wiringOf } from './wiring.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

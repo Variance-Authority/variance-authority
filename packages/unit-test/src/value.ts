@@ -1,4 +1,5 @@
-import { shapeValue, type CaptureArtifact, type SubjectRef } from '@variance-authority/core';
+import type { CaptureArtifact } from '@variance-authority/core';
+import { shapeValue, type SubjectRef } from '@variance-authority/core/format';
 import { writeCapture } from './archive.js';
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ComponentHash } from '@variance-authority/core';
+import type { ComponentHash } from '@variance-authority/core/format';
 import { observationsFrom, type Observation, type RunContext } from './observation.js';
 
 /**

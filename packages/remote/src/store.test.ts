@@ -2,9 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Raster, RenderIdentity } from '@variance-authority/core';
+import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { RasterStoreError, type RasterStore } from '@variance-authority/raster';
-import { createDurableStore } from '@variance-authority/store';
+import { createDurableStore } from '@variance-authority/store/durable';
 import {
   BASELINE_DESCRIBE_PATH,
   BASELINE_WORKING_SET_PATH,

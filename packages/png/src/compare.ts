@@ -1,6 +1,7 @@
 import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
-import type { ChangeMask, Raster } from '@variance-authority/core';
+import type { ChangeMask } from '@variance-authority/core/attribute';
+import type { Raster } from '@variance-authority/core/format';
 import {
   DEFAULT_POLICY,
   STRICT_POLICY,

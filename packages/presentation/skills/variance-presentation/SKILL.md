@@ -212,7 +212,7 @@ Current collaboration boundaries:
 ## Analyze an existing capture
 
 ```ts
-import type { AccessibilitySnapshot, RawCapture } from '@variance-authority/core';
+import type { AccessibilitySnapshot, RawCapture } from '@variance-authority/core/format';
 import { analyzePresentation } from '@variance-authority/presentation';
 
 declare const capture: RawCapture;

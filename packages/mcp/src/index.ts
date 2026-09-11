@@ -26,44 +26,9 @@
  * that reader.
  */
 
-export {
-  NO_ARGS,
-  EYES_TOOLS,
-  OBSERVABILITY_TOOLS,
-  PRESENTATION_TOOLS,
-  SCENARIO_TOOLS,
-  SOURCE_TEST_TOOLS,
-  TOOLS,
-  VANTAGE_TOOLS,
-  eyesToolByName,
-  observabilityToolByName,
-  presentationToolByName,
-  scenarioToolByName,
-  sourceTestToolByName,
-  stringArg,
-  toolByName,
-  vantageToolByName,
-  diffState,
-} from './tools.js';
-export type { Served, StateDifference, Tool, ToolInvocation } from './tools.js';
 export { locateSubjects, tokensOf, FIELD_WEIGHTS } from './tools/locate.js';
 export type { Located, LocateHit, LocateMatch, LocateField } from './tools/locate.js';
 
-export {
-  EYES,
-  OBSERVABILITY,
-  PRESENTATIONS,
-  REPORTS,
-  SCENARIOS,
-  SOURCE_TESTS,
-  VANTAGE,
-  handle,
-  createLineReader,
-  PROTOCOL_VERSION,
-  SERVER_NAME,
-  SERVER_VERSION,
-} from './protocol.js';
-export type { JsonRpcRequest, JsonRpcResponse } from './protocol.js';
 export type { ObservabilitySubject } from './observability-subject.js';
 
 export { serve, serveEyesArchive, serveReportFile, serveVantage } from './server.js';

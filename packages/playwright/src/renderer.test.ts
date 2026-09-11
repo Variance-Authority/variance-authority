@@ -1,7 +1,12 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { describe, expect, it } from 'vitest';
-import { digestBytes, documentDigest, identityDigest, type RenderDocument } from '@variance-authority/core';
+import {
+  digestBytes,
+  documentDigest,
+  identityDigest,
+  type RenderDocument,
+} from '@variance-authority/core/format';
 import { comparePngs, decode } from '@variance-authority/png';
 import { createPlaywrightRenderer } from './renderer.js';
 

@@ -1,6 +1,13 @@
+// compass: variance-authority.retention
+
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { identityDigest, type Digest, type Raster, type RenderIdentity } from '@variance-authority/core';
+import {
+  identityDigest,
+  type Digest,
+  type Raster,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 import {
   REFUSAL,
   RasterStoreError,

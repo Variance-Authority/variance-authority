@@ -3,17 +3,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { CaptureArtifact } from '@variance-authority/core';
 import {
   documentDigest,
   shapeValue,
-  type CaptureArtifact,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
-import { createDurableStore } from '@variance-authority/store';
+import { createDurableStore } from '@variance-authority/store/durable';
 import { observeCaptureAgainstBaseline } from './capture.js';
 import { observeAgainstBaseline } from './observe.js';
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import type { CompositionReport, MovementRecord, RunReport } from '@variance-authority/report';
 import { createReviewStore, type ReviewStore } from './review.js';
 import { createMemoryR2, createSqliteD1, type SqliteD1 } from './testing.js';

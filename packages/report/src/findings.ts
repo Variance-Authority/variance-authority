@@ -38,7 +38,7 @@
  * identical between them is the reading, not the markup.
  */
 
-import type { Band } from '@variance-authority/core';
+import type { Band } from '@variance-authority/core/compare';
 import type { FindingRecord } from './finding-record.js';
 
 /**

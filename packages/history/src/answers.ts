@@ -1,9 +1,5 @@
-import {
-  BANDS as FREQUENCY_BANDS,
-  profileById,
-  type Digest,
-  type ProfileId,
-} from '@variance-authority/core';
+import { BANDS as FREQUENCY_BANDS } from '@variance-authority/core/compare';
+import { profileById, type Digest, type ProfileId } from '@variance-authority/core/format';
 import type { FrequencyBand } from './instability.js';
 import { BANDS, type Band, type Observation, type TokenValue } from './observation.js';
 import type { BandChurn, Churn, Flakiness, FlakyCause, Journey, Reach, Window } from './store.js';

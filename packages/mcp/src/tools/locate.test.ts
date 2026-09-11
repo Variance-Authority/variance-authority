@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import type { LexiconReport, RunReport } from '@variance-authority/report';
 import { indexed, locate, locateSubjects, tokensOf } from './locate.js';
 

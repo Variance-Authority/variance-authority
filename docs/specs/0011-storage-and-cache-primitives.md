@@ -128,7 +128,7 @@ index says *why* — "`Card`'s style hash moved" — which is the sentence this
 product promises about a diff, applied to the cache instead.
 
 **Supplying `before` and `causes` on the durable path.** Today both come from the
-collector (the contract SubjectSource `packages/cli/src/commands/collector.ts:239`),
+collector (the contract SubjectSource `packages/cli/src/commands/collector.ts:238`),
 so a durable baseline — an image with no document behind it — has neither, and the
 docket falls back to ranking by area. ADR-0021 records that ordering as measured
 backwards: a container that only reflowed outranks the edit by 6×. Since the PR
@@ -177,7 +177,7 @@ They have opposite loss semantics, and one interface can only encode one of them
 - **Losing a baseline is fatal.** `null` means "looked, nothing there", which
   becomes `new`, which re-records whatever is on screen, which destroys the
   baseline this run existed to compare against. So every failure must throw —
-  `RasterStoreError packages/raster/src/store.ts:49` and the `REFUSAL` beside it.
+  `RasterStoreError packages/raster/src/store.ts:55` and the `REFUSAL` beside it.
 - **Losing a cache costs a render.** `null` is the correct answer to every
   failure, including a failure to reach the network.
 

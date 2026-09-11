@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import type { RunReport } from '@variance-authority/report';
 import { entriesMatching, indexOf, partsOf } from './locate-index.js';
 

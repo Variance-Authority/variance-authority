@@ -12,7 +12,7 @@ import * as React from 'react';
 import { createElement as h, act, createContext, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { heldDigest } from '@variance-authority/core';
+import { heldDigest } from '@variance-authority/core/format';
 import { holdingOf } from './holding.js';
 import { componentFiberOf } from './wiring.js';
 

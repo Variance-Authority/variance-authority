@@ -1,4 +1,5 @@
-import type { Band, ProfileId } from '@variance-authority/core';
+import type { Band } from '@variance-authority/core/compare';
+import type { ProfileId } from '@variance-authority/core/format';
 
 /**
  * That a subject did not read the same way twice, and when.

@@ -1,12 +1,11 @@
+import type { Band, PartingSlice } from '@variance-authority/core/compare';
 import type {
-  Band,
   Diagnostic,
   Digest,
-  PartingSlice,
   ProfileId,
   SemanticSnapshot,
   SubjectRef,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 
 const scenarioToken: unique symbol = Symbol('checked scenario value');
 

@@ -1,4 +1,4 @@
-import { identityDigest } from '@variance-authority/core';
+import { identityDigest } from '@variance-authority/core/format';
 import type { LexiconField, LexiconReport, SubjectLexicon } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';

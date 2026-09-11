@@ -4,7 +4,7 @@ import {
   type Raster,
   type RenderDocument,
   type RenderIdentity,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import {
   describeIdentity,
   identityAtScale,

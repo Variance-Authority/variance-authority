@@ -1,16 +1,16 @@
-import {
-  admits,
-  type Diagnostic,
-  type Digest,
-  type ObservationProfile,
-  type Provenance,
-  type RawCapture,
-  type RawNode,
-  type SubjectRef,
-  type Viewport,
-  type Wiring,
-  type Holding,
-} from '@variance-authority/core';
+import type {
+  Diagnostic,
+  Digest,
+  ObservationProfile,
+  Provenance,
+  RawCapture,
+  RawNode,
+  SubjectRef,
+  Viewport,
+  Wiring,
+  Holding,
+} from '@variance-authority/core/format';
+import { admits } from '@variance-authority/core/rules';
 import { ariaOf } from './aria.js';
 import { resolveIgnores, type IgnoreSelector } from './ignore.js';
 import { conditionKey, indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';

@@ -1,4 +1,6 @@
-import { matchesGlob, normalize as normalizeCapture, type SourceIndex } from '@variance-authority/core';
+import type { SourceIndex } from '@variance-authority/core/attribute';
+import { matchesGlob } from '@variance-authority/core/judge';
+import { normalize as normalizeCapture } from '@variance-authority/core/rules';
 import { acquireFromAgent, unresizable } from '@variance-authority/playwright';
 import { suspenseRefusal } from '@variance-authority/react';
 import { collectStory, harnessPage } from '@variance-authority/storybook';

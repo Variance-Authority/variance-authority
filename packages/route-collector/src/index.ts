@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core';
+import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core/attribute';
 import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
 import { operatorError } from './operator.js';
 import { readRoute, type RouteReading } from './read.js';

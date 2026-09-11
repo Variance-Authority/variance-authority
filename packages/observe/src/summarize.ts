@@ -1,5 +1,5 @@
-import { formatSource, resolveSource } from '@variance-authority/core';
-import type { AttributedRegion, SourceIndex } from '@variance-authority/core';
+import { formatSource, resolveSource } from '@variance-authority/core/attribute';
+import type { AttributedRegion, SourceIndex } from '@variance-authority/core/attribute';
 import type { Observation } from './observe.js';
 
 /**

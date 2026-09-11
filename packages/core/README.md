@@ -29,8 +29,8 @@ input is a PNG.
 Seven groups. Five of them are the order an answer travels through; `core/plan`
 and `core/relate` sit outside that line, because both are asked *before* anything
 is captured — one decides which baselines the run can reach at all, the other
-decides which subjects are worth reaching for. The default entrypoint is all
-seven and is what most callers want.
+decides which subjects are worth reaching for. Every name lives in exactly one
+group, and the bare specifier holds only the capture artifact.
 
 | entrypoint | holds |
 |---|---|
@@ -74,7 +74,8 @@ Value comparison needs no host setup and returns paths and fingerprints, not a
 pass/fail verdict:
 
 ```ts
-import { compareValues, shapeValue } from '@variance-authority/core';
+import { compareValues } from '@variance-authority/core/compare';
+import { shapeValue } from '@variance-authority/core/format';
 
 const before = shapeValue({ rows: [{ id: 'a', total: 10 }] }, {
   arrayKey: { '/rows': 'id' },
@@ -90,7 +91,9 @@ console.log(deltas[0]?.pointer);                     // /rows/a/total
 For a rendered subject, the same package receives captures from a collector:
 
 ```ts
-import { attributeRegions, diffSnapshots, isolateRegions, normalize } from '@variance-authority/core';
+import { attributeRegions, isolateRegions } from '@variance-authority/core/attribute';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import { normalize } from '@variance-authority/core/rules';
 
 const before = normalize(capture);                   // supplied by a collector
 const after = normalize(recapture);
@@ -135,7 +138,8 @@ carrying a JSON Pointer and a fingerprint, and — like everything else here —
 verdict.
 
 ```ts
-import { shapeValue, compareValues } from '@variance-authority/core';
+import { compareValues } from '@variance-authority/core/compare';
+import { shapeValue } from '@variance-authority/core/format';
 
 const baseline = shapeValue(before, { arrayKey: { '/rows': 'id' } });
 const deltas = compareValues(baseline, shapeValue(after, { arrayKey: { '/rows': 'id' } }));

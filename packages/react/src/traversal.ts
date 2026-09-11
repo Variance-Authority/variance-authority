@@ -1,4 +1,4 @@
-import { jsxSourceOf, type SourceLocation } from '@variance-authority/core';
+import { jsxSourceOf, type SourceLocation } from '@variance-authority/core/format';
 import { isOwnerFrame, type Fiber } from './fiber.js';
 
 /** The default upper bound for a read-only Fiber walk. */

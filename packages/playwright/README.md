@@ -40,7 +40,7 @@ across calls. Beside them sit the wire's observers: `observeNetwork` and its
 
 | entrypoint | holds | note |
 |---|---|---|
-| `.` | both tools | needs `playwright` |
+| `.` | the harness and the network observation | needs `playwright` |
 | `playwright/renderer` | `createPlaywrightRenderer` | the renderer alone, without the harness |
 | `playwright/agent` | `PageAgent`, `CaptureRequest`, `AGENT_GLOBAL` | **must not** need `playwright` — it is bundled into the page |
 
@@ -115,7 +115,7 @@ import {
   observeNetwork,
   type NetworkObservation,
 } from '@variance-authority/playwright';
-import type { Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core/format';
 
 declare const url: string;
 declare const bundle: string;
@@ -195,7 +195,7 @@ made relative to, the working directory unless told otherwise.
 ## Which engine paints
 
 ```ts
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 
 const safari = await createPlaywrightRenderer({ browser: 'webkit' });
 ```
@@ -284,7 +284,7 @@ yarn workspace @variance-authority/playwright host --compare ./native ./box/out
 ## The renderer: a document in, a raster out
 
 ```ts
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 
 const renderer = await createPlaywrightRenderer();
 const raster = await renderer.render(document);

@@ -8,7 +8,7 @@
 
 import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { digestBytes, type Digest } from '@variance-authority/core';
+import { digestBytes, type Digest } from '@variance-authority/core/format';
 
 const MAGIC = Buffer.from('VAIDXLSM');
 const VERSION = 1;

@@ -3,13 +3,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
-import { documentDigest } from '@variance-authority/core';
+import type {
+  Raster,
+  RenderDocument,
+  RenderIdentity,
+  Viewport,
+} from '@variance-authority/core/format';
+import { documentDigest } from '@variance-authority/core/format';
 import {
   createRemoteStore,
   serveRasterStore,
   type StoreServer,
-} from '@variance-authority/remote';
+} from '@variance-authority/remote/store';
 import { RasterStoreError } from '@variance-authority/raster';
 import {
   DEFAULT_POLICY,
@@ -18,11 +23,8 @@ import {
   type RasterStore,
   type Renderer,
 } from '@variance-authority/raster';
-import {
-  createDurableStore,
-  createLfsStore,
-  type CommandRunner,
-} from '@variance-authority/store';
+import { createDurableStore } from '@variance-authority/store/durable';
+import { createLfsStore, type CommandRunner } from '@variance-authority/store/lfs';
 import { createBucketStore } from '@variance-authority/tribunal/store';
 import { createMemoryR2, createSqliteD1 } from '@variance-authority/tribunal/testing';
 import { observeAgainstBaseline, type RasterVerdict } from './observe.js';

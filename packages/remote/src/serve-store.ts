@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import type { Digest, Raster, RenderIdentity } from '@variance-authority/core';
+import type { Digest, Raster, RenderIdentity } from '@variance-authority/core/format';
 import {
   RasterStoreError,
   recordFrom,

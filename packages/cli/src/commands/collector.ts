@@ -1,14 +1,13 @@
 // compass: variance-authority.acquisition
 
 import { pathToFileURL } from 'node:url';
+import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
-  CallSiteResolver,
   RenderDocument,
   SemanticSnapshot,
-  SourceIndex,
   SubjectRef,
   Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
 import type { PresentationSignalRecord } from '@variance-authority/report';

@@ -1,7 +1,6 @@
+import type { CaptureArtifact } from '@variance-authority/core';
 import {
   digestBytes,
-  normalize,
-  type CaptureArtifact,
   type Holding,
   type Provenance,
   type Wiring,
@@ -9,7 +8,8 @@ import {
   type RenderResource,
   type SubjectRef,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import {
   acquireDocument,
   collect,

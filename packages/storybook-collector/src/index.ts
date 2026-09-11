@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core';
+import { createCallSiteResolver, overlaySourceIndex } from '@variance-authority/core/attribute';
 import { createDeclarationReader, fetchModules } from '@variance-authority/playwright';
 import { createStoryRecorder } from './execution.js';
 import type { StorybookCollectorOptions } from './options.js';

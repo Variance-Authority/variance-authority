@@ -2,13 +2,9 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
-import {
-  componentInstances,
-  normalize,
-  JSDOM_PROFILE,
-  type ComponentInstance,
-  type Viewport,
-} from '@variance-authority/core';
+import { componentInstances, type ComponentInstance } from '@variance-authority/core/attribute';
+import { JSDOM_PROFILE, type Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import type { ReactNode } from 'react';

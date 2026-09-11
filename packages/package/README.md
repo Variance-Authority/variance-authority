@@ -108,7 +108,8 @@ thing next week.
 ```ts
 import { readFileSync } from 'node:fs';
 import { readSurface } from '@variance-authority/package';
-import { compareValues, shapeValue } from '@variance-authority/core';
+import { compareValues } from '@variance-authority/core/compare';
+import { shapeValue } from '@variance-authority/core/format';
 
 const dialect = 'package-surface';
 const recorded = shapeValue(JSON.parse(readFileSync('surface.json', 'utf8')), { dialect });

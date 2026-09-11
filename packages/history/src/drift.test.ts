@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProfileId } from '@variance-authority/core';
+import type { ProfileId } from '@variance-authority/core/format';
 import type { Band, Observation, RunRecord, TokenValue } from './observation.js';
 import type { Churn, Journey, Reach } from './store.js';
 import {

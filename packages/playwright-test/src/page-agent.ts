@@ -8,8 +8,14 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import type { DeclaredComponents, SuspenseSettlement } from '@variance-authority/react';
-import { recipeOf } from '@variance-authority/core';
-import type { Digest, RawCapture, RenderDocument, SubjectRef, Viewport } from '@variance-authority/core';
+import { recipeOf } from '@variance-authority/core/format';
+import type {
+  Digest,
+  RawCapture,
+  RenderDocument,
+  SubjectRef,
+  Viewport,
+} from '@variance-authority/core/format';
 
 /**
  * The page half, bundled as an IIFE and installed on `window`.

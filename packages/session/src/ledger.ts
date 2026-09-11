@@ -1,4 +1,9 @@
-import type { Digest, RawCapture, SemanticSnapshot, SubjectRef } from '@variance-authority/core';
+import type {
+  Digest,
+  RawCapture,
+  SemanticSnapshot,
+  SubjectRef,
+} from '@variance-authority/core/format';
 import { dedupe, short, type Finding } from './findings.js';
 import type { StateKey } from './state.js';
 

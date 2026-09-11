@@ -3,7 +3,7 @@ import {
   documentDigest,
   type RenderDocument,
   type RenderIdentity,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { settle } from './settle.js';
 import type { Described } from './store.js';
 

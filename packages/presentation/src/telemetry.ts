@@ -1,4 +1,4 @@
-import type { RawCapture, RawNode } from '@variance-authority/core';
+import type { RawCapture, RawNode } from '@variance-authority/core/format';
 import type { PresentationNode, PresentationTelemetry, RepeatedPattern } from './model.js';
 import { round, unionArea } from './math.js';
 

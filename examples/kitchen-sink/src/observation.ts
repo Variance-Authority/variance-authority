@@ -23,14 +23,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  buildDocket,
   diffSnapshots,
   loudestBand,
-  normalize,
   type Band,
   type SemanticDiff,
-  type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/compare';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
+import { buildDocket } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { CORPUS, type Verdict } from './corpus.js';
 import { CORPUS_FONTS, CORPUS_VIEWPORT, jsdomSnapshot } from './jsdom-profile.js';

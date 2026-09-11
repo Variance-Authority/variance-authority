@@ -1,16 +1,16 @@
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
+import { hashComponents } from '@variance-authority/core/attribute';
 import {
   documentDigest,
-  hashComponents,
   identityDigest,
-  type Level,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
   type SemanticSnapshot,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
+import type { Level } from '@variance-authority/core/judge';
 import {
   neverFails,
   type BaselineKey,

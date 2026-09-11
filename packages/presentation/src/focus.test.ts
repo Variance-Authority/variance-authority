@@ -4,7 +4,7 @@ import {
   type RawCapture,
   type RawNode,
   type Rect,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { analyzePresentation, focusPresentation } from './index.js';
 
 describe('presentation focus', () => {

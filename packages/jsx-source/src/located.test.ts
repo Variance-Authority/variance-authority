@@ -7,7 +7,7 @@
 // they have to take on faith. The real setting is proved once, end to end, by
 // the Storybook case.
 
-import { propsDigest } from '@variance-authority/core';
+import { propsDigest } from '@variance-authority/core/format';
 import { provenanceOf } from '@variance-authority/react';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';

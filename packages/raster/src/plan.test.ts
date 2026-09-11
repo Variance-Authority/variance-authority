@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LAYOUT_RECIPE, validatePlan, planForTier } from '@variance-authority/core';
+import { LAYOUT_RECIPE } from '@variance-authority/core/format';
+import { validatePlan, planForTier } from '@variance-authority/core/plan';
 import { DEFAULT_PLAN, defaultPlan, defaultPlanIdentity } from './plan.js';
 
 /**

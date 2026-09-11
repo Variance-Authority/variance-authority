@@ -1,11 +1,10 @@
+import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
-  CallSiteResolver,
   RenderDocument,
   SemanticSnapshot,
-  SourceIndex,
   SubjectRef,
   Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 
 /**
  * The contract a collector satisfies, restated here rather than imported.

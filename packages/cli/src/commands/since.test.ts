@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SourceIndex } from '@variance-authority/core';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { Collected, Plan } from './run.js';
 import { narrowingFor } from './since.js';
 import {

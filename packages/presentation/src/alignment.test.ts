@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { CHROMIUM_PROFILE, type RawCapture, type RawNode, type Rect } from '@variance-authority/core';
+import {
+  CHROMIUM_PROFILE,
+  type RawCapture,
+  type RawNode,
+  type Rect,
+} from '@variance-authority/core/format';
 import { analyzePresentation, inspectPresentationAlignment } from './index.js';
 
 describe('presentation alignment reading', () => {

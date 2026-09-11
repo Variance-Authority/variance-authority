@@ -1,4 +1,4 @@
-import type { Wiring } from '@variance-authority/core';
+import type { Wiring } from '@variance-authority/core/format';
 import { FiberTag, findFiber, isOwnerFrame, type ContextDependency, type Fiber } from './fiber.js';
 
 /**

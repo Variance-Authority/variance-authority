@@ -27,7 +27,7 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import {
   coverageBlock,

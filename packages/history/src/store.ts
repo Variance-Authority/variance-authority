@@ -1,4 +1,4 @@
-import type { ProfileId } from '@variance-authority/core';
+import type { ProfileId } from '@variance-authority/core/format';
 import type { Approval } from './approval.js';
 import type { FrequencyBand, Instability } from './instability.js';
 import type { Band, Observation, RunRecord, TokenValue } from './observation.js';

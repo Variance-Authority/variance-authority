@@ -1,11 +1,11 @@
 import { dirname, join, relative } from 'node:path';
+import { hashComponents } from '@variance-authority/core/attribute';
 import {
   documentDigest,
-  hashComponents,
   type Raster,
   type RenderDocument,
   type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import type { Observation } from '@variance-authority/observe';
 import { decode, diffImage } from '@variance-authority/png';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';

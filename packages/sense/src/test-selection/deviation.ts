@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { FileRecord } from '@variance-authority/core';
+import type { FileRecord } from '@variance-authority/core/relate';
 import { MODULE_EXTENSIONS } from '../read.js';
 import type {
   CodeExtent,

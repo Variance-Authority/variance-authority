@@ -1,4 +1,4 @@
-import { digestValue } from '@variance-authority/core';
+import { digestValue } from '@variance-authority/core/format';
 import type { PresentationComparison, PresentationFindingRule, PresentationReport } from './model.js';
 
 /** Compare independent presentation dimensions without collapsing them into a score or verdict. */

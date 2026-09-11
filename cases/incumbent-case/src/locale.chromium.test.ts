@@ -3,7 +3,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { compareLocales, normalize, type SemanticSnapshot } from '@variance-authority/core';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
+import { compareLocales } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 // @ts-expect-error — a plain .mjs script, deliberately not part of the TS build.
 import { stale } from '../scripts/bundle.mjs';

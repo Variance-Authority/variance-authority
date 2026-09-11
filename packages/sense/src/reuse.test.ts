@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
-import type { Digest, FileRecord } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
+import type { FileRecord } from '@variance-authority/core/relate';
 import { layoutOf, memoryRecordCache, openRecordCache } from './reuse.js';
 import { scanRelations } from './scan.js';
 

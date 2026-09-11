@@ -1,10 +1,10 @@
+import type { CaptureArtifact } from '@variance-authority/core';
 import {
   digestBytes,
   digestCombine,
   digestString,
-  type CaptureArtifact,
   type RenderResource,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 
 /**
  * What a capture file has to be before anything is believed about it.

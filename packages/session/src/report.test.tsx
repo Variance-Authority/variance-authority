@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
-import type { SubjectRef, Viewport } from '@variance-authority/core';
+import type { SubjectRef, Viewport } from '@variance-authority/core/format';
 import { provenanceOf } from '@variance-authority/react';
 import { createSession, type Session } from './session.js';
 

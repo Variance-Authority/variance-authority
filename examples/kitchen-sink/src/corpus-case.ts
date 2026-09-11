@@ -9,7 +9,8 @@
  * are part of, which would be a cycle.
  */
 
-import type { Band, ProfileId } from '@variance-authority/core';
+import type { Band } from '@variance-authority/core/compare';
+import type { ProfileId } from '@variance-authority/core/format';
 import type { SubjectId } from './subjects.js';
 import type { VariantId } from './variants.js';
 

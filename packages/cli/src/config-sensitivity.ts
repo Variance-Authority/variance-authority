@@ -1,4 +1,4 @@
-import type { Level } from '@variance-authority/core';
+import type { Level } from '@variance-authority/core/judge';
 import { fail, nonEmpty, object, quote, strings, type ParseOptions } from './config-values.js';
 
 /**

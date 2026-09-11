@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { compareValues, shapeValue } from '@variance-authority/core';
+import { compareValues } from '@variance-authority/core/compare';
+import { shapeValue } from '@variance-authority/core/format';
 import { BASELINE, ROOT, countOf } from './surface.mjs';
 
 /**

@@ -1,4 +1,4 @@
-import type { RenderDocument } from '@variance-authority/core';
+import type { RenderDocument } from '@variance-authority/core/format';
 
 /**
  * Assembly — the render document becomes a page.

@@ -1,4 +1,4 @@
-import type { Intent, Policy } from '@variance-authority/core';
+import type { Intent, Policy } from '@variance-authority/core/judge';
 import { mutationById, type Mutation, type MutationId } from './mutations.js';
 
 /**

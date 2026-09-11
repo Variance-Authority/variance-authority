@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { documentDigest, type Viewport } from '@variance-authority/core';
+import { documentDigest, type Viewport } from '@variance-authority/core/format';
 import { acquireDocument, PATH_ATTRIBUTE } from './document.js';
 
 /**

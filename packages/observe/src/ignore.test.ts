@@ -7,7 +7,7 @@ import {
   type RenderIdentity,
   type SemanticSnapshot,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { createEphemeralStore, type Renderer } from '@variance-authority/raster';
 import { declaredIgnores } from './decide.js';
 import { observePair } from './observe.js';

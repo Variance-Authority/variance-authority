@@ -1,4 +1,4 @@
-import { digestValue } from '@variance-authority/core';
+import { digestValue } from '@variance-authority/core/format';
 import type {
   PresentationEffectEvidence,
   PresentationEffectRecord,

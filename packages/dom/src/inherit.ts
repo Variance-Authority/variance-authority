@@ -1,4 +1,5 @@
-import { EMPTY_CONTEXT, resolveStyle, type ObservationProfile } from '@variance-authority/core';
+import type { ObservationProfile } from '@variance-authority/core/format';
+import { EMPTY_CONTEXT, resolveStyle } from '@variance-authority/core/rules';
 import type { StyleIndex } from './css.js';
 import { matchRulesFor } from './css.js';
 import { propertyNames } from './dom-list.js';

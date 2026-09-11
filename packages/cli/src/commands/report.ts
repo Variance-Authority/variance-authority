@@ -2,7 +2,7 @@ import { notObservedSentence, toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import type { CliRunReport } from './run.js';
 import { reportHtml } from './report-html.js';
-import { describeRecipe, recipeOf } from '@variance-authority/core';
+import { describeRecipe, recipeOf } from '@variance-authority/core/format';
 import { summarizeLedger } from './ignores.js';
 import { summarizeSensitivities } from './sensitivities.js';
 

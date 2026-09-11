@@ -1,4 +1,4 @@
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 
 /**
  * Shared-state probe.

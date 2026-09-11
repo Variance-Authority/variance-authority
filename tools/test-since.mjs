@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { relationsOfFiles } from '@variance-authority/core';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { openSourceIndex, scanRelations } from '@variance-authority/sense';
 import {
   narrowByExecution,

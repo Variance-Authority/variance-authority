@@ -1,4 +1,4 @@
-import { identityDigest } from '@variance-authority/core';
+import { identityDigest } from '@variance-authority/core/format';
 import type { D1Like, R2Like } from './bindings.js';
 import { ReviewError, instant } from './review-rows.js';
 import type { BuildIngest } from './review-types.js';

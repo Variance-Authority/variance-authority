@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import type { CompositionReport, RunReport } from '@variance-authority/report';
 import { composition } from './composition.js';
 

@@ -10,7 +10,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 import { EVALUATING, INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import {
   cleanId,

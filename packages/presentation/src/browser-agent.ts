@@ -1,13 +1,5 @@
-import {
-  COLLECT_RECIPE,
-  recipeOf,
-} from '@variance-authority/core';
-import type {
-  Digest,
-  RawCapture,
-  SubjectRef,
-  Viewport,
-} from '@variance-authority/core';
+import { COLLECT_RECIPE, recipeOf } from '@variance-authority/core/format';
+import type { Digest, RawCapture, SubjectRef, Viewport } from '@variance-authority/core/format';
 import { collect, stabilizeForObservation } from '@variance-authority/dom';
 import { awaitSuspense, portalContentOf } from '@variance-authority/react';
 import type { PaintInstruction, PaintLayer } from './model.js';

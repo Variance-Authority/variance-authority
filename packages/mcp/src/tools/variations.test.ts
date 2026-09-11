@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import type { RunReport, VariationRecord } from '@variance-authority/report';
 import { variations } from './variations.js';
 

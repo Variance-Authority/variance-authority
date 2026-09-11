@@ -1,5 +1,5 @@
 import { deflateSync } from 'node:zlib';
-import { matchesGlob } from '@variance-authority/core';
+import { matchesGlob } from '@variance-authority/core/judge';
 
 /**
  * Serve an image as *nothing*, at exactly the size it would have been.

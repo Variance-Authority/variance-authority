@@ -1,4 +1,4 @@
-import { validateIgnoreRule } from '@variance-authority/core';
+import { validateIgnoreRule } from '@variance-authority/core/judge';
 import {
   fail,
   nonEmpty,

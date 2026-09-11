@@ -1,11 +1,10 @@
 import {
   locateInstability,
   summarizeInstability,
-  type Digest,
   type Instability,
-  type SemanticSnapshot,
   type SourceIndex,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { Digest, SemanticSnapshot } from '@variance-authority/core/format';
 
 /**
  * Decide whether a subject is worth photographing — without photographing it.

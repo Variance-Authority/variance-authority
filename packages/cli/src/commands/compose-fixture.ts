@@ -1,4 +1,8 @@
-import type { ComponentInstance, SourceIndex, SubjectComposition } from '@variance-authority/core';
+import type {
+  ComponentInstance,
+  SourceIndex,
+  SubjectComposition,
+} from '@variance-authority/core/attribute';
 import type { CliObservationRecord } from './run-report.js';
 
 export function instance(

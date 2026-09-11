@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { hashComponents, movedBands } from '@variance-authority/core';
+import { hashComponents, movedBands } from '@variance-authority/core/attribute';
 import {
   CONTESTED_CORPUS,
   CORPUS,

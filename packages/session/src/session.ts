@@ -1,9 +1,5 @@
-import {
-  normalize,
-  type Provenance,
-  type SubjectRef,
-  type Viewport,
-} from '@variance-authority/core';
+import type { Provenance, SubjectRef, Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import { formatFindings, type Finding } from './findings.js';
 import { Ledger, type SubjectRun } from './ledger.js';

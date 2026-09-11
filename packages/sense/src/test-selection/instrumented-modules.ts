@@ -18,7 +18,7 @@
 import { readFile, mkdir, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID, type Block } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 

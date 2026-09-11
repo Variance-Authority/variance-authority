@@ -1,6 +1,6 @@
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
-import { identityDigest } from '@variance-authority/core';
+import { identityDigest } from '@variance-authority/core/format';
 import { declaredIdentity, foreignDigest, foreignRaster } from './foreign.js';
 
 /**

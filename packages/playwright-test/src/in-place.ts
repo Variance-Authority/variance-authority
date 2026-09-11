@@ -9,8 +9,8 @@
  */
 
 import type { Locator, Page } from '@playwright/test';
-import { digestValue, documentDigest } from '@variance-authority/core';
-import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core';
+import { digestValue, documentDigest } from '@variance-authority/core/format';
+import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
 import { observeRasters } from '@variance-authority/observe';
 import type { InPlaceCaptureOptions } from './options.js';
 

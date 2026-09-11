@@ -1,12 +1,9 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import {
-  buildDocket,
-  diffSnapshots,
-  normalize,
-  propsDigest,
-  type SemanticSnapshot,
-} from '@variance-authority/core';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import { propsDigest, type SemanticSnapshot } from '@variance-authority/core/format';
+import { buildDocket } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from './collect.js';
 import { attributeProvenance, statesProps } from './attributed.js';
 

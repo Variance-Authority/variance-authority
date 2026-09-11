@@ -9,32 +9,13 @@
  * they would drift, and a client and server disagreeing about a wire format is
  * the failure that presents as a verdict.
  *
- * Both halves are here for both tools: a renderer reached over HTTP, and a
- * baseline store reached over HTTP. What crosses is checked on arrival by
- * `@variance-authority/raster`'s own record checks, so a record that came down a
- * socket is believed on exactly the terms one read off a disk is.
+ * Both halves are shipped for both tools, each under its own entrypoint: a
+ * renderer reached over HTTP at `./renderer`, and a baseline store reached over
+ * HTTP at `./store`. This entrypoint holds what the two share: the batching.
+ * What crosses is checked on arrival by `@variance-authority/raster`'s own record
+ * checks, so a record that came down a socket is believed on exactly the terms
+ * one read off a disk is.
  */
-
-export {
-  connectRenderer,
-  serveRenderer,
-  RENDER_PATH,
-  BATCH_PATH,
-  IDENTITY_PATH,
-} from './renderer.js';
-export type { RemoteRendererOptions, RenderServer } from './renderer.js';
 
 export { batching } from './batch.js';
 export type { BatchOptions, SendBatch, Settled } from './batch.js';
-
-export {
-  createRemoteStore,
-  serveRasterStore,
-  BASELINE_FIND_PATH,
-  BASELINE_DESCRIBE_PATH,
-  BASELINE_WORKING_SET_PATH,
-  BASELINE_PUT_PATH,
-  CACHE_FIND_PATH,
-  CACHE_PUT_PATH,
-} from './store.js';
-export type { RemoteStoreOptions, ServeStoreOptions, StoreServer } from './store.js';

@@ -9,7 +9,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 import { decodeTestCoverage } from './format.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';

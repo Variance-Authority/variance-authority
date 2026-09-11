@@ -1,8 +1,5 @@
-import {
-  SHORTHAND_PROPERTIES,
-  type Declaration,
-  type Diagnostic,
-} from '@variance-authority/core';
+import type { Declaration, Diagnostic } from '@variance-authority/core/format';
+import { SHORTHAND_PROPERTIES } from '@variance-authority/core/rules';
 import { evaluateMedia, evaluateSupports, type ConditionEnvironment } from './media.js';
 import { splitSelectorList, specificityOf, type Specificity } from './specificity.js';
 import { items, propertyNames } from './dom-list.js';

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MARKDOWN, ROOT } from './markdown.js';
@@ -85,7 +85,9 @@ const EXPORTED: ReadonlySet<string> = (() => {
   const files = execFileSync('git', ['ls-files', '*.ts', '*.tsx'], { cwd: ROOT, encoding: 'utf8' })
     .trim()
     .split('\n')
-    .filter((file) => !/\.(test|spec)\.tsx?$/.test(file));
+    .filter((file) => !/\.(test|spec)\.tsx?$/.test(file))
+    // Tracked but removed from the working tree: a deletion not yet committed.
+    .filter((file) => existsSync(join(ROOT, file)));
 
   for (const file of files) {
     const text = readFileSync(join(ROOT, file), 'utf8');

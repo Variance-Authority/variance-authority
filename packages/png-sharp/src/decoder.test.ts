@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PNG } from 'pngjs';
 import { compareRasters, comparePngs, pngjsDecoder } from '@variance-authority/png';
-import type { Raster, RenderIdentity } from '@variance-authority/core';
+import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import { sharpDecoder } from './index.js';
 
 /**

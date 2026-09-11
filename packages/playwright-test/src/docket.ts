@@ -1,5 +1,5 @@
 import { summarizeObservation } from '@variance-authority/observe';
-import type { SourceIndex } from '@variance-authority/core';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { Observation } from '@variance-authority/observe';
 
 /**

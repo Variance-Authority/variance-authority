@@ -56,7 +56,7 @@ Prerequisites are a readable checkout, installed dependencies for bare
 specifiers, and any `tsconfig.json` path mappings used by the source.
 
 ```ts
-import { movedBy, relationsOfFiles } from '@variance-authority/core';
+import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { scanRelations } from '@variance-authority/sense';
 
 const records = await scanRelations({ root: '.', dirs: ['src'] });

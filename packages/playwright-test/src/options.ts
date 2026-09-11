@@ -1,4 +1,5 @@
-import type { SourceIndex, SubjectRef } from '@variance-authority/core';
+import type { SourceIndex } from '@variance-authority/core/attribute';
+import type { SubjectRef } from '@variance-authority/core/format';
 
 /**
  * What a test declares about one subject, and what each declaration decides.

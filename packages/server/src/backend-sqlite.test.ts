@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 import type { Observation, RunRecord, TokenValue } from '@variance-authority/history';
 import { churnFrom, journeyFrom, lastChangedFrom, reachFrom } from './answers.js';
 import { SCHEMA_VERSION, createSqliteBackend } from './backend-sqlite.js';

@@ -9,7 +9,7 @@
  */
 
 import { PNG } from 'pngjs';
-import type { Digest, RenderIdentity } from '@variance-authority/core';
+import type { Digest, RenderIdentity } from '@variance-authority/core/format';
 import type { RunReport, VariationRecord } from '@variance-authority/report';
 import { createReviewStore, type BuildIngest, type ReviewStore } from '../review.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from '../testing.js';

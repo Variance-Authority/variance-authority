@@ -1,4 +1,5 @@
-import { deriveVariation, type SemanticSnapshot, type Variation } from '@variance-authority/core';
+import { deriveVariation, type Variation } from '@variance-authority/core/compare';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
 import type { VariationRecord } from '@variance-authority/report';
 import type { NamesConfig } from '../config-names.js';
 import type { Plan, PlannedSubject } from './collector.js';

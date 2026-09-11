@@ -2,12 +2,20 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { documentDigest, type RenderDocument, type Viewport } from '@variance-authority/core';
+import {
+  documentDigest,
+  type RenderDocument,
+  type Viewport,
+} from '@variance-authority/core/format';
 import { acquireDocument } from '@variance-authority/dom';
 import { comparePngs, decode } from '@variance-authority/png';
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { Renderer } from '@variance-authority/raster';
-import { connectRenderer, serveRenderer, type RenderServer } from '@variance-authority/remote';
+import {
+  connectRenderer,
+  serveRenderer,
+  type RenderServer,
+} from '@variance-authority/remote/renderer';
 import { mutationById } from './mutations.js';
 import { renderStory } from './render.js';
 

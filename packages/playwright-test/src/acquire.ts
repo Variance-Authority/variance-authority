@@ -1,8 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import {
-  accessibilitySnapshot,
-  type AccessibilitySnapshot,
-} from '@variance-authority/core';
+import { accessibilitySnapshot, type AccessibilitySnapshot } from '@variance-authority/core/format';
 import {
   ACCESSIBILITY_ROOT_ATTRIBUTE,
   AGENT,

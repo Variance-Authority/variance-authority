@@ -2,7 +2,7 @@ import {
   CHROMIUM_PROFILE,
   JSDOM_PROFILE,
   type ObservationProfile,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 
 /**
  * Decide the profile from what the host can actually do.

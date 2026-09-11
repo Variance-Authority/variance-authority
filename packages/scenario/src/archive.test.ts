@@ -3,7 +3,7 @@ import {
   digestValue,
   environmentKey,
   type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

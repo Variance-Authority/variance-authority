@@ -1,16 +1,14 @@
 import {
-  findingMark,
   formatSource,
-  inspect,
   locateSites,
   rankRegions,
   resolveSource,
   type CallSiteResolver,
-  type Diagnostic,
   type RankedRegion,
-  type SemanticSnapshot,
   type SourceIndex,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { Diagnostic, SemanticSnapshot } from '@variance-authority/core/format';
+import { findingMark, inspect } from '@variance-authority/core/judge';
 import type { Observation } from '@variance-authority/observe';
 import type { Described } from '@variance-authority/raster';
 import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';

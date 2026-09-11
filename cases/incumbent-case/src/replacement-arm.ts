@@ -2,19 +2,19 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
   attributeRegions,
-  buildDocket,
-  diffSnapshots,
   formatSource,
   indexSource,
   isolateRegions,
   mergeSourceIndexes,
-  normalize,
   rankRegions,
   resolveSource,
   type RankedRegion,
-  type SemanticSnapshot,
   type SourceIndex,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
+import { buildDocket } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { comparePngs } from '@variance-authority/png';
 import type { Harness } from '@variance-authority/playwright';
 import { SCENARIOS, type Expectation, type Scenario, type Variant } from './scenarios.js';

@@ -7,14 +7,12 @@ import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
-import { createRemoteStore } from '@variance-authority/remote';
-import { createDurableStore, createLfsStore } from '@variance-authority/store';
-import {
-  digestString,
-  relationsOfFiles,
-  type Relations,
-  type SourceIndex,
-} from '@variance-authority/core';
+import { createRemoteStore } from '@variance-authority/remote/store';
+import { createDurableStore } from '@variance-authority/store/durable';
+import { createLfsStore } from '@variance-authority/store/lfs';
+import type { SourceIndex } from '@variance-authority/core/attribute';
+import { digestString } from '@variance-authority/core/format';
+import { relationsOfFiles, type Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import { indexOf } from './affected.js';
 import type { JourneyReading } from './journeys.js';

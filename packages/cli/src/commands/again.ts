@@ -1,17 +1,18 @@
 import {
   bandsBetween,
   causesBetween,
-  absorbsEntirely,
-  documentDigest,
   formatSource,
   hashComponents,
   resolveSource,
-  type Band,
-  type ComponentHash,
-  type Level,
-  type SemanticSnapshot,
   type SourceIndex,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { Band } from '@variance-authority/core/compare';
+import {
+  documentDigest,
+  type ComponentHash,
+  type SemanticSnapshot,
+} from '@variance-authority/core/format';
+import { absorbsEntirely, type Level } from '@variance-authority/core/judge';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import type { Collected, PlannedSubject } from './collector.js';
 import type { ObserveContext } from './run-context.js';

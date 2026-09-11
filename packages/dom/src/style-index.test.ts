@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { normalize, type RawCapture, type RawNode, type Viewport } from '@variance-authority/core';
+import type { RawCapture, RawNode, Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect, conditionsFor } from './collect.js';
 import { indexStyleSheets } from './css.js';
 import { STABILIZE_ATTRIBUTE } from './stabilize.js';

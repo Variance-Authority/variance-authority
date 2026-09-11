@@ -1,19 +1,21 @@
 import {
   hashComponents,
-  type AccessibilitySnapshot,
   type AttributedRegion,
   type ComponentBands,
-  type ComponentHash,
-  type Diagnostic,
-  type Band,
   type Isolation,
-  type Level,
-  type Raster,
-  type RenderDocument,
-  type SemanticSnapshot,
   type SourceIndex,
-} from '@variance-authority/core';
-import { documentDigest, identityDigest } from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { Band } from '@variance-authority/core/compare';
+import type {
+  AccessibilitySnapshot,
+  ComponentHash,
+  Diagnostic,
+  Raster,
+  RenderDocument,
+  SemanticSnapshot,
+} from '@variance-authority/core/format';
+import type { Level } from '@variance-authority/core/judge';
+import { documentDigest, identityDigest } from '@variance-authority/core/format';
 import type { PngDecoder } from '@variance-authority/png';
 import {
   describeIdentity,

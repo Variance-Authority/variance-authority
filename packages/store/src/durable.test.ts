@@ -2,8 +2,17 @@ import { chmod, mkdtemp, readdir, rm, unlink, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
-import { accessibilitySnapshot, documentDigest, identityDigest } from '@variance-authority/core';
+import type {
+  Raster,
+  RenderDocument,
+  RenderIdentity,
+  Viewport,
+} from '@variance-authority/core/format';
+import {
+  accessibilitySnapshot,
+  documentDigest,
+  identityDigest,
+} from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createDurableStore } from './durable.js';
 

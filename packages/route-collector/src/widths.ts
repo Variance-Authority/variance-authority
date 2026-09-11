@@ -1,4 +1,4 @@
-import type { Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core/format';
 import type { Plan } from './index.js';
 
 /**

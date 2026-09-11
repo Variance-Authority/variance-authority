@@ -1,4 +1,4 @@
-import type { ComponentHash, Digest, ProfileId } from '@variance-authority/core';
+import type { ComponentHash, Digest, ProfileId } from '@variance-authority/core/format';
 
 /**
  * What a run is allowed to leave behind.

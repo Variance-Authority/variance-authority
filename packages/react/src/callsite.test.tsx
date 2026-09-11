@@ -15,7 +15,7 @@
 import { act, createElement as h } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JSX_SOURCE } from '@variance-authority/core';
+import { JSX_SOURCE } from '@variance-authority/core/format';
 import { provenanceOf } from './index.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

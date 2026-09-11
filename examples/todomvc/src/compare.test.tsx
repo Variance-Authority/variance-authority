@@ -1,17 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { diffSnapshots, type SemanticDiff } from '@variance-authority/core/compare';
 import {
-  buildDocket,
-  diffSnapshots,
   digestValue,
-  normalize,
-  summarize,
   type CanonicalValue,
-  type SemanticDiff,
   type SemanticNode,
   type SemanticSnapshot,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
+import { buildDocket, summarize } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { MUTATIONS, type Mutation } from './mutations.js';

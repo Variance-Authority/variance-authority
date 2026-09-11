@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { SubjectRef, Viewport } from '@variance-authority/core';
+import type { SubjectRef, Viewport } from '@variance-authority/core/format';
 import {
   createSession,
   diffProbes,

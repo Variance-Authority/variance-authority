@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { normalize, type Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from './collect.js';
 
 /**

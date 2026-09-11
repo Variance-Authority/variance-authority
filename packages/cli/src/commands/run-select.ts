@@ -28,7 +28,7 @@
  * is there to read it against.
  */
 
-import type { SourceIndex } from '@variance-authority/core';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects } from './affected.js';

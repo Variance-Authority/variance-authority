@@ -1,5 +1,6 @@
 import type { HistoryStore } from '@variance-authority/history';
-import type { Relations, SourceIndex } from '@variance-authority/core';
+import type { SourceIndex } from '@variance-authority/core/attribute';
+import type { Relations } from '@variance-authority/core/relate';
 import type { PngDecoder } from '@variance-authority/png';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';

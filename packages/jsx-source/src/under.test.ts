@@ -15,7 +15,7 @@
 // done in-process so the test needs no bundler. The *installation* is proved end
 // to end, through a minified production build, by the Storybook case.
 
-import { propsDigest } from '@variance-authority/core';
+import { propsDigest } from '@variance-authority/core/format';
 import { provenanceOf } from '@variance-authority/react';
 import { createRequire } from 'node:module';
 import { act } from 'react';

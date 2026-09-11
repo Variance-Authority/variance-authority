@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 import type { Observation, RunRecord, TokenValue } from '@variance-authority/history';
 import { journeyFrom } from './answers.js';
 import { createSqliteBackend } from './backend-sqlite.js';

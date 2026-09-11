@@ -31,7 +31,7 @@
  * attribution would have been. Neither guesses.
  */
 
-import { explain, movedBy, nodesOfKind, type Relations } from '@variance-authority/core';
+import { explain, movedBy, nodesOfKind, type Relations } from '@variance-authority/core/relate';
 import type { ReachHole, ReachReport, ReachedComponent, SubjectReach } from '@variance-authority/report';
 
 /** What the walk found, when it could answer. */

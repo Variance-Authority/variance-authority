@@ -37,7 +37,7 @@ export async function rendererFor(config: Config): Promise<Renderer> {
   // derivation, and is guarded by the same comparability check — which is what
   // makes the offload a wiring decision rather than a second pipeline.
   if (config.renderer !== undefined) {
-    const { connectRenderer } = await import('@variance-authority/remote');
+    const { connectRenderer } = await import('@variance-authority/remote/renderer');
     const remote = config.renderer;
     return openRenderer(() =>
       connectRenderer({
@@ -47,7 +47,7 @@ export async function rendererFor(config: Config): Promise<Renderer> {
     );
   }
 
-  const { createPlaywrightRenderer } = await import('@variance-authority/playwright');
+  const { createPlaywrightRenderer } = await import('@variance-authority/playwright/renderer');
   // The same expression `doctor` probes with. Two spellings of "what the config
   // says about the renderer" is how a green doctor and a failing run stop being
   // about the same machine.

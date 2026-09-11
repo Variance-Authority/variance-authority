@@ -2,14 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
-import {
-  adjudicate,
-  buildDocket,
-  diffSnapshots,
-  indexSource,
-  normalize,
-  summarizeAdjudication,
-} from '@variance-authority/core';
+import { indexSource } from '@variance-authority/core/attribute';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import { adjudicate, buildDocket, summarizeAdjudication } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { createHarness } from '@variance-authority/playwright';
 import { comparePngs, diffImage } from '@variance-authority/png';
 

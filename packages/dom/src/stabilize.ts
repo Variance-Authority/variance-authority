@@ -9,7 +9,7 @@ import {
   type ObservationProfile,
   type Recipe,
   type SettleTarget,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { detectProfile } from './profile.js';
 
 /**

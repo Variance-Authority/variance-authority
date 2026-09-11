@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RenderDocument } from '@variance-authority/core';
+import type { RenderDocument } from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import {
   assertUnchanged,

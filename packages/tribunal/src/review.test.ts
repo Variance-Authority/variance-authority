@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 import type { JourneysReport, RunReport, VariationRecord } from '@variance-authority/report';
 import type { BuildIngest, ReviewStore } from './review.js';
 import { ReviewError } from './review.js';

@@ -1,14 +1,14 @@
 import { deflateSync } from 'node:zlib';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 import {
   documentDigest,
   type Diagnostic,
   type Raster,
   type RenderDocument,
   type RenderIdentity,
-  type Relations,
-  type SourceIndex,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
+import type { Relations } from '@variance-authority/core/relate';
 import {
   createEphemeralStore,
   type Found,

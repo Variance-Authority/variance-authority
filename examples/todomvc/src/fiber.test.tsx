@@ -2,12 +2,9 @@
 import { act, createContext, createElement as h, memo, useContext, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
-import {
-  componentInstances,
-  normalize,
-  type ComponentInstance,
-  type Viewport,
-} from '@variance-authority/core';
+import { componentInstances, type ComponentInstance } from '@variance-authority/core/attribute';
+import type { Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import {
   markRender,

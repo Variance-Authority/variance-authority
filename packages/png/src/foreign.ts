@@ -1,4 +1,9 @@
-import { digestBytes, type Digest, type Raster, type RenderIdentity } from '@variance-authority/core';
+import {
+  digestBytes,
+  type Digest,
+  type Raster,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 import { PNG } from 'pngjs';
 
 /**

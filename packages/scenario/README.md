@@ -32,7 +32,7 @@ from a collector capturing a rendered subject and `@variance-authority/core`
 normalizing it, not from this package.
 
 ```ts
-import type { SemanticSnapshot } from '@variance-authority/core';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
 import {
   assessScenarios,
   defineScenario,

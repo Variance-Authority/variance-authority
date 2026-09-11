@@ -1,4 +1,4 @@
-import type { MatchedRule } from '@variance-authority/core';
+import type { MatchedRule } from '@variance-authority/core/format';
 import { classNamesOf } from './dom-list.js';
 import { ancestorPortion, lastCompound } from './selector-parts.js';
 import type { IndexedRule, StyleIndex } from './css-index.js';

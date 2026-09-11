@@ -1,4 +1,4 @@
-import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core';
+import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core/format';
 import type {
   FindingRecord,
   IgnoreLedger,

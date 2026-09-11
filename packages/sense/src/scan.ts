@@ -41,13 +41,9 @@
 import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, isAbsolute, join, resolve } from 'node:path';
-import {
-  digestString,
-  indexSource,
-  type Digest,
-  type FileEdge,
-  type FileRecord,
-} from '@variance-authority/core';
+import { indexSource } from '@variance-authority/core/attribute';
+import { digestString, type Digest } from '@variance-authority/core/format';
+import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
 import { MODULE_EXTENSIONS, STYLE_EXTENSIONS, readModule, readStyle } from './read.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitDigests } from './tree.js';

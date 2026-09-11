@@ -1,8 +1,6 @@
-import {
-  hashComponents,
-  type CaptureArtifact,
-  type Raster,
-} from '@variance-authority/core';
+import type { CaptureArtifact } from '@variance-authority/core';
+import { hashComponents } from '@variance-authority/core/attribute';
+import type { Raster } from '@variance-authority/core/format';
 import {
   describeIdentity,
   type BaselineKey,

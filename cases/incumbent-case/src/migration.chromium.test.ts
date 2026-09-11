@@ -5,17 +5,17 @@ import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   attributeRegions,
-  buildDocket,
-  diffSnapshots,
   formatSource,
   indexSource,
   isolateRegions,
   mergeSourceIndexes,
-  normalize,
   rankRegions,
   resolveSource,
   type SourceIndex,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import { buildDocket } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { comparePngs } from '@variance-authority/png';
 // @ts-expect-error — a plain .mjs script, deliberately not part of the TS build.
 import { stale } from '../scripts/bundle.mjs';

@@ -28,8 +28,6 @@
  * on — into a list of the names that are silent in front of an audience.
  */
 
-export { HELP, HELP_TOOLS, SERVER_NAME, SERVER_VERSION } from './tools.js';
-export { entrypoint, gaps, packages, search, symbol } from './tools.js';
 export { serveWorkspace } from './server.js';
 export type { WorkspaceOptions } from './server.js';
 export { writePages } from './write.js';

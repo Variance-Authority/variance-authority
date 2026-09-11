@@ -1,4 +1,4 @@
-import type { Served, Tool } from '@variance-authority/mcp';
+import type { Served, Tool } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { entrypoint } from './tools/entrypoint.js';
 import { gaps } from './tools/gaps.js';

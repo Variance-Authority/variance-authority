@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { accessibilitySnapshot } from '@variance-authority/core';
+import { accessibilitySnapshot } from '@variance-authority/core/format';
 import type {
   PaintInstruction,
   PaintLayer,

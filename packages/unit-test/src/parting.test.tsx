@@ -4,7 +4,8 @@
 // one thing, read again, ask what parted. Everything asserted below comes out of
 // a real fiber — no fixture writes the hook cell that carries the answer.
 
-import { explainParting, partingOf, type SemanticSnapshot } from '@variance-authority/core';
+import { explainParting, partingOf } from '@variance-authority/core/compare';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { holdingOf, provenanceOf, wiringOf } from '@variance-authority/react';
 import { act, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';

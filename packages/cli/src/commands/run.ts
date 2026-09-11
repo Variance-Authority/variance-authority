@@ -1,10 +1,9 @@
 import {
   componentInstances,
-  profileById,
-  type SemanticSnapshot,
   type SourceIndex,
   type SubjectComposition,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import { profileById, type SemanticSnapshot } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';

@@ -6,7 +6,7 @@ import {
   identityDigest,
   type Raster,
   type RenderIdentity,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createD1Backend } from './history.js';
 import { createBucketStore } from './store.js';

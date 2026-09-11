@@ -22,7 +22,7 @@
  * be wrong the first time a package moved. Specifiers go in; edges do not.
  */
 
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 import type { Export, Request } from './read.js';
 import { readSourceIndex, writeSourceIndex } from './source-index-file.js';
 

@@ -10,13 +10,15 @@
 import { describe, expect, it } from 'vitest';
 import { awaitQuiet, tapCommits } from '@variance-authority/react';
 // Type-only, so it is erased before anything runs and cannot load a module.
-import type { ComponentInstance, Viewport } from '@variance-authority/core';
+import type { ComponentInstance } from '@variance-authority/core/attribute';
+import type { Viewport } from '@variance-authority/core/format';
 
 const tap = tapCommits();
 
 const { createRoot } = await import('react-dom/client');
 const { Suspense, act, createElement: h, use, useEffect, useState } = await import('react');
-const { componentInstances, normalize } = await import('@variance-authority/core');
+const { componentInstances } = await import('@variance-authority/core/attribute');
+const { normalize } = await import('@variance-authority/core/rules');
 const { collect } = await import('@variance-authority/dom');
 const { pendingSuspense, portalContentOf, provenanceOf } = await import(
   '@variance-authority/react'

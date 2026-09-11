@@ -1,4 +1,4 @@
-import { identityDigest, type Digest, type Raster } from '@variance-authority/core';
+import { identityDigest, type Digest, type Raster } from '@variance-authority/core/format';
 import {
   REFUSAL,
   RasterStoreError,

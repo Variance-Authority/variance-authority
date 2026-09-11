@@ -1,4 +1,4 @@
-import type { RawCapture, RawNode, SemanticSnapshot } from '@variance-authority/core';
+import type { RawCapture, RawNode, SemanticSnapshot } from '@variance-authority/core/format';
 import type { StateKey } from './state.js';
 
 /**

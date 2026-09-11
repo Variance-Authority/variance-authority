@@ -1,13 +1,17 @@
 import { PNG } from 'pngjs';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { documentDigest, type RenderDocument, type RenderIdentity } from '@variance-authority/core';
+import {
+  documentDigest,
+  type RenderDocument,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 import {
   BASELINE_DESCRIBE_PATH,
   BASELINE_FIND_PATH,
   BASELINE_PUT_PATH,
   CACHE_FIND_PATH,
   CACHE_PUT_PATH,
-} from '@variance-authority/remote';
+} from '@variance-authority/remote/store';
 import type { RunReport } from '@variance-authority/report';
 import { createTribunal, type Tribunal } from './worker.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';

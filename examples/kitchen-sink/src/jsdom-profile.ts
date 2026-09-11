@@ -11,7 +11,8 @@
  */
 
 import { collect } from '@variance-authority/dom';
-import { normalize, type SemanticSnapshot, type Viewport } from '@variance-authority/core';
+import type { SemanticSnapshot, Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { renderCase } from './render.js';
 import type { SubjectId } from './subjects.js';

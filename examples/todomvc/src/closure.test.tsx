@@ -1,12 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import {
-  componentInstances,
-  normalize,
-  type ComponentInstance,
-  type SemanticSnapshot,
-  type Viewport,
-} from '@variance-authority/core';
+import { componentInstances, type ComponentInstance } from '@variance-authority/core/attribute';
+import type { SemanticSnapshot, Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { MUTATIONS, type Mutation, type MutationId } from './mutations.js';

@@ -8,15 +8,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   attributeRegions,
   formatSource,
-  buildDocket,
-  diffSnapshots,
   isolateRegions,
-  normalize,
   rankRegions,
   resolveSource,
   type RankedRegion,
-  type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
+import { buildDocket } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { comparePngs } from '@variance-authority/png';
 import { REPORTS, handle } from '@variance-authority/mcp/protocol';
 import type { RunReport } from '@variance-authority/report';

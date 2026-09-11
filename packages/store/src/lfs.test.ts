@@ -3,8 +3,8 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Raster, RenderIdentity } from '@variance-authority/core';
-import { identityDigest } from '@variance-authority/core';
+import type { Raster, RenderIdentity } from '@variance-authority/core/format';
+import { identityDigest } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
 import { createLfsStore, type CommandResult, type CommandRunner } from './lfs.js';
 

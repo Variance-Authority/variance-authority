@@ -1,4 +1,4 @@
-import type { Tool } from '@variance-authority/mcp';
+import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Entry, Help } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';

@@ -1,4 +1,4 @@
-import type { Raster } from '@variance-authority/core';
+import type { Raster } from '@variance-authority/core/format';
 import {
   RasterStoreError,
   identityFrom,

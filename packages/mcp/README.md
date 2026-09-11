@@ -20,7 +20,7 @@ the evidence it sees now with the evidence it saw one call ago.
 
 | entrypoint | requires | holds |
 |---|---|---|
-| `.` | stdio | everything, plus `serve`, `serveReportFile` and `serveVantage` |
+| `.` | stdio | `serve`, `serveReportFile` and `serveVantage`, and the subject locator |
 | `./tools` | nothing | observability answers as pure functions over their native evidence |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 
@@ -39,7 +39,8 @@ packages. MCP reads those contracts; it owns none.
 is optional because each instrument has its own lifecycle and retention rules:
 
 ```ts
-import { OBSERVABILITY, serve } from '@variance-authority/mcp';
+import { serve } from '@variance-authority/mcp';
+import { OBSERVABILITY } from '@variance-authority/mcp/protocol';
 import type { ObservabilitySubject } from '@variance-authority/mcp';
 
 export function serveObservability(current: () => ObservabilitySubject) {
@@ -94,7 +95,8 @@ supplier is called for every request so a rerun is visible without restarting
 the agent's MCP connection:
 
 ```ts
-import { SOURCE_TESTS, serve } from '@variance-authority/mcp';
+import { serve } from '@variance-authority/mcp';
+import { SOURCE_TESTS } from '@variance-authority/mcp/protocol';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 
 export function serveSourceTests(current: () => ExecutionIndex | Promise<ExecutionIndex>) {

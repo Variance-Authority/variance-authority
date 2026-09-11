@@ -1,8 +1,5 @@
-import type {
-  AccessibilitySnapshot,
-  ComponentBands,
-  RenderIdentity,
-} from '@variance-authority/core';
+import type { ComponentBands } from '@variance-authority/core/attribute';
+import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core/format';
 import type { FindingRecord } from './finding-record.js';
 import type { CompositionReport } from './composition.js';
 import type { IgnoreLedger, SensitivityLedger } from './declarations.js';

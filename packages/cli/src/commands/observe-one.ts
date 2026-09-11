@@ -1,4 +1,6 @@
-import { documentDigest, locateSites, type Level } from '@variance-authority/core';
+import { locateSites } from '@variance-authority/core/attribute';
+import { documentDigest } from '@variance-authority/core/format';
+import type { Level } from '@variance-authority/core/judge';
 import {
   declaredIgnores,
   observeAgainstBaseline,

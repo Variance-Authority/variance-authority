@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { environmentKey, profileById, type SemanticSnapshot } from '@variance-authority/core';
+import {
+  environmentKey,
+  profileById,
+  type SemanticSnapshot,
+} from '@variance-authority/core/format';
 import type { Plan, PlannedSubject } from './collector.js';
 import type { NamesConfig } from '../config-names.js';
 import { resolveParents, variationsOf, variationsWanted } from './variations.js';

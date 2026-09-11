@@ -5,18 +5,17 @@ import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   attributeRegions,
-  buildDocket,
-  diffSnapshots,
   formatSource,
   indexSource,
   isolateRegions,
   mergeSourceIndexes,
-  normalize,
   rankRegions,
   resolveSource,
   type RankedRegion,
-  type SemanticDiff,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import { diffSnapshots, type SemanticDiff } from '@variance-authority/core/compare';
+import { buildDocket } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { comparePngs } from '@variance-authority/png';
 import type { Variant } from './workspace.js';

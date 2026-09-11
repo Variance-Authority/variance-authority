@@ -1,12 +1,11 @@
+import { isVendorPath, parseStackFrames } from '@variance-authority/core/attribute';
 import {
-  isVendorPath,
   jsxSourceOf,
-  parseStackFrames,
   type OwnerFrame,
   type Provenance,
   type SourceLocation,
   type StackFrame,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import type { DeclarationSink } from './declared.js';
 import { FiberTag, findFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { debugOwnerName, fiberComponentName } from './names.js';

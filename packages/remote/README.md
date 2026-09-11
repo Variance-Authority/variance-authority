@@ -43,7 +43,7 @@ about the wire format fail silently, as a wrong verdict rather than an error.
 
 | entrypoint | holds |
 |---|---|
-| `.` | both tools, both halves |
+| `.` | `batching`, the client-side coalescing both tools share |
 | `./renderer` | `connectRenderer`, `serveRenderer` |
 | `./store` | `createRemoteStore`, `serveRasterStore` |
 
@@ -54,7 +54,7 @@ local:
 
 ```ts
 import { serveRenderer, connectRenderer } from '@variance-authority/remote/renderer';
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 
 // On the machine that pins its pixels:
 const server = await serveRenderer(await createPlaywrightRenderer(), 7777);

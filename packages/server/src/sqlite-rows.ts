@@ -1,10 +1,6 @@
 import type { SQLOutputValue } from 'node:sqlite';
-import {
-  BANDS as FREQUENCY_BANDS,
-  profileById,
-  type Digest,
-  type ProfileId,
-} from '@variance-authority/core';
+import { BANDS as FREQUENCY_BANDS } from '@variance-authority/core/compare';
+import { profileById, type Digest, type ProfileId } from '@variance-authority/core/format';
 import {
   BANDS,
   type Approval,

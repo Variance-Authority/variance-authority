@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { FileRecord } from '@variance-authority/core';
+import type { FileRecord } from '@variance-authority/core/relate';
 import { deviationFromView } from './deviation.js';
 import { encodeTestCoverage, openTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';

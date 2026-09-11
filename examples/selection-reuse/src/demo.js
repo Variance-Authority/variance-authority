@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { movedBy, relationsOfFiles } from '@variance-authority/core';
+import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { openSourceIndex, scanRelations } from '@variance-authority/sense';
 
 const NOISE_FILES = 300;

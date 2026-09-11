@@ -28,7 +28,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 
 const run = promisify(execFile);
 

@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import type { Flakiness } from '@variance-authority/history';
 import type { BuildSummary, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';

@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
-import { normalize, diffSnapshots, type Viewport } from '@variance-authority/core';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import type { Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { portalContentOf } from '@variance-authority/react';
 import { collect } from './collect.js';
 

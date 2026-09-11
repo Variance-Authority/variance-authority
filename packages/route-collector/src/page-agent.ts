@@ -13,8 +13,8 @@ import {
   wiringOf,
 } from '@variance-authority/react';
 import type { SuspenseSettlement } from '@variance-authority/react';
-import { recipeOf } from '@variance-authority/core';
-import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core';
+import { recipeOf } from '@variance-authority/core/format';
+import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
 
 /**
  * The browser half for a route, which is the cheapest mount there is.

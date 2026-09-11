@@ -2,8 +2,8 @@ import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
-import type { RenderDocument } from '@variance-authority/core';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
+import type { RenderDocument } from '@variance-authority/core/format';
 import { routeCollector, type Collected, type Plan } from './index.js';
 
 /**

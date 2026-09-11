@@ -1,4 +1,4 @@
-import type { ChangeMask } from '@variance-authority/core';
+import type { ChangeMask } from '@variance-authority/core/attribute';
 
 /**
  * What a comparison is asked for, and what it hands back — without a codec.

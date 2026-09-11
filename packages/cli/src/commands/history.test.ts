@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createAbsentStore, type HistoryStore, type Instability, type Observation, type RunRecord } from '@variance-authority/history';
-import { environmentKey, profileById, type SemanticSnapshot } from '@variance-authority/core';
+import {
+  environmentKey,
+  profileById,
+  type SemanticSnapshot,
+} from '@variance-authority/core/format';
 import type { Config } from '../config.js';
 import { identityOf, recordRun } from './history.js';
 import type { CliObservationRecord } from './run-report.js';

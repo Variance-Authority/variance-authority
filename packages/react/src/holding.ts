@@ -1,4 +1,9 @@
-import { heldDigest, type HeldCell, type HeldValue, type Holding } from '@variance-authority/core';
+import {
+  heldDigest,
+  type HeldCell,
+  type HeldValue,
+  type Holding,
+} from '@variance-authority/core/format';
 import type { Fiber } from './fiber.js';
 import { componentFiberOf } from './wiring.js';
 

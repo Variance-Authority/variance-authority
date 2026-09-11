@@ -3,7 +3,7 @@ import {
   type AccessibilitySnapshot,
   type RawCapture,
   type RawNode,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { detectFindings } from './findings.js';
 import { buildGraph } from './graph.js';
 import { measureGraph } from './measure.js';

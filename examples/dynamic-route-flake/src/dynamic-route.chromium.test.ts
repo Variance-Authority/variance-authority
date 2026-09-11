@@ -6,21 +6,21 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
   attributeMovement,
   attributeRegions,
-  buildDocket,
   componentInstances,
   composeSubjects,
-  diffSnapshots,
   formatSource,
   indexSource,
   isolateRegions,
   locateInstability,
   mergeSourceIndexes,
-  normalize,
   rankRegions,
   resolveSource,
   type RankedRegion,
-  type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
+import { buildDocket } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { comparePngs } from '@variance-authority/png';
 import { pageAgentBundle } from '../test/page-agent-bundle.js';

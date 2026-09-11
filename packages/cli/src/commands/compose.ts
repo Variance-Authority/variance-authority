@@ -3,8 +3,6 @@ import {
   composeSubjects,
   lexiconOf,
   structureOf,
-  BANDS,
-  type Band,
   type Divergence,
   type Echo,
   type Evidence,
@@ -14,7 +12,8 @@ import {
   overlaySourceIndex,
   type SourceIndex,
   type SubjectComposition,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import { BANDS, type Band } from '@variance-authority/core/compare';
 import type {
   CompositionReport,
   DivergenceRecord,

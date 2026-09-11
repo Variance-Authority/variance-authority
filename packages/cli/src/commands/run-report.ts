@@ -1,4 +1,4 @@
-import type { Diagnostic } from '@variance-authority/core';
+import type { Diagnostic } from '@variance-authority/core/format';
 import type { NotObserved, ObservationRecord, RunReport } from '@variance-authority/report';
 import { readRunReport, writeRunReport } from '@variance-authority/report/file';
 

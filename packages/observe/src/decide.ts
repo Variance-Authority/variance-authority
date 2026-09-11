@@ -1,18 +1,16 @@
 import {
-  absorbsEntirely,
   attributeRegions,
   bandsBetween,
-  relaxes,
   excludedBoxes,
-  fingerprintOfMask,
   isolateRegions,
   subtractRegions,
   type AttributedRegion,
   type DiffRegion,
   type Isolation,
-  type Raster,
-} from '@variance-authority/core';
-import type { Diagnostic, SemanticSnapshot } from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { Raster } from '@variance-authority/core/format';
+import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority/core/judge';
+import type { Diagnostic, SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
 import type { RasterComparison } from '@variance-authority/raster';
 import { attributionOf } from './attribution.js';

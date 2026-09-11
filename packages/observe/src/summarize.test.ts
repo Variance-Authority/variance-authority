@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { indexSource } from '@variance-authority/core';
-import type { AttributedRegion } from '@variance-authority/core';
+import { indexSource } from '@variance-authority/core/attribute';
+import type { AttributedRegion } from '@variance-authority/core/attribute';
 import type { Observation } from './observe.js';
 import { summarizeObservation } from './summarize.js';
 

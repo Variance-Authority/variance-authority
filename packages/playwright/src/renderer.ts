@@ -22,7 +22,7 @@ import {
   type RenderDocument,
   type RenderIdentity,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { captureSubject } from './capture.js';
 import {
   assemble,

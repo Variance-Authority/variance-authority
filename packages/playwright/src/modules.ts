@@ -1,4 +1,4 @@
-import type { FetchModule } from '@variance-authority/core';
+import type { FetchModule } from '@variance-authority/core/attribute';
 import type { Page } from 'playwright';
 
 /**

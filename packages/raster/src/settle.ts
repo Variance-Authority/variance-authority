@@ -1,4 +1,8 @@
-import type { AccessibilitySnapshot, Digest, RenderIdentity } from '@variance-authority/core';
+import type {
+  AccessibilitySnapshot,
+  Digest,
+  RenderIdentity,
+} from '@variance-authority/core/format';
 import { describeIdentity } from './renderer.js';
 import type { Described } from './store.js';
 

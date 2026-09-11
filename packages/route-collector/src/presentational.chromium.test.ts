@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { crc32, deflateSync } from 'node:zlib';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { SemanticNode } from '@variance-authority/core';
+import type { SemanticNode } from '@variance-authority/core/format';
 import { routeCollector, type Collected, type Collector, type Plan } from './index.js';
 
 /**

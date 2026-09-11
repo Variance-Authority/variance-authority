@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import type { ObservationRecord } from '@variance-authority/report';
 import { DEFAULT_LIMITS as PUBLIC_DEFAULT_LIMITS } from '@variance-authority/cli';
 import { COMMENT_MARKER, renderComment } from './comment.js';

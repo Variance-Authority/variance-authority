@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { digestString, type FileRecord } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
+import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
 import { deviationFromView } from './deviation.js';
 import {

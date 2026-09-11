@@ -1,8 +1,9 @@
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import type { Observation } from '@variance-authority/observe';
-import { createDeclarationReader, createPlaywrightRenderer } from '@variance-authority/playwright';
+import { createDeclarationReader } from '@variance-authority/playwright';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
-import { createDurableStore } from '@variance-authority/store';
+import { createDurableStore } from '@variance-authority/store/durable';
 import { bundlePageAgent } from './bundle.js';
 import { observeLocator } from './fixture.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';

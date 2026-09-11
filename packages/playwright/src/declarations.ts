@@ -1,11 +1,10 @@
 import {
   createCallSiteResolver,
-  relativizeSource,
   type FetchModule,
   type SourceIndex,
   type SourceRef,
-  type StackFrame,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import { relativizeSource, type StackFrame } from '@variance-authority/core/format';
 import type { CDPSession, Page } from 'playwright';
 import { AGENT_GLOBAL } from './agent.js';
 import { fetchModules } from './modules.js';

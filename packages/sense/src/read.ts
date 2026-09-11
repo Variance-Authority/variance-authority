@@ -57,7 +57,7 @@
  */
 
 import { parseSync } from 'oxc-parser';
-import type { EdgeKind } from '@variance-authority/core';
+import type { EdgeKind } from '@variance-authority/core/relate';
 
 /**
  * The imported name of a default import, and the exported name of a default

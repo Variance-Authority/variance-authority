@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { normalize, type Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import { createSession } from './session.js';
 

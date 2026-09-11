@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import { OperatorError, exitFor } from '../exit.js';
 import { mergeReports, type Shard } from './merge.js';
 import { shardFilterBecause, type CliRunReport } from './run-report.js';

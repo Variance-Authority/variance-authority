@@ -1,6 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { indexSource, mergeSourceIndexes, type SourceIndex } from '@variance-authority/core';
+import {
+  indexSource,
+  mergeSourceIndexes,
+  type SourceIndex,
+} from '@variance-authority/core/attribute';
 
 /**
  * This example's own source, indexed by component name.

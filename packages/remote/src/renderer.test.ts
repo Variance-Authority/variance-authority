@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
-import { documentDigest } from '@variance-authority/core';
+import type {
+  Raster,
+  RenderDocument,
+  RenderIdentity,
+  Viewport,
+} from '@variance-authority/core/format';
+import { documentDigest } from '@variance-authority/core/format';
 import { identityAtScale, type Renderer } from '@variance-authority/raster';
 import { connectRenderer, serveRenderer, type RenderServer } from './renderer.js';
 

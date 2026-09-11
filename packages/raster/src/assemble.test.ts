@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderDocument, Viewport } from '@variance-authority/core';
+import type { RenderDocument, Viewport } from '@variance-authority/core/format';
 import { assemble } from './assemble.js';
 
 /**

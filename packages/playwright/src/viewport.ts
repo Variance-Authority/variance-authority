@@ -1,4 +1,4 @@
-import type { Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core/format';
 
 /**
  * What a subject can ask of a page that is already open, and what it cannot.

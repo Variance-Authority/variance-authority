@@ -1,4 +1,4 @@
-import type { Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core/format';
 
 /**
  * The contract between the harness (Node) and the page (browser).

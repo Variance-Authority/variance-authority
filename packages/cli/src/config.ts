@@ -1,5 +1,5 @@
 import { dirname, resolve } from 'node:path';
-import { profileById, type ProfileId, type Viewport } from '@variance-authority/core';
+import { profileById, type ProfileId, type Viewport } from '@variance-authority/core/format';
 import type { Retention } from '@variance-authority/raster';
 import {
   fail,

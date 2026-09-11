@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { identityDigest } from '@variance-authority/core';
-import type { Raster, RenderDocument, RenderIdentity, Viewport } from '@variance-authority/core';
+import { identityDigest } from '@variance-authority/core/format';
+import type {
+  Raster,
+  RenderDocument,
+  RenderIdentity,
+  Viewport,
+} from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import type { Config } from '../config.js';

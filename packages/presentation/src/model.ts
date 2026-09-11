@@ -3,7 +3,7 @@ import type {
   Digest,
   Rect,
   SubjectRef,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 
 export type PresentationFindingRule =
   | 'SEPARATION_COLLISION'

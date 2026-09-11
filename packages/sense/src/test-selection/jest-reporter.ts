@@ -18,7 +18,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { commitOf } from './commit.js';
 import { digestsOnDisk, existingCoverage, mergeCoverage } from './merge.js';

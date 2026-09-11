@@ -1,4 +1,4 @@
-import type { RawCapture, RawNode, Rect } from '@variance-authority/core';
+import type { RawCapture, RawNode, Rect } from '@variance-authority/core/format';
 import type {
   PresentationNode,
   PresentationRelation,

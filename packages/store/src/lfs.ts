@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { Raster } from '@variance-authority/core';
+import type { Raster } from '@variance-authority/core/format';
 import { neverFails, RasterStoreError, REFUSAL } from '@variance-authority/raster';
 import type { Described, Found, RasterStore } from '@variance-authority/raster';
 import { createDurableStore, type BaselineLayout } from './durable.js';

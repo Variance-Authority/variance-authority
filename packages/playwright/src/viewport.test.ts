@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core/format';
 import { unresizable } from './viewport.js';
 
 /**

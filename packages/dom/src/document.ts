@@ -1,12 +1,12 @@
-import {
-  type Diagnostic,
-  type MatchedRule,
-  type ObservationProfile,
-  type RenderDocument,
-  type FrameElement,
-  type SubjectRef,
-  type Viewport,
-} from '@variance-authority/core';
+import type {
+  Diagnostic,
+  MatchedRule,
+  ObservationProfile,
+  RenderDocument,
+  FrameElement,
+  SubjectRef,
+  Viewport,
+} from '@variance-authority/core/format';
 import { detectProfile } from './collect.js';
 import { inheritedSeed } from './inherit.js';
 import { indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';

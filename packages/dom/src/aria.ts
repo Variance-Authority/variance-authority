@@ -1,4 +1,4 @@
-import type { RawAria } from '@variance-authority/core';
+import type { RawAria } from '@variance-authority/core/format';
 
 /**
  * Role, accessible name, and state.

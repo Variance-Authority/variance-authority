@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { AccessibilitySnapshot } from '@variance-authority/core';
+import type { AccessibilitySnapshot } from '@variance-authority/core/format';
 import { pngSize } from '@variance-authority/png';
 import type { ReviewConfig } from '../config.js';
 import { OperatorError } from '../exit.js';

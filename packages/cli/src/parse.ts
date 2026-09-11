@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { countOf, noPositionals, readFlags } from './args.js';
-import type { ProfileId } from '@variance-authority/core';
+import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand } from './usage.js';

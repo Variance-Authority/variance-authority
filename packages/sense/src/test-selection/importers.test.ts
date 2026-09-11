@@ -1,4 +1,4 @@
-import { relationsOf } from '@variance-authority/core';
+import { relationsOf } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
 import { encodeTestCoverage, openTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';

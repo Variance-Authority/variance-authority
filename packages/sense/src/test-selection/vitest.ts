@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { EVALUATING, INSTRUMENTATION_ID, instrument } from '../instrument/index.js';

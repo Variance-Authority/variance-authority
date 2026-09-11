@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { causesBetween, hashComponents, indexSource, normalize } from '@variance-authority/core';
+import { causesBetween, hashComponents, indexSource } from '@variance-authority/core/attribute';
+import { normalize } from '@variance-authority/core/rules';
 import { createHarness } from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { SUBJECTS } from '../src/system.js';

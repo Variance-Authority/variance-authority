@@ -29,7 +29,7 @@
  * declarations and throws, exposing that configuration error at its first probe.
  */
 
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 import { parseSync } from 'oxc-parser';
 import { walkBlocks, type Block, type BlockKind, type Edit } from './blocks.js';
 

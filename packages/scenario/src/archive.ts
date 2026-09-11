@@ -4,7 +4,7 @@ import {
   type CanonicalValue,
   type Digest,
   type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';

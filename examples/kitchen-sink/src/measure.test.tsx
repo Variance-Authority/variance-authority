@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  buildDocket,
   diffSnapshots,
   loudestBand,
   type Band,
   type SemanticDiff,
-} from '@variance-authority/core';
+} from '@variance-authority/core/compare';
+import { buildDocket } from '@variance-authority/core/judge';
 import { jsdomSnapshot } from './jsdom-profile.js';
 import {
   CONTESTED_CORPUS,

@@ -43,7 +43,7 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { digestString } from '@variance-authority/core';
+import { digestString } from '@variance-authority/core/format';
 import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { commitOf } from './commit.js';
 import { encodeTestCoverage } from './format.js';

@@ -3,7 +3,7 @@ import {
   type Diagnostic,
   type Digest,
   type RenderResource,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import type { Page, Route } from 'playwright';
 import {
   type BlankRule,

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { Raster } from '@variance-authority/core';
+import type { Raster } from '@variance-authority/core/format';
 import type { HistoryStore } from '@variance-authority/history';
 import type { RasterStore } from '@variance-authority/raster';
 import {

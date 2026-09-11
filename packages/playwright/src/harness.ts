@@ -1,5 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import type { RawCapture, Viewport } from '@variance-authority/core';
+import type { RawCapture, Viewport } from '@variance-authority/core/format';
 import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
 
 /**

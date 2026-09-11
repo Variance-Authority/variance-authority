@@ -10,7 +10,7 @@ import {
   type RenderDocument,
   type RenderIdentity,
   type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import {
   RasterStoreError,
   createEphemeralStore,

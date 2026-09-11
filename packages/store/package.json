@@ -23,10 +23,6 @@
   },
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
     "./durable": {
       "types": "./dist/durable.d.ts",
       "default": "./dist/durable.js"
@@ -40,8 +36,6 @@
       "default": "./dist/changelog.js"
     }
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",

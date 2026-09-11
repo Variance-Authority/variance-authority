@@ -1,4 +1,10 @@
-import { identityDigest, type AccessibilitySnapshot, type Digest, type Raster, type RenderIdentity } from '@variance-authority/core';
+import {
+  identityDigest,
+  type AccessibilitySnapshot,
+  type Digest,
+  type Raster,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 
 /**
  * Retention — the two modes, and the honest difference between them.

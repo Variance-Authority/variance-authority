@@ -1,9 +1,9 @@
 import {
   indexSource,
   mergeSourceIndexes,
-  type Relations,
   type SourceIndex,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { Relations } from '@variance-authority/core/relate';
 import { componentsReached, many, refused, within } from './reach.js';
 
 /**

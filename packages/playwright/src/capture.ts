@@ -1,5 +1,5 @@
 import type { Page } from 'playwright';
-import type { ScreenshotOptions, Viewport } from '@variance-authority/core';
+import type { ScreenshotOptions, Viewport } from '@variance-authority/core/format';
 import { SUBJECT_PATH } from '@variance-authority/raster';
 
 /**

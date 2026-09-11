@@ -1,4 +1,4 @@
-import { profileById, type ProfileId } from '@variance-authority/core';
+import { profileById, type ProfileId } from '@variance-authority/core/format';
 import { approvalKey, type Approval } from './approval.js';
 import { instant } from './instant.js';
 import type { Band, Observation, RunRecord } from './observation.js';

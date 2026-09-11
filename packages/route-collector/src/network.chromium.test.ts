@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { documentDigest } from '@variance-authority/core';
+import { documentDigest } from '@variance-authority/core/format';
 import {
   routeCollector,
   type Collected,

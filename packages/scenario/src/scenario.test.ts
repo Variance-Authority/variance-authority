@@ -6,7 +6,7 @@ import {
   type Diagnostic,
   type ObservationProfile,
   type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { describe, expect, it } from 'vitest';
 import {
   assessScenarios,

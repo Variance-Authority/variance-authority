@@ -1,9 +1,6 @@
-import {
-  BANDS as FREQUENCY_BANDS,
-  resolveSource,
-  type ComponentHash,
-  type SourceIndex,
-} from '@variance-authority/core';
+import { resolveSource, type SourceIndex } from '@variance-authority/core/attribute';
+import { BANDS as FREQUENCY_BANDS } from '@variance-authority/core/compare';
+import type { ComponentHash } from '@variance-authority/core/format';
 import type { FrequencyBand, Instability, RunRecord, TokenValue } from '@variance-authority/history';
 import type { SubjectHistory } from './history.js';
 

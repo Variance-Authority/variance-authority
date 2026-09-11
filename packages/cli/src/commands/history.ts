@@ -1,4 +1,5 @@
-import { hashComponents, type SemanticSnapshot, type SourceIndex } from '@variance-authority/core';
+import { hashComponents, type SourceIndex } from '@variance-authority/core/attribute';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
 import {
   detectDrift,
   isKept,

@@ -7,7 +7,8 @@
  * never existed together.
  */
 
-import type { Digest, FileRecord } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
+import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, Parsed } from './cache.js';
 import type { RecordCache } from './reuse.js';
 import { readSourceIndex, writeSourceIndex } from './source-index-file.js';

@@ -12,7 +12,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import type { ProfileId } from '@variance-authority/core';
+import type { ProfileId } from '@variance-authority/core/format';
 import { CONTESTED_CORPUS, CORPUS, SETTLED_CORPUS, casesFor, expectationFor } from './corpus.js';
 
 const PROFILE_IDS: readonly ProfileId[] = ['jsdom', 'chromium'];

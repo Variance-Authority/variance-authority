@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Viewport } from '@variance-authority/core';
+import type { Viewport } from '@variance-authority/core/format';
 import { captureSubject, outward } from './capture.js';
 
 /**

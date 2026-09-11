@@ -1,4 +1,4 @@
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 import {
   APPROVALS_PATH,
   CHURN_PATH,

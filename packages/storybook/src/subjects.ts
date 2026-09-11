@@ -1,4 +1,4 @@
-import type { SubjectRef, Viewport } from '@variance-authority/core';
+import type { SubjectRef, Viewport } from '@variance-authority/core/format';
 import type { ExcludedEntry, StoryEntry, StoryIndex } from './index-file.js';
 
 /**

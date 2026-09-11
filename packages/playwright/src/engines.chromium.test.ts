@@ -7,7 +7,7 @@ import {
   type Raster,
   type RenderDocument,
   type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
 import { DEFAULT_POLICY, type Renderer } from '@variance-authority/raster';
 import { createPlaywrightRenderer } from './renderer.js';

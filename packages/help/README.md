@@ -41,7 +41,7 @@ collect [function] packages/dom/src/collect.ts:183 — used by 13 packages: …
 
 | entrypoint | requires | holds |
 |---|---|---|
-| `.` | stdio, to serve | everything, plus `serveWorkspace` and `writePages` |
+| `.` | stdio, to serve | `serveWorkspace` and `writePages` |
 | `@variance-authority/help/tools` | nothing | the five answers, as pure functions from a reading to text |
 
 The tools in `@variance-authority/help/tools` are plain functions with no MCP

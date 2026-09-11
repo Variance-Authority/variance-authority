@@ -6,7 +6,7 @@
  * shape at once is read by nobody looking for one of them.
  */
 
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 
 /** How one relationship condition changed between comparable presentation readings. */
 export type PresentationEffectTransition = 'introduced' | 'resolved' | 'persisted';

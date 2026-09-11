@@ -1,4 +1,4 @@
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 import type { ScenarioActRef, ScenarioRun } from './contract.js';
 import { assertScenarioRun } from './execution.js';
 

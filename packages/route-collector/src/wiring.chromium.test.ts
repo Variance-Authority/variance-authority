@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { SemanticNode } from '@variance-authority/core';
+import type { SemanticNode } from '@variance-authority/core/format';
 import { routeCollector, type Collector, type Plan, type RouteCollectorOptions } from './index.js';
 
 /**

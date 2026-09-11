@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Digest } from '@variance-authority/core';
+import type { Digest } from '@variance-authority/core/format';
 import type { Observation, RunRecord, TokenValue, Window } from '@variance-authority/history';
 import {
   HistoryWriteConflict,

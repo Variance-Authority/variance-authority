@@ -27,7 +27,7 @@
  * anything is scored in.
  */
 
-import type { ProfileId } from '@variance-authority/core';
+import type { ProfileId } from '@variance-authority/core/format';
 import type {
   CorpusCase,
   ExpectedBand,

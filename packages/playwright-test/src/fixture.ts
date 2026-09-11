@@ -6,30 +6,27 @@ import type {
   PlaywrightWorkerArgs,
   TestInfo,
 } from '@playwright/test';
-import {
-  digestValue,
-  documentDigest,
-  hashComponents,
-  normalize,
-  overlaySourceIndex,
-} from '@variance-authority/core';
+import { hashComponents, overlaySourceIndex } from '@variance-authority/core/attribute';
+import { digestValue, documentDigest } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
+import type { CaptureArtifact } from '@variance-authority/core';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 import type {
-  CaptureArtifact,
   AccessibilitySnapshot,
   SemanticSnapshot,
-  SourceIndex,
   SubjectRef,
   Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import {
   observeAgainstBaseline,
   observeCaptureAgainstBaseline,
   type Observation,
 } from '@variance-authority/observe';
-import { createDeclarationReader, createPlaywrightRenderer, type DeclarationReader } from '@variance-authority/playwright';
+import { createDeclarationReader, type DeclarationReader } from '@variance-authority/playwright';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import { settle, type BaselineKey, type RasterStore, type Renderer } from '@variance-authority/raster';
 import { suspenseRefusal } from '@variance-authority/react';
-import { createDurableStore } from '@variance-authority/store';
+import { createDurableStore } from '@variance-authority/store/durable';
 import { accepted } from './accepted.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';

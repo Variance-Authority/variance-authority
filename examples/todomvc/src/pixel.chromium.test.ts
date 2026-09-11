@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { normalize } from '@variance-authority/core';
+import { normalize } from '@variance-authority/core/rules';
 import { createHarness, type Harness } from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { MUTATIONS } from './mutations.js';

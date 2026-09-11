@@ -1,4 +1,4 @@
-import { relationsOfFiles } from '@variance-authority/core';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
 import { reachOf } from './reach.js';
 

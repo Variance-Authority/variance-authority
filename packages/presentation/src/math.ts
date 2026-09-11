@@ -1,4 +1,4 @@
-import type { Rect } from '@variance-authority/core';
+import type { Rect } from '@variance-authority/core/format';
 
 export const round = (value: number, places = 3): number => {
   const scale = 10 ** places;

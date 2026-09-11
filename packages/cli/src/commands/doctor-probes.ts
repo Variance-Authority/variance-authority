@@ -1,7 +1,7 @@
 import { access, readdir } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
-import { createPlaywrightRenderer } from '@variance-authority/playwright';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
 

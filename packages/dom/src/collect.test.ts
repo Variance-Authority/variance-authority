@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { normalize, diffSnapshots, JSDOM_PROFILE, type Viewport } from '@variance-authority/core';
+import { diffSnapshots } from '@variance-authority/core/compare';
+import { JSDOM_PROFILE, type Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from './collect.js';
 import { indexStyleSheets } from './css-index.js';
 import { stabilizeForObservation } from './index.js';

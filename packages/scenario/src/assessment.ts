@@ -5,8 +5,8 @@ import {
   explainParting,
   observableBands,
   partingOf,
-  type SemanticSnapshot,
-} from '@variance-authority/core';
+} from '@variance-authority/core/compare';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
 import type {
   ScenarioActRef,
   ScenarioAssessment,

@@ -29,7 +29,6 @@ could have changed at all without comparing any images.
 
 | entrypoint | requires | holds, and when you want it |
 |---|---|---|
-| `.` | a filesystem, and `git` if you use the LFS store | both backends and the shared layout. Take it when the store is chosen from config at runtime rather than at import. |
 | `./durable` | a filesystem | baselines in a plain directory. The single-machine and self-hosted-runner case: nothing to install, and nothing shares them. |
 | `./lfs` | a filesystem and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
 | `./changelog` | `git` and a repository | reading back **why** a baseline is what it is. Take it when you are building a history view rather than running a comparison; nothing in the render path imports it. |

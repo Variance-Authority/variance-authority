@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 import {
   environmentKey,
   profileById,
   type RenderDocument,
   type SemanticSnapshot,
-  type SourceIndex,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import type { Found } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
 import type { Collected, Collector, Plan } from './run.js';

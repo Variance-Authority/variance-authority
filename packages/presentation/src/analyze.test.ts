@@ -6,7 +6,7 @@ import {
   type RawCapture,
   type RawNode,
   type Rect,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { analyzePresentation } from './analyze.js';
 import { comparePresentation } from './compare.js';
 import { presentationSignal } from './report.js';

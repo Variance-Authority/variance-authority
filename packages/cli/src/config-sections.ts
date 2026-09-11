@@ -1,5 +1,5 @@
-import type { Viewport } from '@variance-authority/core';
-import type { BaselineLayout } from '@variance-authority/store';
+import type { Viewport } from '@variance-authority/core/format';
+import type { BaselineLayout } from '@variance-authority/store/durable';
 import {
   declaredSecret,
   fail,

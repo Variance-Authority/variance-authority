@@ -1,4 +1,4 @@
-import { propsDigest, type Digest } from '@variance-authority/core';
+import { propsDigest, type Digest } from '@variance-authority/core/format';
 
 /**
  * The props digest at one composite boundary, computed once for both readers.

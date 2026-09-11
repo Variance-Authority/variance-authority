@@ -21,7 +21,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { normalize } from '@variance-authority/core';
+import { normalize } from '@variance-authority/core/rules';
 import { createHarness } from '@variance-authority/playwright';
 import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
 import { MUTATIONS, STORIES } from '../dist/index.js';

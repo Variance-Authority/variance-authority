@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { accessibilitySnapshot, type Raster, type RenderIdentity } from '@variance-authority/core';
+import {
+  accessibilitySnapshot,
+  type Raster,
+  type RenderIdentity,
+} from '@variance-authority/core/format';
 import { createEphemeralStore, identityFrom, neverFails } from './store.js';
 import { rasterFrom } from './codec.js';
 

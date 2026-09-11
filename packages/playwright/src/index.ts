@@ -16,9 +16,10 @@
  *   only place `EnvironmentInputs.assets` can come from and the only place an
  *   animated GIF can be frozen without a canvas and a CORS grant.
  *
- * `./agent` is a third entrypoint and the reason there are entrypoints at all: it
- * is the page-side half, bundled into the browser, and it must be importable
- * without dragging Playwright in behind it.
+ * The harness and the network observation are this entrypoint. `./renderer` is
+ * its own, and `./agent` is the reason there are entrypoints at all: it is the
+ * page-side half, bundled into the browser, and it must be importable without
+ * dragging Playwright in behind it.
  *
  * See `docs/context/journal/0007-persistent-harness-and-p4.md` for what the
  * persistence is worth in wall-clock terms, and how to reproduce it.
@@ -26,9 +27,6 @@
 
 export { createHarness, captureOnce } from './harness.js';
 export type { Harness, HarnessOptions } from './harness.js';
-
-export { CHROMIUM_RASTER_ARGS, createPlaywrightRenderer } from './renderer.js';
-export type { BrowserEngine, PlaywrightRendererOptions } from './renderer.js';
 
 export { unresizable } from './viewport.js';
 export { observeNetwork } from './network.js';
@@ -43,6 +41,4 @@ export { fetchModules } from './modules.js';
 export { createDeclarationReader } from './declarations.js';
 export type { DeclarationReader, DeclarationReaderOptions, DeclarationStats } from './declarations.js';
 
-export { AGENT_GLOBAL } from './agent.js';
 export { acquireFromAgent } from './acquire.js';
-export type { CaptureRequest, DeclaredComponents, PageAgent } from './agent.js';

@@ -1,6 +1,6 @@
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
-import { isolateRegions } from '@variance-authority/core';
+import { isolateRegions } from '@variance-authority/core/attribute';
 import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
 import { comparePngs } from './compare.js';
 import { comparePixels } from './index.js';

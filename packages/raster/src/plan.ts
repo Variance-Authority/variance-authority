@@ -1,14 +1,11 @@
 import {
-  ALLOWLIST_VERSION,
   RASTER_RECIPE,
-  RULESET_VERSION,
   digestValue,
-  planIdentity,
   recipeDigest,
-  type Plan,
   type Recipe,
-  type ToolDeclaration,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
+import { planIdentity, type Plan, type ToolDeclaration } from '@variance-authority/core/plan';
+import { ALLOWLIST_VERSION, RULESET_VERSION } from '@variance-authority/core/rules';
 import { DEFAULT_POLICY, type DiffPolicy } from './policy.js';
 
 /**

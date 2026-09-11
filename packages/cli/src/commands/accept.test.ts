@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Raster, RenderIdentity } from '@variance-authority/core';
+import type { Raster, RenderIdentity } from '@variance-authority/core/format';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 import { createEphemeralStore } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';

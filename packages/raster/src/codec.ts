@@ -4,7 +4,7 @@ import {
   type ComponentHash,
   type Raster,
   type Rect,
-} from '@variance-authority/core';
+} from '@variance-authority/core/format';
 import { identityFrom, recordFrom } from './store.js';
 
 /** Read the verdict-bearing sidecar shared by disk, wire, and bucket stores. */

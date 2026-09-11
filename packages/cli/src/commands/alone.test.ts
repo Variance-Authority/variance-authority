@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderDocument } from '@variance-authority/core';
+import type { RenderDocument } from '@variance-authority/core/format';
 import type { Found } from '@variance-authority/raster';
 import type { Collector, Plan } from './run.js';
 import {

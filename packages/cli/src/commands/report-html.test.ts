@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RenderIdentity } from '@variance-authority/core';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import { OperatorError } from '../exit.js';
 import { formatReport } from './report.js';
 import { reportHtml } from './report-html.js';

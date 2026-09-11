@@ -1,4 +1,4 @@
-import { readChangelog, wasRead, type ChangelogCommit } from '@variance-authority/store';
+import { readChangelog, wasRead, type ChangelogCommit } from '@variance-authority/store/changelog';
 import type { ChangelogEntry } from '@variance-authority/report';
 import type { Config } from '../config.js';
 import { OperatorError } from '../exit.js';

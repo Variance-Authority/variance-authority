@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { inspect, type SemanticSnapshot } from '@variance-authority/core';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
+import { inspect } from '@variance-authority/core/judge';
 // @ts-expect-error — a plain .mjs script, deliberately not part of the TS build.
 import { stale } from '../scripts/bundle.mjs';
 import { createHarness, type Harness } from '@variance-authority/playwright';

@@ -9,10 +9,8 @@ import {
   locateSites,
   type CallSiteResolver,
   type LocatableSite,
-  type SemanticNode,
-  type SemanticSnapshot,
-  type SourceLocation,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { SemanticNode, SemanticSnapshot, SourceLocation } from '@variance-authority/core/format';
 import { routeCollector, type Collector, type Plan } from './index.js';
 
 /**

@@ -4,12 +4,11 @@ import {
   composeSubjects,
   componentInstances,
   lexiconOf,
-  normalize,
   type LexiconField,
-  type SemanticSnapshot,
   type SubjectComposition,
-  type Viewport,
-} from '@variance-authority/core';
+} from '@variance-authority/core/attribute';
+import type { SemanticSnapshot, Viewport } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import { locateSubjects } from '@variance-authority/mcp';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';

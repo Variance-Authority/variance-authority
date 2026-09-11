@@ -2,18 +2,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  adjudicate,
-  buildDocket,
-  diffSnapshots,
-  indexSource,
-  mergeSourceIndexes,
-  normalize,
-  summarizeAdjudication,
-  type SemanticDiff,
-  
-  type Viewport,
-} from '@variance-authority/core';
+import { indexSource, mergeSourceIndexes } from '@variance-authority/core/attribute';
+import { diffSnapshots, type SemanticDiff } from '@variance-authority/core/compare';
+import type { Viewport } from '@variance-authority/core/format';
+import { adjudicate, buildDocket, summarizeAdjudication } from '@variance-authority/core/judge';
+import { normalize } from '@variance-authority/core/rules';
 import { collect } from '@variance-authority/dom';
 import { portalContentOf, provenanceOf } from '@variance-authority/react';
 import { POLICY, changesetById, mutationsOf, type Changeset } from './changesets.js';
