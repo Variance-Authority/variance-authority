@@ -31,6 +31,8 @@ import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import selecting from "../../../docs/selecting.md?raw";
 import sourceIndex from "../../../docs/source-index.md?raw";
+import sourceStructures from "../../../docs/source-structures.md?raw";
+import executionRecord from "../../../docs/execution-record.md?raw";
 import source from "../../../docs/source.md?raw";
 import stabilization from "../../../docs/stabilization.md?raw";
 import start from "../../../docs/start.md?raw";
@@ -86,6 +88,8 @@ const documents = [
   ["source", source, "docs/source.md"],
   ["selecting", selecting, "docs/selecting.md"],
   ["source-index", sourceIndex, "docs/source-index.md"],
+  ["source-structures", sourceStructures, "docs/source-structures.md"],
+  ["execution-record", executionRecord, "docs/execution-record.md"],
   ["observability", observability, "docs/observability.md"],
   ["journeys", journeys, "docs/journeys.md"],
   ["presentation", presentation, "docs/presentation.md"],

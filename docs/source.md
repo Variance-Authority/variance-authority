@@ -218,22 +218,23 @@ integer ids, edges are stored compressed-sparse-row, and both directions are
 materialized, because the traversal that matters runs *backwards* — from a
 changed file to everything that rests on it.
 
-Six edge kinds are kept, and they are kept because they explain a finding rather
-than because the default traversal narrows on them:
+Six edge kinds are kept because they explain a finding. One of them also
+decides a walk:
 
 | kind | |
 |---|---|
 | `imports` | a value import |
 | `reexports` | an import that also republishes |
 | `dynamic` | `import()` with a literal specifier |
-| `type` | erased before anything renders, and still walked by default |
+| `type` | erased before anything renders, and not walked unless asked |
 | `asset` | a stylesheet's `@import`, or a `url()` reaching a font or an image |
 | `declared-in` | a component to the file that declares it |
 
-`type` is the one worth stating: every compiler erases it, so it can move no
-pixel, and the default traversal walks it anyway. A subject skipped in error is a
-green run over an unwatched surface; a subject observed in error costs one
-collection.
+`type` is the one worth stating: every compiler erases it, so a change behind
+a type-only import runs no test and moves no pixel, and the default traversal
+leaves it out. A caller whose question is about source rather than a runtime, a
+docgen reading prop types for instance, passes `through: EDGE_KINDS` and walks
+it.
 
 `movedBy` walks the changed set backwards and returns four things: the files and
 components it reached, the changed paths the graph holds no node for, the files
@@ -301,6 +302,8 @@ can, in principle, shadow a resolution. That is the one gap, it is bounded by
 
 **Further:** [`selecting.md`](selecting.md) for what a run does with this graph ·
 [`source-index.md`](source-index.md) for the persisted binary format ·
+[`source-structures.md`](source-structures.md) for the keys, lookups and
+costs of every structure the scan builds ·
 [`packages/sense`](../packages/sense) for the API ·
 [ADR-0038](context/adr/0038-a-change-reaches-a-component-through-files.md) for
 why a change reaches a component through files ·

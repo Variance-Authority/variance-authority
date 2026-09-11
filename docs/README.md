@@ -47,7 +47,9 @@ read.
 [Source reach](source.md) establishes what a change could affect before a
 browser opens. [Test selection](selecting.md) combines that static answer with
 observed execution, and the [source index](source-index.md) defines the
-generation both readings share.
+generation both readings share. [Source structures](source-structures.md) and
+[the execution record](execution-record.md) are the references for the two
+sides: keys, lookups, traces, and what each costs.
 
 ### There is no approved image to compare
 

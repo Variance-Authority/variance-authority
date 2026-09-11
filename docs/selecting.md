@@ -323,6 +323,8 @@ second run onward.
 **Further:** [`flows.md`](flows.md) for where baselines live ·
 [`source.md`](source.md) for how the scan reads a file, resolves a specifier and
 remembers both ·
+[`execution-record.md`](execution-record.md) for the keys, lookups, traces
+and costs of the coverage file ·
 [`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
 [`packages/cli`](../packages/cli) for the rest of the command line ·
 [`comparison.md §2`](comparison.md#chromatic) for what TurboSnap does that this

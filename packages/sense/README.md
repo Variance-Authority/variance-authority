@@ -833,4 +833,5 @@ asks exactly this of its caller.
 
 ## Related contracts
 
+- [`docs/source-structures.md`](../../docs/source-structures.md) and [`docs/execution-record.md`](../../docs/execution-record.md) are the references for the structures this package reads and writes: primary keys, lookups, traces, and their costs.
 - `@variance-authority/core` turns records into relations and answers selection questions.
