@@ -69,12 +69,12 @@ export type NodeKind = (typeof NODE_KINDS)[number];
 /**
  * Edge kinds, in id order.
  *
- * The distinctions are kept because they explain a finding, not because the
- * default traversal narrows on them. `type` is erased by every compiler and can
- * change no rendering, and it is still walked unless a caller says otherwise —
- * for the reason every rule in selection resolves the same way: a subject skipped
- * in error is a green run over an unwatched surface, and a subject observed in
- * error costs a collection.
+ * The distinctions are kept because they explain a finding. One of them also
+ * decides a walk: `type` is erased by every compiler, so nothing behind it runs
+ * and nothing behind it renders, and the default traversal leaves it out
+ * (`RUNTIME_EDGES`). A caller whose question is about source rather than about a
+ * runtime — a docgen that reads prop types, a type-check gate — passes
+ * `EDGE_KINDS` and walks it.
  */
 export const EDGE_KINDS = [
   /** `import x from './y'` — a value import. */
@@ -91,6 +91,12 @@ export const EDGE_KINDS = [
   'declared-in',
 ] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
+
+/**
+ * The edge kinds something at runtime can follow: every kind but `type`. The
+ * default for a reach and for a closure, and the list a caller widens from.
+ */
+export const RUNTIME_EDGES: readonly EdgeKind[] = EDGE_KINDS.filter((kind) => kind !== 'type');
 
 export interface Node {
   readonly kind: NodeKind;

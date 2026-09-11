@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../format/hash.js';
-import { closureOf, driftedBetween, relationsOfFiles, type FileRecord } from './index.js';
+import {
+  CLOSURE_EDGES,
+  EDGE_KINDS,
+  RUNTIME_EDGES,
+  closureOf,
+  driftedBetween,
+  relationsOfFiles,
+  type FileRecord,
+} from './index.js';
 
 /**
  * A digest is a promise that two things are the same, and the only failure that
@@ -160,21 +168,36 @@ describe('a cycle', () => {
   });
 });
 
-describe('the closure a caller asked to narrow', () => {
-  it('walks only the edge kinds it was given', () => {
-    const records: readonly FileRecord[] = [
-      { file: 'types.ts', digest: at('types') },
-      { file: 'a.ts', digest: at('a'), edges: [{ to: 'types.ts', kind: 'type' }] },
-    ];
-    const content = new Map(records.map((record) => [record.file, record.digest!]));
-    const relations = relationsOfFiles(records);
+describe('the edge kinds a closure folds', () => {
+  it('are the runtime edges, listed on their own and tied here', () => {
+    // The closure lists its kinds rather than deriving them, so that widening
+    // the fold reads as the decision it is. This is the one place the two
+    // lists are held equal, so a reach and a closure answer the same question.
+    expect(CLOSURE_EDGES).toEqual(RUNTIME_EDGES);
+  });
 
-    const everything = closureOf({ relations, content });
-    const values = closureOf({ relations, content, through: ['imports', 'asset'] });
+  const records: readonly FileRecord[] = [
+    { file: 'types.ts', digest: at('types') },
+    { file: 'a.ts', digest: at('a'), edges: [{ to: 'types.ts', kind: 'type' }] },
+  ];
+  const content = new Map(records.map((record) => [record.file, record.digest!]));
+  const relations = relationsOfFiles(records);
 
-    // A type-only import cannot repaint anything, so a caller asking what a
-    // render rests on is entitled to leave it out — and gets a different digest
-    // for saying so, which is what keeps the two closures from being confused.
-    expect(values.digests.get('file:a.ts')).not.toBe(everything.digests.get('file:a.ts'));
+  it('leaves a type-only import out, so a change behind it drifts nothing', () => {
+    const moved = new Map(content).set('types.ts', at('types!'));
+
+    // A type-only import is erased before a render, so the importer's digest is
+    // a claim about what it runs, and `types.ts` is not among those inputs.
+    expect(driftedBetween(closureOf({ relations, content }), closureOf({ relations, content: moved })).files)
+      .toEqual(['types.ts']);
+  });
+
+  it('folds it for a caller who asks, and says so in the digest', () => {
+    const runtime = closureOf({ relations, content });
+    const source = closureOf({ relations, content, through: EDGE_KINDS });
+
+    // The two closures answer different questions, and a digest from one must
+    // never be mistaken for a hit in the other.
+    expect(source.digests.get('file:a.ts')).not.toBe(runtime.digests.get('file:a.ts'));
   });
 });

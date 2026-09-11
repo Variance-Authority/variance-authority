@@ -13,6 +13,7 @@
 export {
   EDGE_KINDS,
   NODE_KINDS,
+  RUNTIME_EDGES,
   idOf,
   keyOf,
   nodeAt,

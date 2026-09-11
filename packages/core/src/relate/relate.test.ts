@@ -133,6 +133,22 @@ describe('the graph', () => {
 
     expect(value.reached.map((id) => relations.names[id])).toEqual(['b.ts', 'types.ts']);
   });
+
+  it('does not cross a type-only import unless asked to', () => {
+    const relations = relationsOfFiles([
+      { file: 'a.ts', edges: [{ to: 'types.ts', kind: 'type' }] },
+      { file: 'b.ts', edges: [{ to: 'types.ts', kind: 'imports' }] },
+      { file: 'types.ts' },
+    ]);
+    const seed = idOf(relations, 'file', 'types.ts')!;
+
+    // Nothing behind `import type` runs, so a change to `types.ts` moves `b.ts`
+    // and leaves `a.ts` where it was — until a caller says its question is
+    // about source, not about a runtime.
+    expect(dependentsOf(relations, [seed]).reached.map((id) => relations.names[id])).toEqual(['b.ts', 'types.ts']);
+    expect(dependentsOf(relations, [seed], { through: EDGE_KINDS }).reached.map((id) => relations.names[id]))
+      .toEqual(['a.ts', 'b.ts', 'types.ts']);
+  });
 });
 
 describe('what a change moved', () => {

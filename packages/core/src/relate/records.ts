@@ -29,7 +29,7 @@ import {
   type Relation,
   type Relations,
 } from './graph.js';
-import { dependentsOf, trailOf, type Reach } from './reach.js';
+import { dependentsOf, trailOf, type Reach, type ReachOptions } from './reach.js';
 
 export interface FileEdge {
   /** Repository-relative, already resolved. A specifier is not an edge. */
@@ -164,9 +164,14 @@ export interface Reached {
  * too, and the cost is a collection rather than a green run over an unwatched
  * surface.
  *
- * One breadth-first search, whatever the number of changed files.
+ * One breadth-first search, whatever the number of changed files, over the
+ * runtime edges unless the caller names others.
  */
-export function movedBy(relations: Relations, changed: Iterable<string>): Reached {
+export function movedBy(
+  relations: Relations,
+  changed: Iterable<string>,
+  options: ReachOptions = {},
+): Reached {
   const seeds: NodeId[] = [];
   const missing: string[] = [];
 
@@ -185,7 +190,7 @@ export function movedBy(relations: Relations, changed: Iterable<string>): Reache
     opaque.push({ file: relations.names[id]!, ...(because === undefined ? {} : { because }) });
   }
 
-  const reach = dependentsOf(relations, seeds);
+  const reach = dependentsOf(relations, seeds, options);
   const files: string[] = [];
   const components: string[] = [];
 

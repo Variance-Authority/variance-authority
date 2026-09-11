@@ -295,17 +295,19 @@ function condense(relations: Relations, allowed: Uint8Array): Condensation {
  * The edge kinds a closure walks when the caller does not say.
  *
  * Listed rather than derived from `EDGE_KINDS`, and the difference is the whole
- * point. A digest is a claim about *which inputs* were folded, so widening the
- * fold silently changes every digest that exists — one added edge kind, and the
- * next run finds nothing it can prove unchanged and re-observes the entire suite
- * while reporting a successful narrowing. Adding a kind here is a decision with a
- * cost, and it should read like one.
+ * point. A digest is a claim about *which inputs* were folded, so changing the
+ * fold silently changes every digest that exists — one edge kind added or
+ * removed, and the next run finds nothing it can prove unchanged and re-observes
+ * the entire suite while reporting a successful narrowing. Changing this list is
+ * a decision with a cost, and it should read like one.
+ *
+ * `type` is not in it: a type-only import is erased before a render, so a change
+ * behind one is not an input the render folded.
  */
 export const CLOSURE_EDGES: readonly EdgeKind[] = [
   'imports',
   'reexports',
   'dynamic',
-  'type',
   'asset',
   'declared-in',
 ];

@@ -28,7 +28,7 @@
  * cycle terminates the same way any revisit does.
  */
 
-import { EDGE_KINDS, type Adjacency, type EdgeKind, type NodeId, type Relations } from './graph.js';
+import { EDGE_KINDS, RUNTIME_EDGES, type Adjacency, type EdgeKind, type NodeId, type Relations } from './graph.js';
 
 /**
  * What one walk from a set of seeds reached: a mark over every node, the node
@@ -49,12 +49,12 @@ export interface Reach {
 
 export interface ReachOptions {
   /**
-   * Edge kinds to walk. Every kind, when absent.
+   * Edge kinds to walk. `RUNTIME_EDGES` when absent: every kind but `type`.
    *
-   * The default is deliberately the widest one. Narrowing here is how a caller
-   * says *a type-only import cannot have moved a pixel*, which is true and is
-   * still not the default, because the cost of being wrong about it is a green
-   * run over a surface nobody looked at.
+   * A type-only import is erased before anything runs, so a change behind it
+   * moves no test and no pixel, and walking it selects work nothing can fail.
+   * A caller asking a question about source rather than about a runtime passes
+   * `EDGE_KINDS`, or any narrower list, and gets exactly those.
    */
   readonly through?: Iterable<EdgeKind>;
 }
@@ -126,7 +126,7 @@ function search(
     const end = adjacency.offset[node + 1]!;
 
     for (let at = adjacency.offset[node]!; at < end; at += 1) {
-      if (allowed !== undefined && allowed[adjacency.kind[at]!] !== 1) continue;
+      if (allowed[adjacency.kind[at]!] !== 1) continue;
 
       const next = adjacency.target[at]!;
       if (mask[next] === 1) continue;
@@ -146,12 +146,10 @@ function search(
   return { mask, via, reached };
 }
 
-/** A kind filter as a byte lookup, or `undefined` when every kind is walked. */
-function allowedKinds(through: Iterable<EdgeKind> | undefined): Uint8Array | undefined {
-  if (through === undefined) return undefined;
-
+/** A kind filter as a byte lookup. */
+function allowedKinds(through: Iterable<EdgeKind> | undefined): Uint8Array {
   const allowed = new Uint8Array(EDGE_KINDS.length);
-  for (const kind of through) {
+  for (const kind of through ?? RUNTIME_EDGES) {
     const at = EDGE_KINDS.indexOf(kind);
     if (at !== -1) allowed[at] = 1;
   }
