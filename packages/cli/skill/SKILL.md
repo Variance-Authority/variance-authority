@@ -1,6 +1,6 @@
 ---
 name: variance-authority
-description: Question Variance Authority evidence about a visual run — what changed, what explains it, what a component reached, and whether an intended edit landed. Also covers test-surface reduction, deflaking, live-run diagnosis, and React attribution where those readings are connected. Use when a Variance Authority report, watcher, or MCP connection is in scope; not as a generic React debugger or test runner.
+description: Use when asked to inspect, explain, distil, or verify a Variance Authority run, watcher, evidence artifact, or MCP connection.
 ---
 
 # Variance Authority
@@ -101,6 +101,44 @@ connection additionally serves subjects the CLI does not read:
 
 Treat an unavailable domain as unknown, not as an empty reading. Do not
 reconstruct runtime evidence from repository files.
+
+## When evidence is unavailable
+
+Connect the producer that owns the missing fact; MCP reads evidence and creates
+none of it:
+
+- **Eyes attention:** with Playwright, compose `eyesFixtures` into the suite's
+  existing extension and retain each test's journal under `testInfo.testId`.
+  With RTL, start `watchTest` in per-test setup, publish its closed journal, and
+  fold the run directory once in global teardown. In either host, declare
+  `arrange`, `act`, and `assert` with the adapter log's `phase(...)`; do not
+  infer them from query or click names. The Playwright fixture installs the React commit tap
+  before navigation. RTL needs the tap installed before `react-dom` loads. Read
+  `@variance-authority/eyes`'s README before wiring either adapter.
+- **Runtime journey:** `variance_source_tests` and `variance_distill` require an
+  `ExecutionIndex` with stable per-test ids. `@variance-authority/sense` ships
+  this query contract but no per-test producer; its test-selection snapshot is
+  per test file and cannot substitute. Supply the index from a runner, debugger,
+  editor integration, or another collector that already owns per-test
+  crossings.
+- **Live journey/events:** compose `varianceFixtures`, start `variance watch` or
+  `variance-authority-mcp --watch` first, then start the suite with the exact
+  `VARIANCE_AUTHORITY_VANTAGE` assignment it prints. The address belongs to that
+  watcher and that run.
+- **Visual report:** set the CLI configuration's `report` path and run
+  `variance run`; supply the resulting `RunReport`, not the configuration or a
+  reconstructed comparison.
+- **Presentation reading:** call `sensePresentation` from
+  `@variance-authority/presentation/playwright` on a live subject and supply the
+  returned `PresentationReport`. A durable presentation signal embedded in a
+  run report is a different, smaller reading.
+- **Scenario AAA:** use `@variance-authority/scenario` to record authored
+  Arrange state and Act transitions from host-produced semantic snapshots; use
+  its archive entrypoint when those executions must outlive the process.
+
+The public integration guides are under
+`https://variance-authority.dev/reference/packages/`; the cross-entrance routing
+is at `https://variance-authority.dev/agents/questions`.
 
 ## Distill, then verify
 

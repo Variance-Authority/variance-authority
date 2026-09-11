@@ -55,6 +55,10 @@ export const REPORTS: Served<RunReport> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
   tools: TOOLS,
+  instructions: () =>
+    'This connection reads a completed RunReport; it does not run or reconstruct the comparison. ' +
+    'Produce one with `variance run` and a configured `report` path. ' +
+    'Guide: https://variance-authority.dev/start-cli',
 };
 
 /** The MCP surface for agents asking which named tests exercise source. */
@@ -62,14 +66,18 @@ export const SOURCE_TESTS: Served<ExecutionIndex> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
   tools: SOURCE_TEST_TOOLS,
+  instructions: () =>
+    'This connection reads an ExecutionIndex with stable per-test identities. Sense ships the ' +
+    'query and no producer for that index; a per-file test-selection snapshot cannot substitute. ' +
+    'Guide: https://variance-authority.dev/reference/packages/sense',
 };
 
 /**
  * The MCP surface for an agent watching a suite that has not finished.
  *
- * The only served set that instructs. The other two answer about something that
- * already exists; this one answers about a run somebody still has to start, and
- * an agent that is not told the variable at the handshake starts it without one.
+ * Unlike retained served sets, this one answers about a run somebody still has
+ * to start. An agent that is not told the variable at the handshake starts it
+ * without one.
  */
 export const VANTAGE: Served<VantageState> = {
   name: SERVER_NAME,
@@ -101,6 +109,11 @@ export const EYES: Served<EyesArchive> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
   tools: EYES_TOOLS,
+  instructions: () =>
+    'This connection reads retained Eyes attention; it does not instrument a runner. Compose the ' +
+    'RTL or Playwright adapter, author AAA phase markers, retain journals with their completion ' +
+    'state under stable test ids, and install React observation before `react-dom` loads. ' +
+    'Guide: https://variance-authority.dev/reference/packages/eyes',
 };
 
 /** The MCP surface for full presentation graphs held by their caller. */
@@ -108,6 +121,10 @@ export const PRESENTATIONS: Served<readonly PresentationReport[]> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
   tools: PRESENTATION_TOOLS,
+  instructions: () =>
+    'This connection reads full PresentationReport graphs. Acquire them from the live subject ' +
+    'with `@variance-authority/presentation/playwright`; a durable presentation signal inside a ' +
+    'RunReport is a different, smaller reading. Guide: https://variance-authority.dev/presentation',
 };
 
 /** The MCP surface for retained scenario executions. */
@@ -115,6 +132,11 @@ export const SCENARIOS: Served<readonly ScenarioArchiveManifest[]> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
   tools: SCENARIO_TOOLS,
+  instructions: () =>
+    'This connection reads retained scenario executions. Record host-produced semantic snapshots ' +
+    'and authored Acts with `@variance-authority/scenario`, then use its archive entrypoint when ' +
+    'the evidence must survive the process. ' +
+    'Guide: https://variance-authority.dev/reference/packages/scenario',
 };
 
 /**
@@ -132,7 +154,8 @@ export const OBSERVABILITY: Served<ObservabilitySubject> = {
     '',
     'Unavailable evidence is not an empty measurement. Cross-domain answers join only on ' +
       'exact identities emitted by both producers. `variance_distill` reports distillation ' +
-      'opportunities; it does not establish that a branch is safe to mock.',
+      'opportunities; it does not establish that a branch is safe to mock. When a domain is ' +
+      'unavailable, `variance_observability` names its producer and integration guide.',
   ].join('\n'),
 };
 

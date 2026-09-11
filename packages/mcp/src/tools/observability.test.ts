@@ -71,6 +71,30 @@ describe('the composite observability surface', () => {
     expect(text).toContain('available   — presentation readings: 0 full graph(s)');
     expect(text).toContain('available   — scenario AAA: 0 retained execution(s)');
     expect(text).toContain('unavailable — runtime journey');
+    expect(text).toContain('runtime journey — supply an ExecutionIndex from a producer holding stable per-test crossings');
+    expect(text).not.toContain('scenario AAA — record host-produced snapshots');
+  });
+
+  it('routes every missing domain to its producer without guiding supplied evidence', () => {
+    const text = observability.run({}, {});
+
+    expect(text).toContain('To supply missing evidence:');
+    expect(text).toContain('visual/report — run `variance run`');
+    expect(text).toContain('presentation readings — acquire PresentationReport values');
+    expect(text).toContain('live journey/events — start the watcher first');
+    expect(text).toContain('Eyes attention — compose the Eyes adapter');
+    expect(text).toContain('scenario AAA — record host-produced snapshots');
+
+    const supplied = observability.run({
+      presentations: [],
+      execution: { tests: [], modules: [] },
+      eyes: { eyesVersion: 1, tests: [] },
+      scenarios: [],
+    }, {});
+    expect(supplied).not.toContain('presentation readings — acquire PresentationReport values');
+    expect(supplied).not.toContain('runtime journey — supply an ExecutionIndex');
+    expect(supplied).not.toContain('Eyes attention — compose the Eyes adapter');
+    expect(supplied).not.toContain('scenario AAA — record host-produced snapshots');
   });
 
   it('lifts native tools and refuses to manufacture an empty missing subject', () => {

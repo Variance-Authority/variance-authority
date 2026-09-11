@@ -35,6 +35,7 @@ export const observability: Tool<ObservabilitySubject> = {
         subject.scenarios === undefined ? undefined : `${subject.scenarios.length} retained execution(s)`),
       '',
       'Unavailable means no producer supplied that domain; it is not an empty measurement.',
+      ...producerGuidance(subject),
     ].join('\n');
   },
 };
@@ -68,4 +69,28 @@ export const distillTool: Tool<ObservabilitySubject> = {
 
 function line(name: string, evidence: unknown, detail: string | undefined): string {
   return evidence === undefined ? `  unavailable — ${name}` : `  available   — ${name}: ${detail}`;
+}
+
+function producerGuidance(subject: ObservabilitySubject): readonly string[] {
+  const missing = [
+    subject.report === undefined
+      ? '  visual/report — run `variance run` with a configured `report` path and supply that RunReport; https://variance-authority.dev/start-cli'
+      : undefined,
+    subject.presentations === undefined
+      ? '  presentation readings — acquire PresentationReport values with `@variance-authority/presentation/playwright`; https://variance-authority.dev/presentation'
+      : undefined,
+    subject.execution === undefined
+      ? '  runtime journey — supply an ExecutionIndex from a producer holding stable per-test crossings; Sense ships the query, not that producer; https://variance-authority.dev/reference/packages/sense'
+      : undefined,
+    subject.vantage === undefined
+      ? '  live journey/events — start the watcher first, compose `varianceFixtures`, then start the suite with its exact VANTAGE assignment; https://variance-authority.dev/agents/live-run'
+      : undefined,
+    subject.eyes === undefined
+      ? '  Eyes attention — compose the Eyes adapter, author AAA phase markers, and retain journals under stable test ids; https://variance-authority.dev/reference/packages/eyes'
+      : undefined,
+    subject.scenarios === undefined
+      ? '  scenario AAA — record host-produced snapshots and authored Acts with `@variance-authority/scenario`; https://variance-authority.dev/reference/packages/scenario'
+      : undefined,
+  ].filter((entry): entry is string => entry !== undefined);
+  return missing.length === 0 ? [] : ['', 'To supply missing evidence:', ...missing];
 }

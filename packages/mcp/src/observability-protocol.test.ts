@@ -3,7 +3,9 @@ import {
   EYES,
   OBSERVABILITY,
   PRESENTATIONS,
+  REPORTS,
   SCENARIOS,
+  SOURCE_TESTS,
   handle,
 } from './protocol.js';
 import { OBSERVABILITY_TOOLS } from './tools.js';
@@ -46,5 +48,13 @@ describe('the all-instrument MCP surface', () => {
     expect(instructions).toContain('Start with `variance_observability`');
     expect(instructions).toContain('Unavailable evidence is not an empty measurement');
     expect(instructions).toContain('does not establish that a branch is safe to mock');
+  });
+
+  it('routes every retained-only connection to the producer that supplies it', () => {
+    expect(REPORTS.instructions!({} as never)).toContain('`variance run`');
+    expect(SOURCE_TESTS.instructions!({ tests: [], modules: [] })).toContain('no producer');
+    expect(EYES.instructions!({ eyesVersion: 1, tests: [] })).toContain('before `react-dom` loads');
+    expect(PRESENTATIONS.instructions!([])).toContain('different, smaller reading');
+    expect(SCENARIOS.instructions!([])).toContain('archive entrypoint');
   });
 });

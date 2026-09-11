@@ -87,6 +87,26 @@ The individual served sets remain available as `REPORTS`, `PRESENTATIONS`,
 owns only that domain. React Testing Library and Playwright remain optional peer dependencies
 of `@variance-authority/eyes`; installing MCP does not add either runner.
 
+### When a domain is unavailable
+
+MCP does not manufacture a missing observation. `variance_observability` names
+the producer and route for every unavailable domain:
+
+| unavailable domain | supply it from | integration contract |
+|---|---|---|
+| visual report and durable presentation signals | `variance run` | configure its `report` path and supply the resulting `RunReport`; see [run an existing collector](../../docs/start-cli.md) |
+| presentation readings | `@variance-authority/presentation/playwright` | call `sensePresentation` on the live subject and supply the returned full graph; see [presentation](../../docs/presentation.md) |
+| runtime journey | a runner, debugger, editor integration, or other per-test collector | supply an `ExecutionIndex` with stable per-test ids; Sense ships the query and no producer for that index; see [where the index comes from](../sense/README.md#where-the-index-comes-from) |
+| live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](../../docs/agent-live-run.md) |
+| Eyes attention | `@variance-authority/eyes` | compose the host adapter, author AAA phase markers, retain per-test journals with their completion state under stable runner ids, and install React observation before `react-dom`; see the [Eyes integration reference](../eyes/README.md) |
+| scenario AAA | `@variance-authority/scenario` | record host-produced semantic snapshots and authored Acts, then use the archive entrypoint when the evidence must survive the process; see the [scenario reference](../scenario/README.md) |
+
+The full mechanics stay with each producer. The MCP answer carries the minimum
+route and the constraint that would otherwise produce plausible but invalid
+evidence. The dedicated `REPORTS`, `PRESENTATIONS`, `SOURCE_TESTS`, `EYES`, and
+`SCENARIOS` served sets carry the same route in their initialization handshake,
+so an integration does not need the combined surface to receive it.
+
 ## Give an agent the tests for source
 
 `variance_source_tests` answers the question a coding agent needs before and

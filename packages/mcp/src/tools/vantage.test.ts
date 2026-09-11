@@ -187,10 +187,12 @@ describe('the handshake', () => {
     expect(instructions).toContain('variance_run_signals');
   });
 
-  it('says nothing at a handshake about a subject that is simply there', () => {
+  it('routes a retained report to its producer at the handshake', () => {
     const answer = handle(initialize, () => ({}) as never, REPORTS);
 
-    expect(answer?.result).not.toHaveProperty('instructions');
+    const instructions = (answer?.result as { instructions?: string } | undefined)?.instructions;
+    expect(instructions).toContain('`variance run`');
+    expect(instructions).toContain('https://variance-authority.dev/start-cli');
   });
 });
 
