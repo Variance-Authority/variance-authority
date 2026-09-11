@@ -1,114 +1,124 @@
-# Eyes
+# Eyes: what a test actually witnesses
 
-Eyes records the DOM elements a test addresses and attributes each live element
-to the React tree that rendered it. The record describes test attention: selector
-intent, the element resolved at that point, and the action, read, assertion, or
-browser event that consumed it. An adopter can place authored Arrange, Act, and
-Assert markers in the same chronology. Eyes records those markers and never
-classifies surrounding evidence from an API name.
+A passing test proves that its assertion succeeded. It does not reveal which UI
+the test deliberately operated, which React work arrived alongside that
+interaction, or which executed source was merely present. Eyes records that
+missing surface as one authored Arrange–Act–Assert chronology.
 
-Fiber attribution is copied in the synchronous turn that observes the element.
-React deletes its Fiber pointer when a node unmounts, and its double-buffered
-tree can make an old pointer describe the previous commit. Eyes resolves the
-current Fiber, copies the owner and author evidence, and retains no Fiber or DOM
-reference in the journal. Source-map enrichment may happen later; discovering
-the Fiber may not.
+```mermaid
+flowchart LR
+  A["Arrange<br/>establish the state"] --> B["Act<br/>operate the interface"]
+  B --> C["Assert<br/>read the consequence"]
 
-## RTL
+  A -.-> AT["addressed DOM<br/>and React owners"]
+  B -.-> UP["event target<br/>and update initiators"]
+  C -.-> OUT["addressed result<br/>and React owners"]
 
-The RTL entrypoint instruments the bound query functions on a supplied `screen`
-object. A call to `getByRole`, `queryByText`, or another singular or plural bound
-query records its arguments and snapshots every returned node before returning
-control to the test. A `findBy` promise registers the snapshot continuation
-before the caller receives the promise, so attribution precedes the caller's
-`await` continuation.
+  UP --> IN["inside the addressed path"]
+  UP --> SIDE["outside the addressed path"]
+```
 
-A query returning anything that is neither a node nor an array of nodes records
-`absent` — `null`, `undefined`, or whatever else a query hands back. A plural
-query returning no nodes records `resolved` with an empty target list: the query
-determined that the set was empty. A thrown query records the error and rethrows
-the same value.
+The test author marks the three phases. Eyes does not decide that a render is
+Arrange, that a click is Act, or that a query is Assert. It places later
+observations under the most recent authored marker and leaves observations made
+before one explicitly unphased.
 
-`screen` is one bound query object. `within(container)` and the query functions
-returned by `render()` are other objects, so instrumenting `screen` does not
-claim to observe them.
+## One chronology, four different facts
 
-Watching a `screen` also installs capture-phase document listeners on the
-runner's document, ahead of React's delegated event handler. They arrive when
-that `screen` is first watched and are removed when the last log watching it
-closes, so an element removed by the handler its own click reached is in the
-record with its attribution after the element itself is gone. The listeners
-follow the realm: where there is no `document` to listen on, `watch` instruments
-the queries and installs nothing, so a runner with no DOM still records what its
-tests addressed.
+| Evidence | What it answers |
+| --- | --- |
+| Addressed target | Which live DOM element a query or locator resolved to, and which React path rendered it? |
+| Consumed operation | Was that target acted on, read, asserted, or reached by a DOM event? |
+| Update initiator | Which live component instance scheduled a React commit in this phase? |
+| Performed work | Which component render bodies React visited because of that commit? |
 
-React commits reach the same journal, and they require the commit hook to exist
-before `react-dom` runs its module body. `watch` attaches to a hook and never
-installs one: a caller holding a `screen` object is already past the moment
-`react-dom` reads for it, and a hook written after that moment is one the
-renderer never calls. Installing it is a runner setup entry that loads ahead of
-the module importing React — `tapCommits()` from `@variance-authority/react`,
-described in [Stabilization](stabilization.md). Where there is no hook to attach
-to, every log on that screen records `react-tap-refused` with the reason, and
-records queries and document events as it otherwise would.
+Those rows do not substitute for one another. A component can initiate an
+update without being addressed by the test. Another component can render
+because of that update without initiating it. Source can execute without
+producing any DOM target the test consumes.
 
-## Playwright
+That last combination is the useful smell: the test operates one surface while
+another branch reaches into it.
 
-The Playwright entrypoint exports unbound fixtures. A suite composes those
-fixtures into its own extension module and keeps ownership of `test`, `expect`,
-configuration, and lifecycle.
+## Read the test at the level it was written
 
-Playwright Locators are lazy. Creating `page.getByRole(...)` records the locator
-plan but no DOM attribution. A read, action, or assertion snapshots current
-matches immediately before consumption and again after it settles. Capture-phase
-document listeners snapshot actual event targets before React's delegated event
-handler can remove them. An element appearing during a positive assertion is
-therefore available after the matcher; an element removed by an action is
-available from the event record and the pre-action snapshot.
+For a checkout test, the retained reading can be reduced to this shape:
 
-An assertion on absence carries the locator plan and an observed empty match
-set. It carries no invented component owner.
+```text
+arrange
+  addressed  CheckoutForm → CartSummary
 
-The page agent installs React's commit hook before application code loads. A
-commit records `PerformedWork` component names separately from React's
-`memoizedUpdaters`: the first says which render bodies ran, while the second
-names the live component paths that initiated the update. Each updater path is
-innermost first and retains component name, reconciliation key, props digest,
-and the JSX source coordinate `@variance-authority/jsx-source` wrote onto its
-props, or onto the nearest enclosing composite that retained one; React ≤18's
-`_debugSource` is the fallback where that transform is not installed. Missing
-updater evidence means the renderer did not expose the set; an empty updater
-list is a completed reading.
+act
+  click      button "Submit order" → CheckoutForm
+  updates    inside: CheckoutForm
+             outside: SessionClock
 
-## Test chronology
+assert
+  read       status "Order confirmed" → CheckoutResult
+```
 
-An Eyes log is a monotonic journal within one test realm. `phase('arrange')`,
-`phase('act')`, and `phase('assert')` append authored boundaries; later attention
-belongs to the most recent marker when a reader presents the chronology. Calls
-before any marker remain explicitly unphased. A tapped React commit follows the
-same rule, so an update can be related to the phase in which it occurred without
-claiming which callback, event, or source region caused it. Where the tap was
-refused, `react-tap-refused` and its reason sit in the same journal, so an empty
-commit record and a page that rendered once and stopped are different readings.
+The outside initiator is an entanglement to investigate, not a verdict. Eyes
+identifies the structural component instance; it does not claim which setter,
+callback, or source statement scheduled the work.
 
-An Eyes archive groups journals under the runner's stable test identity. Every
-journal is either complete or partial with a reason. The archive is portable
-JSON, so a runner attachment, a Jest or Vitest setup integration, or another
-harness can hand the same selector, locator, event, and Fiber evidence to an external
-reader after the live DOM is gone.
+Every target is copied while its DOM node and Fiber attribution are still live.
+The journal retains portable names, structural owner paths, props digests, and
+source candidates rather than DOM nodes or Fibers. An element removed by its
+own click therefore remains attributable after it has disappeared.
 
-## Boundaries
+## Distil attention against execution
 
-Eyes reads React's host-node Fiber pointer. A non-React node, unhydrated server
-markup, and a node whose Fiber has already been removed produce an explicit
-no-Fiber result. Production builds may omit author names and source candidates;
-those fields remain absent.
+Eyes answers what the test addressed. Sense can independently answer which
+source the same stable test id entered. `variance distill` joins the two without
+turning either into coverage:
 
-The document event channel covers user-facing DOM events. Every record carries
-the event's `trusted` flag, so an event the browser raised from an input gesture
-is separable from one a page script dispatched. A store mutation, a network
-request, a timer, or a direct function call that emits no DOM event is not
-classified as an action by Eyes. A memoized updater identifies the component instance that
-scheduled work, not the source statement or callback that invoked it. Execution
-regions remain the responsibility of Sense, and cross-realm correlation remains
-the responsibility of Journey.
+```text
+Addressed source:  src/checkout/form.tsx
+Entered source:    src/checkout/form.tsx
+                   src/analytics.ts
+                   src/top-nav.tsx
+
+Opportunities:     src/analytics.ts
+                   src/top-nav.tsx
+```
+
+An opportunity means that the test entered the file without addressing a target
+attributed to it. It does not mean the file is unrelated, mockable, removable,
+or safe to skip. The agent workflow changes one dependency boundary, reruns the
+exact test, and keeps the substitution only when the witnessed behavior and
+addressed targets survive. [Distil a test](distill.md) defines that loop.
+
+## React improves the attribution; it is not the admission ticket
+
+With React attribution, Eyes records structural owner paths, components that
+performed work, and update initiators inside or outside the addressed surface.
+When React or Fiber attribution is unavailable, the DOM attention remains and
+the missing attribution is explicit.
+
+A plain test, fake component, or non-React harness can still participate in
+distillation through execution evidence. It receives no invented Fiber count or
+percentage. A complete empty Eyes journal is a measured empty surface; no Eyes
+journal is an unavailable surface.
+
+## What Eyes refuses to conclude
+
+- It does not infer AAA phases from testing-library calls.
+- It does not call every rendered component relevant to the assertion.
+- It does not call an unaddressed or unentered branch safe to mock.
+- It does not turn a partial journal into a complete empty one.
+- It does not divide by the Fiber tree: hidden, lazy, unmounted, and
+  never-observed branches do not form one honest denominator.
+
+## Put it beside the test surface you already own
+
+Eyes has additive adapters for React Testing Library and Playwright. The RTL
+adapter watches a supplied `screen`; the Playwright adapter composes unbound
+fixtures into the suite's existing extension. Neither replaces the runner's
+`test`, `expect`, configuration, or lifecycle.
+
+The [`@variance-authority/eyes` integration reference](../packages/eyes)
+contains the installation, phase markers, journal publication, and React-hook
+timing for both adapters. Once an archive exists, use
+[`variance distill`](distill.md) for the deterministic reading or
+[`variance_distill`](agent-questions.md#distil-one-test) when the archive is
+supplied through MCP.
