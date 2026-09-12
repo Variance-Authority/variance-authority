@@ -1,4 +1,3 @@
-import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
 import type { ChangeMask } from '@variance-authority/core/attribute';
 import type { Raster } from '@variance-authority/core/format';
@@ -9,6 +8,7 @@ import {
   type DiffPolicy,
   type RasterComparison,
 } from '@variance-authority/raster';
+import { differencePixels, type DecodedImage } from './mask.js';
 
 /**
  * Comparison — phase three: two images become a mask.
@@ -29,13 +29,11 @@ import {
 /**
  * One decoded image: raw 8-bit RGBA, row-major, no padding.
  *
- * The shape `pixelmatch` needs and the smallest thing every decoder agrees on.
+ * Declared in [`mask.ts`](./mask.js), which is the half of this package a caller
+ * can reach without a codec, and re-exported here because this is where the
+ * decoder seam is.
  */
-export interface DecodedImage {
-  readonly width: number;
-  readonly height: number;
-  readonly data: Buffer | Uint8Array;
-}
+export type { DecodedImage };
 
 /**
  * How PNG bytes become pixels, so that *which* decoder is a deployment choice.
@@ -116,9 +114,6 @@ export function comparePixels(
   const height = Math.max(left.height, right.height);
   const dimensionsChanged = left.width !== right.width || left.height !== right.height;
 
-  const a = padTo(left, width, height);
-  const b = padTo(right, width, height);
-
   const policies = options.policies ?? [DEFAULT_POLICY, STRICT_POLICY];
   const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
 
@@ -129,15 +124,10 @@ export function comparePixels(
     // `diffMask` makes pixelmatch write *only* the differing pixels and leave
     // everything else transparent — so the alpha channel is already the mask,
     // and deriving one from a rendered red-on-grey diff image is unnecessary.
-    const out = new PNG({ width, height });
-    const count = pixelmatch(a.data, b.data, out.data, width, height, {
-      threshold: policy.threshold,
-      includeAA: policy.includeAA,
-      diffMask: true,
-    });
+    const out = differencePixels(left, right, policy, { diffMask: true });
 
-    changed[policy.id] = count;
-    if (policy.id === isolateWith.id) mask = maskOf(out, width, height, count);
+    changed[policy.id] = out.changed;
+    if (policy.id === isolateWith.id) mask = maskOf(out.data, width, height, out.changed);
   }
 
   if (mask === undefined) {
@@ -160,10 +150,15 @@ export function comparePixels(
   };
 }
 
-function maskOf(png: PNG, width: number, height: number, changed: number): ChangeMask {
+function maskOf(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  changed: number,
+): ChangeMask {
   const data = new Uint8Array(width * height);
   for (let index = 0; index < data.length; index += 1) {
-    if (png.data[index * 4 + 3] !== 0) data[index] = 1;
+    if (pixels[index * 4 + 3] !== 0) data[index] = 1;
   }
   return { width, height, data, changed };
 }
@@ -172,56 +167,15 @@ export function decode(base64: string): Buffer {
   return Buffer.from(base64, 'base64');
 }
 
-/**
- * Copy `png` onto an opaque white canvas, top-left aligned.
- *
- * `pixelmatch` requires equal dimensions and Playwright's own `toHaveScreenshot`
- * simply fails when they differ. Failing is the easy choice and the dishonest
- * one — it lets a layout change score "detected" without measuring anything. So
- * both are padded onto the union box and the padding is reported, which is the
- * more generous treatment: a story that grew by one row differs in that row
- * rather than in its entire area.
- *
- * White because a page's declared canvas is white. Transparent padding would
- * invent a difference wherever the shorter image's own background is opaque,
- * which is every subject.
- */
-function padTo(image: DecodedImage, width: number, height: number): DecodedImage {
-  if (image.width === width && image.height === height) return image;
-
-  // Row-major RGBA copy rather than `PNG.bitblt`, because the input here is
-  // whatever decoder the caller chose and only `pngjs` produces a `PNG`. Same
-  // result: an opaque white canvas with the image at the top left.
-  const data = Buffer.alloc(width * height * 4, 0xff);
-  const rowBytes = image.width * 4;
-  for (let y = 0; y < image.height; y += 1) {
-    Buffer.from(image.data.buffer, image.data.byteOffset + y * rowBytes, rowBytes).copy(
-      data,
-      y * width * 4,
-    );
-  }
-  return { width, height, data };
-}
-
 /** A visual diff, for the human who wants one after reading the report. */
 export function diffImage(
   before: Buffer,
   after: Buffer,
   policy: DiffPolicy = DEFAULT_POLICY,
 ): Buffer {
-  const left = PNG.sync.read(before);
-  const right = PNG.sync.read(after);
-  const width = Math.max(left.width, right.width);
-  const height = Math.max(left.height, right.height);
+  const difference = differencePixels(PNG.sync.read(before), PNG.sync.read(after), policy);
 
-  const out = new PNG({ width, height });
-  pixelmatch(
-    padTo(left, width, height).data,
-    padTo(right, width, height).data,
-    out.data,
-    width,
-    height,
-    { threshold: policy.threshold, includeAA: policy.includeAA },
-  );
+  const out = new PNG({ width: difference.width, height: difference.height });
+  out.data.set(difference.data);
   return PNG.sync.write(out);
 }

@@ -1344,6 +1344,10 @@
         "./difference": {
           "types": "./dist/difference.d.ts",
           "default": "./dist/difference.js"
+        },
+        "./mask": {
+          "types": "./dist/mask.d.ts",
+          "default": "./dist/mask.js"
         }
       },
       "files": [
@@ -1375,6 +1379,12 @@
         "ObservePngDifferenceInput": "interface",
         "decodeImage": "function",
         "observePngDifference": "function"
+      },
+      "./mask": {
+        "DecodedImage": "interface",
+        "PixelDifference": "interface",
+        "differencePixels": "function",
+        "padTo": "function"
       }
     }
   },

@@ -88,6 +88,25 @@ Both images are padded onto the union box, on **white** because a page's declare
 canvas is white, and the padding is reported. A story that grew by one row differs
 in that row rather than in its entire area.
 
+## `png/mask` — the same mask, without a decoder
+
+Nothing in the per-pixel work needs a codec. `@variance-authority/png/mask`
+exports the two pieces that do the work — `padTo`, the padding rule above, and
+`differencePixels`, the diff itself — over raw RGBA:
+
+```ts
+import { differencePixels, padTo } from '@variance-authority/png/mask';
+
+const difference = differencePixels(padTo(before, width, height), padTo(after, width, height));
+```
+
+Take it when the pixels are already in hand: a canvas, a framebuffer,
+`createImageBitmap` in a review page. It exists because the mask is now computed
+in two places — here when a run writes its report, and in a browser when a
+reviewer opens a change whose mask was never uploaded — and two ends computing
+the same thing is only safe while it is literally the same code. A reviewer must
+never be shown a mask the verdict was not made from.
+
 ## `png/difference` — the codec half of known-difference measurement
 
 ```ts

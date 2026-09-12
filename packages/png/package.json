@@ -31,6 +31,10 @@
     "./difference": {
       "types": "./dist/difference.d.ts",
       "default": "./dist/difference.js"
+    },
+    "./mask": {
+      "types": "./dist/mask.d.ts",
+      "default": "./dist/mask.js"
     }
   },
   "main": "./dist/index.js",
