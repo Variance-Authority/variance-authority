@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "variance-authority-site",
+  "account_id": "6dcc9521c43dfae93157e550f4d7aab3",
   "compatibility_date": "2026-08-21",
   "compatibility_flags": [
     "nodejs_compat"
