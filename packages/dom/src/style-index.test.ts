@@ -223,6 +223,47 @@ describe('a DOM that answers `undefined` for a sheet with no owner', () => {
   });
 });
 
+describe('a stylesheet whose rules cannot be read', () => {
+  /**
+   * A cross-origin `<link>`, as the CSSOM presents one: reading `cssRules`
+   * throws, and nothing else about the sheet says so.
+   */
+  function withUnreadableSheet(css: string): Document {
+    const { document } = world(css);
+    const unreadable = document.createElement('style');
+    document.head.append(unreadable);
+    Object.defineProperty(unreadable.sheet!, 'cssRules', {
+      get() {
+        throw new DOMException('cross-origin', 'SecurityError');
+      },
+      configurable: true,
+    });
+    return document;
+  }
+
+  it('indexes the sheets it can read and names the one it cannot', () => {
+    const document = withUnreadableSheet('.copy { color: rgb(1, 2, 3); }');
+
+    const index = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
+
+    expect(index.totalRules).toBe(1);
+    expect(index.diagnostics.map((entry) => entry.code)).toEqual(['unreadable-stylesheet']);
+  });
+
+  it('raises it at the severity that holds a run open', () => {
+    // `exitFor` reads the severity and nothing else, so this field is the whole
+    // of whether a suite whose design system is served cross-origin is told. Both
+    // sides of the comparison drop the same sheet, so the images agree and the
+    // verdict is honestly `unchanged` over a subject with a chunk of its styling
+    // missing — the one case a verdict cannot express.
+    const document = withUnreadableSheet('.copy { color: rgb(1, 2, 3); }');
+
+    const index = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
+
+    expect(index.diagnostics[0]?.severity).toBe('error');
+  });
+});
+
 describe('the cost of rebuilding the index per subject', () => {
   it('falls materially when one index is shared across the subjects of a document', () => {
     // Warm once so neither side pays for lazy module initialisation.

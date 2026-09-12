@@ -181,8 +181,18 @@ export function indexStyleSheets(
       // A cross-origin sheet throws on access. Its rules are genuinely
       // unreadable, so the snapshot is incomplete and must say so rather than
       // report a confident hash over a partial view.
+      //
+      // `error`, which is the severity `exitFor` gates on, because the two
+      // severities separate a standing limit from a hole and this is a hole. A
+      // limit fires on every subject of a correctly configured suite —
+      // `unverified-fonts` does, and a gate red on every run is a gate that gets
+      // switched off. This fires only when styling that belongs to the subject
+      // is dropped, identically, from both sides of a comparison: the images
+      // then agree, the verdict is honestly `unchanged`, and the part of the
+      // cascade nobody read is the part nobody compared. No verdict can express
+      // that, which is why the severity has to.
       diagnostics.push({
-        severity: 'warn',
+        severity: 'error',
         code: 'unreadable-stylesheet',
         message: `stylesheet "${name}" is cross-origin; its rules were not collected`,
       });

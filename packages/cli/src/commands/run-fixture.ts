@@ -64,9 +64,10 @@ export const IDENTITY: RenderIdentity = {
 /**
  * A design system served from a cross-origin `<link>`, at the severity that gates.
  *
- * `collector-dom` emits this code at `warn` today; `error` is used here because
- * the severity is what `exitFor` reads, and the CLI's half of that contract has to
- * be pinned independently of which severity any one collector chooses.
+ * `error` is what `collector-dom` raises for this code, and it is restated here
+ * rather than imported: the CLI's half of the contract is that `exitFor` reads the
+ * severity and nothing else, and that half has to be pinned independently of which
+ * severity any one collector chooses.
  */
 export const UNREADABLE: Diagnostic = {
   severity: 'error',
