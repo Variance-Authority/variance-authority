@@ -454,6 +454,8 @@ ${DOCKET_STYLES}
 .va-settled-list { display: grid; gap: 0.3rem; margin-top: 0.6rem; }
 .va-settled-list li { align-items: baseline; display: flex; font-size: 0.84rem; gap: 0.45rem; }
 .va-settled-list strong { font-family: var(--va-mono); font-size: 0.78rem; font-weight: 500; }
+.va-settled-go { color: var(--va-accent); margin-left: auto; text-decoration: none; white-space: nowrap; }
+.va-settled-go:hover { text-decoration: underline; }
 
 .va-not-observed { color: var(--va-ink-2); display: grid; font-size: 0.86rem; gap: 0.35rem; }
 .va-not-observed .va-failed { color: var(--va-bad); font-weight: 600; }

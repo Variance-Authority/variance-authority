@@ -148,7 +148,7 @@ function Build({
 
       {route.page === 'run' ? (
         <div className="va-body">
-          <RunPage client={client} build={build} crossing={crossing} />
+          <RunPage client={client} build={build} crossing={crossing} go={go} />
         </div>
       ) : (
         <div className="va-body">
