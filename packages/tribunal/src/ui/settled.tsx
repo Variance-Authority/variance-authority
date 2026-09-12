@@ -22,11 +22,27 @@
  * call the HTML report makes over the same block. The report and this page are
  * two renderings of one run and are read by one person, often minutes apart; a
  * second derivation here is a second answer waiting to happen.
+ *
+ * ## The absorbed rows link out, and the unchanged ones do not
+ *
+ * Naming the rule says what was absorbed. It does not show it, and *has this rule
+ * grown over a regression* is a question only the pictures answer — so every
+ * `ignored` row carries a link to its own page, where the baseline, the candidate
+ * and the mask the comparison drew are three layers of one plate.
+ *
+ * That link works because the run now keeps a pair for this verdict. It used to
+ * ship only the candidate, which is the one image that cannot answer the
+ * question: inside a mask the candidate looks exactly as intended, because that
+ * is what a mask does. `unchanged` gets no link for the opposite reason — nothing
+ * moved, so there is no `before` and no mask, and a link would open a page with
+ * one picture on it.
  */
 
 import type { ReactElement } from 'react';
 import { greenBecause, type Green, type IgnoreLedger } from '@variance-authority/report';
 import type { SubjectView } from '../review-types.js';
+import type { Route } from './route.js';
+import { Go } from './shell.js';
 import { count, number } from './text.js';
 
 /** The two green verdicts, in the order they are worth reading. */
@@ -48,9 +64,13 @@ export function needsReview(verdict: SubjectView['verdict']): boolean {
 export function Settled({
   subjects,
   ignores,
+  build,
+  go,
 }: {
   readonly subjects: readonly SubjectView[];
   readonly ignores: IgnoreLedger | null;
+  readonly build: string;
+  readonly go: (route: Route) => void;
 }): ReactElement | null {
   const green = subjects.filter((subject) => !needsReview(subject.verdict));
   if (green.length === 0) return null;
@@ -77,6 +97,16 @@ export function Settled({
                 <strong>{subject.subject}</strong>
                 <span className="va-note">{subject.because}</span>
                 <Because subject={subject} />
+                {verdict === 'ignored' ? (
+                  <Go
+                    to={{ page: 'subject', build, subject: subject.subject }}
+                    go={go}
+                    className="va-settled-go"
+                    title="Open the baseline, the candidate and the mask the comparison drew"
+                  >
+                    look under the rule
+                  </Go>
+                ) : null}
               </li>
             ))}
           </ul>

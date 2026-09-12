@@ -80,6 +80,23 @@ export async function images(
     // whole path by which a defect found today becomes a defect the next run can
     // call standing: nothing inspects a baseline, because a baseline is a PNG.
     ...(findingMarks === undefined ? {} : { findingMarks }),
+    // FIXME: no `accessibility`, and it is a missing acquisition rather than a
+    // dropped field. `Raster` carries a browser accessibility snapshot, every
+    // store keeps one, `settle` compares them and `decide` gives the axis its
+    // own verdict — but the only thing in this repository that *acquires* one is
+    // the Playwright fixture, and the collector contract this command runs
+    // against (`@variance-authority/route-collector`, `Collected`) has no field
+    // for it. The render cache cannot supply it either: `renderCache.put` is
+    // given the renderer's own output, and `withEvidence` strips whatever a hit
+    // carried, on the same rule that governs component hashes — the evidence on
+    // a raster is what *this* run observed, or there is none.
+    //
+    // What it costs: a baseline promoted from this sidecar records no
+    // accessibility evidence, so a later run that does have a snapshot calls the
+    // axis `incomparable` rather than `unchanged`. That is the safe direction —
+    // the alternative is a stale tree asserted as current — which is why this is
+    // a gap and not a defect. Closing it means the collector acquiring the
+    // snapshot; every layer downstream of here already carries it.
   };
 
   const base = join(config.images, encodeURIComponent(id));
@@ -91,7 +108,22 @@ export async function images(
     Buffer.from(`${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`, 'utf8'),
   );
 
-  if (key === null || observation.verdict !== 'changed') {
+  // `changed` and `ignored` are the two verdicts a person looks at, so they are
+  // the two that get a pair.
+  //
+  // `ignored` was excluded here, and that was the wrong half to save. The verdict
+  // means pixels *did* differ and every one of them fell inside a mask somebody
+  // wrote — which makes it the only verdict where the question is about the mask
+  // rather than about the render. "Has this ignore grown over a regression?" is
+  // answerable from a `before` and a diff and from nothing else: the candidate
+  // alone shows the masked region looking exactly as intended, because that is
+  // what a mask does. Shipping only the `after` left the review surface with the
+  // one image that cannot answer it.
+  //
+  // What it costs: an ignored subject now pays a baseline read, a diff render and
+  // two more uploads, the same as a changed one. That is the price of the
+  // evidence, and a suite where it is a large price is a suite ignoring a lot.
+  if (key === null || (observation.verdict !== 'changed' && observation.verdict !== 'ignored')) {
     return { images: { after: relative(reportDir, `${base}.after.png`) } };
   }
 

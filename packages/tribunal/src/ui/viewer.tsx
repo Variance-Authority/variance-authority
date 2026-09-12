@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
+import { hasDifference, useDifferenceUrl } from './difference.js';
+import { Raster, share, union } from './plate.js';
 import { RegionOverlay, RegionTable } from './regions.js';
 import { count, magnitude, number } from './text.js';
 
@@ -57,9 +59,6 @@ const LABELS: Readonly<Record<ViewerMode, string>> = {
   difference: 'difference',
 };
 
-/** A raster's own pixels — never a rendered size, which the zoom decides. */
-export type Size = { readonly width: number; readonly height: number };
-
 /** Long enough to read either state, short enough that the eye holds both. */
 const BLINK_MS = 700;
 
@@ -85,6 +84,10 @@ export function Viewer({
   const [pull, setPull] = useState(0);
   const [still] = useState(calm);
   const stage = useRef<HTMLDivElement>(null);
+  // Computed rather than fetched, unless this build kept one: see
+  // [`difference.ts`](./difference.js) for why a mask is the one image worth
+  // making twice. `undefined` until it is ready, which is why the plate says so.
+  const difference = useDifferenceUrl(client, build, subject, mode === 'difference');
 
   /**
    * The frame both readings are drawn in.
@@ -142,7 +145,7 @@ export function Viewer({
   }
 
   const size = subject.size;
-  const url = (kind: 'before' | 'after' | 'diff'): string =>
+  const url = (kind: 'before' | 'after'): string =>
     client.imageUrl(build, subject.subject, kind);
 
   /**
@@ -283,7 +286,11 @@ export function Viewer({
             {mode === 'difference' ? (
               // Already in the union's coordinates: the mask is what the
               // comparison drew, on the box it padded both captures to.
-              <Raster src={url('diff')} alt={`${subject.subject} difference mask`} />
+              difference === undefined ? (
+                <p className="va-note">Working out the difference&hellip;</p>
+              ) : (
+                <Raster src={difference} alt={`${subject.subject} difference mask`} />
+              )
             ) : (
               <>
                 {subject.has.before ? (
@@ -375,33 +382,6 @@ function over(
   return {};
 }
 
-/** The box that contains both captures, when either of them is known. */
-export function union(
-  candidate: Size | undefined,
-  baseline: Size | undefined,
-): Size | undefined {
-  if (candidate === undefined) return baseline;
-  if (baseline === undefined) return candidate;
-  return {
-    width: Math.max(candidate.width, baseline.width),
-    height: Math.max(candidate.height, baseline.height),
-  };
-}
-
-/**
- * One layer's share of the plate, as a percentage.
- *
- * A percentage rather than a pixel width so that nothing here has to know the
- * magnification: the plate is sized once and every layer scales with it. Absent
- * when this layer's own size was never recorded, which leaves the stylesheet's
- * `width: 100%` — the old behaviour, and the honest one, since a layer nobody
- * measured cannot be placed against one that was.
- */
-export function share(own: Size | undefined, box: Size | undefined): CSSProperties | undefined {
-  if (own === undefined || box === undefined || own.width === box.width) return undefined;
-  return { width: `${String((own.width / box.width) * 100)}%` };
-}
-
 /**
  * Whether this display has asked for less movement.
  *
@@ -434,49 +414,6 @@ function step(focus: number | null, total: number, by: 1 | -1): number {
 }
 
 /**
- * One stored raster, fetched when it is about to be looked at.
- *
- * `loading="lazy"`, because a build page is a docket of every subject and a
- * reviewer reads one at a time. A route suite's candidates are full-page: this
- * project's four routes come to nine thousand pixels of height each, and twenty
- * of them decoded at once is tens of thousands of rows of bitmap in one document
- * — enough to stall the renderer before the first row of the table can be read.
- * Nothing above the fold needs any of them.
- *
- * `size` reserves the box before the bytes arrive, and is passed only where the
- * dimensions belong to *this* raster — the candidate. A baseline may have been a
- * different height (that is frequently the change), and a diff mask is not
- * measured at all, so those are deferred without a reservation rather than
- * reserved wrongly. A wrong reservation is worse than none: the page settles at
- * one height and then jumps.
- */
-function Raster({
-  src,
-  alt,
-  size,
-  className,
-  style,
-}: {
-  readonly src: string;
-  readonly alt: string;
-  readonly size?: { readonly width: number; readonly height: number } | undefined;
-  readonly className?: string | undefined;
-  readonly style?: CSSProperties | undefined;
-}): ReactElement {
-  return (
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      {...(size === undefined ? {} : { width: size.width, height: size.height })}
-      {...(className === undefined ? {} : { className })}
-      {...(style === undefined ? {} : { style })}
-    />
-  );
-}
-
-/**
  * Which comparisons this build can actually offer.
  *
  * Derived from what the run kept rather than offered unconditionally: a mode
@@ -491,7 +428,7 @@ export function modesFor(subject: SubjectView): readonly ViewerMode[] {
   if (subject.has.before && subject.has.after) {
     modes.push('wipe', 'blend', 'blink', 'side-by-side');
   }
-  if (subject.has.diff) modes.push('difference');
+  if (hasDifference(subject)) modes.push('difference');
   if (modes.length === 0 && subject.has.after) modes.push('regions');
   return modes;
 }

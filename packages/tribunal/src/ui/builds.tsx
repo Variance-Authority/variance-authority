@@ -11,7 +11,7 @@ import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { BuildSummary } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import type { Route } from './route.js';
-import { Failure, Go, Topbar, messageOf, type Loaded } from './shell.js';
+import { Failure, Go, Skeleton, Topbar, messageOf, type Loaded } from './shell.js';
 import { number, when } from './text.js';
 
 export function BuildsPage({
@@ -57,9 +57,11 @@ export function BuildsPage({
 
       <div className="va-body va-scroll">
         <div className="va-page">
-          {builds.state === 'loading' ? <p className="va-note">Loading builds…</p> : null}
+          {builds.state === 'loading' ? <Skeleton bars={3} label="Loading builds" /> : null}
           {builds.state === 'failed' ? <Failure why={builds.why} retry={load} /> : null}
-          {builds.state === 'ready' ? <BuildList builds={builds.value} go={go} /> : null}
+          {builds.state === 'ready' ? (
+            <BuildList builds={builds.value} go={go} endpoint={client.endpoint} />
+          ) : null}
         </div>
       </div>
     </div>
@@ -69,11 +71,13 @@ export function BuildsPage({
 export function BuildList({
   builds,
   go,
+  endpoint,
 }: {
   readonly builds: readonly BuildSummary[];
   readonly go: (route: Route) => void;
+  readonly endpoint?: string | undefined;
 }): ReactElement {
-  if (builds.length === 0) return <p className="va-note">No builds have been posted yet.</p>;
+  if (builds.length === 0) return <NoBuilds endpoint={endpoint} />;
 
   return (
     <ol className="va-builds">
@@ -94,6 +98,67 @@ export function BuildList({
       ))}
     </ol>
   );
+}
+
+/**
+ * An empty store, answered with the step that fills it.
+ *
+ * Every other absence on this surface is a fact about the project — no changes,
+ * no findings, nobody's name against a subject — and a sentence is the whole
+ * right response to those. This one is a fact about a deployment somebody is
+ * still setting up, and they are one command from finishing it. A page that says
+ * only *no builds have been posted yet* sends them off to find out where builds
+ * come from. It knows, so it says.
+ *
+ * The address printed is the one this page is talking to, not a placeholder: what
+ * a reader copies is their own endpoint, and a deployment cannot hand out an
+ * address it is not itself reachable at.
+ *
+ * Both tokens are named, one of them as the one that must not be here. This is
+ * the moment somebody chooses which secret to give a pipeline, and it is the only
+ * moment where saying so costs a line.
+ */
+export function NoBuilds({ endpoint }: { readonly endpoint?: string | undefined }): ReactElement {
+  const address = addressOf(endpoint);
+
+  return (
+    <div className="va-first">
+      <h2>No builds yet</h2>
+      <p>
+        This store is reachable and holds nothing. A build arrives from <code>variance push</code>,
+        which records a run against the endpoint its config names — so point a project at this one:
+      </p>
+      <pre>
+        <code>{`"review": {\n  "endpoint": "${address}",\n  "token": { "env": "VARIANCE_INGEST_TOKEN" }\n}`}</code>
+      </pre>
+      <p>
+        Then, wherever the run happened:
+      </p>
+      <pre>
+        <code>VARIANCE_INGEST_TOKEN=… variance push</code>
+      </pre>
+      <p className="va-note">
+        That is the <strong>ingest</strong> token, the one a pipeline holds. The review token is what
+        a person decides a subject with, and recording a build is not a decision.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The address to print, preferring what the client was configured with.
+ *
+ * A relative base is the normal case behind a framework adapter, where the page
+ * and the API are one deployment. `variance push` cannot use a relative address,
+ * so it is resolved against the page the reader has open. Rendered on a server
+ * with no configured endpoint there is no origin to resolve against, and a
+ * visible placeholder is better than a wrong URL somebody pastes.
+ */
+function addressOf(endpoint: string | undefined): string {
+  const base = (endpoint ?? '').replace(/\/$/, '');
+  if (/^https?:\/\//.test(base)) return base;
+  if (typeof window === 'undefined') return 'https://variance.example.com';
+  return `${window.location.origin}${base}`;
 }
 
 /**

@@ -41,6 +41,7 @@
  * handed over as text, so it can ask for a face and must not require one.
  */
 import { DOCKET_STYLES } from './styles-docket.js';
+import { FINDING_STYLES } from './styles-findings.js';
 import { JOURNEY_STYLES } from './styles-journeys.js';
 import { STAGE_STYLES } from './styles-stage.js';
 
@@ -119,6 +120,29 @@ export const REVIEW_STYLES = `
 .va-failure { background: var(--va-bad-bg); border-radius: 8px; color: var(--va-bad-ink); font-size: 0.88rem; margin: 0.5rem 0; padding: 0.6rem 0.75rem; }
 .va-card { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; margin-bottom: 1rem; padding: 1rem 1.1rem; }
 .va-card > h2 { color: var(--va-ink-3); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em; margin-bottom: 0.6rem; text-transform: uppercase; }
+
+.va-visually-hidden { border: 0; clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+
+.va-waiting { display: grid; gap: 0.85rem; }
+.va-waiting-bar { animation: va-waiting 1.4s ease-in-out infinite; background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; display: block; height: 5.2rem; }
+.va-waiting-bar:nth-child(3) { animation-delay: 0.12s; }
+.va-waiting-bar:nth-child(4) { animation-delay: 0.24s; }
+.va-waiting-bar:nth-child(5) { animation-delay: 0.36s; }
+.va-waiting-bar:nth-child(6) { animation-delay: 0.48s; }
+
+/* The one animation on this surface, and it says nothing a reader has to read:
+   the bars claim the space the builds are about to take, and the pulse is how a
+   held page is told apart from a finished one that is empty. Reduced motion
+   stops it below, and the sentence a screen reader is given never moved. */
+@keyframes va-waiting { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.85; } }
+
+.va-first { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; max-width: 46rem; padding: 1.1rem 1.3rem; }
+.va-first h2 { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; margin-bottom: 0.6rem; }
+.va-first p { color: var(--va-ink-2); font-size: 0.9rem; line-height: 1.5; margin-bottom: 0.6rem; }
+.va-first pre { background: var(--va-sunken); border: 1px solid var(--va-line); border-radius: 8px; margin-bottom: 0.8rem; overflow-x: auto; padding: 0.7rem 0.85rem; }
+.va-first pre code { color: var(--va-ink); font-family: var(--va-mono); font-size: 0.82rem; line-height: 1.55; white-space: pre; }
+.va-first p code { background: var(--va-sunken); border-radius: 5px; color: var(--va-ink); font-family: var(--va-mono); font-size: 0.82rem; padding: 0.1rem 0.35rem; }
+.va-first .va-note { margin-bottom: 0; }
 
 .va-builds { display: grid; gap: 0.85rem; }
 .va-build { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; padding: 0.9rem 1.1rem; }
@@ -390,63 +414,7 @@ ${DOCKET_STYLES}
 .va-stability, .va-churn { color: var(--va-ink-2); font-size: 0.86rem; margin-bottom: 0.5rem; }
 .va-stability.va-unknown, .va-churn.va-unknown { color: var(--va-warn); }
 .va-stability.va-flaky { color: var(--va-bad); }
-
-/* One finding, in three registers: what it is, where it is, and the sentence
-   that explains it. The rule id is last because it is the least of the three to
-   a person and the whole of it to an ignore list.
-
-   The lead is the only loud thing in the panel and it is one sentence about this
-   change. The method line that used to open the panel is now the last line in it,
-   at note size: it says why nothing here moved the verdict, which is worth
-   knowing and is worth nobody's first glance. */
-.va-findings-lead { font-size: 0.9rem; font-weight: 650; margin-bottom: 0.7rem; }
-.va-findings-lead.va-findings-mine { color: var(--va-warn-ink); }
-.va-findings-why { border-top: 1px solid var(--va-line); margin-top: 0.9rem; padding-top: 0.5rem; }
-/* Shut by default, and the summary is the whole argument for the fold: a count a
-   reviewer can decide to open, rather than twenty-two rows they have to scroll. */
-.va-findings-rest { margin-top: 1rem; }
-.va-findings-rest > summary { color: var(--va-ink-2); cursor: pointer; font-size: 0.8rem; padding: 0.35rem 0; }
-.va-findings-rest[open] > summary { color: var(--va-ink); }
-.va-findings-rest > .va-note { margin-bottom: 0.7rem; }
-.va-findings-band + .va-findings-band { margin-top: 0.9rem; }
-.va-band-head { color: var(--va-ink-2); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em; margin-bottom: 0.5rem; text-transform: uppercase; }
-.va-findings { display: grid; gap: 0.7rem; }
-.va-finding { border-left: 2px solid var(--va-line-firm); padding-left: 0.7rem; }
-.va-finding-new { border-left-color: var(--va-warn); }
-/* The headline is an item and the marks may wrap under it. Left as a bare text
-   node beside two flex-none badges it became an anonymous item with nothing
-   holding its width, and "a control inside another control" read down the rail
-   one word to a line. */
-.va-finding-title { align-items: baseline; display: flex; flex-wrap: wrap; font-size: 0.88rem; font-weight: 650; gap: 0.5rem; justify-content: space-between; }
-.va-finding-said { flex: 1 1 9rem; }
-.va-finding-marks { align-items: baseline; display: flex; flex: none; gap: 0.45rem; }
-.va-times { color: var(--va-accent); flex: none; font-family: var(--va-mono); font-size: 0.72rem; font-weight: 500; }
-.va-age { border-radius: 5px; color: var(--va-ink-3); flex: none; font-size: 0.7rem; font-weight: 500; padding: 0.1rem 0.4rem; white-space: nowrap; }
-.va-age-new { background: var(--va-warn-bg); color: var(--va-warn-ink); }
-.va-age-standing, .va-age-undated { background: var(--va-info-bg); }
-.va-finding-where { color: var(--va-ink-2); font-size: 0.8rem; }
-.va-finding-what { color: var(--va-ink-2); font-size: 0.8rem; margin-top: 0.2rem; }
-.va-finding-owner { align-items: center; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
-.va-tag { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 5px; color: var(--va-ink-2); font-size: 0.72rem; padding: 0.1rem 0.4rem; }
-.va-tag.va-rule { color: var(--va-ink-3); }
-
-/* The declaration ledgers. Every rule is a row, including the ones that absorbed
-   nothing — those are the finding, and a table that hid them would be a table of
-   rules that are working. The rule name is the widest column because it is the
-   thing a reader copies into their config; the reason is the widest prose. */
-.va-ledger { margin-top: 0.5rem; }
-.va-ledger code { font-size: 0.78rem; }
-.va-ledger em { color: var(--va-ink-3); font-size: 0.72rem; font-style: normal; }
-.va-ledger .va-none { color: var(--va-ink-3); }
-.va-ledger .va-ledger-why { color: var(--va-ink-2); width: 38%; }
-.va-ledger .va-tag { margin-right: 0.25rem; }
-/* Marked on the row rather than only on the badge: a reviewer scanning for the
-   one rule that is wrong reads the left edge, not the third column. */
-.va-ledger tr.va-spent td:first-child { border-left: 2px solid var(--va-warn); padding-left: 0.4rem; }
-.va-tag.va-warn { background: var(--va-warn-bg); border-color: transparent; color: var(--va-warn-ink); }
-.va-ledger-head { color: var(--va-ink-2); font-size: 0.8rem; font-weight: 650; margin-top: 0.9rem; }
-.va-ledger-head .va-note { font-weight: 400; margin-left: 0.5rem; }
-
+${FINDING_STYLES}
 /* Folded, because on a run of three hundred stories this is three hundred lines
    of nothing — and present, because a green subject that is green by declaration
    is the one a mask hides behind. */
@@ -454,6 +422,8 @@ ${DOCKET_STYLES}
 .va-settled-list { display: grid; gap: 0.3rem; margin-top: 0.6rem; }
 .va-settled-list li { align-items: baseline; display: flex; font-size: 0.84rem; gap: 0.45rem; }
 .va-settled-list strong { font-family: var(--va-mono); font-size: 0.78rem; font-weight: 500; }
+.va-settled-go { color: var(--va-accent); margin-left: auto; text-decoration: none; white-space: nowrap; }
+.va-settled-go:hover { text-decoration: underline; }
 
 .va-not-observed { color: var(--va-ink-2); display: grid; font-size: 0.86rem; gap: 0.35rem; }
 .va-not-observed .va-failed { color: var(--va-bad); font-weight: 600; }

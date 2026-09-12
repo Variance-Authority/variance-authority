@@ -19,6 +19,7 @@ import type { ReactElement } from 'react';
 import type { BuildDetail } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import type { Crossing } from './crossing.js';
+import type { Route } from './route.js';
 import { DeclarationsPanel } from './declarations.js';
 import { DivergenceOf } from './divergence.js';
 import { JourneysPanel } from './journeys.js';
@@ -32,10 +33,20 @@ export function RunPage({
   client,
   build,
   crossing,
+  go,
 }: {
   readonly client: ReviewClient;
   readonly build: BuildDetail;
   readonly crossing: Crossing;
+  /**
+   * Taken rather than read from the address, because a host router may own it.
+   *
+   * The only thing on this page that navigates is the settled panel's link into
+   * an absorbed subject, and a page that reached for `location` to render it
+   * would work in the Node service and push a second entry onto a Next app's
+   * history stack.
+   */
+  readonly go: (route: Route) => void;
 }): ReactElement {
   return (
     <div className="va-stage va-scroll">
@@ -76,7 +87,12 @@ export function RunPage({
 
         <section className="va-card">
           <h2>Settled</h2>
-          <Settled subjects={build.subjects} ignores={build.declarations.ignores} />
+          <Settled
+            subjects={build.subjects}
+            ignores={build.declarations.ignores}
+            build={build.build}
+            go={go}
+          />
         </section>
 
         <section className="va-card">

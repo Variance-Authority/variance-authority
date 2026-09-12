@@ -56,6 +56,15 @@ export interface ReviewClientOptions {
 }
 
 export interface ReviewClient {
+  /**
+   * Where this client is pointed, when it knows.
+   *
+   * Read by the one screen that has to name an address rather than use it: an
+   * empty store, which answers with the `variance push` configuration that would
+   * fill it. Optional because a fake stands in for the whole interface in tests,
+   * and a list must not need an address to render.
+   */
+  readonly endpoint?: string;
   builds(limit?: number): Promise<readonly BuildSummary[]>;
   build(id: string): Promise<BuildDetail>;
   /** Why the baselines are what they are, grouped by shape. */
@@ -84,6 +93,16 @@ export interface ReviewClient {
   sweep(days?: number): Promise<SweepReport>;
   /** The URL of one image, for an `<img src>`. Never fetched here. */
   imageUrl(build: string, subject: string, kind: 'before' | 'after' | 'diff'): string;
+  /**
+   * The bytes of one image, for a reader that needs pixels rather than a frame.
+   *
+   * `imageUrl` is enough for everything the surface *displays*, because an
+   * `<img>` carries the host's capability on its own. The difference mask is the
+   * one thing the page computes rather than displays — a build pushed by a
+   * current CLI does not upload one — and computing it means decoding two
+   * images, which means holding them. Same route, same credential, one place.
+   */
+  imageBlob(build: string, subject: string, kind: 'before' | 'after' | 'diff'): Promise<Blob>;
 }
 
 export class ReviewRequestError extends Error {
@@ -124,6 +143,8 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
   const encode = (value: string): string => encodeURIComponent(value);
 
   return {
+    endpoint: base,
+
     async builds(limit): Promise<readonly BuildSummary[]> {
       const body = await call<{ readonly builds: readonly BuildSummary[] }>(
         `/review/builds${limit === undefined ? '' : `?limit=${limit}`}`,
@@ -172,6 +193,23 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
 
     imageUrl: (build, subject, kind) =>
       `${base}/review/builds/${encode(build)}/subjects/${encode(subject)}/${kind}.png`,
+
+    async imageBlob(build, subject, kind): Promise<Blob> {
+      const path = `/review/builds/${encode(build)}/subjects/${encode(subject)}/${kind}.png`;
+      const response = await send(
+        `${base}${path}`,
+        options.token === undefined
+          ? {}
+          : { headers: { authorization: `Bearer ${options.token}` } },
+      );
+      if (!response.ok) {
+        throw new ReviewRequestError(
+          `GET ${path} answered ${response.status}: ${await quote(response)}`,
+          response.status,
+        );
+      }
+      return await response.blob();
+    },
   };
 }
 

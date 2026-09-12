@@ -3,7 +3,16 @@ import type { Digest } from '@variance-authority/core/format';
 import type { JourneysReport, RunReport, VariationRecord } from '@variance-authority/report';
 import type { BuildIngest, ReviewStore } from './review.js';
 import { ReviewError } from './review.js';
-import { CANDIDATE, POSTED, PREVIOUS, VARIATIONS, ingest, openReview, report } from './__fixtures__/review.js';
+import {
+  CANDIDATE,
+  POSTED,
+  PREVIOUS,
+  VARIATIONS,
+  decideEverything,
+  ingest,
+  openReview,
+  report,
+} from './__fixtures__/review.js';
 import type { SqliteD1 } from './testing.js';
 
 let db: SqliteD1;
@@ -368,6 +377,7 @@ describe('a variation is carried, and is never a verdict', () => {
 
   it('goes when the build goes', async () => {
     await review.ingest(declared());
+    await decideEverything(review);
     clock = new Date('2026-07-01T12:00:00.000Z');
 
     await review.sweep(7);
@@ -436,6 +446,7 @@ describe("where the run's subjects parted is carried with the build", () => {
 
   it('goes when the build goes', async () => {
     await review.ingest(carrying(JOURNEYS));
+    await decideEverything(review);
     clock = new Date('2026-07-01T12:00:00.000Z');
 
     await review.sweep(7);
