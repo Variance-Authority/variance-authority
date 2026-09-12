@@ -68,6 +68,7 @@ function clientThat(builds: () => Promise<readonly BuildSummary[]>): ReviewClien
     decide: refuse,
     sweep: refuse,
     imageUrl: () => '',
+    imageBlob: refuse,
   };
 }
 
@@ -88,6 +89,7 @@ function historyClient(flakiness: () => Promise<Flakiness>): ReviewClient {
     decide: refuse,
     sweep: refuse,
     imageUrl: () => '',
+    imageBlob: refuse,
   };
 }
 
