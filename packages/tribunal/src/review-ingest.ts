@@ -1,8 +1,8 @@
 import { identityDigest } from '@variance-authority/core/format';
 import type { D1Like, R2Like } from './bindings.js';
 import { ReviewError, instant } from './review-rows.js';
-import type { BuildIngest } from './review-types.js';
-import { store, type StoredKeys } from './review-write.js';
+import type { BuildIngest } from './review-ingest-types.js';
+import { store } from './review-write.js';
 
 /**
  * One run report, written into rows.
@@ -43,18 +43,22 @@ export async function ingestBuild(
   const identity = report.identity;
   const at = report.at;
   const images = build.images ?? {};
+  // The moment these bytes were stored, for the object ledger — the build's own
+  // timestamp rather than the wall clock, so an object's idle window is measured
+  // on the same clock as the build that referred to it.
+  const atMs = instant(at, `build "${build.build}"`);
 
   // Objects first, rows second — the same order and the same argument as the
   // baseline store's `put`. An object nothing points at is invisible and is
   // swept; a row pointing at nothing is a build that throws whenever anybody
   // opens it.
-  const written: { readonly subject: string; readonly keys: StoredKeys }[] = [];
-  for (const observation of report.observations) {
-    written.push({
-      subject: observation.subject,
-      keys: await store(bucket, project, build.build, observation.subject, images[observation.subject]),
-    });
-  }
+  //
+  // The whole build's images in one call rather than a call per subject, which
+  // is not a detail of style: a Worker spends a subrequest on every binding
+  // call, and doing this per image cost a 300-subject run some two thousand of
+  // them against a ceiling of ten thousand. `store` asks once what is already
+  // here, writes what is not, and claims all of it in one batch.
+  const written = await store(db, bucket, project, build.build, images, atMs);
 
   // The build's own rows, cleared before they are rewritten.
   //
@@ -98,7 +102,7 @@ export async function ingestBuild(
         build.branch ?? null,
         report.intent ?? null,
         at,
-        instant(at, `build "${build.build}"`),
+        atMs,
         JSON.stringify(identity),
         identityDigest(identity),
         report.retention,
@@ -113,8 +117,8 @@ export async function ingestBuild(
       ),
   ];
 
-  for (const [index, observation] of report.observations.entries()) {
-    const keys = written[index]?.keys ?? {};
+  for (const observation of report.observations) {
+    const keys = written.get(observation.subject) ?? {};
     const after = images[observation.subject]?.after;
     const before = images[observation.subject]?.before;
     statements.push(
@@ -125,8 +129,9 @@ export async function ingestBuild(
               missing_fonts, findings, signals, ignored, relaxed, moved, before_key, after_key,
               diff_key, candidate_document_digest, candidate_width, candidate_height,
               candidate_missing_fonts, candidate_accessibility,
+              candidate_identity, candidate_components, candidate_finding_marks,
               baseline_width, baseline_height)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           project,
@@ -164,6 +169,16 @@ export async function ingestBuild(
           after?.height ?? null,
           after === undefined ? null : JSON.stringify(after.missingFonts),
           after?.accessibility === undefined ? null : JSON.stringify(after.accessibility),
+          // The identity the document was painted under, which the build row
+          // does not hold: its identity describes the machine and leaves the
+          // scale at 1. Null is a push from a CLI that predates the field, and
+          // `promote` falls back to the build's there.
+          after?.identity === undefined ? null : JSON.stringify(after.identity),
+          // `null` is *not recorded*; `'[]'` is *read, and empty*. A promotion
+          // that turned the first into the second would tell every later run
+          // this document declared no components and this render was clean.
+          after?.components === undefined ? null : JSON.stringify(after.components),
+          after?.findingMarks === undefined ? null : JSON.stringify(after.findingMarks),
           // Null when the push could not read the baseline's header. Not the
           // candidate's numbers: a guess here is a width change made invisible.
           before?.width ?? null,

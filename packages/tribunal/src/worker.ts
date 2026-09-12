@@ -40,6 +40,7 @@ import {
   asApprovals,
   asBand,
   asBuildIngest,
+  asHaveRequest,
   asCurrentRequest,
   asDecision,
   asIdentity,
@@ -357,6 +358,17 @@ async function route(
     return json(201, { ok: true });
   }
 
+  if (path === '/review/have') {
+    // The ingest token's second route, and it is the same caller doing the same
+    // job: a run asking which of its images this deployment can already produce,
+    // so it uploads the ones it cannot. Answering names no build, reveals no
+    // verdict and changes nothing — a hex digest is a question about bytes the
+    // asker is holding.
+    requires(granted, 'ingest', path);
+    requireMethod(request, 'POST');
+    return json(200, { have: await surfaces.review.have(await asHaveRequest(request)) });
+  }
+
   if (path === '/review/builds') {
     requires(granted, 'review', path);
     requireMethod(request, 'GET');
@@ -444,7 +456,7 @@ async function route(
       `(${BASELINE_FIND_PATH}, ${BASELINE_DESCRIBE_PATH}, ${BASELINE_PUT_PATH}, ` +
       `${CACHE_FIND_PATH}, ${CACHE_PUT_PATH}), the history routes (${OBSERVATIONS_PATH}, ` +
       `${APPROVALS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
-      `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}) and /review/builds and ` +
+      `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}), /review/builds, /review/have and ` +
       '/review/changelog. A path from a different API version is a client and a service that ' +
       'disagree about a recorded shape',
   });

@@ -1,9 +1,7 @@
-import type { D1Like } from './bindings.js';
+import type { D1Like, D1PreparedLike } from './bindings.js';
 import { readChangelog, recordApproval } from './changelog.js';
 import {
   docket,
-  latestDecisions,
-  summarize,
   toDeclarations,
   toNotObserved,
   toMovement,
@@ -13,8 +11,18 @@ import {
   toSubjectView,
   toVariation,
 } from './review-read.js';
+import {
+  decisionsFrom,
+  latestDecisionsStatement,
+  newestBuilds,
+  oneBuild,
+  summarize,
+  summaryCounts,
+  summaryStatements,
+} from './review-summary.js';
 import { ingestBuild } from './review-ingest.js';
-import { ReviewError, instant, number, optionalText, text, type Row } from './review-rows.js';
+import { sweepProject } from './review-sweep.js';
+import { ReviewError, instant, optionalText, text, type Row } from './review-rows.js';
 import type {
   BuildDetail,
   BuildSummary,
@@ -23,6 +31,7 @@ import type {
   ReviewStore,
   SweepReport,
 } from './review-types.js';
+import { have as heldObjects } from './objects.js';
 import { promote } from './review-write.js';
 import type { TribunalChangelog } from './changelog.js';
 import { createBucketStore } from './store.js';
@@ -75,18 +84,16 @@ import { createBucketStore } from './store.js';
  * itself — the order the writes happen in, and what each operation refuses.
  */
 
+export type { BuildIngest, CandidateImage, SubjectImages } from './review-ingest-types.js';
 export type {
   BuildDetail,
-  BuildIngest,
   BuildSummary,
-  CandidateImage,
   Cause,
   Coverage,
   Decision,
   DecisionRecord,
   ReviewOptions,
   ReviewStore,
-  SubjectImages,
   SubjectView,
   SweepReport,
 } from './review-types.js';
@@ -117,88 +124,150 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
       await ingestBuild({ db, bucket, project }, build);
     },
 
-    async builds(limit = 50): Promise<readonly BuildSummary[]> {
-      const listed = await db
-        .prepare('SELECT * FROM builds WHERE project = ? ORDER BY at_ms DESC, rowid DESC LIMIT ?')
-        .bind(project, limit)
-        .all<Row>();
-
-      const summaries: BuildSummary[] = [];
-      for (const row of listed.results) {
-        summaries.push(await summarize(db, project, row));
-      }
-      return summaries;
+    /**
+     * Of these digests, which this deployment can already produce.
+     *
+     * Asked before a push, so a run uploads the images this project has never
+     * seen and names the rest. On a suite that did not change that is every
+     * image but the new ones — the baseline this deployment handed the run over
+     * `/baseline/find` comes back as its own `before`, and re-sending it was
+     * always the run paying to tell the store something it said first.
+     *
+     * Answering touches nothing. A question is not a reference, and treating it
+     * as one would let a client keep an object alive forever by asking about it;
+     * the object is claimed in `store`, where a build actually points at it.
+     */
+    async have(digests): Promise<readonly string[]> {
+      return await heldObjects(db, project, digests);
     },
 
+    /**
+     * The newest builds, summarised — in one round trip, whatever the page size.
+     *
+     * This used to be a listing query and then `summarize` per row, which is
+     * four statements per build issued one after another: 201 of them for a
+     * page of fifty, each one a subrequest, all of them serial. The page took
+     * three seconds and none of it was query cost.
+     *
+     * Now the listing and its four aggregates travel in one `batch`. The
+     * aggregates do not name the builds they are about — they re-select the
+     * same window from `builds_recent` — so the statement count is five and the
+     * parameter count is four, at any limit, and D1's ceiling of a hundred
+     * bound values is not something a later page size can walk into.
+     */
+    async builds(limit = 50): Promise<readonly BuildSummary[]> {
+      const scope = newestBuilds(project, limit);
+      const results = await db.batch<Row>([
+        ...summaryStatements(db, project, scope),
+        db
+          .prepare('SELECT * FROM builds WHERE project = ? ORDER BY at_ms DESC, rowid DESC LIMIT ?')
+          .bind(project, limit),
+      ]);
+
+      const counts = summaryCounts(results);
+      return (results[4]?.results ?? []).map((row) => summarize(project, row, counts));
+    },
+
+    /**
+     * One build, whole — also in one round trip.
+     *
+     * Thirteen statements, run one at a time, and two of them were duplicates:
+     * `summarize` read the decisions to count them and the page read them again
+     * to show them, and `build_not_observed` was counted and then listed. What
+     * is left is one batch. The build row itself is in it rather than ahead of
+     * it, so "no such build" costs the same trip as reading one — the
+     * alternative is a statement whose only job is to decide whether to send
+     * the others.
+     *
+     * `build_reach_subjects` is read unconditionally for the same reason. It
+     * used to be skipped when the build carried no reach row, which saved a
+     * statement in a batch and cost a whole round trip in every build that did.
+     */
     async build(id): Promise<BuildDetail | null> {
-      const row = await db
-        .prepare('SELECT * FROM builds WHERE project = ? AND build = ?')
-        .bind(project, id)
-        .first<Row>();
-      if (row === null) return null;
+      const of = (sql: string): D1PreparedLike => db.prepare(sql).bind(project, id);
 
-      const summary = await summarize(db, project, row);
-      const subjectRows = await db
-        .prepare('SELECT * FROM build_subjects WHERE project = ? AND build = ? ORDER BY subject')
-        .bind(project, id)
-        .all<Row>();
-      const decisions = await latestDecisions(db, project, id);
-      const skipped = await db
-        .prepare('SELECT * FROM build_not_observed WHERE project = ? AND build = ? ORDER BY subject')
-        .bind(project, id)
-        .all<Row>();
-      const variations = await db
-        .prepare('SELECT * FROM build_variations WHERE project = ? AND build = ? ORDER BY subject')
-        .bind(project, id)
-        .all<Row>();
-      const reachRow = await db
-        .prepare('SELECT * FROM build_reach WHERE project = ? AND build = ?')
-        .bind(project, id)
-        .first<Row>();
-      const journeyRow = await db
-        .prepare('SELECT * FROM build_journeys WHERE project = ? AND build = ?')
-        .bind(project, id)
-        .first<Row>();
-      const census = await db
-        .prepare(
+      // Named rather than positional. A batch answers in order, and a list of
+      // fifteen statements read back by index is one inserted line away from
+      // handing `movements` the journeys of the same build — which would parse,
+      // and would be wrong on the page rather than in the log.
+      const reads = {
+        decisions: latestDecisionsStatement(db, project, id),
+        build: of('SELECT * FROM builds WHERE project = ? AND build = ?'),
+        subjects: of('SELECT * FROM build_subjects WHERE project = ? AND build = ? ORDER BY subject'),
+        notObserved: of(
+          'SELECT * FROM build_not_observed WHERE project = ? AND build = ? ORDER BY subject',
+        ),
+        variations: of(
+          'SELECT * FROM build_variations WHERE project = ? AND build = ? ORDER BY subject',
+        ),
+        reach: of('SELECT * FROM build_reach WHERE project = ? AND build = ?'),
+        reached: of(
+          'SELECT * FROM build_reach_subjects WHERE project = ? AND build = ? ORDER BY subject',
+        ),
+        journeys: of('SELECT * FROM build_journeys WHERE project = ? AND build = ?'),
+        composition: of(
           'SELECT * FROM build_composition WHERE project = ? AND build = ? ORDER BY component',
-        )
-        .bind(project, id)
-        .all<Row>();
-      const attributed = await db
-        .prepare(
+        ),
+        movements: of(
           `SELECT * FROM build_movements WHERE project = ? AND build = ?
-           ORDER BY component, subject`,
-        )
-        .bind(project, id)
-        .all<Row>();
-      const reachSubjects =
-        reachRow === null
-          ? undefined
-          : await db
-              .prepare(
-                'SELECT * FROM build_reach_subjects WHERE project = ? AND build = ? ORDER BY subject',
-              )
-              .bind(project, id)
-              .all<Row>();
+            ORDER BY component, subject`,
+        ),
+        // The run before this one, by the listing's order rather than by the
+        // clock. Two runs pushed from one machine share a timestamp to the
+        // millisecond, so the tie is broken by arrival — the same total order
+        // `builds()` returns, compared as a row value so the query needs
+        // nothing the caller would have had to read first.
+        //
+        // Carried here because the page needs exactly this one string, and the
+        // surface used to reach it by fetching the entire builds listing and
+        // taking the element after this one: 201 statements, in a second serial
+        // wave, for a build id the store answers off an index it already has.
+        previous: db
+          .prepare(
+            `SELECT build FROM builds
+              WHERE project = ?
+                AND (at_ms, rowid) < (SELECT at_ms, rowid FROM builds
+                                       WHERE project = ? AND build = ?)
+              ORDER BY at_ms DESC, rowid DESC LIMIT 1`,
+          )
+          .bind(project, project, id),
+      };
 
-      const subjects = subjectRows.results.map((subject) =>
+      const names = Object.keys(reads) as (keyof typeof reads)[];
+      const summaries = summaryStatements(db, project, oneBuild(id));
+      const results = await db.batch<Row>([...summaries, ...names.map((name) => reads[name])]);
+
+      const rows = (name: keyof typeof reads): readonly Row[] =>
+        results[summaries.length + names.indexOf(name)]?.results ?? [];
+
+      const row = rows('build')[0];
+      if (row === undefined) return null;
+
+      const summary = summarize(project, row, summaryCounts(results));
+      const decisions = decisionsFrom(rows('decisions'));
+      const reachRow = rows('reach')[0];
+      const journeyRow = rows('journeys')[0];
+      const previous = rows('previous')[0];
+      const composition = rows('composition');
+
+      const subjects = rows('subjects').map((subject) =>
         toSubjectView(subject, decisions.get(text(subject, 'subject', 'a build subject')) ?? null),
       );
 
       return {
         ...summary,
         subjects,
-        notObserved: skipped.results.map(toNotObserved),
+        notObserved: rows('notObserved').map(toNotObserved),
         causes: docket(subjects),
-        variations: variations.results.map(toVariation),
-        reach: reachRow === null ? null : toReach(reachRow, reachSubjects?.results ?? []),
-        journeys: journeyRow === null ? null : toJourneys(journeyRow),
+        variations: rows('variations').map(toVariation),
+        reach: reachRow === undefined ? null : toReach(reachRow, rows('reached')),
+        journeys: journeyRow === undefined ? null : toJourneys(journeyRow),
+        previous: previous === undefined ? null : text(previous, 'build', 'a build'),
         // No rows is `null`, not `[]`. A run that produced no semantic snapshots
         // has no graph to join, and an empty list would say the opposite — that
         // the suite was read and found to contain no component at all.
-        composition: census.results.length === 0 ? null : census.results.map(toPlacement),
-        movements: attributed.results.map(toMovement),
+        composition: composition.length === 0 ? null : composition.map(toPlacement),
+        movements: rows('movements').map(toMovement),
         declarations: toDeclarations(row),
       };
     },
@@ -296,91 +365,11 @@ export function createReviewStore(options: ReviewOptions): ReviewStore {
     },
 
     async sweep(keepDays): Promise<SweepReport> {
-      if (!Number.isFinite(keepDays) || keepDays < 0) {
-        throw new ReviewError(
-          `a retention window of ${String(keepDays)} days is not a window. Pass the number of ` +
-            'days of builds to keep; 0 keeps none',
-        );
-      }
-
-      const cutoff = now().getTime() - keepDays * 86_400_000;
-      const expired = await db
-        .prepare('SELECT build FROM builds WHERE project = ? AND at_ms < ?')
-        .bind(project, cutoff)
-        .all<Row>();
-
-      const ids = expired.results.map((row) => text(row, 'build', 'a build'));
-      if (ids.length === 0) return { builds: 0, subjects: 0, objects: 0, decisionsKept: 0 };
-
-      let objects = 0;
-      let subjects = 0;
-      let decisionsKept = 0;
-
-      for (const id of ids) {
-        const rows = await db
-          .prepare('SELECT before_key, after_key, diff_key FROM build_subjects WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .all<Row>();
-
-        const keys = rows.results.flatMap((row) =>
-          (['before_key', 'after_key', 'diff_key'] as const)
-            .map((column) => optionalText(row, column, 'a build subject'))
-            .filter((key): key is string => key !== undefined),
-        );
-
-        if (keys.length > 0) await bucket.delete(keys);
-        objects += keys.length;
-        subjects += rows.results.length;
-
-        const counted = await db
-          .prepare('SELECT COUNT(*) AS n FROM decisions WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .first<Row>();
-        decisionsKept += number(counted ?? {}, 'n', 'a decision count');
-
-        // `decisions` carries a permanence trigger and is deliberately not swept:
-        // a promoted baseline whose approval was deleted is a change nobody can
-        // attribute to anyone. What expires is what a build kept to be *looked
-        // at*, which is images and the verdicts beside them.
-        await db
-          .prepare('DELETE FROM build_subjects WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .run();
-        await db
-          .prepare('DELETE FROM build_not_observed WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .run();
-        await db
-          .prepare('DELETE FROM build_variations WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .run();
-        await db
-          .prepare('DELETE FROM build_composition WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .run();
-        await db
-          .prepare('DELETE FROM build_movements WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .run();
-        await db
-          .prepare('DELETE FROM build_reach_subjects WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .run();
-        await db
-          .prepare('DELETE FROM build_reach WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .run();
-        await db
-          .prepare('DELETE FROM build_journeys WHERE project = ? AND build = ?')
-          .bind(project, id)
-          .run();
-        await db.prepare('DELETE FROM builds WHERE project = ? AND build = ?').bind(project, id).run();
-      }
-
-      return { builds: ids.length, subjects, objects, decisionsKept };
+      return await sweepProject({ db, bucket, project, now }, keepDays);
     },
   };
 }
+
 
 /**
  * The two things a changelog entry needs from the build and cannot invent.

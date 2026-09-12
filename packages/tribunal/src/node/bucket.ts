@@ -13,21 +13,28 @@ import type { R2Like, R2ObjectLike } from '../bindings.js';
  *
  * ## Keys, and what may become a path
  *
- * The keys are built in [`store.ts`](../store.ts) and
- * [`review-write.ts`](../review-write.ts) and have three shapes:
+ * Every key this package writes is built in [`objects.ts`](../objects.js) and
+ * has one shape:
+ *
+ * ```
+ * <project>/objects/<sha256 of the bytes>.png
+ * ```
+ *
+ * The digest is hex, so the only segment that is not already fixed by
+ * construction is `project` — an operator's own string, and the one thing
+ * nothing encodes. Rather than trusting that, every segment is checked here:
+ * this is the layer that owns the filesystem, and a rule enforced where the risk
+ * is cannot be dropped by a caller that forgets it exists.
+ *
+ * Deployments written before content keys still hold the three shapes that came
+ * before, and still read them — the key is a column rather than something a
+ * lookup derives:
  *
  * ```
  * <project>/baselines/<identityDigest>/<encoded subject>.png
  * <project>/cache/<identityDigest>/<documentDigest>.png
- * <project>/builds/<encoded build>/<encoded subject>-after.png
+ * <project>/builds/<encoded build>/<encoded subject>.<kind>.png
  * ```
- *
- * Every volatile segment is already `encodeURIComponent`'d, which removes `/`
- * and leaves `.` — so `..` is reachable only through `project`, which is an
- * operator's own string and is the one segment nothing encodes. Rather than
- * trusting that, every segment is checked here: this is the layer that owns the
- * filesystem, and a rule enforced where the risk is cannot be dropped by a
- * caller that forgets it exists.
  *
  * ## The hazard that is documented rather than solved
  *
@@ -36,6 +43,11 @@ import type { R2Like, R2ObjectLike } from '../bindings.js';
  * rows, and one file. The consequence is a comparison against the wrong image,
  * which is the failure this project exists to refuse — so it is said here rather
  * than left for somebody to find.
+ *
+ * Content keys took the subject name out of the path, so a deployment made after
+ * them cannot reach this: two hex digests that differ do not fold. It stays
+ * documented because a directory written by an earlier version still holds the
+ * keys above, and this backend still serves them.
  *
  * It is not solved by escaping, because escaping does not help: any encoding
  * that survives a case-folding filesystem has to fold case itself, which loses

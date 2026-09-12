@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { BuildDetail, BuildSummary, SubjectView } from '../review-types.js';
+import type { BuildDetail, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { DivergencePanel } from './divergence.js';
 import { divergeFrom } from './shift.js';
@@ -70,6 +70,10 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     variations: [],
     reach: null,
     journeys: null,
+    // Builds 5 and 6 of the example repository, and 6 is the one with a run
+    // before it. The page reads this rather than a listing, which is why the
+    // client below may refuse `builds` outright.
+    previous: id === '6' ? '5' : null,
   };
 }
 
@@ -167,17 +171,22 @@ afterEach(() => {
   host.remove();
 });
 
-/** A client answering the two calls this panel makes, and refusing every other. */
-function clientThat(
-  builds: () => Promise<readonly BuildSummary[]>,
-  detail?: (id: string) => Promise<BuildDetail>,
-): ReviewClient {
+/**
+ * A client answering the one call this panel makes, and refusing every other.
+ *
+ * `builds` refuses along with the rest, which is the point of it being here: the
+ * crossing used to fetch the whole listing to find out which build came before
+ * this one, and now reads `previous` off the build it was handed. A panel that
+ * went back to the listing fails this file rather than merely costing a page a
+ * second.
+ */
+function clientThat(detail?: (id: string) => Promise<BuildDetail>): ReviewClient {
   const refuse = (): never => {
-    throw new Error('the crossing reads the build list and one earlier build, nothing else');
+    throw new Error('the crossing reads one earlier build, nothing else');
   };
 
   return {
-    builds,
+    builds: refuse,
     build: detail ?? refuse,
     changelog: refuse,
     churn: refuse,
@@ -199,11 +208,10 @@ async function mount(client: ReviewClient, now: BuildDetail): Promise<string> {
 
 describe('what the earlier run decided is part of the finding', () => {
   const now = build('6', [subject({ regions: shaped('v1:aaa') })]);
-  const listing = async (): Promise<readonly BuildSummary[]> => [build('6', []), build('5', [])];
 
   it('says nobody decided a difference that has now arrived twice', async () => {
     const markup = await mount(
-      clientThat(listing, async () => build('5', [subject({ regions: shaped('v1:aaa') })])),
+      clientThat(async () => build('5', [subject({ regions: shaped('v1:aaa') })])),
       now,
     );
 
@@ -213,7 +221,7 @@ describe('what the earlier run decided is part of the finding', () => {
 
   it('carries an earlier approval onto the row, because an identical difference then means it never landed', async () => {
     const markup = await mount(
-      clientThat(listing, async () =>
+      clientThat(async () =>
         build('5', [
           subject({
             regions: shaped('v1:aaa'),
@@ -231,7 +239,7 @@ describe('what the earlier run decided is part of the finding', () => {
     // Silence here reads as *nothing has changed since the last run*, which is
     // the one sentence this panel exists to stop somebody merging on.
     const markup = await mount(
-      clientThat(async () => {
+      clientThat(() => {
         throw new Error('the service answered 503');
       }),
       now,
@@ -242,10 +250,9 @@ describe('what the earlier run decided is part of the finding', () => {
   });
 
   it('says there is no earlier run rather than crossing this one against nothing', async () => {
-    const markup = await mount(
-      clientThat(async () => [build('6', [])]),
-      now,
-    );
+    // `previous` is null, which is the store saying so. Nothing is fetched, and
+    // the client below would throw if anything were.
+    const markup = await mount(clientThat(), { ...now, previous: null });
 
     expect(markup).toContain('no earlier run');
   });
@@ -254,7 +261,7 @@ describe('what the earlier run decided is part of the finding', () => {
     // The ordinary reading of a healthy branch. `0 subjects here are something`
     // is a sentence a reader has to parse twice to learn nothing happened.
     const markup = await mount(
-      clientThat(listing, async () => build('5', [subject({ regions: shaped('v1:aaa') })])),
+      clientThat(async () => build('5', [subject({ regions: shaped('v1:aaa') })])),
       now,
     );
 
@@ -267,7 +274,7 @@ describe('what the earlier run decided is part of the finding', () => {
     // millisecond. Picking by clock would compare this build against itself.
     const asked: string[] = [];
     await mount(
-      clientThat(listing, async (id) => {
+      clientThat(async (id) => {
         asked.push(id);
         return build('5', [subject({ regions: shaped('v1:aaa') })]);
       }),
@@ -315,7 +322,6 @@ describe('a declaration decided it, and that is not the same as nobody comparing
   it('counts a newly-reported subject as one the earlier run did not show', async () => {
     const markup = await mount(
       clientThat(
-        async () => [build('6', []), build('5', [])],
         async () => build('5', [declared({ regions: shaped('v1:aaa') })]),
       ),
       build('6', [subject({ regions: shaped('v1:aaa') })]),
@@ -328,7 +334,6 @@ describe('a declaration decided it, and that is not the same as nobody comparing
   it('names the rule on the row, from the block the build stored', async () => {
     const markup = await mount(
       clientThat(
-        async () => [build('6', []), build('5', [])],
         async () => build('5', [subject()]),
       ),
       build('6', [
@@ -348,7 +353,6 @@ describe('a declaration decided it, and that is not the same as nobody comparing
     // a blank there reads as a difference too small to name.
     const markup = await mount(
       clientThat(
-        async () => [build('6', []), build('5', [])],
         async () => build('5', [subject()]),
       ),
       build('6', [declared()]),

@@ -48,20 +48,21 @@ export function useCrossing(client: ReviewClient, build: BuildDetail): Crossing 
     | { readonly state: 'ready'; readonly value: BuildDetail }
   >({ state: 'loading' });
 
-  const id = build.build;
+  // Read off the build rather than found by scanning a listing. The listing
+  // cost a whole page of summaries — four queries each — to learn one id.
+  const previous = build.previous;
 
   const load = useCallback(async (): Promise<void> => {
+    if (previous === null) {
+      setEarlier({ state: 'none' });
+      return;
+    }
     try {
-      const previous = previousOf(await client.builds(), id);
-      if (previous === undefined) {
-        setEarlier({ state: 'none' });
-        return;
-      }
-      setEarlier({ state: 'ready', value: await client.build(previous.build) });
+      setEarlier({ state: 'ready', value: await client.build(previous) });
     } catch (error) {
       setEarlier({ state: 'failed', why: error instanceof Error ? error.message : String(error) });
     }
-  }, [client, id]);
+  }, [client, previous]);
 
   useEffect(() => {
     void load();
@@ -93,6 +94,12 @@ export function useCrossing(client: ReviewClient, build: BuildDetail): Crossing 
  * position is a total order where the timestamp is not. The build it lands on is
  * named on the page, because a reader who disagrees with the pick can only say so
  * if they can see it.
+ *
+ * **Not what the hook uses any more.** `BuildDetail` carries `previous`, chosen
+ * in SQL under exactly this rule, because reaching it from here meant fetching
+ * every build of the project to read one field of one of them. This stays as the
+ * statement of the rule, and as what a caller holding a listing already can ask
+ * of it without a request.
  */
 export function previousOf(
   builds: readonly BuildSummary[],

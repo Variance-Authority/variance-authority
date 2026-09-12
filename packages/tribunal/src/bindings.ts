@@ -24,10 +24,14 @@
 /** A value D1 accepts as a bound parameter. D1 has no `bigint` and no `Buffer`. */
 export type D1Value = string | number | null | ArrayBuffer;
 
+export interface D1ResultLike<Row> {
+  readonly results: readonly Row[];
+}
+
 export interface D1PreparedLike {
   bind(...values: readonly D1Value[]): D1PreparedLike;
   first<Row>(): Promise<Row | null>;
-  all<Row>(): Promise<{ readonly results: readonly Row[] }>;
+  all<Row>(): Promise<D1ResultLike<Row>>;
   run(): Promise<unknown>;
 }
 
@@ -55,8 +59,15 @@ export interface D1Like {
    * [ADR-0023](../../../docs/context/adr/0023-a-service-is-named-for-what-it-is.md) — the
    * double used in tests is genuinely transactional, and the claim that D1 is
    * has never been measured here.
+   *
+   * **It answers with rows, one result per statement, in order.** That is what
+   * makes it the tool for reads and not only for writes, and it is the single
+   * lever this package has against the one limit it can actually hit: a Worker
+   * spends one subrequest on a batch of two hundred statements and two hundred
+   * on the same statements run one at a time. Every place below that reads
+   * several independent rows in a row reads them in one of these.
    */
-  batch(statements: readonly D1PreparedLike[]): Promise<unknown>;
+  batch<Row = unknown>(statements: readonly D1PreparedLike[]): Promise<readonly D1ResultLike<Row>[]>;
 }
 
 export interface R2ObjectLike {

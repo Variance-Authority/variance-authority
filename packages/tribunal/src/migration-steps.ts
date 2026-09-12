@@ -326,4 +326,79 @@ export const MIGRATIONS: readonly (readonly string[])[] = [
      ) STRICT`,
     `UPDATE schema_version SET version = 15`,
   ],
+  // 15 → 16: the candidate's own sidecar, and what a promotion keeps of it.
+  [
+    // The identity the *document* was painted under, which is not the one the
+    // build row carries. A renderer serves 1x and 2x viewports in one run, so
+    // its machine identity leaves `deviceScaleFactor` at 1 and says in its own
+    // source that nothing may key a store on it; the real one folds in the
+    // document's scale and is what every lookup uses. Promoting under the build
+    // identity therefore filed every retina baseline under a digest no run ever
+    // asks for — a subject that stays `new` forever while the page reports the
+    // approval as recorded.
+    //
+    // Null is *a build pushed before this field existed*. Promotion falls back
+    // to the build identity there, which is right at 1x and is what it already
+    // did.
+    `ALTER TABLE build_subjects ADD COLUMN candidate_identity TEXT`,
+    // What the document said about its own components, and what inspection found
+    // in it. Both ride in the sidecar beside the PNG, both survive the local
+    // durable store, and neither survived this one: a promoted baseline arrived
+    // with no hashes, which degrades a later run's attribution to ranking by
+    // area, and with no marks, which makes every standing defect read as one the
+    // change under review introduced.
+    //
+    // `null` and `'[]'` are different claims here, as everywhere else: nothing
+    // was recorded, versus this render was read and had nothing.
+    `ALTER TABLE build_subjects ADD COLUMN candidate_components TEXT`,
+    `ALTER TABLE build_subjects ADD COLUMN candidate_finding_marks TEXT`,
+    // The same two on the baseline, which is where a later run reads them from.
+    // Adding them to the build row alone would have carried them exactly as far
+    // as the decision and dropped them at the moment they start being useful.
+    `ALTER TABLE baselines ADD COLUMN components TEXT`,
+    `ALTER TABLE baselines ADD COLUMN finding_marks TEXT`,
+    `UPDATE schema_version SET version = 16`,
+  ],
+
+  // 16 -> 17: one object per picture, and a ledger that can find the ones
+  // nothing points at.
+  //
+  // Every key this package wrote used to be derived from where the bytes came
+  // from rather than from what they are: a baseline under its identity digest, a
+  // cache entry under its document digest, a build image under the build id. Two
+  // byte-identical PNGs therefore always landed at two keys, by construction —
+  // S subjects over B builds of an unchanged suite is S x (B + 1) objects
+  // holding S distinct pictures, and approving copied an image the bucket
+  // already had.
+  //
+  // Content keys collapse that, and take away the safety that made the old
+  // sweep simple: when a build's `before` had its own key, deleting it could not
+  // possibly touch the baseline it was a copy of. Now it is the same object, so
+  // an object may only be deleted once nothing refers to it. This table is what
+  // makes that question answerable — R2 has no listing here, deliberately, so an
+  // object no row names is otherwise unreachable forever, which is exactly what
+  // `store.ts` promised the sweep would collect and the sweep could not.
+  //
+  // `at_ms` is a grace window rather than an age: it is refreshed every time a
+  // write finds the bytes already stored, so what falls out of the window is an
+  // object nothing has referred to for the whole retention period.
+  [
+    `CREATE TABLE objects (
+       project    TEXT NOT NULL,
+       object_key TEXT NOT NULL,
+       size       INTEGER NOT NULL,
+       at_ms      INTEGER NOT NULL,
+       PRIMARY KEY (project, object_key)
+     ) STRICT`,
+    `CREATE INDEX objects_idle ON objects (project, at_ms)`,
+    // The sweep asks the referencing tables whether a key is still spoken for,
+    // once per candidate object. Without these that is three table scans per
+    // object over the whole history of the project.
+    `CREATE INDEX baselines_object ON baselines (object_key)`,
+    `CREATE INDEX render_cache_object ON render_cache (object_key)`,
+    `CREATE INDEX build_subjects_after ON build_subjects (after_key)`,
+    `CREATE INDEX build_subjects_before ON build_subjects (before_key)`,
+    `CREATE INDEX build_subjects_diff ON build_subjects (diff_key)`,
+    `UPDATE schema_version SET version = 17`,
+  ],
 ];

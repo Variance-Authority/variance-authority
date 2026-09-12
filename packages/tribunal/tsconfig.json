@@ -15,6 +15,7 @@
     { "path": "../raster" },
     { "path": "../report" },
     { "path": "../history" },
+    { "path": "../png" },
     { "path": "../server" }
   ]
 }

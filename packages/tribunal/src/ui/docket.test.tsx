@@ -52,6 +52,10 @@ function build(id: string, subjects: readonly SubjectView[]): BuildDetail {
     variations: [],
     reach: null,
     journeys: null,
+    // Builds 5 and 6 of the example repository, and 6 is the one with a run
+    // before it. The page reads this rather than a listing, which is why the
+    // client below may refuse `builds` outright.
+    previous: id === '6' ? '5' : null,
   };
 }
 
@@ -126,5 +130,70 @@ describe('the opening line counts only what there is something to count', () => 
 
     expect(text).toContain('nothing here is a difference it also carried');
     expect(text).not.toMatch(/\b0 /);
+  });
+});
+
+/**
+ * The chrome a page wears before it has anything to put in it.
+ *
+ * A build that is still loading, or one that failed to load, used to render an
+ * empty ground with a single grey line on it: no brand, no crumb, nothing to
+ * click. A reader who arrived on a link and hit a slow or broken request had the
+ * back button and nothing else, and the page they were promised had no shape
+ * until it was all there.
+ */
+describe('a build that has not arrived still wears its chrome', () => {
+  function pending(answer: () => Promise<BuildDetail>): ReviewClient {
+    const refuse = (): never => {
+      throw new Error('nothing but the build is read before the build is read');
+    };
+    return {
+      builds: refuse,
+      build: answer,
+      changelog: refuse,
+      churn: refuse,
+      reach: refuse,
+      flakiness: refuse,
+      lastChanged: refuse,
+      decide: refuse,
+      sweep: refuse,
+      imageUrl: () => '',
+    } as unknown as ReviewClient;
+  }
+
+  async function show(client: ReviewClient): Promise<void> {
+    await act(async () => {
+      root.render(
+        <BuildPage
+          client={client}
+          reviewer="marina"
+          route={{ page: 'build', build: 'deploy-7' }}
+          go={() => undefined}
+        />,
+      );
+    });
+  }
+
+  it('draws the topbar and the way back while it waits', async () => {
+    await show(pending(() => new Promise<BuildDetail>(() => undefined)));
+
+    expect(host.querySelector('.va-topbar')).not.toBeNull();
+    expect([...host.querySelectorAll('.va-crumb')].map((each) => each.textContent)).toContain(
+      'Builds',
+    );
+    // Bars rather than a sentence, and the sentence kept for whoever is not
+    // looking at them.
+    expect(host.querySelectorAll('.va-waiting-bar').length).toBeGreaterThan(0);
+    expect(host.querySelector('[role="status"]')?.textContent).toContain('Loading');
+  });
+
+  it('keeps the way back when the build could not be read at all', async () => {
+    await show(pending(() => Promise.reject(new Error('GET /builds/deploy-7 answered 502'))));
+
+    expect(host.textContent).toContain('answered 502');
+    expect([...host.querySelectorAll('.va-crumb')].map((each) => each.textContent)).toContain(
+      'Builds',
+    );
+    expect(host.querySelector('.va-failure button')?.textContent).toBe('retry');
   });
 });

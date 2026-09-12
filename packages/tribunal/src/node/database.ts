@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
-import type { D1Like, D1PreparedLike, D1Value } from '../bindings.js';
+import type { D1Like, D1PreparedLike, D1ResultLike, D1Value } from '../bindings.js';
 import { INITIAL_VERSION, MIGRATIONS, SCHEMA_VERSION, applySchema } from '../schema.js';
 
 /**
@@ -166,11 +166,18 @@ export function wrapSqlite(database: DatabaseSync): SqliteDatabase {
      * expects a half-written run to leave nothing behind is getting the property
      * rather than the platform's description of it.
      */
-    async batch(statements: readonly D1PreparedLike[]): Promise<unknown> {
+    async batch<Row = unknown>(
+      statements: readonly D1PreparedLike[],
+    ): Promise<readonly D1ResultLike<Row>[]> {
       database.exec('BEGIN IMMEDIATE');
       try {
-        const results: unknown[] = [];
-        for (const prepared of statements) results.push(await prepared.run());
+        // `all` rather than `run`, because a batch is how this package reads
+        // several independent rows in one round trip and D1 answers a batch
+        // with the rows of every statement in it. A statement that returns
+        // none — which is every write here — answers an empty list, so the
+        // write path is unchanged by this and the read path becomes possible.
+        const results: D1ResultLike<Row>[] = [];
+        for (const prepared of statements) results.push(await prepared.all<Row>());
         database.exec('COMMIT');
         return results;
       } catch (error) {

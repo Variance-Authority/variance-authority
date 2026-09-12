@@ -1,4 +1,3 @@
-import { identityFrom } from '@variance-authority/raster';
 import type {
   FindingRecord,
   IgnoreLedger,
@@ -13,7 +12,6 @@ import type {
   SubjectReach,
   VariationRecord,
 } from '@variance-authority/report';
-import type { D1Like } from './bindings.js';
 import {
   ReviewError,
   number,
@@ -23,9 +21,7 @@ import {
   type Row,
 } from './review-rows.js';
 import type {
-  BuildSummary,
   Cause,
-  Coverage,
   Declarations,
   DecisionRecord,
   MovementView,
@@ -47,119 +43,6 @@ import type {
  * are written on the function that carries them, because that is what a later
  * edit will be looking at when it is about to undo one.
  */
-
-export async function summarize(db: D1Like, project: string, row: Row): Promise<BuildSummary> {
-  const build = text(row, 'build', 'a build');
-  const identity = identityFrom(JSON.parse(text(row, 'identity', 'a build')) as unknown);
-  if (identity === null) {
-    throw new ReviewError(`build "${build}" carries an identity that is not a renderer identity`);
-  }
-
-  const counted = await db
-    .prepare(
-      'SELECT verdict, COUNT(*) AS n FROM build_subjects WHERE project = ? AND build = ? GROUP BY verdict',
-    )
-    .bind(project, build)
-    .all<Row>();
-
-  // Every verdict, including the ones nothing pends on. A map missing a key
-  // reports `undefined` where a build genuinely had none, and a review surface
-  // that cannot tell "no ignored subjects" from "this build predates ignores" is
-  // one an operator has to go to the database to trust.
-  const verdicts: Record<ObservationRecord['verdict'], number> = {
-    unchanged: 0,
-    changed: 0,
-    new: 0,
-    incomparable: 0,
-    ignored: 0,
-  };
-  for (const entry of counted.results) {
-    const verdict = text(entry, 'verdict', 'a verdict count') as ObservationRecord['verdict'];
-    if (verdict in verdicts) verdicts[verdict] = number(entry, 'n', 'a verdict count');
-  }
-
-  const decisions = await latestDecisions(db, project, build);
-  const needing = await db
-    .prepare(
-      `SELECT subject FROM build_subjects
-        WHERE project = ? AND build = ? AND verdict IN ('changed', 'new', 'incomparable')`,
-    )
-    .bind(project, build)
-    .all<Row>();
-
-  const pending = needing.results.filter(
-    (subject) => !decisions.has(text(subject, 'subject', 'a build subject')),
-  ).length;
-
-  const skipped = await db
-    .prepare(
-      `SELECT kind, COUNT(*) AS n FROM build_not_observed
-        WHERE project = ? AND build = ? GROUP BY kind`,
-    )
-    .bind(project, build)
-    .all<Row>();
-
-  const coverage: Coverage = {
-    stated: number(row, 'says_not_observed', 'a build') !== 0,
-    failed: countOf(skipped.results, 'failed'),
-    excluded: countOf(skipped.results, 'excluded'),
-    unreached: countOf(skipped.results, 'unreached'),
-  };
-
-  const branch = optionalText(row, 'branch', 'a build');
-  const intent = optionalText(row, 'intent', 'a build');
-
-  return {
-    project,
-    build,
-    commit: text(row, 'commit', 'a build'),
-    at: text(row, 'at', 'a build'),
-    identity,
-    retention: text(row, 'retention', 'a build') === 'ephemeral' ? 'ephemeral' : 'durable',
-    verdicts,
-    decided: decisions.size,
-    pending,
-    coverage,
-    ...(branch !== undefined ? { branch } : {}),
-    ...(intent !== undefined ? { intent } : {}),
-  };
-}
-
-/**
- * The current decision per subject, from an append-only table.
- *
- * `MAX(seq)` rather than `MAX(at_ms)`: two decisions can share a millisecond, and
- * a tie broken arbitrarily would show a reviewer their earlier answer as the
- * current one. The sequence is the order the rows were written and cannot tie.
- */
-export async function latestDecisions(
-  db: D1Like,
-  project: string,
-  build: string,
-): Promise<ReadonlyMap<string, DecisionRecord>> {
-  const rows = await db
-    .prepare(
-      `SELECT d.subject, d.decision, d.decided_by, d.note, d.at
-         FROM decisions d
-         JOIN (SELECT subject, MAX(seq) AS seq FROM decisions
-                WHERE project = ? AND build = ? GROUP BY subject) latest
-           ON latest.seq = d.seq`,
-    )
-    .bind(project, build)
-    .all<Row>();
-
-  const decisions = new Map<string, DecisionRecord>();
-  for (const row of rows.results) {
-    const note = optionalText(row, 'note', 'a decision');
-    decisions.set(text(row, 'subject', 'a decision'), {
-      decision: text(row, 'decision', 'a decision') === 'approved' ? 'approved' : 'rejected',
-      by: text(row, 'decided_by', 'a decision'),
-      at: text(row, 'at', 'a decision'),
-      ...(note !== undefined ? { note } : {}),
-    });
-  }
-  return decisions;
-}
 
 /**
  * The docket: one entry per cause component, with collateral counted.
@@ -429,11 +312,6 @@ export function toDeclarations(row: Row): Declarations {
     sensitivities:
       sensitivities === undefined ? null : (JSON.parse(sensitivities) as SensitivityLedger),
   };
-}
-
-function countOf(rows: readonly Row[], kind: string): number {
-  const found = rows.find((row) => row['kind'] === kind);
-  return found === undefined ? 0 : number(found, 'n', 'a coverage count');
 }
 
 /**

@@ -14,7 +14,8 @@ import {
 } from '@variance-authority/history';
 import { identityFrom } from '@variance-authority/raster';
 import type { RunReport } from '@variance-authority/report';
-import type { BuildIngest, Decision, SubjectImages } from './review-types.js';
+import type { BuildIngest, SubjectImages } from './review-ingest-types.js';
+import type { Decision } from './review-types.js';
 import {
   BadRequest,
   array,
@@ -252,6 +253,55 @@ export async function asCurrentRequest(request: Request): Promise<readonly strin
   }
 
   return subjects;
+}
+
+/**
+ * How many digests one `/review/have` question may name.
+ *
+ * A build of 300 subjects asks about at most 900 images, so the cap is not a
+ * limit a normal suite meets. It used to be the bound on an unbounded loop —
+ * one ledger query and one billed `head` per digest, so a thousand digests was
+ * two thousand subrequests against a ceiling of fifty on a free Worker. `have`
+ * now asks in groups of 99 and never touches the bucket, so a thousand is
+ * eleven queries and the cap is back to being what a cap should be: a bound on
+ * the work one request may ask for, not a plank over a hole.
+ *
+ * The client splits its list rather than being answered short: an answer trimmed
+ * to fit would report objects as absent that are present, and the run would
+ * re-upload them — wasteful, but not wrong, which is exactly why nobody would
+ * ever notice it happening.
+ */
+export const MAX_HAVE_DIGESTS = 1000;
+
+/**
+ * The digests a run is about to name, checked before the bucket is asked about
+ * any of them.
+ *
+ * Shape only. A digest that is not hex is not an error here — `have` skips
+ * anything that is not a key this deployment could have written, and an answer
+ * that omits it is the honest one. What is refused is a body that is not a list
+ * of strings, and a list longer than this route will ask about.
+ */
+export async function asHaveRequest(request: Request): Promise<readonly string[]> {
+  const body = await asRecordBody(request);
+
+  const digests = array(body['digests'], '`digests`').map((value, index) => {
+    if (typeof value !== 'string') {
+      throw new BadRequest(`digests[${index}] must be a string; received ${describe(value)}`);
+    }
+    return value;
+  });
+
+  const distinct = new Set(digests).size;
+  if (distinct > MAX_HAVE_DIGESTS) {
+    throw new BadRequest(
+      `this request names ${distinct} digests and one \`have\` request may name ` +
+        `${MAX_HAVE_DIGESTS}. Split the list: an answer trimmed to fit would call present ` +
+        'objects absent, and the run would silently upload them all over again',
+    );
+  }
+
+  return digests;
 }
 
 export function asBand(value: unknown, what: string): Band {

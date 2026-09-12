@@ -1,4 +1,4 @@
-import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core/format';
+import type { RenderIdentity } from '@variance-authority/core/format';
 import type {
   FindingRecord,
   IgnoreLedger,
@@ -8,12 +8,13 @@ import type {
   ReachHole,
   ReachedComponent,
   RegionRecord,
-  RunReport,
   SensitivityLedger,
   SubjectReach,
   VariationRecord,
 } from '@variance-authority/report';
 import type { TribunalBindings } from './bindings.js';
+import type { TribunalChangelog, TribunalChangelogQuery } from './changelog.js';
+import type { BuildIngest } from './review-ingest-types.js';
 
 /**
  * What a review store takes and what it answers with — and nothing that runs.
@@ -34,54 +35,6 @@ export interface ReviewOptions extends TribunalBindings {
   /** Injected so tests can pin every `at`. Defaults to the wall clock. */
   readonly now?: () => Date;
 }
-
-/** One image the run kept, as it arrives. */
-export interface CandidateImage {
-  /** Base64 PNG — the same encoding a `Raster` carries, for the same reason. */
-  readonly bytes: string;
-}
-
-/**
- * What a run produced for one subject, over and above the report's record of it.
- *
- * `after` is the candidate and is the only one that can be promoted, which is why
- * it alone carries the sidecar fields. `before` and `diff` exist to be looked at.
- */
-export interface SubjectImages {
-  readonly after?: CandidateImage & {
-    readonly documentDigest: string;
-    readonly width: number;
-    readonly height: number;
-    readonly missingFonts: readonly string[];
-    readonly accessibility?: AccessibilitySnapshot;
-  };
-  /**
-   * The baseline this run compared against, with its own dimensions when they
-   * could be read.
-   *
-   * Optional, and absent means *not measured* — never *the same size as the
-   * candidate*. That assumption is the thing this field exists to stop: a
-   * baseline drawn to the candidate's box is a width change resampled out of
-   * existence, on the one screen where somebody decides whether it is allowed.
-   */
-  readonly before?: CandidateImage & {
-    readonly width?: number;
-    readonly height?: number;
-  };
-  readonly diff?: CandidateImage;
-}
-
-export interface BuildIngest {
-  /** The operator's own id for the run — a CI job number, a workflow run id. */
-  readonly build: string;
-  readonly commit: string;
-  readonly branch?: string;
-  readonly report: RunReport;
-  /** Keyed by subject. A subject with no entry is recorded with no images. */
-  readonly images?: Readonly<Record<string, SubjectImages>>;
-}
-
-import type { TribunalChangelog, TribunalChangelogQuery } from './changelog.js';
 
 export type Decision = 'approved' | 'rejected';
 
@@ -195,6 +148,21 @@ export interface SubjectView {
  */
 export interface BuildDetail extends BuildSummary {
   readonly subjects: readonly SubjectView[];
+
+  /**
+   * The run before this one, or `null` when this is the first.
+   *
+   * By position in the listing rather than by clock: two runs pushed from one
+   * machine carry the same timestamp to the millisecond, so the order is `at`
+   * broken by arrival — the same total order `builds()` answers in.
+   *
+   * Carried rather than derived because the page needs one string and used to
+   * pay the whole listing for it. The surface fetched every build of the
+   * project — four queries each, 201 statements for a page of fifty — in order
+   * to take the element after this one, and it could not start until the build
+   * itself had arrived. That was the larger half of the wait on a build page.
+   */
+  readonly previous: string | null;
   readonly notObserved: readonly NotObserved[];
   readonly causes: readonly Cause[];
   /**
@@ -400,10 +368,31 @@ export interface Cause {
 export interface SweepReport {
   /** Builds removed. */
   readonly builds: number;
+  /**
+   * Builds past the window that were **kept**, because somebody still has to
+   * look at them.
+   *
+   * A `durable` build with an undecided `changed` subject is the only copy of
+   * the image that change would be approved from. Sweeping it deletes the
+   * evidence and makes the change permanently unapprovable through this
+   * service, so the window does not apply to it and this is where that shows
+   * up. A number that climbs is a review queue nobody is working — which is
+   * worth seeing, and is the reason this is reported rather than silently done.
+   */
+  readonly held: number;
   /** Subject rows removed with them. */
   readonly subjects: number;
-  /** Stored images removed with them. */
+  /** Stored images removed: the ones nothing refers to any more. */
   readonly objects: number;
+  /**
+   * Render cache entries dropped, by the same window.
+   *
+   * Nothing used to remove one of these, ever. A cache entry is pure
+   * optimisation — losing one costs a re-render of a document nothing has asked
+   * for in the whole retention period — and it was the one table here with no
+   * bound on it at all.
+   */
+  readonly cached: number;
   /**
    * Decisions those builds carried, which are **kept**, not removed.
    *
@@ -447,4 +436,12 @@ export interface ReviewStore {
    * baseline nobody can account for.
    */
   sweep(keepDays: number): Promise<SweepReport>;
+  /**
+   * Which of these object digests this deployment can already produce.
+   *
+   * Asked by a run before it uploads, so it sends only what is missing. Hex
+   * SHA-256 of the raw PNG bytes; anything else is not a key of ours and is
+   * simply not in the answer.
+   */
+  have(digests: readonly string[]): Promise<readonly string[]>;
 }

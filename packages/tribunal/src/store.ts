@@ -19,6 +19,8 @@ import {
   type R2Like,
   type TribunalBindings,
 } from './bindings.js';
+import { guardStore } from './guard.js';
+import { keep } from './objects.js';
 
 /**
  * Baselines in R2, attributed in D1.
@@ -49,17 +51,28 @@ import {
  *
  * ## Write order is the safety property
  *
- * `put` writes the object, then the row. The two orders fail differently and only
- * one of them fails safely:
+ * The object goes in before the row that points at it. The two orders fail
+ * differently and only one of them fails safely:
  *
  * - **object first** — a crash between them leaves an object nothing points at.
- *   Invisible to every read, removed by the next sweep, costs storage.
+ *   Invisible to every read, collected by the sweep once it has been idle for the
+ *   retention window, costs storage in the meantime.
  * - **row first** — a crash between them leaves a row pointing at nothing, which
  *   is a baseline that throws on every subsequent run until a person deletes it.
  *
  * D1 and R2 are separate services with no transaction between them, so one of
  * these happens; this file chooses the one that costs bytes over the one that
  * stops the suite.
+ *
+ * ## The keys are the bytes
+ *
+ * Both halves store through [`objects.ts`](./objects.ts), which addresses an
+ * image by its own SHA-256 and keeps a ledger row per key. A baseline, the
+ * candidate it was promoted from, and the `before` of every run since are one
+ * object; the identity partition that ADR-0011 makes structural lives in the
+ * rows, where the lookup is, and never in the bucket. That is also what makes
+ * `put` cheap on the path that runs most: promoting bytes the bucket already
+ * holds writes a row and no object.
  */
 
 export interface BucketStoreOptions extends TribunalBindings {
@@ -111,6 +124,13 @@ interface SidecarRow {
   readonly missing_fonts: string;
   readonly object_key: string;
   readonly accessibility?: string | null;
+  /**
+   * Baselines only; the render cache stores pixels and stripped these before
+   * they ever reached a row. Null is *not recorded*, which is what every
+   * baseline written before these columns existed says, and is not `[]`.
+   */
+  readonly components?: string | null;
+  readonly finding_marks?: string | null;
 }
 
 export function createBucketStore(options: BucketStoreOptions): RasterStore {
@@ -148,7 +168,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
       // `R2Like` has a `head`. Answering from the row alone would let `describe`
       // and `find` disagree about whether a baseline exists, and a verdict that
       // depends on which of the two a caller asked is not a verdict.
-      if ((await guard(() => bucket.head(row.sidecar.object_key), where)) === null) {
+      if ((await guardStore(() => bucket.head(row.sidecar.object_key), where)) === null) {
         throw halfAPair(where, row.sidecar.object_key, 'row');
       }
 
@@ -169,19 +189,22 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
     async put(key, raster): Promise<void> {
       const label = labelOf(key);
       const digest = identityDigest(raster.identity);
-      const objectKey = baselineKey(project, digest, key);
       const where = describeRow(project, key, digest);
       const at = now().toISOString();
 
-      await guard(() => bucket.put(objectKey, bytesOf(raster.bytes)), where);
-      await guard(
+      // Keyed by the bytes, so promoting an image the bucket already holds — the
+      // usual case, since the candidate was uploaded by the run that painted it —
+      // writes a row and no object at all.
+      const objectKey = await keep(db, bucket, project, bytesOf(raster.bytes), Date.parse(at));
+      await guardStore(
         () =>
           db
             .prepare(
               `INSERT INTO baselines
                  (project, identity_digest, subject, label, identity, document_digest,
-                  width, height, missing_fonts, accessibility, object_key, at, at_ms)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  width, height, missing_fonts, accessibility, components, finding_marks,
+                  object_key, at, at_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT (project, identity_digest, subject, label) DO UPDATE SET
                  identity = excluded.identity,
                  document_digest = excluded.document_digest,
@@ -189,6 +212,8 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
                  height = excluded.height,
                  missing_fonts = excluded.missing_fonts,
                  accessibility = excluded.accessibility,
+                 components = excluded.components,
+                 finding_marks = excluded.finding_marks,
                  object_key = excluded.object_key,
                  at = excluded.at,
                  at_ms = excluded.at_ms`,
@@ -204,6 +229,13 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               raster.height,
               JSON.stringify(raster.missingFonts),
               raster.accessibility === undefined ? null : JSON.stringify(raster.accessibility),
+              // What the document said about itself, stored beside the image it
+              // describes. A run reading this baseline back separates the
+              // component that caused a change from the ones it moved using
+              // exactly these, and a store that dropped them handed the run one
+              // document and left it ranking by area.
+              raster.components === undefined ? null : JSON.stringify(raster.components),
+              raster.findingMarks === undefined ? null : JSON.stringify(raster.findingMarks),
               objectKey,
               at,
               Date.parse(at),
@@ -222,7 +254,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
     renderCache: neverFails({
       async get(digest, identity): Promise<Raster | null> {
         const where = `the render cache for document ${digest}`;
-        const row = await guard(
+        const row = await guardStore(
           () =>
             db
               .prepare(
@@ -242,10 +274,10 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
       async put(raster): Promise<void> {
         const digest = identityDigest(raster.identity);
         const where = `the render cache for document ${raster.documentDigest}`;
-        const objectKey = `${project}/cache/${digest}/${raster.documentDigest}.png`;
+        const at = now().getTime();
+        const objectKey = await keep(db, bucket, project, bytesOf(raster.bytes), at);
 
-        await guard(() => bucket.put(objectKey, bytesOf(raster.bytes)), where);
-        await guard(
+        await guardStore(
           () =>
             db
               .prepare(
@@ -263,7 +295,7 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
                 raster.height,
                 JSON.stringify(raster.missingFonts),
                 objectKey,
-                Date.now(),
+                at,
               )
               .run(),
           where,
@@ -299,12 +331,12 @@ async function locate(
   const label = labelOf(key);
   const where = describeRow(project, key, mine);
 
-  const row = await guard(
+  const row = await guardStore(
     () =>
       db
         .prepare(
-          `SELECT identity, document_digest, width, height, missing_fonts, accessibility, object_key,
-                  identity_digest
+          `SELECT identity, document_digest, width, height, missing_fonts, accessibility,
+                  components, finding_marks, object_key, identity_digest
              FROM baselines
             WHERE project = ? AND subject = ? AND label = ?
             ORDER BY (identity_digest = ?) DESC, at_ms DESC
@@ -327,9 +359,9 @@ async function locate(
  * printing success.
  */
 async function fetchBytes(bucket: R2Like, objectKey: string): Promise<string> {
-  const object = await guard(() => bucket.get(objectKey), `the baseline object ${objectKey}`);
+  const object = await guardStore(() => bucket.get(objectKey), `the baseline object ${objectKey}`);
   if (object === null) throw halfAPair(`the baseline object ${objectKey}`, objectKey, 'row');
-  return base64Of(await guard(() => object.arrayBuffer(), `the baseline object ${objectKey}`));
+  return base64Of(await guardStore(() => object.arrayBuffer(), `the baseline object ${objectKey}`));
 }
 
 /**
@@ -346,10 +378,17 @@ function parse(row: SidecarRow, where: string): Omit<Raster, 'bytes'> {
   let identity: unknown;
   let missingFonts: unknown;
   let accessibility: unknown;
+  let components: unknown;
+  let findingMarks: unknown;
   try {
     identity = JSON.parse(row.identity) as unknown;
     missingFonts = JSON.parse(row.missing_fonts) as unknown;
     accessibility = row.accessibility == null ? undefined : (JSON.parse(row.accessibility) as unknown);
+    // Absent columns and null columns are the same answer here — a baseline
+    // that never recorded this — and both leave the field off the sidecar,
+    // where `sidecarFrom` reads absence as *unknown* rather than as *none*.
+    components = row.components == null ? undefined : (JSON.parse(row.components) as unknown);
+    findingMarks = row.finding_marks == null ? undefined : (JSON.parse(row.finding_marks) as unknown);
   } catch (error) {
     throw new RasterStoreError(
       `${where} holds JSON columns that will not parse: ${messageOf(error)}. ${REFUSAL}.`,
@@ -364,6 +403,8 @@ function parse(row: SidecarRow, where: string): Omit<Raster, 'bytes'> {
     width: row.width,
     height: row.height,
     ...(accessibility === undefined ? {} : { accessibility }),
+    ...(components === undefined ? {} : { components }),
+    ...(findingMarks === undefined ? {} : { findingMarks }),
   });
 
   if (sidecar === null) {
@@ -373,28 +414,6 @@ function parse(row: SidecarRow, where: string): Omit<Raster, 'bytes'> {
     );
   }
   return sidecar;
-}
-
-/**
- * Every call into D1 and R2 goes through here, and every failure of one becomes
- * an operator error.
- *
- * Not a convenience. A `TypeError` from a binding that was never wired, a 500
- * from a bucket, a D1 statement refused because the schema is a version behind —
- * each of them would otherwise propagate as some other kind of exception, and the
- * one thing that must never happen is that any of them is caught somewhere above
- * and read as "no baseline".
- */
-async function guard<T>(call: () => Promise<T>, where: string): Promise<T> {
-  try {
-    return await call();
-  } catch (error) {
-    throw new RasterStoreError(
-      `the baseline store could not reach its database or its bucket for ${where}: ` +
-        `${messageOf(error)}. ${REFUSAL}.`,
-      { cause: error },
-    );
-  }
 }
 
 /**
@@ -412,11 +431,6 @@ function halfAPair(where: string, objectKey: string, survivor: 'row' | 'object')
       `the other is a corrupted baseline rather than a missing one. ${REFUSAL}. Restore ` +
       `\`${objectKey}\` in the bucket, or delete the row to record the subject afresh.`,
   );
-}
-
-function baselineKey(project: string, identity: Digest, key: BaselineKey): string {
-  const name = key.label === undefined ? key.subject : `${key.subject}__${key.label}`;
-  return `${project}/baselines/${identity}/${encodeURIComponent(name)}.png`;
 }
 
 function describeRow(project: string, key: BaselineKey, identity: string): string {
