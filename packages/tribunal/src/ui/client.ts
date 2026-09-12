@@ -84,6 +84,16 @@ export interface ReviewClient {
   sweep(days?: number): Promise<SweepReport>;
   /** The URL of one image, for an `<img src>`. Never fetched here. */
   imageUrl(build: string, subject: string, kind: 'before' | 'after' | 'diff'): string;
+  /**
+   * The bytes of one image, for a reader that needs pixels rather than a frame.
+   *
+   * `imageUrl` is enough for everything the surface *displays*, because an
+   * `<img>` carries the host's capability on its own. The difference mask is the
+   * one thing the page computes rather than displays — a build pushed by a
+   * current CLI does not upload one — and computing it means decoding two
+   * images, which means holding them. Same route, same credential, one place.
+   */
+  imageBlob(build: string, subject: string, kind: 'before' | 'after' | 'diff'): Promise<Blob>;
 }
 
 export class ReviewRequestError extends Error {
@@ -172,6 +182,23 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
 
     imageUrl: (build, subject, kind) =>
       `${base}/review/builds/${encode(build)}/subjects/${encode(subject)}/${kind}.png`,
+
+    async imageBlob(build, subject, kind): Promise<Blob> {
+      const path = `/review/builds/${encode(build)}/subjects/${encode(subject)}/${kind}.png`;
+      const response = await send(
+        `${base}${path}`,
+        options.token === undefined
+          ? {}
+          : { headers: { authorization: `Bearer ${options.token}` } },
+      );
+      if (!response.ok) {
+        throw new ReviewRequestError(
+          `GET ${path} answered ${response.status}: ${await quote(response)}`,
+          response.status,
+        );
+      }
+      return await response.blob();
+    },
   };
 }
 

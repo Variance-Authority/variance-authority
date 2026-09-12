@@ -54,6 +54,7 @@ import { useCallback, useState, type CSSProperties, type ReactElement } from 're
 import type { RegionRecord } from '@variance-authority/report';
 import type { ReviewClient } from './client.js';
 import type { Appearance } from './grouping.js';
+import { hasDifference, useDifferenceUrl } from './difference.js';
 import { leadOf } from './lead.js';
 import { count, number } from './text.js';
 import { share, union, type Size } from './viewer.js';
@@ -375,7 +376,16 @@ function Crop({
   readonly mounted: ReadonlySet<Layer>;
 }): ReactElement {
   const [watch, seen] = useSeen();
+  // Only once the crop is mounting the mask: a strip of renders nobody switched
+  // to `diff` decodes nothing. See [`difference.ts`](./difference.js).
+  const difference = useDifferenceUrl(client, build, subject, mounted.has('diff'));
   const box = union(subject.size, subject.baseline);
+
+  /** What this render can show at all, and where its bytes come from. */
+  const shown = (layer: Layer): boolean =>
+    layer === 'diff' ? hasDifference(subject) : subject.has[layer];
+  const srcOf = (layer: Layer): string | undefined =>
+    layer === 'diff' ? difference : client.imageUrl(build, subject.subject, layer);
 
   if (box === undefined) {
     return (
@@ -388,7 +398,7 @@ function Crop({
   // Said rather than drawn empty. The switch is card-level, so a render the run
   // kept no baseline for is asked for one, and a blank window under a red ring
   // reads as a difference nobody can see rather than an image nobody kept.
-  if (!subject.has[showing]) {
+  if (!shown(showing)) {
     return (
       <span className="va-crop va-crop-unplaced" style={boxOf(WINDOW)}>
         <span className="va-note">No {SAY[showing]} was kept for this render.</span>
@@ -408,10 +418,12 @@ function Crop({
     <span className="va-crop" style={boxOf(WINDOW)} ref={watch}>
       <span className="va-crop-plate" style={plate}>
         {seen
-          ? LAYERS.filter((layer) => mounted.has(layer) && subject.has[layer]).map((layer) => (
+          ? LAYERS.filter(
+              (layer) => mounted.has(layer) && shown(layer) && srcOf(layer) !== undefined,
+            ).map((layer) => (
               <img
                 key={layer}
-                src={client.imageUrl(build, subject.subject, layer)}
+                src={srcOf(layer)}
                 alt=""
                 decoding="async"
                 style={{ ...spread(layer, subject, box), opacity: layer === showing ? 1 : 0 }}

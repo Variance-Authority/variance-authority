@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
+import { hasDifference, useDifferenceUrl } from './difference.js';
 import { RegionOverlay, RegionTable } from './regions.js';
 import { count, magnitude, number } from './text.js';
 
@@ -85,6 +86,10 @@ export function Viewer({
   const [pull, setPull] = useState(0);
   const [still] = useState(calm);
   const stage = useRef<HTMLDivElement>(null);
+  // Computed rather than fetched, unless this build kept one: see
+  // [`difference.ts`](./difference.js) for why a mask is the one image worth
+  // making twice. `undefined` until it is ready, which is why the plate says so.
+  const difference = useDifferenceUrl(client, build, subject, mode === 'difference');
 
   /**
    * The frame both readings are drawn in.
@@ -142,7 +147,7 @@ export function Viewer({
   }
 
   const size = subject.size;
-  const url = (kind: 'before' | 'after' | 'diff'): string =>
+  const url = (kind: 'before' | 'after'): string =>
     client.imageUrl(build, subject.subject, kind);
 
   /**
@@ -283,7 +288,11 @@ export function Viewer({
             {mode === 'difference' ? (
               // Already in the union's coordinates: the mask is what the
               // comparison drew, on the box it padded both captures to.
-              <Raster src={url('diff')} alt={`${subject.subject} difference mask`} />
+              difference === undefined ? (
+                <p className="va-note">Working out the difference&hellip;</p>
+              ) : (
+                <Raster src={difference} alt={`${subject.subject} difference mask`} />
+              )
             ) : (
               <>
                 {subject.has.before ? (
@@ -491,7 +500,7 @@ export function modesFor(subject: SubjectView): readonly ViewerMode[] {
   if (subject.has.before && subject.has.after) {
     modes.push('wipe', 'blend', 'blink', 'side-by-side');
   }
-  if (subject.has.diff) modes.push('difference');
+  if (hasDifference(subject)) modes.push('difference');
   if (modes.length === 0 && subject.has.after) modes.push('regions');
   return modes;
 }
