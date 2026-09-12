@@ -123,12 +123,12 @@ describe('what the promoted baseline carries', () => {
     expect(silent?.raster.findingMarks).toBeUndefined();
   });
 
-  // Nothing that writes a candidate sidecar acquires a browser accessibility
-  // snapshot: the CLI builds the sidecar from the render cache, which holds the
-  // renderer's output, and the collector contract has no field for one. The
-  // column, the transport and the promotion all carry it; the acquisition is
-  // what is missing, and it is argued at the site in the CLI's `images.ts`.
-  it.todo('keeps the browser accessibility snapshot a run observed');
+  // The column, the transport and the promotion all carry it already; the
+  // acquisition is what is missing, and it is argued at the site in the CLI's
+  // `images.ts`.
+  it.todo(
+    'keeps the browser accessibility snapshot a run observed — needs the collector contract to acquire one, because the CLI builds this sidecar from the render cache, the cache holds the renderer\u2019s output, and nothing in that output is a tree',
+  );
 });
 
 describe('approval promotes an image that already exists', () => {
