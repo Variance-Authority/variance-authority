@@ -3,6 +3,7 @@ import type { Churn, Flakiness, Reach } from '@variance-authority/history';
 import type { ChangelogChange, ChangelogRow, SubjectView, TribunalChangelog } from '../review.js';
 import type { ReviewClient } from './client.js';
 import { causeOf } from './lead.js';
+import { Skeleton } from './shell.js';
 import { count, when } from './text.js';
 
 /**
@@ -109,7 +110,7 @@ export function ChangelogPage({
         )}
       </form>
 
-      {log.state === 'loading' ? <p className="va-note">Loading the changelog…</p> : null}
+      {log.state === 'loading' ? <Skeleton bars={4} label="Loading the changelog" /> : null}
       {log.state === 'failed' ? <Failure why={log.why} retry={load} /> : null}
       {log.state === 'ready' ? (
         <ChangelogEntries log={log.value} {...(applied === '' ? {} : { filter: applied })} />

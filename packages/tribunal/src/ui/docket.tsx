@@ -38,7 +38,7 @@ import { SubjectRail } from './rail.js';
 import type { Order, Route } from './route.js';
 import { RunPage } from './run.js';
 import { needsReview } from './settled.js';
-import { Failure, Go, Topbar, messageOf, type Loaded } from './shell.js';
+import { Go, Stalled, Topbar, Waiting, messageOf, type Loaded } from './shell.js';
 import { SubjectPanel } from './subject.js';
 import { count, number } from './text.js';
 
@@ -70,18 +70,23 @@ export function BuildPage({
     void load();
   }, [load]);
 
+  // Both states wear the chrome the loaded page wears. The crumb back to the
+  // build list is knowable before the build is, and a reader who cannot load a
+  // build had no way out of this page without it.
+  const crumbs = [{ at: { page: 'builds' } as const, say: 'Builds' }];
+
   if (detail.state === 'loading') {
-    return (
-      <div className="va-app">
-        <p className="va-note">Loading {route.build}…</p>
-      </div>
-    );
+    return <Waiting crumbs={crumbs} go={go} title={`Build ${route.build}`} bars={5} />;
   }
   if (detail.state === 'failed') {
     return (
-      <div className="va-app">
-        <Failure why={detail.why} retry={load} />
-      </div>
+      <Stalled
+        crumbs={crumbs}
+        go={go}
+        title={`Build ${route.build}`}
+        why={detail.why}
+        retry={load}
+      />
     );
   }
 

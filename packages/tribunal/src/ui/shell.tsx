@@ -141,6 +141,90 @@ export function Topbar({
   );
 }
 
+/**
+ * The shape of what is coming, while it is coming.
+ *
+ * A page that answers a fetch with one grey line on an empty ground has thrown
+ * away everything it already knew. It knows the build it is opening, it knows
+ * the crumb back to the list, and it knows roughly how tall the thing landing in
+ * a moment is — so the topbar is drawn first and the body is drawn as bars. The
+ * reader can leave, and when the data lands nothing jumps.
+ *
+ * The bars are the honest part: they claim a rough size and nothing else. They
+ * are not text, so they are hidden from a screen reader, which is told the one
+ * true thing instead — that this is loading.
+ */
+export function Waiting({
+  crumbs,
+  go,
+  title,
+  subtitle,
+  bars = 3,
+}: {
+  readonly crumbs: readonly { readonly at: Route; readonly say: string }[];
+  readonly go: (route: Route) => void;
+  readonly title: string;
+  readonly subtitle?: string | undefined;
+  readonly bars?: number;
+}): ReactElement {
+  return (
+    <div className="va-app">
+      <Topbar crumbs={crumbs} go={go} title={title} subtitle={subtitle} />
+      <div className="va-body va-scroll">
+        <div className="va-page">
+          <Skeleton bars={bars} label={`Loading ${title}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The bars themselves, for a page that wants them inside chrome it drew itself. */
+export function Skeleton({
+  bars = 3,
+  label,
+}: {
+  readonly bars?: number;
+  readonly label: string;
+}): ReactElement {
+  return (
+    <div className="va-waiting" role="status" aria-live="polite">
+      <span className="va-visually-hidden">{label}</span>
+      {Array.from({ length: bars }, (_, index) => (
+        <span key={index} className="va-waiting-bar" aria-hidden="true" />
+      ))}
+    </div>
+  );
+}
+
+/** The chrome kept around a failure, so a reader who cannot load a page can leave it. */
+export function Stalled({
+  crumbs,
+  go,
+  title,
+  subtitle,
+  why,
+  retry,
+}: {
+  readonly crumbs: readonly { readonly at: Route; readonly say: string }[];
+  readonly go: (route: Route) => void;
+  readonly title: string;
+  readonly subtitle?: string | undefined;
+  readonly why: string;
+  readonly retry: () => void;
+}): ReactElement {
+  return (
+    <div className="va-app">
+      <Topbar crumbs={crumbs} go={go} title={title} subtitle={subtitle} />
+      <div className="va-body va-scroll">
+        <div className="va-page">
+          <Failure why={why} retry={retry} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** The one page with no data on it: an address this surface does not answer. */
 export function Nowhere({ go }: { readonly go: (route: Route) => void }): ReactElement {
   return (

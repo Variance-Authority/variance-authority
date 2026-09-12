@@ -56,6 +56,15 @@ export interface ReviewClientOptions {
 }
 
 export interface ReviewClient {
+  /**
+   * Where this client is pointed, when it knows.
+   *
+   * Read by the one screen that has to name an address rather than use it: an
+   * empty store, which answers with the `variance push` configuration that would
+   * fill it. Optional because a fake stands in for the whole interface in tests,
+   * and a list must not need an address to render.
+   */
+  readonly endpoint?: string;
   builds(limit?: number): Promise<readonly BuildSummary[]>;
   build(id: string): Promise<BuildDetail>;
   /** Why the baselines are what they are, grouped by shape. */
@@ -134,6 +143,8 @@ export function createReviewClient(options: ReviewClientOptions): ReviewClient {
   const encode = (value: string): string => encodeURIComponent(value);
 
   return {
+    endpoint: base,
+
     async builds(limit): Promise<readonly BuildSummary[]> {
       const body = await call<{ readonly builds: readonly BuildSummary[] }>(
         `/review/builds${limit === undefined ? '' : `?limit=${limit}`}`,

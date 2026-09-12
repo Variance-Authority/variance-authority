@@ -120,6 +120,29 @@ export const REVIEW_STYLES = `
 .va-card { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; margin-bottom: 1rem; padding: 1rem 1.1rem; }
 .va-card > h2 { color: var(--va-ink-3); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em; margin-bottom: 0.6rem; text-transform: uppercase; }
 
+.va-visually-hidden { border: 0; clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+
+.va-waiting { display: grid; gap: 0.85rem; }
+.va-waiting-bar { animation: va-waiting 1.4s ease-in-out infinite; background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; display: block; height: 5.2rem; }
+.va-waiting-bar:nth-child(3) { animation-delay: 0.12s; }
+.va-waiting-bar:nth-child(4) { animation-delay: 0.24s; }
+.va-waiting-bar:nth-child(5) { animation-delay: 0.36s; }
+.va-waiting-bar:nth-child(6) { animation-delay: 0.48s; }
+
+/* The one animation on this surface, and it says nothing a reader has to read:
+   the bars claim the space the builds are about to take, and the pulse is how a
+   held page is told apart from a finished one that is empty. Reduced motion
+   stops it below, and the sentence a screen reader is given never moved. */
+@keyframes va-waiting { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.85; } }
+
+.va-first { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; max-width: 46rem; padding: 1.1rem 1.3rem; }
+.va-first h2 { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; margin-bottom: 0.6rem; }
+.va-first p { color: var(--va-ink-2); font-size: 0.9rem; line-height: 1.5; margin-bottom: 0.6rem; }
+.va-first pre { background: var(--va-sunken); border: 1px solid var(--va-line); border-radius: 8px; margin-bottom: 0.8rem; overflow-x: auto; padding: 0.7rem 0.85rem; }
+.va-first pre code { color: var(--va-ink); font-family: var(--va-mono); font-size: 0.82rem; line-height: 1.55; white-space: pre; }
+.va-first p code { background: var(--va-sunken); border-radius: 5px; color: var(--va-ink); font-family: var(--va-mono); font-size: 0.82rem; padding: 0.1rem 0.35rem; }
+.va-first .va-note { margin-bottom: 0; }
+
 .va-builds { display: grid; gap: 0.85rem; }
 .va-build { background: var(--va-surface); border: 1px solid var(--va-line); border-radius: 12px; padding: 0.9rem 1.1rem; }
 .va-build-head { align-items: center; display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.45rem; }

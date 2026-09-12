@@ -129,15 +129,16 @@ async function mount(client: ReviewClient): Promise<void> {
 
 describe('ReviewApp', () => {
   it('reports a build list it could not load, and never as an empty one', async () => {
-    // The failure this component exists to prevent. `No builds have been posted
-    // yet` over a service that answered 503 is a green light nobody gave, and it
-    // is indistinguishable from the true version of the same sentence.
+    // The failure this component exists to prevent. `No builds yet`, with setup
+    // instructions under it, over a service that answered 503 is a green light
+    // nobody gave — and worse than the bare sentence was, because it sends the
+    // reader off to check a `variance push` config that is not the problem.
     await mount(
       clientThat(() => Promise.reject(new Error('GET /builds answered 503: upstream is down'))),
     );
 
     expect(host.textContent).toContain('upstream is down');
-    expect(host.textContent).not.toContain('No builds have been posted yet');
+    expect(host.textContent).not.toContain('No builds yet');
     // And a way back: a failure with no retry is a page reload.
     expect(host.querySelector('.va-failure button')?.textContent).toBe('retry');
   });
@@ -145,7 +146,24 @@ describe('ReviewApp', () => {
   it('says the list is empty only when the service said so', async () => {
     await mount(clientThat(() => Promise.resolve([])));
 
-    expect(host.textContent).toContain('No builds have been posted yet');
+    expect(host.textContent).toContain('No builds yet');
+  });
+
+  it('answers an empty store with the push configuration that fills it', async () => {
+    // An empty deployment is the one absence on this surface that is a fact about
+    // a setup rather than about a project, and the reader is one command from
+    // finishing it. The address is the one the client is pointed at, so what they
+    // copy is their own endpoint rather than a placeholder they have to edit.
+    await mount({
+      ...clientThat(() => Promise.resolve([])),
+      endpoint: 'https://review.example.com',
+    });
+
+    const text = host.textContent ?? '';
+    expect(text).toContain('"endpoint": "https://review.example.com"');
+    expect(text).toContain('VARIANCE_INGEST_TOKEN');
+    // And which token it is not: this is the moment somebody picks a secret for CI.
+    expect(text).toContain('review token');
   });
 
   it('lists what came back, and asks the service once', async () => {
