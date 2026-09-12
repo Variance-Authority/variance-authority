@@ -28,6 +28,30 @@
  * so the reader can see the fact under the rank, and a value split at run time
  * would be a promise about a tokeniser the reader cannot see. Splitting is the
  * reader's, and it is one fixed rule applied to both sides.
+ *
+ * Values are also deduplicated, code-unit sorted, and capped — `LEXICON_CAP`
+ * distinct values per field, in
+ * [`core/attribute/lexicon.ts`](../../core/src/attribute/lexicon.ts) where the
+ * fold is. What a cap cut is counted in {@link SubjectLexicon.elided}, because a
+ * cap that says nothing reads as coverage. Digests never enter: a text the
+ * policy declared volatile arrives as `v1:…`, and a reader matching on it would
+ * be matching a coordinate rather than a word.
+ *
+ * ## Where it is kept, and what it outlives
+ *
+ * The report carries it, and the report is about one run. The lexicon is not:
+ * the names a suite holds change when the suite changes, which is rarely, and
+ * the question *which subject do I mean* is asked far more often than a run
+ * happens. So it is also the one section copied verbatim into the **suite
+ * index** ([`suite-index.ts`](./suite-index.ts)) — bytes, addressed by the
+ * commit they were written at, small enough for a cache to carry and stable
+ * enough that two machines composing the same suite write the same file.
+ *
+ * That is what makes a reader possible on a machine that never ran anything: a
+ * checkout with no report, a pull-request comment, an agent asking about the
+ * mainline suite before it has touched the branch. The transport is somebody
+ * else's — a directory, an action cache, a bucket, a deployment — and this
+ * module's only obligation to it is that equal facts encode to equal bytes.
  */
 
 /** The vocabularies a subject is indexed under, in the order they earn their weight. */
@@ -64,7 +88,9 @@ export interface SubjectLexicon {
 
   /**
    * How many distinct values a field's cap left out, per field. Present only
-   * where a cap cut, so a subject that fit is one that fit.
+   * where a cap cut, so a subject that fit is one that fit — and a reader that
+   * finds nothing can tell *this subject holds no such name* from *this subject
+   * holds more names than were kept*.
    */
   readonly elided?: Partial<Record<LexiconField, number>>;
 }
@@ -84,6 +110,12 @@ export interface LexiconReport {
    * The fields this run read. A field missing here was not looked at — no
    * journal was open, so no `regions`; no source index was built, so no `files`
    * — and a reader has to say so rather than report no match in it.
+   *
+   * This is the field that makes a lexicon from elsewhere safe to answer over.
+   * Two runs of one suite may read different fields: the run that had a journal
+   * indexed `regions` and the one that did not holds the same subjects with one
+   * vocabulary missing. A reader comparing the two reports which fields the
+   * lexicon in its hands was written with, never which fields it wishes it had.
    */
   readonly fields: readonly LexiconField[];
 

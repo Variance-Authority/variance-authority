@@ -73,6 +73,12 @@ export const LEXICON_CAP = 200;
  * Digests are never values. A text the policy declared volatile reaches the
  * snapshot as `v1:…`, and a reader that matched on it would be matching a
  * coordinate, not a word.
+ *
+ * Values are kept as they were read and never split. Splitting is a rule, and a
+ * rule applied here would be applied to one side of a later comparison only —
+ * the reader's query would meet tokens it did not produce. So the fold stores
+ * words and the reader owns the rule, which is how a term and a value are
+ * always measured by the same instrument.
  */
 export function lexiconOf(
   subjects: readonly SubjectComposition[],

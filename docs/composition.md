@@ -450,80 +450,21 @@ what it did plan and points at `variance_locate`.
 
 ### The subject you can only describe
 
-The run writes a **lexicon**: per subject, per field, the distinct values the
-subject carried, code-unit sorted, capped at 200 with the overflow counted. The
-fields, and where each comes from:
+The run also writes a **lexicon**: per subject, per field, the distinct values
+the subject carried — the components it holds, who mounted them, its accessible
+names and visible text, its roles, its design tokens, the files that declare its
+components, the regions its journey entered, and the component it is the narrow
+example of. `variance_locate {query}` turns a description into ids over those
+names, printing the field and the value behind every hit and saying which fields
+the run could not read at all.
 
-| field | from |
-|---|---|
-| `example` | the census: the components this subject is the narrow example of |
-| `names` | the semantic snapshot: accessible name, description, `placeholder`, `alt`, `title` |
-| `text` | the snapshot's text band, minus any text the policy digested as volatile |
-| `components`, `createdBy` | every attributed boundary |
-| `regions` | the execution journal: the lexical names of the regions this subject entered |
-| `files` | call-site provenance on the nodes, and the source index for each component |
-| `roles` | the snapshot |
-| `tokens` | the custom properties the boundaries resolved through |
+It is the same pass over the same instances, which is why it lives here: the
+census keys an example under a component, and the lexicon reads that key rather
+than deriving its own, so the two cannot disagree about which story shows what.
 
-A field the run could not read is absent from the report's field list, not
-present and empty. No snapshot means no `names`, `text` or `roles`; no journal
-means no `regions`; a production build with the owner links stripped has an
-empty `createdBy` on every subject; and the tool says which of these it is
-looking at, per field, before it says what matched.
-
-`variance_locate {query}` tokenises the query by the rule the values were
-tokenised by — split on separators and camel case, fold ASCII case and a
-trailing plural, keep the unsplit compound so `TodoFooter` typed whole still
-meets `TodoFooter`. A term matches a value when every part of the term matches
-a token of the value, exactly or by a prefix of three or more characters.
-
-```
-7 of 15 subject(s) match `footer chips`.
-Read: id, example, names, text, components, createdBy, files, roles, tokens.
-Not read: regions (no execution journal was read).
-
-page/footer--counts · 7 boundaries · example of TodoFooter
-  footer: id `page/footer--counts`; example `TodoFooter`; components `TodoFooter`; createdBy `TodoFooter`
-  chips: components `Chip`
-page/todos--empty · 17 boundaries · example of TodoApp
-  footer: components `TodoFooter`; createdBy `TodoFooter`
-  chips: components `Chip`
-…
-ds/chip--group · 4 boundaries · example of Stack
-  chips: id `ds/chip--group`; components `Chip`
-
-next: variance_composition {subject: "page/footer--counts"} · variance_describe {subject: "page/footer--counts"}
-```
-
-The order is orientation, never evidence. A hit ranks by how many of the
-query's terms it matched, then by an integer weight per field times an integer
-rarity of the word in that field across the subjects, then by fewer
-boundaries, then by id. Rarity is per field because the fields hold different
-populations: every subject enters `createCard` while the cards module
-evaluates, and that says nothing about the one id that says `card`. No float
-reaches the sort, and every hit prints the field and the value it matched on,
-so the fact stands under the order. A term no subject holds is named as such,
-beside the accessible names the run did record, so the next query is asked in
-the suite's vocabulary rather than the agent's. There is no thesaurus and no
-model. `checkbox` finds `ds/toggle--states` because the run wrote down that
-the toggle's role is `checkbox`; `footer` finds the footer story because its
-id, its example and its creator all say so.
-
-Measured on todomvc — twenty questions, each with the subject a person would
-open, and five the suite holds no subject for:
-
-| | |
-|---|---|
-| the person's subject is the first hit | 19 of 20 |
-| the person's subject is among the first three | 20 of 20 |
-| a question with no answer gets no hit | 5 of 5 |
-
-The miss is `clear completed`, where the page whose id holds `completed`
-outranks the footer that holds the button, and the footer is second. The
-control is printed beside it: fifteen ids fit in one `variance_summary`, and an
-agent that can read them scores 20 of 20 by scanning. The tool earns its place
-on a suite whose ids do not fit in one answer; on this one, the measurement
-shows only that it agrees with the reader.
+[Naming a subject you can only describe](lexicon.md) is the reference — the
+fields and their sources, the matching rule, the ranking, what the measurements
+say, and how the record travels to a machine that ran nothing.
 
 ## What it costs
 
