@@ -50,6 +50,34 @@ describe('reporting what the profile cannot see', () => {
     const build = () => capture({ root: node({ tag: 'p', text: 'hi' }), profile: CHROMIUM_PROFILE });
     expect(diff(build(), build()).unobserved).not.toContain('geometry');
   });
+
+  /**
+   * The half `unobserved` cannot carry. A band jsdom cannot decide is reported as
+   * undecided and is therefore safe; `token` is the other case — jsdom settles it
+   * from what an author declared, so it decides, and returns its answer in the
+   * same word a resolved cascade returns. `narrowed` is the only place the two
+   * readings are distinguishable.
+   */
+  it('separates a band answered narrowly from one not answered at all', () => {
+    const before = capture({ root: node({ tag: 'p', text: 'hi' }) });
+    const after = capture({ root: node({ tag: 'p', text: 'hello' }) });
+
+    const result = diff(before, after);
+
+    expect(result.narrowed).toEqual(['token']);
+    expect(result.observability.token).toBe('declared-only');
+    // And the contrast: geometry is seen structurally, which does not decide it.
+    expect(result.narrowed).not.toContain('geometry');
+    expect(result.unobserved).toContain('geometry');
+  });
+
+  it('narrows nothing under chromium', () => {
+    const build = () => capture({ root: node({ tag: 'p', text: 'hi' }), profile: CHROMIUM_PROFILE });
+    const result = diff(build(), build());
+
+    expect(result.narrowed).toEqual([]);
+    expect(result.observability.token).toBe('full');
+  });
 });
 
 describe('node matching', () => {

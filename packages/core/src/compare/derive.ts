@@ -2,6 +2,7 @@ import { digestCombine, digestValue, type Digest } from '../format/hash.js';
 import type { SemanticSnapshot } from '../format/snapshot.js';
 import type { EnvironmentDelta } from '../format/environment.js';
 import { BANDS, type Band } from './band.js';
+import type { Observability } from './observability.js';
 import type { AggregateImpact } from './impact.js';
 import { compareTrees, type ChangedComponent, type Delta, type Root } from './diff/index.js';
 
@@ -46,6 +47,24 @@ export interface Variation {
    * to refuse (ADR-0002).
    */
   readonly unobserved: readonly Band[];
+
+  /**
+   * How completely each band was decided, weaker side winning.
+   *
+   * A variation is the one comparison that crosses profiles on purpose, so this
+   * is where the weaker-side rule has work to do: a dark story read in Chromium
+   * against a light parent read in JSDOM is only as well observed as the JSDOM
+   * side, band by band.
+   */
+  readonly observability: Readonly<Record<Band, Observability>>;
+
+  /**
+   * Bands decided on less than the evidence the band is made of.
+   *
+   * The pair is alike *there* in a narrower sense than elsewhere, and a report
+   * that prints one word for both senses is the difference nobody can see.
+   */
+  readonly narrowed: readonly Band[];
 
   /**
    * Render inputs that differ between the two sides.

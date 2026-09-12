@@ -10,7 +10,7 @@
  */
 
 import type { ObservationProfile } from '../format/profile.js';
-import type { Band } from './band.js';
+import { BANDS, type Band } from './band.js';
 
 /** How completely a profile can decide one band. */
 export type Observability = 'full' | 'structural-only' | 'declared-only' | 'none';
@@ -61,4 +61,68 @@ export function observableBands(profile: ObservationProfile): Record<Band, Obser
  */
 export function decidesBand(band: Band, level: Observability): boolean {
   return band === 'geometry' ? level === 'full' : level !== 'none';
+}
+
+/**
+ * How completely a band was decided when two profiles both had to decide it.
+ *
+ * The weaker reading wins, which is the same union rule `unobserved` is built
+ * from carried one value further. A pair is only as well observed as its blinder
+ * side, and reporting the better side's level would describe a reading nobody
+ * took.
+ *
+ * The two partial levels never meet: `structural-only` is a geometry answer and
+ * `declared-only` a token one, and a band produces at most one of them. So the
+ * ranking needs no tie-break between them, and a tie is two spellings of one
+ * level.
+ */
+const RANK: Readonly<Record<Observability, number>> = {
+  none: 0,
+  'structural-only': 1,
+  'declared-only': 1,
+  full: 2,
+};
+
+export function weaker(a: Observability, b: Observability): Observability {
+  return RANK[a] <= RANK[b] ? a : b;
+}
+
+/** The weaker of two profiles' readings, band by band. */
+export function sharedObservability(
+  a: ObservationProfile,
+  b: ObservationProfile,
+): Record<Band, Observability> {
+  const here = observableBands(a);
+  const there = observableBands(b);
+
+  return Object.fromEntries(
+    BANDS.map((band) => [band, weaker(here[band], there[band])]),
+  ) as Record<Band, Observability>;
+}
+
+/**
+ * Bands a comparison could not decide at all.
+ *
+ * Derived from {@link sharedObservability} rather than computed beside it: a band
+ * is unobserved exactly when the weaker of the two levels does not decide it, and
+ * two expressions of one rule are two things that can disagree.
+ */
+export function unobservedBands(levels: Readonly<Record<Band, Observability>>): readonly Band[] {
+  return BANDS.filter((band) => !decidesBand(band, levels[band]));
+}
+
+/**
+ * Bands that were decided, but on less than the evidence the band is made of.
+ *
+ * The half of observability that has no verdict to hide behind. `unobserved` is
+ * loud — a band with no answer is reported as having none — while a band decided
+ * `declared-only` returns `unchanged`, in the same word a resolved cascade
+ * returns, over a narrower question: JSDOM compares what an author wrote, so
+ * `padding: 1rem` stays `1rem` and a root font-size that moved underneath it is
+ * not in the comparison. That is a real answer and the reason the level decides
+ * its band at all — but it is not the answer the word `unchanged` promises, and
+ * a reader given the word without the level cannot tell which one they have.
+ */
+export function narrowedBands(levels: Readonly<Record<Band, Observability>>): readonly Band[] {
+  return BANDS.filter((band) => decidesBand(band, levels[band]) && levels[band] !== 'full');
 }

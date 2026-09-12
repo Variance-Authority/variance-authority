@@ -32,6 +32,18 @@ export interface VariationRecord {
   /** Bands neither side's profile could decide. Absent is not "none". */
   readonly unobserved?: readonly string[];
 
+  /**
+   * Bands that were decided, on less than the evidence the band is made of.
+   *
+   * Separate from `unobserved` because the two are opposite failures of one word.
+   * An unobserved band has no answer and says so; a narrowed band answers in the
+   * same word a fully observed one uses, over a smaller question — JSDOM compares
+   * `padding: 1rem` as `1rem` and never resolves it, so a root font-size that
+   * moved underneath is outside the comparison that just returned "alike".
+   * `because` carries what each one covered; this is the field to count.
+   */
+  readonly narrowed?: readonly string[];
+
   /** Components the difference was attributed to, causes first. */
   readonly components?: readonly string[];
 

@@ -350,10 +350,14 @@
         "impactOf": "function",
         "loudestBand": "function",
         "matchTrees": "function",
+        "narrowedBands": "function",
         "observableBands": "function",
         "partingOf": "function",
         "sameTree": "function",
-        "sliceOf": "function"
+        "sharedObservability": "function",
+        "sliceOf": "function",
+        "unobservedBands": "function",
+        "weaker": "function"
       },
       "./attribute": {
         "AttributedRegion": "interface",

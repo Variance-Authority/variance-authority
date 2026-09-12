@@ -49,6 +49,19 @@ describe('what a declared variation turned out to be', () => {
     expect(answer).toContain('components: Checkout, Button');
   });
 
+  it('keeps a band with no answer apart from one with a narrower answer', () => {
+    // An agent reading this is deciding whether the pair settles a question.
+    // Folding the two into one list would make "we did not look" and "we looked
+    // at less than the band is" the same line.
+    const answer = variations.run(
+      reportOf([{ ...MEASURED, unobserved: ['geometry', 'texture'], narrowed: ['token'] }]),
+      {},
+    );
+
+    expect(answer).toContain('unobserved here: geometry, texture');
+    expect(answer).toContain('narrowed here: token');
+  });
+
   it('counts the ones nothing could be measured for separately', () => {
     const answer = variations.run(
       reportOf([

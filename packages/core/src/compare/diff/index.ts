@@ -1,8 +1,13 @@
-import { BANDS, type Band } from '../band.js';
+import type { Band } from '../band.js';
 import { aggregateImpact, type AggregateImpact } from '../impact.js';
 import { diffEnvironments, type EnvironmentDelta } from '../../format/environment.js';
 import type { SemanticSnapshot } from '../../format/snapshot.js';
-import { decidesBand, observableBands } from '../observability.js';
+import {
+  narrowedBands,
+  sharedObservability,
+  unobservedBands,
+  type Observability,
+} from '../observability.js';
 import { impactTag, type ChangedComponent, type Delta, type Root } from './delta.js';
 import { matchTrees } from './match.js';
 import { compareNodes, wholeNode } from './compare-nodes.js';
@@ -44,12 +49,37 @@ export interface SemanticDiff {
   readonly impact: AggregateImpact;
 
   /**
+   * How completely each band was decided, weaker side winning.
+   *
+   * The primitive the two lists below are views of. Carried rather than reduced
+   * to them on the way out, because `unchanged` is one word for two readings of
+   * different strength and a caller with a stricter policy than ours has to be
+   * able to tell them apart without re-deriving the profile arithmetic — which
+   * is the version of this that drifts.
+   */
+  readonly observability: Readonly<Record<Band, Observability>>;
+
+  /**
    * Bands this profile could not observe.
    *
    * Reported so that "no geometry deltas" is never mistaken for "geometry is
    * fine" under a profile with no layout engine (ADR-0002).
    */
   readonly unobserved: readonly Band[];
+
+  /**
+   * Bands decided on less than the evidence the band is made of.
+   *
+   * `unobserved`'s quiet half. A band here returned an answer, and the answer is
+   * narrower than the word carrying it: a `token` band decided `declared-only`
+   * compared what an author wrote and not what an engine resolved, so
+   * `padding: 1rem` is `1rem` on both sides and a root font-size that moved
+   * underneath it is outside the comparison. Absent from the unobserved list on
+   * purpose — the band *was* decided — and named here so the qualification
+   * reaches whoever reads the verdict instead of stopping at the profile that
+   * produced it.
+   */
+  readonly narrowed: readonly Band[];
 }
 
 /**
@@ -102,11 +132,9 @@ export function compareTrees(
   baseline: SemanticSnapshot,
   candidate: SemanticSnapshot,
 ): TreeComparison {
-  const here = observableBands(candidate.profile);
-  const there = observableBands(baseline.profile);
-  const unobserved: Band[] = BANDS.filter(
-    (band) => !decidesBand(band, here[band]) || !decidesBand(band, there[band]),
-  );
+  const observability = sharedObservability(candidate.profile, baseline.profile);
+  const unobserved = unobservedBands(observability);
+  const narrowed = narrowedBands(observability);
 
   const environmentDeltas = diffEnvironments(
     baseline.environment.inputs,
@@ -121,7 +149,9 @@ export function compareTrees(
       roots: [],
       components: [],
       impact: 'paint',
+      observability,
       unobserved,
+      narrowed,
     };
   }
 
@@ -168,6 +198,8 @@ export function compareTrees(
     roots,
     components: componentsOf(located, roots),
     impact: aggregateImpact(located.map(impactTag)),
+    observability,
     unobserved,
+    narrowed,
   };
 }

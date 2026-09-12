@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   environmentKey,
   profileById,
+  type ProfileId,
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import type { Plan, PlannedSubject } from './collector.js';
@@ -29,13 +30,13 @@ const planOf = (...subjects: readonly PlannedSubject[]): Plan => ({
   warnings: [],
 });
 
-function snapshotOf(id: string, text: string): SemanticSnapshot {
+function snapshotOf(id: string, text: string, profile: ProfileId = 'chromium'): SemanticSnapshot {
   return {
     formatVersion: 1,
     subject: { id, kind: 'fixture' },
-    profile: profileById('chromium'),
+    profile: profileById(profile),
     environment: environmentKey({
-      profile: 'chromium',
+      profile,
       engine: 'chromium@131',
       ruleset: 'test',
       allowlist: 'test',
@@ -330,6 +331,41 @@ describe('the records a run reports', () => {
     expect(records?.[0]).toMatchObject({ subject: 'fixture:panel-flagged' });
     expect(records?.[0]?.digest).toBe(undefined);
     expect(records?.[0]?.because).toContain('no semantic snapshot');
+  });
+
+  it('says what a narrowly answered band was actually compared on', () => {
+    // The sentence a jsdom run needs and a chromium run does not. Both read
+    // `token`, both would say the two are alike there, and only one of them
+    // asked the question the word implies — so the record carries the band and
+    // the sentence carries its coverage.
+    const records = variationsOf({
+      plan,
+      snapshots: new Map([
+        ['fixture:panel', snapshotOf('fixture:panel', 'buy', 'jsdom')],
+        ['fixture:panel-flagged', snapshotOf('fixture:panel-flagged', 'buy now', 'jsdom')],
+      ]),
+    });
+
+    expect(records?.[0]?.narrowed).toEqual(['token']);
+    expect(records?.[0]?.because).toContain(
+      '`token` was compared on what the stylesheets declare, not what an engine resolved',
+    );
+  });
+
+  it('leaves the caveat off a record that did not earn it', () => {
+    // Absent rather than empty, for the reason every other optional field here
+    // is: a reader must not have to tell "nothing was narrowed" from "nobody
+    // checked".
+    const records = variationsOf({
+      plan,
+      snapshots: new Map([
+        ['fixture:panel', snapshotOf('fixture:panel', 'buy')],
+        ['fixture:panel-flagged', snapshotOf('fixture:panel-flagged', 'buy now')],
+      ]),
+    });
+
+    expect(records?.[0]?.narrowed).toBe(undefined);
+    expect(records?.[0]?.because).not.toContain('was compared on');
   });
 
   it('keeps an unresolvable declaration in the report', () => {

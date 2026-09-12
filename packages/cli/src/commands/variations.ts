@@ -1,4 +1,8 @@
-import { deriveVariation, type Variation } from '@variance-authority/core/compare';
+import {
+  deriveVariation,
+  type Observability,
+  type Variation,
+} from '@variance-authority/core/compare';
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import type { VariationRecord } from '@variance-authority/report';
 import type { NamesConfig } from '../config-names.js';
@@ -315,6 +319,7 @@ function recordOf(variation: Variation, how: Declaration, step?: Step): Variatio
     identical: variation.identical,
     bands: variation.bands,
     ...(variation.unobserved.length > 0 ? { unobserved: variation.unobserved } : {}),
+    ...(variation.narrowed.length > 0 ? { narrowed: variation.narrowed } : {}),
     ...(named.length > 0 ? { components: named } : {}),
     digest: variation.digest,
     how,
@@ -348,7 +353,16 @@ function because(
       ? ''
       : ` This profile could not decide ${list(variation.unobserved)}, so the two are ` +
         'unmeasured there rather than alike.';
-  const tail = `${blind}${source}`;
+
+  // The other half of the same caveat, and the one with no verdict to give it
+  // away. A band this profile could not decide is reported as undecided; a band
+  // it decided narrowly comes back in the same word a full reading uses, so the
+  // only place the difference can appear is here.
+  const narrow = variation.narrowed
+    .map((band) => ` \`${band}\` was compared on ${COVERAGE[variation.observability[band]]}.`)
+    .join('');
+
+  const tail = `${blind}${narrow}${source}`;
 
   if (variation.identical) {
     return (
@@ -365,6 +379,21 @@ function because(
     tail
   );
 }
+
+/**
+ * What a reading of a band actually covered, in the reader's own terms.
+ *
+ * Keyed by `Observability` rather than by band so that a level added without a
+ * sentence is a compile error. `full` and `none` are here to make the record
+ * total and are never reached: a full band is not narrowed and an undecidable one
+ * is unobserved, and each has its own sentence above.
+ */
+const COVERAGE: Readonly<Record<Observability, string>> = {
+  full: 'everything the band is made of',
+  'declared-only': 'what the stylesheets declare, not what an engine resolved',
+  'structural-only': 'nodes entering and leaving the tree, not boxes moving on screen',
+  none: 'nothing',
+};
 
 function list(words: readonly string[]): string {
   if (words.length === 0) return 'nothing';

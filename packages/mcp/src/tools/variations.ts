@@ -124,6 +124,13 @@ function render(record: VariationRecord): string {
     ...(record.unobserved === undefined
       ? []
       : [`  unobserved here: ${record.unobserved.join(', ')}`]),
+    // Listed beside `unobserved` rather than folded into it. An agent deciding
+    // whether this pair settles a question needs the two apart: an unobserved
+    // band has no answer, and a narrowed one has an answer to a smaller question
+    // than the band's name implies. `because` above says what each one covered.
+    ...(record.narrowed === undefined
+      ? []
+      : [`  narrowed here: ${record.narrowed.join(', ')}`]),
   ].join('\n');
 }
 
