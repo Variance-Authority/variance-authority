@@ -115,6 +115,22 @@ export function scanCacheRoot(root: string): string {
   return join(cacheRoot('scans'), digestString(root).replace(':', '-'));
 }
 
+/**
+ * Where suite indexes are kept: this run's, and any a share handed over.
+ *
+ * Outside the work tree, on the same argument as the two caches above and with
+ * one more. An index is addressed by the commit it was written at, so a wrong
+ * location costs a fetch and never an answer; and because the address is a
+ * commit rather than a branch, a checkout that moves between branches
+ * accumulates both evaluations instead of overwriting one with the other.
+ *
+ * It is also the directory a CI job is expected to point `actions/cache` at,
+ * which is why it is a stable path and not a temporary one.
+ */
+export function suiteIndexRoot(): string {
+  return cacheRoot('suite');
+}
+
 function cacheRoot(kind: string): string {
   const configured = process.env['XDG_CACHE_HOME'];
   // A relative `XDG_CACHE_HOME` is meaningless (the spec requires absolute) and

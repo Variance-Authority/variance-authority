@@ -26,7 +26,6 @@ import {
   recordedJourneys,
   scanSourceDirs,
   storeFor,
-  subjectsInReport,
   writeArtifactToDisk,
   writeCliRunReport,
   type CliRunReport,
@@ -46,12 +45,12 @@ import { mergeReports } from './commands/merge.js';
 import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
-import { formatJourneys, formatLanding, journeysOf, type JourneyPool } from './commands/journeys.js';
-import { landJourneys } from './commands/land.js';
+import { journeysOutput } from './commands/journeys-command.js';
 import { formatPush, push } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
 import { doctor, machineProbes } from './commands/doctor.js';
+import { publishedLine, shareLines } from './commands/share.js';
 import { distillFiles, formatDistill } from './commands/distill.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
@@ -185,8 +184,13 @@ export async function dispatch(
           },
         });
 
+        // After the report is on disk and before the exit code is decided:
+        // publishing is the last thing a run does for somebody else, and the
+        // first thing that must not change what this run concluded.
+        const shared = await publishedLine(effective, report);
+
         streams.out(
-          `${formatReport({ report, format: 'text' })}\n\nreport: ${effective.report}\n`,
+          `${formatReport({ report, format: 'text' })}\n\nreport: ${effective.report}\n${shared}`,
         );
         return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
       } finally {
@@ -302,35 +306,16 @@ export async function dispatch(
     }
 
     case 'journeys': {
-      // Shards land first, so the reading below is of the suite and not of the
-      // slice this machine last ran; and a write that happened is said first.
-      const landed =
-        parsed.shards.length === 0
-          ? undefined
-          : await landJourneys(process.cwd(), parsed.shards, parsed.into);
-      if (landed !== undefined) streams.out(`${formatLanding(landed)}\n\n`);
-
-      // The pool is chosen before the snapshot is read, because the instrument
-      // narrows on the way out: `journeyDivergences` decides who is entitled to
-      // be missing from a region, and a filter applied afterwards would be a
-      // filter over an answer somebody else's subjects had already shaped.
-      const named = parsed.all ? undefined : await subjectsInReport(config.report);
-      const pool: JourneyPool =
-        parsed.all
-          ? { kind: 'all' }
-          : named === undefined
-            ? { kind: 'unasked', report: config.report }
-            : { kind: 'run', named: named.length };
-
       streams.out(
-        `${formatJourneys(
-          journeysOf({
-            ...(await recordedJourneys(process.cwd(), named, landed?.at)),
-            pool,
-            ...(parsed.file !== undefined ? { file: parsed.file } : {}),
-            ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
-          }),
-        )}\n`,
+        await journeysOutput({
+          cwd: process.cwd(),
+          report: config.report,
+          all: parsed.all,
+          shards: parsed.shards,
+          ...(parsed.into !== undefined ? { into: parsed.into } : {}),
+          ...(parsed.file !== undefined ? { file: parsed.file } : {}),
+          ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
+        }),
       );
 
       // `changelog`'s rule. A parting is where to look, not a verdict: every
@@ -398,6 +383,11 @@ export async function dispatch(
       const diagnosis = await doctor(config, machineProbes(config));
       streams.out(`${formatDiagnosis(diagnosis)}\n`);
       return exitForDiagnosis(diagnosis);
+    }
+
+    case 'share': {
+      streams.out(`${(await shareLines(config, parsed)).join('\n')}\n`);
+      return EXIT_CLEAN;
     }
 
     case 'comment': {

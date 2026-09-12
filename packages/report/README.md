@@ -43,12 +43,21 @@ its own output.
 | entrypoint | requires | holds |
 |---|---|---|
 | `.` | nothing | `RunReport`, `ObservationRecord`, `PresentationSignalRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun` |
-| `./file` | a filesystem | `readRunReport`, `writeRunReport` |
+| `./file` | a filesystem | `readRunReport`, `writeRunReport`, `readSuiteIndex`, `writeSuiteIndex` |
+| `./suite-index` | nothing | `suiteIndexOf`, `encodeSuiteIndex`, `decodeSuiteIndex`, `SuiteIndex` |
 
 The split exists because a run happening on a pinned machine in CI and the
 questions being asked on a laptop is exactly why this artifact exists — and a
 consumer who carries it some other way (an object store, a PR comment, a socket)
 wants the shapes and not the disk.
+
+`./suite-index` is the part of a report that is not about the run. What the
+suite is made of — its subjects, its components, every name each one carries —
+is a fact about the commit the run was at, it changes only when the suite does,
+and it is asked for far more often than a run happens. So it is taken out of a
+report as bytes (`suiteIndexOf`), addressed by that commit, small enough for a
+cache to carry and stable enough that two machines composing the same suite
+write the same file. `decodeSuiteIndex` refuses anything else.
 
 ## Smallest working path
 

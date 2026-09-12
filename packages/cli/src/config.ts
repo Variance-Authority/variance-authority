@@ -28,6 +28,7 @@ import {
   type RemoteRendererConfig,
   type SubjectsConfig,
 } from './config-sections.js';
+import { parseShare, type ShareConfig } from './config-share.js';
 import { parseBlanks, type BlankConfig } from './config-blank.js';
 import { parseSource, type ChangeConfig, type SourceConfig } from './config-source.js';
 import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
@@ -124,6 +125,18 @@ export interface Config {
 
   /** Required by, and only meaningful under, `durable` retention. */
   readonly baselines?: BaselinesConfig;
+
+  /**
+   * Where the run leaves what it derived, for the next machine to pick up.
+   *
+   * Absent means nothing is published and nothing is looked for, which is a
+   * complete and correct configuration: every run derives its own evaluation,
+   * exactly as it did before this key existed. Unlike every other section here,
+   * setting it cannot change what is observed — a share holds derived facts
+   * addressed by the commit they were derived at, so a stale entry, a cache
+   * from another project or no cache at all costs work and never an answer.
+   */
+  readonly share?: ShareConfig;
 
   /**
    * Directories your components are declared in, for `variance run --since`.
@@ -326,6 +339,7 @@ const TOP_LEVEL = [
   'retention',
   'subjects',
   'baselines',
+  'share',
   'source',
   'fonts',
   'browser',
@@ -392,6 +406,8 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     );
   }
 
+  const share = root['share'] === undefined ? undefined : parseShare(root['share'], options);
+
   const report = resolveFrom(options.baseDir, path(root, 'report', options) ?? DEFAULT_REPORT_PATH);
   const images = path(root, 'images', options);
   const intent = optionalText(root, 'intent', options);
@@ -445,6 +461,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     retention,
     subjects: parseSubjects(root['subjects'], options),
     ...(baselines !== undefined ? { baselines } : {}),
+    ...(share !== undefined ? { share } : {}),
     fonts: parseFonts(root['fonts'], options),
     ...(root['history'] === undefined ? {} : { history: parseHistory(root['history'], options) }),
     ...(root['review'] === undefined ? {} : { review: parseReview(root['review'], options) }),

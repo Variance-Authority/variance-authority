@@ -30,6 +30,10 @@
     "./file": {
       "types": "./dist/file.d.ts",
       "default": "./dist/file.js"
+    },
+    "./suite-index": {
+      "types": "./dist/suite-index.d.ts",
+      "default": "./dist/suite-index.js"
     }
   },
   "main": "./dist/index.js",

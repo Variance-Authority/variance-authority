@@ -26,11 +26,14 @@ input is a PNG.
 
 ## Entrypoints
 
-Seven groups. Five of them are the order an answer travels through; `core/plan`
+Nine groups. Five of them are the order an answer travels through; `core/plan`
 and `core/relate` sit outside that line, because both are asked *before* anything
 is captured — one decides which baselines the run can reach at all, the other
-decides which subjects are worth reaching for. Every name lives in exactly one
-group, and the bare specifier holds only the capture artifact.
+decides which subjects are worth reaching for. `core/segment` and `core/share`
+sit outside it in the other direction: they are how a derived answer is written
+down and handed to another machine, and neither knows what it is carrying. Every
+name lives in exactly one group, and the bare specifier holds only the capture
+artifact.
 
 | entrypoint | holds |
 |---|---|
@@ -41,6 +44,8 @@ group, and the bare specifier holds only the capture artifact.
 | `core/judge` | policy: verdicts, intent claims, ignores, the docket a reader is handed |
 | `core/plan` | the whole configuration of a run — profile, ruleset version, viewport, policy, interventions — as one value, plus the identity digest derived from it |
 | `core/relate` | what rests on what: a file graph in adjacency form, the components a change reaches, and a closure digest over each one |
+| `core/segment` | columnar bytes: named columns, interned strings, and the validation a decode performs before it believes a file |
+| `core/share` | leaving those bytes where another machine finds them, under a key that is a commit |
 
 Three terms recur across those groups. A **profile** records what a collector
 was capable of observing — jsdom sees structure and declared style, chromium
@@ -159,6 +164,37 @@ non-finite number cannot be canonical text, and dropping one silently puts a key
 in the record that the next run reads as removed.
 
 Rendered comparisons also throw when the subjects or observation profiles differ.
+
+## Handing an answer to another machine
+
+A run derives what the suite is made of, and that is a fact about a commit
+rather than about the run. `core/segment` writes such a thing as columns — equal
+facts encode to equal bytes, which is what lets a transport skip an upload — and
+`core/share` moves the bytes:
+
+```ts
+import { httpShare, shareKey } from '@variance-authority/core/share';
+
+const share = httpShare({
+  endpoint: 'https://objects.example.com/variance',
+  headers: { authorization: `Bearer ${token}` },
+  method: 'PUT',
+});
+
+await share.put(shareKey({ project: 'web', artifact: 'suite-index-v1', commit }), bytes);
+```
+
+`endpoint` is a base URL a key is appended to; `headers` is sent on every
+request, which is where a bucket's `Authorization` or a deployment's token goes;
+`method` is the verb a write uses — `PUT` for a bucket, `POST` for a deployment
+that routes on it. A presigned base needs none of the three but the first.
+
+**A share never throws.** A miss, an outage, a permission error and a body
+nobody can parse are one outcome: `get` answers `null` and `put` resolves.
+Everything a share holds was derived from a tree and can be derived again, so
+the worst a broken one does is cost the derivation — which also means a failing
+share is indistinguishable from a cold one, and only the wall clock says so.
+[Sharing an evaluation](../../docs/sharing.md) is the operator's side of it.
 
 ## What it refuses
 

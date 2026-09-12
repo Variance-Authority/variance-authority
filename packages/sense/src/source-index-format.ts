@@ -1,24 +1,37 @@
+import {
+  codeUnitOrder as order,
+  encodeSegment,
+  flagOf,
+  NONE,
+  openSegment,
+  rangeOf,
+  sameLength as sameLengthOf,
+  stringColumns,
+  stringReader as openStrings,
+  validateOffsets,
+  type Column,
+} from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Export } from './read.js';
 
+/**
+ * One durable generation of source facts, as bytes.
+ *
+ * The schema is here and the arithmetic is not:
+ * [`core/segment`](../../core/src/segment/index.ts) owns sections, alignment,
+ * interning and the checks a decode runs before it believes a file, because the
+ * suite index needed the same four hundred lines and two copies of offset
+ * validation is one copy that eventually stops matching.
+ *
+ * What stays is the part that is about *source*: which columns exist, which of
+ * them is a list, and the two absences this format has to keep apart — a parse
+ * that recorded no exports against one that was never asked for them.
+ */
+const FORMAT = 'variance-authority-source-index';
 const VERSION = 1;
-const ALIGNMENT = 8;
-const NONE = 0xffff_ffff;
-
-interface Section {
-  readonly name: string;
-  readonly offset: number;
-  readonly length: number;
-  readonly width: 1 | 4;
-}
-
-interface Header {
-  readonly format: 'variance-authority-source-index';
-  readonly version: number;
-  readonly sections: readonly Section[];
-}
+const WHAT = 'source index';
 
 export interface StoredSourceIndex {
   readonly parses: ReadonlyMap<Digest, Parsed>;
@@ -36,9 +49,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const ids = new Map(strings.map((value, index) => [value, index]));
   const id = (value: string): number => ids.get(value)!;
 
-  const stringBytes = strings.map((value) => Buffer.from(value, 'utf8'));
-  const stringBlob = Buffer.concat(stringBytes);
-  const stringOff = offsets(stringBytes.map((value) => value.length));
+  const { blob: stringBlob, off: stringOff } = stringColumns(strings);
 
   const parseDigest = new Uint32Array(parses.length);
   const parseRequests = new Uint32Array(parses.length + 1);
@@ -126,53 +137,53 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   recordDeclares[records.length] = recordDeclareName.length;
   recordUnresolved[records.length] = unresolvedValue.length;
 
-  return sections({
+  return bytes(encodeSegment(FORMAT, VERSION, {
     'strings.blob': stringBlob,
-    'strings.off': bytes(stringOff),
-    'index.layout': bytes(Uint32Array.of(optionalId(stored.layout, id))),
-    'parses.digest': bytes(parseDigest),
-    'parses.deleted': bytes(Uint32Array.from(
-      [...stored.deletedParses ?? []].sort(order), (digest) => id(digest))),
-    'parses.requests': bytes(parseRequests),
-    'parses.exports': bytes(parseExports),
-    'parses.exports-present': bytes(parseExportPresent),
-    'parses.declares': bytes(parseDeclares),
-    'parses.declares-present': bytes(parseDeclarePresent),
-    'parses.unknown': bytes(parseUnknown),
-    'requests.value': bytes(Uint32Array.from(requestValue)),
-    'requests.kind': bytes(Uint32Array.from(requestKind)),
-    'requests.bindings': bytes(Uint32Array.from(requestBindings)),
-    'bindings.imported': bytes(Uint32Array.from(bindingImported)),
-    'bindings.local': bytes(Uint32Array.from(bindingLocal)),
-    'bindings.type': bytes(Uint8Array.from(bindingType)),
-    'exports.exported': bytes(Uint32Array.from(exportExported)),
-    'exports.local': bytes(Uint32Array.from(exportLocal)),
-    'exports.from': bytes(Uint32Array.from(exportFrom)),
-    'exports.imported': bytes(Uint32Array.from(exportImported)),
-    'exports.type': bytes(Uint8Array.from(exportType)),
-    'declares.name': bytes(Uint32Array.from(declareName)),
-    'records.file': bytes(recordFile),
-    'records.deleted': bytes(Uint32Array.from(
-      [...stored.deletedRecords ?? []].sort(order), (file) => id(file))),
-    'records.digest': bytes(recordDigest),
-    'records.edges': bytes(recordEdges),
-    'records.edges-present': bytes(recordEdgePresent),
-    'records.declares': bytes(recordDeclares),
-    'records.declares-present': bytes(recordDeclarePresent),
-    'records.unresolved': bytes(recordUnresolved),
-    'records.unresolved-present': bytes(recordUnresolvedPresent),
-    'records.unknown': bytes(recordUnknown),
-    'edges.to': bytes(Uint32Array.from(edgeTo)),
-    'edges.kind': bytes(Uint32Array.from(edgeKind)),
-    'record-declares.name': bytes(Uint32Array.from(recordDeclareName)),
-    'unresolved.value': bytes(Uint32Array.from(unresolvedValue)),
-  });
+    'strings.off': stringOff,
+    'index.layout': Uint32Array.of(optionalId(stored.layout, id)),
+    'parses.digest': parseDigest,
+    'parses.deleted': Uint32Array.from(
+      [...stored.deletedParses ?? []].sort(order), (digest) => id(digest)),
+    'parses.requests': parseRequests,
+    'parses.exports': parseExports,
+    'parses.exports-present': parseExportPresent,
+    'parses.declares': parseDeclares,
+    'parses.declares-present': parseDeclarePresent,
+    'parses.unknown': parseUnknown,
+    'requests.value': Uint32Array.from(requestValue),
+    'requests.kind': Uint32Array.from(requestKind),
+    'requests.bindings': Uint32Array.from(requestBindings),
+    'bindings.imported': Uint32Array.from(bindingImported),
+    'bindings.local': Uint32Array.from(bindingLocal),
+    'bindings.type': Uint8Array.from(bindingType),
+    'exports.exported': Uint32Array.from(exportExported),
+    'exports.local': Uint32Array.from(exportLocal),
+    'exports.from': Uint32Array.from(exportFrom),
+    'exports.imported': Uint32Array.from(exportImported),
+    'exports.type': Uint8Array.from(exportType),
+    'declares.name': Uint32Array.from(declareName),
+    'records.file': recordFile,
+    'records.deleted': Uint32Array.from(
+      [...stored.deletedRecords ?? []].sort(order), (file) => id(file)),
+    'records.digest': recordDigest,
+    'records.edges': recordEdges,
+    'records.edges-present': recordEdgePresent,
+    'records.declares': recordDeclares,
+    'records.declares-present': recordDeclarePresent,
+    'records.unresolved': recordUnresolved,
+    'records.unresolved-present': recordUnresolvedPresent,
+    'records.unknown': recordUnknown,
+    'edges.to': Uint32Array.from(edgeTo),
+    'edges.kind': Uint32Array.from(edgeKind),
+    'record-declares.name': Uint32Array.from(recordDeclareName),
+    'unresolved.value': Uint32Array.from(unresolvedValue),
+  } satisfies Record<string, Column>));
 }
 
 /** Decode a complete generation. Any malformed reference rejects the whole file. */
 export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
-  const opened = openSections(input);
-  const strings = stringReader(opened.u8('strings.blob'), opened.u32('strings.off'));
+  const opened = openSegment(FORMAT, VERSION, input, WHAT);
+  const strings = openStrings(opened.u8('strings.blob'), opened.u32('strings.off'), invalid).text;
   const text = (value: number): string => {
     if (value === NONE) throw invalid();
     return strings(value);
@@ -339,113 +350,16 @@ function dictionary(
   return [...values].sort(order);
 }
 
-function sections(input: Readonly<Record<string, Buffer>>): Buffer {
-  const chunks: Buffer[] = [];
-  const index: Section[] = [];
-  let offset = 0;
-  for (const [name, value] of Object.entries(input)) {
-    const width = name.endsWith('.blob') || name.endsWith('.type') || name.endsWith('-present') ? 1 : 4;
-    index.push({ name, offset, length: value.length, width });
-    chunks.push(value);
-    offset += value.length;
-    const padding = aligned(offset) - offset;
-    if (padding > 0) chunks.push(Buffer.alloc(padding));
-    offset += padding;
-  }
-  const header: Header = { format: 'variance-authority-source-index', version: VERSION, sections: index };
-  const encoded = Buffer.from(JSON.stringify(header), 'utf8');
-  const headerLength = aligned(4 + encoded.length) - 4;
-  const prefix = Buffer.alloc(4);
-  prefix.writeUInt32LE(headerLength);
-  return Buffer.concat([prefix, encoded, Buffer.alloc(headerLength - encoded.length), ...chunks]);
-}
-
-function openSections(input: Uint8Array): {
-  u8(name: string): Uint8Array;
-  u32(name: string): Uint32Array;
-  maybeU32(name: string): Uint32Array;
-} {
-  const raw = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
-  if (raw.length < 4) throw invalid();
-  const headerLength = raw.readUInt32LE(0);
-  if (headerLength > raw.length - 4) throw invalid();
-  let header: Header;
-  try {
-    header = JSON.parse(raw.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
-  } catch { throw invalid(); }
-  if (header.format !== 'variance-authority-source-index' || header.version !== VERSION ||
-      !validSections(header.sections, raw.length - 4 - headerLength)) throw invalid();
-  const base = 4 + headerLength;
-  const found = new Map(header.sections.map((section) => [section.name, section]));
-  const section = (name: string, width: 1 | 4): Section => {
-    const value = found.get(name);
-    if (value === undefined || value.width !== width) throw invalid();
-    return value;
-  };
-  return {
-    u8(name) {
-      const value = section(name, 1);
-      return new Uint8Array(raw.buffer, raw.byteOffset + base + value.offset, value.length);
-    },
-    u32(name) {
-      const value = section(name, 4);
-      if (value.length % 4 !== 0) throw invalid();
-      return new Uint32Array(raw.buffer, raw.byteOffset + base + value.offset, value.length / 4);
-    },
-    maybeU32(name) {
-      const value = found.get(name);
-      if (value === undefined) return new Uint32Array();
-      if (value.width !== 4 || value.length % 4 !== 0) throw invalid();
-      return new Uint32Array(raw.buffer, raw.byteOffset + base + value.offset, value.length / 4);
-    },
-  };
-}
-
-function stringReader(blob: Uint8Array, off: Uint32Array): (id: number) => string {
-  validateOffset(off, blob.length);
-  const decoder = new TextDecoder();
-  return (id) => {
-    const start = off[id]; const end = off[id + 1];
-    if (start === undefined || end === undefined) throw invalid();
-    return decoder.decode(blob.subarray(start, end));
-  };
-}
-
 function validateOffset(column: Uint32Array, end: number, rows = column.length - 1): void {
-  if (column.length !== rows + 1 || column[0] !== 0 || column[column.length - 1] !== end) throw invalid();
-  for (let index = 1; index < column.length; index += 1) if (column[index]! < column[index - 1]!) throw invalid();
+  validateOffsets(column, end, rows, invalid);
 }
 
 function sameLength(length: number, columns: readonly { readonly length: number }[]): void {
-  if (columns.some((column) => column.length !== length)) throw invalid();
+  sameLengthOf(length, columns, invalid);
 }
 
 function range(offsets: Uint32Array, row: number): number[] {
-  const start = offsets[row]; const end = offsets[row + 1];
-  if (start === undefined || end === undefined) throw invalid();
-  return Array.from({ length: end - start }, (_, index) => start + index);
-}
-
-function validSections(sections: readonly Section[], available: number): boolean {
-  if (!Array.isArray(sections) || sections.length === 0) return false;
-  if (new Set(sections.map((section) => section.name)).size !== sections.length) return false;
-  const ordered = [...sections].sort((left, right) => left.offset - right.offset);
-  let end = 0;
-  for (const section of ordered) {
-    if (typeof section.name !== 'string' || !Number.isSafeInteger(section.offset) ||
-        !Number.isSafeInteger(section.length) || section.offset < end ||
-        section.offset % ALIGNMENT !== 0 || section.length < 0 ||
-        section.length > available - section.offset ||
-        (section.width !== 1 && section.width !== 4)) return false;
-    end = section.offset + section.length;
-  }
-  return ordered[0]?.offset === 0;
-}
-
-function offsets(lengths: readonly number[]): Uint32Array {
-  const result = new Uint32Array(lengths.length + 1);
-  for (let index = 0; index < lengths.length; index += 1) result[index + 1] = result[index]! + lengths[index]!;
-  return result;
+  return rangeOf(offsets, row, invalid);
 }
 
 function optionalId(value: string | undefined, id: (value: string) => number): number {
@@ -453,14 +367,11 @@ function optionalId(value: string | undefined, id: (value: string) => number): n
 }
 
 function flag(value: number | undefined): boolean {
-  if (value !== 0 && value !== 1) throw invalid();
-  return value === 1;
+  return flagOf(value, invalid);
 }
 
 function bytes(array: Uint8Array | Uint32Array): Buffer {
   return Buffer.from(array.buffer, array.byteOffset, array.byteLength);
 }
 
-function aligned(value: number): number { return Math.ceil(value / ALIGNMENT) * ALIGNMENT; }
-function order(left: string, right: string): number { return left < right ? -1 : left > right ? 1 : 0; }
-function invalid(): Error { return new Error('not a variance-authority source index'); }
+function invalid(): Error { return new Error(`not a variance-authority ${WHAT}`); }

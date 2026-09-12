@@ -27,6 +27,7 @@ export const COMMANDS = [
   'push',
   'serve',
   'doctor',
+  'share',
   'comment',
 ] as const;
 
@@ -71,6 +72,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   push: ['--run', '--commit', '--branch'],
   serve: [],
   doctor: [],
+  share: ['--ref', '--publish'],
   comment: ['--body-file', '--run-url', '--marker'],
 };
 
@@ -87,6 +89,7 @@ export const USAGE = [
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>]              # MCP over stdio',
   'variance doctor  [--config <path>]',
+  'variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
   '',
   'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',

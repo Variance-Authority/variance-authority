@@ -31,6 +31,10 @@
       "types": "./dist/lfs.d.ts",
       "default": "./dist/lfs.js"
     },
+    "./share": {
+      "types": "./dist/share.d.ts",
+      "default": "./dist/share.js"
+    },
     "./changelog": {
       "types": "./dist/changelog.d.ts",
       "default": "./dist/changelog.js"

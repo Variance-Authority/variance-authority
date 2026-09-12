@@ -32,6 +32,21 @@ could have changed at all without comparing any images.
 | `./durable` | a filesystem | baselines in a plain directory. The single-machine and self-hosted-runner case: nothing to install, and nothing shares them. |
 | `./lfs` | a filesystem and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
 | `./changelog` | `git` and a repository | reading back **why** a baseline is what it is. Take it when you are building a history view rather than running a comparison; nothing in the render path imports it. |
+| `./share` | a filesystem | a directory as a **share** — derived bytes another machine may read, under a key that is a commit. Not a baseline store; see below. |
+
+### A share is not a baseline store
+
+`createDirectoryShare(root)` implements `SharedCache` from
+[`@variance-authority/core/share`](../core/README.md): `get` and `put` over
+bytes, and neither ever throws. It holds what a run *derived* — a suite index,
+whatever comes after it — and everything in it can be derived again from the
+tree it was derived at, which is why losing it costs a rebuild and losing a
+baseline costs the comparison.
+
+A directory rather than one backend per service, because a directory is what
+every transport already is on the machine using it: `actions/cache` restores
+one, `aws s3 sync` mirrors one, an NFS mount is one, and a laptop has one.
+[Sharing an evaluation](../../docs/sharing.md) is the operator's side.
 
 ### The `RasterStore` contract
 

@@ -6,6 +6,7 @@ import type {
   PresentationSignalRecord,
   RunReport,
 } from './format.js';
+import { decodeSuiteIndex, encodeSuiteIndex, type SuiteIndex } from './suite-index.js';
 
 /**
  * The run report as a file — the one thing here that needs a disk.
@@ -55,6 +56,34 @@ export async function readRunReport(path: string): Promise<RunReport> {
   });
 
   return parsed as RunReport;
+}
+
+/**
+ * Write a suite index, which is bytes rather than text.
+ *
+ * Beside the report writer because the disk is the same disk, and apart from it
+ * because the two artifacts travel differently: a report is read once by whoever
+ * asked about the run that produced it, and an index is read by every later run
+ * that wants to know what the suite looked like before it. The transports that
+ * follow — a directory, an action cache, a deployment — all want a file whose
+ * name is a commit and whose contents hash the same on two machines, which is
+ * what the encoder's sorted dictionary is for.
+ */
+export async function writeSuiteIndex(path: string, index: SuiteIndex): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, encodeSuiteIndex(index));
+}
+
+/**
+ * Read a suite index, refusing anything that is not one.
+ *
+ * A caller that cannot read one has no baseline and must say so rather than
+ * answer from this run alone — the same direction
+ * [`sense`](../../sense/src/test-selection/commit.ts) already fails in, where an
+ * index that cannot say where it is means everything runs.
+ */
+export async function readSuiteIndex(path: string): Promise<SuiteIndex> {
+  return decodeSuiteIndex(await readFile(path));
 }
 
 function checkPresentation(path: string, index: number, value: unknown): void {

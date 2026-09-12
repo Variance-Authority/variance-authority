@@ -5,6 +5,7 @@ import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand } from './usage.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
+import { parseShareArgs, type ParsedShare } from './share-args.js';
 
 export { USAGE } from './usage.js';
 /**
@@ -129,7 +130,7 @@ export type Parsed =
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
-  | ParsedDistill
+  | ParsedDistill | ParsedShare
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -232,9 +233,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'run': {
       const profile = flags.values.get('--profile');
       if (profile !== undefined && profile !== 'jsdom' && profile !== 'chromium') {
-        throw new OperatorError(
-          `--profile must be jsdom or chromium, not \`${profile}\``,
-        );
+        throw new OperatorError(`--profile must be jsdom or chromium, not \`${profile}\``);
       }
       const subjects = flags.values.get('--subjects');
       const intent = flags.values.get('--intent');
@@ -323,6 +322,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     }
 
     case 'distill': return parseDistill(flags);
+    case 'share': return parseShareArgs(flags, config);
 
     case 'adjudicate': {
       const claims = flags.values.get('--claims');

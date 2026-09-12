@@ -145,6 +145,14 @@
           "types": "./dist/format/index.d.ts",
           "default": "./dist/format/index.js"
         },
+        "./share": {
+          "types": "./dist/share/index.d.ts",
+          "default": "./dist/share/index.js"
+        },
+        "./segment": {
+          "types": "./dist/segment/index.d.ts",
+          "default": "./dist/segment/index.js"
+        },
         "./rules": {
           "types": "./dist/rules/index.d.ts",
           "default": "./dist/rules/index.js"
@@ -281,6 +289,32 @@
         "tierReaches": "function",
         "waitForFonts": "const",
         "waitForImages": "const"
+      },
+      "./share": {
+        "HttpShareOptions": "interface",
+        "SharedCache": "interface",
+        "SharedHit": "interface",
+        "firstShared": "function",
+        "httpShare": "function",
+        "memoryShare": "function",
+        "neverFails": "function",
+        "shareKey": "function"
+      },
+      "./segment": {
+        "Column": "type",
+        "NONE": "const",
+        "OpenSegment": "interface",
+        "codeUnitOrder": "function",
+        "encodeSegment": "function",
+        "flagOf": "function",
+        "intern": "function",
+        "offsetsOf": "function",
+        "openSegment": "function",
+        "rangeOf": "function",
+        "sameLength": "function",
+        "stringColumns": "function",
+        "stringReader": "function",
+        "validateOffsets": "function"
       },
       "./rules": {
         "ALLOWLIST_VERSION": "const",
@@ -1771,6 +1805,10 @@
         "./file": {
           "types": "./dist/file.d.ts",
           "default": "./dist/file.js"
+        },
+        "./suite-index": {
+          "types": "./dist/suite-index.d.ts",
+          "default": "./dist/suite-index.js"
         }
       },
       "files": [
@@ -1883,7 +1921,15 @@
       },
       "./file": {
         "readRunReport": "function",
-        "writeRunReport": "function"
+        "readSuiteIndex": "function",
+        "writeRunReport": "function",
+        "writeSuiteIndex": "function"
+      },
+      "./suite-index": {
+        "SuiteIndex": "interface",
+        "decodeSuiteIndex": "function",
+        "encodeSuiteIndex": "function",
+        "suiteIndexOf": "function"
       }
     }
   },
@@ -2331,6 +2377,10 @@
           "types": "./dist/lfs.d.ts",
           "default": "./dist/lfs.js"
         },
+        "./share": {
+          "types": "./dist/share.d.ts",
+          "default": "./dist/share.js"
+        },
         "./changelog": {
           "types": "./dist/changelog.d.ts",
           "default": "./dist/changelog.js"
@@ -2359,6 +2409,9 @@
         "LfsTracking": "interface",
         "createLfsStore": "function",
         "runCommand": "const"
+      },
+      "./share": {
+        "createDirectoryShare": "function"
       },
       "./changelog": {
         "ChangelogAnswer": "type",

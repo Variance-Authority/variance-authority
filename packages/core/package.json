@@ -31,6 +31,14 @@
       "types": "./dist/format/index.d.ts",
       "default": "./dist/format/index.js"
     },
+    "./share": {
+      "types": "./dist/share/index.d.ts",
+      "default": "./dist/share/index.js"
+    },
+    "./segment": {
+      "types": "./dist/segment/index.d.ts",
+      "default": "./dist/segment/index.js"
+    },
     "./rules": {
       "types": "./dist/rules/index.d.ts",
       "default": "./dist/rules/index.js"

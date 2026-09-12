@@ -100,6 +100,7 @@ variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shar
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>]              # MCP over stdio
 variance doctor  [--config <path>]
+variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
 ```
 
@@ -113,6 +114,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `journeys` | reads back which regions of one module this run's subjects entered differently, and folds shard snapshots into the one this checkout reads |
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
+| `share` | says what the share holds for mainline, or publishes what this run derived |
 | `watch` | holds a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
 | `serve` | exposes the last run's report to an MCP client over stdio |
