@@ -279,3 +279,47 @@ function wholeBlob(whole: Uint8Array, offsets: () => Uint32Array): Blob {
   };
   return Object.assign(read, { all: () => whole });
 }
+
+/**
+ * The snapshot, or nothing when it is not one this build can read.
+ *
+ * Opening parses the index and proves nothing else, so every column is
+ * materialized here — where a refusal still means "there was no index to merge
+ * with" — rather than in the middle of a write that has already begun.
+ */
+export function wholeCoverage(bytes: Uint8Array):
+  { view: TestCoverageView; columns: ReturnType<typeof allColumns> } | undefined {
+  try {
+    const view = openTestCoverage(bytes);
+    void view.instrumentation;
+    return { view, columns: allColumns(view) };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Every column of a snapshot, decompressed once and read as arrays from here on. */
+export function allColumns(view: TestCoverageView) {
+  return {
+    testPath: view.testPath.all(),
+    testComplete: view.testComplete.all(),
+    testPreconditions: view.testPreconditions.all(),
+    preconditionName: view.preconditionName.all(),
+    preconditionDigest: view.preconditionDigest.all(),
+    modulePath: view.modulePath.all(),
+    moduleSource: view.moduleSource.all(),
+    moduleInstrumented: view.moduleInstrumented.all(),
+    moduleBlocks: view.moduleBlocks.all(),
+    blockOrdinal: view.blockOrdinal.all(),
+    blockKind: view.blockKind.all(),
+    blockOwner: view.blockOwner.all(),
+    blockDigest: view.blockDigest.all(),
+    blockName: view.blockName.all(),
+    blockPath: view.blockPath.all(),
+    blockStart: view.blockStart.all(),
+    blockEnd: view.blockEnd.all(),
+    blockSource: view.blockSource.all(),
+    blockTests: view.blockTests.all(),
+    crossingTest: view.crossingTest.all(),
+  };
+}

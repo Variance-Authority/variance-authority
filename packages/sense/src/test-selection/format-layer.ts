@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { encodeTestCoverage, settledModule, settledTest } from './format.js';
-import { openTestCoverage, type TestCoverageView } from './format-view.js';
+import { openTestCoverage, wholeCoverage } from './format-view.js';
+import { layeredDictionary, type LayeredRow } from './format-dictionary.js';
 import {
   KINDS,
   NO_OWNER,
@@ -55,7 +56,7 @@ export function layerTestCoverage(
   // Undecodable counts as nothing to merge with, which is the bargain
   // `existingCoverage` already makes on this path: the alternative is a
   // truncated write stopping every later run from recording anything.
-  const opened = readable(previous);
+  const opened = wholeCoverage(previous);
   if (opened === undefined) return encodeTestCoverage(current);
   const { view, columns } = opened;
   if (view.instrumentation !== current.instrumentation) return encodeTestCoverage(current);
@@ -187,19 +188,7 @@ export function layerTestCoverage(
     };
   });
 
-  /**
-   * The output's module order: an object for what the run touched or what moved
-   * on disk, and a row number for everything else.
-   *
-   * A row number is the whole of what a carried module costs here. What follows
-   * reads it, and only it, until the columns are written.
-   */
-  interface Row {
-    readonly file: string;
-    readonly module?: CoverageModule;
-    readonly at?: number;
-  }
-  const rows: Row[] = rerecorded.map((module) => ({ file: module.file, module }));
+  const rows: LayeredRow[] = rerecorded.map((module) => ({ file: module.file, module }));
   for (let module = 0; module < moduleCount; module += 1) {
     const file = previousFile[module]!;
     if (currentFiles.has(file)) continue;
@@ -235,109 +224,14 @@ export function layerTestCoverage(
     retiredTest[test] = retired.has(previousTestRows[test]!.file) ? 1 : 0;
   }
 
-  // Which previous strings the output still names. No string is made to answer
-  // that: marking is a pass over the id columns, and an id is an integer.
-  const stored = view.dictionary();
-  const previousOffsets = stored.offsets;
-  const previousBlob = Buffer.isBuffer(stored.blob)
-    ? stored.blob
-    : Buffer.from(stored.blob.buffer, stored.blob.byteOffset, stored.blob.byteLength);
-  const strings = previousOffsets.length - 1;
-  const marked = new Uint8Array(strings);
-  for (const row of rows) {
-    if (row.at === undefined) continue;
-    marked[modulePath[row.at]!] = 1;
-    marked[moduleSource[row.at]!] = 1;
-    for (let block = moduleBlocks[row.at]!; block < moduleBlocks[row.at + 1]!; block += 1) {
-      marked[blockName[block]!] = 1;
-      marked[blockPath[block]!] = 1;
-      marked[blockDigest[block]!] = 1;
-    }
-  }
-  const survivors: number[] = [];
-  for (let id = 0; id < strings; id += 1) if (marked[id] === 1) survivors.push(id);
-
-  // Everything the object-backed side names. Small, because the object-backed
-  // side is what this run actually looked at.
-  const freshValues = new Set<string>();
-  freshValues.add(current.instrumentation);
-  if (current.commit !== undefined) freshValues.add(current.commit);
-  for (const test of tests) {
-    freshValues.add(test.file);
-    for (const precondition of test.preconditions) {
-      freshValues.add(precondition.name);
-      freshValues.add(precondition.digest);
-    }
-  }
-  for (const row of rows) {
-    if (row.module === undefined) continue;
-    freshValues.add(row.module.file);
-    freshValues.add(row.module.sourceDigest);
-    for (const block of row.module.blocks) {
-      freshValues.add(block.name);
-      freshValues.add(block.path);
-      freshValues.add(block.digest);
-    }
-  }
-  const fresh = [...freshValues].sort(codeUnitOrder);
-  const freshBytes = fresh.map((value) => Buffer.from(value, 'utf8'));
-
-  /**
-   * UTF-8 byte order is code point order, and code point order is UTF-16 code
-   * unit order for everything below U+E000. Above it the two disagree, because a
-   * surrogate pair sorts under U+E000 by code unit and over it by code point.
-   * Nothing a snapshot holds — a repository path, a declaration name, a hex
-   * digest — reaches that far, but "nothing does" is not a proof, so it is
-   * checked, and the comparison falls back to the strings themselves when the
-   * check fails.
-   */
-  const ascends = below(previousBlob) && freshBytes.every(below);
-  const decoder = new TextDecoder();
-  const order = ascends
-    ? (id: number, bytes: Buffer): number =>
-      previousBlob.compare(bytes, 0, bytes.length, previousOffsets[id]!, previousOffsets[id + 1]!)
-    : (id: number, bytes: Buffer): number =>
-      codeUnitOrder(view.string(id), decoder.decode(bytes));
-
-  /**
-   * The new dictionary, as a merge of two ordered runs.
-   *
-   * The survivors in id order are already in dictionary order — the dictionary
-   * they came out of was sorted, and a subsequence of a sorted list is sorted —
-   * so the run that dominates the result is compared and copied as bytes, and
-   * never becomes a string at all.
-   */
-  const dictionary: (number | Buffer)[] = [];
-  const remap = new Uint32Array(strings);
-  const freshIds = new Map<string, number>();
-  let survivor = 0;
-  let entrant = 0;
-  let blobLength = 0;
-  while (survivor < survivors.length || entrant < fresh.length) {
-    const side = survivor >= survivors.length ? 1
-      : entrant >= fresh.length ? -1
-      : order(survivors[survivor]!, freshBytes[entrant]!);
-    if (side <= 0) {
-      const id = survivors[survivor]!;
-      remap[id] = dictionary.length;
-      if (side === 0) {
-        freshIds.set(fresh[entrant]!, dictionary.length);
-        entrant += 1;
-      }
-      blobLength += previousOffsets[id + 1]! - previousOffsets[id]!;
-      dictionary.push(id);
-      survivor += 1;
-    } else {
-      freshIds.set(fresh[entrant]!, dictionary.length);
-      blobLength += freshBytes[entrant]!.length;
-      dictionary.push(freshBytes[entrant]!);
-      entrant += 1;
-    }
-  }
-  // Every string an object-backed row or a test names went into `fresh`, so the
-  // small map answers every lookup and a map over the whole dictionary is never
-  // built.
-  const id = (value: string): number => freshIds.get(value)!;
+  const { remap, id, blob: stringBlob, offsets: stringOffsets } = layeredDictionary({
+    view,
+    rows,
+    tests,
+    instrumentation: current.instrumentation,
+    commit: current.commit,
+    columns: { modulePath, moduleSource, moduleBlocks, blockName, blockPath, blockDigest },
+  });
 
   let blockCount = 0;
   let crossingCount = 0;
@@ -355,19 +249,6 @@ export function layerTestCoverage(
     }
   }
 
-  const stringBlob = Buffer.allocUnsafe(blobLength);
-  const stringOffsets = new Uint32Array(dictionary.length + 1);
-  let offset = 0;
-  for (const [at, value] of dictionary.entries()) {
-    stringOffsets[at] = offset;
-    if (typeof value === 'number') {
-      offset += previousBlob.copy(stringBlob, offset, previousOffsets[value]!, previousOffsets[value + 1]!);
-      continue;
-    }
-    stringBlob.set(value, offset);
-    offset += value.length;
-  }
-  stringOffsets[dictionary.length] = offset;
 
   const preconditionCount = tests.reduce((sum, test) => sum + test.preconditions.length, 0);
   const testPaths = Uint32Array.from(tests, (test) => id(test.file));
@@ -489,55 +370,7 @@ export function layerTestCoverage(
   });
 }
 
-/** Whether these bytes hold no code point at or above U+E000. */
-function below(bytes: Uint8Array): boolean {
-  for (let at = 0; at < bytes.length; at += 1) if (bytes[at]! >= 0xee) return false;
-  return true;
-}
 
-/**
- * The snapshot, or nothing when it is not one this build can read.
- *
- * Opening parses the index and proves nothing else, so every column is
- * materialized here — where a refusal still means "there was no index to merge
- * with" — rather than in the middle of a write that has already begun.
- */
-function readable(bytes: Uint8Array):
-  { view: TestCoverageView; columns: ReturnType<typeof held> } | undefined {
-  try {
-    const view = openTestCoverage(bytes);
-    void view.instrumentation;
-    return { view, columns: held(view) };
-  } catch {
-    return undefined;
-  }
-}
-
-/** Every column of a snapshot, decompressed once and read as arrays from here on. */
-function held(view: TestCoverageView) {
-  return {
-    testPath: view.testPath.all(),
-    testComplete: view.testComplete.all(),
-    testPreconditions: view.testPreconditions.all(),
-    preconditionName: view.preconditionName.all(),
-    preconditionDigest: view.preconditionDigest.all(),
-    modulePath: view.modulePath.all(),
-    moduleSource: view.moduleSource.all(),
-    moduleInstrumented: view.moduleInstrumented.all(),
-    moduleBlocks: view.moduleBlocks.all(),
-    blockOrdinal: view.blockOrdinal.all(),
-    blockKind: view.blockKind.all(),
-    blockOwner: view.blockOwner.all(),
-    blockDigest: view.blockDigest.all(),
-    blockName: view.blockName.all(),
-    blockPath: view.blockPath.all(),
-    blockStart: view.blockStart.all(),
-    blockEnd: view.blockEnd.all(),
-    blockSource: view.blockSource.all(),
-    blockTests: view.blockTests.all(),
-    crossingTest: view.crossingTest.all(),
-  };
-}
 
 /**
  * The read-modify-write a run ends with: the index on disk, this run laid over
