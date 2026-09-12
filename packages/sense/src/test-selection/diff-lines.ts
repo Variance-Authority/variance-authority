@@ -9,6 +9,14 @@
 export interface LineRange {
   readonly start: number;
   readonly end: number;
+  /**
+   * The text this range is charged for, when it is charged for added text
+   * alone. Present only on the gap an insertion opens, where the old file has no
+   * line to point at and the range is the two lines around the gap; absent on a
+   * range a removal charged, whose line is its own evidence. A reader that can
+   * tell inert text from text that runs uses it to charge nobody.
+   */
+  readonly added?: string;
 }
 
 /**
@@ -64,10 +72,21 @@ export function changedLines(diff: string): ReadonlyMap<string, readonly LineRan
   let marked = false;
   let named: readonly string[] | undefined;
 
-  const mark = (from: number, to: number): void => {
+  const mark = (from: number, to: number, added?: string): void => {
     if (file === undefined) return;
+    const start = Math.max(from, 1);
+    const end = Math.max(to, 1);
     const ranges = byFile.get(file) ?? [];
-    ranges.push({ start: Math.max(from, 1), end: Math.max(to, 1) });
+    // Every added line of one run opens the same gap, so they are one range and
+    // one piece of text: read apart, a function declaration would be judged a
+    // line at a time and each line alone is a fragment.
+    const last = ranges[ranges.length - 1];
+    if (added !== undefined && last?.added !== undefined &&
+      last.start === start && last.end === end) {
+      ranges[ranges.length - 1] = { start, end, added: `${last.added}\n${added}` };
+    } else {
+      ranges.push({ start, end, ...(added === undefined ? {} : { added }) });
+    }
     byFile.set(file, ranges);
     marked = true;
   };
@@ -111,7 +130,7 @@ export function changedLines(diff: string): ReadonlyMap<string, readonly LineRan
         // the branch on both readings; three lines replacing the brace that
         // closes it are the branch *and* what follows the brace, and reading
         // them as the branch alone skips every test that ran what follows.
-        if (addedRun > removedRun) mark(old - 1, old);
+        if (addedRun > removedRun) mark(old - 1, old, line.slice(1));
       } else if (!line.startsWith('\\')) {
         old += 1;
         removedRun = 0;

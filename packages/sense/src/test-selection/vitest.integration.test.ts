@@ -41,7 +41,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', 'test/beta.case.ts', '--config', resolve(fixture, 'vitest.default.config.ts')],
-      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile } },
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -50,6 +50,26 @@ describe('the Vitest integration', () => {
     // setup included; the seam's setup module is not among them.
     expect(coverage.modules.map((module) => module.file)).toEqual(['src/decide.ts', 'test/beta.case.ts', 'test/setup.ts']);
   });
+
+  it('records a file the runner transformed for a document', async () => {
+    // jsdom puts the file through Vite's web pipeline, where every specifier
+    // the seam's setup module names is resolved by the runner rather than left
+    // to Node. Nothing else in this fixture takes that path, and a setup module
+    // that reaches outside the runner fails here first.
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    await execute(
+      process.execPath,
+      [vitest, 'run', '--config', resolve(fixture, 'vitest.jsdom.config.ts')],
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+    );
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.tests.map((test) => test.file)).toEqual(['test/browser.dom.ts']);
+    expect(coverage.modules[0]?.blocks[0]?.testFiles).toEqual(['test/browser.dom.ts']);
+  }, 20_000);
 
   it('counts a module every file consumed when the runner shares one module graph across files', async () => {
     // `--no-isolate` evaluates `src/decide.ts` once, for the first file; the
@@ -65,7 +85,7 @@ describe('the Vitest integration', () => {
     await execute(
       process.execPath,
       [vitest, 'run', '--no-isolate', '--no-file-parallelism', '--config', resolve(fixture, 'vitest.config.ts')],
-      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile } },
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
@@ -88,7 +108,7 @@ describe('the Vitest integration', () => {
         [vitest, 'run', testFile, '--config', resolve(fixture, 'vitest.config.ts')],
         {
           cwd: fixture,
-          env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile },
+          env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
         },
       );
     }

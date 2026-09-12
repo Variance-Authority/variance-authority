@@ -6,9 +6,10 @@
  * the meaning of a segment and reject the complete chain when one is unusable.
  */
 
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { digestBytes, type Digest } from '@variance-authority/core/format';
+import { digestBytes, type Digest } from './digest.js';
 
 const MAGIC = Buffer.from('VAIDXLSM');
 const VERSION = 1;
@@ -58,6 +59,36 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
     return segment;
   }));
   return logAt(path, references, segments, false, true);
+}
+
+/**
+ * The committed segments, read where waiting is not available.
+ *
+ * A transform hook is the caller: it is handed a module, it must return the
+ * transformed text, and there is no point in it at which anything may be
+ * awaited. Reading is the half of the log that can answer under that
+ * constraint — a chain of at most {@link MAX_SEGMENTS} immutable files, each
+ * checked against the length and digest the manifest published for it, and none
+ * of them held open by a writer.
+ */
+export function readImmutableLog(path: string): readonly Buffer[] {
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(path);
+  } catch (error) {
+    if (!missing(error)) throw error;
+    return [];
+  }
+  if (!bytes.subarray(0, MAGIC.length).equals(MAGIC)) return [bytes];
+
+  const directory = segmentDirectory(path);
+  return decodeManifest(bytes).map((reference) => {
+    const segment = readFileSync(join(directory, fileName(reference.digest)));
+    if (segment.length !== reference.length || digestBytes(segment) !== reference.digest) {
+      throw new Error('invalid immutable log segment');
+    }
+    return segment;
+  });
 }
 
 /** A new writer used to replace state that could not be opened. */

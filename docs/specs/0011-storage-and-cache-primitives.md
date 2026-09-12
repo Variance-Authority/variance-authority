@@ -247,7 +247,7 @@ anything read it — destroyed by `diffImage`, on this project's own diff path,
 silently. That failure shape is not hypothetical here. It is the one already
 shipped once, when `stabilization` was missing from the identity codec and a
 durable workflow could never see its own baseline — every run, forever, with no way
-to act on it (`packages/raster/src/store.ts:382`). In-band metadata would
+to act on it (`packages/raster/src/store.ts:380`). In-band metadata would
 reintroduce it somewhere no test crosses the codec either.
 
 The general form is worth keeping even if pngjs is someday replaced: **a field is

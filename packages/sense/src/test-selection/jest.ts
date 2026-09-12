@@ -185,17 +185,17 @@ function setupPaths(config: JestConfig, rootDir: string): readonly string[] {
 }
 
 /**
- * Where the inventories live: inside Jest's own cache, so `jest --clearCache`
- * discards the two halves of one transform together.
+ * Where one Jest project keeps its module records, inside Jest's own cache.
  *
- * Keyed by the cache key Jest stores the transformed text under, which is the
- * content, the path, and every option that shaped the output. A transformed
- * module and the record of what its ordinals mean are therefore one artifact
- * under two names, and a run that hits Jest's cache finds the inventory that
- * exact text was written with — whatever process wrote it, and whenever.
+ * Inside the cache directory so that `jest --clearCache` discards the
+ * transformed text and the records of what its ordinals mean together, and
+ * under the project id so two projects that transform one file differently do
+ * not take turns overwriting each other. `id` is Jest's own hash of the project
+ * configuration, which is exactly the question a store has to answer: which
+ * build produced this text.
  */
-export function inventoryFile(cacheDirectory: string, cacheKey: string): string {
-  return resolve(cacheDirectory, 'variance-authority-test-selection', `${cacheKey}.json`);
+export function jestStore(cacheDirectory: string, id = 'project'): string {
+  return resolve(cacheDirectory, 'variance-authority-test-selection', id);
 }
 
 export { mergeCoverage } from './merge.js';

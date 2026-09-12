@@ -30,8 +30,8 @@ export interface StoryExecutionOptions {
   readonly root?: string;
   /** Matches the `label` the build's `testSelectionProbes()` used. Defaults to `build`. */
   readonly label?: string;
-  /** Block inventory the build wrote. Defaults to the label's repository-keyed cache. */
-  readonly modulesFile?: string;
+  /** Where the build wrote its block records. Defaults to the user cache. */
+  readonly cacheRoot?: string;
   /** Coverage index. Defaults to the repository-keyed cache the runner seams share. */
   readonly coverageFile?: string;
 }
@@ -103,7 +103,7 @@ export async function createStoryRecorder(
           root,
           subjects: observed,
           ...(options.label === undefined ? {} : { label: options.label }),
-          ...(options.modulesFile === undefined ? {} : { modulesFile: options.modulesFile }),
+          ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
           ...(options.coverageFile === undefined ? {} : { coverageFile: options.coverageFile }),
         });
       } catch (error) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { encodeTestCoverage, openTestCoverage } from './format.js';
+import { encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
 import { coverage } from './__fixtures__/coverage.js';

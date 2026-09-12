@@ -2,12 +2,15 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
-import { testSelectionProbes, type ExecutionJournal } from '@variance-authority/sense/journal';
+import {
+  testSelectionProbes,
+  type ExecutionJournal,
+} from '@variance-authority/sense/journal';
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { createExecutionRecorder } from './execution.js';
 
-const INSTRUMENTATION = 'sense:instrument/presence-v3';
+const INSTRUMENTATION = 'sense:instrument/presence-v4';
 
 /** A page that hands over whatever the test says it entered, once per drain. */
 function pageReporting(...journals: readonly (ExecutionJournal | undefined)[]): Page {
@@ -28,27 +31,28 @@ async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
   }
 }
 
-/** An inventory over one real instrumented module, so ordinals mean something. */
-async function inventory(root: string): Promise<{ modulesFile: string; ordinals: number[] }> {
-  const modulesFile = resolve(root, 'modules.json');
+/** One real instrumented module's record, so ordinals mean something. */
+async function instrumented(
+  root: string,
+): Promise<{ cacheRoot: string; id: string; ordinals: number[] }> {
+  const cacheRoot = resolve(root, 'cache');
   const module = resolve(root, 'price.js');
   await writeFile(module, SOURCE, 'utf8');
-  const plugin = testSelectionProbes({ root, modulesFile });
+  const plugin = testSelectionProbes({ root, cacheRoot });
   plugin.transform(SOURCE, module);
-  await plugin.buildEnd();
-  return { modulesFile, ordinals: [0, 1] };
+  return { cacheRoot, id: 'price.js', ordinals: [0, 1] };
 }
 
 describe('a Playwright worker records what its specs executed', () => {
   it('joins every observation in one spec file to that file', async () => {
     await inRoot(async (root) => {
       const coverageFile = resolve(root, 'coverage.bin');
-      const { modulesFile, ordinals } = await inventory(root);
+      const { cacheRoot, id, ordinals } = await instrumented(root);
 
-      const recorder = createExecutionRecorder({ root, modulesFile, coverageFile });
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
       const page = pageReporting(
-        { instrumentation: INSTRUMENTATION, modules: [{ file: 'price.js', hits: [ordinals[0]!], shared: [0] }] },
-        { instrumentation: INSTRUMENTATION, modules: [{ file: 'price.js', hits: [ordinals[1]!], shared: [] }] },
+        { instrumentation: INSTRUMENTATION, modules: [{ id, hits: [ordinals[0]!], shared: [0] }] },
+        { instrumentation: INSTRUMENTATION, modules: [{ id, hits: [ordinals[1]!], shared: [] }] },
       );
       await recorder.note(page, 'tests/checkout.spec.ts');
       await recorder.note(page, 'tests/checkout.spec.ts');
@@ -66,13 +70,13 @@ describe('a Playwright worker records what its specs executed', () => {
   it('retires a spec whose test failed, so it can never justify a skip', async () => {
     await inRoot(async (root) => {
       const coverageFile = resolve(root, 'coverage.bin');
-      const { modulesFile } = await inventory(root);
+      const { cacheRoot, id } = await instrumented(root);
 
-      const recorder = createExecutionRecorder({ root, modulesFile, coverageFile });
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
       await recorder.note(
         pageReporting({
           instrumentation: INSTRUMENTATION,
-          modules: [{ file: 'price.js', hits: [0], shared: [0] }],
+          modules: [{ id, hits: [0], shared: [0] }],
         }),
         'tests/checkout.spec.ts',
       );
@@ -86,8 +90,8 @@ describe('a Playwright worker records what its specs executed', () => {
   it('writes nothing when the application has no collector in it', async () => {
     await inRoot(async (root) => {
       const coverageFile = resolve(root, 'coverage.bin');
-      const { modulesFile } = await inventory(root);
-      const recorder = createExecutionRecorder({ root, modulesFile, coverageFile });
+      const { cacheRoot } = await instrumented(root);
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
 
       await recorder.note(pageReporting(undefined), 'tests/checkout.spec.ts');
       await recorder.close();

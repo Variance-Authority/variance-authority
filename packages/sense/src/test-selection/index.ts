@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { digestString } from '@variance-authority/core/format';
+import { digestString } from '../digest.js';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
 import { deviationFromView } from './deviation.js';
@@ -12,7 +12,8 @@ import {
   type JourneyDivergenceOptions,
   type JourneyRegion,
 } from './divergence.js';
-import { decodeTestCoverage, encodeTestCoverage, openTestCoverage } from './format.js';
+import { decodeTestCoverage, encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
 import { foldTestCoverage, mergeCoverage, type CoverageShard } from './merge.js';
 import {
   narrowByExecutionFromView,

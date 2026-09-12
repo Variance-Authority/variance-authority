@@ -22,26 +22,31 @@
  */
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { digestString } from '@variance-authority/core/format';
-import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
+import { digestString } from '../digest.js';
+import { INSTRUMENTATION_ID, instrument, type ModuleId } from '../instrument/index.js';
+import { readModuleNames } from '../module-names.js';
 import {
   coverageBlock,
   defaultInclude,
+  moduleNamesFile,
+  openRecords,
   projectPath,
+  writeRecord,
   type CapturedModule,
-  type InstrumentedModules,
+  type RecordWriter,
 } from './instrumented-modules.js';
-import { inventoryFile, type SelectionTransformerConfig } from './jest.js';
+import { jestStore, type SelectionTransformerConfig } from './jest.js';
 import { sourceLines, type TransformSourceMap } from './source-lines.js';
 
 /** The fields of Jest's project configuration this reads. */
 export interface JestProjectConfig {
   readonly cacheDirectory: string;
+  /** Jest's own hash of this project's configuration: which build made this text. */
+  readonly id?: string;
   /** Globs, with `<rootDir>` already replaced, as Jest normalizes them. */
   readonly testMatch?: readonly string[];
   readonly testRegex?: string | readonly string[];
@@ -103,6 +108,13 @@ export async function createTransformer(
     ? undefined
     : await loadTransformer(root, config.transformer);
   const innerConfig = typeof config.transformer === 'string' ? undefined : config.transformer?.[1];
+  // Once per worker. The table is immutable for the life of this run — the fold
+  // that grows it is the reporter, in the parent, after the last worker exits.
+  const names = readModuleNames(moduleNamesFile(root));
+  const idOf = (path: string): ModuleId => {
+    const file = projectPath(root, path);
+    return names.idOf(file) ?? file;
+  };
   const forInner = (options: JestTransformRequest): JestTransformRequest => ({
     ...options,
     ...(innerConfig === undefined ? {} : { transformerConfig: innerConfig }),
@@ -115,11 +127,26 @@ export async function createTransformer(
       .update('\0')
       .update(path)
       .update('\0')
+      // The id is emitted as a literal, so a file that was numbered since the
+      // last run produces different text from the same source. Jest would
+      // otherwise serve the cached text, and the run would report a path the
+      // journal's reader has already stopped expecting.
+      .update(String(idOf(path)))
+      .update('\0')
       .update(JSON.stringify(innerConfig ?? null))
       .digest('hex')
       .slice(0, 32);
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
   const innerProcessAsync = inner?.processAsync ?? inner?.process;
+  // One segment per worker, held for the worker's life: this transformer is
+  // instantiated once per Jest worker process, and the store it writes to is
+  // named by a project configuration that does not change under it.
+  let records: RecordWriter | undefined;
+  const recordsOf = (config: JestProjectConfig): RecordWriter => {
+    const store = jestStore(config.cacheDirectory, config.id);
+    if (records === undefined || records.store !== store) records = openRecords(store);
+    return records;
+  };
 
   const transformer: JestTransformer = {
     canInstrument: inner?.canInstrument ?? false,
@@ -131,8 +158,7 @@ export async function createTransformer(
       const transformed = innerProcessAsync === undefined
         ? { code: source }
         : await innerProcessAsync(source, path, forInner(options));
-      const key = keyOf(source, path, options, await innerKeyAsync?.(source, path, forInner(options)));
-      return place(root, path, options, key, source, transformed);
+      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed);
     },
   };
   if (inner === undefined || inner.process !== undefined) {
@@ -140,8 +166,7 @@ export async function createTransformer(
       const transformed = inner?.process === undefined
         ? { code: source }
         : inner.process(source, path, forInner(options));
-      const key = keyOf(source, path, options, inner?.getCacheKey?.(source, path, forInner(options)));
-      return place(root, path, options, key, source, transformed);
+      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed);
     };
   }
   return transformer;
@@ -150,12 +175,10 @@ export async function createTransformer(
 /**
  * Probes on the transformed text, and the inventory beside Jest's cache entry.
  *
- * The id the probes report carries the key beside the path, so a journal names
- * the exact inventory its ordinals were numbered by rather than whichever
- * version of the file was transformed last. The inventory is written before the
- * text is returned, synchronously, because Jest writes its own cache entry the
- * moment this returns and a worker can be ended the moment after: a text in the
- * cache with no inventory is a module the reporter can never attribute.
+ * The inventory is written before the text is returned, synchronously, because
+ * Jest writes its own cache entry the moment this returns and a worker can be
+ * ended the moment after: a text in the cache with no inventory is a module the
+ * reporter can never attribute.
  *
  * A test file is not a module: nothing enters one, and its own edit is what
  * runs it. Which files are tests is the project's `testMatch` or `testRegex`,
@@ -164,9 +187,10 @@ export async function createTransformer(
  */
 function place(
   root: string,
+  records: RecordWriter,
   path: string,
+  id: ModuleId,
   options: JestTransformRequest,
-  key: string,
   source: string,
   transformed: JestTransformedSource,
 ): JestTransformedSource {
@@ -178,40 +202,24 @@ function place(
   const sourceDigest = digestString(source);
 
   const lineOf = sourceLines(transformed.code, parsedMap(transformed), path);
-  const done = instrument(transformed.code, `${path}?${key}`);
+  const file = projectPath(root, path);
+  const done = instrument(transformed.code, file, id);
   const captured: CapturedModule = done === undefined
-    ? {
-        file: projectPath(root, path),
-        sourceDigest,
-        instrumented: false,
-        blocks: [],
-      }
+    ? { file, id, sourceDigest, instrumented: false, blocks: [] }
     : {
-        file: projectPath(root, path),
+        file,
+        id,
         sourceDigest,
         instrumented: true,
         blocks: done.blocks.map((block) => coverageBlock(transformed.code, block, lineOf)),
       };
-  writeInventory(inventoryFile(options.config.cacheDirectory, key), captured);
+  writeRecord(records, captured);
   // Every probe is placed on the line it reports, so the wrapped transformer's
   // map still names the right line of the project's source for a stack trace;
   // only columns have moved. An inline map rides along inside the text.
   return done === undefined
     ? transformed
     : { code: done.code, ...(transformed.map === undefined ? {} : { map: transformed.map }) };
-}
-
-/** The same file `readInstrumentedModules` reads, written without yielding. */
-function writeInventory(file: string, module: CapturedModule): void {
-  const inventory: InstrumentedModules = {
-    version: 1,
-    instrumentation: INSTRUMENTATION_ID,
-    modules: [module],
-  };
-  mkdirSync(dirname(file), { recursive: true });
-  const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify(inventory)}\n`, 'utf8');
-  renameSync(temporary, file);
 }
 
 /** What Jest hashes when a transformer declares no key of its own. */

@@ -79,7 +79,10 @@
   "scripts": {
     "build": "tsc --build",
     "storage": "node scripts/storage.mjs",
-    "overhead": "node scripts/overhead.mjs"
+    "overhead": "node scripts/overhead.mjs",
+    "records": "node scripts/records.mjs",
+    "coverage": "node scripts/coverage.mjs",
+    "native": "node scripts/native.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",

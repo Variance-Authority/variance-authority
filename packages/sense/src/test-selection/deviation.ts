@@ -8,7 +8,7 @@ import type {
   TestDeviation,
   VariationDeviation,
 } from './index.js';
-import type { TestCoverageView } from './format.js';
+import type { TestCoverageView } from './format-view.js';
 
 interface SourceFile {
   readonly code: readonly boolean[];
@@ -36,26 +36,26 @@ export async function deviationFromView(
     return reading;
   };
 
-  const tests = Array.from(view.testPath, (path) => view.string(path));
+  const tests = Array.from(view.testPath.all(), (path) => view.string(path));
   const sliceLoc = new Uint32Array(tests.length);
   const sliceFiles = new Map(tests.map((test) => [test, new Set<string>()]));
   let coverageLoc = 0;
   const suiteCoverageFiles = new Set<string>();
 
   for (let module = 0; module < view.modulePath.length; module += 1) {
-    const file = view.string(view.modulePath[module]!);
+    const file = view.string(view.modulePath.at(module));
     const lines = (await source(file)).code;
     const best = new Uint32Array(lines.length).fill(0xffffffff);
     const owners: Array<Set<number> | undefined> = Array.from({ length: lines.length });
 
-    for (let block = view.moduleBlocks[module]!; block < view.moduleBlocks[module + 1]!; block += 1) {
-      if (view.blockSource[block] !== 1) continue;
-      const start = view.blockStart[block]!;
-      const end = view.blockEnd[block]!;
+    for (let block = view.moduleBlocks.at(module); block < view.moduleBlocks.at(module + 1); block += 1) {
+      if (view.blockSource.at(block) !== 1) continue;
+      const start = view.blockStart.at(block);
+      const end = view.blockEnd.at(block);
       const span = end - start;
       const entered = new Set<number>();
-      for (let crossing = view.blockTests[block]!; crossing < view.blockTests[block + 1]!; crossing += 1) {
-        entered.add(view.crossingTest[crossing]!);
+      for (let crossing = view.blockTests.at(block); crossing < view.blockTests.at(block + 1); crossing += 1) {
+        entered.add(view.crossingTest.at(crossing));
       }
       for (let line = start; line <= end && line < lines.length; line += 1) {
         if (lines[line] !== true || span > best[line]!) continue;

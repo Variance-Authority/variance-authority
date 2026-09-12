@@ -67,8 +67,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
-import { EVALUATING, INSTRUMENTATION_ID } from '../instrument/index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
+import { EVALUATING, INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { idOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 
@@ -170,7 +170,7 @@ export interface JourneyCollector {
   readonly close: () => Promise<void>;
 }
 
-type Factory = (file: string, count: number) => Uint32Array;
+type Factory = (id: ModuleId, count: number) => Uint32Array;
 
 /**
  * Install the journey-keyed collector in this process.
@@ -204,7 +204,7 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   const channels = new Map<string, Channel>();
   const sending = new Set<Promise<void>>();
   let lost = 0;
-  const counters = new Map<string, Map<string, Uint32Array>>();
+  const counters = new Map<string, Map<ModuleId, Uint32Array>>();
   const factories = new Map<string, Factory>();
   const depth = new Map<string, number>();
   const previous = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
@@ -215,13 +215,13 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   const factoryFor = (journey: string): Factory => {
     const known = factories.get(journey);
     if (known !== undefined) return known;
-    const modules = new Map<string, Uint32Array>();
+    const modules = new Map<ModuleId, Uint32Array>();
     counters.set(journey, modules);
-    const factory: Factory = (file, count) => {
-      let counted = modules.get(file);
+    const factory: Factory = (id, count) => {
+      let counted = modules.get(id);
       if (counted === undefined || counted.length !== count) {
         counted = new Uint32Array(count);
-        modules.set(file, counted);
+        modules.set(id, counted);
       }
       return counted;
     };
@@ -235,7 +235,7 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     factories.delete(journey);
     if (modules === undefined) return;
     const entered: ExecutedModule[] = [];
-    for (const [file, counted] of modules) {
+    for (const [id, counted] of modules) {
       const hits: number[] = [];
       const shared: number[] = [];
       for (let ordinal = 0; ordinal < counted.length; ordinal += 1) {
@@ -247,7 +247,7 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
         // it in beside the process's own unattributed crossings.
         if (count >= EVALUATING) shared.push(ordinal);
       }
-      if (hits.length > 0) entered.push({ file, hits, shared });
+      if (hits.length > 0) entered.push({ id, hits, shared });
     }
     if (entered.length === 0) return;
     if (over === undefined) return;
@@ -257,7 +257,7 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       head,
       scope: journey === UNATTRIBUTED ? 'process' : 'journey',
       ...(lost === 0 ? {} : { lost }),
-      modules: entered.sort((left, right) => codeUnitOrder(left.file, right.file)),
+      modules: entered.sort((left, right) => idOrder(left.id, right.id)),
     };
     // Now, rather than once at shutdown. A driver stitches while the service is
     // still serving, and an account that waited for teardown would be read by

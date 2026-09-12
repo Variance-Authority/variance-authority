@@ -1,7 +1,9 @@
-import { KINDS, type TestCoverageView } from './format.js';
+import { KINDS } from './format-layout.js';
+import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
 import { findModule, testsGovernedBy } from './lookup.js';
 import { changedLines, type LineRange } from './diff-lines.js';
+import { bindsOnly } from './inert.js';
 
 export type { ExecutionNarrowingOptions, ImporterReason };
 
@@ -95,7 +97,7 @@ export function narrowByExecutionFromView(
 ): ExecutionNarrowing {
   const whole: string[] = [];
   for (let test = 0; test < coverage.testPath.length; test += 1) {
-    if (coverage.testComplete[test] === 1) whole.push(coverage.string(coverage.testPath[test]!));
+    if (coverage.testComplete.at(test) === 1) whole.push(coverage.string(coverage.testPath.at(test)));
   }
 
   return { whole: whole.sort(codeUnitOrder), ...readDiff(coverage, diff, options) };
@@ -141,34 +143,38 @@ function readDiff(
       // build saying it never read this module — not that nothing ran in it —
       // and its zero blocks would otherwise select nobody and look like an
       // answer.
-      if (module === undefined || coverage.moduleInstrumented[module] !== 1) {
+      if (module === undefined || coverage.moduleInstrumented.at(module) !== 1) {
         governing.add(name);
         continue;
       }
-      const first = coverage.moduleBlocks[module]!;
-      const end = coverage.moduleBlocks[module + 1]!;
+      const first = coverage.moduleBlocks.at(module);
+      const end = coverage.moduleBlocks.at(module + 1);
       const blocks = new Set<number>();
       // A file the diff names without lines — a binary, a rename, a mode — is
       // every region of it.
       if (ranges.length === 0) for (let block = first; block < end; block += 1) blocks.add(block);
       for (const range of ranges) {
+        // Text that only binds a name changed nothing that already ran, and the
+        // gap it opens would otherwise be charged to the module itself — every
+        // test that ever imported the file, for a function nobody calls yet.
+        if (range.added !== undefined && bindsOnly(range.added)) continue;
         for (const block of blocksAround(coverage, first, end, range)) blocks.add(block);
       }
       for (const block of blocks) {
         const reason: SelectionReason = {
           kind: 'region',
           file: name,
-          name: coverage.string(coverage.blockName[block]!),
-          path: coverage.string(coverage.blockPath[block]!),
-          startLine: coverage.blockStart[block]!,
-          endLine: coverage.blockEnd[block]!,
+          name: coverage.string(coverage.blockName.at(block)),
+          path: coverage.string(coverage.blockPath.at(block)),
+          startLine: coverage.blockStart.at(block),
+          endLine: coverage.blockEnd.at(block),
         };
         for (
-          let crossing = coverage.blockTests[block]!;
-          crossing < coverage.blockTests[block + 1]!;
+          let crossing = coverage.blockTests.at(block);
+          crossing < coverage.blockTests.at(block + 1);
           crossing += 1
         ) {
-          select(coverage.crossingTest[crossing]!, reason);
+          select(coverage.crossingTest.at(crossing), reason);
         }
       }
     }
@@ -192,7 +198,7 @@ function readDiff(
     .sort(codeUnitOrder);
 
   const because = [...selected]
-    .map(([test, via]): SelectionCause => ({ test: coverage.string(coverage.testPath[test]!), via }))
+    .map(([test, via]): SelectionCause => ({ test: coverage.string(coverage.testPath.at(test)), via }))
     .sort((left, right) => codeUnitOrder(left.test, right.test));
 
   return {
@@ -273,10 +279,10 @@ function blocksAround(
     // hold one line nest, so this is the chain from the line outwards.
     const around: number[] = [];
     for (let block = first; block < end; block += 1) {
-      const from = coverage.blockStart[block]!;
-      const to = Math.max(from, coverage.blockEnd[block]!);
+      const from = coverage.blockStart.at(block);
+      const to = Math.max(from, coverage.blockEnd.at(block));
       if (from > line || to < line) continue;
-      if (coverage.blockSource[block] === 1) around.push(block);
+      if (coverage.blockSource.at(block) === 1) around.push(block);
       else found.add(block);
     }
     if (around.length === 0) {
@@ -297,7 +303,7 @@ function blocksAround(
       while (next < around.length && span(coverage, around[next]!) === width) next += 1;
       const group = around.slice(index, next);
       for (const block of group) found.add(block);
-      const besideResume = group.every((block) => KINDS[coverage.blockKind[block]!] === 'resume');
+      const besideResume = group.every((block) => KINDS[coverage.blockKind.at(block)] === 'resume');
       outwards = group.some((block) => sharesLine(coverage, block, line, besideResume));
       index = next;
     }
@@ -308,7 +314,7 @@ function blocksAround(
 }
 
 function span(coverage: TestCoverageView, block: number): number {
-  return coverage.blockEnd[block]! - coverage.blockStart[block]!;
+  return coverage.blockEnd.at(block) - coverage.blockStart.at(block);
 }
 
 /**
@@ -318,11 +324,11 @@ function span(coverage: TestCoverageView, block: number): number {
  * `await` is the wider region's rather than a sibling's already charged.
  */
 function sharesLine(coverage: TestCoverageView, block: number, line: number, unaccompanied: boolean): boolean {
-  const kind = KINDS[coverage.blockKind[block]!]!;
+  const kind = KINDS[coverage.blockKind.at(block)]!;
   if (kind === 'module' || kind === 'continuation') return false;
-  if (kind === 'resume') return unaccompanied && coverage.blockStart[block] === line;
-  if (coverage.blockStart[block] === line) return true;
-  return kind === 'function' && coverage.blockEnd[block] === line;
+  if (kind === 'resume') return unaccompanied && coverage.blockStart.at(block) === line;
+  if (coverage.blockStart.at(block) === line) return true;
+  return kind === 'function' && coverage.blockEnd.at(block) === line;
 }
 
 function codeUnitOrder(left: string, right: string): number {

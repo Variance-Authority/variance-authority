@@ -34,6 +34,7 @@ describe('the Jest integration', () => {
           ...process.env,
           VARIANCE_AUTHORITY_COVERAGE: coverageFile,
           VARIANCE_AUTHORITY_JEST_CACHE: cacheDirectory,
+          XDG_CACHE_HOME: directory,
         },
       },
     );

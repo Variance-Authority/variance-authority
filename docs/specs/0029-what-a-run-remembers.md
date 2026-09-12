@@ -31,10 +31,22 @@ Everything below is that asymmetry made structural rather than remembered.
 **1. A block's identity is structural, and ambiguity mints.** The key is
 `<file path> ‖ <declaration name path> ‖ <structural path>` — `priceOf/if#0/else`
 — and never a line, never a byte offset, never an opaque counter.
-Reconciliation is exact match, then a **unique** match by the block's own digest
-under the same reconciled parent, then **mint**. There is no similarity
+Reconciliation is exact match on that key and nothing else. A block whose
+address the previous table holds keeps the tests recorded against it; a block at
+an address that table does not hold is minted empty. There is no similarity
 threshold anywhere: a threshold is a knob whose two settings are *false matches*
 and *missed matches*, and the choice between those is already made.
+
+**A block's own bytes are deliberately not part of its identity either.**
+Reconciling on the digest looks like the careful choice and is the expensive
+one. Every region's digest covers its whole subtree, so the module root's digest
+moves whenever anything in the file moves; make the digest reconcile and adding
+one function at the top level retires every crossing in that module, which is
+the file's entire audience demoted over a function nobody calls yet. Keeping the
+record costs nothing in safety, because the record is only ever consulted to
+*select*: what the edit touched is charged from the diff by
+[0030](0030-a-diff-lands-on-blocks.md), not inferred from bytes that did not
+move.
 
 **The condition's text is deliberately not part of a block's identity.** This is
 the decision most likely to be got wrong, because hashing the condition into the

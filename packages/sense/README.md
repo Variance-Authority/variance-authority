@@ -386,7 +386,8 @@ A page cannot hold the names, spans, and digests that make a block ordinal mean
 something — and the process that built the bundle is usually not the one that
 later drives the page. So the two halves are written down separately and joined
 by the driver: `testSelectionProbes()` instruments product source in the
-adopter's own build and persists the block inventory, the page counts crossings,
+adopter's own build and writes each module's block record down, the page counts
+crossings,
 and `recordExecution` merges drained journals into the same coverage index
 the Vitest seam writes. Same probes, same ordinals, same file.
 
@@ -401,8 +402,14 @@ export default {
 
 `label` separates two builds over one repository — a Storybook preview and the
 application a Playwright suite drives are different builds of overlapping source,
-and one inventory over both would answer an ordinal with whichever built last.
-Give the driver the same label.
+and one store over both would answer an ordinal with whichever built last. Give
+the driver the same label.
+
+A module reports the id it was instrumented under, and that id is the digest of
+its repository-relative path. Nothing allocates it, nothing keeps a table of it,
+and no build has to have ended for it to mean something: transform ten files of
+two hundred thousand, in parallel, in any order, and the ten records that land
+are the only ones that had to move.
 
 The two supported drivers do the draining for you:
 
@@ -413,14 +420,13 @@ The two supported drivers do the draining for you:
   spec file joins that file — the runner's unit of execution is the file, so a
   finer attribution is one no selector could spend.
 
-`testSelectionProbes` takes `root`, `label`, `include`, and `modulesFile` — the
-inventory path, which defaults to a repository-keyed file under
-`XDG_CACHE_HOME`. `recordExecution` takes the same `root`, `label`,
-`modulesFile`, and `coverageFile`, plus `subjects`: one entry per window the
+`testSelectionProbes` takes `root`, `label`, `include`, and `cacheRoot` — where
+the label's store lives, which defaults to `XDG_CACHE_HOME`. `recordExecution`
+takes the same `root`, `label`, `cacheRoot`, and `coverageFile`, plus `subjects`: one entry per window the
 driver closed, each an `owner`, the drained `journal`, optional `preconditions`
 naming files whose identity the observation depended on, and `complete`, which is
 false for a subject that did not finish and keeps it from ever justifying a skip.
-`heads` names other builds the same run drove, whose inventories join this call.
+`heads` names other builds the same run drove, whose stores join this call.
 `commit` overrides where the recording stands, which otherwise reads the
 checkout's `HEAD`.
 
@@ -428,9 +434,9 @@ Anything else drives it directly: evaluate `executionCollectorSource()` in the
 page if the build does not hoist it, call `drainExecution(page)` to close a
 subject's window, and hand the journals to `recordExecution`.
 
-Recording refuses in one direction only. A missing inventory, an inventory from
-another probe recipe, and a page with no collector each record **nothing** and
-say why — costing the next run its full suite — because half a journal written
+Recording refuses in one direction only. A run whose reported modules no store
+can identify, a record from another probe recipe, and a page with no collector
+each record **nothing** and say why — costing the next run its full suite — because half a journal written
 as though it were whole is the failure that silently skips a subject. Every region
 entered while a module was evaluating is attributed to *every* subject the run
 drained: a module initializes once per page, for whichever subject happened to
@@ -473,7 +479,7 @@ export function handled<Result>(cookie: string | undefined, run: () => Result): 
 ```
 
 `head` is the `label` that service's build gave `testSelectionProbes()` — an
-ordinal means something only against the inventory that minted it — and it
+ordinal means something only against the record that minted it — and it
 defaults to `VARIANCE_AUTHORITY_HEAD`, as `enabled` defaults to whether
 `VARIANCE_AUTHORITY_JOURNEYS` is set, so one `env` block configures a service
 that names neither. **Told neither of them, `collectJourneys` installs nothing
@@ -530,9 +536,9 @@ await recordExecution({
 One `recordExecution` for the run, never one per head. Two calls naming the same
 subjects are two runs as far as the merge is concerned, and the second retires
 what the first wrote — so `joinObservations` folds the page's rows and every
-head's into one row per owner, and `heads` names the labels whose inventories
-that one call reads. Two builds of overlapping source can answer the same ordinal
-differently; where their inventories disagree about a file, that file is recorded
+head's into one row per owner, and `heads` names the labels whose stores that
+one call reads. Two builds of overlapping source can answer the same ordinal
+differently; where their stores disagree about a module, that module is recorded
 as not instrumented, so unknown widens where a guess would skip.
 
 `stitchJourneys` takes the `reports` this run was told, the `heads` it declares,
@@ -766,6 +772,12 @@ The two measurements differ only in how much of the clock is spent inside
 instrumented JavaScript. The cold one is dominated by the native parser; the
 warm one runs over a populated parse cache, where nearly every millisecond
 carries probes. The warm number is the closer bound.
+
+The transform is paid once per changed file rather than once per test: about
+0.14 ms a module, two fifths of it already the platform's. Digests are taken
+from `node:crypto`, and the parsed tree crosses out of `oxc` without a JSON
+round trip on any 64-bit little-endian host. Where that transfer is unavailable
+the same tree arrives more slowly and the records are identical.
 
 ## Find tests that cover source
 

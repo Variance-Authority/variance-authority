@@ -100,6 +100,38 @@ The larger win was structural and is already banked: spec 0011 item 0 made an
 unchanged subject decode nothing at all, which is worth more than any constant
 factor and is precisely the "fix the tiering" clause below.
 
+## Measured 2026-09-12 — the record path has no gate, and did not need one
+
+[Journal 0041](../journal/0041-what-a-rewrite-would-buy.md) reads the half of the
+system neither gate above names. `sense` cuts a checkout into regions and writes
+an index; G1 and G2 describe normalization, diff and rollup, so a question about
+the record path had no threshold to fail against and was being argued from
+opinion on both sides.
+
+Profiled by ancestry rather than by the name on the frame — brotli surfaces as
+`writeSync` with no url, and a name-keyed bucket reports the encoder's largest
+native cost as half a per cent of it — `instrument` is 38.5% native at 82 ms over
+this repository's own source, `encode` 40.0% at 1037 ms over a twenty-thousand
+module index, `decode` 28.4%, and a ten-module merge 14.2%. A rewrite of every
+line this project owns is bounded by those shares, and none of the four is an
+order of magnitude.
+
+Two real costs did come back, and the shape of this decision is why neither
+needed native code. A hand-written SHA-256 stood where the platform's compiled
+one was available: `core` implements the algorithm by hand because `propsDigest`
+runs inside the page, and nothing in `sense` runs in a page. The parser was
+already Rust; what cost was its JSON handoff, and the tree now crosses out of the
+parser's own buffer. Both are measured against the path they replaced, by the
+same script, because both of those paths are still in the tree and still run.
+
+The second one should govern the next question of this kind. In that profile the
+parser's native time and the deserialization of its output are the same size.
+Every stage measured here ends by handing a large object graph to a JavaScript
+caller, so a rewrite relocates that crossing rather than removing it — and the
+crossing is the one cost this repository has now priced directly. Where the
+remainder is large it is a format that makes a reader pay for everything to reach
+anything, and lazy columns remove the work instead of performing it faster.
+
 ## What this forecloses
 
 - Native code as an early differentiator or a performance claim in launch material.

@@ -8,8 +8,8 @@
  * possible — the id already crossed, which is the whole design.
  */
 
-import { INSTRUMENTATION_ID } from '../instrument/index.js';
-import { codeUnitOrder } from './instrumented-modules.js';
+import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { codeUnitOrder, idOrder } from './instrumented-modules.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ObservedSubject } from './journal.js';
 import type { ExecutedModule } from './probes.js';
@@ -141,12 +141,12 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
   // product source, and no subject can be excluded on the claim that it did not.
   // So is what a module did while evaluating inside a journey — the request
   // that first needed it paid for an initialization every later one depends on.
-  const shared = new Map<string, Map<string, Set<number>>>();
-  const held = new Map<string, Map<string, Map<string, Set<number>>>>();
+  const shared = new Map<string, Map<ModuleId, Set<number>>>();
+  const held = new Map<string, Map<string, Map<ModuleId, Set<number>>>>();
   let unclaimed = 0;
 
   for (const report of reports) {
-    const common = shared.get(report.head) ?? new Map<string, Set<number>>();
+    const common = shared.get(report.head) ?? new Map<ModuleId, Set<number>>();
     if (report.journey === UNATTRIBUTED) {
       add(common, report.modules, (module) => module.hits);
       shared.set(report.head, common);
@@ -161,8 +161,8 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
       add(common, report.modules, (module) => module.shared);
       shared.set(report.head, common);
     }
-    const byOwner = held.get(report.head) ?? new Map<string, Map<string, Set<number>>>();
-    const modules = byOwner.get(owner) ?? new Map<string, Set<number>>();
+    const byOwner = held.get(report.head) ?? new Map<string, Map<ModuleId, Set<number>>>();
+    const modules = byOwner.get(owner) ?? new Map<ModuleId, Set<number>>();
     add(modules, report.modules, (module) => module.hits);
     byOwner.set(owner, modules);
     held.set(report.head, byOwner);
@@ -171,21 +171,21 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
   const everyOwner = [...new Set(options.owners.values())];
   const heads = new Map<string, readonly ObservedSubject[]>();
   for (const head of reported) {
-    const byOwner = held.get(head) ?? new Map<string, Map<string, Set<number>>>();
+    const byOwner = held.get(head) ?? new Map<string, Map<ModuleId, Set<number>>>();
     const common = shared.get(head);
     // A head whose only report was unattributed still saw every subject's shared
     // initialization, so the rows exist even when no journey of its own landed.
     const owners = common === undefined ? [...byOwner.keys()] : everyOwner;
     const subjects: ObservedSubject[] = [];
     for (const owner of [...owners].sort(codeUnitOrder)) {
-      const modules = new Map<string, Set<number>>();
+      const modules = new Map<ModuleId, Set<number>>();
       const own = byOwner.get(owner);
-      if (own !== undefined) for (const [file, ordinals] of own) modules.set(file, new Set(ordinals));
+      if (own !== undefined) for (const [id, ordinals] of own) modules.set(id, new Set(ordinals));
       if (common !== undefined) {
-        for (const [file, ordinals] of common) {
-          const into = modules.get(file) ?? new Set<number>();
+        for (const [id, ordinals] of common) {
+          const into = modules.get(id) ?? new Set<number>();
           for (const ordinal of ordinals) into.add(ordinal);
-          modules.set(file, into);
+          modules.set(id, into);
         }
       }
       if (modules.size === 0) continue;
@@ -197,12 +197,12 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
         journal: {
           instrumentation: INSTRUMENTATION_ID,
           modules: [...modules]
-            .map(([file, ordinals]) => ({
-              file,
+            .map(([id, ordinals]) => ({
+              id,
               hits: [...ordinals].sort(ascending),
-              shared: [...(common?.get(file) ?? [])].sort(ascending),
+              shared: [...(common?.get(id) ?? [])].sort(ascending),
             }))
-            .sort((left, right) => codeUnitOrder(left.file, right.file)),
+            .sort((left, right) => idOrder(left.id, right.id)),
         },
         ...(preconditions === undefined ? {} : { preconditions }),
       });
@@ -214,14 +214,14 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
 }
 
 function add(
-  into: Map<string, Set<number>>,
+  into: Map<ModuleId, Set<number>>,
   modules: readonly ExecutedModule[],
   of: (module: ExecutedModule) => readonly number[],
 ): void {
   for (const module of modules) {
-    const ordinals = into.get(module.file) ?? new Set<number>();
+    const ordinals = into.get(module.id) ?? new Set<number>();
     for (const ordinal of of(module)) ordinals.add(ordinal);
-    if (ordinals.size > 0) into.set(module.file, ordinals);
+    if (ordinals.size > 0) into.set(module.id, ordinals);
   }
 }
 

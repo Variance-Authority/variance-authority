@@ -18,8 +18,9 @@
  * 1. **The plugin** ({@link testSelectionProbes}, next door in `probes.ts` with
  *    the rest of the build half) belongs in the adopter's own build — a
  *    Storybook `viteFinal`, an application dev server. It instruments
- *    product source, hoists a collector in front of it, and writes the block
- *    inventory down for a run that has not started yet.
+ *    product source, hoists a collector in front of it, and writes each module's
+ *    block record down under the id it instrumented that module with, for a run
+ *    that has not started yet.
  * 2. **The collector** is a string, evaluated in the instrumented realm. No Node
  *    built-ins, no imports, no bundler assumptions — the same constraint that
  *    made the emitted runtime portable in the first place.
@@ -43,20 +44,21 @@
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { digestString } from '@variance-authority/core/format';
-import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import { digestString } from '../digest.js';
+import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
 import { encodeTestCoverage } from './format.js';
-import { digestsOnDisk, existingCoverage, mergeCoverage } from './merge.js';
+import { existingCoverage, mergeCoverage, sourcesOnDisk } from './merge.js';
 import {
   codeUnitOrder,
   coverageModule,
-  instrumentedModulesFile,
+  idOrder,
   isMissing,
+  moduleNamesFile,
   projectPath,
-  readInstrumentedModules,
-  type CapturedModule,
-  type InstrumentedModules,
+  readRecords,
+  recordStore,
 } from './instrumented-modules.js';
 import {
   testCoverageFile,
@@ -81,6 +83,9 @@ export {
   type TestSelectionProbeOptions,
   type TransformingContext,
 } from './probes.js';
+
+/** What a module reports itself as, for a driver that writes its own journal. */
+export type { ModuleId };
 
 
 /** The one thing a driver has to be able to do, so nothing here imports a driver. */
@@ -141,12 +146,12 @@ export interface RecordExecutionOptions {
   readonly root: string;
   readonly subjects: readonly ObservedSubject[];
   /**
-   * Defaults to the label's repository-keyed inventory.
+   * Where the record stores live. Defaults to the user cache.
    *
-   * Several, when one run drove more than one instrumented build and their
-   * inventories do not sit where the labels put them.
+   * Matches {@link testSelectionProbes}'s `cacheRoot`, and is worth setting only
+   * to keep one run's records out of the cache another run reads.
    */
-  readonly modulesFile?: string | readonly string[];
+  readonly cacheRoot?: string;
   /** Matches {@link testSelectionProbes}'s `label`. Defaults to `build`. */
   readonly label?: string;
   /** Persisted coverage index. Defaults to the repository-keyed user cache. */
@@ -154,11 +159,11 @@ export interface RecordExecutionOptions {
   /**
    * Other builds this same run drove, by the label each instrumented under.
    *
-   * Their inventories join this call rather than getting one of their own,
-   * because a second call describing the same subjects looks to the merge like
-   * a second run and retires the first's evidence for every owner they share.
-   * Where two inventories hold one file and disagree about its blocks, that
-   * file is recorded as **not instrumented** — the builds transformed it
+   * Their stores join this call rather than getting one of their own, because a
+   * second call describing the same subjects looks to the merge like a second
+   * run and retires the first's evidence for every owner they share. Where two
+   * stores hold one module and disagree about the text it was cut from, that
+   * module is recorded as **not instrumented** — the builds transformed it
    * differently, so no ordinal in it means one thing, and unknown widens where
    * a guess would skip.
    */
@@ -180,13 +185,18 @@ export interface ExecutionRecord {
 }
 
 /**
- * Join drained journals to the block inventory and merge them into the index.
+ * Join drained journals to the block records they name and merge them into the index.
  *
- * It refuses in one direction only. A missing inventory, an inventory from
- * another probe recipe, a journal from a page whose collector predates this
- * driver — each records nothing and says so, which costs the next run its full
- * suite. The opposite failure, half a journal written as though it were whole,
- * is what would silently skip a subject.
+ * A journal reports ids, and the id is what the join is: every module the page
+ * entered says which record describes it, so the driver asks the stores for
+ * those and nothing else. No build has to have ended, and no process ever holds
+ * a module it did not instrument.
+ *
+ * It refuses in one direction only. A reported module no store can identify, a
+ * record from another probe recipe, a journal from a page whose collector
+ * predates this driver — each records nothing and says so, which costs the next
+ * run its full suite. The opposite failure, half a journal written as though it
+ * were whole, is what would silently skip a subject.
  */
 export async function recordExecution(
   options: RecordExecutionOptions,
@@ -204,29 +214,31 @@ export async function recordExecution(
     options.coverageFile === undefined
       ? testCoverageFile(root)
       : resolve(root, options.coverageFile);
-  const modulesFiles = [
-    ...(options.modulesFile === undefined
-      ? [instrumentedModulesFile(root, options.label)]
-      : typeof options.modulesFile === 'string'
-        ? [options.modulesFile]
-        : options.modulesFile),
-    ...(options.heads ?? []).map((head) => instrumentedModulesFile(root, head)),
-  ].map((file) => resolve(root, file));
+  const stores = [...new Set(
+    [options.label, ...(options.heads ?? [])].map((label) =>
+      recordStore(root, label, options.cacheRoot),
+    ),
+  )];
 
-  const read = await Promise.all(modulesFiles.map(readInstrumentedModules));
-  const missing = modulesFiles.filter((_file, index) => read[index] === undefined);
-  if (missing.length > 0) {
+  // Only the modules the journals name. A module nothing entered this run keeps
+  // whatever the index already says about it, which is the merge's job and not
+  // this call's, and asking the store for the rest would be reading a whole
+  // build back out of a place that never holds one.
+  const ids = new Set(
+    subjects.flatMap((subject) => subject.journal.modules.map((module) => module.id)),
+  );
+  const byId = await readRecords(stores, ids);
+  if (ids.size > 0 && byId.size === 0) {
     return {
       recorded: false,
       coverageFile,
       subjects: 0,
       because:
-        `no instrumented block inventory at ${missing.join(', ')}: add ` +
-        '`testSelectionProbes()` to the build this run drives, and rebuild it with ' +
-        'the same version of this package',
+        `no source identity for any of the ${ids.size} modules the run reported, in ` +
+        `${stores.join(', ')}: add \`testSelectionProbes()\` to the build this run drives, ` +
+        'and build it with the same version of this package',
     };
   }
-  const inventory = unionInventories(read as readonly InstrumentedModules[]);
 
   const foreign = subjects.find(
     (subject) => subject.journal.instrumentation !== INSTRUMENTATION_ID,
@@ -242,42 +254,51 @@ export async function recordExecution(
     };
   }
 
-  const byFile = new Map(inventory.modules.map((module) => [module.file, module]));
   const owners = subjects.map((subject) => subject.owner);
 
   // What a module entered while evaluating — once per page, in whichever
   // subject's window it was first needed — is every subject's.
   const everyOwner = new Set<string>(owners);
-  const crossings = new Map<string, Map<number, Set<string>>>();
-  const entered = new Map<string, Set<string>>();
+  const crossings = new Map<ModuleId, Map<number, Set<string>>>();
+  const entered = new Map<string, Set<ModuleId>>();
 
   for (const subject of subjects) {
     for (const module of subject.journal.modules) {
-      const known = byFile.get(module.file);
+      const known = byId.get(module.id);
       if (known === undefined || !known.instrumented) continue;
       const evaluating = new Set(module.shared);
-      const byOrdinal = crossings.get(module.file) ?? new Map<number, Set<string>>();
+      const byOrdinal = crossings.get(module.id) ?? new Map<number, Set<string>>();
       for (const ordinal of module.hits) {
         const holders = byOrdinal.get(ordinal) ?? new Set<string>();
         if (evaluating.has(ordinal)) for (const owner of everyOwner) holders.add(owner);
         else holders.add(subject.owner);
         byOrdinal.set(ordinal, holders);
       }
-      crossings.set(module.file, byOrdinal);
-      const modulesOfSubject = entered.get(subject.owner) ?? new Set<string>();
-      modulesOfSubject.add(module.file);
+      crossings.set(module.id, byOrdinal);
+      const modulesOfSubject = entered.get(subject.owner) ?? new Set<ModuleId>();
+      modulesOfSubject.add(module.id);
       entered.set(subject.owner, modulesOfSubject);
     }
   }
 
   const tests: readonly CoverageTest[] = subjects
     .map((subject): CoverageTest => {
+      // A module whose record no store holds is evidence this driver cannot
+      // read: its ordinals name regions nobody can point at, so they are
+      // dropped. What may not be dropped is that the subject entered
+      // *something* unaccounted for — recorded as complete, it would be a
+      // subject with no crossings there, which is the shape of a skip. It is
+      // recorded incomplete instead, and a later run reads it again.
+      const whole =
+        (subject.complete ?? true) &&
+        subject.journal.modules.every((module) => byId.has(module.id));
       const digests = [...(entered.get(subject.owner) ?? [])]
-        .sort(codeUnitOrder)
-        .map((file) => ({ name: file, digest: byFile.get(file)!.sourceDigest }));
+        .map((id) => byId.get(id)!)
+        .map((record) => ({ name: record.file, digest: record.sourceDigest }))
+        .sort((left, right) => codeUnitOrder(left.name, right.name));
       return {
         file: subject.owner,
-        complete: subject.complete ?? true,
+        complete: whole,
         preconditions: [...(subject.preconditions ?? []), ...digests],
       };
     })
@@ -289,11 +310,9 @@ export async function recordExecution(
     instrumentation: INSTRUMENTATION_ID,
     ...(commit === undefined ? {} : { commit }),
     tests,
-    modules: inventory.modules
-      .map((module) =>
-        coverageModule(module, (block) => [
-          ...(crossings.get(module.file)?.get(block.ordinal) ?? []),
-        ]),
+    modules: [...byId]
+      .map(([id, module]) =>
+        coverageModule(module, (block) => [...(crossings.get(id)?.get(block.ordinal) ?? [])]),
       )
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
   };
@@ -318,9 +337,19 @@ export async function recordExecution(
   try {
     const previous = await existingCoverage(coverageFile);
     const temporary = `${coverageFile}.${process.pid}-${randomUUID()}.tmp`;
-    const onDisk = await digestsOnDisk(root, previous, current);
+    const onDisk = await sourcesOnDisk(root, previous, current);
     await writeFile(temporary, encodeTestCoverage(mergeCoverage(previous, current, onDisk)));
     await rename(temporary, coverageFile);
+    // Every module this run could identify, numbered for the next one. A file
+    // first met today was instrumented under its path; from here on it has a
+    // number, and the transform that emits it needs to consult nothing. Under
+    // the same lock as the merge: the table is read-modify-write too, and two
+    // folds appending at once would each read the same `count` and hand one
+    // number to two paths.
+    await nameModules(
+      moduleNamesFile(root, options.cacheRoot),
+      [...byId.values()].map((module) => module.file),
+    );
   } finally {
     await rm(lock, { force: true });
   }
@@ -386,29 +415,29 @@ export function joinObservations(
   sources: readonly (readonly ObservedSubject[])[],
 ): readonly ObservedSubject[] {
   interface Held {
-    readonly modules: Map<string, Set<number>>;
-    readonly shared: Map<string, Set<number>>;
+    readonly modules: Map<ModuleId, Set<number>>;
+    readonly shared: Map<ModuleId, Set<number>>;
     readonly preconditions: Map<string, CoveragePrecondition>;
     complete: boolean;
     instrumentation: string;
   }
   const byOwner = new Map<string, Held>();
-  const union = (into: Map<string, Set<number>>, file: string, ordinals: readonly number[]): void => {
-    into.set(file, new Set([...(into.get(file) ?? []), ...ordinals]));
+  const union = (into: Map<ModuleId, Set<number>>, id: ModuleId, ordinals: readonly number[]): void => {
+    into.set(id, new Set([...(into.get(id) ?? []), ...ordinals]));
   };
 
   for (const subjects of sources) {
     for (const subject of subjects) {
       const held = byOwner.get(subject.owner) ?? {
-        modules: new Map<string, Set<number>>(),
-        shared: new Map<string, Set<number>>(),
+        modules: new Map<ModuleId, Set<number>>(),
+        shared: new Map<ModuleId, Set<number>>(),
         preconditions: new Map<string, CoveragePrecondition>(),
         complete: true,
         instrumentation: INSTRUMENTATION_ID,
       };
       for (const module of subject.journal.modules) {
-        union(held.modules, module.file, module.hits);
-        union(held.shared, module.file, module.shared);
+        union(held.modules, module.id, module.hits);
+        union(held.shared, module.id, module.shared);
       }
       for (const precondition of subject.preconditions ?? []) {
         held.preconditions.set(precondition.name, precondition);
@@ -431,48 +460,17 @@ export function joinObservations(
       journal: {
         instrumentation: held.instrumentation,
         modules: [...held.modules]
-          .map(([file, ordinals]) => ({
-            file,
+          .map(([id, ordinals]) => ({
+            id,
             hits: [...ordinals].sort((a, b) => a - b),
-            shared: [...(held.shared.get(file) ?? [])].sort((a, b) => a - b),
+            shared: [...(held.shared.get(id) ?? [])].sort((a, b) => a - b),
           }))
-          .sort((left, right) => codeUnitOrder(left.file, right.file)),
+          .sort((left, right) => idOrder(left.id, right.id)),
       },
       ...(held.preconditions.size === 0
         ? {}
         : { preconditions: [...held.preconditions.values()] }),
     }));
-}
-
-/**
- * One module list over several builds of overlapping source.
- *
- * A file two builds agree on is one file: the instrument is a pure function of
- * the source, so an identical digest is an identical block list and the first
- * copy answers for both. A file they disagree on is a file whose ordinals mean
- * two things, and the only honest row for it is the one this format already has
- * for a module nothing read — `instrumented: false`, which widens.
- */
-function unionInventories(inventories: readonly InstrumentedModules[]): InstrumentedModules {
-  if (inventories.length === 1) return inventories[0]!;
-  const byFile = new Map<string, CapturedModule>();
-  const conflicted = new Set<string>();
-  for (const inventory of inventories) {
-    for (const module of inventory.modules) {
-      const known = byFile.get(module.file);
-      if (known === undefined) byFile.set(module.file, module);
-      else if (known.sourceDigest !== module.sourceDigest) conflicted.add(module.file);
-    }
-  }
-  return {
-    version: 1,
-    instrumentation: INSTRUMENTATION_ID,
-    modules: [...byFile.values()]
-      .map((module) =>
-        conflicted.has(module.file) ? { ...module, instrumented: false, blocks: [] } : module,
-      )
-      .sort((left, right) => codeUnitOrder(left.file, right.file)),
-  };
 }
 
 /**

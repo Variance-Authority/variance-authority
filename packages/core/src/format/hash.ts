@@ -33,6 +33,24 @@ export function digestString(input: string): Digest {
 }
 
 /**
+ * The digest of a SHA-256 some other implementation already computed.
+ *
+ * The algorithm in `sha256.ts` is portable TypeScript because `core` has to run
+ * inside the page. A host that is not a page — a transform, a scanner, anything
+ * reading files off a disk — has the same hash natively and an order of
+ * magnitude faster, and FIPS 180-4 leaves no room for the two to disagree.
+ *
+ * What such a host must not also own is the shape. The prefix is what makes an
+ * algorithm change a greppable migration, and the truncation is what keeps a
+ * manifest readable; a second place deciding either is a digest domain that
+ * splits without anybody noticing. So the host brings the hex and this brings
+ * the identity.
+ */
+export function digestOfSha256(hex: string): Digest {
+  return `${PREFIX}:${hex.slice(0, HEX_LENGTH)}`;
+}
+
+/**
  * Hash raw bytes — an image, a font file, anything whose identity is its octets.
  *
  * Same prefix and same truncation as every other digest here, so an asset hash

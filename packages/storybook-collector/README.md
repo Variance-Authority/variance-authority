@@ -146,8 +146,8 @@ source and page-agent shapes.
 
 `tests` accepts `true` or `StoryExecutionOptions`: `root` is the repository root
 the recorded paths are relative to, `label` must match the one the preview's
-`testSelectionProbes()` was given, and `modulesFile` and `coverageFile` override
-the repository-keyed cache paths for the block inventory and the coverage index. A
+`testSelectionProbes()` was given, and `cacheRoot` and `coverageFile` override
+the repository-keyed cache paths for the block records and the coverage index. A
 story is its own owner in the recorded index — Storybook is an execution surface
 this tool drives one subject at a time — and a story that did not render still
 contributes its crossings while never justifying a later skip.

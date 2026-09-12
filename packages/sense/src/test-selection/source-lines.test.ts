@@ -1,10 +1,10 @@
-import { readFile, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { sourceLines } from './source-lines.js';
 import { testSelectionProbes, type TransformingContext } from './probes.js';
-import type { InstrumentedModules } from './instrumented-modules.js';
+import { readRecord, recordStore } from './instrumented-modules.js';
 
 /**
  * Extents in the coordinates of the file the author edited.
@@ -76,33 +76,33 @@ describe('reading a block back to where it was written', () => {
   });
 });
 
-const inventory = join(tmpdir(), `variance-source-lines-${process.pid}.json`);
+const cacheRoot = join(tmpdir(), `variance-source-lines-${process.pid}`);
+const recorded = async () =>
+  await readRecord(recordStore('/repo', 'build', cacheRoot), 'app/src/a.ts');
 
 afterEach(async () => {
-  await rm(inventory, { force: true });
+  await rm(cacheRoot, { force: true, recursive: true });
 });
 
 describe('what the build seam writes down', () => {
   it('records a block at the line the author would find it on', async () => {
-    const plugin = testSelectionProbes({ root: '/repo', modulesFile: inventory });
+    const plugin = testSelectionProbes({ root: '/repo', cacheRoot });
     const context: TransformingContext = { getCombinedSourcemap: () => DROPPED_BLANK };
 
     plugin.transform.call(context, TRANSFORMED, '/repo/app/src/a.ts');
-    await plugin.buildEnd();
 
-    const written = JSON.parse(await readFile(inventory, 'utf8')) as InstrumentedModules;
-    const blocks = written.modules[0]?.blocks ?? [];
-    const arrow = blocks.find((block) => block.kind === 'function');
+    const written = await recorded();
+    const arrow = written?.blocks.find((block) => block.kind === 'function');
 
-    expect(written.modules[0]?.file).toBe('app/src/a.ts');
+    expect(written?.file).toBe('app/src/a.ts');
     expect(arrow?.startLine).toBe(3);
     expect(arrow?.endLine).toBe(5);
   });
 
   it('survives a bundler that answers the map request by throwing', async () => {
     // Rollup without a sourcemap chain does exactly this, and losing the
-    // inventory over it would lose the whole run's selection.
-    const plugin = testSelectionProbes({ root: '/repo', modulesFile: inventory });
+    // record over it would lose the whole run's selection.
+    const plugin = testSelectionProbes({ root: '/repo', cacheRoot });
     const context: TransformingContext = {
       getCombinedSourcemap: () => {
         throw new Error('no sourcemap chain');
@@ -110,10 +110,9 @@ describe('what the build seam writes down', () => {
     };
 
     plugin.transform.call(context, TRANSFORMED, '/repo/app/src/a.ts');
-    await plugin.buildEnd();
 
-    const written = JSON.parse(await readFile(inventory, 'utf8')) as InstrumentedModules;
+    const written = await recorded();
 
-    expect(written.modules[0]?.blocks.find((block) => block.kind === 'function')?.startLine).toBe(2);
+    expect(written?.blocks.find((block) => block.kind === 'function')?.startLine).toBe(2);
   });
 });

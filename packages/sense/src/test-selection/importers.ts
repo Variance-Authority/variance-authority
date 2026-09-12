@@ -7,7 +7,7 @@ import {
   type NodeId,
   type Relations,
 } from '@variance-authority/core/relate';
-import type { TestCoverageView } from './format.js';
+import type { TestCoverageView } from './format-view.js';
 import { findModule, findTest, testsGovernedBy } from './lookup.js';
 
 /**
@@ -108,17 +108,17 @@ export function answerByImporters(
       if (test !== undefined) select(test, reason, seed);
       const module = findModule(coverage, name);
       if (module === undefined) continue;
-      if (coverage.moduleInstrumented[module] !== 1) {
+      if (coverage.moduleInstrumented.at(module) !== 1) {
         governing.set(name, [...(governing.get(name) ?? []), { reason, seed }]);
         continue;
       }
       const seen = new Set<number>();
       for (
-        let crossing = coverage.blockTests[coverage.moduleBlocks[module]!]!;
-        crossing < coverage.blockTests[coverage.moduleBlocks[module + 1]!]!;
+        let crossing = coverage.blockTests.at(coverage.moduleBlocks.at(module));
+        crossing < coverage.blockTests.at(coverage.moduleBlocks.at(module + 1));
         crossing += 1
       ) {
-        const entered = coverage.crossingTest[crossing]!;
+        const entered = coverage.crossingTest.at(crossing);
         if (seen.has(entered)) continue;
         seen.add(entered);
         select(entered, reason, seed);

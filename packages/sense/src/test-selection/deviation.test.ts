@@ -4,7 +4,8 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { deviationFromView } from './deviation.js';
-import { encodeTestCoverage, openTestCoverage } from './format.js';
+import { encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 
 const roots: string[] = [];

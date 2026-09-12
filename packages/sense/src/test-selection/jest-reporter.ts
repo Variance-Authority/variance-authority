@@ -18,20 +18,24 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { digestString } from '@variance-authority/core/format';
-import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import { digestString } from '../digest.js';
+import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { nameModules } from '../module-names.js';
+import journalFormat from './journal-format.cjs';
 import { commitOf } from './commit.js';
-import { digestsOnDisk, existingCoverage, mergeCoverage } from './merge.js';
+import { existingCoverage, mergeCoverage, sourcesOnDisk } from './merge.js';
 import {
   codeUnitOrder,
   coverageModule,
   crossingsOf,
   isMissing,
+  moduleNamesFile,
   projectPath,
-  readInstrumentedModules,
+  readRecords,
   type CapturedModule,
+  type ReadJournal,
 } from './instrumented-modules.js';
-import { inventoryFile, RUN_DIRECTORY_VARIABLE, type SelectionReporterConfig } from './jest.js';
+import { jestStore, RUN_DIRECTORY_VARIABLE, type SelectionReporterConfig } from './jest.js';
 import {
   writeTestCoverage,
   type CoveragePrecondition,
@@ -51,17 +55,7 @@ export interface JestRunResults {
 
 /** The field of a Jest test context this reads. */
 export interface JestTestContext {
-  readonly config: { readonly cacheDirectory: string };
-}
-
-interface Journal {
-  readonly testFile: string;
-  readonly modules: ReadonlyArray<{
-    /** `<absolute path>?<cache key>`, as the transformer numbered it. */
-    readonly file: string;
-    readonly hits: readonly number[];
-    readonly shared: readonly number[];
-  }>;
+  readonly config: { readonly cacheDirectory: string; readonly id?: string };
 }
 
 class SelectionReporter {
@@ -88,12 +82,14 @@ class SelectionReporter {
 
     const { root, coverageFile } = this.#config;
     const journals = await readJournals(runDirectory);
-    const cacheDirectories = [...new Set([...contexts].map((context) => context.config.cacheDirectory))];
-    const modules = await inventories(journals, cacheDirectories);
+    const stores = [...new Set(
+      [...contexts].map((context) => jestStore(context.config.cacheDirectory, context.config.id)),
+    )];
+    const modules = await records(journals, stores);
 
     const observed = crossingsOf(journals.map((journal) => ({
       testFile: projectPath(root, journal.testFile),
-      modules: journal.modules.map((entered) => ({ ...entered, file: modules.get(entered.file)!.file })),
+      modules: journal.modules.filter((entered) => modules.has(entered.id)),
     })));
 
     const tests = await Promise.all(
@@ -105,72 +101,40 @@ class SelectionReporter {
       instrumentation: INSTRUMENTATION_ID,
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
-      modules: [...byFile(modules.values())]
-        .map((module) => coverageModule(module, (block) => [...(observed.get(module.file)?.get(block.ordinal) ?? [])]))
+      modules: [...modules]
+        .map(([id, module]) => coverageModule(module, (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])]))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
     const previous = await existingCoverage(coverageFile);
     await writeTestCoverage(
       coverageFile,
-      mergeCoverage(previous, current, await digestsOnDisk(root, previous, current)),
+      mergeCoverage(previous, current, await sourcesOnDisk(root, previous, current)),
     );
+    // Everything this run saw, numbered for the next one. A file first met today
+    // was instrumented under its path; from here on it has a number.
+    await nameModules(moduleNamesFile(root), [...modules.values()].map((module) => module.file));
     await rm(runDirectory, { recursive: true, force: true });
   }
 }
 
 /**
- * One module per file, out of the inventories the run's keys name for it.
+ * Every record the journals name, read once each.
  *
- * A multi-project run transforms one file under one key per project whose
- * options differ, and each key has its own inventory. The journals of both
- * projects report ordinals against the same file name, and an ordinal means
- * what its own inventory says: when the inventories agree block for block, one
- * of them speaks for the file; when they do not, the same ordinal is two
- * regions, and folding the hits together would put one project's tests in the
- * other's blocks. That file is recorded as one the build could not read, which
- * a selector answers by widening, rather than as regions nobody entered.
+ * A journal naming an id no store holds is a transform whose text Jest kept and
+ * whose record something else discarded. Nothing here can rebuild it — the
+ * inner transformer and its options live in the worker — so the module is
+ * dropped, and the file that entered it is recorded incomplete: a test file
+ * with a crossing nobody can place is a file this run may not let a later one
+ * skip.
  */
-function byFile(modules: Iterable<CapturedModule>): readonly CapturedModule[] {
-  const versions = new Map<string, CapturedModule[]>();
-  for (const module of modules) versions.set(module.file, [...(versions.get(module.file) ?? []), module]);
-  const shape = (module: CapturedModule): string =>
-    module.blocks.map((block) => `${block.ordinal}:${block.digest}`).join('\n');
-  return [...versions.values()].map(([first, ...rest]) =>
-    rest.every((other) => other.instrumented === first!.instrumented && shape(other) === shape(first!))
-      ? first!
-      : { file: first!.file, sourceDigest: first!.sourceDigest, instrumented: false, blocks: [] },
+async function records(
+  journals: readonly ReadJournal[],
+  stores: readonly string[],
+): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
+  return readRecords(
+    stores,
+    journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
   );
-}
-
-/**
- * Every inventory the journals name, read once each.
- *
- * A journal naming a key no cache directory holds is a transform whose text
- * Jest kept and whose inventory something else discarded. Nothing here can
- * rebuild it — the inner transformer and its options live in the worker — and
- * recording the module without its blocks would read as *nobody entered this*.
- */
-async function inventories(
-  journals: readonly Journal[],
-  cacheDirectories: readonly string[],
-): Promise<ReadonlyMap<string, CapturedModule>> {
-  const ids = new Set(journals.flatMap((journal) => journal.modules.map((entered) => entered.file)));
-  const found = new Map<string, CapturedModule>();
-  await Promise.all([...ids].map(async (id) => {
-    const key = id.slice(id.lastIndexOf('?') + 1);
-    for (const cacheDirectory of cacheDirectories) {
-      const inventory = await readInstrumentedModules(inventoryFile(cacheDirectory, key));
-      const module = inventory?.modules[0];
-      if (module !== undefined) {
-        found.set(id, module);
-        return;
-      }
-    }
-    throw new Error(
-      `variance-authority lost the source identity for ${id.slice(0, id.lastIndexOf('?'))}; run \`jest --clearCache\` and record again`,
-    );
-  }));
-  return found;
 }
 
 /**
@@ -184,8 +148,8 @@ async function inventories(
 async function coverageTest(
   result: JestRunResults['testResults'][number],
   config: SelectionReporterConfig,
-  journals: readonly Journal[],
-  modules: ReadonlyMap<string, CapturedModule>,
+  journals: readonly ReadJournal[],
+  modules: ReadonlyMap<ModuleId, CapturedModule>,
 ): Promise<CoverageTest> {
   const file = projectPath(config.root, result.testFilePath);
   const preconditions: CoveragePrecondition[] = [];
@@ -195,14 +159,17 @@ async function coverageTest(
       digest: digestString(await readFile(input, 'utf8')),
     });
   }
+  let placed = true;
   for (const journal of journals) {
     if (projectPath(config.root, journal.testFile) !== file) continue;
     for (const entered of journal.modules) {
-      const module = modules.get(entered.file)!;
-      preconditions.push({ name: module.file, digest: module.sourceDigest });
+      const module = modules.get(entered.id);
+      if (module === undefined) placed = false;
+      else preconditions.push({ name: module.file, digest: module.sourceDigest });
     }
   }
   const complete =
+    placed &&
     !result.skipped &&
     result.testExecError === undefined &&
     result.testResults.length > 0 &&
@@ -210,7 +177,7 @@ async function coverageTest(
   return { file, complete, preconditions };
 }
 
-async function readJournals(directory: string): Promise<readonly Journal[]> {
+async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
   let names: readonly string[];
   try {
     names = await readdir(directory);
@@ -219,7 +186,7 @@ async function readJournals(directory: string): Promise<readonly Journal[]> {
     throw error;
   }
   return Promise.all(
-    names.map(async (name) => JSON.parse(await readFile(resolve(directory, name), 'utf8')) as Journal),
+    names.map(async (name) => journalFormat.decodeJournal(await readFile(resolve(directory, name)))),
   );
 }
 

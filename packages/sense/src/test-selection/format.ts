@@ -1,4 +1,3 @@
-import type { BlockKind } from '../instrument/index.js';
 import type {
   CoverageBlock,
   CoverageModule,
@@ -6,52 +5,31 @@ import type {
   CoverageTest,
   TestCoverage,
 } from './index.js';
-import { validateCoverageColumns } from './format-validation.js';
-
-const VERSION = 3;
-const ALIGNMENT = 8;
-const NO_OWNER = 0xffff_ffff;
-
-interface Section {
-  readonly name: string;
-  readonly offset: number;
-  readonly length: number;
-  readonly width: 1 | 4;
-}
-
-interface Header {
-  readonly version: number;
-  readonly sections: readonly Section[];
-}
+import {
+  KINDS,
+  MODEL,
+  NO_OWNER,
+  blob,
+  column,
+  kindId,
+  sections,
+} from './format-layout.js';
+import { openTestCoverage } from './format-view.js';
 
 /**
- * The wire encoding of a block kind: a kind's position in this list is the byte
- * `blocks.kind` holds for it. The order is append-only — move a member and every
- * artifact an older build wrote decodes into a different vocabulary.
+ * The logical model, written to a snapshot and read back out of one.
  *
- * `BlockKind` owns the vocabulary and this list owns only its numbering, and
- * both halves of that correspondence are checked where they are written.
- * `satisfies` rejects a name here the union does not carry; `kindId` hands a
- * `BlockKind` to `indexOf`, whose parameter is this tuple's own element type, so
- * a member added to the union stops the build there until it is appended here.
+ * A query never comes through here: it opens the file and reads the columns it
+ * needs. The objects are for the callers that want all of it — a merge folding
+ * two records together, a caller handed a snapshot it did not record.
  */
-export const KINDS = [
-  'module',
-  'function',
-  'branch',
-  'continuation',
-  'resume',
-  'loop',
-  'case',
-  'handler',
-] as const satisfies readonly BlockKind[];
 
 /**
  * One versioned snapshot: interned strings, dense block columns, and a CSR
  * block-to-test relation. No path or block object is repeated in the file.
  */
 export function encodeTestCoverage(coverage: TestCoverage): Buffer {
-  if (coverage.version !== VERSION) {
+  if (coverage.version !== MODEL) {
     throw new Error(`unsupported test coverage version: ${coverage.version}`);
   }
   const normalized = normalize(coverage);
@@ -152,244 +130,127 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   blockTests[blockCount] = crossingIndex;
 
   return sections({
-    'strings.blob': stringBlob,
-    'strings.off': bytes(stringOffsets),
-    'snapshot.instrumentation': bytes(instrumentation),
-    'snapshot.commit': bytes(commit),
-    'tests.path': bytes(testPaths),
-    'tests.complete': bytes(testComplete),
-    'tests.preconditions': bytes(testPreconditions),
-    'preconditions.name': bytes(preconditionName),
-    'preconditions.digest': bytes(preconditionDigest),
-    'modules.path': bytes(modulePaths),
-    'modules.source': bytes(moduleSource),
-    'modules.instrumented': bytes(moduleInstrumented),
-    'modules.blocks': bytes(moduleBlocks),
-    'blocks.ordinal': bytes(blockOrdinal),
-    'blocks.kind': bytes(blockKind),
-    'blocks.owner': bytes(blockOwner),
-    'blocks.digest': bytes(blockDigest),
-    'blocks.name': bytes(blockName),
-    'blocks.path': bytes(blockPath),
-    'blocks.start': bytes(blockStart),
-    'blocks.end': bytes(blockEnd),
-    'blocks.source': bytes(blockSource),
-    'blocks.tests': bytes(blockTests),
-    'crossings.test': bytes(crossingTest),
+    'strings.blob': blob(stringBlob, stringOffsets),
+    'strings.off': column(stringOffsets),
+    'snapshot.instrumentation': column(instrumentation),
+    'snapshot.commit': column(commit),
+    'tests.path': column(testPaths),
+    'tests.complete': column(testComplete),
+    'tests.preconditions': column(testPreconditions),
+    'preconditions.name': column(preconditionName),
+    'preconditions.digest': column(preconditionDigest),
+    'modules.path': column(modulePaths),
+    'modules.source': column(moduleSource),
+    'modules.instrumented': column(moduleInstrumented),
+    'modules.blocks': column(moduleBlocks),
+    'blocks.ordinal': column(blockOrdinal),
+    'blocks.kind': column(blockKind),
+    'blocks.owner': column(blockOwner),
+    'blocks.digest': column(blockDigest),
+    'blocks.name': column(blockName),
+    'blocks.path': column(blockPath),
+    'blocks.start': column(blockStart),
+    'blocks.end': column(blockEnd),
+    'blocks.source': column(blockSource),
+    'blocks.tests': column(blockTests),
+    'crossings.test': column(crossingTest),
   });
 }
+
 
 /** Decode the snapshot for callers that explicitly ask for the logical model. */
 export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const view = openTestCoverage(bytes);
+  // One string object per id rather than one per use. A path is named again by
+  // every region of its module and again by every crossing that entered one —
+  // eight million uses of eight thousand distinct files in a repository-sized
+  // snapshot — and decoding each use on its own is most of what the model
+  // costs to build and nearly three quarters of what it costs to hold.
+  //
+  // The view does not do this. A query asks for a handful of strings and must
+  // not accumulate them; a decode asks for all of them by definition, so the
+  // table is bounded by the dictionary and is discarded with the model.
+  const held = new Map<number, string>();
+  const string = (id: number): string => {
+    const found = held.get(id);
+    if (found !== undefined) return found;
+    const value = view.string(id);
+    held.set(id, value);
+    return value;
+  };
+  // Every column once. A decode is the read the columns materialize for, and
+  // asking a column by the row inside these loops would decompress its run
+  // again for every row of it.
+  const testPath = view.testPath.all();
+  const testComplete = view.testComplete.all();
+  const testPreconditions = view.testPreconditions.all();
+  const preconditionName = view.preconditionName.all();
+  const preconditionDigest = view.preconditionDigest.all();
   const tests: CoverageTest[] = [];
-  for (let test = 0; test < view.testPath.length; test += 1) {
+  for (let test = 0; test < testPath.length; test += 1) {
     const preconditions: CoveragePrecondition[] = [];
-    for (
-      let input = view.testPreconditions[test]!;
-      input < view.testPreconditions[test + 1]!;
-      input += 1
-    ) {
+    for (let input = testPreconditions[test]!; input < testPreconditions[test + 1]!; input += 1) {
       preconditions.push({
-        name: view.string(view.preconditionName[input]!),
-        digest: view.string(view.preconditionDigest[input]!),
+        name: string(preconditionName[input]!),
+        digest: string(preconditionDigest[input]!),
       });
     }
     tests.push({
-      file: view.string(view.testPath[test]!),
-      complete: view.testComplete[test] === 1,
+      file: string(testPath[test]!),
+      complete: testComplete[test] === 1,
       preconditions,
     });
   }
+  const modulePath = view.modulePath.all();
+  const moduleSource = view.moduleSource.all();
+  const moduleInstrumented = view.moduleInstrumented.all();
+  const moduleBlocks = view.moduleBlocks.all();
+  const blockOrdinal = view.blockOrdinal.all();
+  const blockKind = view.blockKind.all();
+  const blockOwner = view.blockOwner.all();
+  const blockDigest = view.blockDigest.all();
+  const blockName = view.blockName.all();
+  const blockPath = view.blockPath.all();
+  const blockStart = view.blockStart.all();
+  const blockEnd = view.blockEnd.all();
+  const blockSource = view.blockSource.all();
+  const blockTests = view.blockTests.all();
+  const crossingTest = view.crossingTest.all();
   const modules: CoverageModule[] = [];
-  for (let module = 0; module < view.modulePath.length; module += 1) {
+  for (let module = 0; module < modulePath.length; module += 1) {
     const blocks: CoverageBlock[] = [];
-    for (let block = view.moduleBlocks[module]!; block < view.moduleBlocks[module + 1]!; block += 1) {
+    for (let block = moduleBlocks[module]!; block < moduleBlocks[module + 1]!; block += 1) {
       const testFiles: string[] = [];
-      for (let crossing = view.blockTests[block]!; crossing < view.blockTests[block + 1]!; crossing += 1) {
-        testFiles.push(view.string(view.testPath[view.crossingTest[crossing]!]!));
+      for (let crossing = blockTests[block]!; crossing < blockTests[block + 1]!; crossing += 1) {
+        testFiles.push(string(testPath[crossingTest[crossing]!]!));
       }
       blocks.push({
-        ordinal: view.blockOrdinal[block]!,
-        kind: KINDS[view.blockKind[block]!]!,
-        ...(view.blockOwner[block] === NO_OWNER ? {} : { owner: view.blockOwner[block]! }),
-        digest: view.string(view.blockDigest[block]!),
-        name: view.string(view.blockName[block]!),
-        path: view.string(view.blockPath[block]!),
-        startLine: view.blockStart[block]!,
-        endLine: view.blockEnd[block]!,
-        source: view.blockSource[block] === 1,
+        ordinal: blockOrdinal[block]!,
+        kind: KINDS[blockKind[block]!]!,
+        ...(blockOwner[block] === NO_OWNER ? {} : { owner: blockOwner[block]! }),
+        digest: string(blockDigest[block]!),
+        name: string(blockName[block]!),
+        path: string(blockPath[block]!),
+        startLine: blockStart[block]!,
+        endLine: blockEnd[block]!,
+        source: blockSource[block] === 1,
         testFiles,
       });
     }
     modules.push({
-      file: view.string(view.modulePath[module]!),
-      sourceDigest: view.string(view.moduleSource[module]!),
-      instrumented: view.moduleInstrumented[module] === 1,
+      file: string(modulePath[module]!),
+      sourceDigest: string(moduleSource[module]!),
+      instrumented: moduleInstrumented[module] === 1,
       blocks,
     });
   }
   return {
-    version: 3,
+    version: MODEL,
     instrumentation: view.instrumentation,
     ...(view.commit === undefined ? {} : { commit: view.commit }),
     tests,
     modules,
   };
-}
-
-export interface TestCoverageView {
-  readonly instrumentation: string;
-  /** The commit this snapshot was recorded at; absent when it has no position. */
-  readonly commit: string | undefined;
-  readonly testPath: Uint32Array;
-  readonly testComplete: Uint8Array;
-  readonly testPreconditions: Uint32Array;
-  readonly preconditionName: Uint32Array;
-  readonly preconditionDigest: Uint32Array;
-  readonly modulePath: Uint32Array;
-  readonly moduleSource: Uint32Array;
-  readonly moduleInstrumented: Uint8Array;
-  readonly moduleBlocks: Uint32Array;
-  readonly blockOrdinal: Uint32Array;
-  readonly blockKind: Uint8Array;
-  readonly blockOwner: Uint32Array;
-  readonly blockDigest: Uint32Array;
-  readonly blockName: Uint32Array;
-  readonly blockPath: Uint32Array;
-  readonly blockStart: Uint32Array;
-  readonly blockEnd: Uint32Array;
-  readonly blockSource: Uint8Array;
-  readonly blockTests: Uint32Array;
-  readonly crossingTest: Uint32Array;
-  string(id: number): string;
-}
-
-/** Open typed-array views over a snapshot; only the small section index is parsed. */
-export function openTestCoverage(input: Uint8Array): TestCoverageView {
-  const raw = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
-  if (raw.length < 4) throw invalid();
-  const headerLength = raw.readUInt32LE(0);
-  if (headerLength > raw.length - 4) throw invalid();
-  const header = JSON.parse(raw.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
-  if (header.version !== VERSION) throw new Error(`unsupported test coverage version: ${header.version}`);
-  const base = 4 + headerLength;
-  if (!validSections(header.sections, raw.length - base)) throw invalid();
-  const found = new Map(header.sections.map((section) => [section.name, section]));
-  const section = (name: string): Section => {
-    const value = found.get(name);
-    if (value === undefined) throw invalid();
-    return value;
-  };
-  const u8 = (name: string): Uint8Array => {
-    const value = section(name);
-    return new Uint8Array(raw.buffer, raw.byteOffset + base + value.offset, value.length);
-  };
-  const u32 = (name: string): Uint32Array => {
-    const value = section(name);
-    if (value.length % 4 !== 0) throw invalid();
-    return new Uint32Array(raw.buffer, raw.byteOffset + base + value.offset, value.length / 4);
-  };
-  const stringBlob = u8('strings.blob');
-  const stringOffsets = u32('strings.off');
-  const decoder = new TextDecoder();
-  const instrumentation = u32('snapshot.instrumentation');
-  const commit = u32('snapshot.commit');
-  const testPath = u32('tests.path');
-  const testComplete = u8('tests.complete');
-  const testPreconditions = u32('tests.preconditions');
-  const preconditionName = u32('preconditions.name');
-  const preconditionDigest = u32('preconditions.digest');
-  const modulePath = u32('modules.path');
-  const moduleSource = u32('modules.source');
-  const moduleInstrumented = u8('modules.instrumented');
-  const moduleBlocks = u32('modules.blocks');
-  const blockOrdinal = u32('blocks.ordinal');
-  const blockKind = u8('blocks.kind');
-  const blockOwner = u32('blocks.owner');
-  const blockDigest = u32('blocks.digest');
-  const blockName = u32('blocks.name');
-  const blockPath = u32('blocks.path');
-  const blockStart = u32('blocks.start');
-  const blockEnd = u32('blocks.end');
-  const blockSource = u8('blocks.source');
-  const blockTests = u32('blocks.tests');
-  const crossingTest = u32('crossings.test');
-  validateCoverageColumns({
-    stringOffsets, stringBytes: stringBlob.length, instrumentation, commit,
-    testPath, testComplete, testPreconditions, preconditionName, preconditionDigest,
-    modulePath, moduleSource, moduleInstrumented, moduleBlocks,
-    blockOrdinal, blockKind, blockOwner, blockDigest, blockName, blockPath,
-    blockStart, blockEnd, blockSource, blockTests, crossingTest,
-    kindCount: KINDS.length, noOwner: NO_OWNER,
-  });
-
-  const stringAt = (id: number): string => {
-    const start = stringOffsets[id];
-    const end = stringOffsets[id + 1];
-    if (start === undefined || end === undefined || end > stringBlob.length) throw invalid();
-    return decoder.decode(stringBlob.subarray(start, end));
-  };
-
-  return {
-    instrumentation: (() => {
-      const value = instrumentation[0];
-      if (value === undefined) throw invalid();
-      return stringAt(value);
-    })(),
-    commit: commit.length === 0 ? undefined : stringAt(commit[0]!),
-    testPath,
-    testComplete,
-    testPreconditions,
-    preconditionName,
-    preconditionDigest,
-    modulePath,
-    moduleSource,
-    moduleInstrumented,
-    moduleBlocks,
-    blockOrdinal,
-    blockKind,
-    blockOwner,
-    blockDigest,
-    blockName,
-    blockPath,
-    blockStart,
-    blockEnd,
-    blockSource,
-    blockTests,
-    crossingTest,
-    string: stringAt,
-  };
-}
-
-function sections(input: Readonly<Record<string, Buffer>>): Buffer {
-  const chunks: Buffer[] = [];
-  const index: Section[] = [];
-  let offset = 0;
-  for (const [name, value] of Object.entries(input)) {
-    index.push({
-      name,
-      offset,
-      length: value.length,
-      width: name.endsWith('.kind') ||
-          name.endsWith('.complete') ||
-          name.endsWith('.instrumented') ||
-          name === 'blocks.source' ||
-          name.endsWith('.blob')
-        ? 1
-        : 4,
-    });
-    chunks.push(value);
-    offset += value.length;
-    const padding = aligned(offset) - offset;
-    if (padding > 0) chunks.push(Buffer.alloc(padding));
-    offset += padding;
-  }
-  const encoded = Buffer.from(JSON.stringify({ version: VERSION, sections: index }), 'utf8');
-  const headerLength = aligned(4 + encoded.length) - 4;
-  const prefix = Buffer.alloc(4);
-  prefix.writeUInt32LE(headerLength);
-  return Buffer.concat([prefix, encoded, Buffer.alloc(headerLength - encoded.length), ...chunks]);
 }
 
 function dictionary(coverage: TestCoverage): readonly string[] {
@@ -416,74 +277,99 @@ function dictionary(coverage: TestCoverage): readonly string[] {
   return [...values].sort(codeUnitOrder);
 }
 
+/**
+ * The snapshot in the order a snapshot is written in, and the snapshot itself
+ * when it already stands in that order.
+ *
+ * Which is nearly always. What reaches an encode came out of a merge that
+ * folded two ordered snapshots together, or off a disk it was written to in
+ * this order, and the sorting here is a proof rather than a change. A pass that
+ * rebuilt regardless would allocate the whole model a second time — every module,
+ * every region, and a set per region to walk its crossings through — which at a
+ * repository's scale is the encode's peak and half its time, spent to arrive at
+ * the objects it was handed.
+ */
 function normalize(coverage: TestCoverage): TestCoverage {
-  const tests = coverage.tests
-    .map((test): CoverageTest => ({
-      ...test,
-      preconditions: uniquePreconditions(test.preconditions),
-    }))
-    .sort((left, right) => codeUnitOrder(left.file, right.file));
-  const modules = coverage.modules
-    .map((module): CoverageModule => ({
-      ...module,
-      blocks: [...module.blocks]
-        .sort((left, right) => left.ordinal - right.ordinal)
-        .map((block): CoverageBlock => ({
-          ...block,
-          testFiles: [...new Set(block.testFiles)].sort(codeUnitOrder),
-        })),
-    }))
-    .sort((left, right) => codeUnitOrder(left.file, right.file));
-  return { ...coverage, tests, modules };
+  const tests = settle(ordered(coverage.tests, (test) => test.file), settledTest);
+  const modules = settle(ordered(coverage.modules, (module) => module.file), settledModule);
+  return tests === coverage.tests && modules === coverage.modules
+    ? coverage
+    : { ...coverage, tests, modules };
+}
+
+/** Each value settled, and the list itself when every one of them already was. */
+function settle<T>(values: readonly T[], of: (value: T) => T): readonly T[] {
+  let next: T[] | undefined;
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index]!;
+    const held = of(value);
+    if (held === value) next?.push(value);
+    else {
+      next ??= values.slice(0, index);
+      next.push(held);
+    }
+  }
+  return next ?? values;
+}
+
+/** Sorted by a name, and unsorted only when some pair of them runs backwards. */
+function ordered<T>(values: readonly T[], name: (value: T) => string): readonly T[] {
+  const order = (left: T, right: T): number => codeUnitOrder(name(left), name(right));
+  for (let index = 1; index < values.length; index += 1) {
+    if (order(values[index - 1]!, values[index]!) > 0) return [...values].sort(order);
+  }
+  return values;
+}
+
+function settledModule(module: CoverageModule): CoverageModule {
+  const blocks = settle(byOrdinal(module.blocks), settledBlock);
+  return blocks === module.blocks ? module : { ...module, blocks };
+}
+
+function byOrdinal(blocks: readonly CoverageBlock[]): readonly CoverageBlock[] {
+  for (let index = 1; index < blocks.length; index += 1) {
+    if (blocks[index - 1]!.ordinal > blocks[index]!.ordinal) {
+      return [...blocks].sort((left, right) => left.ordinal - right.ordinal);
+    }
+  }
+  return blocks;
+}
+
+function settledBlock(block: CoverageBlock): CoverageBlock {
+  const testFiles = distinct(block.testFiles);
+  return testFiles === block.testFiles ? block : { ...block, testFiles };
+}
+
+/**
+ * Crossings in code-unit order with no name twice.
+ *
+ * Strictly increasing is both of those at once, which is why the scan tests the
+ * pair rather than sorting and then looking for neighbours that match.
+ */
+function distinct(values: readonly string[]): readonly string[] {
+  for (let index = 1; index < values.length; index += 1) {
+    if (values[index - 1]! >= values[index]!) return [...new Set(values)].sort(codeUnitOrder);
+  }
+  return values;
+}
+
+function settledTest(test: CoverageTest): CoverageTest {
+  const preconditions = uniquePreconditions(test.preconditions);
+  return preconditions === test.preconditions ? test : { ...test, preconditions };
 }
 
 function uniquePreconditions(
   preconditions: readonly CoveragePrecondition[],
 ): readonly CoveragePrecondition[] {
-  const keyed = new Map(preconditions.map((value) => [`${value.name}\0${value.digest}`, value]));
-  return [...keyed.values()].sort((left, right) =>
-    codeUnitOrder(left.name, right.name) || codeUnitOrder(left.digest, right.digest),
-  );
-}
-
-function kindId(kind: BlockKind): number {
-  const id = KINDS.indexOf(kind);
-  // Unreachable from a typed caller; a JavaScript one can still hand over anything.
-  if (id < 0) throw new Error(`unknown coverage block kind: ${kind}`);
-  return id;
-}
-
-function bytes(array: Uint8Array | Uint32Array): Buffer {
-  return Buffer.from(array.buffer, array.byteOffset, array.byteLength);
-}
-
-function aligned(value: number): number {
-  return Math.ceil(value / ALIGNMENT) * ALIGNMENT;
-}
-
-function validSections(sections: readonly Section[], available: number): boolean {
-  if (!Array.isArray(sections) || sections.length === 0) return false;
-  if (new Set(sections.map((section) => section.name)).size !== sections.length) return false;
-  const ordered = [...sections].sort((left, right) => left.offset - right.offset);
-  let end = 0;
-  for (const section of ordered) {
-    if (
-      typeof section.name !== 'string' ||
-      !Number.isSafeInteger(section.offset) ||
-      !Number.isSafeInteger(section.length) ||
-      section.offset < end ||
-      section.offset % ALIGNMENT !== 0 ||
-      section.length < 0 ||
-      section.length > available - section.offset ||
-      (section.width !== 1 && section.width !== 4)
-    ) return false;
-    end = section.offset + section.length;
+  const order = (left: CoveragePrecondition, right: CoveragePrecondition): number =>
+    codeUnitOrder(left.name, right.name) || codeUnitOrder(left.digest, right.digest);
+  let standing = true;
+  for (let index = 1; index < preconditions.length && standing; index += 1) {
+    standing = order(preconditions[index - 1]!, preconditions[index]!) < 0;
   }
-  return ordered[0]?.offset === 0;
-}
-
-function invalid(): Error {
-  return new Error('not a variance-authority test coverage artifact');
+  if (standing) return preconditions;
+  const keyed = new Map(preconditions.map((value) => [`${value.name}\0${value.digest}`, value]));
+  return [...keyed.values()].sort(order);
 }
 
 function codeUnitOrder(left: string, right: string): number {

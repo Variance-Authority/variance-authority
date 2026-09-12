@@ -250,6 +250,7 @@
         "diffEnvironments": "function",
         "digestBytes": "function",
         "digestCombine": "function",
+        "digestOfSha256": "function",
         "digestString": "function",
         "digestValue": "function",
         "documentDigest": "function",
@@ -2080,6 +2081,7 @@
         "Edit": "interface",
         "INSTRUMENTATION_ID": "const",
         "Instrumented": "interface",
+        "ModuleId": "type",
         "instrument": "function"
       },
       "./test-selection": {
@@ -2131,6 +2133,7 @@
         "ExecutionJournal": "interface",
         "ExecutionRecord": "interface",
         "InstrumentingPlugin": "interface",
+        "ModuleId": "type",
         "ObservedSubject": "interface",
         "RecordExecutionOptions": "interface",
         "TestSelectionProbeOptions": "interface",
@@ -2173,7 +2176,7 @@
         "SELECTION_TRANSFORM": "const",
         "SelectionReporterConfig": "interface",
         "SelectionTransformerConfig": "interface",
-        "inventoryFile": "function",
+        "jestStore": "function",
         "mergeCoverage": "function",
         "withTestSelection": "function"
       },

@@ -280,7 +280,7 @@ describe('every file:line reference lands where it says', () => {
     const wrong: string[] = [];
 
     for (const match of text.matchAll(
-      /(?:([A-Z][A-Za-z0-9_]*)\s+)?`?([\w./-]+\.(?:tsx?|mjs|cjs|js|jsx))`?:(\d+)/g,
+      /(?:([A-Z][A-Za-z0-9_]*)\s+)?`?([\w./-]+\.(?:[cm]?tsx?|[cm]?jsx?))`?:(\d+)/g,
     )) {
       const [, named, path = '', digits = ''] = match;
       if (path in FOREIGN) continue;

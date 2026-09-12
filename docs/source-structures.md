@@ -97,11 +97,11 @@ differently.
 **Reuse condition.** Two more values guard a hit. The record's digest must
 equal the digest the scan holds for the path now, and the layout the record
 was built under must equal the layout the scan adopted. Both are checked in
-`openSourceIndex` at `packages/sense/src/source-index.ts:30`: adopting a
+`openSourceIndex` at `packages/sense/src/source-index.ts:31`: adopting a
 different layout empties the available record map as a unit, and `get` returns
 a record only when its digest matches.
 
-**Layout.** `layoutOf` in `packages/sense/src/reuse.ts:100` digests one text
+**Layout.** `layoutOf` in `packages/sense/src/reuse.ts:101` digests one text
 made of a version line, the root, the `tsconfig` setting, the export
 conditions, and every path in the digest map in code-unit order. Paths that
 decide resolution carry their digest on the line: `package.json`,
@@ -145,7 +145,7 @@ sequence. The measured costs on a 30,500-file tree are in the table in
 
 ## The immutable log
 
-`openImmutableLog` in `packages/sense/src/immutable-log.ts:38` holds the
+`openImmutableLog` in `packages/sense/src/immutable-log.ts:39` holds the
 persisted generation as an ordered chain of immutable segments behind one
 manifest. The manifest is the commit: a segment written without it is
 unreachable, and a manifest is published only after every segment it names
@@ -254,7 +254,7 @@ inner loop tests; the map is what an operator reads.
 
 ## Tracing a change through the graph
 
-`movedBy` in `packages/core/src/relate/records.ts:169` is the one walk a run
+`movedBy` in `packages/core/src/relate/records.ts:170` is the one walk a run
 performs. The seed set is every changed file the graph holds plus every node
 whose edges are unknown, because an unreadable file might import the one that
 changed. Changed paths the graph does not hold are returned as `missing`, and

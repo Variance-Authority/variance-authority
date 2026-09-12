@@ -64,7 +64,13 @@ describe('coverage generations', () => {
     expect(merged.modules[0]?.blocks.flatMap((block) => block.testFiles)).toEqual([]);
   });
 
-  it('does not transfer an outcome through a changed precondition owner', () => {
+  it('carries an outcome through an edit to the region that governs it', () => {
+    // The condition belongs to the region around the arms, so editing it moves
+    // that region's digest and not the arm's. The arm's crossing still carries:
+    // a diff of the condition is charged to the region that holds it, and the
+    // test that reached the arm reached that region too, so it is selected from
+    // there. Retiring the arm's crossing would discard evidence and select
+    // nobody extra.
     const previous = coverage(
       true,
       'test:old',
@@ -77,29 +83,25 @@ describe('coverage generations', () => {
     );
 
     const merged = mergeCoverage(previous, current);
+    const blocks = merged.modules[0]!.blocks;
 
-    expect(merged.modules[0]?.blocks.find((block) => block.path === 'if#0/then')?.testFiles)
-      .toEqual([]);
+    expect(blocks.find((block) => block.path === 'entry')?.testFiles).toEqual(['case.test.ts']);
+    expect(blocks.find((block) => block.path === 'if#0/then')?.testFiles)
+      .toEqual(['case.test.ts']);
   });
 
-  it('keeps an unaffected sibling when only one outcome changes', () => {
-    const previous = coverage(
-      true,
-      'test:old',
-      module('source:old', ['case.test.ts'], { taken: 'then:old', otherwise: 'else:same' }),
-    );
-    const current = coverage(
-      false,
-      'test:old',
-      module('source:new', [], { taken: 'then:new', otherwise: 'else:same' }),
-    );
+  it('drops a crossing when the module no longer has the region it names', () => {
+    // Identity is the address — the declaration name path and the structural
+    // path inside it — so a renamed function is not the function that was
+    // recorded, and nothing carries onto the one that took its place.
+    const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
+    const current = coverage(false, 'test:old', module('source:new', [], {}, 'chose'));
 
     const merged = mergeCoverage(previous, current);
     const blocks = merged.modules[0]!.blocks;
 
-    expect(blocks.find((block) => block.path === 'if#0/then')?.testFiles).toEqual([]);
-    expect(blocks.find((block) => block.path === 'if#0/else')?.testFiles)
-      .toEqual(['case.test.ts']);
+    expect(blocks.find((block) => block.name === 'chose')?.testFiles).toEqual([]);
+    expect(blocks.find((block) => block.path === 'module')?.testFiles).toEqual(['case.test.ts']);
   });
 });
 
@@ -124,12 +126,13 @@ function module(
   sourceDigest: string,
   testFiles: readonly string[],
   digests: Partial<Record<'entry' | 'outcome' | 'taken' | 'otherwise', string>> = {},
+  name = 'decide',
 ): TestCoverage['modules'][number] {
   const blocks: CoverageBlock[] = [
-    block(0, 'module', 'module', 'module:same', testFiles),
-    block(1, 'function', 'entry', digests.entry ?? 'entry:same', testFiles, 0),
-    block(2, 'branch', 'if#0/then', digests.outcome ?? digests.taken ?? 'then:same', testFiles, 1),
-    block(3, 'branch', 'if#0/else', digests.outcome ?? digests.otherwise ?? 'else:same', testFiles, 1),
+    block(0, 'module', 'module', 'module:same', testFiles, undefined, name),
+    block(1, 'function', 'entry', digests.entry ?? 'entry:same', testFiles, 0, name),
+    block(2, 'branch', 'if#0/then', digests.outcome ?? digests.taken ?? 'then:same', testFiles, 1, name),
+    block(3, 'branch', 'if#0/else', digests.outcome ?? digests.otherwise ?? 'else:same', testFiles, 1, name),
   ];
   return { file: 'source.ts', sourceDigest, instrumented: true, blocks };
 }
@@ -140,14 +143,15 @@ function block(
   path: string,
   digest: string,
   testFiles: readonly string[],
-  owner?: number,
+  owner: number | undefined,
+  name: string,
 ): CoverageBlock {
   return {
     ordinal,
     kind,
     ...(owner === undefined ? {} : { owner }),
     digest,
-    name: kind === 'module' ? '' : 'decide',
+    name: kind === 'module' ? '' : name,
     path,
     startLine: ordinal + 1,
     endLine: ordinal + 1,

@@ -221,7 +221,7 @@ than two captures.
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
-| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, modulesFile, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, cacheRoot, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` and `origin`. The browser half needs neither. |
 | `varianceWire` | The worker's end of the medium every instrumented realm answers on. | A loopback listener on an ephemeral port, opened and closed by the fixture. |
 | `varianceVantage` | This worker's voice to whoever is watching the run. | Whatever `VARIANCE_AUTHORITY_VANTAGE` names, and `undefined` when nothing does. |

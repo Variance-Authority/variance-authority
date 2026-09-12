@@ -134,14 +134,13 @@ async function checkout(root: string): Promise<string> {
 describe('a browser run records what it executed', () => {
   it('selects the subject that took the branch and leaves the other one out', async () => {
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       const transformed = plugin.transform(SOURCE, module)!;
-      await plugin.buildEnd();
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -151,7 +150,7 @@ describe('a browser run records what it executed', () => {
 
       const recorded = await recordExecution({
         root,
-        modulesFile,
+        cacheRoot,
         coverageFile,
         subjects: [
           { owner: 'story:price--premium', journal: premium },
@@ -177,14 +176,13 @@ describe('a browser run records what it executed', () => {
     // run after the first, which is the only kind that has baselines to differ
     // from. The two reads are one observation, and their crossings union.
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       const transformed = plugin.transform(SOURCE, module)!;
-      await plugin.buildEnd();
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -194,7 +192,7 @@ describe('a browser run records what it executed', () => {
 
       const recorded = await recordExecution({
         root,
-        modulesFile,
+        cacheRoot,
         coverageFile,
         subjects: [
           { owner: 'story:price--only', journal: first },
@@ -219,14 +217,13 @@ describe('a browser run records what it executed', () => {
 
   it('gives a module-scope edit every subject the page served', async () => {
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       const transformed = plugin.transform(SOURCE, module)!;
-      await plugin.buildEnd();
 
       // The module evaluates once, inside the first subject's window — which is
       // exactly the attribution that would be a lie if it were kept.
@@ -238,7 +235,7 @@ describe('a browser run records what it executed', () => {
 
       await recordExecution({
         root,
-        modulesFile,
+        cacheRoot,
         coverageFile,
         subjects: [
           { owner: 'story:price--premium', journal: first },
@@ -254,14 +251,13 @@ describe('a browser run records what it executed', () => {
 
   it('gives every region entered during module initialization every subject the page served', async () => {
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, INITIALIZING, 'utf8');
 
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       const transformed = plugin.transform(INITIALIZING, module)!;
-      await plugin.buildEnd();
 
       // `label(1)` runs once, while the module evaluates, inside the first
       // subject's window. The second subject never calls it and depends on it.
@@ -273,7 +269,7 @@ describe('a browser run records what it executed', () => {
 
       await recordExecution({
         root,
-        modulesFile,
+        cacheRoot,
         coverageFile,
         subjects: [
           { owner: 'story:price--premium', journal: first },
@@ -300,24 +296,23 @@ describe('a browser run records what it executed', () => {
     // nothing to diff against, which is the honest record of a recording made
     // outside a checkout and leaves a caller running everything.
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       const transformed = plugin.transform(SOURCE, module)!;
-      await plugin.buildEnd();
       const realm = evaluate(transformed.code);
       realm.price(20);
       const journal = realm.collector.drain();
       const subjects = [{ owner: 'story:price--premium', journal }];
 
-      await recordExecution({ root, modulesFile, coverageFile, subjects });
+      await recordExecution({ root, cacheRoot, coverageFile, subjects });
       expect(await readTestCoverage(coverageFile)).not.toHaveProperty('commit');
 
       const head = await checkout(root);
-      await recordExecution({ root, modulesFile, coverageFile, subjects });
+      await recordExecution({ root, cacheRoot, coverageFile, subjects });
       expect((await readTestCoverage(coverageFile)).commit).toBe(head);
     });
   });
@@ -327,14 +322,13 @@ describe('a browser run records what it executed', () => {
     // every later run from recording anything until somebody deleted the file
     // by hand. What is lost is evidence this machine could not read anyway.
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       const transformed = plugin.transform(SOURCE, module)!;
-      await plugin.buildEnd();
       const realm = evaluate(transformed.code);
       realm.price(20);
       const journal = realm.collector.drain();
@@ -342,7 +336,7 @@ describe('a browser run records what it executed', () => {
 
       const recorded = await recordExecution({
         root,
-        modulesFile,
+        cacheRoot,
         coverageFile,
         subjects: [{ owner: 'story:price--premium', journal }],
       });
@@ -354,37 +348,43 @@ describe('a browser run records what it executed', () => {
     });
   });
 
-  it('records nothing, and says why, when no build wrote an inventory', async () => {
+  it('records nothing, and says why, when the page names a module no store holds', async () => {
+    // The page is instrumented and reports ordinals; what is missing is the
+    // record that says which regions those ordinals are. Joining anyway would
+    // put crossings in regions nobody cut.
     await inRoot(async (root) => {
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+
+      const plugin = testSelectionProbes({ root, cacheRoot: resolve(root, 'cache') });
+      const transformed = plugin.transform(SOURCE, module)!;
+
+      const realm = evaluate(transformed.code);
+      realm.price(20);
       const recorded = await recordExecution({
         root,
-        modulesFile: resolve(root, 'absent.json'),
+        cacheRoot: resolve(root, 'another-cache'),
         coverageFile: resolve(root, 'coverage.bin'),
-        subjects: [
-          {
-            owner: 'story:price--premium',
-            journal: { instrumentation: 'sense:instrument/presence-v3', modules: [] },
-          },
-        ],
+        subjects: [{ owner: 'story:price--premium', journal: realm.collector.drain() }],
       });
 
       expect(recorded.recorded).toBe(false);
-      expect(recorded.because).toContain('testSelectionProbes()');
+      expect(recorded.because).toContain('no source identity');
+      expect(recorded.because).toContain(resolve(root, 'another-cache'));
     });
   });
 
   it('refuses a page whose probe recipe is not this driver’s', async () => {
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       plugin.transform(SOURCE, module);
-      await plugin.buildEnd();
 
       const recorded = await recordExecution({
         root,
-        modulesFile,
+        cacheRoot,
         coverageFile: resolve(root, 'coverage.bin'),
         subjects: [
           {
@@ -401,14 +401,13 @@ describe('a browser run records what it executed', () => {
 
   it('keeps both contributions when two processes merge at once', async () => {
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
 
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       const transformed = plugin.transform(SOURCE, module)!;
-      await plugin.buildEnd();
 
       const realm = evaluate(transformed.code);
       realm.price(20);
@@ -421,13 +420,13 @@ describe('a browser run records what it executed', () => {
       const [first, second] = await Promise.all([
         recordExecution({
           root,
-          modulesFile,
+          cacheRoot,
           coverageFile,
           subjects: [{ owner: 'tests/premium.spec.ts', journal: premium }],
         }),
         recordExecution({
           root,
-          modulesFile,
+          cacheRoot,
           coverageFile,
           subjects: [{ owner: 'tests/plain.spec.ts', journal: plain }],
         }),
@@ -447,15 +446,14 @@ describe('a browser run records what it executed', () => {
 
   it('lets a story file select the story, through a precondition nothing enters', async () => {
     await inRoot(async (root) => {
-      const modulesFile = resolve(root, 'modules.json');
+      const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
       await writeFile(resolve(root, 'price.stories.js'), 'export default {};\n', 'utf8');
 
-      const plugin = testSelectionProbes({ root, modulesFile });
+      const plugin = testSelectionProbes({ root, cacheRoot });
       const transformed = plugin.transform(SOURCE, module)!;
-      await plugin.buildEnd();
       const realm = evaluate(transformed.code);
       realm.price(20);
 
@@ -464,7 +462,7 @@ describe('a browser run records what it executed', () => {
 
       await recordExecution({
         root,
-        modulesFile,
+        cacheRoot,
         coverageFile,
         subjects: [
           {

@@ -33,7 +33,6 @@ async function instrumented() {
     code,
     source,
   );
-  await probes.buildEnd();
 
   // The collector import is the page's half, and this realm already has a
   // factory that knows more than it does. Everything else is byte-for-byte what

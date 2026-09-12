@@ -27,7 +27,7 @@
  * condition sits in. They are deliberately not taken first.
  */
 
-import { digestString } from '@variance-authority/core/format';
+import { digestString } from '../digest.js';
 import { Walker, scope } from './walk.js';
 
 /** What kind of region a probe stands in front of. */

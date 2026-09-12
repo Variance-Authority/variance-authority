@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
 import type { BlockKind, TestCoverage } from './index.js';
 
 describe('the persisted coverage format', () => {
@@ -122,12 +123,58 @@ describe('the persisted coverage format', () => {
       .toEqual(everyBlockKind());
   });
 
+  it('settles a column when the column is read, not when the file is opened', () => {
+    // Opening the file is a parse of the section index, so a column nobody asks
+    // about costs nothing — including the cost of proving it intact. Ownership
+    // is the one check that reads a column whole, and only a full decode asks
+    // for it: a query that names no region's owner reads a snapshot whose
+    // owners are nonsense, and is right to.
+    const corrupt = patched('blocks.owner', (section) => {
+      section.writeUInt32LE(0xff_ff_fe, 4);
+    });
+    const view = openTestCoverage(corrupt);
+
+    expect(view.string(view.modulePath.at(0))).toBe(
+      'packages/application/src/feature-0/implementation.ts',
+    );
+    expect(() => view.blockOwner.all()).toThrow(/not a variance-authority test coverage artifact/);
+  });
+
+  it('rejects a run of a column that is not the run it was written as', () => {
+    const corrupt = patched('crossings.test', (section) => {
+      section[section.length - 1] ^= 0xff;
+    });
+    const view = openTestCoverage(corrupt);
+
+    // The run is the unit: the rows before the damaged one answer, and the rows
+    // inside it are refused rather than read as a test that never entered.
+    expect(view.crossingTest.length).toBe(20_000);
+    expect(view.crossingTest.at(0)).toBeLessThan(200);
+    expect(() => view.crossingTest.at(view.crossingTest.length - 1)).toThrow(
+      /not a variance-authority test coverage artifact/,
+    );
+  });
+
   it('rejects JSON instead of mistaking it for a coverage artifact', async () => {
     expect(() => decodeTestCoverage(Buffer.from('{"version":1}'))).toThrow(
       /not a variance-authority test coverage artifact/,
     );
   });
 });
+
+/** One section of an encoded snapshot, rewritten where it sits. */
+function patched(name: string, change: (section: Buffer) => void): Buffer {
+  const encoded = encodeTestCoverage(representativeCoverage());
+  const headerLength = encoded.readUInt32LE(0);
+  const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
+    sections: Array<{ name: string; offset: number; length: number }>;
+  };
+  const section = header.sections.find((candidate) => candidate.name === name)!;
+  const corrupt = Buffer.from(encoded);
+  const at = 4 + headerLength + section.offset;
+  change(corrupt.subarray(at, at + section.length));
+  return corrupt;
+}
 
 function representativeCoverage(): TestCoverage {
   const testFiles = Array.from({ length: 200 }, (_, index) =>

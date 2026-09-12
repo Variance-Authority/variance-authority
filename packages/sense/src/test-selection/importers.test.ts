@@ -1,6 +1,7 @@
 import { relationsOf } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
-import { encodeTestCoverage, openTestCoverage } from './format.js';
+import { encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { narrowByExecutionFromView } from './select.js';
 import { coverage, testFiles } from './__fixtures__/coverage.js';

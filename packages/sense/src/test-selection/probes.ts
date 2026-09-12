@@ -10,15 +10,18 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { digestString } from '@variance-authority/core/format';
-import { EVALUATING, INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
+import { digestString } from '../digest.js';
+import { EVALUATING, INSTRUMENTATION_ID, instrument, type ModuleId } from '../instrument/index.js';
+import { readModuleNames } from '../module-names.js';
 import {
   cleanId,
   coverageBlock,
   defaultInclude,
-  instrumentedModulesFile,
+  moduleNamesFile,
   projectPath,
-  writeInstrumentedModules,
+  openRecords,
+  recordStore,
+  writeRecord,
   type CapturedModule,
 } from './instrumented-modules.js';
 import { sourceLines, type TransformSourceMap } from './source-lines.js';
@@ -34,7 +37,8 @@ export const EXECUTION_GLOBAL = '__variance_authority_execution__';
 
 /** What one module reported: the ordinals it entered, deduplicated. */
 export interface ExecutedModule {
-  readonly file: string;
+  /** What the module called itself: its number, or its path until it has one. */
+  readonly id: ModuleId;
   readonly hits: readonly number[];
   /**
    * The ordinals among `hits` entered while a module was evaluating: the root,
@@ -74,8 +78,8 @@ export interface TestSelectionProbeOptions {
    * block ordinal with whichever build wrote its inventory last.
    */
   readonly label?: string;
-  /** Persisted block inventory. Defaults to the repository-keyed user cache. */
-  readonly modulesFile?: string;
+  /** Where the module records go. Defaults to the user cache. */
+  readonly cacheRoot?: string;
 }
 
 /**
@@ -101,8 +105,6 @@ export interface InstrumentingPlugin {
     code: string,
     id: string,
   ) => { code: string; map: null } | null;
-  readonly buildEnd: () => Promise<void>;
-  readonly closeBundle: () => Promise<void>;
 }
 
 /**
@@ -147,21 +149,23 @@ export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
 ): InstrumentingPlugin {
   const root = resolve(options.root ?? process.cwd());
-  const file =
-    options.modulesFile === undefined
-      ? instrumentedModulesFile(root, options.label)
-      : resolve(root, options.modulesFile);
   const include = options.include ?? defaultInclude;
-  const modules = new Map<string, CapturedModule>();
-  let written: Promise<void> = Promise.resolve();
 
-  // Written as the build proceeds rather than only at its end, because a dev
-  // server has no end: a Playwright suite drives a server that transforms
-  // modules for the whole life of the run, and a driver draining the page needs
-  // the inventory for what it just executed, not for what a build finished with.
-  const persist = (): void => {
-    written = written.then(() => writeInstrumentedModules(file, [...modules.values()]));
+  // One record per module, written as that module is transformed. A dev server
+  // has no end to write at: a Playwright suite drives a server that keeps
+  // transforming for the whole life of the run, and a driver draining the page
+  // needs the record for what it just executed. A build with a warm cache has no
+  // end either, in the sense that matters — it never holds the modules it did
+  // not transform, so it must never write a document that claims to.
+  const records = openRecords(recordStore(root, options.label, options.cacheRoot));
+  const persist = (captured: CapturedModule): void => {
+    writeRecord(records, captured);
   };
+
+  // Once, here, rather than per module: the table is immutable while this build
+  // runs, and the fold that grows it runs after. A file it has never numbered is
+  // instrumented under its path and numbered by the next fold.
+  const names = readModuleNames(moduleNamesFile(root, options.cacheRoot));
 
   return {
     name: 'variance-authority:test-selection-probes',
@@ -169,8 +173,8 @@ export function testSelectionProbes(
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
     load: (id) => (id === RESOLVED_COLLECTOR ? executionCollectorSource() : null),
 
-    transform(code, id) {
-      const source = cleanId(id);
+    transform(code, specifier) {
+      const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR || !include(source)) return null;
       const lineOf = sourceLines(code, priorMap(this), source);
       // Of the text on disk, which is what the block lines are coordinates in.
@@ -181,45 +185,33 @@ export function testSelectionProbes(
         sourceDigest = digestString(code);
       }
 
-      // Instrumented under its repository-relative name, which is what the page
-      // then reports. A journal that named absolute paths would be a journal
-      // from the build machine's disk — unreadable on a driver that mounted the
-      // checkout somewhere else, and a leak of a layout nobody asked for.
+      // Instrumented under its id, which is all the page then reports. The path
+      // is repository-relative: a journal that named absolute paths would be a
+      // journal from the build machine's disk — unreadable on a driver that
+      // mounted the checkout somewhere else, and a leak of a layout nobody asked
+      // for. It rides in the record, once, rather than in every copy of the
+      // module the bundle ships.
       const file = projectPath(root, source);
-      const done = instrument(code, file);
+      const id = names.idOf(file) ?? file;
+      const done = instrument(code, file, id);
       if (done === undefined) {
-        modules.set(source, {
-          file,
-          sourceDigest,
-          instrumented: false,
-          blocks: [],
-        });
-        persist();
+        persist({ file, id, sourceDigest, instrumented: false, blocks: [] });
         return null;
       }
 
-      modules.set(source, {
+      persist({
         file,
+        id,
         sourceDigest,
         instrumented: true,
         blocks: done.blocks.map((block) => coverageBlock(code, block, lineOf)),
       });
-      persist();
 
       // Hoisted in front of everything the module imports, and on the first line,
       // so line numbers survive the way every other insertion in this package
       // preserves them. An instrumented module whose collector arrived late would
       // throw at its own module probe.
       return { code: `import ${JSON.stringify(VIRTUAL_COLLECTOR)};${done.code}`, map: null };
-    },
-
-    async buildEnd(): Promise<void> {
-      persist();
-      await written;
-    },
-
-    async closeBundle(): Promise<void> {
-      await written;
     },
   };
 }
@@ -235,11 +227,11 @@ export function testSelectionProbes(
 export function executionCollectorSource(): string {
   return `
 const modules = new Map();
-const factory = (file, count) => {
-  let counters = modules.get(file);
+const factory = (id, count) => {
+  let counters = modules.get(id);
   if (counters === undefined || counters.length !== count) {
     counters = new Uint32Array(count);
-    modules.set(file, counters);
+    modules.set(id, counters);
   }
   return counters;
 };
@@ -253,7 +245,7 @@ globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
   instrumentation: ${JSON.stringify(INSTRUMENTATION_ID)},
   drain() {
     const entered = [];
-    for (const [file, counters] of modules) {
+    for (const [id, counters] of modules) {
       const hits = [];
       const shared = [];
       for (let ordinal = 0; ordinal < counters.length; ordinal += 1) {
@@ -263,7 +255,7 @@ globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
           counters[ordinal] = 0;
         }
       }
-      if (hits.length > 0) entered.push({ file, hits, shared });
+      if (hits.length > 0) entered.push({ id, hits, shared });
     }
     return { instrumentation: ${JSON.stringify(INSTRUMENTATION_ID)}, modules: entered };
   },

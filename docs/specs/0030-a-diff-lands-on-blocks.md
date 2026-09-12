@@ -34,17 +34,22 @@ mapping across region edges. A diff `git` could not compute stops the run, as it
 already does — an empty diff read as *nothing changed* narrows to nothing and
 reports success.
 
-**2. Move what only shifted.** A hunk yields a line delta. Every block lying
-wholly in an unchanged region moves by the accumulated delta and **keeps its
-identity and its record**. Adding an import above a function
-re-keys nothing. This is the step that makes identity tractable at all, and it
-is nearly free because `git` already computed the alignment.
+**2. Re-cut rather than shift.** A block's lines are read out of the text on
+disk, not slid by an accumulated delta: a module whose digest moved is parsed
+again, and each fresh region takes the record of the region at its address.
+Adding an import above a function re-keys nothing and moves no record. Delta
+arithmetic would reach the same answer on the easy edits and the wrong one on
+every edit that spans a region edge, and the parse is paid once per changed
+module.
 
-**3. Mint where structure moved.** Where a hunk overlaps a block, a confident
-structural match keeps the identity and anything else mints a new one and marks
-the enclosing subtree changed. A minted block has no history, which is what
-makes minting the widening — there is no separate "widen on ambiguity" rule to
-forget.
+**3. An overlapped block keeps its record.** A hunk that lands inside a region
+changes nothing about that region's identity, and the region is charged for the
+change by steps 4 and 5 instead. A region the text no longer has takes nothing
+down with it: arrival nests, so every test that entered it also entered every
+region above it, and those rows still hold them. Only a region at an address the
+previous table never held is minted, and a minted block has no history — which
+is what makes minting the widening, with no separate "widen on ambiguity" rule
+to forget.
 
 **4. Burn inward.** A changed range selects the deepest block *containing* it
 **and every block contained *in* it**. The second half is not optional. Swapping

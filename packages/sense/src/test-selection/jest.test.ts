@@ -6,7 +6,7 @@ import { decodeTestCoverage } from './format.js';
 import SelectionReporter from './jest-reporter.js';
 import { createTransformer, type JestTransformRequest } from './jest-transform.js';
 import {
-  inventoryFile,
+  jestStore,
   RUN_DIRECTORY_VARIABLE,
   SELECTION_GLOBALS,
   SELECTION_REPORTER,
@@ -14,7 +14,23 @@ import {
   SELECTION_TRANSFORM,
   withTestSelection,
 } from './jest.js';
-import { readInstrumentedModules } from './instrumented-modules.js';
+import { readRecord } from './instrumented-modules.js';
+import journalFormat from './journal-format.cjs';
+import { EVALUATING } from '../instrument/index.js';
+
+const { encodeJournal } = journalFormat;
+
+/**
+ * Counters that would have produced these crossings: a region entered while the
+ * module evaluated counts from `EVALUATING`, and one the file entered itself
+ * counts from one.
+ */
+const counters = (hits: readonly number[], shared: readonly number[]): Uint32Array => {
+  const values = new Uint32Array(Math.max(...hits, ...shared) + 1);
+  for (const ordinal of hits) values[ordinal] = 1;
+  for (const ordinal of shared) values[ordinal] = EVALUATING + 1;
+  return values;
+};
 
 const temporary: string[] = [];
 
@@ -62,9 +78,9 @@ function pick(value) {
 module.exports = { pick, flag };
 `;
 
-function transformOptions(root: string): JestTransformRequest {
+function transformOptions(root: string, id = 'project'): JestTransformRequest {
   return {
-    config: { cacheDirectory: resolve(root, 'cache'), testMatch: [`${root}/test/*.case.js`] },
+    config: { cacheDirectory: resolve(root, 'cache'), id, testMatch: [`${root}/test/*.case.js`] },
     configString: '{}',
     instrument: false,
   };
@@ -181,7 +197,7 @@ describe('withTestSelection for Jest', () => {
 });
 
 describe('the Jest transformer', () => {
-  it('runs the wrapped transformer first, places probes on its output, and writes the inventory under the cache key', async () => {
+  it("runs the wrapped transformer first, places probes on its output, and writes the module's record", async () => {
     const root = await project();
     const options = transformOptions(root);
     const path = resolve(root, 'src/pick.js');
@@ -190,20 +206,20 @@ describe('the Jest transformer', () => {
       transformer: [resolve(root, 'transformer.cjs'), { value: 'true' }],
     });
 
-    const key = transformer.getCacheKey!(SOURCE, path, options);
     const { code } = transformer.process!(SOURCE, path, options);
 
     expect(code).toContain('const flag = true;');
     expect(code).toContain('__VA__(');
-    expect(code).toContain(`${path}?${key}`);
-    const inventory = await readInstrumentedModules(inventoryFile(options.config.cacheDirectory, key));
-    expect(inventory?.modules).toEqual([
-      expect.objectContaining({ file: 'src/pick.js', instrumented: true }),
-    ]);
-    expect(inventory!.modules[0]!.blocks.length).toBeGreaterThanOrEqual(4);
+    expect(code).toContain(JSON.stringify('src/pick.js'));
+    const record = await readRecord(
+      jestStore(options.config.cacheDirectory, options.config.id),
+      'src/pick.js',
+    );
+    expect(record).toEqual(expect.objectContaining({ file: 'src/pick.js', instrumented: true }));
+    expect(record!.blocks.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('keys the cache by the wrapped transformer and its options, so a changed option is a new text and a new inventory', async () => {
+  it('keys the cache by the wrapped transformer and its options, so a changed option is a new text and a new record', async () => {
     const root = await project();
     const options = transformOptions(root);
     const path = resolve(root, 'src/pick.js');
@@ -248,14 +264,14 @@ describe('the Jest transformer', () => {
 });
 
 describe('the Jest reporter', () => {
-  it('names the run before workers fork, folds the journals against the inventories, and lands the snapshot', async () => {
+  it('names the run before workers fork, folds the journals against the records, and lands the snapshot', async () => {
     const root = await project();
     const options = transformOptions(root);
     const coverageFile = resolve(root, 'coverage.bin');
     const path = resolve(root, 'src/pick.js');
     const transformer = await createTransformer({ root });
-    const key = transformer.getCacheKey!(SOURCE, path, options);
     transformer.process!(SOURCE, path, options);
+    const id = 'src/pick.js';
     for (const name of ['alpha', 'beta', 'gamma']) await writeFile(resolve(root, `test/${name}.case.js`), `// ${name}\n`);
 
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
@@ -263,17 +279,18 @@ describe('the Jest reporter', () => {
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     expect(runDirectory).toBeDefined();
     await mkdir(runDirectory, { recursive: true });
-    const journal = (name: string, hits: number[], shared: number[]): string => JSON.stringify({
-      testFile: resolve(root, `test/${name}.case.js`),
-      modules: hits.length === 0 ? [] : [{ file: `${path}?${key}`, hits, shared }],
-    });
+    const journal = (name: string, hits: number[], shared: number[]): Buffer =>
+      encodeJournal(
+        resolve(root, `test/${name}.case.js`),
+        hits.length === 0 ? new Map() : new Map([[id, counters(hits, shared)]]),
+      );
     // What the module did while evaluating — ordinals 0 and 1 — is every
     // file's that entered it, and gamma never did.
-    await writeFile(resolve(runDirectory, 'a.json'), journal('alpha', [0, 1, 2], [0, 1]));
-    await writeFile(resolve(runDirectory, 'b.json'), journal('beta', [0, 3], [0]));
-    await writeFile(resolve(runDirectory, 'c.json'), journal('gamma', [], []));
+    await writeFile(resolve(runDirectory, 'a.va'), journal('alpha', [0, 1, 2], [0, 1]));
+    await writeFile(resolve(runDirectory, 'b.va'), journal('beta', [0, 3], [0]));
+    await writeFile(resolve(runDirectory, 'c.va'), journal('gamma', [], []));
 
-    await reporter.onRunComplete(new Set([{ config: { cacheDirectory: options.config.cacheDirectory } }]), {
+    await reporter.onRunComplete(new Set([{ config: options.config }]), {
       testResults: [
         { testFilePath: resolve(root, 'test/alpha.case.js'), skipped: false, testResults: [{ status: 'passed' }] },
         { testFilePath: resolve(root, 'test/beta.case.js'), skipped: false, testResults: [{ status: 'passed' }, { status: 'pending' }] },
@@ -304,38 +321,34 @@ describe('the Jest reporter', () => {
   });
 
   it('records a file two projects transformed into different regions as one the build could not read', async () => {
-    // Two projects, two option sets, one file: each key's inventory numbers its
-    // own blocks. Folding both journals' ordinals against either inventory
-    // would put one project's tests in the other's regions. Refusing the
-    // module widens; a wrong region skips.
+    // Two projects, two option sets, one file: each project's store numbers its
+    // own blocks. Folding both journals' ordinals against either store would put
+    // one project's tests in the other's regions. Refusing the module widens; a
+    // wrong region skips.
     const root = await project();
     const coverageFile = resolve(root, 'coverage.bin');
     const path = resolve(root, 'src/pick.js');
     const transformer = await createTransformer({ root });
     const texts = [SOURCE, `${SOURCE}\nfunction extra() { return pick(2); }\n`];
-    const keys = texts.map((text, index) => {
-      const options = { ...transformOptions(root), configString: `project-${index}` };
-      const key = transformer.getCacheKey!(text, path, options);
+    const projects = texts.map((text, index) => {
+      const options = { ...transformOptions(root, `project-${index}`), configString: `project-${index}` };
       transformer.process!(text, path, options);
-      return key;
+      return options.config;
     });
-    expect(keys[0]).not.toBe(keys[1]);
+    const id = 'src/pick.js';
     for (const name of ['alpha', 'beta']) await writeFile(resolve(root, `test/${name}.case.js`), `// ${name}\n`);
 
     const reporter = new SelectionReporter(undefined, { root, coverageFile, preconditions: [] });
     reporter.onRunStart();
     const runDirectory = process.env[RUN_DIRECTORY_VARIABLE]!;
     await mkdir(runDirectory, { recursive: true });
-    await writeFile(resolve(runDirectory, 'a.json'), JSON.stringify({
-      testFile: resolve(root, 'test/alpha.case.js'),
-      modules: [{ file: `${path}?${keys[0]}`, hits: [0, 1], shared: [] }],
-    }));
-    await writeFile(resolve(runDirectory, 'b.json'), JSON.stringify({
-      testFile: resolve(root, 'test/beta.case.js'),
-      modules: [{ file: `${path}?${keys[1]}`, hits: [0, 1], shared: [] }],
-    }));
-    const cacheDirectory = transformOptions(root).config.cacheDirectory;
-    await reporter.onRunComplete(new Set([{ config: { cacheDirectory } }]), {
+    for (const [name, file] of [['a', 'alpha'], ['b', 'beta']] as const) {
+      await writeFile(
+        resolve(runDirectory, `${name}.va`),
+        encodeJournal(resolve(root, `test/${file}.case.js`), new Map([[id, counters([0, 1], [])]])),
+      );
+    }
+    await reporter.onRunComplete(new Set(projects.map((config) => ({ config }))), {
       testResults: ['alpha', 'beta'].map((name) => ({
         testFilePath: resolve(root, `test/${name}.case.js`),
         skipped: false,

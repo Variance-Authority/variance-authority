@@ -110,3 +110,60 @@ than a later port.
 [ADR-0004](../context/adr/0004-defer-native-acceleration.md) holds: JS first,
 and a native collector is justified by a measurement showing the JS one is the
 bottleneck — not by the volume of events sounding large.
+
+## The runtime contract
+
+The transformed module carries three hoisted function declarations and one
+statement, spliced at the end of the prologue. The prologue is the hashbang,
+the directives, the imports, the re-exports, and every `vi.mock`, `vi.hoisted`
+or `jest.mock` call, because a runner hoists those above everything and the
+header must not land in front of them.
+
+| Declaration | Role |
+|---|---|
+| `__va(i)` | resolve the counter array on first use or when the factory identity moved, then `c[i] = c[i] + 1 \| (r.e > 0 ? EVALUATING : 0)` |
+| `__vaR(v, i)` | `__va(i)` and return `v`: the probe for an expression whose value must survive |
+| `__vaE()` | lower the factory's evaluating depth by one, spliced after the last top-level statement |
+| `__va(0); __va.r.e += 1; __va.c[0] \|= EVALUATING` | the module's own probe, and the raise that marks everything the top level calls as shared |
+
+The one thing the module asks of its realm is `globalThis.__VA__`, a factory
+`(id: ModuleId, count: number) => Uint32Array` with one mutable property `e`,
+the evaluating depth. `id` is the id the module was instrumented under — the
+number the names table gave its path, or the path itself until the table has
+one — and `count` is the number of blocks, so a factory can refuse or replace
+an array whose length no longer matches. A module with no factory throws at its
+first probe.
+Three factories ship, and each is a different answer to *who was executing*:
+
+| Realm | Factory | Keyed by |
+|---|---|---|
+| a Vitest or Jest worker | the setup file installed by `withTestSelection` | the module id; the worker's journal is written per test file |
+| a page | the collector hoisted by `testSelectionProbes` | the module id; a driver drains between subjects |
+| a service | the getter installed by `collectJourneys` | the journey in async context, one factory per journey |
+
+A probe re-resolves its counter array whenever the factory identity changes,
+and the emitted code is the same in all three realms. A worker that
+shares one module graph across test files installs a factory per file; a
+service that hands back a distinct factory per journey makes two interleaved
+requests count into two arrays with no change to the probe.
+
+**Probe forms.** Every insertion is text at an offset in the original, and no
+inserted text contains a newline. A region whose body is a block gets
+`__va(n);` after its `{`. A bare statement body is wrapped in `{` and `}`,
+which is also what keeps a synthesized `else` from rebinding to an inner `if`.
+An expression-bodied arrow becomes `(__va(n), expr)`. An `await` is wrapped as
+`__vaR(await x, n)` so the resumed value reaches whoever wanted it. A missing
+`else` is appended as ` else{__va(n);}` and a missing `default` as
+`default:__va(n);` before the closing brace of the `switch`. The statement
+after a decision gets `__va(n);` in front of it: that is the continuation, the
+region whose arrival does not follow from the region above because an arm may
+have returned.
+
+**Identity.** `INSTRUMENTATION_ID` at `packages/sense/src/instrument/index.ts`
+is `sense:instrument/presence-v4`. Every module record, journal, account and
+coverage file names it, and every reader refuses one that names another. A
+change to where probes go or what a block means mints a new id.
+
+**Cost.** One parse and one walk, O(module length). Instrumenting is done per
+module per process that bundles, and the runtime records a hit in O(1): one
+array read, one write, no allocation after the first resolution.

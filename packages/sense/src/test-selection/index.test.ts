@@ -2,7 +2,8 @@ import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { decodeTestCoverage, encodeTestCoverage, openTestCoverage } from './format.js';
+import { decodeTestCoverage, encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
 import { readTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from './index.js';
 import { coverage, testFiles } from './__fixtures__/coverage.js';
 import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
@@ -251,11 +252,43 @@ describe('selectTestFiles', () => {
 +++ b/src/decide.ts
 @@ -4,1 +4,2 @@
      return 'A';
-+    // reviewed
++    audit(sum);
 `;
 
     expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
       'test/alpha.test.ts',
+    ]);
+  });
+
+  it('charges nobody for added text that only binds a name', () => {
+    // A function at the top of a module is charged to the gap it opens, and at
+    // module level the regions on both sides of that gap are the module — every
+    // test that ever imported the file. Nothing that already ran can reach a
+    // name nothing that already ran mentions, so the honest answer is nobody.
+    const diff = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -8,0 +9,4 @@
++
++export function describe(n: number): string {
++  return String(n);
++}
+`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([]);
+  });
+
+  it('charges an added top-level binding that runs to everyone who imported the module', () => {
+    // The same shape of hunk, and the initializer runs while the module
+    // evaluates, which is work every importer consumed.
+    const diff = `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -8,0 +9,1 @@
++const scale = compute();
+`;
+
+    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
+      'test/alpha.test.ts',
+      'test/beta.test.ts',
     ]);
   });
 

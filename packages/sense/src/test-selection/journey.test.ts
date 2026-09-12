@@ -131,8 +131,7 @@ async function record(
   const stitched = stitchJourneys({ reports: driven.reports, heads: ['api'], owners: new Map(owners) });
   const recorded = await recordExecution({
     root,
-    modulesFile: parts.modulesFile,
-    coverageFile: parts.coverageFile,
+    ...parts.where,
     subjects: stitched.heads.get('api')!,
   });
   return { stitched, recorded };
@@ -141,8 +140,8 @@ async function record(
 type HeadOptions = { readonly source?: string; readonly lazy?: boolean };
 
 interface Head {
-  readonly modulesFile: string;
-  readonly coverageFile: string;
+  /** What `recordExecution` needs to find this head's records and its index. */
+  readonly where: { readonly cacheRoot: string; readonly label: string; readonly coverageFile: string };
   readonly currency: Currency;
   readonly code: string;
 }
@@ -153,19 +152,17 @@ interface Head {
  */
 async function head(root: string, label = 'build', options: HeadOptions = {}): Promise<Head> {
   const source = options.source ?? SOURCE;
-  const modulesFile = resolve(root, `modules-${label}.json`);
+  const cacheRoot = resolve(root, 'cache');
   const module = resolve(root, 'currency.js');
   await writeFile(module, source, 'utf8');
-  const plugin = testSelectionProbes({ root, modulesFile });
+  const plugin = testSelectionProbes({ root, label, cacheRoot });
   const transformed = plugin.transform.call(
     { getCombinedSourcemap: () => ({ mappings: '' }) },
     source,
     module,
   )!;
-  await plugin.buildEnd();
   return {
-    modulesFile,
-    coverageFile: resolve(root, 'coverage.bin'),
+    where: { cacheRoot, label, coverageFile: resolve(root, 'coverage.bin') },
     currency: options.lazy ? unevaluated : evaluate(transformed.code),
     code: transformed.code,
   };
@@ -196,10 +193,10 @@ describe('a head reports what each journey entered', () => {
       expect(stitched).toMatchObject({ complete: true, silent: [], unclaimed: 0 });
       expect(recorded).toMatchObject({ recorded: true, subjects: 2 });
 
-      expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', EURO_LINE))).toEqual([
+      expect(await selectTestFiles(parts.where.coverageFile, diffAt('currency.js', EURO_LINE))).toEqual([
         'euros.spec.ts',
       ]);
-      expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', DOLLAR_LINE))).toEqual(
+      expect(await selectTestFiles(parts.where.coverageFile, diffAt('currency.js', DOLLAR_LINE))).toEqual(
         ['dollars.spec.ts'],
       );
     });
@@ -229,7 +226,7 @@ describe('a head reports what each journey entered', () => {
         [mintJourney(), 'dollars.spec.ts'],
       ]);
 
-      expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', EURO_LINE))).toEqual([
+      expect(await selectTestFiles(parts.where.coverageFile, diffAt('currency.js', EURO_LINE))).toEqual([
         'dollars.spec.ts',
         'euros.spec.ts',
       ]);
@@ -259,11 +256,11 @@ describe('a head reports what each journey entered', () => {
         [english, 'dollars.spec.ts'],
       ]);
 
-      expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', LAZY_EURO_LINE))).toEqual([
+      expect(await selectTestFiles(parts.where.coverageFile, diffAt('currency.js', LAZY_EURO_LINE))).toEqual([
         'dollars.spec.ts',
         'euros.spec.ts',
       ]);
-      expect(await selectTestFiles(parts.coverageFile, diffAt('currency.js', LAZY_DOLLAR_LINE))).toEqual([
+      expect(await selectTestFiles(parts.where.coverageFile, diffAt('currency.js', LAZY_DOLLAR_LINE))).toEqual([
         'dollars.spec.ts',
       ]);
     });
@@ -328,14 +325,13 @@ describe('a head that was not there', () => {
       });
       await recordExecution({
         root,
-        modulesFile: parts.modulesFile,
-        coverageFile: parts.coverageFile,
+        ...parts.where,
         subjects: stitched.heads.get('api')!,
       });
 
       const { narrowByExecution } = await import('./index.js');
       const narrowed = await narrowByExecution(
-        parts.coverageFile,
+        parts.where.coverageFile,
         diffAt('currency.js', EURO_LINE),
       );
       // The crossings are there — the subject entered the changed line — and the
@@ -423,9 +419,9 @@ describe('two heads over one file', () => {
   it('add their crossings together rather than retiring each other', async () => {
     // Two builds of overlapping source is the arrangement item 7 of the spec is
     // afraid of: one coverage index, modules keyed by file, and a separate
-    // inventory per head. The instrument is a pure function of the source, so
-    // the block sets agree and the merge unions them — which is the whole of
-    // why one index can hold both.
+    // store per head. The instrument is a pure function of the source, so the
+    // block sets agree and the merge unions them — which is the whole of why
+    // one index can hold both.
     await inRoot(async (root) => {
       const driven = await driver();
       const api = collectJourneys({ head: 'api', enabled: true });
@@ -453,11 +449,11 @@ describe('two heads over one file', () => {
 
       // One call. A second one naming these subjects would read as a second
       // run and retire what the first wrote, so the heads are joined into one
-      // observation and both inventories are read for it.
+      // observation and both stores are read for it.
       const recorded = await recordExecution({
         root,
-        modulesFile: [apiParts.modulesFile, workerParts.modulesFile],
-        coverageFile,
+        ...apiParts.where,
+        heads: [workerParts.where.label],
         subjects: joinObservations([...stitched.heads.values()]),
       });
       expect(recorded.recorded).toBe(true);

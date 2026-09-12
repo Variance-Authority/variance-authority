@@ -97,6 +97,12 @@ export const suite = defineConfig({
   },
   esbuild: {
     jsx: 'automatic',
+    // Vite's own list is `m?ts` and leaves `.cts` out, which makes a CommonJS
+    // TypeScript source the one kind of module in this repository that cannot
+    // be unit tested — it reaches the runner untransformed and fails to parse.
+    // The files that have to be CommonJS are the ones loaded inside another
+    // runner's sandbox, which is not a reason to test them less.
+    include: /\.([cm]?ts|[jt]sx)$/,
   },
 });
 

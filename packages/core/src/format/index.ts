@@ -21,7 +21,7 @@ export type { CapturedValue, ShapeValueOptions, ValueShaping } from './value.js'
 export { shapeValue, pointerShape, pointerToken, DROPPED, VALUE_RECIPE } from './value.js';
 
 export type { Digest } from './hash.js';
-export { digestString, digestBytes, digestValue, digestCombine } from './hash.js';
+export { digestString, digestBytes, digestValue, digestCombine, digestOfSha256 } from './hash.js';
 
 export type { AccessibilitySnapshot } from './accessibility.js';
 export { accessibilitySnapshot } from './accessibility.js';

@@ -42,7 +42,7 @@ import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, isAbsolute, join, resolve } from 'node:path';
 import { indexSource } from '@variance-authority/core/attribute';
-import { digestString, type Digest } from '@variance-authority/core/format';
+import { digestString, type Digest } from './digest.js';
 import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
 import { MODULE_EXTENSIONS, STYLE_EXTENSIONS, readModule, readStyle } from './read.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';

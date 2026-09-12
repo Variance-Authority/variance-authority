@@ -40,6 +40,35 @@ function at(commit: string | undefined, test: string): TestCoverage {
   };
 }
 
+const DECIDE = 'export function decide(n) {\n  return n > 0;\n}\n';
+
+/** A snapshot whose one module holds a function, recorded over older text. */
+function carrying(test: string): TestCoverage {
+  const base = at(BASELINE, test);
+  const [root] = base.modules[0]!.blocks;
+  return {
+    ...base,
+    modules: [{
+      ...base.modules[0]!,
+      blocks: [
+        root!,
+        {
+          ordinal: 1,
+          kind: 'function',
+          owner: 0,
+          digest: 'block:decide-entry',
+          name: 'decide',
+          path: 'entry',
+          startLine: 1,
+          endLine: 3,
+          source: true,
+          testFiles: [test],
+        },
+      ],
+    }],
+  };
+}
+
 describe('mergeCoverage', () => {
   it('stands where the run that just happened stands', () => {
     // A local layer over a baseline is the ordinary shape, so the two sides
@@ -60,22 +89,22 @@ describe('mergeCoverage', () => {
       .not.toHaveProperty('commit');
   });
 
-  it('demotes a carried test whose region changed under it', () => {
+  it('keeps a carried test\'s crossing when the region it entered was edited', () => {
     // A full run saw alpha enter the module region. One file was then run by
-    // hand over an edit to that region. Alpha was not re-recorded, so its
-    // crossing cannot be kept as evidence about the new region — and dropping
-    // it while calling alpha whole would let the next diff of that region skip
-    // the one test known to have reached it.
+    // hand over an edit to that region. Alpha's crossing is what a diff of that
+    // region is answered with — it is the only record that alpha ever reached
+    // the place that just changed — so the edit is the reason to keep it rather
+    // than a reason to retire it.
     const merged = mergeCoverage(
       at(BASELINE, 'test/alpha.test.ts'),
       rewritten(at(LOCAL, 'test/beta.test.ts'), 'block:decide-edited'),
     );
 
-    expect(merged.tests).toEqual([
-      expect.objectContaining({ file: 'test/alpha.test.ts', complete: false }),
-      expect.objectContaining({ file: 'test/beta.test.ts', complete: true }),
+    expect(merged.tests.every((test) => test.complete)).toBe(true);
+    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual([
+      'test/alpha.test.ts',
+      'test/beta.test.ts',
     ]);
-    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual(['test/beta.test.ts']);
   });
 
   it('keeps a carried test whole when its regions are the ones it saw', () => {
@@ -98,19 +127,51 @@ describe('mergeCoverage', () => {
     expect(merged.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
   });
 
-  it('demotes a carried test whose module has other text on disk than its rows were recorded over', () => {
-    // A full run recorded the module at one commit. A file was then run by
-    // hand at a later commit that moved the module's lines, without loading
-    // it. The index now stands at the later commit and the carried rows are
-    // ranges in text nobody has; the test that entered them runs regardless.
+  it("re-cuts a carried module's rows over the text it has now", () => {
+    // A full run recorded the module at one commit. A file was then run by hand
+    // at a later commit that moved the module's lines, without loading it. The
+    // index now stands at the later commit, so the regions are read out of the
+    // text standing there and each crossing is carried onto the region with its
+    // address: alpha is still known to have entered `decide`, and `decide` is
+    // now at the lines the next diff will name.
     const merged = mergeCoverage(
-      at(BASELINE, 'test/alpha.test.ts'),
+      carrying('test/alpha.test.ts'),
       { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
-      new Map([['src/decide.ts', 'source:decide-moved']]),
+      new Map([['src/decide.ts', `const scale = 2;\n\n${DECIDE}`]]),
+    );
+    const decide = merged.modules[0]?.blocks.find((block) => block.name === 'decide');
+
+    expect(merged.tests.every((test) => test.complete)).toBe(true);
+    expect(decide?.startLine).toBe(3);
+    expect(decide?.testFiles).toEqual(['test/alpha.test.ts']);
+  });
+
+  it('keeps a carried test whole when the region it entered was deleted', () => {
+    // The same carry, over text that dropped the function alpha entered.
+    // Arrival nests: alpha entered the module to reach `decide`, so its crossing
+    // on the module is still there, and a diff at the place `decide` was is
+    // charged to the module and reaches alpha. Demoting it would buy nothing.
+    const merged = mergeCoverage(
+      carrying('test/alpha.test.ts'),
+      { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
+      new Map([['src/decide.ts', 'const scale = 2;\n']]),
+    );
+
+    expect(merged.tests.every((test) => test.complete)).toBe(true);
+    expect(merged.modules[0]?.blocks.some((block) => block.name === 'decide')).toBe(false);
+    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual(['test/alpha.test.ts']);
+  });
+
+  it('demotes a carried test whose module has text that cannot be read as source', () => {
+    // Nothing to cut regions out of, and the rows that are there are ranges in
+    // text nobody has. Alpha runs at the next selection whatever the diff says.
+    const merged = mergeCoverage(
+      carrying('test/alpha.test.ts'),
+      { ...at(LOCAL, 'test/beta.test.ts'), modules: [] },
+      new Map([['src/decide.ts', 'export function decide( {']]),
     );
 
     expect(merged.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
-    expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual(['test/alpha.test.ts']);
   });
 
   it('leaves a carried test whole when the run did not load its modules', () => {

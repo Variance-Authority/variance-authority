@@ -1,4 +1,5 @@
-import type { TestCoverageView } from './format.js';
+import type { WordColumn } from './columns.js';
+import type { TestCoverageView } from './format-view.js';
 
 /**
  * Finding one row by path in a snapshot whose rows are code-unit sorted.
@@ -20,12 +21,12 @@ export function findTest(coverage: TestCoverageView, file: string): number | und
   return search(coverage, coverage.testPath, file);
 }
 
-function search(coverage: TestCoverageView, column: Uint32Array, file: string): number | undefined {
+function search(coverage: TestCoverageView, column: WordColumn, file: string): number | undefined {
   let low = 0;
   let high = column.length - 1;
   while (low <= high) {
     const middle = Math.floor((low + high) / 2);
-    const candidate = coverage.string(column[middle]!);
+    const candidate = coverage.string(column.at(middle));
     if (candidate === file) return middle;
     if (candidate < file) low = middle + 1;
     else high = middle - 1;
@@ -61,11 +62,11 @@ export function testsGovernedBy(
 
   for (let test = 0; test < coverage.testPath.length; test += 1) {
     for (
-      let input = coverage.testPreconditions[test]!;
-      input < coverage.testPreconditions[test + 1]!;
+      let input = coverage.testPreconditions.at(test);
+      input < coverage.testPreconditions.at(test + 1);
       input += 1
     ) {
-      const name = coverage.string(coverage.preconditionName[input]!);
+      const name = coverage.string(coverage.preconditionName.at(input));
       if (!wanted.has(name)) continue;
       matched.add(name);
       tests.set(test, [...(tests.get(test) ?? []), name]);

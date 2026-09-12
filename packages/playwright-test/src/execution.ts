@@ -22,6 +22,7 @@ import {
   joinObservations,
   preconditionOf,
   recordExecution,
+  type ModuleId,
   type ObservedSubject,
 } from '@variance-authority/sense/journal';
 import {
@@ -35,14 +36,14 @@ import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { listen, type Wire } from '@variance-authority/wire/listen';
 import { relative, resolve, sep } from 'node:path';
 
-/** Where the index and the block inventory live, when the defaults are wrong. */
+/** Where the index and the block records live, when the defaults are wrong. */
 export interface ExecutionRecording {
   /** Repository root the recorded paths are relative to. Defaults to the cwd. */
   readonly root?: string;
   /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
   readonly label?: string;
-  /** The inventory that build wrote. Defaults to the label's repository-keyed file. */
-  readonly modulesFile?: string;
+  /** Where that build wrote its records. Defaults to the user cache. */
+  readonly cacheRoot?: string;
   /** The coverage index. Defaults to the repository-keyed user cache. */
   readonly coverageFile?: string;
   /**
@@ -91,9 +92,9 @@ export interface ExecutionRecorder {
 }
 
 interface Accumulated {
-  readonly hits: Map<string, Set<number>>;
+  readonly hits: Map<ModuleId, Set<number>>;
   /** Of `hits`, the ordinals a module entered while evaluating: every spec's. */
-  readonly shared: Map<string, Set<number>>;
+  readonly shared: Map<ModuleId, Set<number>>;
   complete: boolean;
 }
 
@@ -148,12 +149,12 @@ export function createExecutionRecorder(
       instrumentation = journal.instrumentation;
       const accumulated = owners.get(owner) ?? { hits: new Map(), shared: new Map(), complete: true };
       for (const module of journal.modules) {
-        const ordinals = accumulated.hits.get(module.file) ?? new Set<number>();
+        const ordinals = accumulated.hits.get(module.id) ?? new Set<number>();
         for (const ordinal of module.hits) ordinals.add(ordinal);
-        accumulated.hits.set(module.file, ordinals);
-        const shared = accumulated.shared.get(module.file) ?? new Set<number>();
+        accumulated.hits.set(module.id, ordinals);
+        const shared = accumulated.shared.get(module.id) ?? new Set<number>();
         for (const ordinal of module.shared) shared.add(ordinal);
-        accumulated.shared.set(module.file, shared);
+        accumulated.shared.set(module.id, shared);
       }
       owners.set(owner, accumulated);
     },
@@ -253,10 +254,10 @@ export function createExecutionRecorder(
         complete: accumulated.complete && stitched.complete,
         journal: {
           instrumentation: instrumentation!,
-          modules: [...accumulated.hits].map(([file, ordinals]) => ({
-            file,
+          modules: [...accumulated.hits].map(([id, ordinals]) => ({
+            id,
             hits: [...ordinals],
-            shared: [...(accumulated.shared.get(file) ?? [])],
+            shared: [...(accumulated.shared.get(id) ?? [])],
           })),
         },
         ...(preconditions.has(owner) ? { preconditions: preconditions.get(owner)! } : {}),
@@ -273,15 +274,8 @@ export function createExecutionRecorder(
     const record = await recordExecution({
       root,
       subjects: joined,
-      // A run whose page carried no collector has no page inventory: every
-      // ordinal in it came from a head, and asking for a build nothing
-      // instrumented would decline a run that went fine.
-      ...(seen
-        ? {
-            ...(recording.label === undefined ? {} : { label: recording.label }),
-            ...(recording.modulesFile === undefined ? {} : { modulesFile: recording.modulesFile }),
-          }
-        : { modulesFile: [] }),
+      ...(recording.label === undefined ? {} : { label: recording.label }),
+      ...(recording.cacheRoot === undefined ? {} : { cacheRoot: recording.cacheRoot }),
       ...(recording.coverageFile === undefined ? {} : { coverageFile: recording.coverageFile }),
       ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
     });
