@@ -24,7 +24,7 @@ speaks MCP already.
 
 ## Serve a completed run report
 
-Use Node 22 or newer. From the directory in which the MCP client will launch the
+Use Node 22.15 or newer. From the directory in which the MCP client will launch the
 server, install the package and make the report path available:
 
 ```bash

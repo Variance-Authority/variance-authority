@@ -20,7 +20,7 @@
         "variance": "./dist/bin.js"
       },
       "engines": {
-        "node": ">=22"
+        "node": ">=22.15"
       }
     },
     "names": {
@@ -621,7 +621,7 @@
         "!dist/**/*.d.ts.map"
       ],
       "engines": {
-        "node": ">=22"
+        "node": ">=22.15"
       }
     },
     "names": {
@@ -1068,7 +1068,7 @@
         "variance-authority-mcp": "./dist/bin.js"
       },
       "engines": {
-        "node": ">=22"
+        "node": ">=22.15"
       }
     },
     "names": {
@@ -1320,7 +1320,7 @@
         "mark.svg"
       ],
       "engines": {
-        "node": ">=22"
+        "node": ">=22.15"
       }
     },
     "names": {
@@ -2101,7 +2101,7 @@
         "scripts/overhead.mjs"
       ],
       "engines": {
-        "node": ">=22"
+        "node": ">=22.15"
       }
     },
     "names": {
@@ -2178,11 +2178,15 @@
         "foldTestCoverage": "function",
         "journeyDivergences": "function",
         "journeysApart": "function",
+        "layerTestCoverage": "function",
+        "layeredCoverage": "function",
         "mergeCoverage": "function",
         "narrowByExecution": "function",
         "readTestCoverage": "function",
+        "recordedCommit": "function",
         "selectTestFiles": "function",
         "testCoverageFile": "function",
+        "writeCoverageBytes": "function",
         "writeTestCoverage": "function"
       },
       "./journal": {
@@ -2507,7 +2511,7 @@
         "mark.svg"
       ],
       "engines": {
-        "node": ">=22"
+        "node": ">=22.15"
       }
     },
     "names": {

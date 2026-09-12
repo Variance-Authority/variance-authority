@@ -1,4 +1,4 @@
-import { brotliCompressSync, brotliDecompressSync, constants } from 'node:zlib';
+import { constants, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
 import { fail } from './format-validation.js';
 
 /**
@@ -18,10 +18,18 @@ import { fail } from './format-validation.js';
  * because a delta is signed, and a decoder cannot tell a negative one from a
  * small positive one without a sign bit of its own.
  *
- * Brotli rather than zstd: `zlib.zstdCompressSync` arrived in Node 22.15 and
- * this package supports Node 22. Quality 4 rather than the default 11, which
- * costs an order of magnitude more time for a few per cent of size on data as
- * regular as this.
+ * Zstd, at two levels, because the runs are two kinds of data. A varint run is
+ * a dense stream of small integers and answers to a long search; a run of the
+ * blob is file paths and hex digests, which zstd finds most of at level 1 and
+ * nothing more of above it. Measured over a 20,000 module snapshot, against the
+ * brotli quality 4 this replaced: 319 ms to compress became 120 ms, and the
+ * file got 86 KB smaller.
+ *
+ * Zstd rather than brotli: the same 20,000 columns cost brotli 187 ms on the
+ * blob alone, for 7.169 MB against zstd's 7.083 MB in 30 ms. Brotli's static
+ * dictionary is tuned for markup, and above quality 4 it made this blob larger
+ * rather than smaller. `zlib.zstdCompressSync` arrived in Node 22.15, which is
+ * why this package's floor is that and not 22.
  */
 
 /** Rows in one run of a column. */
@@ -37,9 +45,23 @@ export const RUN = 4096;
 export const BLOB_RUN = 512;
 
 const RAW = 0;
-const BROTLI = 1;
+
+/**
+ * Tag 1 was brotli, and no file this build opens carries it: `FORMAT` moved
+ * with the codec, so a snapshot written before it is refused at the header
+ * rather than at a run. The number is not reused.
+ */
+const ZSTD = 2;
+
 const HEAD = 4;
-const QUALITY = 4;
+
+/**
+ * The levels, one per kind of run. Above these each stops paying: the varints
+ * gain 9 KB across a whole snapshot between 6 and 9 for twice the time, and the
+ * blob gets *larger* above 1.
+ */
+const NUMBERS = 6;
+const TEXT = 1;
 
 /** Runs kept decompressed. A binary search probes fewer places than this. */
 const CACHED = 8;
@@ -71,7 +93,7 @@ export type RunCheck<T> = (values: T, from: number) => void;
 export function packWords(values: Uint32Array): Buffer {
   const runs: Buffer[] = [];
   for (let from = 0; from < values.length; from += RUN) {
-    runs.push(compress(varints(values, from, Math.min(from + RUN, values.length))));
+    runs.push(compress(varints(values, from, Math.min(from + RUN, values.length)), NUMBERS));
   }
   return laid(runs);
 }
@@ -80,7 +102,7 @@ export function packWords(values: Uint32Array): Buffer {
 export function packBytes(values: Uint8Array): Buffer {
   const runs: Buffer[] = [];
   for (let from = 0; from < values.length; from += RUN) {
-    runs.push(compress(values.subarray(from, Math.min(from + RUN, values.length))));
+    runs.push(compress(values.subarray(from, Math.min(from + RUN, values.length)), NUMBERS));
   }
   return laid(runs);
 }
@@ -90,7 +112,7 @@ export function packBlob(blob: Uint8Array, offsets: Uint32Array): Buffer {
   const strings = offsets.length - 1;
   const runs: Buffer[] = [];
   for (let first = 0; first < strings; first += BLOB_RUN) {
-    runs.push(compress(blob.subarray(offsets[first]!, offsets[Math.min(first + BLOB_RUN, strings)]!)));
+    runs.push(compress(blob.subarray(offsets[first]!, offsets[Math.min(first + BLOB_RUN, strings)]!), TEXT));
   }
   return laid(runs);
 }
@@ -170,10 +192,13 @@ export function openBytes(
  * The offsets are the column's own, absolute over the whole blob; a run begins
  * at the offset of its first string, which is what the two are subtracted for.
  */
-export function openBlob(
-  section: Uint8Array,
-  offsets: () => Uint32Array,
-): (id: number) => Uint8Array {
+export interface Blob {
+  (id: number): Uint8Array;
+  /** Every string's bytes end to end, which is what the offsets already cut. */
+  all(): Uint8Array;
+}
+
+export function openBlob(section: Uint8Array, offsets: () => Uint32Array): Blob {
   const runs = openRuns(section, undefined, BLOB_RUN);
   const held = cache<Uint8Array>();
   let whole: Uint8Array | undefined;
@@ -183,7 +208,7 @@ export function openBlob(
     whole = Buffer.concat(parts);
     return whole;
   };
-  return (id) => {
+  const read = (id: number): Uint8Array => {
     const at = offsets();
     const start = at[id];
     const end = at[id + 1];
@@ -202,6 +227,7 @@ export function openBlob(
     if (held.missed() > runs.count) all();
     return found;
   };
+  return Object.assign(read, { all: (): Uint8Array => whole ?? all() });
 }
 
 interface Runs {
@@ -275,17 +301,17 @@ function laid(runs: readonly Buffer[]): Buffer {
   return Buffer.concat([head, Buffer.from(bound.buffer), ...runs]);
 }
 
-function compress(bytes: Uint8Array): Buffer {
-  const packed = brotliCompressSync(bytes, {
+function compress(bytes: Uint8Array, level: number): Buffer {
+  const packed = zstdCompressSync(bytes, {
     params: {
-      [constants.BROTLI_PARAM_QUALITY]: QUALITY,
-      [constants.BROTLI_PARAM_SIZE_HINT]: bytes.length,
+      [constants.ZSTD_c_compressionLevel]: level,
+      [constants.ZSTD_c_contentSizeFlag]: 1,
     },
   });
   // Incompressible runs exist — a column of digest ids is close to random — and
-  // storing one costs a byte rather than the expansion brotli would add.
+  // storing one costs a byte rather than the expansion a frame would add.
   return packed.length < bytes.length
-    ? Buffer.concat([Buffer.of(BROTLI), packed])
+    ? Buffer.concat([Buffer.of(ZSTD), packed])
     : Buffer.concat([Buffer.of(RAW), bytes]);
 }
 
@@ -293,9 +319,9 @@ function decompress(run: Uint8Array): Uint8Array {
   const tag = run[0];
   const body = run.subarray(1);
   if (tag === RAW) return body;
-  if (tag !== BROTLI) fail();
+  if (tag !== ZSTD) fail();
   try {
-    return brotliDecompressSync(body);
+    return zstdDecompressSync(body);
   } catch {
     // A stream this build did not write. The caller asked for a column of a
     // coverage artifact and what it has is not one, which is the same answer

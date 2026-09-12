@@ -6,11 +6,11 @@
  * [ADR-0004](../../../docs/context/adr/0004-defer-native-acceleration.md) admits
  * native code only against a recorded benchmark, and "this is slow, rewrite it
  * in Rust" is not one. The question a rewrite has to answer first is how much of
- * the clock it could even reach — a stage that is two thirds brotli has a third
+ * the clock it could even reach — a stage that is two thirds zstd has a third
  * on offer, and a probe that runs inside somebody else's V8 has none.
  *
  * So every stage is profiled and its self time attributed by **ancestry**, not
- * by the name on the frame. Brotli surfaces as `writeSync` and `close` with no
+ * by the name on the frame. The codec surfaces as `writeSync` and `close` with no
  * url at all; what identifies it is that its parent chain passes through
  * `node:zlib`. Keyed on names, the largest native cost in the encoder reads as
  * half a per cent of it.
@@ -26,7 +26,10 @@
  *   encode     — the whole snapshot to bytes, which is what a run ends with.
  *   decode     — the same bytes back as the logical model.
  *   layer      — a run merged onto the index it found, the shape of every run
- *                after the first.
+ *                after the first. Profiled twice: the merge alone, over a model
+ *                somebody else decoded, and `layerTestCoverage`, which is the
+ *                decode, the merge and the encode as one pass over the columns
+ *                and is what the three write seams actually call.
  *
  * Run:  node scripts/native.mjs
  *       node scripts/native.mjs 5000
@@ -43,6 +46,7 @@ import { walkBlocks } from '../dist/instrument/blocks.js';
 import { digestString } from '../dist/digest.js';
 import { decodeTestCoverage, encodeTestCoverage } from '../dist/test-selection/format.js';
 import { mergeCoverage } from '../dist/test-selection/merge.js';
+import { layerTestCoverage } from '../dist/test-selection/format-layer.js';
 import { ROOT, corpusOf, instrumentedSources, tracked } from './coverage-corpus.mjs';
 
 // The encode of a large index wants more heap than the default ceiling allows,
@@ -80,7 +84,7 @@ async function profile(run) {
 }
 
 /** What each bucket is, in the order a reader should meet them. */
-const NATIVE = new Set(['brotli', 'SHA-256', 'the parser', 'V8 and the collector']);
+const NATIVE = new Set(['zstd', 'SHA-256', 'the parser', 'V8 and the collector']);
 
 function split(profile) {
   const self = new Map();
@@ -106,7 +110,7 @@ function split(profile) {
     // The profiler's own `Profiler.stop` runs inside the measured window.
     if (under('node:inspector')) continue;
     let where;
-    if (under('node:zlib')) where = 'brotli';
+    if (under('node:zlib')) where = 'zstd';
     else if (under('node:internal/crypto')) where = 'SHA-256';
     else if (name === '(garbage collector)') where = 'V8 and the collector';
     else if (name === '(program)' || name === '(idle)' || name === '(root)') where = 'V8 and the collector';
@@ -233,4 +237,18 @@ const layer = {
 };
 const layered = await profile(() => mergeCoverage(coverage, layer));
 if (layered.answer.modules.length !== MODULES) throw new Error('layering lost modules');
-report('layer', layered.spent, layered.split);
+report('layer: the merge alone', layered.spent, layered.split);
+
+// The whole read-modify-write, which is the stage a run pays. The composition
+// it replaces is timed beside it, and the two are compared as bytes: this is an
+// optimization of a function that still exists, and it is only worth having
+// while the two files are the same file.
+const whole = await profile(() => encodeTestCoverage(mergeCoverage(decodeTestCoverage(encoded.answer), layer)));
+const one = await profile(() => layerTestCoverage(encoded.answer, layer));
+if (Buffer.compare(whole.answer, one.answer) !== 0) throw new Error('the layer wrote a different file');
+report('layer: decode, merge and encode', whole.spent, whole.split);
+report('layer: the same, over the columns', one.spent, one.split);
+console.log(
+  `\n  ${whole.spent.toFixed(0)} ms -> ${one.spent.toFixed(0)} ms` +
+    `  (${(whole.spent / one.spent).toFixed(1)}x), byte for byte the same file`,
+);

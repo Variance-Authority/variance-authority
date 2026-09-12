@@ -20,7 +20,7 @@ const { commitOfIndex } = vi.hoisted(() => ({ commitOfIndex: vi.fn() }));
 
 vi.mock('@variance-authority/sense/test-selection', () => ({
   testCoverageFile: () => '/nowhere/coverage.bin',
-  readTestCoverage: commitOfIndex,
+  recordedCommit: commitOfIndex,
 }));
 
 const cwd = process.cwd();
@@ -52,7 +52,7 @@ describe('where the recorded execution index stands', () => {
     // was written at, so there is no merge base to find and nothing here has to
     // guess which branch a reader thinks they are on.
     const { root, head } = checkout({ 'src/a.ts': 'export const a = 1;\n' });
-    commitOfIndex.mockResolvedValue({ commit: head });
+    commitOfIndex.mockResolvedValue(head);
 
     writeFileSync(join(root, 'src/a.ts'), 'export const a = 2;\n');
     writeFileSync(join(root, 'src/b.ts'), 'export const b = 1;\n');
@@ -66,7 +66,7 @@ describe('where the recorded execution index stands', () => {
     // a checkout supports no claim at all, and a header offering `--since` on
     // the strength of it would be offering a ref that does not exist.
     const { root } = checkout({ 'src/a.ts': 'export const a = 1;\n' });
-    commitOfIndex.mockResolvedValue({});
+    commitOfIndex.mockResolvedValue(undefined);
 
     expect(await indexPosition(root)).toBeUndefined();
   });
@@ -74,10 +74,15 @@ describe('where the recorded execution index stands', () => {
   it('says nothing when there is no index, and when git will not answer', async () => {
     const { root } = checkout({ 'src/a.ts': 'export const a = 1;\n' });
 
-    commitOfIndex.mockRejectedValue(new Error('ENOENT'));
+    // A file that is not there and one that is not a snapshot are the same
+    // answer, and `recordedCommit` is where that is decided: it says nothing
+    // rather than throwing, so there is no error here to catch.
+    commitOfIndex.mockResolvedValue(undefined);
     expect(await indexPosition(root)).toBeUndefined();
 
-    commitOfIndex.mockResolvedValue({ commit: 'a'.repeat(40) });
+    // A position no ref in this checkout holds: `git` refuses the diff, and a
+    // distance nobody can stand behind is not reported as one.
+    commitOfIndex.mockResolvedValue('a'.repeat(40));
     expect(await indexPosition(root)).toBeUndefined();
   });
 });

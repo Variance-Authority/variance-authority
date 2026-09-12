@@ -48,8 +48,7 @@ import { digestString } from '../digest.js';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
-import { encodeTestCoverage } from './format.js';
-import { existingCoverage, mergeCoverage, sourcesOnDisk } from './merge.js';
+import { layeredCoverage } from './format-layer.js';
 import {
   codeUnitOrder,
   coverageModule,
@@ -335,10 +334,8 @@ export async function recordExecution(
     };
   }
   try {
-    const previous = await existingCoverage(coverageFile);
     const temporary = `${coverageFile}.${process.pid}-${randomUUID()}.tmp`;
-    const onDisk = await sourcesOnDisk(root, previous, current);
-    await writeFile(temporary, encodeTestCoverage(mergeCoverage(previous, current, onDisk)));
+    await writeFile(temporary, await layeredCoverage(coverageFile, current, root));
     await rename(temporary, coverageFile);
     // Every module this run could identify, numbered for the next one. A file
     // first met today was instrumented under its path; from here on it has a

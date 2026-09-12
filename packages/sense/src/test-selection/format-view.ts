@@ -2,6 +2,7 @@ import {
   openBlob,
   openBytes,
   openWords,
+  type Blob,
   type ByteColumn,
   type RunCheck,
   type WordColumn,
@@ -70,6 +71,22 @@ export interface TestCoverageView {
   readonly blockTests: WordColumn;
   readonly crossingTest: WordColumn;
   string(id: number): string;
+  /**
+   * The dictionary as it is stored: every string's bytes end to end, and the
+   * offsets that cut them.
+   *
+   * A layer rewrites a snapshot whose dictionary it mostly keeps, and what it
+   * needs of a carried string is where it sorts and what to copy — both of which
+   * the UTF-8 already answers. Decoding each one to ask would be the largest
+   * cost in the rewrite, and it would be paid to make strings that are
+   * immediately encoded back into the bytes they came from.
+   *
+   * Handed over whole rather than by the row for the same reason the columns
+   * are: a caller that wants all of it wants one decompression and a pair of
+   * integers per string, not a subarray per string. It aliases the snapshot's
+   * own memory, so a caller copies out of it rather than keeping it.
+   */
+  dictionary(): { readonly blob: Uint8Array; readonly offsets: Uint32Array };
 }
 
 /** Open typed-array views over a snapshot; only the small section index is parsed. */
@@ -247,16 +264,18 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
     blockTests: words('blocks.tests'),
     crossingTest: words('crossings.test', (values) => ids(values, testCount)),
     string: stringAt,
+    dictionary: () => ({ blob: blobBytes.all(), offsets: stringOffsets.all() }),
   };
 }
 
 /** The same door onto a blob small enough to have been stored as it is. */
-function wholeBlob(whole: Uint8Array, offsets: () => Uint32Array): (id: number) => Uint8Array {
-  return (id) => {
+function wholeBlob(whole: Uint8Array, offsets: () => Uint32Array): Blob {
+  const read = (id: number): Uint8Array => {
     const at = offsets();
     const start = at[id];
     const end = at[id + 1];
     if (start === undefined || end === undefined || end > whole.length) throw invalid();
     return whole.subarray(start, end);
   };
+  return Object.assign(read, { all: () => whole });
 }

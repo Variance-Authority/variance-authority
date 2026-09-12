@@ -19,9 +19,11 @@ export const MODEL = 3;
 /**
  * The byte layout's version, which moves when the model does not. A reader
  * refuses a file it cannot decode, and a file whose columns are stored as runs
- * is not one a reader of the previous layout can map.
+ * is not one a reader of the previous layout can map. It moved again when those
+ * runs became zstd rather than brotli: the run tag would have said so, but a
+ * header that answers first turns an unreadable byte into a stated version.
  */
-export const FORMAT = 4;
+export const FORMAT = 5;
 
 const ALIGNMENT = 8;
 export const NO_OWNER = 0xffff_ffff;
