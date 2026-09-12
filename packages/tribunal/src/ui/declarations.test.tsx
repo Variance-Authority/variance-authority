@@ -203,7 +203,9 @@ describe('the rail and the report agree on what is green', () => {
     const markup = renderToStaticMarkup(
       <Settled
         subjects={[green('story:footer', 'unchanged'), green('route/cart', 'ignored')]}
-        ignores={null} build="ci-1001" go={() => {}}
+        ignores={null}
+        build="ci-1001"
+        go={() => {}}
       />,
     );
 
@@ -215,14 +217,18 @@ describe('the rail and the report agree on what is green', () => {
   it('says which rule absorbed them is not recorded rather than implying nothing did', () => {
     const absorbed = [green('route/cart', 'ignored')];
 
-    expect(renderToStaticMarkup(<Settled subjects={absorbed} ignores={null} build="ci-1001" go={() => {}} />)).toContain(
-      'not recorded here',
-    );
+    expect(
+      renderToStaticMarkup(
+        <Settled subjects={absorbed} ignores={null} build="ci-1001" go={() => {}} />,
+      ),
+    ).toContain('not recorded here');
     expect(
       renderToStaticMarkup(
         <Settled
           subjects={absorbed}
-          ignores={{ rules: [ignore()], dead: [], fullyIgnored: ['route/cart'], totalPixels: 0, vocabulary: [] }} build="ci-1001" go={() => {}}
+          ignores={{ rules: [ignore()], dead: [], fullyIgnored: ['route/cart'], totalPixels: 0, vocabulary: [] }}
+          build="ci-1001"
+          go={() => {}}
         />,
       ),
     ).not.toContain('not recorded here');
@@ -241,7 +247,9 @@ describe('a green subject says which kind of green, in the report’s own words'
             ignored: { pixels: 325, boxes: 1, inert: 0, byRule: { 'nav-cart-badge': 325 } },
           }),
         ]}
-        ignores={null} build="ci-1001" go={() => {}}
+        ignores={null}
+        build="ci-1001"
+        go={() => {}}
       />,
     );
 
@@ -257,7 +265,9 @@ describe('a green subject says which kind of green, in the report’s own words'
             relaxed: { rule: 'routes-assemble', level: 'layout', bands: ['token', 'text'] },
           }),
         ]}
-        ignores={null} build="ci-1001" go={() => {}}
+        ignores={null}
+        build="ci-1001"
+        go={() => {}}
       />,
     );
 
@@ -275,7 +285,9 @@ describe('a green subject says which kind of green, in the report’s own words'
             ignored: { pixels: 0, boxes: 2, inert: 2, byRule: { 'promo-countdown': 0 } },
           }),
         ]}
-        ignores={null} build="ci-1001" go={() => {}}
+        ignores={null}
+        build="ci-1001"
+        go={() => {}}
       />,
     );
 
