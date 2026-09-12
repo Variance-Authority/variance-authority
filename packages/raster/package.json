@@ -40,7 +40,8 @@
     "mark.svg"
   ],
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "simd": "node scripts/simd.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^"
