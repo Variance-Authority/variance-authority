@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { messageOf } from './config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
 import { dispatch } from './dispatch.js';
+import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
 
 /**
@@ -39,6 +40,11 @@ export async function main(
   } catch (error) {
     streams.err(`${messageOf(error)}\n`);
     return EXIT_OPERATOR;
+  }
+
+  if (parsed.command === 'version') {
+    streams.out(`${CLI_VERSION}\n`);
+    return EXIT_CLEAN;
   }
 
   if (parsed.command === 'help') {

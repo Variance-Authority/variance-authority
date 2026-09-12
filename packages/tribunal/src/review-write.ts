@@ -123,12 +123,16 @@ export async function store(
     else if (!sizes.has(each.objectKey)) sizes.set(each.objectKey, 0);
   }
 
+  const writes: (() => Promise<unknown>)[] = [];
   for (const each of pending) {
     const bytes = each.bytes;
     if (bytes === undefined || held.has(each.objectKey) || put.has(each.objectKey)) continue;
     put.add(each.objectKey);
-    await guardStore(() => bucket.put(each.objectKey, bytes), `the stored object ${each.objectKey}`);
+    writes.push(() =>
+      guardStore(() => bucket.put(each.objectKey, bytes), `the stored object ${each.objectKey}`),
+    );
   }
+  await together(writes);
 
   // One subrequest for every claim in the build. The touch matters as much as
   // the insert: `at_ms` is how long nothing has wanted these bytes, and a build
@@ -393,4 +397,37 @@ function strings(json: string | undefined): readonly string[] {
   if (json === undefined) return [];
   const parsed: unknown = JSON.parse(json);
   return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+/**
+ * Run these, a few at a time, and fail on the first one that does.
+ *
+ * A put is a round trip, and awaiting each before starting the next makes a
+ * build of five hundred new images five hundred trips end to end — seconds of
+ * wall clock in which the Worker is doing nothing but waiting. They do not
+ * depend on each other: an object is written at the key its own bytes name, so
+ * the order is arbitrary and only the *count* is bounded by anything.
+ *
+ * Bounded rather than unbounded because the ceiling that matters is not this
+ * package's: a Worker may hold six connections open at once, and a `Promise.all`
+ * over the whole build would queue against that limit with no say in what
+ * happens when it is reached. Six in flight is the shape the platform is
+ * already going to give, asked for on purpose.
+ *
+ * A rejection stops the batch from starting more work, and the first one is what
+ * the caller sees — a store that half-refused should not report the second
+ * failure it happened to notice.
+ */
+const AT_ONCE = 6;
+
+async function together(work: readonly (() => Promise<unknown>)[]): Promise<void> {
+  let next = 0;
+  const lane = async (): Promise<void> => {
+    while (next < work.length) {
+      const mine = work[next];
+      next += 1;
+      await mine?.();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(AT_ONCE, work.length) }, () => lane()));
 }

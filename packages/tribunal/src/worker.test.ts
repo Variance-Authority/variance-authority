@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { PNG } from 'pngjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -13,7 +14,8 @@ import {
   CACHE_PUT_PATH,
 } from '@variance-authority/remote/store';
 import type { RunReport } from '@variance-authority/report';
-import { createTribunal, type Tribunal } from './worker.js';
+import { TRIBUNAL_API, createTribunal, type Tribunal } from './worker.js';
+import { SCHEMA_VERSION } from './schema.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2, type SqliteD1 } from './testing.js';
 
 const INGEST = 'ingest-token-0123456789';
@@ -317,6 +319,31 @@ describe('two tokens, and what each one may do', () => {
     expect((await call('/review/builds', { token: REVIEW, body: build })).status).toBe(403);
   });
 
+  it('answers CI about the bytes it already holds, and refuses the review token', async () => {
+    await call('/review/builds', { token: INGEST, body: build });
+    const digest = createHash('sha256').update(Buffer.from(BYTES, 'base64')).digest('hex');
+
+    const answered = await call('/review/have', {
+      token: INGEST,
+      body: { digests: [digest, 'b'.repeat(64)] },
+    });
+
+    expect(answered.status).toBe(200);
+    expect(await answered.json()).toEqual({ have: [digest] });
+
+    // The same caller and the same job as posting a build: a run asking what it
+    // does not have to upload. Nothing a reviewer does needs it.
+    expect(
+      (await call('/review/have', { token: REVIEW, body: { digests: [] } })).status,
+    ).toBe(403);
+  });
+
+  it('refuses a question that is not a list of digests', async () => {
+    const refused = await call('/review/have', { token: INGEST, body: { digests: 'all of them' } });
+
+    expect(refused.status).toBe(400);
+  });
+
   it('serves an image only to the review token', async () => {
     await call('/review/builds', { token: INGEST, body: build });
 
@@ -344,6 +371,30 @@ describe('two tokens, and what each one may do', () => {
     // who approved a subject with no candidate sends somebody to the wrong page.
     expect(response.status).toBe(422);
     expect(await response.text()).toMatch(/did not upload a candidate/);
+  });
+});
+
+describe('saying what this deployment is', () => {
+  it('answers both capabilities with the API version and the schema', async () => {
+    for (const token of [INGEST, REVIEW]) {
+      const response = await call('/version', { token });
+      expect(response.status).toBe(200);
+      // Both, because a mismatch has two halves and only one of them ever holds
+      // the review token: a CLI in CI asks with the ingest one, and the page a
+      // reviewer has open asks with the other.
+      expect(await response.json()).toEqual({
+        service: 'variance-authority-tribunal',
+        api: TRIBUNAL_API,
+        schema: SCHEMA_VERSION,
+      });
+    }
+  });
+
+  it('is still behind the token, like every other path here', async () => {
+    // This route is a map of the API, which is the thing `worker.ts` refuses to
+    // hand a stranger. Authenticating first costs a client nothing — it is
+    // already holding a token to do anything at all.
+    expect((await call('/version')).status).toBe(401);
   });
 });
 
@@ -397,6 +448,6 @@ describe('what the review surface answers', () => {
   it('reports what a sweep removed', async () => {
     const swept = await (await call('/review/sweep?days=0', { token: REVIEW, body: {} })).json();
 
-    expect(swept).toEqual({ builds: 0, subjects: 0, objects: 0, decisionsKept: 0 });
+    expect(swept).toEqual({ builds: 0, held: 0, subjects: 0, objects: 0, cached: 0, decisionsKept: 0 });
   });
 });

@@ -277,6 +277,19 @@ invented key would be an approval that could never settle a later run. The
 subject still goes up with its verdict, its regions and its `before`; what it
 loses is the button.
 
+Both ends say what they are. `push` asks the deployment for its API version
+before it reads a byte off disk, prints the pair on the line it reports, and
+names the mismatch when they differ — a CLI newer than its deployment uploads
+every image it is holding rather than naming the ones already there, and that
+looks like a slow network until something says otherwise. `variance --version`
+prints this tool alone.
+
+While it works, `push` writes its phase to stderr: one line rewritten in place
+on a terminal, one line per phase in a log, and a clock on both, so the wait
+between the last file read and the first byte acknowledged is legible rather
+than silent. Calling `push` from your own code, the same events arrive through
+`onProgress`, and `formatPush` renders the result the command prints.
+
 ### Changelog: explain a baseline update
 
 A baseline update's report says what the new baseline is, not what the change

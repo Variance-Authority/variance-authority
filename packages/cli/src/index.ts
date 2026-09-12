@@ -114,7 +114,8 @@ export type {
   Refused,
 } from './commands/accept.js';
 
-export { formatPush, push } from './commands/push.js';
+export { push } from './commands/push.js';
+export { formatPush } from './commands/push-progress.js';
 export type { PushDeps, PushOptions, PushResult, Withheld } from './commands/push.js';
 
 export { serve } from './commands/serve.js';

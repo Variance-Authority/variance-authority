@@ -231,6 +231,14 @@ describe('parseArgs', () => {
     expect(parseArgs(['accept', '--', '--odd-subject']).subjects).toEqual(['--odd-subject']);
   });
 
+  it('answers `--version` before it decides whether the command exists', () => {
+    // The one question a person asks a tool they are about to file a bug
+    // against, and it has to work when the rest of the invocation does not.
+    for (const argv of [['--version'], ['-v'], ['version']]) {
+      expect(parseArgs(argv)).toEqual({ command: 'version' });
+    }
+  });
+
   it('treats no arguments, help, and --help as the same request', () => {
     for (const argv of [[], ['help'], ['--help'], ['-h']]) {
       expect(parseArgs(argv)).toEqual({ command: 'help' });

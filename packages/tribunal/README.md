@@ -326,6 +326,25 @@ created with.
 refused caller gets a 401 before the Worker sees the request, and a caller
 returned `'review'` has the review token attached on their behalf.
 
+### `GET /version`
+
+What this deployment serves, so a client can tell it apart from a different one:
+
+```json
+{ "service": "variance-authority-tribunal", "api": 2, "schema": 17 }
+```
+
+`api` is the wire contract, not the package version — it moves when what a
+client may send or expect changes, and a patch release that changes nothing on
+the wire does not move it. `variance push` asks before it uploads and says so
+when the two disagree, because a CLI newer than its deployment is not an error:
+it works, sends more than it needs to, and until something prints both numbers
+it looks like a slow network.
+
+`schema` is the row shape this build expects. It is an operator's number — the
+Worker never reads `schema_version` while serving — and this is where it can be
+seen. Either token may ask; like every other path here, none may ask anonymously.
+
 ### `GET /review/changelog`
 
 A build says what changed today; this endpoint says what was *approved*,

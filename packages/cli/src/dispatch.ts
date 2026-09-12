@@ -46,7 +46,7 @@ import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
 import { journeysOutput } from './commands/journeys-command.js';
-import { formatPush, push } from './commands/push.js';
+import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { COMMENT_MARKER, renderComment } from './commands/comment.js';
 import { doctor, machineProbes } from './commands/doctor.js';
@@ -68,7 +68,7 @@ import { rendererFor } from './renderer.js';
  * which is exactly the point of parsing into a value first.
  */
 export async function dispatch(
-  parsed: Exclude<Parsed, { command: 'help' }>,
+  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' }>,
   streams: { out(text: string): void; err(text: string): void },
 ): Promise<ExitCode> {
   // Before the config, because both are constants this build carries rather than
@@ -355,14 +355,24 @@ export async function dispatch(
         );
       }
 
-      const pushed = await push({
-        report: await reportsFor(parsed.reports, config),
-        reportDir: dirname(config.report),
-        review: config.review,
-        build: identity.run,
-        commit: identity.commit,
-        ...(parsed.branch !== undefined ? { branch: parsed.branch } : {}),
-      });
+      // Progress on stderr, and cleared before anything is written to stdout.
+      // Reading and encoding a suite's images is where a push spends its time,
+      // and a command that prints nothing for a minute is one an operator kills.
+      const ticker = pushTicker(streams.err, process.stderr.isTTY === true);
+      let pushed;
+      try {
+        pushed = await push({
+          report: await reportsFor(parsed.reports, config),
+          reportDir: dirname(config.report),
+          review: config.review,
+          build: identity.run,
+          commit: identity.commit,
+          ...(parsed.branch !== undefined ? { branch: parsed.branch } : {}),
+          onProgress: ticker.on,
+        });
+      } finally {
+        ticker.done();
+      }
 
       streams.out(`${formatPush(pushed)}\n`);
 

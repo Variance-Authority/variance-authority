@@ -2634,9 +2634,13 @@
       },
       "./worker": {
         "RasterStoreError": "class",
+        "ServiceVersion": "interface",
+        "TRIBUNAL_API": "const",
         "Tribunal": "interface",
         "TribunalOptions": "interface",
-        "createTribunal": "function"
+        "VERSION_PATH": "const",
+        "createTribunal": "function",
+        "serviceVersion": "function"
       },
       "./worker-entry": {
         "TribunalEnv": "interface",

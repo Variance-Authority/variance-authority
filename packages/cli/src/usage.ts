@@ -92,6 +92,7 @@ export const USAGE = [
   'variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
   '',
+  '`--version` prints this tool. `push` also prints the deployment it reached, and says so when the two disagree.',
   'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',
   'A verdict and a crash never share a code.',
 ].join('\n');

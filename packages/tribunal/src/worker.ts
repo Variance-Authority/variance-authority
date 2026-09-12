@@ -23,6 +23,7 @@ import type { TribunalBindings } from './bindings.js';
 import { createD1Backend } from './history.js';
 import { ReviewError, createReviewStore } from './review.js';
 import { createBucketStore } from './store.js';
+import { VERSION_PATH, serviceVersion } from './version.js';
 import { UNAUTHENTICATED, grant, refuseWeakTokens, requires, type Granted } from './worker-auth.js';
 import {
   BadRequest,
@@ -213,6 +214,16 @@ async function route(
   request: Request,
 ): Promise<Response> {
   const path = url.pathname;
+
+  // --------------------------------------------------------------- version
+  // First, and asked by both capabilities. Every other route in this file
+  // assumes the caller and this deployment agree about what it serves; this is
+  // the one that lets them check, and a client that has to authenticate before
+  // it can ask still asks before it uploads.
+  if (path === VERSION_PATH) {
+    requireMethod(request, 'GET');
+    return json(200, serviceVersion());
+  }
 
   // ------------------------------------------------------------- baselines
   if (path === BASELINE_FIND_PATH) {
@@ -457,8 +468,8 @@ async function route(
       `${CACHE_FIND_PATH}, ${CACHE_PUT_PATH}), the history routes (${OBSERVATIONS_PATH}, ` +
       `${APPROVALS_PATH}, ${CURRENT_PATH}, ${LAST_CHANGED_PATH}, ${CHURN_PATH}, ` +
       `${FLAKINESS_PATH}, ${VALUE_JOURNEY_PATH}, ${REACH_PATH}), /review/builds, /review/have and ` +
-      '/review/changelog. A path from a different API version is a client and a service that ' +
-      'disagree about a recorded shape',
+      `/review/changelog. ${VERSION_PATH} says which API version this is: a path from a ` +
+      'different one is a client and a service that disagree about a recorded shape',
   });
 }
 
@@ -483,3 +494,6 @@ function readable(granted: Granted, path: string): void {
 
 /** Re-exported so a Worker entry can recognise a store failure without a second import. */
 export { RasterStoreError };
+
+/** Re-exported so an entry, and a test, can read the contract the router answers with. */
+export { TRIBUNAL_API, VERSION_PATH, serviceVersion, type ServiceVersion } from './version.js';

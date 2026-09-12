@@ -6,6 +6,7 @@ import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand } from './usage.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
+import { parsePushArgs, type ParsedPush } from './push-args.js';
 
 export { USAGE } from './usage.js';
 /**
@@ -189,17 +190,7 @@ export type Parsed =
       readonly reports: readonly string[];
       readonly exitZeroOnChanges: boolean;
     }
-  | {
-      readonly command: 'push';
-      readonly config: string;
-      /** `--run <id>` / `--commit <sha>`, or the CI environment they are inside. */
-      readonly run?: string;
-      readonly commit?: string;
-      /** `--branch <name>`: what the reviewer is deciding about. */
-      readonly branch?: string;
-      /** Reports to read instead of the configured one. More than one is merged. */
-      readonly reports: readonly string[];
-    }
+  | ParsedPush
   | { readonly command: 'watch' }
   | { readonly command: 'serve'; readonly config: string }
   | { readonly command: 'doctor'; readonly config: string }
@@ -212,12 +203,21 @@ export type Parsed =
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
-  | { readonly command: 'help' };
+  | { readonly command: 'help' }
+  | { readonly command: 'version' };
 
 export function parseArgs(argv: readonly string[]): Parsed {
   const first = argv[0];
   if (first === undefined || first === '--help' || first === '-h' || first === 'help') {
     return { command: 'help' };
+  }
+
+  // Before the command check, and answered by a flag rather than by a
+  // subcommand: `--version` is what a person types into a tool they are about to
+  // file a bug against, and it has to work when nothing else in the invocation
+  // does.
+  if (first === '--version' || first === '-v' || first === 'version') {
+    return { command: 'version' };
   }
 
   if (!isCommand(first)) {
@@ -435,22 +435,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
       };
     }
 
-    case 'push': {
-      const runId = flags.values.get('--run');
-      const commit = flags.values.get('--commit');
-      const branch = flags.values.get('--branch');
-
-      return {
-        command: 'push',
-        config,
-        ...(runId !== undefined ? { run: runId } : {}),
-        ...(commit !== undefined ? { commit } : {}),
-        // An empty `--branch` is a workflow interpolating a variable that was
-        // not set — a detached build, not a branch called ''.
-        ...(branch !== undefined && branch !== '' ? { branch } : {}),
-        reports: flags.positionals.map((path) => resolve(path)),
-      };
-    }
+    case 'push':
+      return parsePushArgs(flags, config);
 
     // No config, because a watcher is not about a project. It listens, holds
     // what a suite says, and answers; none of that reads a subject list, a

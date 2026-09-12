@@ -1,103 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { OperatorError } from '../exit.js';
-import type { ReviewConfig } from '../config.js';
-import { formatPush, push, type PushOptions } from './push.js';
-import type { CliRunReport } from './run.js';
+import { push, type PushProgress } from './push.js';
+import { formatPush } from './push-progress.js';
+import { REVIEW, disk, header, options, report, surface, SIDECAR } from './push-fixture.js';
 
 /**
  * What reaches a review surface, and what is deliberately kept back.
  *
  * No network and no disk: the fetch and the reader are both injected, so what
  * these assert is the *body* — which is the whole of what this command decides.
- * Everything else about it is one POST.
+ * Everything else about it is one POST; the surface and the disk it is given are
+ * in [`push-fixture.ts`](./push-fixture.ts).
  */
-
-const REVIEW: ReviewConfig = {
-  endpoint: 'https://review.example/api',
-  token: () => 'ingest-token-0123',
-};
-
-function report(images?: Record<string, string>): CliRunReport {
-  return {
-    runVersion: 1,
-    at: '2026-08-29T00:00:00.000Z',
-    identity: { engine: 'chromium', engineVersion: '1', platform: 'darwin', digest: 'd' },
-    retention: 'durable',
-    observations: [
-      {
-        subject: 'story:card',
-        verdict: 'changed',
-        because: '120 pixel(s) differ',
-        changedPixels: 120,
-        regions: [],
-        ...(images === undefined ? {} : { images }),
-      },
-    ],
-  } as unknown as CliRunReport;
-}
-
-const SIDECAR = JSON.stringify({
-  documentDigest: 'v1:abc',
-  identity: { engine: 'chromium' },
-  width: 800,
-  height: 600,
-  missingFonts: [],
-});
-
-/**
- * A PNG's first 24 bytes: signature, then the IHDR length, type and dimensions.
- *
- * Only the header, because only the header is read — the codec lives in
- * `@variance-authority/png` and is tested against real files there. Writing a
- * whole image here would mean this package installing an encoder to assert that
- * a push forwards two numbers.
- */
-function header(width: number, height: number): Buffer {
-  const bytes = Buffer.alloc(24);
-  bytes.writeUInt32BE(0x89504e47, 0);
-  bytes.writeUInt32BE(0x0d0a1a0a, 4);
-  bytes.writeUInt32BE(13, 8);
-  bytes.write('IHDR', 12, 'ascii');
-  bytes.writeUInt32BE(width, 16);
-  bytes.writeUInt32BE(height, 20);
-  return bytes;
-}
-
-/** A disk holding exactly what it is given, and nothing else. */
-function disk(files: Record<string, string>) {
-  return async (path: string): Promise<Buffer> => {
-    const found = files[path];
-    if (found === undefined) throw new Error(`ENOENT: no such file, open '${path}'`);
-    return Buffer.from(found, 'utf8');
-  };
-}
-
-/** A surface that answers 201 and keeps what it was sent. */
-function surface(answer: { status?: number; body?: string } = {}) {
-  const calls: { url: string; init: RequestInit }[] = [];
-  const fetch = (async (url: unknown, init: unknown) => {
-    calls.push({ url: String(url), init: init as RequestInit });
-    const status = answer.status ?? 201;
-    return {
-      ok: status < 400,
-      status,
-      statusText: status === 201 ? 'Created' : 'Forbidden',
-      text: async () => answer.body ?? '',
-    } as Response;
-  }) as typeof globalThis.fetch;
-  return { calls, fetch, sent: () => JSON.parse(String(calls[0]?.init.body)) as Record<string, unknown> };
-}
-
-function options(overrides: Partial<PushOptions> = {}): PushOptions {
-  return {
-    report: report(),
-    reportDir: '/out',
-    review: REVIEW,
-    build: 'github-9-1',
-    commit: 'abc123',
-    ...overrides,
-  };
-}
 
 describe('putting a finished run in front of a reviewer', () => {
   it('posts the build to the ingest route, bearing the token it was given', async () => {
@@ -105,9 +19,9 @@ describe('putting a finished run in front of a reviewer', () => {
 
     await push(options({ deps: { fetch: service.fetch, read: disk({}) }, branch: 'main' }));
 
-    expect(service.calls[0]?.url).toBe('https://review.example/api/review/builds');
-    expect(service.calls[0]?.init.method).toBe('POST');
-    expect((service.calls[0]!.init.headers as Record<string, string>)['authorization']).toBe(
+    expect(service.posted()?.url).toBe('https://review.example/api/review/builds');
+    expect(service.posted()?.init.method).toBe('POST');
+    expect((service.posted()!.init.headers as Record<string, string>)['authorization']).toBe(
       'Bearer ingest-token-0123',
     );
     expect(service.sent()).toMatchObject({ build: 'github-9-1', commit: 'abc123', branch: 'main' });
@@ -123,7 +37,7 @@ describe('putting a finished run in front of a reviewer', () => {
       }),
     );
 
-    expect(service.calls[0]?.url).toBe('https://review.example/api/review/builds');
+    expect(service.posted()?.url).toBe('https://review.example/api/review/builds');
   });
 
   it('sends the candidate with the sidecar that makes it approvable', async () => {
@@ -148,12 +62,17 @@ describe('putting a finished run in front of a reviewer', () => {
     expect(images['after']).toEqual({
       bytes: Buffer.from('AFTER', 'utf8').toString('base64'),
       documentDigest: 'v1:abc',
+      identity: { engine: 'chromium' },
       width: 800,
       height: 600,
       missingFonts: [],
     });
     expect(images['before']).toEqual({ bytes: Buffer.from('BEFORE', 'utf8').toString('base64') });
-    expect(result.images).toEqual({ after: 1, before: 1, diff: 1 });
+    // The report names a mask and this sends none: the surface holds both
+    // captures and makes its own, and a mask never matches a digest anybody
+    // already holds, so uploading one is pure cost on every run forever.
+    expect(images['diff']).toBeUndefined();
+    expect(result.images).toEqual({ after: 1, before: 1 });
     expect(result.withheld).toEqual([]);
   });
 
@@ -287,5 +206,192 @@ describe('putting a finished run in front of a reviewer', () => {
     const failure = push(options({ deps: { fetch: unreachable, read: disk({}) } }));
     await expect(failure).rejects.toThrow(OperatorError);
     await expect(failure).rejects.toThrow(/may be run again against it/);
+  });
+});
+
+describe('saying where a push has got to', () => {
+  /** A report naming one image per subject, so the count is the subject count. */
+  function many(subjects: readonly string[]): CliRunReport {
+    return {
+      ...report(),
+      observations: subjects.map((subject) => ({
+        subject,
+        verdict: 'unchanged',
+        because: 'nothing moved',
+        changedPixels: 0,
+        regions: [],
+        images: { after: `images/${subject}.after.png` },
+      })),
+    } as unknown as CliRunReport;
+  }
+
+  function files(subjects: readonly string[]): Record<string, string> {
+    return Object.fromEntries(
+      subjects.flatMap((subject) => [
+        [`/out/images/${subject}.after.png`, 'png'],
+        [`/out/images/${subject}.after.json`, SIDECAR],
+      ]),
+    );
+  }
+
+  it('counts the subjects that carry images, and opens the phase before the first one', async () => {
+    const subjects = ['a', 'b'];
+    const seen: PushProgress[] = [];
+    const posted = surface();
+
+    await push(
+      options({
+        report: {
+          ...many(subjects),
+          // A third subject with nothing to send. It is not in the denominator,
+          // because a push that reads two files must not report itself as
+          // two-thirds done and then finish.
+          observations: [
+            ...(many(subjects).observations as unknown[]),
+            { subject: 'c', verdict: 'unchanged', because: '', changedPixels: 0, regions: [] },
+          ],
+        } as unknown as CliRunReport,
+        onProgress: (event) => seen.push(event),
+        deps: { read: disk(files(subjects)), fetch: posted.fetch },
+      }),
+    );
+
+    expect(seen.map((event) => (event.phase === 'encoding' ? `${event.done}/${event.total}` : event.phase))).toEqual([
+      // First, before a byte is read: what this deployment is, which is the
+      // fact that explains everything the rest of these phases do.
+      'service',
+      '0/2',
+      '1/2',
+      '2/2',
+      'asking',
+      'sending',
+    ]);
+  });
+
+  it('grows the byte count as it encodes, and reports the whole body when it sends', async () => {
+    const subjects = ['a', 'b'];
+    const seen: PushProgress[] = [];
+    const posted = surface();
+
+    await push(
+      options({
+        report: many(subjects),
+        onProgress: (event) => seen.push(event),
+        deps: { read: disk(files(subjects)), fetch: posted.fetch },
+      }),
+    );
+
+    // The asking phase has no size — it is one question — so it is not in the
+    // series the byte count has to climb through.
+    const sized = seen.filter((event) => event.phase !== 'asking' && event.phase !== 'service');
+    const bytes = sized.map((event) => event.bytes);
+    // Monotonic, and the send is larger than the images alone: the report goes
+    // up with them.
+    expect(bytes).toEqual([...bytes].sort((a, b) => a - b));
+    expect(bytes[0]).toBe(0);
+    expect(seen.at(-1)).toEqual({ phase: 'sending', bytes: expect.any(Number) });
+    expect(seen.at(-1)?.bytes).toBeGreaterThan(bytes[2] ?? 0);
+  });
+
+  it('costs nothing to a caller that did not ask', async () => {
+    // The events are computed inside the loop, so a push with no listener has to
+    // be a push that still works — this is the shape every other test here runs.
+    const posted = surface();
+    const result = await push(
+      options({ report: many(['a']), deps: { read: disk(files(['a'])), fetch: posted.fetch } }),
+    );
+
+    expect(result.images.after).toBe(1);
+  });
+});
+
+describe('the sidecar a promotion will be made from', () => {
+  /**
+   * The three fields a push used to read past.
+   *
+   * Each of them is written by the run beside the PNG, survives the local
+   * durable store, and is read by a *later* run off whatever baseline this
+   * candidate becomes. Dropping one in transit does not fail anything here: it
+   * makes the review surface the lossy way to approve an image, and the loss
+   * shows up a week later as a cause ranked by area or a standing defect
+   * reported as new.
+   */
+  const FULL = JSON.stringify({
+    documentDigest: 'v1:abc',
+    identity: { renderer: 'playwright-chromium', deviceScaleFactor: 2 },
+    width: 1600,
+    height: 1200,
+    missingFonts: ['Inter'],
+    components: [{ component: 'Card', instances: 1, structure: 's', semantics: 'm', text: 't', style: 'y' }],
+    findingMarks: ['a control inside another control'],
+  });
+
+  async function sentCandidate(sidecar: string): Promise<Record<string, unknown> | undefined> {
+    const service = surface();
+    await push(
+      options({
+        report: report({ after: 'images/card.after.png' }),
+        deps: {
+          fetch: service.fetch,
+          read: disk({ '/out/images/card.after.png': 'AFTER', '/out/images/card.after.json': sidecar }),
+        },
+      }),
+    );
+    const images = service.sent()['images'] as Record<string, Record<string, unknown>> | undefined;
+    return images?.['story:card']?.['after'] as Record<string, unknown> | undefined;
+  }
+
+  it('carries the identity the document was painted under, not the run\'s', async () => {
+    // The run's identity describes the machine and leaves the scale at 1 — the
+    // renderer says so where it sets it. Every baseline lookup keys on the
+    // per-document identity instead, so a promotion given only the machine one
+    // files a 2x baseline under a digest no run asks for: approved, recorded,
+    // and never found again.
+    expect((await sentCandidate(FULL))?.['identity']).toEqual({
+      renderer: 'playwright-chromium',
+      deviceScaleFactor: 2,
+    });
+  });
+
+  it('carries the component hashes and the finding marks', async () => {
+    const after = await sentCandidate(FULL);
+
+    expect(after?.['components']).toEqual([
+      { component: 'Card', instances: 1, structure: 's', semantics: 'm', text: 't', style: 'y' },
+    ]);
+    expect(after?.['findingMarks']).toEqual(['a control inside another control']);
+  });
+
+  it('leaves absent fields absent rather than sending an empty answer', async () => {
+    // `[]` is a claim: this render was read and had nothing. A sidecar that
+    // never carried the field made no claim, and `promote` writes whatever
+    // arrives onto the baseline — where the difference is whether a later run
+    // says "no components declared" or "nothing recorded".
+    const after = await sentCandidate(SIDECAR);
+
+    expect(after).not.toHaveProperty('components');
+    expect(after).not.toHaveProperty('findingMarks');
+  });
+
+  it('withholds a candidate whose sidecar never said which fonts were missing', async () => {
+    // Rather than sending `[]`. The field is the one the store refuses a sidecar
+    // for lacking, and an invented "nothing was missing" is written onto the
+    // baseline as fact by the approval.
+    const service = surface();
+    const result = await push(
+      options({
+        report: report({ after: 'images/card.after.png' }),
+        deps: {
+          fetch: service.fetch,
+          read: disk({
+            '/out/images/card.after.png': 'AFTER',
+            '/out/images/card.after.json': JSON.stringify({ documentDigest: 'v1:abc', width: 8, height: 6 }),
+          }),
+        },
+      }),
+    );
+
+    expect(result.withheld[0]?.because).toContain('missingFonts');
+    expect(result.images.after).toBe(0);
   });
 });
