@@ -117,6 +117,10 @@ async function approve(subject: string, by = 'marina'): Promise<void> {
   await review.decide({ build: 'ci-1001', subject, decision: 'approved', by });
 }
 
+async function reject(subject: string, by = 'marina'): Promise<void> {
+  await review.decide({ build: 'ci-1001', subject, decision: 'rejected', by });
+}
+
 describe('the changelog is written where the baseline is written', () => {
   it('groups approvals by what changed rather than by which screenshot changed', async () => {
     await approve('story:card--small');
@@ -157,6 +161,11 @@ describe('the changelog is written where the baseline is written', () => {
 
   it('still explains the baseline after the build it came from was swept', async () => {
     await approve('story:card--small');
+    // The other two, so nothing is still waiting: a build with an undecided
+    // change outlives the window, because its images are the only thing an
+    // approval could be promoted from.
+    await reject('story:card--large');
+    await reject('story:stack');
 
     // A year on. Everything a reviewer looked at is gone; the approval is not.
     clock = new Date('2027-06-01T12:00:00.000Z');
