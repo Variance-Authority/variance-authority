@@ -57,7 +57,7 @@ import type { Appearance } from './grouping.js';
 import { hasDifference, useDifferenceUrl } from './difference.js';
 import { leadOf } from './lead.js';
 import { count, number } from './text.js';
-import { share, union, type Size } from './viewer.js';
+import { share, union, type Size } from './plate.js';
 
 /**
  * The crop window, in CSS pixels.

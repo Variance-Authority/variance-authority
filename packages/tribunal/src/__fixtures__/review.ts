@@ -155,3 +155,18 @@ export async function openReview(
   const bucket = createMemoryR2();
   return { db, bucket, review: createReviewStore({ db, bucket, project: 'todomvc', now }) };
 }
+
+/**
+ * Look at everything a build is waiting on, so the retention window applies.
+ *
+ * A build with an undecided change outlives its window on purpose — its images
+ * are the only thing an approval could be promoted from — so a test about what
+ * a sweep removes has to be a test about a build somebody finished reviewing.
+ */
+export async function decideEverything(review: ReviewStore, build = 'ci-1001'): Promise<void> {
+  const detail = await review.build(build);
+  for (const subject of detail?.subjects ?? []) {
+    if (!['changed', 'new', 'incomparable'].includes(subject.verdict)) continue;
+    await review.decide({ build, subject: subject.subject, decision: 'rejected', by: 'marina' });
+  }
+}
