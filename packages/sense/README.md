@@ -124,7 +124,7 @@ repository, keyed by file path with `-` and `+` rows:
 ```json
 {
   "src/cart.test.ts": { "-": ["./api"] },
-  "src/panel.tsx": { "+": ["./panel.relay", { "value": "./panel.css", "kind": "style" }] }
+  "src/panel.tsx": { "+": ["./panel.relay", "./panel.css"] }
 }
 ```
 

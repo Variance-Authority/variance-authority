@@ -2110,7 +2110,6 @@
     },
     "names": {
       ".": {
-        "Addition": "interface",
         "ImportDiff": "interface",
         "MockTaintOptions": "interface",
         "ParseCache": "interface",
@@ -2150,7 +2149,6 @@
         "readStyle": "function"
       },
       "./taint": {
-        "Addition": "interface",
         "ImportDiff": "interface",
         "Node": "interface",
         "Taint": "interface",

@@ -65,7 +65,7 @@ describe('a static taint table', () => {
   });
 
   it('adds an asset under the kind its target gives it', async () => {
-    const taint = taintTable('hand', { 'src/relay.ts': { '+': [{ value: './theme.css' }] } });
+    const taint = taintTable('hand', { 'src/relay.ts': { '+': ['./theme.css'] } });
 
     expect((await edgesOf([taint], 'src/relay.ts'))?.edges).toEqual([{ to: 'src/theme.css', kind: 'asset' }]);
   });

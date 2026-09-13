@@ -44,7 +44,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
-import type { EdgeKind, FileEdge, FileRecord } from '@variance-authority/core/relate';
+import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
 import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser';
 import type { Node } from '../instrument/blocks.js';
 import { MODULE_EXTENSIONS } from '../read.js';
@@ -61,20 +61,12 @@ import {
 
 export type { Node };
 
-/** An import the file makes without writing it in a form a parser reads. */
-export interface Addition {
-  /** A specifier, exactly as the file would have written it. */
-  readonly value: string;
-  /** How it is imported. A value import unless said otherwise. */
-  readonly kind?: EdgeKind;
-}
-
 /** What one file imports beyond, or short of, what its text says. */
 export interface ImportDiff {
   /** Specifiers the file writes and does not import. */
   readonly minus?: readonly string[];
-  /** Specifiers the file imports and does not write. */
-  readonly plus?: ReadonlyArray<string | Addition>;
+  /** Specifiers the file imports and does not write, exactly as it would have written them. */
+  readonly plus?: readonly string[];
 }
 
 /** One file, handed to a taint that reads files. */
@@ -112,7 +104,7 @@ export interface TaintOptions extends ResolveOptions {
 
 /** The table a JSON taint file holds: a diff per file, `-` and `+` as keys. */
 export type TaintTable = Readonly<
-  Record<string, { readonly '-'?: readonly string[]; readonly '+'?: ReadonlyArray<string | Addition> }>
+  Record<string, { readonly '-'?: readonly string[]; readonly '+'?: readonly string[] }>
 >;
 
 const TRANSFER = { experimentalRawTransfer: rawTransferSupported() } as ParserOptions;
@@ -186,17 +178,14 @@ async function diffFor(
   readers: readonly Taint[],
 ): Promise<ImportDiff | undefined> {
   const minus = new Set<string>();
-  const plus = new Map<string, Addition>();
+  const plus = new Set<string>();
   let found = false;
 
   const fold = (diff: ImportDiff | undefined): void => {
     if (diff === undefined) return;
     found = true;
     for (const value of diff.minus ?? []) minus.add(value);
-    for (const entry of diff.plus ?? []) {
-      const addition = typeof entry === 'string' ? { value: entry } : entry;
-      plus.set(`${addition.kind ?? 'imports'} ${addition.value}`, addition);
-    }
+    for (const value of diff.plus ?? []) plus.add(value);
   };
 
   for (const taint of taints) fold(taint.diffs?.get(file));
@@ -209,7 +198,7 @@ async function diffFor(
     if (subject !== undefined) for (const taint of asked) fold(taint.read!(subject));
   }
 
-  return found ? { minus: [...minus], plus: [...plus.values()] } : undefined;
+  return found ? { minus: [...minus], plus: [...plus] } : undefined;
 }
 
 /** The file opened once and parsed at most once, or nothing when it cannot be opened. */
@@ -254,16 +243,16 @@ function applied(record: FileRecord, diff: ImportDiff, root: string, resolvers: 
   const unresolved = (record.unresolved ?? []).filter((value) => !cutSpecifiers.has(value));
   const holes: string[] = [];
 
-  for (const entry of diff.plus ?? []) {
-    const addition = typeof entry === 'string' ? { value: entry } : entry;
-    const to = target(addition.value);
+  for (const value of diff.plus ?? []) {
+    const to = target(value);
     if (to === undefined) {
-      unresolved.push(addition.value);
-      const request = requestOf(addition.value);
-      if (request !== undefined && isRelative(request)) holes.push(addition.value);
+      unresolved.push(value);
+      const request = requestOf(value);
+      if (request !== undefined && isRelative(request)) holes.push(value);
       continue;
     }
-    edges.push({ to, kind: kindFor(addition.kind ?? 'imports', to) });
+    // The target says what it is: a stylesheet is an asset however it was named.
+    edges.push({ to, kind: kindFor('imports', to) });
   }
 
   const reasons = [

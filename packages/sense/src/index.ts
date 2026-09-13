@@ -47,7 +47,6 @@ export {
   taintFile,
   taintRecords,
   taintTable,
-  type Addition,
   type ImportDiff,
   type Taint,
   type TaintOptions,
