@@ -133,4 +133,6 @@ result.
 the boundary where that reading stops. [Metrics](metrics.md) defines the
 numerator, denominator, and population for reported measurements.
 [Architecture](architecture.md) describes the package boundaries after the
-reader already knows which answer they need.
+reader already knows which answer they need. [What a run costs](performance.md)
+gives the timings on a repository this project did not write, and
+[where the native code is](native-code.md) says which of them a rewrite reaches.

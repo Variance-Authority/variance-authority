@@ -53,6 +53,8 @@ their transpilers to compiled code, which means the transform is exactly that
 shape, and the threshold that matters there is not a number of milliseconds but a
 share of what the runner around it spends.
 
+The timings behind all of this are on one page: [what a run costs](performance.md).
+
 So the position is narrower than *rewrite it in Rust* and narrower than *don't*:
 compiled code where the crossing is cheap and the work is bulk, JavaScript where
 the crossing is the work and the rules change with the product. Both halves are
