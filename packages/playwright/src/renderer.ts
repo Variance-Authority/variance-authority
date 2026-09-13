@@ -266,8 +266,12 @@ export async function createPlaywrightRenderer(
 
           if (box === null) {
             throw new Error(
-              `subject root has no box in the rendered document (${document.subject.id}); ` +
-                'the document assembled to something that lays out to nothing',
+              `subject "${document.subject.id}" occupies no pixels in the rendered ` +
+                'document; it has no box, or a box with a zero side, and an image of ' +
+                'no pixels is not something a later run can be compared against. ' +
+                'The subject is a component that rendered nothing here — its only ' +
+                'child went to a portal, or it was captured before its content ' +
+                'mounted, or the styling that gave it a size was not in the capture.',
             );
           }
 

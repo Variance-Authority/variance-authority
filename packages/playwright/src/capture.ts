@@ -59,24 +59,43 @@ import { SUBJECT_PATH } from '@variance-authority/raster';
  *
  * The box is returned rather than left to the caller because the fast path needs
  * it first, and reading it twice would be two protocol round trips for one fact.
- * A null box — a subject that laid out to nothing — is handed to the element
- * path, which already has the wording for it.
+ *
+ * A subject that occupies no pixels comes back with no bytes and no box, and
+ * neither path is asked for a screenshot of it. Both refuse, in their own words
+ * and about their own internals: the clip path with `Expected options.clip.height
+ * to be greater than 0` and the element path with a visibility complaint. Those
+ * sentences describe a rectangle argument, and the reader has a component that
+ * rendered nothing — a wrapper whose only child went to a portal, a fixture
+ * captured before its content mounted. Naming that is the caller's job, and the
+ * caller is the one holding the subject id.
  */
 export async function captureSubject(
   page: Page,
   viewport: Viewport,
   options: ScreenshotOptions & { readonly type: 'png' },
-): Promise<{ bytes: Buffer; box: Box | null }> {
+): Promise<SubjectCapture> {
   const selector = `[data-va-path="${SUBJECT_PATH}"]`;
   const subject = page.locator(selector);
   const box = await subject.boundingBox();
 
-  if (box !== null && within(box, viewport) && (await page.evaluate(probeAxisAligned, selector))) {
+  if (box === null || box.width === 0 || box.height === 0) return { bytes: null, box: null };
+
+  if (within(box, viewport) && (await page.evaluate(probeAxisAligned, selector))) {
     return { bytes: await page.screenshot({ ...options, clip: outward(box) }), box };
   }
 
   return { bytes: await subject.screenshot(options), box };
 }
+
+/**
+ * A subject's pixels, or the fact that it has none.
+ *
+ * One nullable field would let a caller read the bytes of a subject that was
+ * never photographed. Two, moving together, do not.
+ */
+export type SubjectCapture =
+  | { readonly bytes: Buffer; readonly box: Box }
+  | { readonly bytes: null; readonly box: null };
 
 /** A rectangle as Playwright reports it, in CSS pixels relative to the viewport. */
 export interface Box {

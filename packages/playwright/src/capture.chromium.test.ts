@@ -79,7 +79,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('captureSubject', () => {
     // version of this measurement fooled itself.
     await page.setContent(html);
     const { bytes } = await captureSubject(page, VIEWPORT, SHOT);
-    return { fast: bytes, slow: await incumbent(html) };
+    return { fast: bytes!, slow: await incumbent(html) };
   };
 
   it.each([
@@ -113,23 +113,25 @@ describe.skipIf(!BROWSER_AVAILABLE)('captureSubject', () => {
   });
 
   /**
-   * Not asserted through `captureSubject`, deliberately.
+   * A subject with no pixels is decided here rather than left to a screenshot.
    *
-   * A subject that lays out to nothing reaches the element path, and
-   * `locator.screenshot()` then spends Playwright's own 30-second actionability
-   * timeout waiting for it to become visible before throwing. That is what the
-   * renderer did before this module existed and what it does now, but it makes a
-   * poor unit test: it would be the slowest case in the suite and it would be
-   * asserting Playwright's timeout rather than anything here. What this module
-   * promises about it is only that it does not decide — the null box goes to the
-   * incumbent path untouched.
+   * Both paths refuse it, and both refuse it slowly and in their own terms: the
+   * clip path complains about `options.clip.height`, and `locator.screenshot()`
+   * spends Playwright's full 30-second actionability timeout waiting for the
+   * element to become visible first. The renderer names the subject instead, and
+   * it can only do that if nothing has already thrown.
    */
-  it('reports a null box for a subject that lays out to nothing', async () => {
-    await page.setContent(
-      '<!doctype html><div id="s" data-va-path="0" style="display:none">gone</div>',
-    );
-    expect(await page.locator('[data-va-path="0"]').boundingBox()).toBeNull();
-  });
+  it.each([
+    ['display:none, which has no box at all', 'display:none'],
+    ['a zero height, which has a box with no area', 'width:420px;height:0'],
+    ['a zero width', 'width:0;height:300px'],
+  ])('returns no bytes and no box: %s', async (_name, style) => {
+    // Written out rather than through `document_`, whose subject has a border
+    // and `box-sizing: border-box` — which floors its height at the border box
+    // and makes a zero side unreachable.
+    await page.setContent(`<!doctype html><div data-va-path="0" style="${style}">s</div>`);
+    expect(await captureSubject(page, VIEWPORT, SHOT)).toEqual({ bytes: null, box: null });
+  }, 10_000);
 });
 
 describe('outward', () => {
