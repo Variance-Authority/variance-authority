@@ -337,7 +337,10 @@ export async function observeLocator(
       ...(source === undefined ? {} : { source }),
       stabilization: held.stabilization.ids,
     };
-    const observation = await observeCaptureAgainstBaseline(artifact, key, { store });
+    const observation = await observeCaptureAgainstBaseline(artifact, key, {
+      store,
+      ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
+    });
     if (run.accepting === true && observation.verdict !== 'unchanged') {
       await store.put(key, {
         ...candidate,
@@ -389,6 +392,7 @@ export async function observeLocator(
     snapshot,
     accessibility,
     ...(source !== undefined ? { source } : {}),
+    ...(options.sensitivity === undefined ? {} : { sensitivity: options.sensitivity }),
   });
 
   if (run.accepting === true && observation.verdict !== 'unchanged') {

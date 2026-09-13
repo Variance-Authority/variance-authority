@@ -191,6 +191,7 @@ accessibility field means the boundary was not observed.
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
 | `wiring` | The subtree is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
+| `sensitivity` | This subject is not asserted on in full — a themed embed, a route under an active rebrand. | Undeclared: everything is asserted on. Takes the rule that applies here, already matched: `{ rule, reason, level }`. A level absorbs the bands it names however large they are, and the verdict is `ignored` with the rule's id in it — which is why it is not a threshold. |
 
 ### `createVariance(page, within, options)`
 

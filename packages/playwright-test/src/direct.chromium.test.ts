@@ -178,6 +178,65 @@ chromium_('the additive Playwright path', () => {
     }
   }, 60_000);
 
+  it('absorbs a band the subject is not asserted on, and says whose declaration did it', async () => {
+    // What a threshold is usually reached for, done by name. The recolour below
+    // repaints the whole subject -- no threshold small enough to be safe would
+    // absorb it -- and `layout` absorbs it because `token` is not a band this
+    // subject is asserted on. A move would still be reported.
+    const materialization = {
+      kind: 'in-place',
+      browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+    } as const;
+    const relaxed = {
+      rule: 'design-system-rebrand',
+      reason: "palette is the design system's to change; this route asserts it still assembles",
+      level: 'layout',
+    } as const;
+
+    const own = await browser!.newPage({ viewport: { width: 800, height: 600 } });
+    try {
+      await own.setContent(
+        '<main><section id="relaxed" style="background:#fff"><h1>Cart</h1><p>Empty</p></section></main>',
+      );
+      const seeding = await createVariance(own, info('all'), { baselines, materialization });
+      try {
+        const first = await seeding.observe(own.locator('#relaxed'), {
+          subjectId: 'cart/relaxed',
+          sensitivity: relaxed,
+        });
+        expect(first.verdict).toBe('unchanged');
+      } finally {
+        await seeding.close();
+      }
+
+      await own.setContent(
+        '<main><section id="relaxed" style="background:#2e7d32;color:#fff"><h1>Cart</h1><p>Empty</p></section></main>',
+      );
+      const session = await createVariance(own, info('none'), { baselines, materialization });
+      try {
+        const declared = await session.observe(own.locator('#relaxed'), {
+          subjectId: 'cart/relaxed',
+          sensitivity: relaxed,
+        });
+        // `ignored`, not `unchanged`: green, and still countable as green
+        // because nobody looked.
+        expect(declared.verdict).toBe('ignored');
+        expect(declared.because).toContain('design-system-rebrand');
+        expect(declared.because).toContain('token');
+        expect(declared.relaxed?.bands).toContain('token');
+
+        const strict = await session.observe(own.locator('#relaxed'), {
+          subjectId: 'cart/relaxed',
+        });
+        expect(strict.verdict).toBe('changed');
+      } finally {
+        await session.close();
+      }
+    } finally {
+      await own.close();
+    }
+  }, 60_000);
+
   it('refuses an in-place image that changes between stability reads', async () => {
     const target = page!.locator('#cart');
     let screenshots = 0;

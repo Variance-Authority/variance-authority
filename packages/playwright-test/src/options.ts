@@ -1,4 +1,5 @@
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import type { Level } from '@variance-authority/core/judge';
 import type { SubjectRef } from '@variance-authority/core/format';
 
 /**
@@ -76,6 +77,27 @@ export interface VarianceOptions {
    * a subject against a differently-read baseline.
    */
   readonly holdings?: boolean;
+
+  /**
+   * How much of this subject is being asserted on, when it has been relaxed.
+   *
+   * The rule that applies *here*, already matched — scoping is a question about
+   * subject ids and tags, and a test knows its own subject. A suite that scopes
+   * by pattern matches the rule itself and passes the one that won.
+   *
+   * This is what a threshold is usually reached for and is not one. A threshold
+   * absorbs anything small enough, including the one-pixel shift that is the
+   * regression; a level absorbs exactly the bands it names, however large they
+   * are, and the observation says which bands it absorbed and under whose id. A
+   * subject left undeclared asserts on everything.
+   */
+  readonly sensitivity?: {
+    /** Stable name. Appears in the verdict and in every count this rule produces. */
+    readonly rule: string;
+    /** Why this subject is not asserted on in full. Required, as an ignore's is. */
+    readonly reason: string;
+    readonly level: Level;
+  };
 }
 
 export interface InPlaceCaptureOptions {
