@@ -2,7 +2,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Observation } from '@variance-authority/observe';
 import { decode, diffImage } from '@variance-authority/png';
-import type { BaselineKey, Raster, RasterStore } from '@variance-authority/raster';
+import type { Raster } from '@variance-authority/core/format';
+import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 
 /**
  * Where the three images a person looks at were written.

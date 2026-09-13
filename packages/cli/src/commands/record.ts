@@ -7,6 +7,7 @@ import {
   type RankedRegion,
   type SourceIndex,
 } from '@variance-authority/core/attribute';
+import { mergeDiagnostics } from '@variance-authority/core/format';
 import type { Diagnostic, SemanticSnapshot } from '@variance-authority/core/format';
 import { findingMark, inspect } from '@variance-authority/core/judge';
 import type { Observation } from '@variance-authority/observe';
@@ -80,7 +81,9 @@ export function recordOf(
   // The collector's complaints and the comparison's own, in one list. A reader
   // asks "what is wrong with this subject" once, and a field that answered half
   // the question would send them looking for the other half.
-  const diagnostics = [...(options.diagnostics ?? []), ...(observation.diagnostics ?? [])];
+  // Deduped: the comparison now carries the snapshot's own, so a caller that
+  // also passes the document's would say a shared complaint twice.
+  const diagnostics = mergeDiagnostics(options.diagnostics, observation.diagnostics);
 
   return {
     subject: observation.subject,
@@ -331,22 +334,7 @@ export function qualification(diagnostics: readonly Diagnostic[]): string {
 export function diagnosticsOf(
   collected: Extract<Collected, { ok: true }>,
 ): readonly Diagnostic[] {
-  const byIdentity = new Map<string, Diagnostic>();
-
-  for (const diagnostic of [
-    ...collected.document.diagnostics,
-    ...(collected.snapshot?.diagnostics ?? []),
-  ]) {
-    const key = JSON.stringify([
-      diagnostic.severity,
-      diagnostic.code,
-      diagnostic.message,
-      diagnostic.nodePath ?? null,
-    ]);
-    if (!byIdentity.has(key)) byIdentity.set(key, diagnostic);
-  }
-
-  return [...byIdentity.values()];
+  return mergeDiagnostics(collected.document.diagnostics, collected.snapshot?.diagnostics);
 }
 
 function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecord {

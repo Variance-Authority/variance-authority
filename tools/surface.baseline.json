@@ -275,6 +275,7 @@
         "interventionById": "function",
         "jsxSourceOf": "function",
         "keyedByPosition": "function",
+        "mergeDiagnostics": "function",
         "pinAnimations": "const",
         "pointerShape": "function",
         "pointerToken": "function",

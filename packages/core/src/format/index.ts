@@ -88,6 +88,7 @@ export type {
   SubjectRef,
   Diagnostic,
 } from './capture.js';
+export { mergeDiagnostics } from './capture.js';
 
 export type {
   SemanticSnapshot,

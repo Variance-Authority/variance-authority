@@ -149,3 +149,27 @@ describe('independent document, pixel and browser accessibility signals', () => 
     });
   });
 });
+
+describe("the collector's complaints reach the observation", () => {
+  it('carries what the snapshot said about this subject, beside what the comparison found', async () => {
+    // Produced at collection, merged by `recordOf` for the CLI, and dropped for
+    // every caller driving this from its own runner -- which is the path a suite
+    // migrating onto the library takes. A subject whose typeface the host chose
+    // says so exactly once, at collection.
+    const aria = accessibilitySnapshot(IDENTITY.engine, ['- main']);
+    const before = raster('doc', image(0), aria);
+    const observation = await observeRasters('cart/total', before, before, {
+      snapshot: {
+        snapshotVersion: 1,
+        root: { path: '/', tag: 'main', role: 'main', children: [] },
+        diagnostics: [
+          { severity: 'warn', code: 'host-chosen-font', message: 'the host picks the typeface' },
+        ],
+      } as never,
+    });
+
+    expect(observation.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'host-chosen-font' }),
+    );
+  });
+});

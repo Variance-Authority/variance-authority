@@ -8,12 +8,13 @@ import {
   type DiffRegion,
   type Isolation,
 } from '@variance-authority/core/attribute';
-import type { Raster } from '@variance-authority/core/format';
+import { mergeDiagnostics, type Raster } from '@variance-authority/core/format';
 import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority/core/judge';
-import type { Diagnostic, SemanticSnapshot } from '@variance-authority/core/format';
+import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
 import type { RasterComparison } from '@variance-authority/raster';
 import { attributionOf } from './attribution.js';
+import { frameDiagnostics } from './frame.js';
 import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
 
 /**
@@ -48,7 +49,16 @@ export async function decide(
 
   const attribution = attributionOf(before.components, after.components);
 
-  const diagnostics = frameDiagnostics(options.snapshot, after);
+  // The collector's complaints travel with the snapshot, and this is the only
+  // place a library caller meets them: `recordOf` merges them for the CLI, and a
+  // suite driving this from its own runner has no record. A subject whose
+  // typeface the host chose said so at collection and the observation said
+  // nothing -- the one finding that explained the moved pixels was produced,
+  // carried, and dropped one call short of the person who needed it.
+  const diagnostics = mergeDiagnostics(
+    options.snapshot?.diagnostics,
+    frameDiagnostics(options.snapshot, after),
+  );
   const diagnosticsField = diagnostics.length === 0 ? {} : { diagnostics };
 
   // Excluded subtrees travel *on the snapshot*, so the raster tier needs no
@@ -356,57 +366,6 @@ export function declaredIgnores(
   for (const site of sites) byRule[site.rule] = 0;
 
   return { pixels: 0, boxes: excludedBoxes(snapshot, { scale }).length, inert: 0, byRule };
-}
-
-/**
- * Whether the page that was photographed is the page that was acquired.
- *
- * Every coordinate in this file's output is converted from device pixels in the
- * *image* into CSS pixels in the *snapshot*, using a scale and an origin. That
- * conversion is only meaningful if the two describe one layout — and nothing
- * checked. Measured on `cases/storybook-case`: the acquired subject is 147.33 CSS
- * pixels wide and the image painted is 1024 device pixels at scale 1. The
- * baseline is a photograph of a layout that exists in no browser, and every
- * region coordinate below was converted through a width the image does not have.
- *
- * It still attributed correctly there, which is exactly why this is worth a
- * field: the failure is silent, it produces a complete and confident report, and
- * the first layout it will get wrong is any subject that is centred or
- * shrink-to-fit — where the horizontal offset the two spaces disagree by is not
- * zero.
- *
- * `warn`, never `error`. `exit.ts` states the rule: a gate that is red on every
- * run of a correctly configured suite is a gate that gets switched off, and this
- * fires on eight of eight subjects of the flagship case until the acquisition is
- * fixed. It is an alarm to act on, not a verdict about anybody's components.
- */
-function frameDiagnostics(
-  snapshot: SemanticSnapshot | undefined,
-  after: { readonly width: number; readonly height: number; readonly identity: { readonly deviceScaleFactor: number } },
-): readonly Diagnostic[] {
-  const rect = snapshot?.root.rect;
-  if (rect === undefined) return [];
-
-  const scale = after.identity.deviceScaleFactor;
-  const painted = { width: after.width / scale, height: after.height / scale };
-
-  // Half a CSS pixel. Sub-pixel disagreement is rounding between a
-  // `getBoundingClientRect` and an integer raster; a whole pixel is a layout.
-  const wide = Math.abs(painted.width - rect.width) > 0.5;
-  const tall = Math.abs(painted.height - rect.height) > 0.5;
-  if (!wide && !tall) return [];
-
-  return [
-    {
-      severity: 'warn',
-      code: 'subject-size-diverged',
-      message:
-        `the acquired subject is ${rect.width}×${rect.height} CSS pixels and the image painted ` +
-        `is ${painted.width}×${painted.height}; the two are not the same layout, so every ` +
-        'region coordinate in this observation was converted through a size the image does ' +
-        'not have. Attribution may name a neighbouring component and will not say so',
-    },
-  ];
 }
 
 /**

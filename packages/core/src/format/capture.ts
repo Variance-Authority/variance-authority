@@ -235,3 +235,35 @@ export interface Diagnostic {
   readonly message: string;
   readonly nodePath?: string;
 }
+
+/**
+ * One list from several, with a diagnostic said once however many times it was
+ * found.
+ *
+ * A subject is described by a document, a snapshot and a comparison, and the
+ * same condition is visible to more than one of them -- a missing font is in the
+ * document that declared it and in the snapshot that measured it. A reader asks
+ * "what is wrong with this subject" once, and a list that answers twice reads as
+ * two findings.
+ *
+ * Identity is every field, `nodePath` included: the same code on two nodes is
+ * two facts, and collapsing them would report one element where the page has a
+ * dozen.
+ */
+export function mergeDiagnostics(
+  ...lists: readonly (readonly Diagnostic[] | undefined)[]
+): readonly Diagnostic[] {
+  const byIdentity = new Map<string, Diagnostic>();
+  for (const list of lists) {
+    for (const diagnostic of list ?? []) {
+      const key = JSON.stringify([
+        diagnostic.severity,
+        diagnostic.code,
+        diagnostic.message,
+        diagnostic.nodePath ?? null,
+      ]);
+      if (!byIdentity.has(key)) byIdentity.set(key, diagnostic);
+    }
+  }
+  return [...byIdentity.values()];
+}
