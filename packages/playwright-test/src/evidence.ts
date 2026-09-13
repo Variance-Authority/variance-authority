@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Observation } from '@variance-authority/observe';
 import { decode, diffImage } from '@variance-authority/png';
-import type { Raster } from '@variance-authority/core/format';
+import { fileNameFor, type Raster } from '@variance-authority/core/format';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 
 /**
@@ -64,7 +64,7 @@ export async function writeEvidence(
   if (!worthLooking(observation.verdict)) return undefined;
 
   await mkdir(directory, { recursive: true });
-  const base = join(directory, encodeURIComponent(key.subject));
+  const base = join(directory, fileNameFor(key.subject));
   const after = `${base}.after.png`;
   const afterBytes = decode(candidate.bytes);
   await writeFile(after, afterBytes);

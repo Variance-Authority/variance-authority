@@ -1,5 +1,6 @@
 import { link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { fileNameFor } from '@variance-authority/core/format';
 import { createEyesArchive, type EyesArchive, type EyesTestAttention } from './access.js';
 import { parseEyesArchive } from './archive.js';
 
@@ -44,7 +45,7 @@ export async function recordEyesTest(
   const archive = createEyesArchive([test]);
   await mkdir(directory, { recursive: true });
 
-  const path = join(directory, `${encodeURIComponent(test.id)}${EYES_JOURNAL_SUFFIX}`);
+  const path = join(directory, `${fileNameFor(test.id)}${EYES_JOURNAL_SUFFIX}`);
   const temporary = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
   await writeFile(temporary, `${JSON.stringify(archive, null, 2)}\n`, 'utf8');
   try {

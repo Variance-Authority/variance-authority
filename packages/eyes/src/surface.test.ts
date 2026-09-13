@@ -16,7 +16,10 @@ describe('Eyes entrypoints', () => {
       peerDependenciesMeta: Record<string, { optional?: boolean }>;
     };
 
-    expect(Object.keys(manifest.dependencies)).toEqual(['@variance-authority/react']);
+    expect(Object.keys(manifest.dependencies)).toEqual([
+      '@variance-authority/core',
+      '@variance-authority/react',
+    ]);
     expect(manifest.peerDependenciesMeta).toMatchObject({
       '@playwright/test': { optional: true },
       '@testing-library/dom': { optional: true },

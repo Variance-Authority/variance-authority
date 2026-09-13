@@ -2,6 +2,7 @@ import { dirname, join, relative } from 'node:path';
 import { hashComponents } from '@variance-authority/core/attribute';
 import {
   documentDigest,
+  fileNameFor,
   type Raster,
   type RenderDocument,
   type SemanticSnapshot,
@@ -99,7 +100,7 @@ export async function images(
     // snapshot; every layer downstream of here already carries it.
   };
 
-  const base = join(config.images, encodeURIComponent(id));
+  const base = join(config.images, fileNameFor(id));
   const reportDir = dirname(config.report);
 
   await deps.writeArtifact(`${base}.after.png`, decode(raster.bytes));
