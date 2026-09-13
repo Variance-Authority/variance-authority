@@ -15,6 +15,7 @@ import type {
   RawCapture,
   RenderDocument,
   SubjectRef,
+  Tier,
   Viewport,
 } from '@variance-authority/core/format';
 
@@ -69,6 +70,18 @@ export interface AcquireRequest {
    * not survive the trip; the page holds the same registry and resolves them.
    */
   readonly stabilize?: readonly string[];
+
+  /**
+   * `'raster'` when this reading is followed by a screenshot of the same live
+   * document, so the recipe's raster-tier holds are worth installing.
+   *
+   * A collection is charged for the rung it stands on, and `tierOfProfile` caps
+   * that at `layout` because pixels are not what a reading produces. In-place
+   * capture is the exception: the screenshot is taken off this very document,
+   * moments after this call, and the caret it would photograph is held by this
+   * call's sheet or by nothing at all.
+   */
+  readonly tier?: Tier;
 
   /**
    * How long to wait for the subject's Suspense boundaries, in milliseconds.
@@ -131,10 +144,10 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   // `transform` and `opacity`, both of which the semantic representation
   // carries — so an unstabilized collection reports a fade as a regression with
   // a component and a file attached. See `docs/stabilization.md`.
-  const held = await stabilizeForObservation(
-    root.ownerDocument,
-    request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) },
-  );
+  const held = await stabilizeForObservation(root.ownerDocument, {
+    ...(request.stabilize === undefined ? {} : { recipe: recipeOf(request.stabilize) }),
+    ...(request.tier === undefined ? {} : { tier: request.tier }),
+  });
 
   const shared = {
     subject: request.subject,

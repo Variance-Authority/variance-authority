@@ -96,7 +96,7 @@ The options that make a capture applicable are supplied by the host:
 |---|---|
 | `collect` / `acquireDocument` | `subject`, `viewport`, and `engine` identify the reading; `features` supplies media conditions, `inherited` supplies declarations from ancestors outside the root, and `index` reuses a stylesheet index for a standing document |
 | `collect` | `wiringOf` adds framework wiring and `holdingOf` adds what each component was handed and what it retained, while `stabilization` records the intervention recipe already applied; none of the three is inferred from markup |
-| `stabilizeForObservation` | `recipe` selects the intervention list; the default is profile-specific `COLLECT_RECIPE`, and the returned digest records what was applied |
+| `stabilizeForObservation` | `recipe` selects the intervention list; the default is profile-specific `COLLECT_RECIPE`, and the returned digest records what was applied. `tier` is for the one caller that screenshots the document it just read — it installs the raster-tier holds, such as the caret, that a reading alone is not charged for |
 | `attributeProvenance` | `component`, `createdBy`, and `props` are caller-declared metadata written to a node, not guesses from a tag name |
 | `resolveIgnores` | `selectors` names the excluded places and `markers` controls `data-variance-ignore` handling |
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { diffSnapshots } from '@variance-authority/core/compare';
-import { JSDOM_PROFILE, type Viewport } from '@variance-authority/core/format';
+import { CHROMIUM_PROFILE, JSDOM_PROFILE, type Viewport } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import { collect } from './collect.js';
 import { indexStyleSheets } from './css-index.js';
@@ -285,6 +285,36 @@ describe('profile detection', () => {
 
     expect(stabilized.ids).toEqual([]);
     expect(stabilized.digest).toBeUndefined();
+    stabilized.release();
+  });
+
+  it('installs the caret hold when the reading is followed by a screenshot of it', async () => {
+    // `tierOfProfile` caps a collection at `layout` on purpose, which filters
+    // `hide-caret` out of `COLLECT_RECIPE` for every caller — including the one
+    // that photographs this very document moments later. `tier` is how that
+    // caller says so.
+    const reading = await stabilizeForObservation(document, { profile: CHROMIUM_PROFILE });
+    expect(reading.ids).not.toContain('hide-caret');
+    reading.release();
+
+    const photographed = await stabilizeForObservation(document, {
+      profile: CHROMIUM_PROFILE,
+      tier: 'raster',
+    });
+    expect(photographed.ids).toContain('hide-caret');
+    photographed.release();
+  });
+
+  it('never lets a caller claim a rung the host cannot observe', async () => {
+    // A rung is a claim about the machine. jsdom photographs nothing, so asking
+    // it for `raster` gets jsdom's answer rather than an intervention that would
+    // silently move every baseline this host writes.
+    const stabilized = await stabilizeForObservation(document, {
+      profile: JSDOM_PROFILE,
+      tier: 'raster',
+    });
+
+    expect(stabilized.ids).not.toContain('hide-caret');
     stabilized.release();
   });
 

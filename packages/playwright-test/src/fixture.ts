@@ -284,8 +284,14 @@ export async function observeLocator(
     kind: options.subjectKind ?? 'route',
   };
 
+  // Read before the request is built: in-place capture photographs this very
+  // document, so its acquisition is the only one whose sheet has to hold a caret
+  // still. See `AcquireRequest.tier`.
+  const materialization = runtime.materialization ?? { kind: 'deferred' };
+
   const request: AcquireRequest = {
     subject,
+    ...(materialization.kind === 'in-place' ? { tier: 'raster' as const } : {}),
     viewport: viewportOf(page.viewportSize(), run),
     engine: engineOf(page),
     ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
@@ -315,7 +321,6 @@ export async function observeLocator(
   if (unsettled !== undefined) throw new Error(unsettled);
   const snapshot: SemanticSnapshot = normalize(capture);
   const key: BaselineKey = { subject: subject.id };
-  const materialization = runtime.materialization ?? { kind: 'deferred' };
 
   if (materialization.kind === 'in-place') {
     const { held, snapshot: heldSnapshot, raster: candidate } = await settledCapture(

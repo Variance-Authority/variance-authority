@@ -5,10 +5,12 @@ import {
   recipeDigest,
   settleRecipe,
   tierOfProfile,
+  tierReaches,
   type Digest,
   type ObservationProfile,
   type Recipe,
   type SettleTarget,
+  type Tier,
 } from '@variance-authority/core/format';
 import { detectProfile } from './profile.js';
 
@@ -81,6 +83,30 @@ export interface StabilizeOptions {
 
   /** Defaults to whichever profile the host can support. */
   readonly profile?: ObservationProfile;
+
+  /**
+   * The rung this *reading* stands on, when it is higher than the profile's.
+   *
+   * {@link tierOfProfile} caps at `layout` on purpose: a collection is a
+   * reading, and a machine that could photograph is not a reason to charge a
+   * reading for a caret nobody is going to photograph. That reasoning holds for
+   * every collection taken on its own — and fails for exactly one caller, the
+   * in-place capture path, which reads the subject and then screenshots *the
+   * same live document*. There the caret will be photographed, by this reading's
+   * own sheet, moments later.
+   *
+   * Without this, `hideCaret` sits in {@link COLLECT_RECIPE} and is filtered out
+   * of every call: a focused text input is photographed with its caret blinking,
+   * and a suite sees a one-pixel column appear and disappear across runs with no
+   * component and no cause attached to it. The raster path meanwhile declines to
+   * ask the driver to hide the caret, on the stated grounds that this sheet
+   * already governs it.
+   *
+   * Never raises what the profile can observe — jsdom asking for `raster` still
+   * gets jsdom's tier — because a rung is a claim about the host and this is a
+   * claim about the reading.
+   */
+  readonly tier?: Tier;
 }
 
 /**
@@ -102,7 +128,19 @@ export async function stabilizeForObservation(
 ): Promise<Stabilized> {
   const view = document.defaultView;
   const profile = options.profile ?? detectProfile(view);
-  const recipe = forTier(options.recipe ?? COLLECT_RECIPE, tierOfProfile(profile));
+  // The reading may stand higher than `tierOfProfile` charges a collection for,
+  // but never higher than the host can observe, and never lower than it already
+  // stands: a caller asking for less is asking this document to be held less
+  // still than the profile says it can be, which is a preference, not a fact
+  // about the reading.
+  const available = tierOfProfile(profile);
+  const ceiling: Tier = profile.raster ? 'raster' : available;
+  const asked = options.tier;
+  const tier =
+    asked !== undefined && tierReaches(ceiling, asked) && tierReaches(asked, available)
+      ? asked
+      : available;
+  const recipe = forTier(options.recipe ?? COLLECT_RECIPE, tier);
 
   if (recipe.length === 0) {
     return { ids: [], digest: undefined, release: () => undefined };
