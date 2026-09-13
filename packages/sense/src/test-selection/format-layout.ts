@@ -22,8 +22,15 @@ export const MODEL = 3;
  * is not one a reader of the previous layout can map. It moved again when those
  * runs became zstd rather than brotli: the run tag would have said so, but a
  * header that answers first turns an unreadable byte into a stated version.
+ *
+ * And again for the two sections that hold what loaded a region before its
+ * test began. A reader that finds them missing fails where it addresses them,
+ * with the sentence it keeps for bytes that are not ours — so a snapshot one
+ * release older reads as corrupt rather than as old. Adding a section is
+ * therefore a move of this number, even though every section that was there
+ * still means what it did.
  */
-export const FORMAT = 5;
+export const FORMAT = 6;
 
 const ALIGNMENT = 8;
 export const NO_OWNER = 0xffff_ffff;
