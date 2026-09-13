@@ -498,8 +498,8 @@ on the graph's path and was not on the run's. `distanceFromView` is the same
 reading over a snapshot already open, and `nearestFirst` is the comparison both
 sort by.
 
-Each `TestDistance` carries a `bearing`, and three of the six are not distances
-at all. `precondition` is *the change is this test's own source*, which is zero
+Each `TestDistance` carries a `bearing`. Four of the six carry a hop count and
+two carry none. `precondition` is *the change is this test's own source*, which is zero
 and is the only zero there is. `direct` and `transitive` are one hop and more,
 every hop of them landing on a module's public face. `reach-through` is a hop
 that landed **inside** a unit instead — the change travelled past an interface

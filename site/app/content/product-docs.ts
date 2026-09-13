@@ -10,6 +10,7 @@ import cases from "../../../docs/cases.md?raw";
 import changelog from "../../../docs/changelog.md?raw";
 import comparison from "../../../docs/comparison.md?raw";
 import composition from "../../../docs/composition.md?raw";
+import distance from "../../../docs/distance.md?raw";
 import eyes from "../../../docs/eyes.md?raw";
 import flakiness from "../../../docs/flakiness.md?raw";
 import flows from "../../../docs/flows.md?raw";
@@ -87,6 +88,7 @@ const documents = [
   ["parting", parting, "docs/parting.md"],
   ["source", source, "docs/source.md"],
   ["selecting", selecting, "docs/selecting.md"],
+  ["distance", distance, "docs/distance.md"],
   ["source-index", sourceIndex, "docs/source-index.md"],
   ["source-structures", sourceStructures, "docs/source-structures.md"],
   ["execution-record", executionRecord, "docs/execution-record.md"],

@@ -367,7 +367,9 @@ second run onward.
 
 ---
 
-**Further:** [`flows.md`](flows.md) for where baselines live ·
+**Further:** [`distance.md`](distance.md) for how far the change travelled to
+each selected test, and the bands that reading cuts the run into ·
+[`flows.md`](flows.md) for where baselines live ·
 [`source.md`](source.md) for how the scan reads a file, resolves a specifier and
 remembers both ·
 [`execution-record.md`](execution-record.md) for the keys, lookups, traces

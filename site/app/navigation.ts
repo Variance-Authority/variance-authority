@@ -151,6 +151,11 @@ export const NAVIGATION = [
         cluster: "Run less",
       },
       {
+        href: "/docs/distance",
+        label: "Run the nearest tests first",
+        cluster: "Run less",
+      },
+      {
         href: "/docs/source-index",
         label: "Reuse the source index",
         cluster: "Run less",
