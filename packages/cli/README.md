@@ -771,9 +771,17 @@ acceptance is a command that can record something nobody looked at.
 A file the operator wrote. Nothing is inferred from the network and nothing is
 downloaded, so the run's inputs are the ones in the repository.
 
+`$schema` is the one key that configures nothing. It points at
+`schema/variance.config.schema.json`, shipped in this package, which describes
+every key a config may carry, the values each one accepts and what it decides.
+An editor reads it for completion and an in-place refusal; an agent reading the
+repository gets the same answers without running anything. The parser accepts the
+line and ignores its value, so a wrong path costs completion and never a run.
+
 ```jsonc
 // variance.config.json
 {
+  "$schema": "./node_modules/@variance-authority/cli/schema/variance.config.schema.json",
   "project": "todomvc",
   "profile": "chromium",
   "viewport": { "width": 1280, "height": 800 },

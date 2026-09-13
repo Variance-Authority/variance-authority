@@ -128,6 +128,17 @@ what is reached only through such a file goes with it. `movedBy` names the files
 it left out this way in `shadowed`. The records themselves are not cut, so a
 file no taint adds to comes back as the same object.
 
+An addition can name a file outside the directories the scan walked. That file
+comes back as a record of its own, carrying `unknown` rather than an empty edge
+list: nobody read it, so its imports are unavailable and it widens a selection
+instead of narrowing one. Point the scan at its directory to have it read.
+
+Every shadow and every addition keeps the name of whoever said it.
+`tainted.shadowedBy` is the file, the file it never reaches, and the taints that
+named it; `tainted.addedBy` is the same for additions. Two taints that shadow
+one module are both credited, so a test left out of a selection can be traced to
+a hand-written table or to the mock reader.
+
 `mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls off test, spec,
 story and setup files and shadows the mocked module. Nothing is shadowed when the
 factory reaches for the real module through `importActual`, `requireActual` or
@@ -153,6 +164,19 @@ holds, the way the mock holds at runtime. The `taints` option of the CLI's
 `source` section names the tables, and its mock reader is on whenever the graph
 is.
 
+A reader opens files, and that is the cost worth removing on a repository the
+size of a monorepo. Hand `taintRecords` the `cache` the scan used — a reader's
+answer is a fact about the file's bytes, so it is kept under a digest over those
+bytes and the reader's name, and an unchanged file is answered without being
+opened or parsed a second time:
+
+```ts
+const source = await openSourceIndex('.variance/source-index.bin');
+const records = await scanRelations({ root: '.', dirs: ['src'], cache: source.cache, reuse: source.reuse });
+const tainted = await taintRecords(records, [mockTaint()], { root: '.', cache: source.cache });
+await source.save();
+```
+
 ### Hold the taints against a record
 
 A taint says what a file's run reaches; a coverage record says what it did.
@@ -175,8 +199,9 @@ entered: the taint is wrong about that mock, or the mock did not take.
 shadows and nobody entered for it: an import the run never loaded, or a mock no
 taint knows about yet. `added-but-not-entered` is an addition the record never
 saw the test in. Only an instrumented module testifies, and only a complete
-observation testifies to absence. Pass `knownAs` when the record holds a module
-under a built name.
+observation testifies to absence. Where a taint said the thing the record
+disagrees with, the deviation carries its `taints` — the table or reader to go
+and correct. Pass `knownAs` when the record holds a module under a built name.
 
 ## Entrypoints
 

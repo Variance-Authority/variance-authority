@@ -12,8 +12,8 @@
  *
  * ## A taint is a parallel table, not a patched record
  *
- * Every taint produces an {@link ImportDiff} per file: specifiers the file
- * does **not** import despite writing them, and specifiers it **does** import
+ * Every taint produces an {@link ImportDiff} per file: specifiers the file does
+ * **not** import despite writing them, and specifiers it **does** import
  * without writing them. The scan's records are left as they were read, the
  * parse cache and record cache keep what they held, and the diff is joined on
  * afterwards by file path ({@link taintRecords}). Two consequences follow. A
@@ -35,32 +35,60 @@
  * `core/relate` consults it: a file is moved by a change only when some trail
  * from the change arrives without crossing one of its shadows.
  *
- * ## Composition
+ * ## A plus the scan never walked to
+ *
+ * An addition can name a file outside the scanned directories, and then the
+ * graph gains a node nobody read. A node with no edges of its own reads as *a
+ * file that imports nothing*, and the truth is *nobody looked* — the absence
+ * the graph must never spell as an empty set
+ * ([ADR-0002](../../../../docs/context/adr/0002-observation-profiles.md)). So
+ * such a file arrives with {@link FileRecord.unknown} set, which is what the
+ * scan already does for a file it could not read: its edges are unavailable,
+ * the graph treats it as possibly depending on anything, and it widens a
+ * selection rather than narrowing one.
+ *
+ * The other honest answer — queue the file and read it — is the one this does
+ * not take, because it would make the scan's output depend on which taints were
+ * applied. The records, the parse cache and the record cache would no longer be
+ * the untainted scan, the same records could no longer be viewed under several
+ * taints at once, and the file read that way could itself carry a taint naming
+ * another unscanned file, so the join would have to run to a fixed point. A
+ * caller that wants those files read has a direct way to say so: name their
+ * directory in the scan.
+ *
+ * ## Composition, and whose word it was
  *
  * Under more than one taint the removals are unioned and so are the additions.
  * The two never contend: an edge one taint adds to a file another taint shadows
  * is an edge into a node the file's run never enters, and the shadow holds, the
- * way the mock holds at runtime.
+ * way the mock holds at runtime. The union keeps its sources — a target cut by
+ * two taints is credited to both, in {@link Tainted.shadowedBy} — because a run
+ * that leaves a test out of a selection owes the operator the name of what cut
+ * it, and a hand-written table and a mock reader are answerable in different
+ * ways.
+ *
+ * ## What a second run costs
+ *
+ * A reader's answer is a pure function of the file's bytes and the reader
+ * asking, so {@link TaintOptions.cache} holds it under a digest over both
+ * ([`cache.ts`](./cache.ts)). With one, an unchanged file costs two map lookups
+ * per reader and is neither opened nor parsed; without one, it is opened once
+ * and parsed at most once however many readers ask about it.
  */
 
 // compass: variance-authority.reach
 
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
-import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
+import type { FileRecord } from '@variance-authority/core/relate';
 import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser';
+import type { ParseCache } from '../cache.js';
+import type { Digest } from '../digest.js';
 import type { Node } from '../instrument/blocks.js';
 import { MODULE_EXTENSIONS } from '../read.js';
-import {
-  isRelative,
-  kindFor,
-  realPath,
-  requestOf,
-  resolveTo,
-  resolversFor,
-  type ResolveOptions,
-  type Resolvers,
-} from '../resolve.js';
+import { realPath, resolversFor, type ResolveOptions } from '../resolve.js';
+import { rememberDiff, rememberedDiff } from './cache.js';
+import { applied, byCodeUnit, reach, targetFrom, type Said } from './join.js';
 
 export type { Node };
 
@@ -90,7 +118,7 @@ export interface TaintSubject {
  * finds something in test files should say so.
  */
 export interface Taint {
-  /** For the report. Two taints with one name are one taint twice. */
+  /** For the report, and for the cache key. Two taints with one name are one taint twice. */
   readonly name: string;
   /** Diffs by repository-relative file path. */
   readonly diffs?: ReadonlyMap<string, ImportDiff>;
@@ -103,11 +131,25 @@ export interface Taint {
 export interface TaintOptions extends ResolveOptions {
   /** Repository root. Every path in the records is relative to it. */
   readonly root: string;
+
+  /**
+   * Where readers' answers are remembered, by file digest and taint name.
+   *
+   * The scan's parse cache serves, and sharing it is the point: one store, one
+   * save, one pruning rule. A file whose record carries no digest names no
+   * bytes and is read every time.
+   */
+  readonly cache?: ParseCache;
 }
 
-/** The records with the additions joined on, and the two tables beside them. */
+/** The records with the additions joined on, and the tables beside them. */
 export interface Tainted {
-  /** One per input, in order; a record no taint adds to is the same object. */
+  /**
+   * One per input, in order; a record no taint adds to is the same object.
+   *
+   * After them, one record per file an addition reached that the scan never
+   * walked to, each carrying `unknown` rather than an empty edge list.
+   */
   readonly records: readonly FileRecord[];
   /**
    * Per file, the resolved files its run never reaches. The table `movedBy`
@@ -117,6 +159,10 @@ export interface Tainted {
   readonly shadows: ReadonlyMap<string, readonly string[]>;
   /** Per file, the resolved files its additions reached. For the audit and the report. */
   readonly additions: ReadonlyMap<string, readonly string[]>;
+  /** Per file, per shadowed file, the taints that said so. Sorted, and unioned over taints. */
+  readonly shadowedBy: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
+  /** Per file, per added file, the taints that said so. */
+  readonly addedBy: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
 }
 
 /** The table a JSON taint file holds: a diff per file, `-` and `+` as keys. */
@@ -133,7 +179,8 @@ const TRANSFER = { experimentalRawTransfer: rawTransferSupported() } as ParserOp
  * taint adds to is the same object. An added specifier that resolves to
  * nothing lands where the scan would have put it — `unresolved`, and `unknown`
  * when it is relative, because a taint that names a path inside the repository
- * and misses is the same hole a file naming one is.
+ * and misses is the same hole a file naming one is. One that resolves to a file
+ * the scan never walked to brings that file with it, `unknown` and edgeless.
  */
 export async function taintRecords(
   records: readonly FileRecord[],
@@ -142,32 +189,50 @@ export async function taintRecords(
 ): Promise<Tainted> {
   const shadows = new Map<string, readonly string[]>();
   const additions = new Map<string, readonly string[]>();
-  if (taints.length === 0) return { records, shadows, additions };
+  const shadowedBy = new Map<string, ReadonlyMap<string, readonly string[]>>();
+  const addedBy = new Map<string, ReadonlyMap<string, readonly string[]>>();
+  if (taints.length === 0) return { records, shadows, additions, shadowedBy, addedBy };
 
   const root = realPath(resolve(options.root));
   const resolvers = resolversFor(options);
   const readers = taints.filter((taint) => taint.read !== undefined);
+  const scanned = new Set(records.map((record) => record.file));
+  const unwalked = new Set<string>();
   const joined: FileRecord[] = [];
 
   for (const record of records) {
-    const diff = await diffFor(record.file, root, taints, readers);
-    if (diff === undefined) {
+    const said = await saidOf(record, root, taints, readers, options.cache);
+    if (said === undefined) {
       joined.push(record);
       continue;
     }
     const target = targetFrom(record.file, root, resolvers);
-    const cut = resolvedOf(diff.minus, target);
-    if (cut.length > 0) shadows.set(record.file, cut);
-    if (diff.plus === undefined || diff.plus.length === 0) {
+    const cut = reach(said.minus, target);
+    if (cut.targets.length > 0) {
+      shadows.set(record.file, cut.targets);
+      shadowedBy.set(record.file, cut.by);
+    }
+    if (said.plus.size === 0) {
       joined.push(record);
       continue;
     }
-    const added = applied(record, diff.plus, target);
-    joined.push(added.record);
-    if (added.reached.length > 0) additions.set(record.file, added.reached);
+    const added = reach(said.plus, target);
+    joined.push(applied(record, added));
+    if (added.targets.length > 0) {
+      additions.set(record.file, added.targets);
+      addedBy.set(record.file, added.by);
+      for (const to of added.targets) if (!scanned.has(to)) unwalked.add(to);
+    }
   }
 
-  return { records: joined, shadows, additions };
+  for (const file of [...unwalked].sort(byCodeUnit)) {
+    joined.push({
+      file,
+      unknown: `${file} is named by a taint addition and is outside the scanned directories: nothing read it, so its own imports are unknown`,
+    });
+  }
+
+  return { records: joined, shadows, additions, shadowedBy, addedBy };
 }
 
 /** A taint from a table already in memory. */
@@ -201,35 +266,69 @@ export async function taintFile(path: string): Promise<Taint> {
   return taintTable(path, parsed as TaintTable);
 }
 
-/** Every taint's diff for one file, composed, or nothing when no taint has one. */
-async function diffFor(
-  file: string,
+/** Every specifier every taint named for one file, each with the taints that named it. */
+interface Sides {
+  readonly minus: Said;
+  readonly plus: Said;
+}
+
+async function saidOf(
+  record: FileRecord,
   root: string,
   taints: readonly Taint[],
   readers: readonly Taint[],
-): Promise<ImportDiff | undefined> {
-  const minus = new Set<string>();
-  const plus = new Set<string>();
-  let found = false;
+  cache: ParseCache | undefined,
+): Promise<Sides | undefined> {
+  const minus = new Map<string, Set<string>>();
+  const plus = new Map<string, Set<string>>();
+  const file = record.file;
 
-  const fold = (diff: ImportDiff | undefined): void => {
-    if (diff === undefined) return;
-    found = true;
-    for (const value of diff.minus ?? []) minus.add(value);
-    for (const value of diff.plus ?? []) plus.add(value);
+  const fold = (name: string, diff: ImportDiff | undefined): void => {
+    for (const value of diff?.minus ?? []) add(minus, value, name);
+    for (const value of diff?.plus ?? []) add(plus, value, name);
   };
 
-  for (const taint of taints) fold(taint.diffs?.get(file));
+  for (const taint of taints) fold(taint.name, taint.diffs?.get(file));
 
   const asked = readers.filter(
     (taint) => MODULE_EXTENSIONS.includes(extname(file)) && (taint.files?.(file) ?? true),
   );
-  if (asked.length > 0) {
-    const subject = await subjectFor(file, root);
-    if (subject !== undefined) for (const taint of asked) fold(taint.read!(subject));
-  }
+  await readEach(asked, record, root, cache, fold);
 
-  return found ? { minus: [...minus], plus: [...plus] } : undefined;
+  return minus.size === 0 && plus.size === 0 ? undefined : { minus, plus };
+}
+
+/**
+ * Every reader asked about one file, over one read and at most one parse.
+ *
+ * A reader whose answer is already in the cache is not asked, and a file whose
+ * readers are all answered is not opened — which is the whole saving, because
+ * opening is what a scan of ten thousand files was arranged to avoid.
+ */
+async function readEach(
+  asked: readonly Taint[],
+  record: FileRecord,
+  root: string,
+  cache: ParseCache | undefined,
+  fold: (name: string, diff: ImportDiff | undefined) => void,
+): Promise<void> {
+  const digest: Digest | undefined = record.digest;
+  const pending: Taint[] = [];
+
+  for (const taint of asked) {
+    const remembered = rememberedDiff(cache, digest, taint.name);
+    if (remembered === undefined) pending.push(taint);
+    else fold(taint.name, remembered);
+  }
+  if (pending.length === 0) return;
+
+  const subject = await subjectFor(record.file, root);
+  if (subject === undefined) return;
+  for (const taint of pending) {
+    const diff = taint.read!(subject);
+    rememberDiff(cache, digest, taint.name, diff);
+    fold(taint.name, diff);
+  }
 }
 
 /** The file opened once and parsed at most once, or nothing when it cannot be opened. */
@@ -253,82 +352,8 @@ async function subjectFor(file: string, root: string): Promise<TaintSubject | un
   };
 }
 
-type Target = (value: string) => string | undefined;
-
-/** A specifier resolved from one file, the way the scan resolves an import. */
-function targetFrom(file: string, root: string, resolvers: Resolvers): Target {
-  const from = join(root, file);
-  return (value) => {
-    const request = requestOf(value);
-    return request === undefined ? undefined : resolveTo({ resolvers, root, from, request, style: false });
-  };
-}
-
-function resolvedOf(values: readonly string[] | undefined, target: Target): readonly string[] {
-  const found = new Set<string>();
-  for (const value of values ?? []) {
-    const to = target(value);
-    if (to !== undefined) found.add(to);
-  }
-  return [...found].sort(byCodeUnit);
-}
-
-/** One record with its additions resolved and joined on. */
-function applied(
-  record: FileRecord,
-  plus: readonly string[],
-  target: Target,
-): { readonly record: FileRecord; readonly reached: readonly string[] } {
-  const edges: FileEdge[] = [...(record.edges ?? [])];
-  const unresolved = [...(record.unresolved ?? [])];
-  const holes: string[] = [];
-  const reached = new Set<string>();
-
-  for (const value of plus) {
-    const to = target(value);
-    if (to === undefined) {
-      unresolved.push(value);
-      const request = requestOf(value);
-      if (request !== undefined && isRelative(request)) holes.push(value);
-      continue;
-    }
-    reached.add(to);
-    // The target says what it is: a stylesheet is an asset however it was named.
-    edges.push({ to, kind: kindFor('imports', to) });
-  }
-
-  const reasons = [
-    ...(record.unknown === undefined ? [] : [record.unknown]),
-    ...(holes.length === 0
-      ? []
-      : [`${holes.length} tainted relative specifier(s) that resolve to nothing: ${holes.join(', ')}`]),
-  ];
-
-  const { edges: _edges, unresolved: _unresolved, unknown: _unknown, ...rest } = record;
-  return {
-    record: {
-      ...rest,
-      ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
-      ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
-      ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
-    },
-    reached: [...reached].sort(byCodeUnit),
-  };
-}
-
-function dedupe(edges: readonly FileEdge[]): readonly FileEdge[] {
-  const seen = new Set<string>();
-
-  return edges
-    .filter((edge) => {
-      const key = `${edge.kind} ${edge.to}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => byCodeUnit(a.to, b.to) || byCodeUnit(a.kind, b.kind));
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+function add(into: Map<string, Set<string>>, value: string, name: string): void {
+  const held = into.get(value) ?? new Set<string>();
+  held.add(name);
+  into.set(value, held);
 }

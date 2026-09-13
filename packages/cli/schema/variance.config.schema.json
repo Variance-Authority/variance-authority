@@ -1,0 +1,602 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://variance-authority.dev/schema/variance.config.schema.json",
+  "title": "Variance Authority configuration",
+  "description": "Everything a run is configured by, in one file in the operator's repository. Nothing here is inferred from the network, discovered by probing, or downloaded at run time. Every object is closed: an unknown key is a refusal, not a value the run ignores.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "profile", "viewport", "retention", "subjects"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "A note to the editor, not a setting. Point it at this file inside node_modules — `./node_modules/@variance-authority/cli/schema/variance.config.schema.json` — and the parser ignores the value entirely.",
+      "default": "./node_modules/@variance-authority/cli/schema/variance.config.schema.json"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Names this project in a shared history store. Required even with no history configured, because it is what a later history deployment scopes existing rows by, and rows written under a project nobody chose cannot be re-attributed afterwards."
+    },
+    "profile": {
+      "description": "Which collector, and therefore which bands can be decided at all (ADR-0002).",
+      "enum": ["jsdom", "chromium"]
+    },
+    "viewport": { "$ref": "#/$defs/viewport" },
+    "retention": {
+      "description": "Whether baselines are stored. `durable` compares against a stored image and requires `baselines`; `ephemeral` stores nothing and refuses `baselines`.",
+      "enum": ["durable", "ephemeral"]
+    },
+    "subjects": { "$ref": "#/$defs/subjects" },
+    "baselines": { "$ref": "#/$defs/baselines" },
+    "share": { "$ref": "#/$defs/share" },
+    "source": { "$ref": "#/$defs/source" },
+    "fonts": {
+      "type": "array",
+      "description": "Fonts this machine is asserted to have, as `family/weight/style/hash`. Asserted rather than detected: a page can ask whether a family resolves and cannot read the bytes behind it. A bare family name is refused, because a baseline keyed on one compares two cuts of Inter as though they were the same font.",
+      "items": {
+        "type": "string",
+        "pattern": "^[^/]+/[^/]+/[^/]+/[^/]+$",
+        "examples": ["Inter/400/normal/sha256-abc"]
+      }
+    },
+    "browser": {
+      "description": "Which engine paints. Defaults to `chromium`. The engine is part of the key a baseline is stored under, so two engines are two runs with two sets of baselines. Mutually exclusive with `renderer`.",
+      "default": "chromium",
+      "enum": ["chromium", "firefox", "webkit"]
+    },
+    "renderer": { "$ref": "#/$defs/renderer" },
+    "history": { "$ref": "#/$defs/history" },
+    "review": { "$ref": "#/$defs/review" },
+    "report": {
+      "type": "string",
+      "minLength": 1,
+      "default": ".variance/report.json",
+      "description": "Where `run` writes, and where `report`, `accept` and `serve` read. Relative paths resolve against this file's directory."
+    },
+    "images": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Directory for candidate images. Resolved beside the report rather than beside this file, because image paths in a report are relative to the report."
+    },
+    "intent": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What this run is comparing, in the operator's words. `--intent` overrides it."
+    },
+    "alone": { "$ref": "#/$defs/alone" },
+    "ignore": {
+      "type": "array",
+      "description": "Subtrees and difference shapes this project is not testing. The one setting that makes a run less observant, and so the one with the most rules attached. Outside the environment key: editing it changes what a run says, never what it renders.",
+      "items": { "$ref": "#/$defs/ignoreRule" }
+    },
+    "blank": {
+      "type": "array",
+      "description": "Images served as nothing, at their own size, before the browser decodes them. Inside the environment key, unlike `ignore`: blanking changes what is rendered, so the identity moves the day a rule is added.",
+      "items": { "$ref": "#/$defs/blankRule" }
+    },
+    "sensitivity": {
+      "type": "array",
+      "description": "How much of a subject is asserted on at all. The opposite sentence to an ignore: a sensitivity says this subject is asserted on these bands and no others.",
+      "items": { "$ref": "#/$defs/sensitivityRule" }
+    },
+    "names": { "$ref": "#/$defs/names" },
+    "decoder": {
+      "description": "Which PNG decoder the raster tier uses. `auto` prefers the native one and keeps the portable one where the addon is not loadable; `pngjs` pins the portable one so a run cannot get faster or slower because a machine happened to have a binary. Both produce identical RGBA, so this is a speed setting and never a verdict setting.",
+      "default": "auto",
+      "enum": ["auto", "pngjs", "sharp"]
+    },
+    "concurrency": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "How many subjects may be in the raster tier at once. Collection stays strictly serial however high this is set. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
+    }
+  },
+  "$defs": {
+    "secret": {
+      "description": "A value the config declares and does not contain. Either the string itself, or `{ \"env\": \"NAME\" }` naming the environment variable that holds it — a declaration, so the config still determines the run completely while the secret stays out of version control.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["env"],
+          "properties": {
+            "env": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The environment variable holding the value. An unset or empty variable is refused by this name, not by the field."
+            }
+          }
+        }
+      ]
+    },
+
+    "viewport": {
+      "type": "object",
+      "description": "What the run can see at all. Required rather than defaulted: a subject rendered at 1280px because nobody said otherwise is a wrong observation, and a wrong observation is worse than a missing one.",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1, "description": "Viewport width in CSS pixels." },
+        "height": { "type": "integer", "minimum": 1, "description": "Viewport height in CSS pixels." },
+        "deviceScaleFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1,
+          "description": "Device pixel ratio. A stated default, and in the identity digest like everything else, so changing it invalidates baselines visibly."
+        },
+        "colorScheme": {
+          "default": "light",
+          "description": "The colour scheme the page is asked to paint in.",
+          "enum": ["light", "dark"]
+        }
+      }
+    },
+
+    "alone": {
+      "type": "object",
+      "description": "How much re-collection a run will pay for to tell a regression from a leak. A subject that changed is re-collected in a clean world and compared again.",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 20,
+          "description": "Subjects to re-collect, at most. `0` turns the pass off, which is a decision and is reported differently from a collector that cannot do it. The cap exists because a token change makes everything differ, and a tool that gets slowest exactly when the diff is largest is a tool that gets switched off on the day it mattered."
+        }
+      }
+    },
+
+    "subjects": {
+      "description": "Where the subject list comes from, and where the documents come from. Both halves are named because only one of them can be generic: a story index has a documented shape, and mounting a project's components does not.",
+      "oneOf": [
+        { "$ref": "#/$defs/storybookSubjects" },
+        { "$ref": "#/$defs/listSubjects" },
+        { "$ref": "#/$defs/collectorSubjects" }
+      ]
+    },
+    "storybookSubjects": {
+      "type": "object",
+      "description": "Subjects read from a built Storybook's index.",
+      "additionalProperties": false,
+      "required": ["kind", "index", "collector"],
+      "properties": {
+        "kind": { "const": "storybook" },
+        "index": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A built Storybook's `index.json`. Read as a file; never a running server."
+        },
+        "collector": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Module that mounts a subject and serializes the result, satisfying `SubjectSource`. Resolved against this file's directory."
+        },
+        "excludeTags": {
+          "type": "array",
+          "description": "Stories carrying any of these tags are excluded — and reported as excluded.",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "listSubjects": {
+      "type": "object",
+      "description": "Subjects named one by one, so the config reads as the statement of what is watched.",
+      "additionalProperties": false,
+      "required": ["kind", "ids", "collector"],
+      "properties": {
+        "kind": { "const": "list" },
+        "ids": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The subject ids. At least one: a run over nothing is not a run.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "collector": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Module that mounts a subject and serializes the result, satisfying `SubjectSource`. Resolved against this file's directory."
+        }
+      }
+    },
+    "collectorSubjects": {
+      "type": "object",
+      "description": "The collector says what the subjects are — a sitemap, a crawl, an inventory the application already publishes. The trade belongs to the operator: a page that stops being discovered stops being watched, silently.",
+      "additionalProperties": false,
+      "required": ["kind", "collector"],
+      "properties": {
+        "kind": { "const": "collector" },
+        "collector": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Module that discovers the subject list and mounts each subject. Resolved against this file's directory."
+        }
+      }
+    },
+
+    "baselines": {
+      "description": "Where baselines live — the one axis with no default and no inferred answer. Required under `durable` retention, refused under `ephemeral`. Nothing here reads a verdict differently (ADR-0016).",
+      "oneOf": [
+        { "$ref": "#/$defs/directoryBaselines" },
+        { "$ref": "#/$defs/lfsBaselines" },
+        { "$ref": "#/$defs/remoteBaselines" }
+      ]
+    },
+    "directoryBaselines": {
+      "type": "object",
+      "description": "Committed images in a directory. A repository that ignores that directory reports every subject `new` forever without ever erroring.",
+      "additionalProperties": false,
+      "required": ["kind", "root"],
+      "properties": {
+        "kind": { "const": "directory" },
+        "root": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Directory the images live in, resolved against this file."
+        },
+        "layout": { "$ref": "#/$defs/baselineLayout" }
+      }
+    },
+    "lfsBaselines": {
+      "type": "object",
+      "description": "Committed images held by Git LFS.",
+      "additionalProperties": false,
+      "required": ["kind", "root"],
+      "properties": {
+        "kind": { "const": "lfs" },
+        "root": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Directory the images live in, resolved against this file."
+        },
+        "pattern": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The `.gitattributes` pattern the images are tracked by."
+        },
+        "layout": { "$ref": "#/$defs/baselineLayout" }
+      }
+    },
+    "remoteBaselines": {
+      "type": "object",
+      "description": "Images held by a service. Not committed, so a run that cannot reach it must stop.",
+      "additionalProperties": false,
+      "required": ["kind", "endpoint"],
+      "properties": {
+        "kind": { "const": "remote" },
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Base URL of the store. http or https."
+        },
+        "token": {
+          "$ref": "#/$defs/secret",
+          "description": "Optional bearer token. The value belongs to somebody's deployment and therefore to the environment, while the decision to send it belongs here."
+        }
+      }
+    },
+    "baselineLayout": {
+      "description": "How image files are arranged under `root`. `flat` is one directory; `beside` mirrors the subject's own path.",
+      "enum": ["flat", "beside"]
+    },
+
+    "share": {
+      "description": "Where the run leaves what it derived, for the next machine to pick up. Absent means nothing is published and nothing is looked for, which is a complete configuration. Unlike every other section, setting it cannot change what is observed — a stale entry costs work and never an answer.",
+      "oneOf": [
+        { "$ref": "#/$defs/directoryShare" },
+        { "$ref": "#/$defs/httpShare" }
+      ]
+    },
+    "directoryShare": {
+      "type": "object",
+      "description": "A path, which is what an actions cache, an object-store sync, an NFS mount and a laptop all are.",
+      "additionalProperties": false,
+      "required": ["kind", "root"],
+      "properties": {
+        "kind": { "const": "directory" },
+        "root": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Directory the share is read from and written to, resolved against this file."
+        },
+        "mainline": { "$ref": "#/$defs/shareMainline" },
+        "depth": { "$ref": "#/$defs/shareDepth" }
+      }
+    },
+    "httpShare": {
+      "type": "object",
+      "description": "A base URL and optional credentials, which is what a bucket, a signed URL and a tribunal deployment all are.",
+      "additionalProperties": false,
+      "required": ["kind", "endpoint"],
+      "properties": {
+        "kind": { "const": "http" },
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Base URL of the share. http or https."
+        },
+        "token": {
+          "$ref": "#/$defs/secret",
+          "description": "Optional bearer token for the share."
+        },
+        "method": {
+          "description": "The verb a write uses. `PUT` for a bucket, `POST` for a deployment that routes on it.",
+          "enum": ["PUT", "POST"]
+        },
+        "mainline": { "$ref": "#/$defs/shareMainline" },
+        "depth": { "$ref": "#/$defs/shareDepth" }
+      }
+    },
+    "shareMainline": {
+      "type": "string",
+      "minLength": 1,
+      "default": "origin/main",
+      "description": "The ref whose lineage a lookup walks, newest first. A ref rather than a branch name, because a runner's checkout may have no local branch at all; a ref that moves between runs costs nothing, since the lookup names the commit it found."
+    },
+    "shareDepth": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 50,
+      "description": "How many commits back a lookup will ask for. A bound rather than a policy: a branch open for six months is one whose mainline evaluation is wrong in every interesting way, and three hundred round trips to discover that is worse than deriving it."
+    },
+
+    "renderer": {
+      "type": "object",
+      "description": "A renderer on another machine, served by `serveRenderer` from `@variance-authority/remote`. Mutually exclusive with `browser`: the engine belongs to whichever machine paints. No token, because `serveRenderer` has no authentication and a field accepting a credential nobody transmits would read as the endpoint being protected.",
+      "additionalProperties": false,
+      "required": ["endpoint"],
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Address of the render service. http or https."
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long one render may take. Zero and negatives are refused: a timeout of 0 is a renderer that always fails and reads like a disabled one."
+        }
+      }
+    },
+
+    "history": {
+      "type": "object",
+      "description": "The history service to reach. Setting it is what makes `variance run` record observations and `variance accept` record approvals.",
+      "additionalProperties": false,
+      "required": ["endpoint", "token"],
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Address of the history service. http or https."
+        },
+        "token": {
+          "$ref": "#/$defs/secret",
+          "description": "Required, unlike the raster store's: the service refuses a write it cannot attribute, so a config without one produces a run that observes everything and records none of it."
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Scopes queries. Defaults to the top-level `project`."
+        }
+      }
+    },
+
+    "review": {
+      "type": "object",
+      "description": "The review surface `variance push` posts a finished run to. No `project`: a tribunal deployment holds one project and scopes every row by the one it was configured with.",
+      "additionalProperties": false,
+      "required": ["endpoint", "token"],
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "description": "Address of the review deployment. http or https."
+        },
+        "token": {
+          "$ref": "#/$defs/secret",
+          "description": "The ingest token, and the only one this tool will ever send — review promotes a baseline every later run is compared against, so a value that could approve has no business in a config a run reads. Read when the build is sent rather than when this file is parsed, so the job that runs and the job that pushes need not be the same job."
+        }
+      }
+    },
+
+    "source": {
+      "type": "object",
+      "description": "Directories your components are declared in, for `variance run --since`, and who else gets asked what a diff affects. Naming them is also a declaration: a changed file inside them that reaches no component forces a whole run, and a changed file outside them is one nobody claimed could move a render.",
+      "additionalProperties": false,
+      "required": ["dirs"],
+      "properties": {
+        "dirs": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Directories components are declared in. Directories rather than globs: a glob syntax is a small language with its own bugs, and which directories hold components is answerable without one. An empty list would silently narrow a run to nothing.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "relations": {
+          "type": "boolean",
+          "default": false,
+          "description": "Read what imports what, and select by that instead of by declaration alone. Off by default because it costs a parse of the source tree, and because a repository the scan cannot read widens rather than narrows."
+        },
+        "unrendered": {
+          "default": "narrow",
+          "description": "What a change reaching only components no baseline records should do. `narrow` rules those subjects out and names the components it could not match. `whole` is the operator declaring that their subjects render those components without recording them — which a server component always is.",
+          "enum": ["whole", "narrow"]
+        },
+        "changes": { "$ref": "#/$defs/changes" },
+        "taints": {
+          "type": "array",
+          "description": "Tables of what a file imports beyond, or short of, what its text says, as JSON files relative to this one, keyed by file with `-` and `+` rows. The mocks table is read without being named whenever `relations` is on.",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "changes": {
+      "type": "object",
+      "description": "A monorepo tool whose affected-project answer seeds the selection. Read as seeds, never as the selection: both tools answer at the granularity of a project, and the file graph narrows their answer the same way it narrows a diff.",
+      "additionalProperties": false,
+      "required": ["tool"],
+      "properties": {
+        "tool": {
+          "description": "The monorepo tool to ask.",
+          "enum": ["nx", "turbo"]
+        },
+        "task": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The task whose affected set is asked for. Required by turbo, whose filter answers what would run rather than what changed; name the one whose inputs match what a render depends on, often `build`."
+        }
+      }
+    },
+
+    "ignoreRule": {
+      "type": "object",
+      "description": "One thing that is not the subject. Every rule needs an id and a reason, and every rule must name a `select` or a `fingerprints` — a rule scoped only by band is a tolerance, and this project does not have those.",
+      "additionalProperties": false,
+      "required": ["id", "reason"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable name. Appears in the report, and in every count this rule produces."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why this is not the subject. The field that decides whether an ignore can ever be removed: six months on, the only question anyone asks is whether it is still true."
+        },
+        "select": {
+          "type": "string",
+          "minLength": 1,
+          "description": "CSS selector, evaluated inside each subject. The subtree it picks is excluded."
+        },
+        "fingerprints": {
+          "type": "array",
+          "description": "Difference shapes, copied out of a previous run's regions. Survives layout changes.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "subjects": {
+          "type": "array",
+          "description": "Subjects this applies to. `*` matches any run of characters. Absent means all.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags the subject must carry, as the artifact that produced it declared them. Intersects with `subjects` rather than adding to it. A tag no subject carries is reported by name at the end of the run.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "until": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO date after which this stops absorbing and starts reporting."
+        }
+      }
+    },
+
+    "blankRule": {
+      "type": "object",
+      "description": "One image to serve as nothing, at its own intrinsic size. A rule matches on what a request can know — the URL, and the size in the image's own header — so a rule naming neither is refused rather than applied to every image on the page.",
+      "additionalProperties": false,
+      "required": ["id", "reason"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable name. Appears in the ledger and in the environment key."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why these images are not the subject."
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Glob over the request URL. `*` matches any run of characters."
+        },
+        "minPixels": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Intrinsic `width × height` at or above which this applies."
+        },
+        "maxPixels": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Intrinsic `width × height` at or below which this applies."
+        }
+      }
+    },
+
+    "sensitivityRule": {
+      "type": "object",
+      "description": "One declaration of what a subject is asserted on at all. Must name `subjects` or `tags` unless the level is `strict`: a sensitivity that applies to everything is a run-wide relaxation wearing a rule's clothes.",
+      "additionalProperties": false,
+      "required": ["id", "reason", "level"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable name. Appears in the register that counts what this rule absorbed."
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why this subject is asserted on these bands and no others. A route declared `layout` by somebody who has left is a blind spot with a plausible-looking entry in front of it."
+        },
+        "level": {
+          "description": "How much of the subject is asserted on. Closed to three names so that a report can explain what one meant.",
+          "enum": ["strict", "layout", "content"]
+        },
+        "subjects": {
+          "type": "array",
+          "description": "Subjects this applies to. `*` matches any run of characters.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags the subject must carry, as the artifact that produced it declared them.",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+
+    "names": {
+      "type": "object",
+      "description": "What a subject id is made of: the axes it carries, in the order it writes them. A grammar rather than a function, because the config is JSON — and because a vocabulary can be asked which other name sits one step away along an axis, which a function cannot.",
+      "additionalProperties": false,
+      "required": ["axes"],
+      "properties": {
+        "axes": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The axes, in the order they appear in a name after the stem. The order is what makes a name a coordinate rather than words joined with dashes.",
+          "items": { "$ref": "#/$defs/axis" }
+        }
+      }
+    },
+    "axis": {
+      "type": "object",
+      "description": "One axis of a subject name, and the values it may take.",
+      "additionalProperties": false,
+      "required": ["axis", "values"],
+      "properties": {
+        "axis": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What this axis is called, in the sentence a variation prints. A value belongs to one axis, or a name says two things at once."
+        },
+        "values": {
+          "type": "array",
+          "minItems": 2,
+          "description": "The values it may take, base first. `values[0]` is what the axis is when nobody says otherwise, so a name carrying it means what a name omitting it means. At least two: an axis with one value is a word every subject carries, and no two subjects can differ on it.",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

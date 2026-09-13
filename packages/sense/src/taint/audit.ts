@@ -13,7 +13,9 @@
  * - a module a test was said to import beyond its text, and the record never
  *   saw the test in it — the addition names the wrong file.
  *
- * None of these is a verdict; each is the coordinate to look at. Only an
+ * None of these is a verdict; each is the coordinate to look at, and it carries
+ * the taints whose word it was where a taint said it — a table someone wrote by
+ * hand and a reader over the source are corrected in different places. Only an
  * instrumented module can testify — one with no probes was entered by nobody
  * the record can see — and only a complete observation can testify to absence,
  * so the second question is not asked of a test whose recording was partial.
@@ -34,7 +36,25 @@ export interface TaintDeviation {
   /** The instrumented module the two disagree over. */
   readonly module: string;
   readonly kind: TaintDeviationKind;
+  /**
+   * The taints that said the thing the record disagrees with, sorted.
+   *
+   * Absent where nothing said it — `reachable-but-not-entered` is a trail the
+   * scan drew and no taint touched — and where the caller passed only the two
+   * tables `movedBy` needs.
+   */
+  readonly taints?: readonly string[];
 }
+
+/**
+ * The tables the audit reads.
+ *
+ * The attribution is optional because the two tables a graph needs are the two
+ * a caller may have kept: an audit without it still names every disagreement,
+ * and one with it names who is answerable for each.
+ */
+export type AuditedTaints = Pick<Tainted, 'shadows' | 'additions'> &
+  Partial<Pick<Tainted, 'shadowedBy' | 'addedBy'>>;
 
 export interface TaintAuditOptions {
   /**
@@ -51,14 +71,20 @@ export interface TaintAuditOptions {
 export function auditTaints(
   coverage: TestCoverage,
   relations: Relations,
-  tainted: Pick<Tainted, 'shadows' | 'additions'>,
+  tainted: AuditedTaints,
   options: TaintAuditOptions = {},
 ): readonly TaintDeviation[] {
   const knownAs = options.knownAs ?? ((file: string) => [file]);
   const { entered, instrumented: probed } = enteredBy(coverage);
   const found: TaintDeviation[] = [];
-  const say = (test: string, module: string, kind: TaintDeviationKind): void => {
-    found.push({ test, module, kind });
+  const say = (
+    test: string,
+    module: string,
+    kind: TaintDeviationKind,
+    by?: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>,
+  ): void => {
+    const taints = by?.get(test)?.get(module);
+    found.push({ test, module, kind, ...(taints === undefined ? {} : { taints }) });
   };
 
   for (const observation of coverage.tests) {
@@ -68,10 +94,12 @@ export function auditTaints(
     const instrumented = (module: string): boolean => knownAs(module).some((name) => probed.has(name));
 
     const shadows = tainted.shadows.get(test) ?? [];
-    for (const module of shadows) if (sees(module)) say(test, module, 'shadowed-but-entered');
+    for (const module of shadows) {
+      if (sees(module)) say(test, module, 'shadowed-but-entered', tainted.shadowedBy);
+    }
 
     for (const module of tainted.additions.get(test) ?? []) {
-      if (instrumented(module) && !sees(module)) say(test, module, 'added-but-not-entered');
+      if (instrumented(module) && !sees(module)) say(test, module, 'added-but-not-entered', tainted.addedBy);
     }
 
     if (!observation.complete) continue;

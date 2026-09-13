@@ -359,13 +359,27 @@ const TOP_LEVEL = [
 ] as const;
 
 /**
+ * Keys the file may carry that configure nothing.
+ *
+ * `$schema` is a note to the editor, pointing at
+ * `schema/variance.config.schema.json` in this package — what gives an operator
+ * completion and an agent a static answer to *what may this file say* without
+ * running anything, and what the closed-object rule above would otherwise refuse
+ * the one line of. Accepted and then dropped: it is not on {@link Config}
+ * because nothing in a run may read it, a setting the run can see being a
+ * setting somebody will make the run depend on. Nor is the value checked — a
+ * wrong path costs completion in one editor and cannot move a pixel.
+ */
+const NOTES = ['$schema'] as const;
+
+/**
  * Validate a parsed config value. Pure: no filesystem, no clock, no network.
  *
  * Separate from {@link loadConfig} so every rule below is testable by handing it
  * an object, which is the only reason the rules are as detailed as they are.
  */
 export function parseConfig(value: unknown, options: ParseOptions): Config {
-  const root = object(value, 'the config', TOP_LEVEL, options);
+  const root = object(value, 'the config', [...TOP_LEVEL, ...NOTES], options);
 
   const profile = text(root, 'profile', options);
   // Checked against `core`'s own table rather than a literal list here, so this

@@ -339,14 +339,22 @@ export async function relationsFor(
     cache: source.cache,
     reuse: source.reuse,
   });
-  await source.save();
 
   // The mocks are read unasked. A graph that believes `vi.mock('./api')`
   // imports `./api` selects that test for every change behind the mock, and
   // an operator who has to know to switch the reader on is one who finds out
   // from the suite that ran. Tables named in the config join the same way.
   const tables = await Promise.all(taints.map((file) => scanner.taintFile(join(root, file))));
-  const tainted = await scanner.taintRecords(records, [scanner.mockTaint(), ...tables], { root });
+  // The same store the scan used: a reader's answer is a fact about a file's
+  // bytes, so an unchanged file is answered from the index rather than opened
+  // a second time.
+  const tainted = await scanner.taintRecords(records, [scanner.mockTaint(), ...tables], {
+    root,
+    cache: source.cache,
+  });
+  // Saved once, after the join: the readers' answers belong to the same
+  // generation as the parses they were taken beside.
+  await source.save();
 
   return relationsOfFiles(tainted.records, { shadows: tainted.shadows });
 }

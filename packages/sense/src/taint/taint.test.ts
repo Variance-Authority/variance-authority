@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { movedBy, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
+import { idOf, movedBy, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
+import { memoryParseCache } from '../cache.js';
 import { scanRelations } from '../scan.js';
 import { taintFile, taintRecords, taintTable, type Taint, type Tainted } from './index.js';
 import { isTestLike, mockTaint } from './mocks.js';
@@ -60,6 +61,8 @@ beforeAll(async () => {
     "import { vi } from 'vitest';\nimport { api } from './api';\nvi.doMock('./api');\nexport const t = api;",
   );
   await write(root, 'src/relay.ts', "declare const jsresource: (name: string) => unknown;\nexport const lazy = jsresource('./panel');");
+  // Outside `src`, so the scan never walks to it and only a taint can name it.
+  await write(root, 'outside/tool.ts', "import { api } from '../src/api';\nexport const tool = api;");
   records = await scanRelations({ root, dirs: ['src'], digests: false });
 });
 
@@ -140,6 +143,92 @@ describe('a static taint table', () => {
   });
 });
 
+describe('an addition the scan never walked to', () => {
+  const outside = () => under([taintTable('hand', { 'src/relay.ts': { '+': ['../outside/tool'] } })]);
+
+  it('brings the file in as unknown rather than as a node with no edges', async () => {
+    const tainted = await outside();
+
+    expect(records.some((record) => record.file === 'outside/tool.ts')).toBe(false);
+    const brought = tainted.records.find((record) => record.file === 'outside/tool.ts');
+    expect(brought?.edges).toBeUndefined();
+    expect(brought?.unknown).toMatch(/outside the scanned directories/);
+  });
+
+  it('leaves that file opaque on the graph, so a selection widens rather than narrows', async () => {
+    const tainted = await outside();
+    const relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
+    const id = idOf(relations, 'file', 'outside/tool.ts');
+
+    expect(id).toBeDefined();
+    expect(relations.unknown[id!]).toBe(1);
+  });
+
+  it('says nothing extra about a file the scan already read', async () => {
+    const tainted = await under([taintTable('hand', { 'src/relay.ts': { '+': ['./panel'] } })]);
+
+    expect(tainted.records.map((record) => record.file)).toEqual(records.map((record) => record.file));
+  });
+});
+
+describe('what a second run costs', () => {
+  /** A reader that parses every file it is handed, and counts the parses. */
+  const counting = (name: string, minus: readonly string[]) => {
+    const asked: string[] = [];
+    const taint: Taint = {
+      name,
+      files: (file) => file.endsWith('.test.ts'),
+      read: (subject) => {
+        subject.program();
+        asked.push(subject.file);
+        return { minus };
+      },
+    };
+    return { taint, asked };
+  };
+
+  it('asks a reader nothing about a file whose bytes it has already answered for', async () => {
+    const cache = memoryParseCache();
+    const { taint, asked } = counting('counter', ['./api']);
+
+    const first = await taintRecords(records, [taint], { root, cache });
+    const parsed = asked.length;
+    const second = await taintRecords(records, [taint], { root, cache });
+
+    expect(parsed).toBeGreaterThan(0);
+    expect(asked.length).toBe(parsed);
+    expect(second.shadows).toEqual(first.shadows);
+    expect(second.shadows.get('src/card.test.ts')).toEqual(['src/api.ts']);
+  });
+
+  it('asks again when nothing remembers the answer', async () => {
+    const { taint, asked } = counting('counter', ['./api']);
+
+    await taintRecords(records, [taint], { root });
+    const parsed = asked.length;
+    await taintRecords(records, [taint], { root });
+
+    expect(asked.length).toBe(parsed * 2);
+  });
+
+  it('keeps one file’s two readers apart', async () => {
+    const cache = memoryParseCache();
+    const one = counting('one', ['./api']);
+    const two = counting('two', ['./card']);
+
+    await taintRecords(records, [one.taint, two.taint], { root, cache });
+    const tainted = await taintRecords(records, [one.taint, two.taint], { root, cache });
+
+    expect(tainted.shadows.get('src/card.test.ts')).toEqual(['src/api.ts', 'src/card.ts']);
+    expect(tainted.shadowedBy.get('src/card.test.ts')).toEqual(
+      new Map([
+        ['src/api.ts', ['one']],
+        ['src/card.ts', ['two']],
+      ]),
+    );
+  });
+});
+
 describe('several taints at once', () => {
   it('unions the removals and the additions', async () => {
     const one = taintTable('one', { 'src/card.test.ts': { '-': ['./api'] } });
@@ -148,6 +237,20 @@ describe('several taints at once', () => {
 
     expect(tainted.shadows.get('src/card.test.ts')).toEqual(['src/api.ts', 'src/card.ts']);
     expect(targets(tainted.records.find((record) => record.file === 'src/card.test.ts'))).toEqual(['src/api.ts', 'src/card.ts', 'src/panel.ts']);
+  });
+
+  it('credits every taint that named a target, and each only for what it named', async () => {
+    const one = taintTable('one', { 'src/card.test.ts': { '-': ['./api'] } });
+    const two = taintTable('two', { 'src/card.test.ts': { '-': ['./api', './card'] }, 'src/relay.ts': { '+': ['./panel'] } });
+    const tainted = await under([one, two, mockTaint()]);
+
+    expect(tainted.shadowedBy.get('src/card.test.ts')).toEqual(
+      new Map([
+        ['src/api.ts', ['mocks', 'one', 'two']],
+        ['src/card.ts', ['two']],
+      ]),
+    );
+    expect(tainted.addedBy.get('src/relay.ts')).toEqual(new Map([['src/panel.ts', ['two']]]));
   });
 
   it('lets a shadow hold over an addition of the same file', async () => {

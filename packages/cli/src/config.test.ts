@@ -62,6 +62,28 @@ describe('parseConfig', () => {
     expect(error.field).toBe('baselines.rot');
   });
 
+  it('accepts a `$schema` note to the editor and carries nothing from it', () => {
+    // The one key that is not a setting. It points at the schema this package
+    // ships, which is what gives an operator completion and an agent a static
+    // answer; the closed-object rule would otherwise refuse the line that buys
+    // it. Nothing in a run may read it back, because a setting the run can see
+    // is a setting somebody will make the run depend on.
+    const config = parseConfig(
+      { ...VALID, $schema: './node_modules/@variance-authority/cli/schema/variance.config.schema.json' },
+      OPTIONS,
+    );
+
+    expect(config.project).toBe('todomvc');
+    expect(Object.keys(config)).not.toContain('$schema');
+  });
+
+  it('does not check what `$schema` points at', () => {
+    // A wrong path costs completion in one editor and cannot move a pixel, and
+    // a parser that resolved it would be reading the filesystem to decide
+    // whether a run may start.
+    expect(() => parseConfig({ ...VALID, $schema: 'nowhere.json' }, OPTIONS)).not.toThrow();
+  });
+
   it('accepts a baseline layout that keeps images beside their subject', () => {
     // The layout decides where a baseline file lands, and the config is the only
     // place that decision can be made once for every command that reads the root.

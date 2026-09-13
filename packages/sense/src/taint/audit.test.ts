@@ -92,6 +92,18 @@ describe('the taint audit', () => {
     ]);
   });
 
+  it('names the taints whose word the record disagrees with', () => {
+    const coverage = record({
+      'src/card.ts': [block(['src/card.test.ts', 'src/plain.test.ts'])],
+      'src/api.ts': [block(['src/plain.test.ts'], ['src/card.test.ts'])],
+    });
+    const shadowedBy = new Map([['src/card.test.ts', new Map([['src/api.ts', ['hand', 'mocks']]])]]);
+
+    expect(auditTaints(coverage, relations, { shadows, additions, shadowedBy })).toEqual([
+      { test: 'src/card.test.ts', module: 'src/api.ts', kind: 'shadowed-but-entered', taints: ['hand', 'mocks'] },
+    ]);
+  });
+
   it('looks a module up under every name the record may hold it as', () => {
     const coverage = record({
       'dist/card.js': [block(['src/card.test.ts', 'src/plain.test.ts'])],
