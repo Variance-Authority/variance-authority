@@ -3,19 +3,17 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { relationsOfFiles } from '@variance-authority/core/relate';
-import { openSourceIndex, scanRelations } from '@variance-authority/sense';
 import {
   bandRange,
   bandsOf,
   distanceByExecution,
-  indexFaces,
   readTestCoverage,
   slice,
   tail,
   testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
+import { importGraph } from './since-graph.mjs';
 import { bandLines, findingLines } from './since-report.mjs';
 
 /**
@@ -125,25 +123,6 @@ const diffOfNew = (path) =>
     maxBuffer: 64 * 1024 * 1024,
   }).stdout;
 
-/** Where the suite's imports point, scanned from the same directories `yarn test` collects. */
-async function importGraph(snapshotFile) {
-  const source = await openSourceIndex(resolve(dirname(snapshotFile), 'source-index.bin'));
-  const records = await scanRelations({
-    root: ROOT,
-    dirs: ['packages', 'tools', 'cases'],
-    cache: source.cache,
-    reuse: source.reuse,
-  });
-  await source.save();
-
-  // The scan reads `packages`, `tools` and `cases`, so a workspace package
-  // imported through its manifest lands on a `dist` node nothing ever opened.
-  // The graph holds that node and knows nothing about it, and the reading next
-  // door has to be able to tell that apart from a module that imports nothing.
-  const read = new Set(records.filter((record) => record.unknown === undefined).map((record) => record.file));
-  return { relations: relationsOfFiles(records), enumerated: (file) => read.has(file) };
-}
-
 /** One line for why a test file is in the run. */
 export function explain(cause) {
   const reason = cause.via[0];
@@ -183,6 +162,18 @@ const isInert = (path) =>
  * about.
  */
 const stemOf = (path) => sourceStem(ROOT, path);
+
+/**
+ * The names one module answers to, snapshot first and the graph's own last.
+ *
+ * The snapshot names a module by whichever copy the runner loaded, and after
+ * `foldBuilt` the graph holds only the copy the scan read. A test that entered
+ * `packages/core/dist/format/canonical.js` and a graph that calls the same file
+ * `packages/core/src/format/canonical.ts` have to be told they are talking about
+ * one module, or every cross-package path reads as unmeasurable.
+ */
+const graphNames = (names, inGraph) =>
+  inGraph === undefined || names.includes(inGraph) ? names : [...names, inGraph];
 
 /**
  * Rewrite each file's hunks under every name the snapshot knows it by.
@@ -360,15 +351,15 @@ async function main() {
     git('diff', '--no-renames', base),
     ...product.filter((path) => untracked.has(path)).map(diffOfNew),
   ].join('\n');
-  const { relations, enumerated } = await importGraph(snapshotFile);
+  const { relations, enumerated, named, faces } = await importGraph({ root: ROOT, snapshotFile, stemOf });
   const { narrowing, distances } = await distanceByExecution(
     snapshotFile,
     inSnapshotCoordinates(diff, byStem),
     {
       relations,
       enumerated,
-      knownAs: (file) => byStem.get(stemOf(file)) ?? [file],
-      faces: indexFaces(relations),
+      knownAs: (file) => graphNames(byStem.get(stemOf(file)) ?? [file], named(file)),
+      faces,
     },
   );
   const whole = new Set(narrowing.whole);
