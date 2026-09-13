@@ -19,7 +19,9 @@ the last scan, and `s` is the number of segments in the persisted chain.
 | digest map | repository-relative path | content digest, `git:<sha>` or `v1:<hash>` | in memory, per scan |
 | parse cache | content digest | `Parsed`: requests, exports, declares, unknown | in memory, persisted in the parse layer |
 | record cache | repository-relative path | `FileRecord`: digest, resolved edges, declares, unresolved, unknown | in memory, persisted in the record layer |
-| layout digest | none, one per generation | digest of path set and resolver settings | every segment; read from the newest |
+| config digest | none, one per generation | digest of the inputs that configure resolution | every segment; read from the newest |
+| directory map | repository-relative directory | digest of the entry names it holds | every segment; layered like the others |
+| witness list | repository-relative path | the directories one record's specifiers could have named | beside each record row |
 | immutable log | segment position, oldest to newest | one encoded layer of both maps | `<index>` manifest plus `<index>.segments/` |
 | relations graph | node id, an integer | typed CSR adjacency in both directions | in memory, per run |
 
@@ -95,27 +97,43 @@ position in the tree, not about bytes: the same bytes at another path resolve
 differently.
 
 **Reuse condition.** Two more values guard a hit. The record's digest must
-equal the digest the scan holds for the path now, and the layout the record
-was built under must equal the layout the scan adopted. Both are checked in
-`openSourceIndex` at `packages/sense/src/source-index.ts:31`: adopting a
-different layout empties the available record map as a unit, and `get` returns
-a record only when its digest matches.
+equal the digest the scan holds for the path now, and the tree shape the record
+was built under must still answer for it. Both are checked in `openSourceIndex`
+at `packages/sense/src/source-index.ts:30`: `prune` empties the available record
+map when the configuration differs and deletes individual records whose
+witnesses moved, and `get` returns a record only when its digest matches.
 
-**Layout.** `layoutOf` in `packages/sense/src/reuse.ts:101` digests one text
-made of a version line, the root, the `tsconfig` setting, the export
-conditions, and every path in the digest map in code-unit order. Paths that
-decide resolution carry their digest on the line: `package.json`,
+**Configuration.** `treeShapeOf` in `packages/sense/src/reuse.ts:129` digests one
+text made of a version line, the root, the `tsconfig` setting, the export
+conditions, and the digest of every path that decides resolution: `package.json`,
 `jsconfig.json`, the lock files, `pnpm-workspace.yaml`, `deno.json`, and every
-`tsconfig*.json`. Adding, removing or renaming any file moves the layout,
-because resolution is decided by the path set, and editing a file that does
-not decide resolution does not. Building the layout is O(n log n) for the sort
-and O(n) for the join.
+`tsconfig*.json`. Editing one of those rebuilds the repository, because one
+`paths` entry redirects every `@/` specifier in it. Editing anything else does
+not. Building it is O(n) for the filter and O(n log n) for the sort.
+
+**Directories.** `directoriesOf` in `packages/sense/src/witness.ts:170` buckets
+the path set into one entry-name set per directory and digests each sorted set,
+in O(n) over path segments. `movedDirectories` at
+`packages/sense/src/witness.ts:201` is the symmetric difference of two such maps,
+O(k) in the number of directories. On a 41,165-path repository k is about 1,500.
+
+**Witnesses.** `witnessesOf` in `packages/sense/src/witness.ts:218` reads one
+record's specifiers and returns the repository-relative directories that could
+have answered them: for `./x` from `D`, `D` and `D/x` when `D/x` is a directory;
+for a resolved edge, the directory holding the answer; for a bare request, the
+substitutions the tracked `paths` and `baseUrl` patterns allow. They are derived
+from the request rather than from the answer, because a request that resolves to
+nothing is the one that starts resolving when a file appears. `aliasesIn` at
+`packages/sense/src/witness.ts:71` reads those patterns, and returns nothing at
+all when a configuration cannot be parsed or `extends` a package — at which point
+`treeShapeOf` folds the whole path set into the configuration digest, and every
+appearing path invalidates every record.
 
 **Lookup.** `reuse.get(file, digest)` is O(s) map reads through the layers and
 one digest comparison. The scan asks it before it asks the parse cache, so an
-unchanged file under an unchanged layout costs one lookup and no parse.
+unchanged file under an unchanged shape costs one lookup and no parse.
 
-**Insert.** `reuse.set(record)` is one `Map` write when a layout is adopted
+**Insert.** `reuse.set(record, witnesses)` is one `Map` write when a shape is adopted
 and the record carries a digest. A record whose file could not be hashed is
 not stored: it names no bytes and nothing could later check it against the
 disk.
@@ -126,7 +144,7 @@ disk.
 from the seed directories with a moving-head queue. Per file it takes the
 first answer on this ladder:
 
-1. the record cache, by path and digest, when the layout matches;
+1. the record cache, by path and digest, when the shape matches;
 2. the parse cache, by digest, followed by resolution of each request;
 3. a read of the file, a parse, resolution, and a write to both caches.
 
@@ -140,8 +158,8 @@ the diff.
 **Cost.** O(n + m) queue work in every case. The read and parse cost is O(d)
 files with the caches warm, O(n) files cold. The result is sorted by path in
 code-unit order, O(n log n), so two scans over one tree produce one byte
-sequence. The measured costs on a 30,500-file tree are in the table in
-[`selecting.md`](selecting.md).
+sequence. What one run costs on a 41,165-path tree, cold and warm and
+under a diff, is in [`performance.md`](performance.md).
 
 ## The immutable log
 
@@ -173,7 +191,7 @@ iteration reads the materialized copy.
 branch holds any more falls out of the next generation. It computes a
 `differenceLayer` per map against the committed state using deep structural
 equality on both maps, O(rows) comparisons, and encodes two buffers: the delta
-alone, and the complete state. When the log is already committed, the layout
+alone, and the complete state. When the log is already committed, the shape
 is unchanged and both deltas are empty, nothing is written; a generation with
 no manifest yet publishes even an empty delta, and one written as a single
 file is compacted at its first publish that carries a change.
@@ -215,7 +233,7 @@ To locate a value by hand:
 - Whether a list is known or merely empty: the matching `*-present` byte. The
   difference between absent and empty is what keeps an unreadable file from
   reading as a file with no imports.
-- The layout: the one id in `index.layout`, `0xffffffff` for none.
+- The configuration: the one id in `index.config`, `0xffffffff` for none.
 
 ## The relations graph
 
@@ -293,7 +311,9 @@ after that is O(degree).
 | digest of every tracked path | O(n) listing, O(d) hashes | `gitDigests` |
 | parse lookup by digest | O(s) map reads, O(1) once touched | `cache.get` |
 | record lookup by path and digest | O(s) map reads, one comparison | `reuse.get` |
-| layout digest | O(n log n) | `layoutOf` |
+| config digest | O(n log n) | `treeShapeOf` |
+| directory map | O(n) segments, O(k log k) digests | `directoriesOf` |
+| records invalidated by a move | O(k) compare, O(r) witness scan | `prune` |
 | scan, caches warm | O(n + m) queue, O(d) reads, O(n log n) sort | `scanRelations` |
 | scan, cold | O(n + m) queue, O(n) reads and parses, O(n log n) sort | `scanRelations` |
 | encode one segment | O(r log r) | `encodeSourceIndex` |

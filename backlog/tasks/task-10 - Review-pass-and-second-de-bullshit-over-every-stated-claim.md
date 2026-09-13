@@ -113,7 +113,7 @@ on. A reader following that README would have concluded the feature was broken.
 
 Both directions of rot showed up, and understatement was the more common one:
 `history/README.md` and `server/README.md` both claimed `variance run` records
-no observations, which `run.ts:197` and `accept.ts:256` contradict.
+no observations, which `commands/run.ts:197` and `accept.ts:256` contradict.
 
 **Positions stated as positions.** `ignores.md` said the project has no
 threshold; it has exactly one — `DiffPolicy.threshold`, pixelmatch's YIQ

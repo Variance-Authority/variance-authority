@@ -4,7 +4,8 @@ The Sense source index is one versioned binary generation assembled as a small
 log-structured merge tree: an ordered log of immutable segments with periodic
 compaction. It contains the two facts a repeated source scan can reuse: parses
 keyed by content digest, and resolved file records keyed by file path, content
-digest and resolution layout. Both maps share one publication boundary.
+digest, and the configuration and directories they resolved under. Both maps
+share one publication boundary.
 
 The index is operational cache state. A reader accepts the complete generation
 or treats it as absent; no result or evidence depends on the file surviving.
@@ -87,7 +88,10 @@ row per logical object unless an offset column connects it to a child group.
 |---|---:|---|
 | `strings.blob` | 1 | concatenated UTF-8 dictionary |
 | `strings.off` | 4 | dictionary byte offsets |
-| `index.layout` | 4 | one nullable resolution-layout digest id |
+| `index.config` | 4 | one nullable resolution-configuration digest id |
+| `directories.path` | 4 | repository-relative directory ids |
+| `directories.digest` | 4 | directory-membership digest ids |
+| `directories.deleted` | 4 | directory tombstones |
 | `parses.digest` | 4 | parse content-digest ids |
 | `parses.deleted` | 4 | content-digest tombstones |
 | `parses.requests` | 4 | parse-to-request offsets |
@@ -118,27 +122,38 @@ row per logical object unless an offset column connects it to a child group.
 | `records.unresolved` | 4 | record-to-unresolved-request offsets |
 | `records.unresolved-present` | 1 | whether each unresolved list is known |
 | `records.unknown` | 4 | nullable record-uncertainty string ids |
+| `records.witnesses` | 4 | record-to-witness offsets |
+| `witnesses.directory` | 4 | witness directory-path ids |
 | `edges.to` | 4 | target-path string ids |
 | `edges.kind` | 4 | edge-kind string ids |
 | `record-declares.name` | 4 | resolved declaration-name ids |
 | `unresolved.value` | 4 | unresolved-specifier string ids |
 
-Parse rows and parse tombstones are sorted by digest; record rows and record
-tombstones are sorted by path. All use code-unit ordering. Nested arrays retain
+Parse rows and parse tombstones are sorted by digest; record rows, record
+tombstones, directory rows and directory tombstones are sorted by path. All use code-unit ordering. Nested arrays retain
 their semantic order. With the sorted dictionary and a fixed schema, equal
 logical segments encode to equal bytes.
 
 ## Reuse and publication
 
 Parse rows depend only on content, so they remain reusable when the repository
-layout changes. Record rows also depend on resolution: the adopted layout digest
-covers the path set and the configuration inputs that control resolution. A
-layout mismatch discards the record layer as a unit while retaining parse rows;
-an individual record is reused only when its content digest also matches.
-The newest segment's layout applies to the materialized record map. A layout
-change is published only after the scan has produced the complete next map, so
-unchanged record values may be inherited physically without being reused during
-that validating scan.
+moves. Record rows also depend on resolution, and on two keys rather than one.
+The adopted configuration digest covers the inputs that control resolution
+everywhere — manifests, lockfiles, `tsconfig` and `jsconfig` contents, the
+requested `tsconfig`, and the condition names — and a mismatch discards the
+record layer as a unit while retaining parse rows. The directory map names each
+directory by the entries it holds; a record whose stored witnesses include a
+directory that moved is discarded individually. An individual record is reused
+only when its content digest also matches.
+
+Where no tracked configuration can be read, there is no bound on where a bare
+specifier may land, and the whole path set is folded into the configuration
+digest instead — which discards the record layer whenever any path appears.
+
+The newest segment's configuration applies to the materialized record map. A
+configuration change is published only after the scan has produced the complete
+next map, so unchanged record values may be inherited physically without being
+reused during that validating scan.
 
 One `openSourceIndex` call returns the parse cache, record cache and `save`
 operation together. Opening creates one ordered lookup for each map. Point

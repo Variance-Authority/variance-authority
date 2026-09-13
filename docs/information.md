@@ -213,7 +213,7 @@ sections; reach trails and query results remain run-wide in-process values.
 The index lives in the configured source-index root. The CLI's local namespace
 is `$XDG_CACHE_HOME/variance-authority/scans/<checkout-digest>`, falling back to
 `~/.cache/variance-authority/scans/<checkout-digest>`. A generation names its
-format, source contents, repository layout, and resolution and toolchain basis.
+format, source contents, directory membership, and resolution and toolchain basis.
 Readers reject an incompatible, foreign, incomplete, or corrupt generation and
 rebuild from the checkout rather than accepting part of it as an empty graph.
 

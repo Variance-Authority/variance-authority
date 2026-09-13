@@ -176,31 +176,40 @@ file sits, because that is what makes it cacheable forever.
 function of bytes alone: where `./button.css` points depends on the directory the
 specifier sits in, on which files exist around it, on `tsconfig` paths and on
 what is installed. A record is a function of exactly four things, and
-`layoutOf` in [`packages/sense/src/reuse.ts`](../packages/sense/src/reuse.ts)
-names the last two in one digest:
+[`packages/sense/src/reuse.ts`](../packages/sense/src/reuse.ts) names the last
+two:
 
 | | named by |
 |---|---|
 | the file's bytes | its content digest |
 | where the file sits | its path, which is the key |
-| which paths exist | the layout digest |
-| how resolution is configured | the layout digest |
+| how resolution is configured | the config digest |
+| which paths could have answered it | its witnesses |
 
-The layout digest covers the path *set*, not a sample of it, because
-resolution is decided by absence as much as by presence: `./button` finds
-`button.ts` only while no `button.tsx` sits beside it. It also folds in the
-contents of the files that decide where *other* files resolve — every
-`package.json`, `tsconfig*.json`, `jsconfig.json` and lockfile — so a `paths`
-edit that redirects every `@/` specifier in the repository moves the digest with
-it.
+The config digest folds in the contents of the files that decide where *other*
+files resolve — every `package.json`, `tsconfig*.json`, `jsconfig.json` and
+lockfile — plus the requested `tsconfig` and the condition names, so a `paths`
+edit that redirects every `@/` specifier in the repository rebuilds the
+repository.
 
-The trade is one-sided and deliberate: adding, deleting or renaming any file
-moves the layout and costs one full scan, and every run that only edits files
-costs the diff. The scanned directories are deliberately *not* in the digest,
-since they decide which records a scan produces and never what any one record
-contains — so a narrow run can reuse a wide run's work and neither invalidates
-the other. What all of this is worth in milliseconds is measured in
-[`selecting.md`](selecting.md).
+A record's **witnesses** are the directories its own specifiers could have been
+answered from. A resolver asked for `./button` from `src/panel` looks in
+`src/panel` for a name it can extend and in `src/panel/button` for an index, and
+nothing else in the tree takes part in that question. They are derived from the
+specifier rather than from what it resolved to, because resolution is decided by
+absence as much as by presence: `./button` finds nothing today and finds
+`button.tsx` tomorrow, and only a lexical reading of the request is watching when
+it does. Where a request did resolve, the directory holding the answer is a
+witness too — that is where a `package.json` `main` can send a lookup.
+
+So a path appearing costs the records that were asking about its directory, and
+nothing else. The exception is a repository whose configuration cannot be read,
+where a bare specifier has no bound at all and the whole path set goes into the
+config digest instead. The scanned directories are deliberately in neither, since
+they decide which records a scan produces and never what any one record contains
+— so a narrow run can reuse a wide run's work and neither invalidates the other.
+What all of this is worth in milliseconds is measured in
+[`performance.md`](performance.md).
 
 Reuse is off without digests, and that is not a policy: a record that names no
 bytes cannot be checked against the bytes on disk, so there is nothing to reuse it
@@ -292,8 +301,8 @@ bare specifier, which widens.
 closure computed from `git:` digests and one computed from read contents differ at
 every node, which costs a whole run and cannot cause a missed one.
 
-**A file git cannot see does not move the layout.** The layout is built from the
-digest map, which comes from the object database, so a generated file under a
+**A file git cannot see does not move a directory.** The directory map is built
+from the digest map, which comes from the object database, so a generated file under a
 `.gitignore` can never appear in a diff and can never carry a change — but it
 can, in principle, shadow a resolution. That is the one gap, it is bounded by
 `git add`, and turning digests off turns the whole mechanism off.
