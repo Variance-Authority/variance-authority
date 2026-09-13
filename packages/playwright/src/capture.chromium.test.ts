@@ -132,6 +132,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('captureSubject', () => {
     await page.setContent(`<!doctype html><div data-va-path="0" style="${style}">s</div>`);
     expect(await captureSubject(page, VIEWPORT, SHOT)).toEqual({ bytes: null, box: null });
   }, 10_000);
+
 });
 
 describe('outward', () => {
@@ -164,3 +165,20 @@ describe('outward', () => {
     expect(snapped.width).toBe(421);
   });
 });
+
+/**
+ * Measured on Material UI's unit tier: 1109 of 4371 subjects. Its
+ * `describeConformance` harness mounts each component with no children, so
+ * `<AlertTitle />` is an empty div with margins and occupies nothing. Refusing
+ * to photograph that is right; refusing the whole subject is a quarter of the
+ * tier reported as unobserved when the capture holds its markup and its rules
+ * and nothing about either is in doubt.
+ *
+ * The comparison such a subject can still take is the document one — `unchanged`
+ * or `changed` on tokens, with the raster axis recorded as unobservable rather
+ * than missing.
+ */
+it.todo(
+  'compares a subject with no pixels on its document instead of refusing it — ' +
+    'needs `observe` to carry an observation with no raster, which it does not',
+);
