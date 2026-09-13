@@ -81,6 +81,29 @@ describe('browserless capture archive', () => {
     ).toEqual(['https://assets.example/icon.svg']);
   });
 
+  it('asks for the URL an inline style meant, not the one the escaping spells', async () => {
+    const root = mount(
+      '<div style="background-image:url(&quot;https://assets.example/a.png?x=1&amp;y=2&quot;)"></div>',
+    );
+    const asked: string[] = [];
+
+    const artifact = await capture(root, {
+      subject: 'tile',
+      viewport: VIEWPORT,
+      resolveResource: async (url) => {
+        asked.push(url);
+        return { contentType: 'image/png', bytes: new Uint8Array([1]) };
+      },
+    });
+
+    expect(asked).toEqual(['https://assets.example/a.png?x=1&y=2']);
+    expect(
+      artifact.material.kind === 'document'
+        ? Object.keys(artifact.material.document.resources ?? {})
+        : [],
+    ).toEqual(['https://assets.example/a.png?x=1&y=2']);
+  });
+
   it('refuses an archive whose version is not understood', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'variance-unit-'));
     temporary.push(directory);

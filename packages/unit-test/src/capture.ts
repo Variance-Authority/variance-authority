@@ -108,13 +108,39 @@ function engineOf(document: Document): string {
   return document.defaultView?.navigator.userAgent ?? 'dom/unknown';
 }
 
+const URL_REFERENCE = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]*))\s*\)/g;
+
+/**
+ * The five entities a serializer writes into an attribute value.
+ *
+ * An inline `style` reaches us through HTML serialization, so a stylesheet's
+ * `url("/a.png?x=1&y=2")` arrives spelled `url(&quot;/a.png?x=1&amp;y=2&quot;)`.
+ * Reading that literally asks the caller to produce bytes for a URL that exists
+ * nowhere but in the escaping.
+ */
+function unescapeAttribute(value: string): string {
+  return value.replace(
+    /&(?:quot|apos|#39|amp|lt|gt);/g,
+    (entity) =>
+      ({ '&quot;': '"', '&apos;': "'", '&#39;': "'", '&amp;': '&', '&lt;': '<', '&gt;': '>' })[
+        entity
+      ] ?? entity,
+  );
+}
+
 function resourceUrls(root: Element, document: RenderDocument): readonly string[] {
   const found = new Set(referencedAssets(root));
   const base = root.ownerDocument.baseURI;
   const text = [document.html, ...document.css].join('\n');
 
-  for (const match of text.matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^\s)]*))\s*\)/g)) {
-    addReference(found, match[1] ?? match[2] ?? match[3] ?? '', base);
+  for (const match of document.html.matchAll(URL_REFERENCE)) {
+    const value = unescapeAttribute(match[1] ?? match[2] ?? match[3] ?? '');
+    addReference(found, value.replace(/^["']|["']$/g, ''), base);
+  }
+  for (const sheet of document.css) {
+    for (const match of sheet.matchAll(URL_REFERENCE)) {
+      addReference(found, match[1] ?? match[2] ?? match[3] ?? '', base);
+    }
   }
 
   if (/\bblob:/i.test(text)) {
