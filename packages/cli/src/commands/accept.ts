@@ -3,14 +3,9 @@ import { resolve } from 'node:path';
 import type { Raster } from '@variance-authority/core/format';
 import type { HistoryStore } from '@variance-authority/history';
 import type { RasterStore } from '@variance-authority/raster';
-import {
-  promotionOf,
-  selectByShape,
-  whyNotWhole,
-  type ObservationRecord,
-} from '@variance-authority/report';
+import { promotionOf, selectByShape, whyNotWhole } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
-import type { CliRunReport } from './run.js';
+import type { CliObservationRecord, CliRunReport } from './run.js';
 
 /**
  * `variance accept` — record that a change became the baseline.
@@ -154,7 +149,7 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
   }
 
   const shapes = new Set(options.shapes ?? []);
-  let targets: readonly ObservationRecord[];
+  let targets: readonly CliObservationRecord[];
 
   if (options.all) {
     targets = report.observations;
@@ -224,7 +219,13 @@ export async function accept(options: AcceptOptions): Promise<AcceptResult> {
       continue;
     }
 
-    await options.store.put({ subject: observation.subject }, raster);
+    await options.store.put(
+      {
+        subject: observation.subject,
+        ...(observation.placement !== undefined ? { path: observation.placement } : {}),
+      },
+      raster,
+    );
     accepted.push({ subject: observation.subject, from: after });
   }
 
@@ -291,10 +292,19 @@ async function recordApprovals(
   }
 }
 
-/** The default reader: the PNG, plus the sidecar the run wrote beside it. */
-export async function readCandidate(pngPath: string): Promise<Raster> {
-  const jsonPath = `${pngPath.replace(/\.png$/, '')}.json`;
-  const [meta, bytes] = await Promise.all([readFile(jsonPath, 'utf8'), readFile(pngPath)]);
+/**
+ * The default reader: the PNG, plus the sidecar the run wrote beside it.
+ *
+ * The sidecar alone when the report named *it* as the candidate. A subject that
+ * occupies no pixels has no PNG to pair, and reading one would be this command
+ * inventing evidence the run deliberately did not record.
+ */
+export async function readCandidate(path: string): Promise<Raster> {
+  const jsonPath = path.endsWith('.json') ? path : `${path.replace(/\.png$/, '')}.json`;
+  const [meta, bytes] = await Promise.all([
+    readFile(jsonPath, 'utf8'),
+    path === jsonPath ? undefined : readFile(path),
+  ]);
 
   const parsed = JSON.parse(meta) as Partial<Raster>;
   if (parsed.identity === undefined || parsed.documentDigest === undefined) {
@@ -306,7 +316,10 @@ export async function readCandidate(pngPath: string): Promise<Raster> {
     );
   }
 
-  return { ...(parsed as Omit<Raster, 'bytes'>), bytes: bytes.toString('base64') };
+  return {
+    ...(parsed as Omit<Raster, 'bytes'>),
+    ...(bytes === undefined ? {} : { bytes: bytes.toString('base64') }),
+  };
 }
 
 /** The acceptance, as the operator reads it. Every subject named is accounted for. */
@@ -333,7 +346,7 @@ export function formatAcceptance(result: AcceptResult): string {
   return lines.join('\n');
 }
 
-function find(report: CliRunReport, subject: string): ObservationRecord {
+function find(report: CliRunReport, subject: string): CliObservationRecord {
   const found = report.observations.find((entry) => entry.subject === subject);
   if (found !== undefined) return found;
 

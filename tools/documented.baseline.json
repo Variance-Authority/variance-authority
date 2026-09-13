@@ -120,6 +120,12 @@
     "packages": 4
   },
   {
+    "name": "decode",
+    "kind": "function",
+    "at": "packages/png/src/compare.ts",
+    "packages": 4
+  },
+  {
     "name": "profileById",
     "kind": "function",
     "at": "packages/core/src/format/profile.ts",
@@ -162,12 +168,6 @@
     "packages": 3
   },
   {
-    "name": "RegionRecord",
-    "kind": "interface",
-    "at": "packages/report/src/format.ts",
-    "packages": 3
-  },
-  {
     "name": "SemanticDiff",
     "kind": "interface",
     "at": "packages/core/src/compare/diff/index.ts",
@@ -192,9 +192,9 @@
     "packages": 3
   },
   {
-    "name": "decode",
+    "name": "createCallSiteResolver",
     "kind": "function",
-    "at": "packages/png/src/compare.ts",
+    "at": "packages/core/src/attribute/call-site.ts",
     "packages": 3
   },
   {
@@ -288,6 +288,12 @@
     "packages": 2
   },
   {
+    "name": "Relations",
+    "kind": "interface",
+    "at": "packages/core/src/relate/graph.ts",
+    "packages": 2
+  },
+  {
     "name": "RenderResource",
     "kind": "interface",
     "at": "packages/core/src/format/document.ts",
@@ -309,12 +315,6 @@
     "name": "VALUE_JOURNEY_PATH",
     "kind": "const",
     "at": "packages/history/src/protocol.ts",
-    "packages": 2
-  },
-  {
-    "name": "createCallSiteResolver",
-    "kind": "function",
-    "at": "packages/core/src/attribute/call-site.ts",
     "packages": 2
   },
   {
@@ -513,12 +513,6 @@
     "name": "RawAria",
     "kind": "interface",
     "at": "packages/core/src/format/capture.ts",
-    "packages": 1
-  },
-  {
-    "name": "Relations",
-    "kind": "interface",
-    "at": "packages/core/src/relate/graph.ts",
     "packages": 1
   },
   {

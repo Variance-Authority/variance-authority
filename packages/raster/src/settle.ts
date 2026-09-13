@@ -39,6 +39,17 @@ export type Settlement =
        * "this path does not look" — see the copy in {@link settle}.
        */
       readonly missingFonts?: readonly string[];
+      /**
+       * `false` when the baseline it settled against is not an image.
+       *
+       * Carried for the same reason {@link Settlement.missingFonts} is: the
+       * short-circuit produces no `Observation`, so whatever the record is going
+       * to say about the pixel axis has to come from here. A settled subject with
+       * no baseline image was never photographed and cannot be — that is
+       * `unobservable`, and reporting it as a measurement that found nothing is
+       * the one thing the word exists to prevent.
+       */
+      readonly pictured?: boolean;
     }
   | { readonly kind: 'render'; readonly because: string };
 
@@ -155,11 +166,19 @@ export function settle(
       because:
         'the document this run assembled is byte-identical to the one the baseline was ' +
         'painted from, under the same renderer identity, so no image was produced' +
+        // And none ever was. Without this clause the sentence above reads as a
+        // saving — the run declined to paint something it could have painted —
+        // when for this subject there is nothing to paint on either side.
+        (found.pictured
+          ? ''
+          : '; the subject occupied no pixels when the baseline was recorded, so what ' +
+            'settled is its document and not an image') +
         (missingFonts.length > 0
           ? `; the renderer lacked ${missingFonts.join(', ')} when the baseline was painted, ` +
             'so what is settled is an image of a substituted font'
           : ''),
       ...(missingFonts.length > 0 ? { missingFonts } : {}),
+      pictured: found.pictured,
     };
   }
 

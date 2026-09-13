@@ -89,6 +89,7 @@ describe('which verdicts get a pair', () => {
       '/repo/out/images/fixture%3Aa.diff.png',
     ]);
     expect(record.images).toEqual({
+      record: 'images/fixture%3Aa.after.json',
       before: 'images/fixture%3Aa.before.png',
       after: 'images/fixture%3Aa.after.png',
       diff: 'images/fixture%3Aa.diff.png',
@@ -102,6 +103,7 @@ describe('which verdicts get a pair', () => {
     // the mask has grown over a regression.
     const { record } = await writtenFor('ignored');
     expect(record.images).toEqual({
+      record: 'images/fixture%3Aa.after.json',
       before: 'images/fixture%3Aa.before.png',
       after: 'images/fixture%3Aa.after.png',
       diff: 'images/fixture%3Aa.diff.png',
@@ -110,16 +112,25 @@ describe('which verdicts get a pair', () => {
 
   it('writes only the candidate when nothing moved', async () => {
     const { record } = await writtenFor('unchanged');
-    expect(record.images).toEqual({ after: 'images/fixture%3Aa.after.png' });
+    expect(record.images).toEqual({
+      record: 'images/fixture%3Aa.after.json',
+      after: 'images/fixture%3Aa.after.png',
+    });
   });
 
   it('writes only the candidate for a subject with no baseline to subtract', async () => {
     const { record } = await writtenFor('changed', { baseline: false });
-    expect(record.images).toEqual({ after: 'images/fixture%3Aa.after.png' });
+    expect(record.images).toEqual({
+      record: 'images/fixture%3Aa.after.json',
+      after: 'images/fixture%3Aa.after.png',
+    });
   });
 
   it('writes only the candidate under ephemeral retention', async () => {
     const { record } = await writtenFor('changed', { ephemeral: true });
-    expect(record.images).toEqual({ after: 'images/fixture%3Aa.after.png' });
+    expect(record.images).toEqual({
+      record: 'images/fixture%3Aa.after.json',
+      after: 'images/fixture%3Aa.after.png',
+    });
   });
 });

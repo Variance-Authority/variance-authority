@@ -119,10 +119,15 @@ function requireProject(project: string): void {
 interface SidecarRow {
   readonly identity: string;
   readonly document_digest: string;
-  readonly width: number;
-  readonly height: number;
+  /**
+   * Null exactly when {@link SidecarRow.object_key} is: the subject occupies no
+   * pixels, so nothing was photographed and there is no object to point at. The
+   * three are written together, and {@link parse} refuses a row carrying some.
+   */
+  readonly width: number | null;
+  readonly height: number | null;
   readonly missing_fonts: string;
-  readonly object_key: string;
+  readonly object_key: string | null;
   readonly accessibility?: string | null;
   /**
    * Baselines only; the render cache stores pixels and stripped these before
@@ -149,8 +154,9 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
       if (row === null) return null;
 
       const sidecar = parse(row.sidecar, describeRow(project, key, row.identityDigest));
+      const object = row.sidecar.object_key;
       return {
-        raster: { ...sidecar, bytes: await fetchBytes(bucket, row.sidecar.object_key) },
+        raster: object === null ? sidecar : { ...sidecar, bytes: await fetchBytes(bucket, object) },
         comparable: row.identityDigest === mine,
         storedUnder: sidecar.identity,
       };
@@ -167,15 +173,19 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
       // The object is still checked for existence, and this is the entire reason
       // `R2Like` has a `head`. Answering from the row alone would let `describe`
       // and `find` disagree about whether a baseline exists, and a verdict that
-      // depends on which of the two a caller asked is not a verdict.
-      if ((await guardStore(() => bucket.head(row.sidecar.object_key), where)) === null) {
-        throw halfAPair(where, row.sidecar.object_key, 'row');
+      // depends on which of the two a caller asked is not a verdict. A row that
+      // records no image has no object to check: the sidecar alone is the whole
+      // baseline there, and it says so by carrying no dimensions.
+      const object = row.sidecar.object_key;
+      if (object !== null && (await guardStore(() => bucket.head(object), where)) === null) {
+        throw halfAPair(where, object, 'row');
       }
 
       return {
         documentDigest: sidecar.documentDigest,
         comparable: row.identityDigest === mine,
         storedUnder: sidecar.identity,
+        pictured: object !== null,
         missingFonts: sidecar.missingFonts,
         ...(sidecar.components === undefined
           ? {}
@@ -195,7 +205,13 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
       // Keyed by the bytes, so promoting an image the bucket already holds — the
       // usual case, since the candidate was uploaded by the run that painted it —
       // writes a row and no object at all.
-      const objectKey = await keep(db, bucket, project, bytesOf(raster.bytes), Date.parse(at));
+      // No object for a subject with no pixels. `keep` addresses bytes by their
+      // own digest, and the digest of nothing is one key every empty subject would
+      // share — an object a thousand rows point at and no read ever fetches.
+      const objectKey =
+        raster.bytes === undefined
+          ? null
+          : await keep(db, bucket, project, bytesOf(raster.bytes), Date.parse(at));
       await guardStore(
         () =>
           db
@@ -225,8 +241,8 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
               label,
               JSON.stringify(raster.identity),
               raster.documentDigest,
-              raster.width,
-              raster.height,
+              raster.width ?? null,
+              raster.height ?? null,
               JSON.stringify(raster.missingFonts),
               raster.accessibility === undefined ? null : JSON.stringify(raster.accessibility),
               // What the document said about itself, stored beside the image it
@@ -268,14 +284,20 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
         );
         if (row === null) return null;
 
-        return { ...parse(row, where), bytes: await fetchBytes(bucket, row.object_key) };
+        const sidecar = parse(row, where);
+        return row.object_key === null
+          ? sidecar
+          : { ...sidecar, bytes: await fetchBytes(bucket, row.object_key) };
       },
 
       async put(raster): Promise<void> {
         const digest = identityDigest(raster.identity);
         const where = `the render cache for document ${raster.documentDigest}`;
         const at = now().getTime();
-        const objectKey = await keep(db, bucket, project, bytesOf(raster.bytes), at);
+        const objectKey =
+          raster.bytes === undefined
+            ? null
+            : await keep(db, bucket, project, bytesOf(raster.bytes), at);
 
         await guardStore(
           () =>
@@ -291,8 +313,8 @@ export function createBucketStore(options: BucketStoreOptions): RasterStore {
                 digest,
                 raster.documentDigest,
                 JSON.stringify(raster.identity),
-                raster.width,
-                raster.height,
+                raster.width ?? null,
+                raster.height ?? null,
                 JSON.stringify(raster.missingFonts),
                 objectKey,
                 at,
@@ -396,12 +418,24 @@ function parse(row: SidecarRow, where: string): Omit<Raster, 'bytes'> {
     );
   }
 
+  // The dimensions and the object key are one fact recorded twice, and a row
+  // where they disagree is refused. Dimensions with no object is half a baseline
+  // — the case `halfAPair` exists for — and an object with no dimensions is a
+  // picture nothing can be scaled against.
+  const sized = row.width != null && row.height != null;
+  if (sized !== (row.object_key != null)) {
+    throw new RasterStoreError(
+      `${where} records ${sized ? 'an image with no object behind it' : 'an object it never took'}: ` +
+        'the dimensions and the object key are written together, and one without the other is ' +
+        `damage rather than a subject with no pixels. ${REFUSAL}.`,
+    );
+  }
+
   const sidecar = sidecarFrom({
     identity,
     missingFonts,
     documentDigest: row.document_digest,
-    width: row.width,
-    height: row.height,
+    ...(sized ? { width: row.width, height: row.height } : {}),
     ...(accessibility === undefined ? {} : { accessibility }),
     ...(components === undefined ? {} : { components }),
     ...(findingMarks === undefined ? {} : { findingMarks }),

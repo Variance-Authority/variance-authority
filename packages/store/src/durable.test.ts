@@ -302,6 +302,7 @@ describe('a baseline lookup that does not need the image', () => {
     expect(described).toEqual({
       documentDigest: 'v1:painted',
       comparable: true,
+      pictured: true,
       storedUnder: MAC,
       missingFonts: [],
     });
@@ -339,77 +340,6 @@ describe('a baseline lookup that does not need the image', () => {
 });
 
 /**
- * The `beside` layout: a baseline in the directory holding the thing it depicts.
- *
- * The placement exists so baselines arrive with a checkout, move when a component
- * moves, and are deleted by the commit that deletes it. What must not move with
- * it is the identity partition — a baseline painted elsewhere still has to land
- * somewhere this machine does not read.
- */
-describe('the beside layout', () => {
-  it('puts the image in the subject`s own directory', async () => {
-    const store = createDurableStore(root, { layout: 'beside' });
-    await store.put({ subject: 'src/ui/Button/primary' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
-
-    const files = await readdir(join(root, 'src', 'ui', 'Button', identityDigest(MAC)));
-
-    expect(files.sort()).toEqual(['primary.json', 'primary.png']);
-  });
-
-  it('round-trips through the directory it wrote to', async () => {
-    const store = createDurableStore(root, { layout: 'beside' });
-    await store.put({ subject: 'src/ui/Button/primary' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
-
-    const found = await store.find({ subject: 'src/ui/Button/primary' }, MAC);
-
-    expect(found?.comparable).toBe(true);
-    expect(found?.raster.bytes).toBe('QUJD');
-  });
-
-  it('still refuses another machine`s baseline as incomparable', async () => {
-    // The sibling scan moved down to the leaf directory; it did not go away.
-    // Losing it here would turn a wrong-machine run back into `new`, which is
-    // the one downgrade this whole layout is not allowed to buy.
-    const store = createDurableStore(root, { layout: 'beside' });
-    await store.put({ subject: 'src/ui/Button/primary' }, rasterOf(RUNNER));
-
-    const found = await store.find({ subject: 'src/ui/Button/primary' }, MAC);
-
-    expect(found?.comparable).toBe(false);
-    expect(found?.storedUnder.platform).toBe('linux/x64');
-  });
-
-  it('does not read a neighbouring component`s directory as a machine identity', async () => {
-    // `beside` puts partitions among ordinary directories. A scan that took
-    // `Button/` for a machine would answer `incomparable` naming a component.
-    const store = createDurableStore(root, { layout: 'beside' });
-    await store.put({ subject: 'src/ui/Button/primary' }, rasterOf(MAC));
-    await store.put({ subject: 'src/ui/Card/primary' }, rasterOf(MAC));
-
-    expect(await store.find({ subject: 'src/ui/missing' }, MAC)).toBeNull();
-  });
-
-  it('refuses a subject id that would write outside the root', async () => {
-    // The only layout whose write location is steered by the plan, so it is the
-    // only one where a collector naming a subject `../../etc/hosts` matters.
-    const store = createDurableStore(root, { layout: 'beside' });
-
-    await expect(
-      store.put({ subject: '../escaped/primary' }, rasterOf(MAC)),
-    ).rejects.toThrow(RasterStoreError);
-  });
-
-  it('is not what a flat store does with the same id', async () => {
-    const store = createDurableStore(root, { layout: 'flat' });
-    await store.put({ subject: 'src/ui/Button/primary' }, rasterOf(MAC));
-
-    const files = await readdir(join(root, identityDigest(MAC)));
-
-    expect(files.sort()).toEqual(['src%2Fui%2FButton%2Fprimary.json', 'src%2Fui%2FButton%2Fprimary.png']);
-  });
-});
-
-/**
  * `cacheRoot`: the tracked root holds baselines and nothing else.
  *
  * Every on-disk placement is a directory somebody commits. The render cache is
@@ -441,6 +371,104 @@ describe('the render cache location', () => {
       expect(await readdir(join(elsewhere, identityDigest(MAC)))).toEqual(['by-document']);
     } finally {
       await rm(elsewhere, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * `recordRoot`: version control sees the images and not the paperwork.
+ *
+ * A record changes whenever the document does, and the document changes for a
+ * class name. Beside the image it makes a tracked diff out of every edit,
+ * including every edit that moved no pixel — which is the one thing a reviewer
+ * looking at an image diff cannot be asked to ignore.
+ *
+ * What does *not* change is the pair. Both halves are still written and both are
+ * still read, so a record that went missing is still damage and still stops the
+ * run.
+ */
+describe('the record location', () => {
+  it('keeps both halves under the baseline root when nothing says otherwise', async () => {
+    const store = createDurableStore(root);
+    await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
+
+    expect(await readdir(join(root, identityDigest(MAC)))).toEqual([
+      'todo--empty.json',
+      'todo--empty.png',
+    ]);
+  });
+
+  it('leaves the baseline root holding images alone when it is pointed elsewhere', async () => {
+    const records = await mkdtemp(join(tmpdir(), 'variance-records-'));
+    try {
+      const store = createDurableStore(root, { recordRoot: records });
+      await store.put({ subject: 'todo--empty' }, rasterOf(MAC, 'v1:doc', 'QUJD'));
+
+      expect(await readdir(join(root, identityDigest(MAC)))).toEqual(['todo--empty.png']);
+      expect(await readdir(join(records, identityDigest(MAC)))).toEqual(['todo--empty.json']);
+
+      // And the halves are still one baseline to every reader.
+      const found = await store.find({ subject: 'todo--empty' }, MAC);
+      expect(found?.comparable).toBe(true);
+      expect(found?.raster.bytes).toBe('QUJD');
+      expect((await store.describe({ subject: 'todo--empty' }, MAC))?.pictured).toBe(true);
+    } finally {
+      await rm(records, { recursive: true, force: true });
+    }
+  });
+
+  it('writes nothing at all under the baseline root for a subject with no pixels', async () => {
+    // The case the split is for. A subject that occupies no pixels is entirely
+    // record, so a split root leaves version control with no file to show — and
+    // the baseline still has to be found, or the next run records it as new.
+    const records = await mkdtemp(join(tmpdir(), 'variance-records-'));
+    try {
+      const store = createDurableStore(root, { recordRoot: records });
+      await store.put(
+        { subject: 'todo--empty' },
+        { documentDigest: 'v1:doc', identity: MAC, missingFonts: [] },
+      );
+
+      expect(await readdir(root)).toEqual([]);
+      expect((await store.describe({ subject: 'todo--empty' }, MAC))?.pictured).toBe(false);
+      expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBeUndefined();
+    } finally {
+      await rm(records, { recursive: true, force: true });
+    }
+  });
+
+  it('scans the record root for siblings, so a pixel-less baseline is still incomparable', async () => {
+    // The sibling scan is the only thing that says "another machine has this"
+    // rather than "nobody has". Scanning the images would answer the second for
+    // every subject that has none.
+    const records = await mkdtemp(join(tmpdir(), 'variance-records-'));
+    try {
+      const store = createDurableStore(root, { recordRoot: records });
+      await store.put(
+        { subject: 'todo--empty' },
+        { documentDigest: 'v1:doc', identity: RUNNER, missingFonts: [] },
+      );
+
+      const found = await store.find({ subject: 'todo--empty' }, MAC);
+      expect(found?.comparable).toBe(false);
+      expect(found?.storedUnder.platform).toBe('linux/x64');
+    } finally {
+      await rm(records, { recursive: true, force: true });
+    }
+  });
+
+  it('still refuses half a pair, and names the file in the root it was looked for in', async () => {
+    const records = await mkdtemp(join(tmpdir(), 'variance-records-'));
+    try {
+      const store = createDurableStore(root, { recordRoot: records });
+      await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
+      await unlink(join(records, identityDigest(MAC), 'todo--empty.json'));
+
+      await expect(store.find({ subject: 'todo--empty' }, MAC)).rejects.toThrow(
+        new RegExp(`half there.+${records}`, 's'),
+      );
+    } finally {
+      await rm(records, { recursive: true, force: true });
     }
   });
 });

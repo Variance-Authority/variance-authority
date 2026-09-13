@@ -8,7 +8,7 @@ import {
   type DiffRegion,
   type Isolation,
 } from '@variance-authority/core/attribute';
-import { mergeDiagnostics, type Raster } from '@variance-authority/core/format';
+import { mergeDiagnostics, type Pictured, type Raster } from '@variance-authority/core/format';
 import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority/core/judge';
 import type { SemanticSnapshot } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
@@ -34,10 +34,16 @@ import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
  * downstream unable to say how much of a suite's green was earned (ADR-0026).
  */
 
+/**
+ * Both sides carry an image: this is the pixel tier, and it is reached only for
+ * a pair the caller has already established is comparable — which includes both
+ * having been photographed. A subject with no pixels never arrives here, and
+ * `unpictured.ts` is the entry point that decides which of the two this is.
+ */
 export async function decide(
   subject: string,
-  before: Raster,
-  after: Raster,
+  before: Pictured,
+  after: Pictured,
   rendered: boolean,
   options: CompareInputs,
 ): Promise<Observation> {
@@ -313,7 +319,7 @@ export async function decide(
   };
 }
 
-function accessibilityBetween(
+export function accessibilityBetween(
   before: Raster,
   after: Raster,
 ): NonNullable<NonNullable<Observation['signals']>['accessibility']> | undefined {

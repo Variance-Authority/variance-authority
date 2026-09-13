@@ -5,7 +5,7 @@ import { createEphemeralStore } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { accept, formatAcceptance } from './accept.js';
-import type { CliRunReport } from './run.js';
+import type { CliObservationRecord, CliRunReport } from './run.js';
 
 const IDENTITY: RenderIdentity = {
   renderer: 'playwright-chromium',
@@ -24,7 +24,7 @@ const CANDIDATE: Raster = {
   missingFonts: [],
 };
 
-function observation(overrides: Partial<ObservationRecord>): ObservationRecord {
+function observation(overrides: Partial<CliObservationRecord>): CliObservationRecord {
   return {
     subject: 'fixture:a',
     verdict: 'changed',
@@ -36,7 +36,7 @@ function observation(overrides: Partial<ObservationRecord>): ObservationRecord {
   };
 }
 
-function reportOf(observations: readonly ObservationRecord[]): CliRunReport {
+function reportOf(observations: readonly CliObservationRecord[]): CliRunReport {
   return {
     runVersion: 1,
     at: '2026-08-01T00:00:00.000Z',
@@ -408,5 +408,60 @@ describe('accepting a difference shape', () => {
     );
 
     expect(result.accepted.map((entry) => entry.subject)).toEqual(['fixture:a', 'fixture:b']);
+  });
+});
+
+/**
+ * Where an accepted image is written, for a store that places by path.
+ *
+ * `accept` never re-plans — it reads a report and the images beside it — so the
+ * directory has to arrive in the report or not at all. Losing it here is silent
+ * and total: every accepted baseline lands in the root, the next run looks in
+ * the placement the config asked for, finds nothing, and reports `new`.
+ */
+describe('the placement an acceptance carries', () => {
+  it('hands the store the directory the run recorded', async () => {
+    const { store, puts } = recordingStore();
+
+    await accept({
+      report: reportOf([observation({ placement: 'src/ui/shell' })]),
+      reportDir: '/reports',
+      store,
+      subjects: ['fixture:a'],
+      all: false,
+      read: async () => CANDIDATE,
+    });
+
+    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a', path: 'src/ui/shell' });
+  });
+
+  it('omits the path when the run recorded none, rather than inventing one', async () => {
+    const { store, puts } = recordingStore();
+
+    await accept({
+      report: reportOf([observation({})]),
+      reportDir: '/reports',
+      store,
+      subjects: ['fixture:a'],
+      all: false,
+      read: async () => CANDIDATE,
+    });
+
+    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a' });
+  });
+
+  it('carries a root placement as the root, which is not the same as none', async () => {
+    const { store, puts } = recordingStore();
+
+    await accept({
+      report: reportOf([observation({ placement: '' })]),
+      reportDir: '/reports',
+      store,
+      subjects: ['fixture:a'],
+      all: false,
+      read: async () => CANDIDATE,
+    });
+
+    expect(puts[0]?.[0]).toEqual({ subject: 'fixture:a', path: '' });
   });
 });

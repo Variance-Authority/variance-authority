@@ -72,6 +72,24 @@ export interface BaselineKey {
   readonly subject: string;
   /** Distinguishes several images of one subject, e.g. a viewport or a state. */
   readonly label?: string;
+
+  /**
+   * The directory this subject belongs to, for a store that places by path.
+   *
+   * A subject id is a namespaced identifier and is not always a path: a story is
+   * `story:components-button--primary`, and the file declaring it is known to
+   * the artifact that produced the plan and to nothing downstream. Carrying that
+   * directory here is what lets a `beside` layout put the image where the code
+   * it is an image of lives, without making the id path-shaped — which would
+   * break every glob, story lookup and report that reads an id as a name.
+   *
+   * Advisory, and only placement reads it. `flat` ignores it, a store keeping
+   * one corpus ignores it, and a key omitting it places exactly as it did
+   * before. Two placements of one subject are still one subject, which is what
+   * [ADR-0016](../../../docs/context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)
+   * says about every other storage decision.
+   */
+  readonly path?: string;
 }
 
 export interface Found {
@@ -118,6 +136,26 @@ export interface Described {
    * is how `stabilization` once made every subject `incomparable` forever.
    */
   readonly missingFonts: readonly string[];
+
+  /**
+   * Whether this baseline is an image at all.
+   *
+   * `false` is a measurement, not a gap: the subject occupied no pixels when the
+   * baseline was recorded — a wrapper whose only child went to a portal, a mount
+   * with no children — so there was nothing to photograph and nothing a later
+   * image can be compared against.
+   *
+   * Here for the reason {@link Described.missingFonts} is here. A settlement
+   * reads this type and nothing else, and its sentence ends *no image was
+   * produced* — true of every settled run, and read by somebody holding a
+   * pixel-less baseline as a statement about this run rather than about the
+   * baseline. A green suite is mostly settlements, so a report that cannot tell
+   * the two apart cannot say which of its greens were ever photographed.
+   *
+   * Required, never inferred. A backend that dropped it would report every
+   * pixel-less subject in the suite as a photographed green.
+   */
+  readonly pictured: boolean;
 
   /** Browser accessibility evidence retained beside the image, when observed. */
   readonly accessibility?: AccessibilitySnapshot;

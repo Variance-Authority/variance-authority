@@ -7,7 +7,7 @@ import { profileById, type SemanticSnapshot } from '@variance-authority/core/for
 import { RasterStoreError } from '@variance-authority/raster';
 import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { OperatorError } from '../exit.js';
-import { matchesGlob, type Plan } from './collector.js';
+import { keyFor, matchesGlob, type Plan } from './collector.js';
 import { observeOne } from './observe-one.js';
 import type { SubjectHistory } from './history.js';
 import { customProperties } from './history-rows.js';
@@ -243,7 +243,7 @@ async function observeAll(
   deps.store.expect?.(
     plan.subjects
       .filter((planned) => selected?.skipped.get(planned.subject.id) === undefined)
-      .map((planned) => ({ subject: planned.subject.id })),
+      .map(keyFor),
   );
 
   await pool(concurrencyOf(config), plan.subjects, async (planned, index) => {

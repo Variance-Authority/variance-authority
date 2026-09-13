@@ -7,10 +7,10 @@ import {
   observePair,
   type Observation,
 } from '@variance-authority/observe';
-import { settle, type BaselineKey } from '@variance-authority/raster';
+import { settle, type BaselineKey, type Settlement } from '@variance-authority/raster';
 import { again } from './again.js';
 import { alone } from './alone.js';
-import type { Collected, PlannedSubject } from './collector.js';
+import { keyFor, type Collected, type PlannedSubject } from './collector.js';
 import { liveIgnores, scopedTo } from './ignores.js';
 import { images } from './images.js';
 import {
@@ -130,7 +130,7 @@ export async function observeOne(
     };
   }
 
-  const key: BaselineKey = { subject: id };
+  const key: BaselineKey = keyFor(planned);
 
   // The settlement query, and it reads no image. `describe` answers from the
   // sidecar — a few hundred bytes of text against a base64-encoded PNG — which
@@ -193,9 +193,16 @@ export async function observeOne(
         changedPixels: 0,
         regions: [],
         ...swept,
-        ...(collected.presentation === undefined
-          ? {}
-          : { signals: { presentation: collected.presentation } }),
+        // The pixel axis, on the path that measured no pixels. A settlement
+        // against a baseline that is not an image is `unobservable`; against one
+        // that is, the digest match *is* the measurement, so it is `unchanged`.
+        // Written here rather than left off because a report of settlements is
+        // what a green suite mostly is, and one that omits this cannot be asked
+        // which of its greens were ever photographed.
+        signals: {
+          ...pixelAxis(settlement),
+          ...(collected.presentation === undefined ? {} : { presentation: collected.presentation }),
+        },
         ...(findings !== undefined ? { findings } : {}),
         ...(declared !== undefined ? { ignored: declared } : {}),
         ...(missingFonts.length > 0 ? { missingFonts } : {}),
@@ -217,6 +224,10 @@ export async function observeOne(
       ...(collected.causes !== undefined ? { causes: collected.causes } : {}),
       ...(collected.source !== undefined ? { source: collected.source } : {}),
       ...(collected.presentation !== undefined ? { presentation: collected.presentation } : {}),
+      // Only on the durable path, and only because `accept` writes baselines
+      // from this report and never re-plans. The ephemeral branch above compares
+      // two renders from one run and stores neither, so it has nowhere to place.
+      ...(planned.path !== undefined ? { placement: planned.path } : {}),
       ...(await images(
         id,
         observation,
@@ -236,6 +247,26 @@ export async function observeOne(
       ...(await investigate(planned, collected, observation, key, context, collecting)),
     }),
   };
+}
+
+
+/**
+ * What a settlement can say about pixels, which is less than it looks.
+ *
+ * Three answers, and the absent one is load-bearing. A digest match *is* a
+ * measurement of the pixel axis — the same document under the same identity
+ * paints the same image — so it earns `unchanged`. A baseline that is not an
+ * image had nothing to measure on either side: `unobservable`, because a reader
+ * who saw `unchanged` would take the image as evidence it never was. And an
+ * `incomparable` settlement compared nothing at all, so it reports no pixel axis
+ * rather than a verdict about one, on the rule the field is documented under: a
+ * missing member was not measured.
+ */
+function pixelAxis(
+  settlement: Extract<Settlement, { kind: 'settled' }>,
+): { pixels?: 'unchanged' | 'unobservable' } {
+  if (settlement.verdict === 'incomparable') return {};
+  return { pixels: settlement.pictured === false ? 'unobservable' : 'unchanged' };
 }
 
 /**

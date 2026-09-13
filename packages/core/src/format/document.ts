@@ -286,15 +286,29 @@ export function identityDigest(identity: RenderIdentity): Digest {
  * `bytes` is base64 rather than a `Buffer` so the whole value survives the same
  * hops the document does. A raster that could only exist in Node would make the
  * remote route a special case in every function that touches one.
+ *
+ * The image is optional, and the three fields that describe it move together.
+ * A subject that occupies no pixels — a wrapper whose only child went to a
+ * portal, a `describeConformance` mount with no children — still has a
+ * document, rules, components and an accessibility tree, all of which compare.
+ * Refusing to photograph it is right; refusing the subject reported a quarter
+ * of Material UI's unit tier as unobserved over an axis nothing was asking
+ * about. Absent here means *this subject has no pixels to observe*, which is a
+ * measurement; it never means *the image was lost*.
  */
 export interface Raster {
   readonly documentDigest: Digest;
   readonly identity: RenderIdentity;
-  /** Device pixels. `width / viewport.width` is the scale, and is asserted. */
-  readonly width: number;
-  readonly height: number;
-  /** PNG, base64. */
-  readonly bytes: string;
+  /**
+   * Device pixels. `width / viewport.width` is the scale, and is asserted.
+   *
+   * Absent exactly when {@link bytes} is, and {@link pictured} is the one place
+   * that reads the three together.
+   */
+  readonly width?: number;
+  readonly height?: number;
+  /** PNG, base64. Absent when the subject occupies no pixels. */
+  readonly bytes?: string;
   /** Fonts the document declared that the renderer did not have. */
   readonly missingFonts: readonly string[];
 
@@ -351,4 +365,57 @@ export interface Raster {
    * defect in the suite as newly introduced on the first run after an upgrade.
    */
   readonly findingMarks?: readonly string[];
+}
+
+/**
+ * A raster whose image is in hand.
+ *
+ * Every pixel comparison in the codebase needs all three of `bytes`, `width`
+ * and `height`, and they are absent together or present together. Narrowing
+ * them one at a time is how a caller ends up reading the bytes of a subject
+ * that was never photographed, so the narrowing lives here and is done once.
+ */
+export type Pictured = Raster & {
+  readonly width: number;
+  readonly height: number;
+  readonly bytes: string;
+};
+
+/** Whether this record carries an image, narrowing all three fields together. */
+export function pictured(raster: Raster): raster is Pictured {
+  return raster.bytes !== undefined && raster.width !== undefined && raster.height !== undefined;
+}
+
+/**
+ * Whether the subject occupied any pixels, answered without the image.
+ *
+ * The question {@link pictured} cannot be asked of a sidecar. Bytes live in a
+ * separate file, row or object, so a record read without them carries the width
+ * and the height and nothing else — and those *are* the store's record of
+ * whether there was ever anything to photograph, which is why `sidecarFrom`
+ * refuses a sidecar carrying one of them.
+ *
+ * So: this for a record, {@link pictured} for an image in hand. A caller that
+ * reached for `pictured` here would read every sidecar in the store as a subject
+ * with no pixels, because none of them have bytes.
+ */
+export function occupiesPixels(raster: Omit<Raster, 'bytes'>): boolean {
+  return raster.width !== undefined && raster.height !== undefined;
+}
+
+/**
+ * The image, or a refusal naming the subject that has none.
+ *
+ * For the paths where a missing image is a programming error rather than a
+ * measurement — a diff, a PNG encode — so they read as assertions instead of
+ * as a non-null assertion nobody can audit.
+ */
+export function picture(raster: Raster, subject: string): Pictured {
+  if (!pictured(raster)) {
+    throw new Error(
+      `\`${subject}\` occupies no pixels, and this path needs an image; ` +
+        'a subject with no raster compares on its document alone',
+    );
+  }
+  return raster;
 }

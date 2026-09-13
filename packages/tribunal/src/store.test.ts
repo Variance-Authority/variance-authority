@@ -215,6 +215,7 @@ describe('the cheap lookup and the full one agree', () => {
     expect(described).toEqual({
       documentDigest: raster(MAC).documentDigest,
       comparable: true,
+      pictured: true,
       storedUnder: MAC,
       missingFonts: [],
     });

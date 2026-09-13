@@ -14,15 +14,18 @@ export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
 
   const identity = identityFrom(sidecar.identity);
   const missingFonts = stringsFrom(sidecar.missingFonts);
-  if (
-    identity === null ||
-    missingFonts === null ||
-    typeof sidecar.documentDigest !== 'string' ||
-    typeof sidecar.width !== 'number' ||
-    typeof sidecar.height !== 'number'
-  ) {
+  if (identity === null || missingFonts === null || typeof sidecar.documentDigest !== 'string') {
     return null;
   }
+
+  // The dimensions are the sidecar's record of whether an image was taken, and
+  // they are the *only* record of it: the bytes live in a separate file, row or
+  // object, and every store asks this reader first. So they move together, and a
+  // sidecar carrying one of them is refused rather than half-believed — one
+  // dimension is not a subject that occupies no pixels, it is a record written by
+  // something that did not know what it was writing.
+  const sized = typeof sidecar.width === 'number' && typeof sidecar.height === 'number';
+  if (!sized && (sidecar.width !== undefined || sidecar.height !== undefined)) return null;
 
   const components = componentsFrom(sidecar.components);
 
@@ -37,8 +40,7 @@ export function sidecarFrom(value: unknown): Omit<Raster, 'bytes'> | null {
   return {
     documentDigest: sidecar.documentDigest,
     identity,
-    width: sidecar.width,
-    height: sidecar.height,
+    ...(sized ? { width: sidecar.width as number, height: sidecar.height as number } : {}),
     missingFonts,
     ...(accessibility === null ? {} : { accessibility }),
     ...(components !== undefined ? { components } : {}),

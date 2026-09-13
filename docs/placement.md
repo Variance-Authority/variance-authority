@@ -54,9 +54,14 @@ same as a store nobody has written to yet.
 }
 ```
 
-One directory, anywhere, holding every subject in the suite. Under the default
-`flat` layout the whole store is one directory per machine identity, and a
-subject id is a file name:
+Take this one when the baselines are a corpus rather than part of a codebase —
+something you back up, prune, point a bucket at, or keep in the separate test
+tree a Java layout puts them in. When the code is in the same repository, the
+placement below is the one that keeps it together.
+
+One directory, anywhere, holding every subject in the suite. Under the `flat`
+layout the whole store is one directory per machine identity, and a subject id is
+a file name:
 
 ```
 baselines/v1:6c1f…/src%2Fui%2FButton%2Fprimary.png
@@ -79,21 +84,47 @@ ordered by URL escape rather than by anything a reviewer recognises.
 }
 ```
 
-`"layout": "beside"` reads the subject id as a path and walks it down from the
-root, so a component's baselines arrive with the checkout, follow the
-component when it moves, and show up in the diff of the directory that caused
-them:
+Take this one when the baselines belong to code in the same repository, which in
+a monorepo is every time. `"layout": "beside"` puts a subject's image in the
+directory holding the thing it is an image of, so it arrives with the checkout,
+moves with the `git mv` that moves the component, is deleted by the commit that
+deletes it, and shows up in the diff of the directory that caused it:
 
 ```
+src/ui/Button/Button.tsx
 src/ui/Button/v1:6c1f…/primary.png
 src/ui/Button/v1:6c1f…/primary.json
 ```
 
 The identity directory stays, because that partition is the only thing between a
-runner-image upgrade and a day of unattributable red. A subject id with no `/`
-in it has nothing to walk, and lands in the root as it does under `flat`; an id
-with a `..` or an empty segment is refused rather than resolved, because it would
-write outside the root.
+runner-image upgrade and a day of unattributable red.
+
+### How a subject finds its directory
+
+Two answers, and you do not choose between them — whichever one your collector
+can supply is the one that applies.
+
+A collector that names its own subjects after paths has already said where they
+go. `beside` spends the slashes instead of percent-encoding them, so
+`components/Button/primary` lands in `components/Button/` under the name
+`primary`. An id with a `..` or an empty segment is refused rather than resolved,
+because it would write outside the root.
+
+A **story** is not named after a path. Its id is `story:components-button--primary`
+— a namespaced identifier, which is what keeps it stable when the file moves and
+distinct from a route called the same thing. The directory comes from the built
+index instead: Storybook records an `importPath` per story, the plan carries the
+directory it names, and the image lands there under the story's whole id.
+
+```
+src/ui/shell/HatBar.stories.tsx
+src/ui/shell/v1:6c1f…/story%3Ahatbar--accepted-hats.png
+```
+
+A story declared at the root of the repository places at the root, which is a
+place. A path climbing out of the project with `../` is refused by name, naming
+the subject that carried it — you chose the id, so a message quoting only the
+path would leave you grepping a built index for it.
 
 `beside` is available to `directory` too. It is grouped with LFS because putting
 PNGs in the source tree is the case where the filter earns its setup: the files

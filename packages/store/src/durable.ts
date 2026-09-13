@@ -3,8 +3,8 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
-  fileNameFor,
   identityDigest,
+  occupiesPixels,
   type Digest,
   type Raster,
   type RenderIdentity,
@@ -20,6 +20,15 @@ import {
   type Found,
   type RasterStore,
 } from '@variance-authority/raster';
+import { IDENTITY_DIRECTORY, holder, pathFor, type BaselineLayout } from './placement.js';
+
+/**
+ * Re-exported rather than moved out of reach: `BaselineLayout` is a word an
+ * operator sets in a config file and a word `lfs.ts` takes in its options, and
+ * neither of those should have to learn that the placement rules moved into a
+ * file of their own.
+ */
+export type { BaselineLayout } from './placement.js';
 
 /**
  * On disk, partitioned by renderer identity.
@@ -36,32 +45,37 @@ import {
  * *means* — the shape of a record, the refusal, the wording — is in
  * `@variance-authority/raster` and is shared with every other backend.
  */
-/**
- * Where a subject's baseline sits under the root.
- *
- * `flat` is the original and the default: every image for the root lives under
- * one identity directory, and a subject id with slashes in it is percent-encoded
- * into a single filename. It is the placement to take when the baselines are a
- * corpus — a directory somebody backs up, prunes, or points a bucket at.
- *
- * `beside` spends the slashes instead of encoding them, so `components/Button/primary`
- * lands in `components/Button/`. With the root pointed at the source tree the
- * baseline is in the directory holding the component it is a baseline of, which
- * is what puts it in the same review, the same move and the same delete as the
- * code. `docs/placement.md` is the page that chooses between them.
- *
- * The identity partition is unchanged either way — it moves down to the leaf
- * directory rather than disappearing, because a baseline painted by another
- * machine must still be in a directory this one does not read
- * ([ADR-0011](../../../docs/context/adr/0011-durable-and-ephemeral-retention.md)).
- */
-export type BaselineLayout = 'flat' | 'beside';
 
 export interface DurableStoreOptions {
   /**
    * Where a subject's baseline sits under the root. See {@link BaselineLayout}.
    */
   readonly layout?: BaselineLayout;
+
+  /**
+   * Where the `.json` records go, if not beside the images.
+   *
+   * A baseline is an image and a record of how it was painted, and only the
+   * image is the thing being reviewed. The record changes whenever the document
+   * changes — a class name, a build id, a font that resolved differently — so a
+   * record committed beside its image turns *every* edit into a diff under
+   * version control, including the edits that moved no pixel. Pointed at an
+   * ignored directory, a CI cache or a database export, the tracked root holds
+   * images and nothing else.
+   *
+   * **Both halves are still written and still read.** This moves the record's
+   * directory; it does not make the record optional. A store that finds one half
+   * of a baseline without the other still refuses, because a record that went
+   * missing is a baseline that can no longer say which machine painted it.
+   *
+   * Left unset the records stay beside the images, which is the placement that
+   * needs no second location to survive a checkout. Unlike {@link cacheRoot}
+   * this is the operator's to set and not a thing the CLI may infer: a lost
+   * cache entry costs a render, and a lost record costs the run its
+   * `missingFonts` and its `findingMarks` — evidence a verdict is allowed to
+   * turn on.
+   */
+  readonly recordRoot?: string;
 
   /**
    * Where the render cache goes, if not beside the baselines.
@@ -83,21 +97,25 @@ export interface DurableStoreOptions {
 
 export function createDurableStore(root: string, options: DurableStoreOptions = {}): RasterStore {
   const cacheRoot = options.cacheRoot ?? root;
+  const recordRoot = options.recordRoot ?? root;
   const layout = options.layout ?? 'flat';
-  const holderFor = (key: BaselineKey): string => holder(root, layout, key);
+  const holderFor = (key: BaselineKey): string => holder(recordRoot, layout, key);
+  const placesFor = (key: BaselineKey, identity: Digest): Places => ({
+    image: pathFor(holder(root, layout, key), identity, key, layout),
+    record: pathFor(holder(recordRoot, layout, key), identity, key, layout),
+  });
 
   return {
     retention: 'durable',
 
     async find(key, identity): Promise<Found | null> {
       const mine = identityDigest(identity);
-      const where = holderFor(key);
-      const own = await load(where, mine, key, layout);
+      const own = await load(placesFor(key, mine));
       if (own !== null) return { raster: own.raster, comparable: true, storedUnder: own.identity };
 
-      for (const other of await identities(where)) {
+      for (const other of await identities(holderFor(key))) {
         if (other === mine) continue;
-        const found = await load(where, other, key, layout);
+        const found = await load(placesFor(key, other));
         if (found !== null) {
           return { raster: found.raster, comparable: false, storedUnder: found.identity };
         }
@@ -111,13 +129,13 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // `find`, because "in terms of `find`" is precisely the megabyte this
       // exists to not spend.
       const mine = identityDigest(identity);
-      const where = holderFor(key);
-      const own = await readSidecar(pathFor(where, mine, key, layout));
+      const own = await readSidecar(placesFor(key, mine));
       if (own !== null) {
         return {
           documentDigest: own.documentDigest,
           comparable: true,
           storedUnder: own.identity,
+          pictured: occupiesPixels(own),
           missingFonts: own.missingFonts,
           ...(own.accessibility === undefined ? {} : { accessibility: own.accessibility }),
           // Names only. The sidecar carries hashes; a describe that handed them
@@ -130,14 +148,15 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         };
       }
 
-      for (const other of await identities(where)) {
+      for (const other of await identities(holderFor(key))) {
         if (other === mine) continue;
-        const sidecar = await readSidecar(pathFor(where, other, key, layout));
+        const sidecar = await readSidecar(placesFor(key, other));
         if (sidecar !== null) {
           return {
             documentDigest: sidecar.documentDigest,
             comparable: false,
             storedUnder: sidecar.identity,
+            pictured: occupiesPixels(sidecar),
             missingFonts: sidecar.missingFonts,
             ...(sidecar.accessibility === undefined
               ? {}
@@ -155,14 +174,19 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     },
 
     async put(key, raster): Promise<void> {
-      const path = pathFor(holderFor(key), identityDigest(raster.identity), key, layout);
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(`${path}.png`, Buffer.from(raster.bytes, 'base64'));
+      const places = placesFor(key, identityDigest(raster.identity));
+      await mkdir(dirname(places.record), { recursive: true });
+      // No image for a subject that has none. The sidecar alone is the whole
+      // baseline there, and it says so by carrying no dimensions.
+      if (raster.bytes !== undefined) {
+        await mkdir(dirname(places.image), { recursive: true });
+        await writeFile(`${places.image}.png`, Buffer.from(raster.bytes, 'base64'));
+      }
       // The sidecar carries the identity in readable form. A directory named by a
       // digest is unreviewable, and a baseline nobody can attribute to a machine
       // is a baseline nobody can decide to discard.
       await writeFile(
-        `${path}.json`,
+        `${places.record}.json`,
         `${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`,
         'utf8',
       );
@@ -179,7 +203,10 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     // of something we can make again.
     renderCache: neverFails({
       async get(digest, identity): Promise<Raster | null> {
-        return readRaster(join(cacheRoot, identityDigest(identity), 'by-document', digest));
+        // One prefix for both halves. The cache's record is as regenerable as
+        // its image, so there is nothing here for a split root to save.
+        const path = join(cacheRoot, identityDigest(identity), 'by-document', digest);
+        return readRaster({ image: path, record: path });
       },
 
       async put(raster): Promise<void> {
@@ -190,7 +217,9 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
           raster.documentDigest,
         );
         await mkdir(dirname(path), { recursive: true });
-        await writeFile(`${path}.png`, Buffer.from(raster.bytes, 'base64'));
+        if (raster.bytes !== undefined) {
+          await writeFile(`${path}.png`, Buffer.from(raster.bytes, 'base64'));
+        }
         await writeFile(
           `${path}.json`,
           `${JSON.stringify({ ...raster, bytes: undefined })}\n`,
@@ -201,66 +230,30 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
   };
 }
 
-/**
- * What an identity directory is named, so a scan can tell one from a neighbour.
- *
- * `flat` never needed this — everything under the root was a partition. `beside`
- * puts partitions among the subject's own siblings, where `Button/` and
- * `by-document/` are directories too, and a sibling scan that reported them as
- * machine identities would answer `incomparable` naming a component.
- */
-const IDENTITY_DIRECTORY = /^v1:[0-9a-f]{32}$/;
-
-function pathFor(holder: string, identity: Digest, key: BaselineKey, layout: BaselineLayout): string {
-  return join(holder, identity, fileNameFor(fileName(key, layout)));
-}
 
 /**
- * The directory holding this key's identity partitions.
+ * Where the two halves of one baseline go.
  *
- * `flat` answers the root for every key, which is what makes one `readdir` the
- * whole sibling scan. `beside` answers the subject's own directory, so the scan
- * that turns a wrong-machine run into `incomparable` reads that directory rather
- * than the tree — cheaper, and scoped to the subject actually being asked about.
+ * Equal prefixes unless {@link DurableStoreOptions.recordRoot} is set, which is
+ * why the split costs a reader nothing to ignore: every path in this file comes
+ * from one call, and the default makes both fields the string the file used to
+ * pass around.
  */
-function holder(root: string, layout: BaselineLayout, key: BaselineKey): string {
-  if (layout === 'flat') return root;
-  return join(root, ...segments(key.subject).slice(0, -1));
-}
-
-function fileName(key: BaselineKey, layout: BaselineLayout): string {
-  const subject = layout === 'flat' ? key.subject : segments(key.subject).at(-1) as string;
-  return key.label === undefined ? subject : `${subject}__${key.label}`;
-}
-
-/**
- * A subject id split into path segments, refusing the ones that escape the root.
- *
- * Only `beside` splits, and only `beside` can therefore be steered by a subject
- * id: a collector naming a subject `../../etc/hosts` would otherwise write a PNG
- * wherever the id said. `..`, an absolute id and an empty segment are refused by
- * name, because the alternative is a store whose write location is decided by
- * whatever produced the plan.
- */
-function segments(subject: string): readonly string[] {
-  if (subject.startsWith('/')) {
-    throw new RasterStoreError(`subject id ${JSON.stringify(subject)} is an absolute path`);
-  }
-  const parts = subject.split('/');
-  for (const part of parts) {
-    if (part === '' || part === '.' || part === '..') {
-      throw new RasterStoreError(
-        `subject id ${JSON.stringify(subject)} has a ${JSON.stringify(part)} segment, and a ` +
-          '`beside` layout would write outside the baseline root. Use the `flat` layout, or ' +
-          'give the subject an id that is a path.',
-      );
-    }
-  }
-  return parts;
+interface Places {
+  /** The `.png`'s path, without the extension. */
+  readonly image: string;
+  /** The `.json`'s path, without the extension. */
+  readonly record: string;
 }
 
 /**
  * The identities that have written here, or none because nobody has.
+ *
+ * Scanned in the **record** root rather than the image root. Every baseline has
+ * a record and only a pictured one has an image, so a scan of the images would
+ * miss the identity that painted a subject with no pixels — and report `new` for
+ * a subject another machine has already recorded, which is the exact sentence
+ * this scan exists to prevent.
  *
  * A root that does not exist is a legitimate empty answer — the first run on a
  * fresh checkout creates it on `put`. A root that exists and cannot be listed is
@@ -277,12 +270,9 @@ async function identities(holder: string): Promise<readonly string[]> {
 }
 
 async function load(
-  holder: string,
-  identity: string,
-  key: BaselineKey,
-  layout: BaselineLayout,
+  places: Places,
 ): Promise<{ raster: Raster; identity: RenderIdentity } | null> {
-  const raster = await readRaster(pathFor(holder, identity, key, layout));
+  const raster = await readRaster(places);
   return raster === null ? null : { raster, identity: raster.identity };
 }
 
@@ -314,16 +304,27 @@ async function load(
  * `RenderCache` and not in a judgement made here. This still throws; the cache
  * wrapper reads the throw as a miss, and the baseline path does not.
  */
-async function readRaster(path: string): Promise<Raster | null> {
+async function readRaster(places: Places): Promise<Raster | null> {
   const [sidecar, bytes] = await Promise.all([
-    orAbsent(() => readFile(`${path}.json`, 'utf8'), `${path}.json`),
-    orAbsent(() => readFile(`${path}.png`), `${path}.png`),
+    orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
+    orAbsent(() => readFile(`${places.image}.png`), `${places.image}.png`),
   ]);
 
   if (sidecar === null && bytes === null) return null;
-  if (sidecar === null || bytes === null) throw halfAPair(path, sidecar !== null);
+  if (sidecar === null) throw halfAPair(places, false);
 
-  return { ...parseSidecar(sidecar, `${path}.json`), bytes: bytes.toString('base64') };
+  const record = parseSidecar(sidecar, `${places.record}.json`);
+  // The sidecar says whether there should be an image: `width` and `height` are
+  // written exactly when one was taken. So a pixel-less baseline is a `.json`
+  // with no `.png` *and no dimensions*, which is a complete record — and a
+  // sidecar that claims dimensions with no image beside it is still damage.
+  if (record.width === undefined) {
+    if (bytes !== null) throw unexpectedImage(places);
+    return record;
+  }
+  if (bytes === null) throw halfAPair(places, true);
+
+  return { ...record, bytes: bytes.toString('base64') };
 }
 
 /**
@@ -335,16 +336,23 @@ async function readRaster(path: string): Promise<Raster | null> {
  * verdict would then depend on which question the caller asked. A stat is a
  * directory read; it is the existence check without the megabyte.
  */
-async function readSidecar(path: string): Promise<Omit<Raster, 'bytes'> | null> {
+async function readSidecar(places: Places): Promise<Omit<Raster, 'bytes'> | null> {
   const [sidecar, image] = await Promise.all([
-    orAbsent(() => readFile(`${path}.json`, 'utf8'), `${path}.json`),
-    orAbsent(() => stat(`${path}.png`), `${path}.png`),
+    orAbsent(() => readFile(`${places.record}.json`, 'utf8'), `${places.record}.json`),
+    orAbsent(() => stat(`${places.image}.png`), `${places.image}.png`),
   ]);
 
   if (sidecar === null && image === null) return null;
-  if (sidecar === null || image === null) throw halfAPair(path, sidecar !== null);
+  if (sidecar === null) throw halfAPair(places, false);
 
-  return parseSidecar(sidecar, `${path}.json`);
+  const record = parseSidecar(sidecar, `${places.record}.json`);
+  if (record.width === undefined) {
+    if (image !== null) throw unexpectedImage(places);
+    return record;
+  }
+  if (image === null) throw halfAPair(places, true);
+
+  return record;
 }
 
 /**
@@ -377,6 +385,22 @@ function isMissing(error: unknown): boolean {
 }
 
 /**
+ * A `.png` beside a sidecar that recorded no image.
+ *
+ * The mirror of {@link halfAPair}, and damage for the same reason: the sidecar
+ * is the record of what was observed, so an image it never claimed is a file
+ * from some other run. Comparing against it would answer about that run.
+ */
+function unexpectedImage(places: Places): RasterStoreError {
+  return new RasterStoreError(
+    `the baseline at ${places.record} records a subject with no pixels, and ` +
+      `${places.image}.png exists anyway. The sidecar is the record of what was observed, so an ` +
+      `image it does not claim came from somewhere else. ${REFUSAL}. Delete ${places.image}.png, ` +
+      'or delete both to record the subject afresh.',
+  );
+}
+
+/**
  * One file of the pair without the other.
  *
  * Never a miss. A `.png` with no `.json` is a baseline whose attribution was
@@ -384,14 +408,18 @@ function isMissing(error: unknown): boolean {
  * both are damage, and both look exactly like a subject nobody has rendered if
  * the lookup is willing to shrug. A CI cache restore that ran out of space and
  * a `put` killed between its two writes produce precisely this.
+ *
+ * Split roots do not soften it. Two directories are two things to restore, not a
+ * licence to run on one of them: the message names the files it actually looked
+ * for, wherever they were.
  */
-function halfAPair(path: string, sidecarSurvived: boolean): RasterStoreError {
+function halfAPair(places: Places, sidecarSurvived: boolean): RasterStoreError {
   const [present, missing] = sidecarSurvived
-    ? [`${path}.json`, `${path}.png`]
-    : [`${path}.png`, `${path}.json`];
+    ? [`${places.record}.json`, `${places.image}.png`]
+    : [`${places.image}.png`, `${places.record}.json`];
 
   return new RasterStoreError(
-    `the baseline at ${path} is half there: ${present} exists and ${missing} does not. ` +
+    `the baseline at ${places.image} is half there: ${present} exists and ${missing} does not. ` +
       'A baseline is the pair, so one file without the other is a corrupted baseline rather ' +
       `than a missing one. ${REFUSAL}. Restore ${missing}, or delete ${present} to record ` +
       'the subject afresh.',

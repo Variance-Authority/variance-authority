@@ -1,5 +1,6 @@
 // compass: variance-authority.acquisition
 
+import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
@@ -10,6 +11,7 @@ import type {
 } from '@variance-authority/core/format';
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
+import type { BaselineKey } from '@variance-authority/raster';
 import type { PresentationSignalRecord } from '@variance-authority/report';
 import type { Config, SubjectsConfig } from '../config.js';
 import { OperatorError } from '../exit.js';
@@ -59,6 +61,23 @@ export interface PlannedSubject {
    * once, where a typo can be refused by name.
    */
   readonly tags?: readonly string[];
+
+  /**
+   * The directory holding the file that declares this subject, relative to the
+   * repository root, or `''` for a subject declared at that root.
+   *
+   * The only route from a subject to a place, and it travels one way: the
+   * artifact that produced the plan knows it — Storybook's index names an
+   * `importPath` per story — and nothing downstream can recover it, because a
+   * subject id is a namespaced name and not a path. A `beside` baseline layout
+   * is what reads it, so the image lands in the same directory, the same review
+   * and the same `git mv` as the code it is an image of.
+   *
+   * Optional, and absent is not `''`. A `list` collector names its own subjects
+   * and may already have named them after directories, which `beside` splits on
+   * its own; `''` says this subject's code is at the root, which is a place.
+   */
+  readonly path?: string;
 }
 
 export interface Plan {
@@ -275,6 +294,7 @@ export async function planStorybook(
       subject: story.subject,
       ...(story.viewport !== undefined ? { viewport: story.viewport } : {}),
       ...(story.story.tags.length > 0 ? { tags: story.story.tags } : {}),
+      path: declaringDirectory(story.story.importPath),
     })),
     notObserved: plan.excluded.map((entry) => ({
       subject: storySubjectId(entry.id),
@@ -283,6 +303,42 @@ export async function planStorybook(
     })),
     warnings: plan.warnings,
   };
+}
+
+/**
+ * The store key a planned subject is looked up under and written to.
+ *
+ * One function because three callers build it — the run's working-set
+ * declaration, selection's sidecar read, and the observation itself — and a key
+ * carrying the placement at two of them would look a baseline up in a directory
+ * the third never wrote it to. That failure reads as `new`, and `new` records
+ * whatever is on screen.
+ */
+export function keyFor(planned: PlannedSubject): BaselineKey {
+  return {
+    subject: planned.subject.id,
+    ...(planned.path !== undefined ? { path: planned.path } : {}),
+  };
+}
+
+/**
+ * The directory a story is declared in, from the `importPath` its index carries.
+ *
+ * Storybook writes `./src/ui/shell/HatBar.stories.tsx`, relative to the project
+ * root and with the `./` on it. The leading `./` has to come off here rather
+ * than at the store, because a `.` segment is exactly what the store refuses as
+ * an escape — and it is right to refuse it, so the normalizing belongs with the
+ * half that knows the convention.
+ *
+ * A story at the root normalizes to `''`, which is a place and not an absence.
+ * Anything else — an absolute `importPath`, or one climbing out of the project
+ * with `../` — is carried through unchanged and refused by name at the store,
+ * because a placement this cannot express is a thing to say out loud rather than
+ * to quietly clamp into the nearest directory that happens to be writable.
+ */
+function declaringDirectory(importPath: string): string {
+  const directory = posix.dirname(importPath);
+  return directory === '.' ? '' : directory.replace(/^\.\//, '');
 }
 
 /** Plan a run from an explicit list. Nothing is excluded; the operator wrote it. */

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import type { Raster } from '@variance-authority/core/format';
 import { neverFails, RasterStoreError, REFUSAL } from '@variance-authority/raster';
 import type { Described, Found, RasterStore } from '@variance-authority/raster';
-import { createDurableStore, type BaselineLayout } from './durable.js';
+import { createDurableStore, type DurableStoreOptions } from './durable.js';
 
 /**
  * Baselines in the repository, tracked by git-LFS.
@@ -70,7 +70,20 @@ export type CommandRunner = (
   options: { readonly cwd: string },
 ) => Promise<CommandResult>;
 
-export interface LfsStoreOptions {
+/**
+ * Everything the durable store places by, and the four things git adds.
+ *
+ * The placement keys — `layout`, `cacheRoot`, `recordRoot` — are inherited
+ * rather than restated: this store *is* the durable one with a filter in front,
+ * and two copies of that vocabulary are two things to keep in step. Each means
+ * here exactly what it means there, with one addition each. `beside` needs
+ * nothing extra in `.gitattributes`, because attributes apply to the directory
+ * holding a file *and everything under it*, which is already why the entry lives
+ * in the baseline root. And `recordRoot` matters more here than anywhere else:
+ * `pattern` routes the images out of the object database, and the records are
+ * the text left behind to go on growing it.
+ */
+export interface LfsStoreOptions extends DurableStoreOptions {
   /** Baseline root, laid out exactly as the durable store lays it out. */
   readonly root: string;
 
@@ -93,29 +106,6 @@ export interface LfsStoreOptions {
    * shared file hostage to a subdirectory's needs.
    */
   readonly attributesFile?: string;
-
-  /**
-   * Where the render cache goes, if not beside the baselines.
-   *
-   * The cache is regenerable and is keyed by document digest, so it grows with
-   * every edit and is worth nothing after one. Left at the default it lands under
-   * `root` and is therefore tracked and committed like a baseline — correct
-   * behaviour, since it is what the durable store does and acceptance 4 asks that
-   * switching stores change no verdict, but expensive. Pointing it outside the
-   * work tree is the way to not pay for it.
-   */
-  readonly cacheRoot?: string;
-
-  /**
-   * Where a subject's baseline sits under the root. See {@link BaselineLayout}.
-   *
-   * `beside` is the reason this store has the option at all: baselines in the
-   * source tree, tracked, arriving with the checkout and moving when the
-   * component moves. The `.gitattributes` entry needs nothing extra — attributes
-   * apply to the directory holding the file *and everything under it*, which is
-   * already why the entry lives in the baseline root.
-   */
-  readonly layout?: BaselineLayout;
 
   /** `false` skips consulting git entirely, and says so in the diagnostics. */
   readonly verify?: boolean;
@@ -163,7 +153,10 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
   const attributesFile = options.attributesFile ?? join(options.root, '.gitattributes');
 
   const layout = options.layout === undefined ? {} : { layout: options.layout };
-  const baselines = createDurableStore(options.root, layout);
+  const records = options.recordRoot === undefined ? {} : { recordRoot: options.recordRoot };
+  const baselines = createDurableStore(options.root, { ...layout, ...records });
+  // No `records` for the cache: its own are as regenerable as its images, so a
+  // second directory for them buys nothing.
   const cache =
     options.cacheRoot === undefined ? baselines : createDurableStore(options.cacheRoot, layout);
 
@@ -275,6 +268,9 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
 function refuseAPointer(raster: Raster, what: string): void {
   // 60 base64 characters decode to 45 bytes, which covers the signature. Decoding
   // the whole image to read its first line would cost a megabyte per lookup.
+  // A record with no image cannot be a pointer: there is no file for git-lfs to
+  // have left behind.
+  if (raster.bytes === undefined) return;
   const head = Buffer.from(raster.bytes.slice(0, 60), 'base64').toString('utf8');
   if (!head.startsWith(POINTER_PREFIX)) return;
 

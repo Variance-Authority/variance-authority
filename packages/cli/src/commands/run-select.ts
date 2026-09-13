@@ -32,7 +32,7 @@ import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects } from './affected.js';
-import type { Plan } from './collector.js';
+import { keyFor, type Plan } from './collector.js';
 import { unenteredSubjects } from './journey.js';
 import { many, reachOf } from './reach.js';
 import type { ObserveContext, RunOptions } from './run-context.js';
@@ -131,7 +131,7 @@ export async function selectionFor(
   const baselines = new Map<string, readonly string[] | undefined>();
   for (const planned of plan.subjects) {
     const described = await deps.store.describe(
-      { subject: planned.subject.id },
+      keyFor(planned),
       renderer.identityFor({ viewport: planned.viewport ?? config.viewport }),
     );
     baselines.set(planned.subject.id, described?.components);

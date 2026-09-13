@@ -1,6 +1,6 @@
 import { PNG } from 'pngjs';
 import type { ChangeMask } from '@variance-authority/core/attribute';
-import type { Raster } from '@variance-authority/core/format';
+import { picture, type Raster } from '@variance-authority/core/format';
 import {
   DEFAULT_POLICY,
   STRICT_POLICY,
@@ -79,9 +79,14 @@ export async function compareRasters(
   options: CompareOptions & { readonly decoder?: PngDecoder } = {},
 ): Promise<RasterComparison> {
   const decoder = options.decoder ?? pngjsDecoder;
+  // A pixel comparison of a subject with no pixels is a caller mistake, not a
+  // verdict: whoever decided these two are comparable had both records in hand
+  // and could see that one carries no image.
+  const left0 = picture(before, 'before');
+  const right0 = picture(after, 'after');
   const [left, right] = await Promise.all([
-    decoder.decode(decode(before.bytes)),
-    decoder.decode(decode(after.bytes)),
+    decoder.decode(decode(left0.bytes)),
+    decoder.decode(decode(right0.bytes)),
   ]);
 
   return comparePixels(left, right, options);

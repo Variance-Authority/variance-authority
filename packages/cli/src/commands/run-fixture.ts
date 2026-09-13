@@ -2,6 +2,7 @@ import { deflateSync } from 'node:zlib';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import {
   documentDigest,
+  pictured,
   type Diagnostic,
   type Raster,
   type RenderDocument,
@@ -151,6 +152,7 @@ export function storeAnswering(found: Found | null | (() => never)): RasterStore
         documentDigest: baseline.raster.documentDigest,
         comparable: baseline.comparable,
         storedUnder: baseline.storedUnder,
+        pictured: pictured(baseline.raster),
         missingFonts: baseline.raster.missingFonts,
         ...(baseline.raster.accessibility === undefined
           ? {}

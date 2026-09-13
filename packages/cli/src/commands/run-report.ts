@@ -119,6 +119,22 @@ export interface CliObservationRecord extends ObservationRecord {
    * for the same reason.
    */
   readonly diagnostics?: readonly Diagnostic[];
+
+  /**
+   * The directory this subject's code lives in, carried from the plan.
+   *
+   * Here because `accept` writes baselines and never re-plans: it reads this
+   * report, reads the candidate images beside it, and puts them in the store.
+   * Under a `beside` layout the store needs the directory, and the only process
+   * that knew it was the run — so a report that dropped it would leave `accept`
+   * writing every accepted image to a placement the next run does not read.
+   *
+   * A CLI field rather than part of `ObservationRecord`, because it says nothing
+   * about what was observed. Absent for every collector that names no path, and
+   * for every report written before the field existed, both of which place
+   * exactly as they did.
+   */
+  readonly placement?: string;
 }
 
 /**

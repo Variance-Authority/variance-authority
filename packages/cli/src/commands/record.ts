@@ -59,6 +59,8 @@ export function recordOf(
     readonly unstable?: ObservationRecord['unstable'];
     /** Rendered relationship consequence supplied by a product-aware collector. */
     readonly presentation?: PresentationSignalRecord;
+    /** Where this subject's code lives, for a store that places by path. */
+    readonly placement?: string;
   } = {},
 ): CliObservationRecord {
   // Net of exclusions, on both policies. The comparison counts every differing
@@ -116,6 +118,7 @@ export function recordOf(
     ...(options.alone !== undefined ? { alone: options.alone } : {}),
     ...(options.unstable !== undefined ? { unstable: options.unstable } : {}),
     ...(diagnostics.length > 0 ? { diagnostics } : {}),
+    ...(options.placement !== undefined ? { placement: options.placement } : {}),
   };
 }
 

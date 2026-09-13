@@ -48,7 +48,12 @@ describe('the D1 migrations are the schema', () => {
     let at = -1;
 
     for (const statement of SCHEMA) {
-      const found = joined.indexOf(statement.trim());
+      // Searched from where the last statement ended, not from the start. A
+      // table rebuild recreates the indexes it dropped with the table, so the
+      // same `CREATE INDEX` text appears twice in the history on purpose, and a
+      // search that always found the first occurrence would call the second one
+      // out of order -- the one arrangement this test exists to permit.
+      const found = joined.indexOf(statement.trim(), at + 1);
       expect(found, `missing from the migrations: ${statement.trim().slice(0, 60)}…`).toBeGreaterThan(-1);
       expect(found, `out of order: ${statement.trim().slice(0, 60)}…`).toBeGreaterThan(at);
       at = found;

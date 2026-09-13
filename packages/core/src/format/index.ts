@@ -99,7 +99,7 @@ export type {
   ComponentHash,
 } from './snapshot.js';
 
-export { documentDigest, identityDigest } from './document.js';
+export { documentDigest, identityDigest, occupiesPixels, pictured, picture } from './document.js';
 export type {
   RenderDocument,
   RenderFrame,
@@ -107,4 +107,5 @@ export type {
   RenderResource,
   RenderIdentity,
   Raster,
+  Pictured,
 } from './document.js';

@@ -121,6 +121,7 @@ describe('the wire is the one the clients already speak', () => {
         documentDigest: RASTER.documentDigest,
         comparable: true,
         storedUnder: IDENTITY,
+        pictured: true,
         missingFonts: [],
       },
     });

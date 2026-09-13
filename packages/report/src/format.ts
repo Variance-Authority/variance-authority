@@ -1,6 +1,7 @@
 import type { ComponentBands } from '@variance-authority/core/attribute';
 import type { AccessibilitySnapshot, RenderIdentity } from '@variance-authority/core/format';
 import type { FindingRecord } from './finding-record.js';
+import type { RegionRecord } from './region-record.js';
 import type { CompositionReport } from './composition.js';
 import type { IgnoreLedger, SensitivityLedger } from './declarations.js';
 import type { ReachReport } from './reach.js';
@@ -272,7 +273,13 @@ export interface ObservationRecord {
   /** Independently observed boundaries. A missing member was not measured. */
   readonly signals?: {
     readonly document?: 'unchanged' | 'changed';
-    readonly pixels?: 'unchanged' | 'changed';
+    /**
+     * `unobservable` when the subject occupies no pixels — there was nothing to
+     * measure, as against `unchanged`, which is a measurement that found nothing
+     * moved. A reader that saw `unchanged` would take the image as evidence it
+     * never was.
+     */
+    readonly pixels?: 'unchanged' | 'changed' | 'unobservable';
     readonly accessibility?: {
       readonly verdict: 'unchanged' | 'changed' | 'incomparable';
       readonly before?: AccessibilitySnapshot;
@@ -448,38 +455,16 @@ export interface ObservationRecord {
     readonly before?: string;
     readonly after?: string;
     readonly diff?: string;
+    /**
+     * The candidate's sidecar — document digest, component hashes, ARIA tree.
+     *
+     * Written for every subject, and for a subject that occupies no pixels it is
+     * the *whole* candidate: there is no `after` to promote, and refusing on that
+     * ground would leave such a subject observable and permanently unbaselinable.
+     * Never an image; a reader painting the record must use `after`.
+     */
+    readonly record?: string;
   };
-}
-
-export interface RegionRecord {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly pixels: number;
-  readonly component?: string;
-  readonly path?: string;
-  /** Landmark phrase, e.g. `main → list item 2 of 3`. */
-  readonly where?: string;
-  readonly file?: string;
-  /**
-   * `true` when the semantic tier named this component a root of the change.
-   *
-   * The field that decides whether a report leads with the edit or with what the
-   * edit pushed around. See `rankRegions` — area alone gets this backwards.
-   */
-  readonly cause: boolean;
-  /** `true` when no box contained the region; a wrong scale or origin. */
-  readonly unattributed?: boolean;
-
-  /**
-   * The shape of this difference, with position and values removed.
-   *
-   * Printed so that writing a shape-scoped ignore is copying a digest out of the
-   * report rather than deriving one. Two regions with the same fingerprint are
-   * the same kind of thing happening, wherever on the canvas they landed.
-   */
-  readonly fingerprint?: string;
 }
 
 // Re-exported so a reader importing the report's shape gets the shapes its
@@ -493,4 +478,5 @@ export type {
   PresentationSignalRecord,
 } from './presentation-record.js';
 export type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
+export type { RegionRecord } from './region-record.js';
 export type { VariationRecord } from './variation.js';

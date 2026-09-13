@@ -233,19 +233,48 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     try {
       const broken: RenderDocument = {
         ...documentOf('fixture:broken', '#000'),
-        // Zero-sized rather than absent, though both take Playwright's 30s
-        // actionability timeout to fail — it waits for the element to become
-        // shootable either way. That half minute is the price of this assertion
-        // and it is worth paying: without a release on the failure path a pool
-        // of one deadlocks, and a CI job that hangs with no error is a worse
-        // outcome than any test being slow.
-        html: '<div data-va-path="0" style="width:0;height:0"></div>',
+        // No subject element at all, so the box read waits out Playwright's 30s
+        // actionability timeout and throws. A zero-sized subject is no longer a
+        // failure — it is a raster with no image — so the deadlock this test
+        // exists for needs a document that genuinely cannot be captured. That
+        // half minute is the price of the assertion and it is worth paying:
+        // without a release on the failure path a pool of one deadlocks, and a
+        // CI job that hangs with no error is a worse outcome than any test
+        // being slow.
+        html: '<div></div>',
       };
 
       await expect(renderer.render(broken)).rejects.toThrow();
 
       const raster = await renderer.render(documentOf('fixture:after', '#abcdef'));
       expect(raster.width).toBeGreaterThan(0);
+    } finally {
+      await renderer.close();
+    }
+  }, 60_000);
+
+  it('records a subject that occupies no pixels instead of refusing it', async () => {
+    // A quarter of Material UI's unit tier is this shape: `describeConformance`
+    // mounts each component with no children, so the subject is an empty div
+    // with margins. The capture still holds the document and the rules, and both
+    // compare — so the raster comes back complete and imageless rather than as a
+    // thrown sentence about a rectangle.
+    const renderer = await createPlaywrightRenderer({ concurrency: 1, waitForFonts: false });
+
+    try {
+      const empty: RenderDocument = {
+        ...documentOf('fixture:empty', '#000'),
+        html: '<div data-va-path="0" style="width:0;height:0"></div>',
+      };
+
+      const raster = await renderer.render(empty);
+
+      expect(raster.bytes).toBeUndefined();
+      expect(raster.width).toBeUndefined();
+      expect(raster.height).toBeUndefined();
+      // The half that is never in doubt, and the reason the subject is worth
+      // keeping: it still says what was rendered.
+      expect(raster.documentDigest).toBe(documentDigest(empty));
     } finally {
       await renderer.close();
     }

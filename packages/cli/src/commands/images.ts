@@ -3,6 +3,7 @@ import { hashComponents } from '@variance-authority/core/attribute';
 import {
   documentDigest,
   fileNameFor,
+  pictured,
   type Raster,
   type RenderDocument,
   type SemanticSnapshot,
@@ -103,11 +104,24 @@ export async function images(
   const base = join(config.images, fileNameFor(id));
   const reportDir = dirname(config.report);
 
-  await deps.writeArtifact(`${base}.after.png`, decode(raster.bytes));
+  // The sidecar is written for every subject, photographed or not. It is the
+  // document, the rules, the component hashes and the accessibility tree, and for
+  // a subject that occupies no pixels it is the entire record — the half of the
+  // evidence that never needed a camera.
+  if (pictured(raster)) await deps.writeArtifact(`${base}.after.png`, decode(raster.bytes));
   await deps.writeArtifact(
     `${base}.after.json`,
     Buffer.from(`${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`, 'utf8'),
   );
+
+  const record = relative(reportDir, `${base}.after.json`);
+
+  // No picture, so the sidecar is the candidate. `accept` promotes it as one:
+  // refusing here on the ground that there is no PNG would leave a subject the
+  // run *did* observe — it reached a document verdict without a camera — with no
+  // way ever to become a baseline, and a tier where nothing can be accepted is
+  // not a tier.
+  if (!pictured(raster)) return { images: { record } };
 
   // `changed` and `ignored` are the two verdicts a person looks at, so they are
   // the two that get a pair.
@@ -125,7 +139,7 @@ export async function images(
   // two more uploads, the same as a changed one. That is the price of the
   // evidence, and a suite where it is a large price is a suite ignoring a lot.
   if (key === null || (observation.verdict !== 'changed' && observation.verdict !== 'ignored')) {
-    return { images: { after: relative(reportDir, `${base}.after.png`) } };
+    return { images: { record, after: relative(reportDir, `${base}.after.png`) } };
   }
 
   // The baseline's *bytes*, looked up here rather than handed in, and this is
@@ -136,12 +150,16 @@ export async function images(
   //
   // After the verdict check on purpose: `unchanged`, `new` and `incomparable`
   // never write a `before.png`, so for them this read would be pure waste.
-  const before = (await deps.store.find(key, renderer.identityFor(document)))?.raster;
+  const stored = (await deps.store.find(key, renderer.identityFor(document)))?.raster;
+  // A baseline that occupies no pixels is not a `before` anybody can look at, and
+  // subtracting it is not defined. The candidate alone is the evidence, and the
+  // observation's sentence already says the subject gained its pixels.
+  const before = stored === undefined || !pictured(stored) ? undefined : stored;
   if (before === undefined) {
     // No `before` means nothing to subtract from, so a diff image would be the
     // candidate itself painted red. Omitted rather than written, and its absence
     // is visible in the record, which lists exactly the images that exist.
-    return { images: { after: relative(reportDir, `${base}.after.png`) } };
+    return { images: { record, after: relative(reportDir, `${base}.after.png`) } };
   }
 
   await deps.writeArtifact(`${base}.before.png`, decode(before.bytes));
@@ -152,6 +170,7 @@ export async function images(
 
   return {
     images: {
+      record,
       before: relative(reportDir, `${base}.before.png`),
       after: relative(reportDir, `${base}.after.png`),
       diff: relative(reportDir, `${base}.diff.png`),

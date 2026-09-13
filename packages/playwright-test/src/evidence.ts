@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Observation } from '@variance-authority/observe';
 import { decode, diffImage } from '@variance-authority/png';
-import { fileNameFor, type Raster } from '@variance-authority/core/format';
+import { fileNameFor, pictured, type Raster } from '@variance-authority/core/format';
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 
 /**
@@ -19,9 +19,13 @@ import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 export interface Evidence {
   /** The stored baseline. Absent when there was none to subtract from. */
   readonly before?: string;
-  /** What this run painted. Always written when evidence was asked for. */
-  readonly after: string;
-  /** `before` subtracted from `after`. Absent exactly when `before` is. */
+  /**
+   * What this run painted. Absent only when the subject occupies no pixels, in
+   * which case there was nothing to paint and `before` is a picture of what it
+   * used to occupy.
+   */
+  readonly after?: string;
+  /** `before` subtracted from `after`. Absent exactly when either of them is. */
   readonly diff?: string;
 }
 
@@ -65,11 +69,28 @@ export async function writeEvidence(
 
   await mkdir(directory, { recursive: true });
   const base = join(directory, fileNameFor(key.subject));
+  const stored = (await store.find(key, candidate.identity))?.raster;
+
+  // A subject that occupies no pixels has no image to show, and is a reviewable
+  // verdict all the same — its document or its accessibility tree moved. There
+  // is nothing to write, and saying so lets the caller report "no images" rather
+  // than a failed write; the sentence on the observation is the whole finding.
+  if (!pictured(candidate)) {
+    if (stored === undefined || !pictured(stored)) return undefined;
+    // It had pixels and now has none. The baseline is the only picture of what
+    // is gone, and it is the evidence.
+    const only = `${base}.before.png`;
+    await writeFile(only, decode(stored.bytes));
+    return { before: only };
+  }
+
   const after = `${base}.after.png`;
   const afterBytes = decode(candidate.bytes);
   await writeFile(after, afterBytes);
 
-  const before = (await store.find(key, candidate.identity))?.raster;
+  // A baseline with no pixels is not a `before` anyone can look at: the subject
+  // occupied nothing when it was recorded, and the candidate is the whole story.
+  const before = stored === undefined || !pictured(stored) ? undefined : stored;
   // No stored image means nothing to subtract from, and a diff against nothing
   // is the candidate painted red. Omitted rather than written: an `incomparable`
   // subject whose baseline came from another environment has no `before` *here*

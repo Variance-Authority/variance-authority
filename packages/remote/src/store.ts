@@ -373,6 +373,14 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     throw malformed(endpoint, BASELINE_DESCRIBE_PATH, '`comparable` missing or not a boolean');
   }
 
+  // Refused rather than defaulted, for the reason `missingFonts` is below it: a
+  // default here is a claim. `true` would report every pixel-less baseline in the
+  // suite as a photographed green, and `false` would tell a reader that a suite
+  // of real images was never photographed. Neither is a guess a codec may make.
+  if (typeof described.pictured !== 'boolean') {
+    throw malformed(endpoint, BASELINE_DESCRIBE_PATH, '`pictured` missing or not a boolean');
+  }
+
   // Refused rather than defaulted to `[]`, and this is the one field here where
   // that distinction changes a verdict. A settled subject reports `unchanged`;
   // if the baseline was painted without a declared font, it must say so in the
@@ -421,6 +429,7 @@ function readDescribed(payload: unknown, endpoint: string): Described | null {
     documentDigest: described.documentDigest,
     comparable: described.comparable,
     storedUnder,
+    pictured: described.pictured,
     missingFonts,
     ...(accessibilitySidecar?.accessibility === undefined
       ? {}

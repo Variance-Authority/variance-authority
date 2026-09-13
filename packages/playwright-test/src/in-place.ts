@@ -68,15 +68,27 @@ export async function stableRaster(
   const rasters: Raster[] = [];
 
   for (let index = 0; index < count; index += 1) {
-    const bytes = await locator.screenshot(screenshot);
+    // The box is read first, and it decides whether there is a photograph to
+    // take. A subject that occupies no pixels -- a wrapper whose only child went
+    // to a portal, a mount with no children -- is recorded without one rather
+    // than refused: its document, its rules and its accessibility tree are
+    // intact and all of them compare. Asking Playwright to screenshot it would
+    // throw on a zero-sized element, which is the refusal wearing a library's
+    // name.
     const box = await locator.boundingBox();
-    if (box === null) throw new Error(`subject ${document.subject.id} has no screenshot box`);
+    const pixels =
+      box === null || box.width === 0 || box.height === 0
+        ? {}
+        : {
+            width: Math.round(box.width * document.viewport.deviceScaleFactor),
+            height: Math.round(box.height * document.viewport.deviceScaleFactor),
+            bytes: (await locator.screenshot(screenshot)).toString('base64'),
+          };
+
     rasters.push({
       documentDigest: documentDigest(document),
       identity,
-      width: Math.round(box.width * document.viewport.deviceScaleFactor),
-      height: Math.round(box.height * document.viewport.deviceScaleFactor),
-      bytes: bytes.toString('base64'),
+      ...pixels,
       missingFonts,
     });
   }

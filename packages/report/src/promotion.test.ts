@@ -97,6 +97,27 @@ describe('what may become a baseline', () => {
     );
   });
 
+  it('promotes the sidecar for a subject that occupies no pixels', () => {
+    // The whole point of the pixel-less tier. This subject reached a `changed`
+    // verdict on its document alone; refusing it for want of a PNG would leave
+    // it observable on every run and baselinable on none.
+    const promotion = promotionOf(
+      changed('story:a', { images: { record: 'images/story%3Aa.after.json' } }),
+    );
+
+    expect(promotion).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.json' });
+  });
+
+  it('prefers the image over the sidecar when the subject has both', () => {
+    const promotion = promotionOf(
+      changed('story:a', {
+        images: { record: 'images/story%3Aa.after.json', after: 'images/story%3Aa.after.png' },
+      }),
+    );
+
+    expect(promotion).toEqual({ kind: 'promotable', from: 'images/story%3Aa.after.png' });
+  });
+
   it('sends an incomparable baseline somewhere different from a missing render', () => {
     const incomparable = promotionOf({
       subject: 'story:a',

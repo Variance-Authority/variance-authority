@@ -264,26 +264,33 @@ export async function createPlaywrightRenderer(
           );
           refuseMissingResources(document, missingResources);
 
-          if (box === null) {
-            throw new Error(
-              `subject "${document.subject.id}" occupies no pixels in the rendered ` +
-                'document; it has no box, or a box with a zero side, and an image of ' +
-                'no pixels is not something a later run can be compared against. ' +
-                'The subject is a component that rendered nothing here — its only ' +
-                'child went to a portal, or it was captured before its content ' +
-                'mounted, or the styling that gave it a size was not in the capture.',
-            );
-          }
+          // A subject with no box — or a box with a zero side — is recorded
+          // rather than refused. It rendered nothing: its only child went to a
+          // portal, it was mounted with no children, or the styling that gave it
+          // a size was not in the capture. Every one of those is a real state of
+          // a real subject, and the capture still holds its document, its rules,
+          // its component hashes and its accessibility tree, all of which
+          // compare. Refusing the subject over the one axis nobody was asking
+          // about reported a quarter of Material UI's unit tier as unobserved.
+          //
+          // The three image fields are absent together, and that absence is the
+          // record: *occupies no pixels*, never *the image was lost*.
+          const pixels =
+            box === null || bytes === null
+              ? {}
+              : {
+                  // Device pixels, which is what the mask and the regions are in.
+                  // The conversion back to CSS pixels happens once, in
+                  // `attributeRegions`, where the caller has to name the scale.
+                  width: Math.round(box.width * document.viewport.deviceScaleFactor),
+                  height: Math.round(box.height * document.viewport.deviceScaleFactor),
+                  bytes: bytes.toString('base64'),
+                };
 
           return {
             documentDigest: documentDigest(document),
             identity: identityFor(document),
-            // Device pixels, which is what the mask and the regions are in. The
-            // conversion back to CSS pixels happens once, in `attributeRegions`,
-            // where the caller has to name the scale.
-            width: Math.round(box.width * document.viewport.deviceScaleFactor),
-            height: Math.round(box.height * document.viewport.deviceScaleFactor),
-            bytes: bytes.toString('base64'),
+            ...pixels,
             missingFonts,
           };
         } finally {

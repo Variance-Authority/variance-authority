@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -265,6 +265,7 @@ describe('a clone without git-lfs', () => {
     expect(await store.describe({ subject: 'todo--empty' }, MAC)).toEqual({
       documentDigest: 'v1:doc',
       comparable: true,
+      pictured: true,
       storedUnder: MAC,
       missingFonts: [],
     });
@@ -296,6 +297,25 @@ describe('against a real git', () => {
 
     expect(store.tracking.added).toBe(true);
     expect(store.tracking.filter).toBe('lfs');
+  });
+
+  it('sends the records out of the tracked root when one is given, and keeps the images', async () => {
+    // The sharpest version of the split. LFS is the placement taken because the
+    // images are too big for the object database, and the `.gitattributes` entry
+    // routes them out of it — while the records stay behind as text, gaining a
+    // revision every time the document changes rather than every time a pixel
+    // does.
+    const records = await mkdtemp(join(tmpdir(), 'variance-records-'));
+    try {
+      const store = await createLfsStore({ root, git: TRACKED, recordRoot: records });
+      await store.put({ subject: 'todo--empty' }, rasterOf(MAC));
+
+      expect(await readdir(join(root, identityDigest(MAC)))).toEqual(['todo--empty.png']);
+      expect(await readdir(join(records, identityDigest(MAC)))).toEqual(['todo--empty.json']);
+      expect((await store.find({ subject: 'todo--empty' }, MAC))?.raster.bytes).toBe('QUJD');
+    } finally {
+      await rm(records, { recursive: true, force: true });
+    }
   });
 
   it.todo(

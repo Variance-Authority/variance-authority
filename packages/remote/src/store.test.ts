@@ -135,6 +135,7 @@ describe('a baseline store somewhere else', () => {
       documentDigest: 'v1:doc',
       comparable: true,
       storedUnder: MAC,
+      pictured: true,
       // Non-empty on purpose, and the only fixture in the suite that is. This
       // field decides whether a settled subject reports a bare `unchanged` or
       // says the baseline is an image of a substituted font, so a wire that
@@ -307,7 +308,12 @@ describe('a store that cannot answer', () => {
       fetch: async () =>
         new Response(
           JSON.stringify({
-            described: { documentDigest: 'v1:doc', comparable: true, storedUnder: MAC },
+            described: {
+              documentDigest: 'v1:doc',
+              comparable: true,
+              storedUnder: MAC,
+              pictured: true,
+            },
           }),
           { status: 200 },
         ),
@@ -326,6 +332,7 @@ describe('a store that cannot answer', () => {
               documentDigest: 'v1:doc',
               comparable: true,
               storedUnder: MAC,
+              pictured: true,
               missingFonts: [{ family: 'Inter' }],
             },
           }),

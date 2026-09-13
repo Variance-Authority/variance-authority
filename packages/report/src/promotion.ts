@@ -35,8 +35,8 @@ export type Promotion =
   | {
       readonly kind: 'promotable';
       /**
-       * The candidate image that would become the baseline, as the report named
-       * it.
+       * The candidate that would become the baseline, as the report named it:
+       * the `after` image, or the sidecar alone for a subject with no pixels.
        *
        * Carried on the answer rather than looked up again by the caller. A
        * command that re-read `images.after` after being told a subject is
@@ -83,12 +83,16 @@ export function promotionOf(observation: ObservationRecord): Promotion {
     };
   }
 
-  const after = observation.images?.after;
-  if (after === undefined) {
+  // The picture when there is one, the sidecar when there is not. A subject that
+  // occupies no pixels still reached a verdict — the document, the component
+  // hashes and the ARIA tree are all in the sidecar — so it has a candidate, and
+  // the only thing missing is the half a camera would have produced.
+  const from = observation.images?.after ?? observation.images?.record;
+  if (from === undefined) {
     return { kind: 'refused', because: noImage(observation) };
   }
 
-  return { kind: 'promotable', from: after };
+  return { kind: 'promotable', from };
 }
 
 /**
@@ -102,13 +106,18 @@ export function promotionOf(observation: ObservationRecord): Promotion {
  *
  * A subject with no region at all is in neither list. It is not evidence about
  * these shapes in either direction.
+ *
+ * Generic over the record, because this only ever *filters*: every object it
+ * returns is one it was handed. A caller reading a richer record — the CLI's,
+ * which carries diagnostics and placement — would otherwise get the base type
+ * back and have to assert its own rows back into their own shape.
  */
-export function selectByShape(
-  observations: readonly ObservationRecord[],
+export function selectByShape<T extends ObservationRecord>(
+  observations: readonly T[],
   shapes: ReadonlySet<string>,
-): { whole: readonly ObservationRecord[]; partial: readonly ObservationRecord[] } {
-  const whole: ObservationRecord[] = [];
-  const partial: ObservationRecord[] = [];
+): { whole: readonly T[]; partial: readonly T[] } {
+  const whole: T[] = [];
+  const partial: T[] = [];
 
   for (const observation of observations) {
     if (observation.regions.length === 0) continue;
