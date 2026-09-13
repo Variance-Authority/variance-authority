@@ -207,7 +207,7 @@ chromium_('the additive Playwright path', () => {
     try {
       await expect(
         session.observe(changing, { subjectId: 'cart/in-place-unstable' }),
-      ).rejects.toThrow('repeated screenshots disagree');
+      ).rejects.toThrow(/is unstable: .*pixels differ/);
       expect(screenshots).toBe(2);
     } finally {
       await target.evaluate((element) => {

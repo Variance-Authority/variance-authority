@@ -119,7 +119,15 @@ describe('composing a trick this package does not ship', () => {
 
 describe('applying a recipe', () => {
   it('merges every screenshot contribution', () => {
-    expect(recipeScreenshot(RASTER_RECIPE)).toEqual({ animations: 'disabled', caret: 'hide' });
+    expect(recipeScreenshot(RASTER_RECIPE)).toEqual({ animations: 'disabled' });
+  });
+
+  it('holds the caret in CSS, where reading the DOM twice cannot see it', () => {
+    // The driver's own caret switch writes `caret-color` onto focusable
+    // elements and restores it, leaving `style=""` behind; a capture that reads
+    // the subject before and after a screenshot would call that a page moving.
+    expect(recipeScreenshot(RASTER_RECIPE)).not.toHaveProperty('caret');
+    expect(recipeCss(RASTER_RECIPE)).toContain('caret-color:transparent');
   });
 
   it('runs every wait, in order', async () => {

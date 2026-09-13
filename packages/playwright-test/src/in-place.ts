@@ -10,6 +10,7 @@
 
 import type { Locator, Page } from '@playwright/test';
 import { digestValue, documentDigest } from '@variance-authority/core/format';
+import type { AttributedRegion } from '@variance-authority/core/attribute';
 import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
 import { observeRasters } from '@variance-authority/observe';
 import type { InPlaceCaptureOptions } from './options.js';
@@ -25,11 +26,13 @@ export async function stableRaster(
 ): Promise<Raster> {
   const screenshot = {
     type: 'png',
-    // Acquisition leaves the declared CSS animation hold installed. Let that
-    // one owner define both semantic and pixel state; asking Playwright to
-    // fast-forward here would apply a conflicting second intervention.
+    // Acquisition leaves the declared CSS holds installed. Let that one owner
+    // define both semantic and pixel state; asking Playwright to fast-forward
+    // animations or hide the caret here would apply a conflicting second
+    // intervention — and the driver's caret switch writes to the DOM, which the
+    // confirming acquisition below would read as the subject moving.
     animations: 'allow',
-    caret: 'hide',
+    caret: 'initial',
   } as const;
   const browser = page.context().browser();
   const engine = browser?.browserType().name() ?? 'browser';
@@ -70,9 +73,31 @@ export async function stableRaster(
     const agreement = await observeRasters(document.subject.id, first, next, { snapshot });
     if (agreement.verdict !== 'unchanged') {
       throw new Error(
-        `in-place capture for ${document.subject.id} is unstable: repeated screenshots disagree`,
+        `in-place capture for ${document.subject.id} is unstable: ${agreement.because}` +
+          whereUnstable(agreement.regions),
       );
     }
   }
   return first;
+}
+
+/**
+ * The nodes two screenshots of one unheld state disagreed about.
+ *
+ * The comparison already attributed every region; discarding that and saying
+ * only that the screenshots disagree leaves the caller to find the animation,
+ * caret or timer themselves. Names, deduplicated and capped, because a subject
+ * that moves everywhere is described by the first few movers.
+ */
+function whereUnstable(regions: readonly AttributedRegion[]): string {
+  const names: string[] = [];
+  for (const region of regions) {
+    const at = region.source === undefined ? undefined : `${region.source.file}:${region.source.line}`;
+    const name = region.where ?? region.component ?? at;
+    if (name !== undefined && !names.includes(name)) names.push(name);
+  }
+  if (names.length === 0) return '';
+  const shown = names.slice(0, 4);
+  const rest = names.length - shown.length;
+  return ` — moving in ${shown.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`;
 }

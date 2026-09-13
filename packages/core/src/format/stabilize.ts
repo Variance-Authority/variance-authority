@@ -97,6 +97,21 @@ export const pinAnimations: Intervention = {
     'scroll-behavior:auto !important}',
 };
 
+/**
+ * A stylesheet rather than the driver's own caret switch, deliberately.
+ *
+ * Playwright and its peers hide a caret by writing `caret-color` onto every
+ * focusable element and putting it back afterwards, and putting it back leaves
+ * `style=""` where there was no `style` attribute at all. Any capture that reads
+ * the DOM on both sides of a screenshot — which is what the in-place path does
+ * to prove the subject held still — then sees markup that moved, and reports the
+ * driver's housekeeping as the page being unstable. A page with one text input
+ * is enough.
+ *
+ * So this hold owns the caret the way {@link pinAnimations} owns animations: one
+ * stylesheet, installed before the subject is read, removed with the rest of the
+ * recipe.
+ */
 export const hideCaret: Intervention = {
   id: 'hide-caret',
   trick: 'support',
@@ -105,7 +120,7 @@ export const hideCaret: Intervention = {
   needs: 'raster',
   governs: 'caret',
   because: 'text caret hidden, because it blinks on its own schedule',
-  screenshot: { caret: 'hide' },
+  css: '*{caret-color:transparent !important}',
 };
 
 export const hideScrollbars: Intervention = {

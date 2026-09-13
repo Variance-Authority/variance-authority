@@ -31,6 +31,7 @@ import { accepted } from './accepted.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
+import { driftBetween, listDrift } from './drift.js';
 import { stableRaster } from './in-place.js';
 import {
   createExecutionRecorder,
@@ -337,14 +338,19 @@ export async function observeLocator(
     });
     if (confirmedUnsettled !== undefined) throw new Error(confirmedUnsettled);
     const confirmedSnapshot = normalize(confirmed.capture);
-    if (
-      documentDigest(confirmed.document) !== documentDigest(document) ||
-      digestValue(JSON.stringify(confirmedSnapshot)) !== digestValue(JSON.stringify(snapshot)) ||
-      confirmed.accessibility.digest !== accessibility.digest ||
-      confirmed.stabilization.digest !== stabilization.digest
-    ) {
+    const drifted = driftBetween(
+      { document, snapshot, accessibility, stabilization },
+      {
+        document: confirmed.document,
+        snapshot: confirmedSnapshot,
+        accessibility: confirmed.accessibility,
+        stabilization: confirmed.stabilization,
+      },
+    );
+    if (drifted.length > 0) {
       throw new Error(
-        `in-place capture for ${subject.id} changed between acquisition and screenshots`,
+        `in-place capture for ${subject.id} changed between acquisition and screenshots: ` +
+          `${listDrift(drifted)} moved while the page was being photographed`,
       );
     }
     const artifact: CaptureArtifact = {
