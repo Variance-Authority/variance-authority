@@ -105,23 +105,39 @@ were read, so the same scan can be viewed under several taints, or none.
 
 ```ts
 import { scanRelations } from '@variance-authority/sense';
-import { mockTaint, taintFile } from '@variance-authority/sense/taint';
+import { mockTaint, taintFile, taintRecords } from '@variance-authority/sense/taint';
+import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
 
-const records = await scanRelations({
-  root: '.',
-  dirs: ['src'],
-  taints: [mockTaint(), await taintFile('variance.taint.json')],
-});
+const records = await scanRelations({ root: '.', dirs: ['src'] });
+const tainted = await taintRecords(records, [mockTaint(), await taintFile('variance.taint.json')], { root: '.' });
+const relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
+
+movedBy(relations, ['src/api.ts']).files; // no test that mocks `./api`
 ```
 
+The two halves land in different places, because they are facts of different
+shape. A `+` is one more import the file makes: an edge on its record, resolved
+the way the scan resolves any other, and reported in `tainted.additions`. A `-`
+is not one edge fewer. `vi.mock('./api')` replaces `api.ts` for the whole of
+that test's run — for the test, for the component it imports, for anything
+under it — so it is the module taken out of the graph as seen from that file, at
+every level. It lands in `tainted.shadows`, keyed by file, and a graph built
+with that table carries it into every walk: a file is moved by a change only
+when some trail from the change arrives without crossing one of its shadows, and
+what is reached only through such a file goes with it. `movedBy` names the files
+it left out this way in `shadowed`. The records themselves are not cut, so a
+file no taint adds to comes back as the same object.
+
 `mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls off test, spec,
-story and setup files and subtracts the mocked specifier. The edge is kept
-when the factory reaches for the real module through `importActual`,
-`requireActual` or `importOriginal`, when the factory is written somewhere
-this cannot read, when the mock is a `doMock` that the static imports above it
-have already evaluated past, and when the specifier is not a string literal. Pass `callers` to name other mocking objects and `files` to widen
-which files are read. `taintFile` reads a JSON table you keep beside the
-repository, keyed by file path with `-` and `+` rows:
+story and setup files and shadows the mocked module. Nothing is shadowed when the
+factory reaches for the real module through `importActual`, `requireActual` or
+`importOriginal`, when the factory is written somewhere this cannot read, when
+the mock is a `doMock` that the static imports above it have already evaluated
+past, and when the specifier is not a string literal. Pass `callers` to name
+other mocking objects and `files` to widen which files are read. `taintFile`
+reads a JSON table you keep beside the repository, keyed by file path with `-`
+and `+` rows, and `taintTable` builds the same taint from a table already in
+memory:
 
 ```json
 {
@@ -130,17 +146,37 @@ repository, keyed by file path with `-` and `+` rows:
 }
 ```
 
-The `taints` option of `scanRelations` takes any number of them and applies
-them once the scan has read every file. `taintTable` builds the same taint from
-a table already in memory, and `taintRecords` performs the join on records you
-already hold. A file no taint
-has a row for is returned as the same object. Under more than one taint the
-subtractions are unioned and so are the additions, and an addition beats a
-subtraction: two taints that disagree describe a file one of them is wrong
-about, and the graph keeps the edge. A subtraction removes the file's own edge
-and nothing further — the module the test imports still reaches the mocked
-module through its own imports, which over-includes: a test that mocks what
-its component imports is still selected by a change to the mocked module.
+Under more than one taint the subtractions are unioned and so are the
+additions, and the two never contend: an edge one taint adds to a file another
+taint shadows is an edge into a node the file's run never enters, and the shadow
+holds, the way the mock holds at runtime. The `taints` option of the CLI's
+`source` section names the tables, and its mock reader is on whenever the graph
+is.
+
+### Hold the taints against a record
+
+A taint says what a file's run reaches; a coverage record says what it did.
+Where both exist, `auditTaints` holds one against the other and names every
+disagreement as a coordinate to look at:
+
+```ts
+import { auditTaints } from '@variance-authority/sense/taint';
+import { readTestCoverage } from '@variance-authority/sense/test-selection';
+
+const coverage = await readTestCoverage('.variance/test-coverage.bin');
+for (const { test, module, kind } of auditTaints(coverage, relations, tainted)) {
+  console.log(`${test} ${kind} ${module}`);
+}
+```
+
+`shadowed-but-entered` is a module the test shadows and the record says it
+entered: the taint is wrong about that mock, or the mock did not take.
+`reachable-but-not-entered` is a module the test reaches on the graph past its
+shadows and nobody entered for it: an import the run never loaded, or a mock no
+taint knows about yet. `added-but-not-entered` is an addition the record never
+saw the test in. Only an instrumented module testifies, and only a complete
+observation testifies to absence. Pass `knownAs` when the record holds a module
+under a built name.
 
 ## Entrypoints
 
@@ -148,7 +184,7 @@ its component imports is still selected by a change to the mocked module.
 |---|---|---|
 | `@variance-authority/sense` | `scanRelations`, the binary source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
-| `@variance-authority/sense/taint` | joining a second table of imports — mocks subtracted, framework notations added — onto scanned records | the records, and a table or a reader that produces the diff |
+| `@variance-authority/sense/taint` | joining a second table of imports — mocks shadowed, framework notations added — onto scanned records, and auditing it against a record | the records, and a table or a reader that produces the diff |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
 | `@variance-authority/sense/jest` | adding instrumentation, collection, and persistence to Jest, around the transformer the project already uses | Jest 30 and product tests |

@@ -48,7 +48,6 @@ import { MODULE_EXTENSIONS, STYLE_EXTENSIONS, readModule, readStyle } from './re
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitDigests } from './tree.js';
 import { layoutOf, type RecordCache } from './reuse.js';
-import { taintRecords, type Taint } from './taint/index.js';
 import {
   EXCLUDE_DIRS,
   isRelative,
@@ -91,15 +90,6 @@ export interface ScanOptions extends ResolveOptions {
    */
   readonly reuse?: RecordCache;
 
-  /**
-   * Import diffs joined onto the records after the walk.
-   *
-   * What a file imports beyond, or short of, what its text says — a mocked
-   * module, a framework's own import notation ([`taint`](./taint/index.ts)).
-   * Applied after the records are built and never stored with them, so the
-   * caches hold what was read and the taints hold what was meant.
-   */
-  readonly taints?: readonly Taint[];
 }
 
 /** Files whose declarations are not components, matching the component index. */
@@ -169,7 +159,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
 
   const records = [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
 
-  return options.taints === undefined ? records : taintRecords(records, options.taints, { ...options, root });
+  return records;
 }
 
 interface Subject {

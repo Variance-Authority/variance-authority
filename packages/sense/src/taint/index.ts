@@ -22,22 +22,25 @@
  * several taints at once, or none, without a second walk — the join is the
  * only thing that changes ([ADR-0041](../../../../docs/context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)).
  *
+ * ## A plus is an edge, a minus is a node
+ *
+ * The two halves of a diff land in different places, because they are facts of
+ * different shape. An addition is an import the file makes: one more edge on
+ * the file's record, resolved the way the scan resolves any other. A removal is
+ * not the absence of one edge. `vi.mock('./api')` replaces `api.ts` for the
+ * whole of that test's run — for the test, for the component it imports, for
+ * anything under it — so it is the module taken out of the graph as seen from
+ * that file, at every level. That is a row in {@link Tainted.shadows}, keyed by
+ * the file and naming the files it never reaches, and `movedBy` in
+ * `core/relate` consults it: a file is moved by a change only when some trail
+ * from the change arrives without crossing one of its shadows.
+ *
  * ## Composition
  *
- * Under more than one taint the removals are unioned and so are the additions,
- * and an addition beats a removal. Two taints that disagree describe a file one
- * of them is wrong about, and the direction to be wrong in is the one that
- * keeps the edge ([`selecting.md`](../../../../docs/selecting.md)).
- *
- * ## What a removal removes
- *
- * The file's own edge, and nothing further. `vi.mock('./api')` inside
- * `a.test.ts` cuts `a.test.ts → api.ts`; it does not cut `a.ts → api.ts` for
- * the `a.ts` the test imports, though at runtime that edge is replaced too. A
- * diff that reached across files would be a fact about the *pair*, and the
- * table is keyed by one file. The graph the join hands on still reaches `api.ts`
- * from the test through `a.ts`, which over-includes.
- * TODO: a mock shadowing a transitive import is a cut on the graph, not a row in this table.
+ * Under more than one taint the removals are unioned and so are the additions.
+ * The two never contend: an edge one taint adds to a file another taint shadows
+ * is an edge into a node the file's run never enters, and the shadow holds, the
+ * way the mock holds at runtime.
  */
 
 // compass: variance-authority.reach
@@ -63,7 +66,7 @@ export type { Node };
 
 /** What one file imports beyond, or short of, what its text says. */
 export interface ImportDiff {
-  /** Specifiers the file writes and does not import. */
+  /** Specifiers the file writes and never reaches, at any depth of its run. */
   readonly minus?: readonly string[];
   /** Specifiers the file imports and does not write, exactly as it would have written them. */
   readonly plus?: readonly string[];
@@ -102,6 +105,20 @@ export interface TaintOptions extends ResolveOptions {
   readonly root: string;
 }
 
+/** The records with the additions joined on, and the two tables beside them. */
+export interface Tainted {
+  /** One per input, in order; a record no taint adds to is the same object. */
+  readonly records: readonly FileRecord[];
+  /**
+   * Per file, the resolved files its run never reaches. The table `movedBy`
+   * takes as `shadows`. A removal that resolves to nothing names no node and
+   * cuts nothing.
+   */
+  readonly shadows: ReadonlyMap<string, readonly string[]>;
+  /** Per file, the resolved files its additions reached. For the audit and the report. */
+  readonly additions: ReadonlyMap<string, readonly string[]>;
+}
+
 /** The table a JSON taint file holds: a diff per file, `-` and `+` as keys. */
 export type TaintTable = Readonly<
   Record<string, { readonly '-'?: readonly string[]; readonly '+'?: readonly string[] }>
@@ -110,11 +127,10 @@ export type TaintTable = Readonly<
 const TRANSFER = { experimentalRawTransfer: rawTransferSupported() } as ParserOptions;
 
 /**
- * The records with every taint's diff joined on.
+ * The records with every taint's additions joined on, and the shadows beside.
  *
  * Records come back in the order they arrived, one per input, and a record no
- * taint has a row for is the same object. A removed specifier that the scan had
- * left unresolved leaves `unresolved` too; an added specifier that resolves to
+ * taint adds to is the same object. An added specifier that resolves to
  * nothing lands where the scan would have put it — `unresolved`, and `unknown`
  * when it is relative, because a taint that names a path inside the repository
  * and misses is the same hole a file naming one is.
@@ -123,8 +139,10 @@ export async function taintRecords(
   records: readonly FileRecord[],
   taints: readonly Taint[],
   options: TaintOptions,
-): Promise<readonly FileRecord[]> {
-  if (taints.length === 0) return records;
+): Promise<Tainted> {
+  const shadows = new Map<string, readonly string[]>();
+  const additions = new Map<string, readonly string[]>();
+  if (taints.length === 0) return { records, shadows, additions };
 
   const root = realPath(resolve(options.root));
   const resolvers = resolversFor(options);
@@ -133,10 +151,23 @@ export async function taintRecords(
 
   for (const record of records) {
     const diff = await diffFor(record.file, root, taints, readers);
-    joined.push(diff === undefined ? record : applied(record, diff, root, resolvers));
+    if (diff === undefined) {
+      joined.push(record);
+      continue;
+    }
+    const target = targetFrom(record.file, root, resolvers);
+    const cut = resolvedOf(diff.minus, target);
+    if (cut.length > 0) shadows.set(record.file, cut);
+    if (diff.plus === undefined || diff.plus.length === 0) {
+      joined.push(record);
+      continue;
+    }
+    const added = applied(record, diff.plus, target);
+    joined.push(added.record);
+    if (added.reached.length > 0) additions.set(record.file, added.reached);
   }
 
-  return joined;
+  return { records: joined, shadows, additions };
 }
 
 /** A taint from a table already in memory. */
@@ -222,28 +253,38 @@ async function subjectFor(file: string, root: string): Promise<TaintSubject | un
   };
 }
 
-/** One record with one composed diff resolved and joined on. */
-function applied(record: FileRecord, diff: ImportDiff, root: string, resolvers: Resolvers): FileRecord {
-  const from = join(root, record.file);
-  const style = false;
-  const target = (value: string): string | undefined => {
+type Target = (value: string) => string | undefined;
+
+/** A specifier resolved from one file, the way the scan resolves an import. */
+function targetFrom(file: string, root: string, resolvers: Resolvers): Target {
+  const from = join(root, file);
+  return (value) => {
     const request = requestOf(value);
-    return request === undefined ? undefined : resolveTo({ resolvers, root, from, request, style });
+    return request === undefined ? undefined : resolveTo({ resolvers, root, from, request, style: false });
   };
+}
 
-  const cut = new Set<string>();
-  const cutSpecifiers = new Set<string>();
-  for (const value of diff.minus ?? []) {
-    cutSpecifiers.add(value);
+function resolvedOf(values: readonly string[] | undefined, target: Target): readonly string[] {
+  const found = new Set<string>();
+  for (const value of values ?? []) {
     const to = target(value);
-    if (to !== undefined) cut.add(to);
+    if (to !== undefined) found.add(to);
   }
+  return [...found].sort(byCodeUnit);
+}
 
-  const edges: FileEdge[] = (record.edges ?? []).filter((edge) => !cut.has(edge.to));
-  const unresolved = (record.unresolved ?? []).filter((value) => !cutSpecifiers.has(value));
+/** One record with its additions resolved and joined on. */
+function applied(
+  record: FileRecord,
+  plus: readonly string[],
+  target: Target,
+): { readonly record: FileRecord; readonly reached: readonly string[] } {
+  const edges: FileEdge[] = [...(record.edges ?? [])];
+  const unresolved = [...(record.unresolved ?? [])];
   const holes: string[] = [];
+  const reached = new Set<string>();
 
-  for (const value of diff.plus ?? []) {
+  for (const value of plus) {
     const to = target(value);
     if (to === undefined) {
       unresolved.push(value);
@@ -251,6 +292,7 @@ function applied(record: FileRecord, diff: ImportDiff, root: string, resolvers: 
       if (request !== undefined && isRelative(request)) holes.push(value);
       continue;
     }
+    reached.add(to);
     // The target says what it is: a stylesheet is an asset however it was named.
     edges.push({ to, kind: kindFor('imports', to) });
   }
@@ -264,10 +306,13 @@ function applied(record: FileRecord, diff: ImportDiff, root: string, resolvers: 
 
   const { edges: _edges, unresolved: _unresolved, unknown: _unknown, ...rest } = record;
   return {
-    ...rest,
-    ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
-    ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
-    ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
+    record: {
+      ...rest,
+      ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
+      ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
+      ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
+    },
+    reached: [...reached].sort(byCodeUnit),
   };
 }
 

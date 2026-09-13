@@ -127,7 +127,7 @@ The options that change scope are explicit at the call site:
 | `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region |
 | `fingerprintOfMask` | `grid` controls the shape sample and `coverage` controls the minimum occupied share |
 | `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
-| `buildDocket` / dependency reach | `sampleSize` limits review examples and `through` selects graph edge kinds |
+| `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never enters, and `shadows` carries per file the modules its run never reaches, so `movedBy` leaves out a file every trail to which crosses one of its own shadows |
 | `sharedClosures` | `floor` drops a shared subtree below a node count |
 | `lexiconOf` | `examples`, `declaredIn` and `regions` supply what the instances cannot: which components a subject is the example of, the files declaring each component, and the regions its journey entered |
 | report summaries | `source` maps component names to files when `summarizeAdjudication` or `summarizeFindings` needs an actionable path |

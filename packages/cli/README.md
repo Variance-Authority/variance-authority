@@ -795,7 +795,8 @@ downloaded, so the run's inputs are the ones in the repository.
     "dirs": ["src"],
     "relations": true,
     "unrendered": "whole",
-    "changes": { "tool": "turbo", "task": "build" }
+    "changes": { "tool": "turbo", "task": "build" },
+    "taints": ["variance.taint.json"]
   },
 
   "browser": "chromium",
@@ -820,13 +821,18 @@ is the third: the collector discovers the subject list itself, which is what a
 — a page that stops being discovered stops being watched. `baselines` is
 `directory`, `lfs` or `remote`.
 
-`source` is the only thing `--since` can narrow against, and it is four settings
+`source` is the only thing `--since` can narrow against, and it is five settings
 in one. `dirs` names where components are declared *and* declares the scope: a
 changed file inside it that reaches no component forces a whole run, a changed
 file outside it was never claimed to affect a render. `relations: true` reads
 what imports what, so `tokens.css` is answered by walking to the components that
 rest on it instead of running the suite — it costs one scan of the tree,
-which is cached by content and by tree shape and so is paid once. The same
+which is cached by content and by tree shape and so is paid once. The graph
+reads the mocks as it goes: a test that calls `vi.mock('./api')` is not moved
+by a change to `api.ts`, at any depth, because its run never enters that module.
+`taints` names JSON tables that say what else a file imports beyond, or short
+of, its text — a framework's own import notation, a module loaded under a name
+the code never writes — keyed by file with `-` and `+` rows. The same
 graph answers the execution journal for a changed file it holds no row of: the
 importers of that file, and theirs, until one the journal did record. `unrendered`
 answers the case where the walk succeeds and lands nowhere: a change reaching

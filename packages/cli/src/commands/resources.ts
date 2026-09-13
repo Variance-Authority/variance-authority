@@ -313,7 +313,11 @@ export async function scanSourceDirs(
  * are keyed by content and by tree shape, so the worst a bad one can do is a full
  * scan — see `scanCacheRoot`.
  */
-export async function relationsFor(root: string, dirs: readonly string[]): Promise<Relations> {
+export async function relationsFor(
+  root: string,
+  dirs: readonly string[],
+  taints: readonly string[] = [],
+): Promise<Relations> {
   let scanner;
   try {
     scanner = await import('@variance-authority/sense');
@@ -337,7 +341,14 @@ export async function relationsFor(root: string, dirs: readonly string[]): Promi
   });
   await source.save();
 
-  return relationsOfFiles(records);
+  // The mocks are read unasked. A graph that believes `vi.mock('./api')`
+  // imports `./api` selects that test for every change behind the mock, and
+  // an operator who has to know to switch the reader on is one who finds out
+  // from the suite that ran. Tables named in the config join the same way.
+  const tables = await Promise.all(taints.map((file) => scanner.taintFile(join(root, file))));
+  const tainted = await scanner.taintRecords(records, [scanner.mockTaint(), ...tables], { root });
+
+  return relationsOfFiles(tainted.records, { shadows: tainted.shadows });
 }
 
 const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];

@@ -183,6 +183,27 @@ describe('what a change moved', () => {
     );
   });
 
+  it('drops a file whose shadow stands on every trail from the change', () => {
+    // `Button.tsx` mocks `util.ts`: a change to `util.ts` reaches it only
+    // through the module it replaced. `Clock.tsx` imports the real one.
+    const relations = relationsOfFiles(SUITE);
+    const shadows = new Map([['src/Button.tsx', ['src/util.ts']]]);
+    const moved = movedBy(relations, ['src/util.ts'], { shadows });
+
+    expect(moved.files).toEqual(['src/Clock.tsx', 'src/util.ts']);
+    expect(moved.components).toEqual(['Clock']);
+    expect(moved.shadowed).toEqual(['src/Button.tsx']);
+  });
+
+  it('keeps a file some other trail from the change still reaches', () => {
+    const relations = relationsOfFiles(SUITE);
+    const shadows = new Map([['src/Button.tsx', ['src/util.ts']]]);
+    const moved = movedBy(relations, ['src/util.ts', 'src/tokens.css'], { shadows });
+
+    expect(moved.files).toContain('src/Button.tsx');
+    expect(moved.shadowed).toEqual([]);
+  });
+
   it('reports a changed path the graph never saw rather than ignoring it', () => {
     const relations = relationsOfFiles(SUITE);
     const moved = movedBy(relations, ['README.md']);

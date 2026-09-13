@@ -383,6 +383,15 @@ describe('parseConfig source', () => {
     });
   });
 
+  it('accepts taint tables as paths, and refuses anything else', () => {
+    const config = parseConfig(withField('source', { dirs: ['src'], taints: ['variance.taint.json'] }), OPTIONS);
+    expect(config.source?.taints).toEqual(['variance.taint.json']);
+
+    const error = attempt(withField('source', { dirs: ['src'], taints: 'variance.taint.json' }));
+    expect(error.field).toBe('source.taints');
+    expect(error.message).toContain('JSON taint tables');
+  });
+
   it('refuses a value that is neither', () => {
     const error = attempt(withField('source', { dirs: ['src'], unrendered: 'skip' }));
 

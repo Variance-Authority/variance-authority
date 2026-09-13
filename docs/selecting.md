@@ -156,6 +156,15 @@ That reads what imports what — `import`, `export … from`, `import()`,
 this file**. It is off by default because it costs a scan of the source tree, and
 because a graph is only worth selecting on if it is honest about its own holes.
 
+The graph believes the text, and the text lies in one known way: a test that
+calls `vi.mock('./api')` imports `./api` by the letter and runs none of it. The
+scan reads those calls off test, story and setup files as it goes, and the
+mocked module is taken out of the graph as seen from that file at every level —
+the test is not moved by a change to the module it replaced, nor by one to
+anything only that module reaches. A `source.taints` table says the same for
+what no reader can see, a framework's own import notation, in the other
+direction as well: `+` rows for imports the text does not write.
+
 It is arranged to over-include in exactly the same direction, and has three
 refusals of its own:
 

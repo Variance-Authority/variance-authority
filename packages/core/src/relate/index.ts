@@ -52,5 +52,7 @@ export {
   type FileEdge,
   type FileRecord,
   type Hole,
+  type MovedOptions,
+  type RelationsOptions,
   type Reached,
 } from './records.js';

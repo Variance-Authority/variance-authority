@@ -161,6 +161,18 @@ export interface Relations {
 
   /** `keyOf` to id — the interning table, kept for lookup. */
   readonly index: ReadonlyMap<string, NodeId>;
+
+  /**
+   * Per file, the files its run never reaches at any depth: what a mock
+   * replaces for the whole of a test's run.
+   *
+   * Carried with the graph rather than handed to each walk, because the graph
+   * crosses every seam a walk does and a table left behind at one of them is a
+   * selection that quietly widened. Empty for a graph nobody tainted. A walk
+   * against the arrows consults it: a file is moved by a change only when some
+   * trail from the change arrives without crossing one of that file's shadows.
+   */
+  readonly shadows: ReadonlyMap<string, readonly string[]>;
 }
 
 /**
@@ -226,6 +238,8 @@ export function relationsOf(input: {
   readonly unknown?: Iterable<Node | readonly [Node, string]>;
   /** Nodes with no edges at all, which would otherwise be absent from the graph. */
   readonly isolated?: Iterable<Node>;
+  /** Per file, the files its run never reaches; see {@link Relations.shadows}. */
+  readonly shadows?: ReadonlyMap<string, readonly string[]>;
 }): Relations {
   const relations = [...input.relations];
   const unknownNodes = [...(input.unknown ?? [])].map((entry) =>
@@ -277,7 +291,7 @@ export function relationsOf(input: {
     if (because !== undefined) reasons.set(id, because);
   }
 
-  return { names, kinds, depends, dependents, unknown, reasons, index };
+  return { names, kinds, depends, dependents, unknown, reasons, index, shadows: input.shadows ?? new Map() };
 }
 
 interface Edge {

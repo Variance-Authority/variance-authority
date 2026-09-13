@@ -46,6 +46,21 @@ export interface SourceConfig {
 
   /** A monorepo tool whose affected-project answer seeds the selection. */
   readonly changes?: ChangeConfig;
+
+  /**
+   * Tables of what a file imports beyond, or short of, what its text says,
+   * as JSON files relative to the config
+   * ([`sense/taint`](../../sense/src/taint/index.ts)).
+   *
+   * One table is read without being named: the mocks. A test that calls
+   * `vi.mock('./api')` imports `./api` by the letter and runs none of it, and a
+   * graph that believed the letter would select that test for every change to
+   * the module it replaced. The mock reader runs whenever `relations` does,
+   * over the test, story and setup files only, and a table here adds what no
+   * reader can see — a framework's own import notation, a module loaded by a
+   * name the code never writes.
+   */
+  readonly taints?: readonly string[];
 }
 
 export interface ChangeConfig {
@@ -66,7 +81,7 @@ const UNRENDERED = ['whole', 'narrow'];
  * *which directories hold components* is answerable without one.
  */
 export function parseSource(value: unknown, options: ParseOptions): SourceConfig {
-  const root = object(value, 'source', ['dirs', 'relations', 'unrendered', 'changes'], options);
+  const root = object(value, 'source', ['dirs', 'relations', 'unrendered', 'changes', 'taints'], options);
   const dirs = root['dirs'];
 
   if (!Array.isArray(dirs) || dirs.length === 0 || dirs.some((dir) => typeof dir !== 'string')) {
@@ -81,6 +96,15 @@ export function parseSource(value: unknown, options: ParseOptions): SourceConfig
   const relations = root['relations'];
   if (relations !== undefined && typeof relations !== 'boolean') {
     throw new ConfigError(options.source, 'source.relations', 'must be true or false');
+  }
+
+  const taints = root['taints'];
+  if (taints !== undefined && (!Array.isArray(taints) || taints.some((file) => typeof file !== 'string'))) {
+    throw new ConfigError(
+      options.source,
+      'source.taints',
+      'must be an array of paths to JSON taint tables, each keyed by file with `-` and `+` rows',
+    );
   }
 
   const unrendered = root['unrendered'];
@@ -98,6 +122,7 @@ export function parseSource(value: unknown, options: ParseOptions): SourceConfig
     ...(relations === undefined ? {} : { relations }),
     ...(unrendered === undefined ? {} : { unrendered: unrendered as NonNullable<SourceConfig['unrendered']> }),
     ...(root['changes'] === undefined ? {} : { changes: parseChanges(root['changes'], options) }),
+    ...(taints === undefined ? {} : { taints: taints as readonly string[] }),
   };
 }
 

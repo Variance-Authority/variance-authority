@@ -29,7 +29,7 @@ import {
   type Relation,
   type Relations,
 } from './graph.js';
-import { dependentsOf, trailOf, type Reach, type ReachOptions } from './reach.js';
+import { dependenciesOf, dependentsOf, trailOf, type Reach, type ReachOptions } from './reach.js';
 
 export interface FileEdge {
   /** Repository-relative, already resolved. A specifier is not an edge. */
@@ -94,7 +94,7 @@ const component = (name: string): Node => ({ kind: 'component', name });
  * declares it, so one walk against the arrows from a changed file reaches every
  * importer and every component in the same pass.
  */
-export function relationsOfFiles(records: Iterable<FileRecord>): Relations {
+export function relationsOfFiles(records: Iterable<FileRecord>, options: RelationsOptions = {}): Relations {
   const relations: Relation[] = [];
   const isolated: Node[] = [];
   const unknown: (readonly [Node, string])[] = [];
@@ -114,7 +114,12 @@ export function relationsOfFiles(records: Iterable<FileRecord>): Relations {
     if (record.unknown !== undefined) unknown.push([from, record.unknown]);
   }
 
-  return relationsOf({ relations, isolated, unknown });
+  return relationsOf({ relations, isolated, unknown, ...(options.shadows === undefined ? {} : { shadows: options.shadows }) });
+}
+
+export interface RelationsOptions {
+  /** Per file, the files its run never reaches; see {@link Relations.shadows}. */
+  readonly shadows?: ReadonlyMap<string, readonly string[]>;
 }
 
 export interface Hole {
@@ -151,8 +156,30 @@ export interface Reached {
    */
   readonly opaque: readonly Hole[];
 
+  /**
+   * Files the graph reached and their own shadows cut: every trail from a
+   * changed file to each one crossed a module the file replaces for its run.
+   * Listed so the report can say a test was left out and by whose word.
+   */
+  readonly shadowed: readonly string[];
+
   /** The traversal, kept so a caller can ask how any one file was reached. */
   readonly reach: Reach;
+}
+
+export interface MovedOptions extends ReachOptions {
+  /**
+   * Per file, the files it takes out of its own graph: what a test mocks.
+   *
+   * A row is a fact about one file's run and nothing else's, so it is kept
+   * beside the records rather than in them — the records say what the text
+   * imports, this says what the run never reaches. A file with a row is moved
+   * only if some trail from a changed file arrives at it without crossing a
+   * file in its row, and what is reached only *through* it goes with it: the
+   * component a story declares, the test a setup file's mocks hold for. The
+   * graph's own table when absent ({@link Relations.shadows}).
+   */
+  readonly shadows?: ReadonlyMap<string, readonly string[]>;
 }
 
 /**
@@ -170,7 +197,7 @@ export interface Reached {
 export function movedBy(
   relations: Relations,
   changed: Iterable<string>,
-  options: ReachOptions = {},
+  options: MovedOptions = {},
 ): Reached {
   const seeds: NodeId[] = [];
   const missing: string[] = [];
@@ -190,7 +217,7 @@ export function movedBy(
     opaque.push({ file: relations.names[id]!, ...(because === undefined ? {} : { because }) });
   }
 
-  const reach = dependentsOf(relations, seeds, options);
+  const reach = unshadowed(relations, seeds, options);
   const files: string[] = [];
   const components: string[] = [];
 
@@ -200,7 +227,63 @@ export function movedBy(
     (node.kind === 'file' ? files : components).push(node.name);
   }
 
-  return { files, components, missing: missing.sort(byCodeUnit), opaque, reach };
+  return { files, components, missing: missing.sort(byCodeUnit), opaque, shadowed: reach.shadowed, reach };
+}
+
+/**
+ * The walk against the arrows with every file left out whose own shadows cut
+ * every trail to it, and with nothing reached through such a file.
+ *
+ * The walk records one parent per node, so it cannot say whether *another*
+ * trail avoided the shadows. Asking the other way can: a walk along the arrows
+ * from the file, entering none of its shadows, either finds a seed or does not.
+ * It runs only for a reached file whose row names a reached node — a mock of
+ * something the change never touched cuts nothing, and costs nothing. A file
+ * found shadowed is then avoided and the walk repeated, so a component or a
+ * file reached only through it is not reached either; the repeat ends when a
+ * walk finds no new shadowed file, and a row once decided is not asked again.
+ */
+function unshadowed(
+  relations: Relations,
+  seeds: readonly NodeId[],
+  options: MovedOptions,
+): Reach & { readonly shadowed: readonly string[] } {
+  const shadowed: string[] = [];
+  const avoid = new Set<NodeId>(options.avoid ?? []);
+  const shadows = options.shadows ?? relations.shadows;
+  let reach = dependentsOf(relations, seeds, options);
+  if (shadows.size === 0) return { ...reach, shadowed };
+
+  const seeded = new Uint8Array(relations.names.length);
+  for (const seed of seeds) seeded[seed] = 1;
+  const decided = new Set<NodeId>();
+
+  for (;;) {
+    let found = 0;
+    for (const [name, row] of shadows) {
+      const id = idOf(relations, 'file', name);
+      if (id === undefined || reach.mask[id] !== 1 || seeded[id] === 1 || decided.has(id)) continue;
+
+      const cut: NodeId[] = [];
+      for (const shadow of row) {
+        const target = idOf(relations, 'file', shadow);
+        if (target !== undefined && reach.mask[target] === 1) cut.push(target);
+      }
+      if (cut.length === 0) continue;
+      decided.add(id);
+
+      const forward = dependenciesOf(relations, [id], { ...options, avoid: cut });
+      if (forward.reached.some((node) => seeded[node] === 1)) continue;
+
+      avoid.add(id);
+      shadowed.push(name);
+      found += 1;
+    }
+    if (found === 0) break;
+    reach = dependentsOf(relations, seeds, { ...options, avoid });
+  }
+
+  return { ...reach, shadowed: shadowed.sort(byCodeUnit) };
 }
 
 /**

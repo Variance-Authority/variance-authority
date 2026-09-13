@@ -2,18 +2,20 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { movedBy, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
 import { scanRelations } from '../scan.js';
-import { taintFile, taintRecords, taintTable, type Taint } from './index.js';
+import { taintFile, taintRecords, taintTable, type Taint, type Tainted } from './index.js';
 import { isTestLike, mockTaint } from './mocks.js';
 
 /**
  * A taint is a second table joined onto the scan's records, so what is tested
- * is the join: the records the scan produced stay as they were, and every
- * taint's diff lands on top by file path.
+ * is the join: the records the scan produced stay as they were, an addition
+ * lands on the file's record, and a removal lands in the shadows table that
+ * `movedBy` consults.
  */
 
 let root: string;
+let records: readonly FileRecord[];
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'variance-taint-'));
@@ -58,26 +60,38 @@ beforeAll(async () => {
     "import { vi } from 'vitest';\nimport { api } from './api';\nvi.doMock('./api');\nexport const t = api;",
   );
   await write(root, 'src/relay.ts', "declare const jsresource: (name: string) => unknown;\nexport const lazy = jsresource('./panel');");
+  records = await scanRelations({ root, dirs: ['src'], digests: false });
 });
 
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const edgesOf = async (taints: readonly Taint[], file: string) => {
-  const records = await scanRelations({ root, dirs: ['src'], digests: false, taints });
-  return records.find((record) => record.file === file);
+const under = (taints: readonly Taint[]): Promise<Tainted> => taintRecords(records, taints, { root });
+
+const edgesOf = async (taints: readonly Taint[], file: string) =>
+  (await under(taints)).records.find((record) => record.file === file);
+
+const targets = (record: FileRecord | undefined) => record?.edges?.map((edge) => edge.to);
+
+/** The files a change to `changed` moves, seen through the taints. */
+const movedUnder = async (taints: readonly Taint[], changed: readonly string[]) => {
+  const tainted = await under(taints);
+  return movedBy(relationsOfFiles(tainted.records, { shadows: tainted.shadows }), changed);
 };
 
 describe('a static taint table', () => {
-  it('removes an edge the file wrote and adds one it did not', async () => {
+  it('shadows what the file wrote off and adds what it did not write', async () => {
     const taint = taintTable('hand', {
       'src/card.test.ts': { '-': ['./api'] },
       'src/relay.ts': { '+': ['./panel'] },
     });
+    const tainted = await under([taint]);
 
-    expect((await edgesOf([taint], 'src/card.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/card.ts']);
-    expect((await edgesOf([taint], 'src/relay.ts'))?.edges).toEqual([{ to: 'src/panel.ts', kind: 'imports' }]);
+    expect(targets(tainted.records.find((record) => record.file === 'src/card.test.ts'))).toEqual(['src/api.ts', 'src/card.ts']);
+    expect(tainted.shadows).toEqual(new Map([['src/card.test.ts', ['src/api.ts']]]));
+    expect(tainted.records.find((record) => record.file === 'src/relay.ts')?.edges).toEqual([{ to: 'src/panel.ts', kind: 'imports' }]);
+    expect(tainted.additions).toEqual(new Map([['src/relay.ts', ['src/panel.ts']]]));
   });
 
   it('adds an asset under the kind its target gives it', async () => {
@@ -86,12 +100,13 @@ describe('a static taint table', () => {
     expect((await edgesOf([taint], 'src/relay.ts'))?.edges).toEqual([{ to: 'src/theme.css', kind: 'asset' }]);
   });
 
-  it('leaves a record no taint names as the same object', async () => {
-    const records = await scanRelations({ root, dirs: ['src'], digests: false });
-    const tainted = await taintRecords(records, [taintTable('hand', { 'src/relay.ts': { '+': ['./panel'] } })], { root });
+  it('leaves a record no taint adds to as the same object', async () => {
+    const tainted = await under([taintTable('hand', { 'src/relay.ts': { '+': ['./panel'] }, 'src/card.test.ts': { '-': ['./api'] } })]);
 
-    expect(tainted.find((record) => record.file === 'src/api.ts')).toBe(records.find((record) => record.file === 'src/api.ts'));
-    expect(tainted.map((record) => record.file)).toEqual(records.map((record) => record.file));
+    for (const file of ['src/api.ts', 'src/card.test.ts']) {
+      expect(tainted.records.find((record) => record.file === file), file).toBe(records.find((record) => record.file === file));
+    }
+    expect(tainted.records.map((record) => record.file)).toEqual(records.map((record) => record.file));
   });
 
   it('treats an added relative specifier that resolves to nothing as a hole', async () => {
@@ -102,13 +117,19 @@ describe('a static taint table', () => {
     expect(record?.unknown).toMatch(/1 tainted relative specifier\(s\) that resolve to nothing: \.\/missing/);
   });
 
+  it('shadows nothing for a removal that resolves to nothing', async () => {
+    const tainted = await under([taintTable('hand', { 'src/relay.ts': { '-': ['./missing'] } })]);
+
+    expect(tainted.shadows.size).toBe(0);
+  });
+
   it('reads a table from a JSON file, named after the file', async () => {
     const path = join(root, 'taint.json');
     await writeFile(path, JSON.stringify({ 'src/card.test.ts': { '-': ['./api'] } }), 'utf8');
     const taint = await taintFile(path);
 
     expect(taint.name).toBe(path);
-    expect((await edgesOf([taint], 'src/card.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/card.ts']);
+    expect((await under([taint])).shadows.get('src/card.test.ts')).toEqual(['src/api.ts']);
   });
 
   it('refuses a file that is not a table', async () => {
@@ -123,43 +144,57 @@ describe('several taints at once', () => {
   it('unions the removals and the additions', async () => {
     const one = taintTable('one', { 'src/card.test.ts': { '-': ['./api'] } });
     const two = taintTable('two', { 'src/card.test.ts': { '-': ['./card'], '+': ['./panel'] } });
+    const tainted = await under([one, two]);
 
-    expect((await edgesOf([one, two], 'src/card.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/panel.ts']);
+    expect(tainted.shadows.get('src/card.test.ts')).toEqual(['src/api.ts', 'src/card.ts']);
+    expect(targets(tainted.records.find((record) => record.file === 'src/card.test.ts'))).toEqual(['src/api.ts', 'src/card.ts', 'src/panel.ts']);
   });
 
-  it('keeps an edge one taint adds and another removes', async () => {
+  it('lets a shadow hold over an addition of the same file', async () => {
     const cut = taintTable('cut', { 'src/card.test.ts': { '-': ['./api'] } });
     const add = taintTable('add', { 'src/card.test.ts': { '+': ['./api'] } });
 
-    expect((await edgesOf([cut, add], 'src/card.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/api.ts', 'src/card.ts']);
+    expect((await movedUnder([cut, add], ['src/api.ts'])).files).not.toContain('src/card.test.ts');
   });
 });
 
 describe('the mock taint', () => {
-  it('subtracts a vitest, jest or storybook mock from the file that wrote it', async () => {
-    const taints = [mockTaint()];
+  it('shadows a vitest, jest or storybook mock for the file that wrote it', async () => {
+    const { shadows } = await under([mockTaint()]);
 
-    expect((await edgesOf(taints, 'src/card.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/card.ts']);
-    expect((await edgesOf(taints, 'src/card.stories.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/card.ts']);
-    expect((await edgesOf(taints, 'src/panel.jest.test.ts'))?.edges).toBeUndefined();
+    expect(shadows.get('src/card.test.ts')).toEqual(['src/api.ts']);
+    expect(shadows.get('src/card.stories.ts')).toEqual(['src/api.ts']);
+    expect(shadows.get('src/panel.jest.test.ts')).toEqual(['src/api.ts', 'src/panel.ts']);
   });
 
-  it('keeps the edge when the factory reaches for the real module, or is written elsewhere', async () => {
+  it('keeps the module when the factory reaches for the real one, or is written elsewhere', async () => {
+    const { shadows } = await under([mockTaint()]);
+
     for (const file of ['src/actual.test.ts', 'src/original.test.ts', 'src/named.test.ts']) {
-      expect((await edgesOf([mockTaint()], file))?.edges?.map((edge) => edge.to), file).toContain('src/api.ts');
+      expect(shadows.has(file), file).toBe(false);
     }
   });
 
   it('does not read a doMock: the static imports above it ran the real module', async () => {
-    expect((await edgesOf([mockTaint()], 'src/late.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/api.ts']);
+    expect((await under([mockTaint()])).shadows.has('src/late.test.ts')).toBe(false);
   });
 
-  it('cuts the file\'s own edge and no further', async () => {
-    // `card.test.ts` mocks `./api`, and still reaches `api.ts` through `card.ts`.
-    const records = await scanRelations({ root, dirs: ['src'], digests: false, taints: [mockTaint()] });
-    const moved = movedBy(relationsOfFiles(records), ['src/api.ts']);
+  it('takes the mocked module out of the run at every level', async () => {
+    // `card.test.ts` mocks `./api`; the `api.ts` under `card.ts` is the mock too.
+    const moved = await movedUnder([mockTaint()], ['src/api.ts']);
+
+    expect(moved.files).toContain('src/card.ts');
+    expect(moved.files).not.toContain('src/card.test.ts');
+    expect(moved.files).not.toContain('src/card.stories.ts');
+    expect(moved.shadowed).toEqual(['src/card.stories.ts', 'src/card.test.ts', 'src/panel.jest.test.ts']);
+    expect(moved.files).toContain('src/actual.test.ts');
+  });
+
+  it('still moves the test for a change beside the mock', async () => {
+    const moved = await movedUnder([mockTaint()], ['src/card.ts']);
 
     expect(moved.files).toContain('src/card.test.ts');
+    expect(moved.shadowed).toEqual([]);
   });
 
   it('opens only files a mock is expected in, unless told otherwise', async () => {
@@ -167,7 +202,7 @@ describe('the mock taint', () => {
     expect(isTestLike('src/card.ts')).toBe(false);
 
     const everywhere = mockTaint({ files: () => true });
-    expect((await edgesOf([everywhere], 'src/card.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/card.ts']);
+    expect((await under([everywhere])).shadows.get('src/card.test.ts')).toEqual(['src/api.ts']);
   });
 
   it('is a reader: it costs a read of the files it names and no parse of the others', async () => {
@@ -180,7 +215,7 @@ describe('the mock taint', () => {
         return undefined;
       },
     };
-    await scanRelations({ root, dirs: ['src'], digests: false, taints: [spy] });
+    await under([spy]);
 
     expect(opened).toEqual([
       'src/actual.test.ts',

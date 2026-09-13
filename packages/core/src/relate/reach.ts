@@ -57,6 +57,15 @@ export interface ReachOptions {
    * `EDGE_KINDS`, or any narrower list, and gets exactly those.
    */
   readonly through?: Iterable<EdgeKind>;
+  /**
+   * Nodes the walk never enters, seeds included.
+   *
+   * A module a test file mocks is replaced for that file's whole run, so a
+   * question asked from the file's point of view is asked of a graph with the
+   * module taken out — not one edge, the node. Marking it visited before the
+   * walk starts is exactly that removal, at no cost in the inner loop.
+   */
+  readonly avoid?: Iterable<NodeId>;
 }
 
 /** What depends on these nodes, transitively. Against the arrows. */
@@ -113,8 +122,11 @@ function search(
   const via = new Int32Array(nodes).fill(-1);
   const queue: NodeId[] = [];
 
+  const avoided = new Uint8Array(nodes);
+  for (const id of options.avoid ?? []) if (id >= 0 && id < nodes) avoided[id] = 1;
+
   for (const seed of seeds) {
-    if (seed < 0 || seed >= nodes || mask[seed] === 1) continue;
+    if (seed < 0 || seed >= nodes || mask[seed] === 1 || avoided[seed] === 1) continue;
     mask[seed] = 1;
     queue.push(seed);
   }
@@ -129,7 +141,7 @@ function search(
       if (allowed[adjacency.kind[at]!] !== 1) continue;
 
       const next = adjacency.target[at]!;
-      if (mask[next] === 1) continue;
+      if (mask[next] === 1 || avoided[next] === 1) continue;
 
       mask[next] = 1;
       via[next] = node;
