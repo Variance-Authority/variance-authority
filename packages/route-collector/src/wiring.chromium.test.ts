@@ -117,7 +117,21 @@ beforeAll(async () => {
       "createRoot(document.getElementById('root')).render(<App />);",
     ].join('\n'),
   );
-  writeFileSync(join(root, 'vite.config.mjs'), "export default { esbuild: { jsx: 'automatic' } };\n");
+  // `optimizeDeps.include` is not scaffolding convenience. Vite discovers
+  // dependencies as it serves, and a run that meets `react-dom/client` before it
+  // meets `react` prebundles the two in separate passes, which gives react-dom a
+  // copy of React of its own and every hook in the page throws. Naming the three
+  // entries makes discovery complete before the first request, which is the same
+  // list `@vitejs/plugin-react` sets for an adopter — so the fixture is
+  // configured like a React application rather than less than one.
+  writeFileSync(
+    join(root, 'vite.config.mjs'),
+    'export default {\n' +
+      "  esbuild: { jsx: 'automatic' },\n" +
+      "  resolve: { dedupe: ['react', 'react-dom'] },\n" +
+      "  optimizeDeps: { include: ['react', 'react/jsx-dev-runtime', 'react-dom/client'] },\n" +
+      '};\n',
+  );
   symlinkSync(join(REPO, 'node_modules'), join(root, 'node_modules'), 'dir');
 
   server = await createServer({
