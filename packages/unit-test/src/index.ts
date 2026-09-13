@@ -7,6 +7,7 @@ export { snapshotValue } from './value.js';
 export type { SnapshotValueOptions } from './value.js';
 export {
   CAPTURE_SUFFIX,
+  captureFileName,
   captureFiles,
   readCapture,
   resetCaptures,

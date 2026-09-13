@@ -94,6 +94,13 @@ there and cannot say why.
 `readCapture` and `captureFiles` are the read half, and `CAPTURE_SUFFIX` is what
 they match on.
 
+The file is named after the subject id, so the directory reads as a list of
+subjects. An id longer than a filename — which is what naming subjects after the
+test that produced them gives you — keeps a readable prefix and is distinguished
+by a digest of the whole id, so two long ids sharing a prefix stay two files.
+`captureFileName` is that rule, exported for a reader that wants to find one
+subject's file without listing the directory.
+
 ## Clear the directory once per run
 
 ```ts

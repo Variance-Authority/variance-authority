@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CaptureArtifact } from '@variance-authority/core';
-import { CAPTURE_SUFFIX, captureFiles, resetCaptures, writeCapture } from './archive.js';
+import {
+  CAPTURE_SUFFIX,
+  captureFileName,
+  captureFiles,
+  resetCaptures,
+  writeCapture,
+} from './archive.js';
 
 /**
  * The handoff directory, read as a directory rather than as a private channel.
@@ -112,5 +118,21 @@ describe('resetCaptures', () => {
     await expect(
       resetCaptures(join(tmpdir(), 'variance-archive-never-written')),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('a subject id longer than a filename', () => {
+  it('keeps a readable prefix and distinguishes by digest', () => {
+    const stem = `mui-material/src/Button/Button.test/${'a'.repeat(400)}`;
+    const one = captureFileName(`${stem}/first`);
+    const two = captureFileName(`${stem}/second`);
+
+    expect(one.length).toBeLessThan(200);
+    expect(one.startsWith('mui-material%2Fsrc%2FButton')).toBe(true);
+    expect(one).not.toBe(two);
+  });
+
+  it('leaves a short id spelled the way it reads', () => {
+    expect(captureFileName('button/save')).toBe(`button%2Fsave${CAPTURE_SUFFIX}`);
   });
 });
