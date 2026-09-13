@@ -191,6 +191,20 @@ describe('where a configuration says a bare request can land', () => {
     expect(aliases?.candidatesFor('@app/x')).toEqual(['app/src/x']);
   });
 
+  it('places a `paths` it inherited at the file that wrote it', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "compilerOptions": { "paths": { "@mui/*": ["./packages/mui/src/*"] } } }',
+      'packages/lab/tsconfig.json': '{ "extends": "../../tsconfig.json" }',
+    });
+    const aliases = await aliasesIn(root, ['tsconfig.json', 'packages/lab/tsconfig.json']);
+
+    // A package config that extends the root and overrides nothing declares the
+    // root's answer. Re-basing it at the package would name
+    // `packages/lab/packages/mui/src`, a directory no repository has, and every
+    // record whose specifier matched would carry a witness for it.
+    expect(aliases?.candidatesFor('@mui/Button')).toEqual(['packages/mui/src/Button']);
+  });
+
   it('gives up on a configuration it cannot read', async () => {
     const root = await fixture({ 'tsconfig.json': '{ this is not JSON' });
 

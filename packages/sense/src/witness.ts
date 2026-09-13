@@ -51,6 +51,13 @@ function isConfig(path: string): boolean {
   return name === 'jsconfig.json' || (name.startsWith('tsconfig') && name.endsWith('.json'));
 }
 
+/** One configuration's options, and which file in its chain wrote each of them. */
+interface Options {
+  readonly values: Record<string, unknown>;
+  /** Option name to the configuration that declared it, which places its value. */
+  readonly from: ReadonlyMap<string, string>;
+}
+
 interface Mapping {
   /** The text before the pattern's `*`, or the whole pattern when it has none. */
   readonly prefix: string;
@@ -81,17 +88,22 @@ export async function aliasesIn(
   }
 
   const mappings: Mapping[] = [];
-  const bases: string[] = [];
+  const bases = new Set<string>();
+  const already = new Set<string>();
   for (const path of configs) {
     const options = compilerOptions(path, parsed);
     if (options === undefined) return undefined;
-    const declared = options['paths'];
-    const baseUrl = options['baseUrl'];
+    const declared = options.values['paths'];
+    const baseUrl = options.values['baseUrl'];
+    // Each option is placed against the file that wrote it rather than the file
+    // that inherited it, which is what TypeScript does and the only reading that
+    // names real directories: a package config extending the root's `paths`
+    // means the root's `./packages/x/src`, not its own.
     const base = typeof baseUrl === 'string'
-      ? within(join(dirname(path), baseUrl))
-      : within(dirname(path));
+      ? within(join(dirname(options.from.get('baseUrl') ?? path), baseUrl))
+      : within(dirname(options.from.get('paths') ?? path));
     if (base === undefined) continue;
-    if (typeof baseUrl === 'string') bases.push(base);
+    if (typeof baseUrl === 'string') bases.add(base);
     if (declared === undefined || declared === null || typeof declared !== 'object') continue;
     for (const [pattern, targets] of Object.entries(declared as Record<string, unknown>)) {
       if (!Array.isArray(targets)) return undefined;
@@ -99,6 +111,10 @@ export async function aliasesIn(
         .filter((target): target is string => typeof target === 'string')
         .map((target) => within(join(base, target)))
         .filter((target): target is string => target !== undefined);
+      // One root read through forty configs that extend it is one mapping.
+      const key = `${pattern}\u0000${placed.join('\u0000')}`;
+      if (already.has(key)) continue;
+      already.add(key);
       const star = pattern.indexOf('*');
       mappings.push(star === -1
         ? { prefix: pattern, targets: placed }
@@ -141,15 +157,16 @@ function compilerOptions(
   path: string,
   parsed: ReadonlyMap<string, Record<string, unknown>>,
   seen: ReadonlySet<string> = new Set(),
-): Record<string, unknown> | undefined {
-  if (seen.has(path)) return {};
+): Options | undefined {
+  if (seen.has(path)) return { values: {}, from: new Map() };
   const config = parsed.get(path);
   if (config === undefined) return undefined;
   const own = (config['compilerOptions'] ?? {}) as Record<string, unknown>;
 
   const extended = config['extends'];
   const from = extended === undefined ? [] : Array.isArray(extended) ? extended : [extended];
-  let inherited: Record<string, unknown> = {};
+  let values: Record<string, unknown> = {};
+  const declaredIn = new Map<string, string>();
   for (const one of from) {
     if (typeof one !== 'string' || !(one.startsWith('./') || one.startsWith('../'))) return undefined;
     const at = normalize(join(dirname(path), one));
@@ -157,13 +174,16 @@ function compilerOptions(
     if (resolved === undefined) return undefined;
     const base = compilerOptions(resolved, parsed, new Set([...seen, path]));
     if (base === undefined) return undefined;
-    inherited = { ...inherited, ...base };
+    values = { ...values, ...base.values };
+    for (const [key, where] of base.from) declaredIn.set(key, where);
   }
 
   // `paths` and `baseUrl` are read together, so an inherited `paths` under an
   // overridden `baseUrl` has to be the overriding file's answer, which is what
   // spreading in this order gives.
-  return { ...inherited, ...own };
+  for (const key of Object.keys(own)) declaredIn.set(key, path);
+
+  return { values: { ...values, ...own }, from: declaredIn };
 }
 
 /** Every directory in the tree, named by the entries it holds. */
