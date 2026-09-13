@@ -27,15 +27,16 @@ page instead of two.
 
 ## The slice: what kind of parting this is
 
-Before *which input changed* comes *whether anybody should look*. Seven answers,
+Before *which input changed* comes *whether anybody should look*. Eight answers,
 decided from three facts — did the component tree hold, did any input change, did
-the output change:
+the output change — and a fourth that splits one of them:
 
 | slice | reading |
 |---|---|
 | `settled` | nothing changed: not the tree, not an input, not the output |
 | `variation` | an input changed and the output followed — **the only one where the attribution categories below are worth reading** |
 | `flake` | every input agreed, the component tree held, and the output changed anyway |
+| `placed` | the same, between two readings taken in different places |
 | `reshaped` | the component tree is a different tree, no input changed, and the output followed |
 | `refactor` | the component tree changed and the output did not |
 | `absorbed` | an input changed and the output did not — a variant was assigned differently and rendered the same |
@@ -52,6 +53,17 @@ output landing on opposite sides. A tree that is a different tree and an output
 that followed is a component that chose a different shape — a branch taken
 differently between two variants, or a rewrite between two revisions — and in
 neither case has a changed input for attribution to name.
+
+`placed` is the fourth fact: *were the two readings taken at one address*. A
+subject read twice — across two revisions, or across two moments of one scenario
+— is `same`, and an output that moved with every input holding is the accusation.
+Two instances lifted out of two subjects at one commit are `elsewhere`, and there
+the same evidence means something else. Where a component sits is decided by the
+boxes around it, and no component receives its own position as a prop: two
+instances that agreed on every input and landed at different coordinates have
+contradicted nothing. Position is a function of context, not of props, so that
+reading gets a word that says so and the accusation is kept for the case it was
+named for.
 
 `unread` is why `flake` is safe to say. Nondeterminism is an accusation, and a
 run that read no boundaries has not found the inputs agreeing — it has not asked
@@ -180,7 +192,8 @@ to refuse.
 - **It gives no verdict.** `compare` says what changed and `judge` says whether
   anyone should mind; a parting is an explanation and joins neither. It takes
   two snapshots without refusing a subject mismatch, because two variants of an
-  experiment are two subjects on purpose.
+  experiment are two subjects on purpose — and a caller that knows it is holding
+  two subjects says so, which is what keeps `flake` off them.
 - **Its reach is what was read.** Boundaries come back absent — never `[]` —
   when no node on either side started a component, which puts the parting in the
   `unread` slice rather than in `settled` or `flake`. Boundaries present and

@@ -145,6 +145,12 @@ export function divergencesOf(
 /**
  * Read every rendering after the first against the first, for the moved input.
  *
+ * `elsewhere`, because that is literally what these two are: one instance here
+ * and one instance there, at one commit. It is the difference between this
+ * finding saying a component is nondeterministic and saying its context decided
+ * something — and only the second is true of a thing that moved because the box
+ * around it is a different size.
+ *
  * Each site is lifted out of its subject and re-rooted at the component before
  * the comparison — {@link boundarySnapshot}'s reason for existing. Comparing the
  * two *subjects* instead would compare a receipt against a promo card, which is
@@ -166,7 +172,7 @@ function partingsOf(
     if (index === 0) continue;
     const other = liftFirstSite(rendering, snapshots);
     if (other === undefined) continue;
-    found.push({ rendering: index, lines: explainParting(partingOf(first, other)) });
+    found.push({ rendering: index, lines: explainParting(partingOf(first, other, 'elsewhere')) });
   }
   return found;
 }

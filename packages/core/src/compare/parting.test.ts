@@ -294,4 +294,22 @@ describe('a tree that is a different tree', () => {
 
     expect(parting.slice).toBe('flake');
   });
+
+  it('does not call two instances in two places a flake', () => {
+    // The same evidence as the test above, asked of two sites at one commit
+    // rather than of one subject read twice. Nothing is nondeterministic here:
+    // a component that agreed on every input and came out different in another
+    // part of the page was decided by that part of the page.
+    const parting = partingOf(
+      snap(card('one', 'Badge')),
+      snap(card('two', 'Badge')),
+      'elsewhere',
+    );
+
+    expect(parting.slice).toBe('placed');
+    expect(parting.boundaries!.map((entry) => entry.rung)).not.toContain('undetermined');
+    expect(explainParting(parting)[0]).toBe(
+      'placed — every input agreed, and the two readings are of two places',
+    );
+  });
 });

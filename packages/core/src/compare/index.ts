@@ -47,6 +47,7 @@ export type {
   Parting,
   PartedBoundary,
   PartingRung,
+  PartingPlace,
   MovedInput,
 } from './parting.js';
 

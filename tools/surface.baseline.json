@@ -366,6 +366,7 @@
         "Observability": "type",
         "PartedBoundary": "interface",
         "Parting": "interface",
+        "PartingPlace": "type",
         "PartingRung": "type",
         "PartingSlice": "type",
         "PropertyImpact": "type",

@@ -1,6 +1,6 @@
 import type { SemanticNode } from '../format/snapshot.js';
 import type { Wiring } from '../format/wiring.js';
-import type { PartedBoundary } from './parting.js';
+import type { PartedBoundary, PartingPlace } from './parting.js';
 
 /**
  * What kind of parting this is, before anything about which one.
@@ -20,6 +20,13 @@ import type { PartedBoundary } from './parting.js';
  * | same | **moved** | same | `absorbed` |
  * | same | same | same | `settled` |
  * | unread | — | **moved** | `unread` |
+ *
+ * A fourth fact splits the first row, and it is not about the page: *were the
+ * two readings taken in the same place*. Where a thing sits is decided by the
+ * boxes around it, and no component receives its own position as a prop — so
+ * two instances that agreed on every input and landed at different coordinates
+ * have not contradicted anything. That row is `placed`. `flake` keeps the case
+ * it was named for: one subject, read twice, answering differently.
  *
  * `reshaped` is the row that used to be missing. It was answered `variation`,
  * whose sentence says an input moved — and the whole point of this table is
@@ -42,6 +49,8 @@ export type PartingSlice =
   | 'variation'
   /** Every input agreed, the tree held, and the output moved anyway. */
   | 'flake'
+  /** The same, in two places. Context decided it, and context is not a prop. */
+  | 'placed'
   /** The component tree is a different tree, no input moved, and the output followed. */
   | 'reshaped'
   /** The component tree moved and the output did not. */
@@ -54,6 +63,10 @@ export type PartingSlice =
 /**
  * Decide the slice from three independent readings.
  *
+ * `place` says whether the two readings were taken at one address. It only ever
+ * decides between `flake` and `placed`, and it defaults to `same` because that
+ * is what every comparison across revisions is.
+ *
  * `tree` is `undefined` when neither side carried provenance — not `false`.
  * A run that never asked what components were there has not found them equal,
  * and both `refactor` and `flake` are claims about the component tree that such
@@ -63,6 +76,7 @@ export function sliceOf(
   tree: boolean | undefined,
   boundaries: readonly PartedBoundary[] | undefined,
   moved: boolean,
+  place: PartingPlace = 'same',
 ): PartingSlice {
   // Nothing was read, so nothing may be alleged. `flake` in particular is an
   // accusation, and it is the one this project must never make on silence.
@@ -81,7 +95,7 @@ export function sliceOf(
   // A run that read holdings but no provenance never established that, so it
   // gets the rung that says so rather than the one that blames the page.
   if (tree === undefined) return 'unread';
-  return 'flake';
+  return place === 'same' ? 'flake' : 'placed';
 }
 
 /**

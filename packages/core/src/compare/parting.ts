@@ -32,7 +32,8 @@ import { sameTree, sliceOf, type PartingSlice } from './slice.js';
  * change. A flake is the case where nothing readable moved at all
  * ({@link PartingRung} `undetermined`), and it is only nameable because
  * `unread` is a rung of its own: an accusation of nondeterminism may only be
- * made about inputs somebody actually read (ADR-0002).
+ * made about inputs somebody actually read (ADR-0002). It is also only nameable
+ * when the two readings were taken at one address — see {@link PartingPlace}.
  *
  * Not `attribute/composition.ts`'s `Divergence`, which is the same suspicion
  * arrived at from the other side: one component rendering two ways from one
@@ -167,8 +168,30 @@ export type PartingRung =
   | 'unread'
   /** Every input was read, every input agreed, and the output moved anyway. */
   | 'undetermined'
+  /**
+   * The same, between two readings taken in different places. Where a component
+   * sits is decided by the boxes around it and is handed to it as nothing, so
+   * two instances that agreed on every input and landed apart have contradicted
+   * nothing. {@link PartingPlace} is how a caller says which it is asking.
+   */
+  | 'placed'
   /** The boundary exists on one side only. */
   | 'unpaired';
+
+/**
+ * Whether two readings were taken at one address.
+ *
+ * `same` is a subject read twice — across two revisions, or across two moments
+ * of one scenario. There, an output that moved with every input holding is the
+ * accusation this system is careful about: the reading is not repeatable.
+ *
+ * `elsewhere` is two instances lifted out of two subjects at one commit, which
+ * is `attribute/divergence.ts`' whole shape. The same evidence means something
+ * different there: position, and everything a measured box decides downstream of
+ * it, is a function of the context an instance was mounted in, not of the props
+ * it received. Calling that nondeterminism blames a component for its page.
+ */
+export type PartingPlace = 'same' | 'elsewhere';
 
 export interface MovedInput {
   readonly kind: 'prop' | 'context' | 'hook' | 'inherited';
@@ -197,7 +220,11 @@ export interface MovedInput {
  * mismatch, for `compareTrees`' stated reason: this produces an *explanation*,
  * not a verdict, and two arms of an experiment are two subjects on purpose.
  */
-export function partingOf(baseline: SemanticSnapshot, candidate: SemanticSnapshot): Parting {
+export function partingOf(
+  baseline: SemanticSnapshot,
+  candidate: SemanticSnapshot,
+  place: PartingPlace = 'same',
+): Parting {
   const comparison = compareTrees(baseline, candidate);
   const matching = matchTrees(baseline.root, candidate.root);
 
@@ -213,7 +240,7 @@ export function partingOf(baseline: SemanticSnapshot, candidate: SemanticSnapsho
   });
   if (found === undefined) {
     return {
-      slice: sliceOf(tree, undefined, moved),
+      slice: sliceOf(tree, undefined, moved, place),
       identical: comparison.identical,
       deltas: comparison.deltas,
     };
@@ -223,14 +250,18 @@ export function partingOf(baseline: SemanticSnapshot, candidate: SemanticSnapsho
 
   const boundaries = found
     .filter((entry) => entry.inputs.length > 0 || entry.owned.length > 0)
-    .map(settle);
+    .map((draft) => settle(draft, place));
 
   const origins = boundaries.filter(
-    (entry) => entry.rung === 'stateful' || entry.rung === 'external' || entry.rung === 'undetermined',
+    (entry) =>
+      entry.rung === 'stateful' ||
+      entry.rung === 'external' ||
+      entry.rung === 'undetermined' ||
+      entry.rung === 'placed',
   );
 
   return {
-    slice: sliceOf(tree, boundaries, moved),
+    slice: sliceOf(tree, boundaries, moved, place),
     identical: comparison.identical,
     deltas: comparison.deltas,
     boundaries,
@@ -420,7 +451,7 @@ function attribute(drafts: readonly Draft[], deltas: readonly Delta[]): void {
 }
 
 /** Apply the precedence in {@link PartingRung} and freeze the row. */
-function settle(draft: Draft): PartedBoundary {
+function settle(draft: Draft, place: PartingPlace): PartedBoundary {
   const bands = BANDS.filter((band) => draft.owned.some((delta) => bandOf(delta.kind) === band));
 
   const moved = [
@@ -431,7 +462,7 @@ function settle(draft: Draft): PartedBoundary {
     component: draft.component,
     path: draft.path,
     depth: draft.depth,
-    rung: rungOf(draft),
+    rung: rungOf(draft, place),
     inputs: draft.inputs,
     deltas: draft.owned.length,
     bands,
@@ -439,14 +470,15 @@ function settle(draft: Draft): PartedBoundary {
   };
 }
 
-function rungOf(draft: Draft): PartingRung {
+function rungOf(draft: Draft, place: PartingPlace): PartingRung {
   if (!draft.paired) return 'unpaired';
   if (draft.inputs.some((input) => input.kind === 'prop')) return 'handed';
   if (draft.inputs.some((input) => input.kind === 'context')) return 'provided';
   if (draft.inputs.some((input) => input.kind === 'inherited')) return 'inherited';
   if (draft.inputs.some((input) => input.name === 'useSyncExternalStore')) return 'external';
   if (draft.inputs.length > 0) return 'stateful';
-  return draft.unread ? 'unread' : 'undetermined';
+  if (draft.unread) return 'unread';
+  return place === 'same' ? 'undetermined' : 'placed';
 }
 
 

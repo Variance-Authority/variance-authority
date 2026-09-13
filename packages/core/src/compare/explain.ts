@@ -97,6 +97,11 @@ function sentence(boundary: PartedBoundary): string {
       );
     case 'undetermined':
       return `${component} rendered differently from inputs that all agreed — nondeterministic`;
+    // Not an accusation. The two readings are two places, and the sentence says
+    // where to look — outwards, at what put it there — rather than at the
+    // component, which received nothing that could have decided this.
+    case 'placed':
+      return `${component} rendered differently where it stands — its context decided this`;
     case 'unread':
       return `${component} rendered differently, and what it holds could not be read`;
     case 'unpaired':
@@ -173,6 +178,8 @@ function slice(kind: PartingSlice): string {
       return 'variation — an input changed and the page followed';
     case 'flake':
       return 'flake — every input agreed, the component tree held, and the page changed anyway';
+    case 'placed':
+      return 'placed — every input agreed, and the two readings are of two places';
     case 'reshaped':
       return 'reshaped — the component tree is a different tree and the page followed';
     case 'refactor':
