@@ -332,6 +332,18 @@ by running something in it: a module of nothing but constants, evaluated once
 for an earlier file and only read by the next, is recorded for the file that
 evaluated it and not for the reader.
 
+A configuration with `projects` needs the wrap in two places, because a Vitest
+project inherits neither plugins nor setup files from the configuration around
+it. Wrap each project, so each one carries the instrumenting plugin and the
+setup file that installs the counter factory, and keep one wrap at the root for
+the reporter that folds the run — every project writes its journals to the same
+snapshot, which is the point. A root-only wrap is the shape that looks right and
+records nothing: the reporter runs, the file is written, and it says every test
+reaches no source. The run that does that says so on the way out —
+`instrumented 0 modules across N test file(s)` — because the alternative is a
+selection that narrows to the empty set and a CI job that passes having run
+nothing.
+
 `mode: 'entries'` records module and function entries only, under a recipe of
 its own, for a suite that needs to know which functions a test reached and not
 which branches. Under either mode, each file's setup takes a snapshot of every

@@ -1,7 +1,7 @@
-import { readFile, rm, mkdtemp } from 'node:fs/promises';
+import { readFile, rm, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
 import { mergeCoverage, withTestSelection } from './vitest.js';
@@ -30,6 +30,53 @@ describe('coverage generations', () => {
         blocks: [],
       }]);
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('says so when a run that had test files instrumented nothing', async () => {
+    // The failure this warning exists for is invisible: the run is green, the
+    // snapshot is written, and every selection made from it afterwards is empty.
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-instrumentation-empty-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const testFile = resolve(root, 'case.test.ts');
+      await writeFile(testFile, 'it("x", () => {});\n', 'utf8');
+      const configured = withTestSelection({}, { root, coverageFile, include: () => false });
+      const reporter = (configured.test!.reporters as unknown as Array<{
+        onFinished(files: readonly unknown[]): Promise<void>;
+      }>)[1]!;
+
+      await reporter.onFinished([{ filepath: testFile, tasks: [] }]);
+
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toMatch(/instrumented 0 modules across 1 test file/);
+      expect(warn.mock.calls[0]?.[0]).toMatch(/projects/);
+    } finally {
+      warn.mockRestore();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('says nothing when a run collected no test files at all', async () => {
+    // Not the same state. A run that collected nothing has already said so in
+    // the runner's own output, and repeating it here would train a reader to
+    // scroll past the sentence that matters.
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-instrumentation-nofiles-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const configured = withTestSelection({}, { root, coverageFile, include: () => false });
+      const reporter = (configured.test!.reporters as unknown as Array<{
+        onFinished(files: readonly []): Promise<void>;
+      }>)[1]!;
+
+      await reporter.onFinished([]);
+
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
       await rm(root, { recursive: true, force: true });
     }
   });
