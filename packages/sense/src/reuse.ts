@@ -20,9 +20,26 @@
  *
  * The first two a scan already has. `layoutOf` names the other two in one digest,
  * and a record may be reused when both it and the file's own digest are unchanged.
- * The trade is deliberate and one-sided: adding, deleting or renaming *any* file
- * moves the layout and costs one full scan, and every run that only edits files
- * costs the diff.
+ *
+ * ## The coarseness, and what it is worth
+ *
+ * Adding, deleting or renaming *any* file moves the layout and every record in
+ * the repository is rebuilt. That is not a well-priced trade — a repository
+ * taking pull requests all day moves its layout all day, so the branch that
+ * would benefit most from reuse is the branch that never gets it.
+ *
+ * What it costs is worth stating, because it is not what it looks like. A record
+ * is rebuilt from the parse cache, which is keyed by content and survives a
+ * layout move ([`cache.ts`](./cache.ts)), and resolution is answered from a memo
+ * ([`resolve.ts`](./resolve.ts)). Rebuilding all twenty-seven thousand records
+ * of a component library measured the same as reusing them. The cliff people hit
+ * was the parse cache pruning itself on the runs that reused everything, and
+ * that was a defect rather than this trade.
+ *
+ * So what remains is bounded and proportional to the repository rather than to
+ * the diff — which is the property to remove, and removing it means invalidating
+ * a resolution by the paths that could have answered it rather than by the tree
+ * as a whole.
  *
  * ## What this does not cover
  *
