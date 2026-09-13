@@ -84,13 +84,19 @@ The sidecar carries the identity in readable form, so a baseline can be
 attributed to the machine that wrote it and a reviewer can decide whether to
 discard it.
 
-`createDurableStore(root, options)` takes two options, and `createLfsStore`
-passes both through:
+`createDurableStore(root, options)` takes three options, and `createLfsStore`
+passes all three through:
 
 | option | default | what it decides |
 |---|---|---|
-| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` reads the subject id as a path and walks it down from the root — `src/ui/Button/<identityDigest>/primary.png` — so baselines sit in the source tree, arrive with the checkout, and are relocated with the component's own files. An id with a `..` or an empty segment is refused rather than resolved |
+| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` puts each image in the directory holding the code it depicts — `src/ui/Button/<identityDigest>/primary.png` — so baselines sit in the source tree, arrive with the checkout, and are relocated with the component's own files. The directory comes from the key's `path` when the plan carried one, and otherwise from the subject id read as a path. Either way a `..` or an empty segment is refused rather than resolved |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere |
+| `recordRoot` | `root` | where the `.json` records go. A record changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so records beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` holds images and nothing else |
+
+Splitting the roots moves the record's directory; it does not make the record
+optional. Both halves are still written and both are still read, so one half
+without the other is still damage and still stops the run — the refusal names
+the file in the root it was looked for in.
 
 Both layouts keep the identity directory: a baseline from another machine
 still lands in a directory this one does not read. Neither layout checks that
@@ -133,6 +139,7 @@ subject in the suite.
 | `pattern` | `*.png` | which files are tracked, relative to the `.gitattributes` holding the entry. Only images match by default; the `.json` sidecar next to each is never routed through LFS |
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
+| `recordRoot` | `root` | where the `.json` records go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the records are the text left behind gaining a revision per document change |
 | `verify` | `true` | `false` skips consulting git entirely, and says so in `tracking.diagnostics` rather than silently |
 | `git` | `runCommand` | the `CommandRunner` git is invoked through — a `(command, args, { cwd }) => Promise<{ code, stdout, stderr }>` function, defaulting to a wrapper around `execFile`, swappable in tests |
 

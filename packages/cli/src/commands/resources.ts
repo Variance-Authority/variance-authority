@@ -431,6 +431,10 @@ export async function storeFor(config: Config): Promise<RasterStore> {
       return createDurableStore(baselines.root, {
         cacheRoot: renderCacheRoot(),
         ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
+        // The operator's, unlike the cache root above. A record that is not
+        // there costs the run evidence a verdict may turn on, so where it goes
+        // is a decision this process is not entitled to make on its own.
+        ...(baselines.records !== undefined ? { recordRoot: baselines.records } : {}),
       });
     case 'lfs':
       return createLfsStore({
@@ -441,6 +445,7 @@ export async function storeFor(config: Config): Promise<RasterStore> {
         cacheRoot: renderCacheRoot(),
         ...(baselines.pattern !== undefined ? { pattern: baselines.pattern } : {}),
         ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
+        ...(baselines.records !== undefined ? { recordRoot: baselines.records } : {}),
       });
     case 'remote':
       return createRemoteStore({

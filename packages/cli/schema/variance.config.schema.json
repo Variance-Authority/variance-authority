@@ -235,7 +235,12 @@
           "minLength": 1,
           "description": "Directory the images live in, resolved against this file."
         },
-        "layout": { "$ref": "#/$defs/baselineLayout" }
+        "layout": { "$ref": "#/$defs/baselineLayout" },
+        "records": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Directory the `.json` records go in, resolved against this file. A record changes whenever the document does, so records beside their images make a diff out of every edit — including the ones that moved no pixel. Pointed at an ignored directory or a CI cache, `root` holds images and nothing else. Both halves are still written and still read."
+        }
       }
     },
     "lfsBaselines": {
@@ -255,7 +260,12 @@
           "minLength": 1,
           "description": "The `.gitattributes` pattern the images are tracked by."
         },
-        "layout": { "$ref": "#/$defs/baselineLayout" }
+        "layout": { "$ref": "#/$defs/baselineLayout" },
+        "records": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Directory the `.json` records go in, resolved against this file. A record changes whenever the document does, so records beside their images make a diff out of every edit — including the ones that moved no pixel. Pointed at an ignored directory or a CI cache, `root` holds images and nothing else. Both halves are still written and still read."
+        }
       }
     },
     "remoteBaselines": {
@@ -278,7 +288,7 @@
       }
     },
     "baselineLayout": {
-      "description": "How image files are arranged under `root`. `flat` is one directory; `beside` mirrors the subject's own path.",
+      "description": "How image files are arranged under `root`. `flat` is one directory per identity, for baselines kept as a corpus; `beside` puts each image in the directory holding the code it depicts, which is the placement to take when that code is in this repository. A story finds its directory through the `importPath` its built index carries; a subject named after a path finds it in its own id.",
       "enum": ["flat", "beside"]
     },
 

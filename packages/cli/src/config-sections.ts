@@ -137,6 +137,20 @@ export interface DirectoryBaselines {
   readonly kind: 'directory';
   readonly root: string;
   readonly layout?: BaselineLayout;
+  /**
+   * Where the `.json` records go, if not beside the images.
+   *
+   * The one key here that answers *what does version control see*. A record
+   * changes whenever the document does — a class name, a build id, a font that
+   * resolved to something else — so records beside their images make a diff out
+   * of every edit, including the ones that moved no pixel. Pointed at an ignored
+   * directory or a CI cache, `root` holds images and nothing else.
+   *
+   * Not inferred, and deliberately not: a record that is not there costs the run
+   * its `missingFonts` and its inspected regions, which a verdict is allowed to
+   * turn on. An operator who moves them is choosing to keep them somewhere.
+   */
+  readonly records?: string;
 }
 
 export interface LfsBaselines {
@@ -144,6 +158,8 @@ export interface LfsBaselines {
   readonly root: string;
   readonly pattern?: string;
   readonly layout?: BaselineLayout;
+  /** See {@link DirectoryBaselines.records}. */
+  readonly records?: string;
 }
 
 export interface RemoteBaselines {
@@ -319,25 +335,50 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
   }
 
   if (kind === 'lfs') {
-    const source = object(value, 'baselines', ['kind', 'root', 'pattern', 'layout'], options);
+    const source = object(
+      value,
+      'baselines',
+      ['kind', 'root', 'pattern', 'layout', 'records'],
+      options,
+    );
     const pattern = optionalText(source, 'pattern', options, 'baselines.pattern');
     const layout = parseLayout(source['layout'], options);
+    const records = parseRecords(source['records'], options);
 
     return {
       kind: 'lfs',
       root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
       ...(pattern !== undefined ? { pattern } : {}),
       ...(layout !== undefined ? { layout } : {}),
+      ...(records !== undefined ? { records } : {}),
     };
   }
 
-  const source = object(value, 'baselines', ['kind', 'root', 'layout'], options);
+  const source = object(value, 'baselines', ['kind', 'root', 'layout', 'records'], options);
   const layout = parseLayout(source['layout'], options);
+  const records = parseRecords(source['records'], options);
   return {
     kind: 'directory',
     root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
     ...(layout !== undefined ? { layout } : {}),
+    ...(records !== undefined ? { records } : {}),
   };
+}
+
+/**
+ * The record directory, resolved like the root it is an alternative to.
+ *
+ * Relative to the config file rather than the process, for the same reason
+ * `root` is: the two are read together by a person deciding what their
+ * repository tracks, and a pair of paths that resolve against different things
+ * is a pair somebody gets wrong once.
+ */
+function parseRecords(value: unknown, options: ParseOptions): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value === '') {
+    fail('baselines.records', `must be a directory path, not ${quote(value)}`, options);
+  }
+  return resolveFrom(options.baseDir, value as string);
 }
 
 function parseLayout(value: unknown, options: ParseOptions): BaselineLayout | undefined {

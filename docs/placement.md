@@ -188,6 +188,36 @@ field, because there is no answer an operator could give that is better than
 "outside the work tree". Building a store yourself, `createDurableStore` and
 `createLfsStore` both take `cacheRoot` and both default it to the baseline root.
 
+### The records, if the diffs are the problem
+
+Every baseline is an image and a `.json` record of how it was painted: the
+document digest, the identity, the fonts that did not resolve, the regions
+something was inspected in. The image changes when a pixel changes. The record
+changes whenever the *document* changes — a class name, a build id, a font that
+resolved somewhere else — so a record committed beside its image puts a tracked
+diff on every edit you make, including the ones that moved nothing.
+
+Point the records somewhere version control is not looking, and that stops:
+
+```jsonc
+"baselines": {
+  "kind": "directory",
+  "root": "baselines",
+  "layout": "beside",
+  "records": ".variance/records"  // ignored, or restored from the CI cache
+}
+```
+
+The images stay where `layout` puts them. If a change did not update an image,
+it now updates no file under version control.
+
+What you are taking on is a second location to keep. Both halves are still
+written and both are still read, so a run that finds an image whose record is
+gone stops and tells you which file it looked for — it does not quietly decide
+the subject is new and record whatever this build painted. Restore the records
+with the same mechanism you restore any cache with, or leave the key unset and
+let them travel with the images.
+
 ## Switching
 
 A baseline written under one placement is not portable to another — the paths
