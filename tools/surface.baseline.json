@@ -8,12 +8,14 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
-        }
+        },
+        "./schema": "./schema/variance.config.schema.json"
       },
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
         "mark.svg",
+        "schema",
         "skill"
       ],
       "bin": {
