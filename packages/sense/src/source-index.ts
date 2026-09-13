@@ -44,6 +44,10 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     set(digest, parsed) {
       parses.set(digest, parsed);
     },
+    keep(digest) {
+      const parsed = stored.parses.get(digest);
+      if (parsed !== undefined) parses.set(digest, parsed);
+    },
   };
 
   const reuse: RecordCache = {

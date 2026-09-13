@@ -149,7 +149,12 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
       }));
 
     built.set(file, record);
+    // A reused record answered without opening the file, so the parse cache was
+    // never asked and would prune the entry for every unchanged blob in the
+    // repository — leaving the next run that has to rebuild records with nothing
+    // to rebuild them from. The blob is live; say so.
     if (remembered === undefined) reuse?.set(record);
+    else if (digest !== undefined) cache.keep?.(digest);
 
     for (const edge of record.edges ?? []) {
       const next = join(root, edge.to);

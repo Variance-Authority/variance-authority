@@ -44,16 +44,28 @@ export interface Parsed {
 export interface ParseCache {
   get(digest: Digest): Parsed | undefined;
   set(digest: Digest, parsed: Parsed): void;
+  /**
+   * This blob is still in the tree, though nothing asked what it said.
+   *
+   * A scan that reuses a whole record ([`reuse.ts`](./reuse.ts)) never opens the
+   * file and never asks this cache anything, so a cache that pruned to what it
+   * *answered* would throw away the entry for every unchanged file — and the
+   * run that needs those entries is the next one, when a path appears and the
+   * records are gone. The scan says the blob is live instead; keeping an entry
+   * costs nothing to decide and is what makes the pruning above a statement
+   * about the tree rather than about this run's luck.
+   */
+  keep?(digest: Digest): void;
 }
 
 export interface PersistentParseCache extends ParseCache {
   /**
    * Write what this scan used back to disk.
    *
-   * Only entries this scan read or wrote survive, which is the whole of the
-   * pruning story: a blob nothing referenced is a blob no branch holds any more,
-   * and a cache that only ever grew would eventually cost more to load than the
-   * parses it saves.
+   * Only entries this scan read, wrote or kept survive, which is the whole of
+   * the pruning story: a blob nothing referenced is a blob no branch holds any
+   * more, and a cache that only ever grew would eventually cost more to load
+   * than the parses it saves.
    */
   save(): Promise<void>;
 }
@@ -92,6 +104,10 @@ export async function openParseCache(path: string): Promise<PersistentParseCache
     },
     set(digest, parsed) {
       used.set(digest, parsed);
+    },
+    keep(digest) {
+      const parsed = stored.get(digest);
+      if (parsed !== undefined) used.set(digest, parsed);
     },
     async save() {
       await writeSourceIndex(path, { ...generation, parses: used });

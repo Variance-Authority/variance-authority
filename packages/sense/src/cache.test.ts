@@ -83,6 +83,24 @@ describe('the cache on disk', () => {
     expect(third.get(b)).toBeUndefined();
   });
 
+  it('keeps an entry a reused record spared it from answering', async () => {
+    const file = await path();
+
+    const first = await openParseCache(file);
+    first.set(a, BUTTON);
+    await first.save();
+
+    // The scan that reuses a whole record never opens the file and never asks
+    // this cache anything. Pruning to what it *answered* would empty the cache
+    // on exactly the runs where nothing changed, and leave the next run that has
+    // to rebuild records with nothing to rebuild them from.
+    const second = await openParseCache(file);
+    second.keep(a);
+    await second.save();
+
+    expect((await openParseCache(file)).get(a)).toEqual(BUTTON);
+  });
+
   it('discards a file an older shape wrote rather than reading it as this one', async () => {
     const file = await path();
     const stored = encodeSourceIndex({ parses: new Map([[a, BUTTON]]), records: new Map() });
