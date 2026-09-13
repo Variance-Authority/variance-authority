@@ -298,6 +298,44 @@ missed anything — a recording that stopped early proves no absence — with a 
 of what was dropped, because a pool of two that should have been three reads as
 agreement.
 
+## Where the taints and the record disagree
+
+A taint says what a file's run reaches. The record says what it did. A checkout
+that has both — taints from the mock reader or a table, a journal from an
+instrumented run — can hold one against the other, and every disagreement is a
+fact about one of them.
+
+```ts
+import { auditTaints } from '@variance-authority/sense/taint';
+
+for (const { test, module, kind, taints } of auditTaints(coverage, relations, tainted)) {
+  console.log(kind, test, module, taints?.join(', ') ?? '');
+}
+```
+
+| kind | what it found |
+|---|---|
+| `shadowed-but-entered` | a module the test shadows, which the record says the test entered: the mock did not take, or the taint is wrong about it |
+| `reachable-but-not-entered` | a module the test reaches on the graph with none of its shadows in the way, which nobody entered for that test: an import the run never loads, or a mock no taint names yet |
+| `added-but-not-entered` | a module a `+` row said the test imports beyond its text, which the record never saw the test in: the addition names the wrong file |
+
+None of them is a verdict. Each is the coordinate to look at, and where a taint
+said the thing the record disagrees with, the row carries **which taints** said
+it — a table somebody wrote by hand and a reader over the source are corrected in
+different places. The middle row carries none: that trail is one the scan drew
+and no taint touched.
+
+Two things bound what a row may claim, and both are structural. Only an
+**instrumented** module testifies — one with no probes was entered by nobody the
+record can see, which is silence rather than absence. And only a **complete**
+observation testifies to absence, so the middle question is not asked of a test
+whose recording stopped early: a run that ended mid-flight proves nothing about
+where it never got to.
+
+It wants both sides to exist, which is what makes it the last thing to set up
+rather than the first: a record comes from a journey, and taints come from a
+reader or a table. With one side alone there is nothing to disagree with.
+
 ## What this does not reach
 
 **A fork that has never gone the other way.** Rendering is a series of choices —
@@ -334,6 +372,8 @@ second run onward.
 remembers both ·
 [`execution-record.md`](execution-record.md) for the keys, lookups, traces
 and costs of the coverage file ·
+[`packages/sense`](../packages/sense#say-what-a-file-really-imports) for the taint
+tables themselves ·
 [`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
 [`packages/cli`](../packages/cli) for the rest of the command line ·
 [`comparison.md §2`](comparison.md#chromatic) for what TurboSnap does that this
