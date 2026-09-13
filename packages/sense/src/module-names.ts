@@ -137,7 +137,7 @@ export async function nameModules(
   const compacted = encodeSegment(all);
   try {
     const log = await openImmutableLog(path).catch(() => emptyImmutableLog(path));
-    await log.publish(encodeSegment(added), compacted);
+    await log.publish(encodeSegment(added), () => compacted);
   } catch {
     // A table that could not be written numbers the same modules the same way
     // next time. Persistence is a saving, never a new way for a run to fail.

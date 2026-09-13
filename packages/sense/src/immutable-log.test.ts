@@ -19,15 +19,15 @@ describe('the immutable segment log', () => {
 
   it('returns committed segments in publication order', async () => {
     const file = await path();
-    await (await openImmutableLog(file)).publish(Buffer.from('one'), Buffer.from('one'));
-    await (await openImmutableLog(file)).publish(Buffer.from('two'), Buffer.from('one-two'));
+    await (await openImmutableLog(file)).publish(Buffer.from('one'), () => Buffer.from('one'));
+    await (await openImmutableLog(file)).publish(Buffer.from('two'), () => Buffer.from('one-two'));
 
     expect((await openImmutableLog(file)).segments.map(String)).toEqual(['one', 'two']);
   });
 
   it('rejects the complete chain when one named segment fails its digest', async () => {
     const file = await path();
-    await (await openImmutableLog(file)).publish(Buffer.from('one'), Buffer.from('one'));
+    await (await openImmutableLog(file)).publish(Buffer.from('one'), () => Buffer.from('one'));
     const [segment] = await readdir(`${file}.segments`);
     await writeFile(join(`${file}.segments`, segment!), 'changed');
 
@@ -38,7 +38,7 @@ describe('the immutable segment log', () => {
     const file = await path();
     for (let index = 1; index <= 9; index += 1) {
       const log = await openImmutableLog(file);
-      await log.publish(Buffer.from(`delta-${index}`), Buffer.from(`complete-${index}`));
+      await log.publish(Buffer.from(`delta-${index}`), () => Buffer.from(`complete-${index}`));
     }
 
     const opened = await openImmutableLog(file);

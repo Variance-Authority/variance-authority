@@ -32,7 +32,16 @@ export interface ImmutableLog {
   readonly segments: readonly Buffer[];
   readonly legacy: boolean;
   readonly committed: boolean;
-  publish(delta: Uint8Array, compacted: Uint8Array): Promise<void>;
+  /**
+   * Append `delta`, or replace the chain with the whole of it when the chain has
+   * grown past {@link MAX_SEGMENTS} or was written by the shape before this one.
+   *
+   * `compacted` is a thunk because the compaction is the expensive half and is
+   * not wanted most of the time — for the source index it is a several-megabyte
+   * encode beside a delta of a few kilobytes, and the chain asks for it on one
+   * publish in eight. Only this function knows which publish that is.
+   */
+  publish(delta: Uint8Array, compacted: () => Uint8Array): Promise<void>;
 }
 
 /** Open the committed chain. Missing state is an empty chain; malformed state throws. */
@@ -109,7 +118,7 @@ function logAt(
     committed,
     async publish(delta, compacted) {
       const compact = legacy || references.length + 1 > MAX_SEGMENTS;
-      const content = Buffer.from(compact ? compacted : delta);
+      const content = Buffer.from(compact ? compacted() : delta);
       const reference = { digest: digestBytes(content), length: content.length };
       const next = compact ? [reference] : [...references, reference];
       const directory = segmentDirectory(path);

@@ -35,7 +35,7 @@ export async function writeSourceIndex(path: string, stored: StoredSourceIndex):
 
     await log.publish(
       encodeSourceIndex(segment(stored.layout, parses, records)),
-      encodeSourceIndex(stored),
+      () => encodeSourceIndex(stored),
     );
   } catch {
     // Persistence is a saving, never a new failure mode for the scan.
