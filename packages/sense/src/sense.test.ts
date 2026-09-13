@@ -307,6 +307,61 @@ describe('scanning a tree', () => {
   });
 });
 
+/**
+ * The parse cache is keyed by content, and content is not the whole question.
+ *
+ * Two files can hold one byte for byte and still be read differently, because
+ * the name decides the dialect the parser is handed and decides whether the file
+ * is indexed for component declarations at all. A cache keyed on the bytes alone
+ * hands whichever file the walk reached first its answer to the other — inside a
+ * single scan, in an order nothing in the repository controls.
+ */
+describe('two files with one content', () => {
+  let root: string;
+  /** Digests are what makes the cache reachable: without them it is never asked. */
+  let digests: Map<string, string>;
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'variance-key-'));
+    await write(root, 'package.json', '{ "name": "fixture", "type": "module" }');
+
+    const component = 'export function Widget() { return null; }';
+    await write(root, 'src/widget.ts', component);
+    await write(root, 'src/widget.test.ts', component);
+
+    const sheet = "@import './tokens.css';";
+    await write(root, 'src/theme.css', sheet);
+    await write(root, 'src/theme.ts', sheet);
+
+    digests = new Map([
+      ['src/widget.ts', 'v1:00000000000000000000000000000001'],
+      ['src/widget.test.ts', 'v1:00000000000000000000000000000001'],
+      ['src/theme.css', 'v1:00000000000000000000000000000002'],
+      ['src/theme.ts', 'v1:00000000000000000000000000000002'],
+    ]);
+  });
+
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('does not hand a test file\'s answer to the component beside it', async () => {
+    const records = await scanRelations({ root, dirs: ['src'], digests });
+
+    expect(records.find((record) => record.file === 'src/widget.ts')?.declares).toEqual(['Widget']);
+    expect(records.find((record) => record.file === 'src/widget.test.ts')?.declares).toBeUndefined();
+  });
+
+  it('does not read a stylesheet as a module, or the other way round', async () => {
+    const records = await scanRelations({ root, dirs: ['src'], digests });
+    const sheet = records.find((record) => record.file === 'src/theme.css');
+    const module = records.find((record) => record.file === 'src/theme.ts');
+
+    expect(sheet?.unresolved).toEqual(['./tokens.css']);
+    expect(module?.unresolved).toBeUndefined();
+  });
+});
+
 async function write(root: string, path: string, contents: string): Promise<void> {
   const file = join(root, path);
   await mkdir(dirname(file), { recursive: true });

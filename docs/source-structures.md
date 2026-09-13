@@ -17,7 +17,7 @@ the last scan, and `s` is the number of segments in the persisted chain.
 | Structure | Primary key | Value | Lives |
 |---|---|---|---|
 | digest map | repository-relative path | content digest, `git:<sha>` or `v1:<hash>` | in memory, per scan |
-| parse cache | content digest | `Parsed`: requests, exports, declares, unknown | in memory, persisted in the parse layer |
+| parse cache | content digest, and how the name said to read it | `Parsed`: requests, exports, declares, unknown | in memory, persisted in the parse layer |
 | record cache | repository-relative path | `FileRecord`: digest, resolved edges, declares, unresolved, unknown | in memory, persisted in the record layer |
 | config digest | none, one per generation | digest of the inputs that configure resolution | every segment; read from the newest |
 | directory map | repository-relative directory | digest of the entry names it holds | every segment; layered like the others |
@@ -60,9 +60,21 @@ its bindings; its exports; the component names it declares; and `unknown`,
 the sentence saying why the request list is not the whole set, when it is
 not.
 
-**Key.** The content digest alone. Two files with one digest had one content,
-on any machine and in any branch, so an entry is never invalidated. It is
-dropped when a scan neither reads nor writes it, see `save` below.
+**Key.** The content digest, joined with the two things about the file's name
+that change what its bytes mean: every extension the basename carries, which
+picks the parser's dialect and decides whether the file is read as a stylesheet,
+and whether the name marks it as one whose declarations are not components — a
+`.test.ts` is not indexed. Nothing else about the path is in it, so
+`src/Button.tsx` and `legacy/Button.tsx` holding one content still share one
+entry. Two files with one key had one content read one way, on any machine and
+in any branch, so an entry is never invalidated. It is dropped when a scan
+neither reads nor writes it, see `save` below.
+
+The parts are joined with a NUL rather than re-hashed, which departs from the
+compound key in `packages/sense/src/taint/cache.ts:1`. The key is computed once
+per file in the repository on every run, including the runs that open nothing;
+hashing 24,909 of them costs 17 ms of a warm run that takes 344, and joining
+them costs 2. Nothing reads the parts back out.
 
 **What is not in it.** Resolution. Specifiers go in; edges do not.
 
@@ -77,12 +89,12 @@ with; see [`source.md`](source.md). The edge is ordinary when resolution
 lands in source instead: a `source` export condition, a `main` naming a
 `.ts` file, or a subpath import into the package's `src`.
 
-**Lookup.** `cache.get(digest)` is a `Map` read over the rows this scan has
+**Lookup.** `cache.get(key)` is a `Map` read over the rows this scan has
 touched, falling back to a newest-first walk of the persisted layers, O(s)
 map reads. A hit is copied forward into the working map so the next read of
-the same digest is O(1) and so `save` knows the row was used.
+the same key is O(1) and so `save` knows the row was used.
 
-**Insert.** `cache.set(digest, parsed)` is one `Map` write, O(1).
+**Insert.** `cache.set(key, parsed)` is one `Map` write, O(1).
 
 ## The record cache
 

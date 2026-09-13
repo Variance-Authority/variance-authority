@@ -40,12 +40,12 @@
 
 import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { extname, isAbsolute, join, resolve } from 'node:path';
+import { basename, extname, isAbsolute, join, resolve } from 'node:path';
 import { indexSource } from '@variance-authority/core/attribute';
 import { digestString, type Digest } from './digest.js';
 import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
 import { MODULE_EXTENSIONS, STYLE_EXTENSIONS, readModule, readStyle } from './read.js';
-import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
+import { memoryParseCache, type Parsed, type ParseCache, type ParseKey } from './cache.js';
 import { gitDigests } from './tree.js';
 import { treeShapeOf, type RecordCache } from './reuse.js';
 import { witnessesOf, type Aliases } from './witness.js';
@@ -95,6 +95,55 @@ export interface ScanOptions extends ResolveOptions {
 
 /** Files whose declarations are not components, matching the component index. */
 const NOT_DECLARING = ['.test.', '.spec.', '.stories.', '.d.ts'];
+
+/**
+ * Everything about a path that changes what its bytes mean, and nothing else.
+ *
+ * There are two things. The name picks the dialect handed to the parser and
+ * decides whether the file is read as a stylesheet at all, and it decides
+ * separately whether the file is indexed for component declarations — a
+ * `.test.ts` is not. Read once, here, and carried to both the cache key and the
+ * parse: a key and a parse that each work the path out for themselves is the
+ * shape that lets them disagree, and the disagreement is silent.
+ */
+interface ParseWay {
+  /** Every extension the basename carries: `.ts`, `.test.ts`, `.d.mts`. */
+  readonly suffix: string;
+  readonly declaring: boolean;
+}
+
+function parseWay(file: string): ParseWay {
+  const name = basename(file);
+  // From the *first* dot, not the last. `.d.mts` and `.mts` are different
+  // dialects and `extname` cannot tell them apart.
+  const dot = name.indexOf('.', 1);
+
+  return {
+    suffix: dot === -1 ? '' : name.slice(dot),
+    declaring: !NOT_DECLARING.some((skip) => file.includes(skip)),
+  };
+}
+
+/**
+ * Whether this is read as a stylesheet, which the suffix already decided.
+ *
+ * Derived rather than carried, because the answer is wanted only where a file is
+ * actually opened and the way is built for every file in the repository.
+ */
+function isStyle(way: ParseWay): boolean {
+  return STYLE_EXTENSIONS.includes(way.suffix.slice(way.suffix.lastIndexOf('.')));
+}
+
+/**
+ * The parse cache's key: these bytes, read this way.
+ *
+ * Joined with a separator no path can hold rather than hashed, because this runs
+ * once per file in the repository on every run — including the runs that open
+ * nothing at all ([`cache.ts`](./cache.ts) carries the measurement).
+ */
+function keyFor(digest: Digest, way: ParseWay): ParseKey {
+  return `${digest}\u0000${way.suffix}\u0000${way.declaring ? '+' : '-'}`;
+}
 
 const READABLE = new Set([...MODULE_EXTENSIONS, ...STYLE_EXTENSIONS]);
 
@@ -162,7 +211,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     // repository — leaving the next run that has to rebuild records with nothing
     // to rebuild them from. The blob is live; say so.
     if (remembered === undefined) reuse?.set(record, fresh!.witnesses);
-    else if (digest !== undefined) cache.keep?.(digest);
+    else if (digest !== undefined) cache.keep?.(keyFor(digest, parseWay(file)));
 
     for (const edge of record.edges ?? []) {
       if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
@@ -195,13 +244,14 @@ async function recordFor(
   subject: Subject,
 ): Promise<{ readonly record: FileRecord; readonly witnesses: readonly string[] }> {
   const { absolute, file, root, resolvers, cache } = subject;
-  const style = STYLE_EXTENSIONS.includes(extname(file));
+  const way = parseWay(file);
+  const style = isStyle(way);
 
   // The order is the saving. A digest that arrived from git names a cache entry
   // that can be answered before the file is opened, so an unchanged file costs a
   // map lookup; only a miss falls through to a read.
   let digest = subject.digest;
-  let read = digest === undefined ? undefined : cache.get(digest);
+  let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
 
   if (read === undefined) {
     let contents: string;
@@ -218,8 +268,8 @@ async function recordFor(
     }
 
     digest ??= digestString(contents);
-    read = parsedFrom(file, contents, style);
-    cache.set(digest, read);
+    read = parsedFrom(file, contents, way, style);
+    cache.set(keyFor(digest, way), read);
   }
 
   const edges: FileEdge[] = [];
@@ -244,6 +294,9 @@ async function recordFor(
     edges.push({ to: target, kind: kindFor(asked.kind, target) });
   }
 
+  // The file is named here and only here. What `read` came back with is cached
+  // against bytes rather than a path, so it cannot name the file it was about
+  // ([`read.ts`](./read.ts)); this is the caller that knows which file it asked.
   const reasons = [
     ...(read.unknown === undefined ? [] : [read.unknown]),
     ...(holes.length === 0
@@ -258,7 +311,7 @@ async function recordFor(
       ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
       ...(read.declares === undefined ? {} : { declares: read.declares }),
       ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
-      ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
+      ...(reasons.length > 0 ? { unknown: `${file} — ${reasons.join('; ')}` } : {}),
     },
     witnesses: witnessesOf({
       file,
@@ -278,12 +331,9 @@ async function recordFor(
  * about the directory, the `tsconfig` and what is installed, and none of that is
  * in the bytes ([`cache.ts`](./cache.ts)).
  */
-function parsedFrom(file: string, contents: string, style: boolean): Parsed {
+function parsedFrom(file: string, contents: string, way: ParseWay, style: boolean): Parsed {
   const read = style ? readStyle(file, contents) : readModule(file, contents);
-  const declares =
-    style || NOT_DECLARING.some((skip) => file.includes(skip))
-      ? []
-      : Object.keys(indexSource(file, contents));
+  const declares = style || !way.declaring ? [] : Object.keys(indexSource(file, contents));
 
   return {
     requests: read.requests,

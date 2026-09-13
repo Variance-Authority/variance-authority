@@ -7,8 +7,7 @@
  * never existed together.
  */
 
-import type { Digest } from '@variance-authority/core/format';
-import type { ParseCache, Parsed } from './cache.js';
+import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
 import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
 
@@ -34,22 +33,22 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
   const held: TreeShape | undefined = stored.config === undefined
     ? undefined
     : { config: stored.config, directories: stored.directories };
-  const parses = new Map<Digest, Parsed>();
+  const parses = new Map<ParseKey, Parsed>();
   const records = new Map<string, IndexedRecord>();
   let adopted: TreeShape | undefined;
 
   const cache: ParseCache = {
-    get(digest) {
-      const parsed = parses.get(digest) ?? stored.parses.get(digest);
-      if (parsed !== undefined) parses.set(digest, parsed);
+    get(key) {
+      const parsed = parses.get(key) ?? stored.parses.get(key);
+      if (parsed !== undefined) parses.set(key, parsed);
       return parsed;
     },
-    set(digest, parsed) {
-      parses.set(digest, parsed);
+    set(key, parsed) {
+      parses.set(key, parsed);
     },
-    keep(digest) {
-      const parsed = stored.parses.get(digest);
-      if (parsed !== undefined) parses.set(digest, parsed);
+    keep(key) {
+      const parsed = stored.parses.get(key);
+      if (parsed !== undefined) parses.set(key, parsed);
     },
   };
 

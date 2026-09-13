@@ -160,7 +160,11 @@ export function readModule(file: string, contents: string): Read {
   try {
     result = parseSync(file, contents);
   } catch (error) {
-    return { requests: [], unknown: `${file} could not be parsed: ${messageOf(error)}` };
+    // Unnamed on purpose. What comes back from here is cached against the bytes
+    // and their dialect, so a message carrying a path would be handed to every
+    // other file holding the same content. The caller names the file it asked
+    // about ([`scan.ts`](./scan.ts)).
+    return { requests: [], unknown: `could not be parsed: ${messageOf(error)}` };
   }
 
   const requests: Request[] = [];
@@ -248,7 +252,7 @@ export function readModule(file: string, contents: string): Read {
   return {
     requests,
     ...(published.length > 0 ? { exports: published } : {}),
-    ...(reasons.length > 0 ? { unknown: `${file} — ${reasons.join('; ')}` } : {}),
+    ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
   };
 }
 

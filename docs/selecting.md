@@ -226,9 +226,10 @@ known, and each removes a layer:
 
 - **`git` names every file's content without opening one.** A blob's name *is*
   the hash of its bytes, so `git ls-tree` plus `git status` is the entire walk.
-- **A digest names the parse.** The parse cache is keyed by content, so it can
-  never go stale: two files with one digest had one content, on any machine, in
-  any branch, in any year.
+- **A digest names the parse.** The parse cache is keyed by content and by what
+  the file's name said about reading it, so it can never go stale: two files
+  with one key had one content read one way, on any machine, in any branch, in
+  any year.
 - **A digest plus the shape of the tree names the whole record, edges and all.**
   Edges are not a function of the bytes alone — resolution also depends on which
   paths exist and how resolution is configured — so that cache is additionally

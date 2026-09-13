@@ -172,7 +172,7 @@ describe('the binary source index', () => {
     const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
       sections: { name: string; offset: number }[];
     };
-    const section = header.sections.find((value) => value.name === 'parses.digest');
+    const section = header.sections.find((value) => value.name === 'parses.key');
     expect(section).toBeDefined();
     const digests = new Uint32Array(
       encoded.buffer,

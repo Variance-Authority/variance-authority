@@ -1,11 +1,20 @@
 /**
- * What a file's contents said, keyed by the digest of those contents.
+ * What reading a file produced, keyed by its bytes and by how they were read.
  *
  * The expensive half of a scan is per file: open it, decode it, parse it, find
- * the component names in it. All of that is a pure function of the bytes, so it is
- * cacheable by content digest **forever** — not until something invalidates it.
- * A digest is not a guess about freshness the way a timestamp is; two files with
- * one digest had one content, on any machine, in any branch, in any year.
+ * the component names in it. Nearly all of that is a pure function of the bytes,
+ * so it is cacheable by content digest **forever** — not until something
+ * invalidates it. A digest is not a guess about freshness the way a timestamp is;
+ * two files with one digest had one content, on any machine, in any branch, in
+ * any year.
+ *
+ * Nearly, because the same bytes are not read the same way under every name. The
+ * extension picks the dialect the parser is handed and decides whether the file
+ * is read as a stylesheet at all, and a name ending `.test.ts` is deliberately
+ * not indexed for declarations. So the key is the digest together with what the
+ * path said about reading it, and nothing else about the path is in it:
+ * `src/Button.tsx` and `legacy/Button.tsx` holding one content still share one
+ * entry, which is the sharing this cache exists for.
  *
  * That is what makes the cache shareable in the way that matters. A CI machine
  * that has never seen this branch still holds entries for every blob the branch
@@ -22,9 +31,23 @@
  * be wrong the first time a package moved. Specifiers go in; edges do not.
  */
 
-import type { Digest } from '@variance-authority/core/format';
 import type { Export, Request } from './read.js';
 import { openSourceIndexFile } from './source-index-file.js';
+
+/**
+ * A parse cache key: a content digest, and what the path said about reading it.
+ *
+ * Joined rather than re-hashed. The house pattern for a compound key is to hash
+ * the tuple ([`taint/cache.ts`](./taint/cache.ts)), and it was declined here
+ * against a measurement: this key is computed once per file in the repository on
+ * every run — including the runs that open nothing — and hashing 24,909 of them
+ * costs 17 ms of a warm run that takes 344. Joining them costs 2. Nothing ever
+ * reads the parts back out, so the only thing a hash would buy is a fixed width,
+ * and the string dictionary in the index is what would pay for it.
+ *
+ * Built by [`scan.ts`](./scan.ts), which is where the two properties are read.
+ */
+export type ParseKey = string;
 
 /** Everything reading one file produced that does not depend on where it sits. */
 export interface Parsed {
@@ -42,8 +65,8 @@ export interface Parsed {
 }
 
 export interface ParseCache {
-  get(digest: Digest): Parsed | undefined;
-  set(digest: Digest, parsed: Parsed): void;
+  get(key: ParseKey): Parsed | undefined;
+  set(key: ParseKey, parsed: Parsed): void;
   /**
    * This blob is still in the tree, though nothing asked what it said.
    *
@@ -55,7 +78,7 @@ export interface ParseCache {
    * costs nothing to decide and is what makes the pruning above a statement
    * about the tree rather than about this run's luck.
    */
-  keep?(digest: Digest): void;
+  keep?(key: ParseKey): void;
 }
 
 export interface PersistentParseCache extends ParseCache {
@@ -72,11 +95,11 @@ export interface PersistentParseCache extends ParseCache {
 
 /** A cache that keeps everything and remembers nothing between processes. */
 export function memoryParseCache(): ParseCache {
-  const entries = new Map<Digest, Parsed>();
+  const entries = new Map<ParseKey, Parsed>();
 
   return {
-    get: (digest) => entries.get(digest),
-    set: (digest, parsed) => void entries.set(digest, parsed),
+    get: (key) => entries.get(key),
+    set: (key, parsed) => void entries.set(key, parsed),
   };
 }
 
@@ -92,23 +115,23 @@ export async function openParseCache(path: string): Promise<PersistentParseCache
   const file = await openSourceIndexFile(path);
   const generation = file.stored;
   const stored = generation.parses;
-  const used = new Map<Digest, Parsed>();
+  const used = new Map<ParseKey, Parsed>();
 
   return {
-    get(digest) {
-      const parsed = used.get(digest) ?? stored.get(digest);
+    get(key) {
+      const parsed = used.get(key) ?? stored.get(key);
       // Reading counts as using. An entry hit by this scan is one the next scan
       // will want, and dropping it because nothing rewrote it would throw away
       // the whole unchanged repository on every run.
-      if (parsed !== undefined) used.set(digest, parsed);
+      if (parsed !== undefined) used.set(key, parsed);
       return parsed;
     },
-    set(digest, parsed) {
-      used.set(digest, parsed);
+    set(key, parsed) {
+      used.set(key, parsed);
     },
-    keep(digest) {
-      const parsed = stored.get(digest);
-      if (parsed !== undefined) used.set(digest, parsed);
+    keep(key) {
+      const parsed = stored.get(key);
+      if (parsed !== undefined) used.set(key, parsed);
     },
     async save() {
       await file.save({ ...generation, parses: used });

@@ -13,7 +13,7 @@ import {
 } from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
-import type { Parsed } from './cache.js';
+import type { Parsed, ParseKey } from './cache.js';
 import type { Export } from './read.js';
 
 /**
@@ -30,7 +30,7 @@ import type { Export } from './read.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 2;
+const VERSION = 3;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */
@@ -41,8 +41,8 @@ export interface IndexedRecord {
 }
 
 export interface StoredSourceIndex {
-  readonly parses: ReadonlyMap<Digest, Parsed>;
-  readonly deletedParses?: ReadonlySet<Digest>;
+  readonly parses: ReadonlyMap<ParseKey, Parsed>;
+  readonly deletedParses?: ReadonlySet<ParseKey>;
   /** How resolution was configured when these records were built. */
   readonly config?: Digest;
   /** Every directory the tree held, named by the entries it held. */
@@ -64,6 +64,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const { blob: stringBlob, off: stringOff } = stringColumns(strings);
 
   const parseDigest = new Uint32Array(parses.length);
+  const parseWay = new Uint32Array(parses.length);
   const parseRequests = new Uint32Array(parses.length + 1);
   const parseExports = new Uint32Array(parses.length + 1);
   const parseExportPresent = new Uint8Array(parses.length);
@@ -83,8 +84,10 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const exportType: number[] = [];
   const declareName: number[] = [];
 
-  for (const [index, [digest, parsed]] of parses.entries()) {
+  for (const [index, [key, parsed]] of parses.entries()) {
+    const [digest, way] = partsOf(key);
     parseDigest[index] = id(digest);
+    parseWay[index] = id(way);
     parseRequests[index] = requestValue.length;
     for (const request of parsed.requests) {
       requestValue.push(id(request.value));
@@ -163,9 +166,12 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'directories.digest': Uint32Array.from(directories, ([, digest]) => id(digest)),
     'directories.deleted': Uint32Array.from(
       [...stored.deletedDirectories ?? []].sort(order), (path) => id(path)),
-    'parses.digest': parseDigest,
+    'parses.key': parseDigest,
+    'parses.key-way': parseWay,
     'parses.deleted': Uint32Array.from(
-      [...stored.deletedParses ?? []].sort(order), (digest) => id(digest)),
+      [...stored.deletedParses ?? []].sort(order), (key) => id(partsOf(key)[0])),
+    'parses.deleted-way': Uint32Array.from(
+      [...stored.deletedParses ?? []].sort(order), (key) => id(partsOf(key)[1])),
     'parses.requests': parseRequests,
     'parses.exports': parseExports,
     'parses.exports-present': parseExportPresent,
@@ -214,8 +220,10 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   };
   const optional = (value: number): string | undefined => value === NONE ? undefined : text(value);
 
-  const parseDigest = opened.u32('parses.digest');
+  const parseKey = opened.u32('parses.key');
+  const parseWay = opened.u32('parses.key-way');
   const deletedParseIds = opened.maybeU32('parses.deleted');
+  const deletedParseWays = opened.maybeU32('parses.deleted-way');
   const parseRequests = opened.u32('parses.requests');
   const parseExports = opened.u32('parses.exports');
   const parseExportPresent = opened.u8('parses.exports-present');
@@ -234,17 +242,19 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const exportImported = opened.u32('exports.imported');
   const exportType = opened.u8('exports.type');
   const declareName = opened.u32('declares.name');
-  validateOffset(parseRequests, requestValue.length, parseDigest.length);
-  validateOffset(parseExports, exportExported.length, parseDigest.length);
-  validateOffset(parseDeclares, declareName.length, parseDigest.length);
-  sameLength(parseDigest.length, [parseExportPresent, parseDeclarePresent, parseUnknown]);
+  validateOffset(parseRequests, requestValue.length, parseKey.length);
+  validateOffset(parseExports, exportExported.length, parseKey.length);
+  validateOffset(parseDeclares, declareName.length, parseKey.length);
+  sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown]);
+  sameLength(parseKey.length, [parseWay]);
+  if (deletedParseIds.length !== deletedParseWays.length) throw invalid();
   sameLength(requestValue.length, [requestKind]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
   sameLength(bindingImported.length, [bindingLocal, bindingType]);
   sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType]);
 
-  const parses = new Map<Digest, Parsed>();
-  for (let row = 0; row < parseDigest.length; row += 1) {
+  const parses = new Map<ParseKey, Parsed>();
+  for (let row = 0; row < parseKey.length; row += 1) {
     const requests = range(parseRequests, row).map((request) => ({
       value: text(requestValue[request]!),
       kind: text(requestKind[request]!) as Parsed['requests'][number]['kind'],
@@ -269,20 +279,20 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     });
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));
     const unknown = optional(parseUnknown[row]!);
-    const digest = text(parseDigest[row]!) as Digest;
-    if (parses.has(digest)) throw invalid();
-    parses.set(digest, {
+    const key = joinedKey(text(parseKey[row]!), text(parseWay[row]!));
+    if (parses.has(key)) throw invalid();
+    parses.set(key, {
       requests,
       ...(flag(parseExportPresent[row]) ? { exports: published } : {}),
       ...(flag(parseDeclarePresent[row]) ? { declares } : {}),
       ...(unknown === undefined ? {} : { unknown }),
     });
   }
-  const deletedParses = new Set<Digest>();
-  for (const value of deletedParseIds) {
-    const digest = text(value) as Digest;
-    if (parses.has(digest) || deletedParses.has(digest)) throw invalid();
-    deletedParses.add(digest);
+  const deletedParses = new Set<ParseKey>();
+  for (const [at, value] of deletedParseIds.entries()) {
+    const key = joinedKey(text(value), text(deletedParseWays[at]!));
+    if (parses.has(key) || deletedParses.has(key)) throw invalid();
+    deletedParses.add(key);
   }
 
   const recordFile = opened.u32('records.file');
@@ -368,19 +378,39 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   };
 }
 
+/**
+ * A parse key stored as its two parts, so the digest is the entry the record row
+ * already interned.
+ *
+ * The key is a content digest joined to what the file's name said about reading
+ * it ([`cache.ts`](./cache.ts)). Written whole it is a second dictionary string
+ * for every blob, naming a digest this index already holds — 1.4 MB of a 7.7 MB
+ * index on a repository of 24,909 files. Written as two columns the digest is
+ * shared with the record that was read from it, and the ways are a handful of
+ * distinct strings however large the repository is.
+ */
+function partsOf(key: ParseKey): readonly [string, string] {
+  const at = key.indexOf('\u0000');
+  return at === -1 ? [key, ''] : [key.slice(0, at), key.slice(at + 1)];
+}
+
+function joinedKey(digest: string, way: string): ParseKey {
+  return way === '' ? digest : `${digest}\u0000${way}`;
+}
+
 function dictionary(
   stored: StoredSourceIndex,
-  parses: readonly (readonly [Digest, Parsed])[],
+  parses: readonly (readonly [ParseKey, Parsed])[],
   records: readonly (readonly [string, IndexedRecord])[],
 ): readonly string[] {
   const values = new Set<string>();
   if (stored.config !== undefined) values.add(stored.config);
-  for (const digest of stored.deletedParses ?? []) values.add(digest);
+  for (const key of stored.deletedParses ?? []) for (const part of partsOf(key)) values.add(part);
   for (const file of stored.deletedRecords ?? []) values.add(file);
   for (const path of stored.deletedDirectories ?? []) values.add(path);
   for (const [path, digest] of stored.directories) { values.add(path); values.add(digest); }
-  for (const [digest, parsed] of parses) {
-    values.add(digest);
+  for (const [key, parsed] of parses) {
+    for (const part of partsOf(key)) values.add(part);
     for (const request of parsed.requests) {
       values.add(request.value); values.add(request.kind);
       for (const binding of request.bindings) { values.add(binding.imported); values.add(binding.local); }

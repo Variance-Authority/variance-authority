@@ -3,7 +3,7 @@
 The numbers on this page were taken on a repository this project did not write:
 [Material UI](https://github.com/mui/material-ui) at `62a348bf47`, 41,165 tracked
 paths, of which 24,519 are modules and 24.9 MB is source. Scanning it produces
-24,909 records and a 7.7 MB index. It was chosen because it is large enough to
+24,909 records and a 7.8 MB index. It was chosen because it is large enough to
 break things, public enough to check, and nobody here can tune for it.
 
 Every figure below comes from one script, which is in the repository and takes a
@@ -18,25 +18,25 @@ node packages/sense/scripts/source-index.mjs {MATERIAL-UI}
 A run opens the index, walks the repository, and publishes what it learned. Each
 row is a working tree put into that shape and then put back, and the last two
 columns are counted rather than inferred: a record is either reused or rebuilt,
-and a rebuild either opens the file or answers from the content-keyed parse
-cache.
+and a rebuild either opens the file or answers from the parse cache, which is
+keyed by content and by what the file's name said about reading it.
 
 | The tree is                          | Total    | Records rebuilt | Files opened |
 | ------------------------------------ | -------- | --------------- | ------------ |
-| new — no index at all                | 2,900 ms | 24,909          | 24,825       |
-| unchanged since last run             | 344 ms   | 0               | 0            |
-| four files edited                    | 345 ms   | 4               | 4            |
-| five hundred files edited            | 428 ms   | 500             | 478          |
-| one file added                       | 405 ms   | 104             | 1            |
-| a hundred in, a hundred out, five hundred edited | 455 ms | 1,064 | 479 |
+| new — no index at all                | 2,866 ms | 24,909          | 24,859       |
+| unchanged since last run             | 357 ms   | 0               | 0            |
+| four files edited                    | 332 ms   | 4               | 4            |
+| five hundred files edited            | 460 ms   | 500             | 490          |
+| one file added                       | 373 ms   | 104             | 1            |
+| a hundred in, a hundred out, five hundred edited | 462 ms | 1,064 | 491 |
 
 The first row is the one people ask about and the least interesting. It happens
 once per machine, and a machine that never has it happen is a machine that never
 got a cold checkout.
 
 **An edit is priced correctly and a fixed toll is charged on top of it.** Five
-hundred files edited cost 83 ms more than four did — about a sixth of a
-millisecond each, which is a file read, parsed and resolved. The 340 ms underneath
+hundred files edited cost 128 ms more than four did — about a quarter of a
+millisecond each, which is a file read, parsed and resolved. The 330 ms underneath
 is charged whether anything changed or not, and a quarter of it is git. The rest
 is the walk — every path in the repository visited and checked against its digest
 in order to decide not to do anything about it — plus the index decoded so that
@@ -83,9 +83,9 @@ carries the argument for why the bound is sound everywhere else.
 
 ## Where the third of a second is
 
-Of a warm run's 344 ms, roughly 112 is decoding the index, 216 is the scan, and 15
-is publishing. Inside the scan, 86 ms is git answering what the working tree looks
-like, which leaves about 130 ms of ours: 24,909 records walked and each checked
+Of a warm run's 357 ms, roughly 123 is decoding the index, 220 is the scan, and 13
+is publishing. Inside the scan, 84 ms is git answering what the working tree looks
+like, which leaves about 136 ms of ours: 24,909 records walked and each checked
 against its digest.
 
 The publish is the smallest of the three because of how little it writes. A run
@@ -107,19 +107,27 @@ repository-relative path, and a resolved edge already carries one; converting it
 to an absolute path and back in order to visit it is 48,738 conversions on this
 repository for a run that opens no files at all.
 
+What the walk does spend, it spends on being right. Each file's parse-cache key
+covers the content digest *and* what the name said about reading it — the
+extension picks the parser's dialect, and a `.test.ts` is deliberately not
+indexed for declarations — so building one key per file costs the warm run
+roughly 15 ms it did not pay when the key was the digest alone. The digest alone
+handed `widget.test.ts`'s answer to `widget.ts` beside it, in whichever order the
+walk reached them, which is not a saving.
+
 ## The floor
 
 Read every module and parse it, with nothing else happening:
 
 | Doing only this                 | Costs  |
 | ------------------------------- | ------ |
-| read 24,519 files from disk     | 253 ms |
-| parse them with oxc             | 173 ms |
-| **what a scan cannot go below** | **426 ms** |
+| read 24,519 files from disk     | 273 ms |
+| parse them with oxc             | 157 ms |
+| **what a scan cannot go below** | **430 ms** |
 
-A cold scan is 2,736 ms against a floor of 426. The parser is not the problem — it
-is 6% of the run, it is already compiled code, and it reads 24.9 MB of TypeScript
-in 173 ms. The other 2,310 ms is resolution, specifier collection and declaration
+A cold scan is 2,866 ms against a floor of 430. The parser is not the problem — it
+is 5% of the run, it is already compiled code, and it reads 24.9 MB of TypeScript
+in 157 ms. The other 2,436 ms is resolution, specifier collection and declaration
 indexing, all of it ours and all of it JavaScript.
 
 That measurement is why [where the native code is](native-code.md) reads the way
@@ -135,10 +143,10 @@ a person will believe when the answer is wrong. It also means git's cost is ours
 
 | Asking git                 | Costs | Which is                                     |
 | -------------------------- | ----- | -------------------------------------------- |
-| `ls-tree`                  | 23 ms | the commit — does not grow with the checkout |
-| `status`                   | 86 ms | the working tree                             |
-| `status`, watched          | 49 ms | the same answer, from a file-system monitor  |
-| `status`, watched and cached | 47 ms | the untracked walk remembered as well      |
+| `ls-tree`                  | 22 ms | the commit — does not grow with the checkout |
+| `status`                   | 84 ms | the working tree                             |
+| `status`, watched          | 45 ms | the same answer, from a file-system monitor  |
+| `status`, watched and cached | 44 ms | the untracked walk remembered as well      |
 
 Git ships both. Two lines, in the repository being scanned:
 
@@ -147,8 +155,8 @@ git config core.fsmonitor true
 git config core.untrackedCache true
 ```
 
-The monitor answers for tracked files, and it is what takes `status` from 86 ms to
-49 here. The untracked cache answers the other half of the same question — what is
+The monitor answers for tracked files, and it is what takes `status` from 84 ms to
+45 here. The untracked cache answers the other half of the same question — what is
 on disk that the index has never heard of — and it does not move this row, because
 these figures require a clean checkout and the walk it spares therefore finds
 nothing. On a working tree with build output in it, that is the half that costs.

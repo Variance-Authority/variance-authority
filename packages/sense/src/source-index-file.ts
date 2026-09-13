@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { Digest } from '@variance-authority/core/format';
-import type { Parsed } from './cache.js';
+import type { Parsed, ParseKey } from './cache.js';
 import { emptyImmutableLog, openImmutableLog, type ImmutableLog } from './immutable-log.js';
 import { differenceLayer, orderedMap, type MapLayer } from './ordered-map.js';
 import {
@@ -109,7 +109,7 @@ function same(left: readonly Digest[], right: readonly Digest[]): boolean {
 
 async function load(log: ImmutableLog): Promise<Opened> {
   const decoded = log.segments.map((bytes) => decodeSourceIndex(bytes));
-  const parseLayers: MapLayer<Digest, Parsed>[] = decoded.map((part) => ({
+  const parseLayers: MapLayer<ParseKey, Parsed>[] = decoded.map((part) => ({
     puts: part.parses,
     deletes: part.deletedParses ?? new Set(),
   }));
@@ -135,7 +135,7 @@ async function load(log: ImmutableLog): Promise<Opened> {
 
 function segment(
   config: Digest | undefined,
-  parses: MapLayer<Digest, Parsed>,
+  parses: MapLayer<ParseKey, Parsed>,
   records: MapLayer<string, IndexedRecord>,
   directories: MapLayer<string, Digest>,
 ): StoredSourceIndex {

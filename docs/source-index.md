@@ -3,9 +3,9 @@
 The Sense source index is one versioned binary generation assembled as a small
 log-structured merge tree: an ordered log of immutable segments with periodic
 compaction. It contains the two facts a repeated source scan can reuse: parses
-keyed by content digest, and resolved file records keyed by file path, content
-digest, and the configuration and directories they resolved under. Both maps
-share one publication boundary.
+keyed by content digest and the way the file's name said to read it, and
+resolved file records keyed by file path, content digest, and the configuration
+and directories they resolved under. Both maps share one publication boundary.
 
 The index is operational cache state. A reader accepts the complete generation
 or treats it as absent; no result or evidence depends on the file surviving.
@@ -92,8 +92,10 @@ row per logical object unless an offset column connects it to a child group.
 | `directories.path` | 4 | repository-relative directory ids |
 | `directories.digest` | 4 | directory-membership digest ids |
 | `directories.deleted` | 4 | directory tombstones |
-| `parses.digest` | 4 | parse content-digest ids |
-| `parses.deleted` | 4 | content-digest tombstones |
+| `parses.key` | 4 | parse content-digest ids |
+| `parses.key-way` | 4 | ids of how each parse's name said to read it |
+| `parses.deleted` | 4 | parse-key tombstones, content-digest half |
+| `parses.deleted-way` | 4 | parse-key tombstones, read-way half |
 | `parses.requests` | 4 | parse-to-request offsets |
 | `parses.exports` | 4 | parse-to-export offsets |
 | `parses.exports-present` | 1 | whether each export list is known |
