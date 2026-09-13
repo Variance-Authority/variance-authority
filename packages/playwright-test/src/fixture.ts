@@ -4,10 +4,9 @@ import type {
   Page,
   PlaywrightTestArgs,
   PlaywrightWorkerArgs,
-  TestInfo,
 } from '@playwright/test';
 import { hashComponents, overlaySourceIndex } from '@variance-authority/core/attribute';
-import { digestValue, documentDigest } from '@variance-authority/core/format';
+import { documentDigest } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import type { CaptureArtifact } from '@variance-authority/core';
 import type { SourceIndex } from '@variance-authority/core/attribute';
@@ -31,6 +30,7 @@ import { accepted } from './accepted.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
+import { runOf, type VarianceRun } from './run.js';
 import { driftBetween, listDrift } from './drift.js';
 import { stableRaster } from './in-place.js';
 import {
@@ -107,7 +107,7 @@ export interface VarianceWorkerFixtures
 
 export interface VarianceRuntime {
   readonly page: Page;
-  readonly testInfo: TestInfo;
+  readonly run: VarianceRun;
   readonly renderer?: Renderer;
   readonly store: RasterStore;
   readonly materialization?: MaterializationOptions;
@@ -119,27 +119,25 @@ export interface VarianceRuntime {
 }
 
 /**
- * Where a run is allowed to promote what it just painted.
+ * The subject id a run supplies when an observation does not name one.
  *
- * Playwright's own flag, read rather than reinvented, because a team that types
- * `--update-snapshots` for every other matcher will type it for this one. What it
- * cannot mean here is what it means elsewhere: acceptance promotes an image the
- * run **already produced** and never produces one (ADR-0021), so a candidate that
- * is not in the render cache is refused by name instead of being re-rendered into
- * existence.
+ * Refused rather than defaulted: an id is the coordinate a baseline is stored
+ * at, and inventing one from a counter or a timestamp would give the same
+ * subject a different address on every run.
  */
-function accepting(testInfo: TestInfo): boolean {
-  const flag = testInfo.config.updateSnapshots;
-  // Playwright defaults this field to `missing` even when the operator supplied
-  // no update flag. Treating that default as approval writes a new baseline from
-  // the same failed run that reported it unreviewed. Only explicit update modes
-  // may cross the review boundary.
-  return flag === 'all' || flag === 'changed';
+function subjectFromRun(run: VarianceRun): string {
+  if (run.id === undefined || run.id === '') {
+    throw new Error(
+      'variance needs a subject id and this run has none; ' +
+        'pass `subjectId` on the observation, or `id` on the run descriptor',
+    );
+  }
+  return run.id;
 }
 
 function viewportOf(
   size: { width: number; height: number } | null,
-  testInfo: TestInfo,
+  run: VarianceRun,
 ): Viewport {
   if (size === null) {
     throw new Error(
@@ -148,11 +146,10 @@ function viewportOf(
     );
   }
 
-  const scheme = testInfo.project.use.colorScheme;
   return {
     ...size,
-    deviceScaleFactor: testInfo.project.use.deviceScaleFactor ?? 1,
-    colorScheme: scheme === 'dark' ? 'dark' : 'light',
+    deviceScaleFactor: run.deviceScaleFactor ?? 1,
+    colorScheme: run.colorScheme === 'dark' ? 'dark' : 'light',
   };
 }
 
@@ -247,7 +244,7 @@ export const varianceFixtures: Fixtures<
         return await observeLocator(
           {
             page,
-            testInfo,
+            run: runOf(testInfo),
             renderer: varianceRenderer,
             store: varianceStore,
             declared,
@@ -282,15 +279,15 @@ export async function observeLocator(
   locator: Locator,
   options: VarianceOptions = {},
 ): Promise<Observation> {
-  const { page, testInfo, renderer, store } = runtime;
+  const { page, run, renderer, store } = runtime;
   const subject: SubjectRef = {
-    id: options.subjectId ?? testInfo.titlePath.slice(1).join('/'),
+    id: options.subjectId ?? subjectFromRun(run),
     kind: options.subjectKind ?? 'route',
   };
 
   const request: AcquireRequest = {
     subject,
-    viewport: viewportOf(page.viewportSize(), testInfo),
+    viewport: viewportOf(page.viewportSize(), run),
     engine: engineOf(page),
     ...(options.fonts !== undefined ? { fonts: options.fonts } : {}),
     ...(options.loading === true
@@ -363,7 +360,7 @@ export async function observeLocator(
       stabilization: stabilization.ids,
     };
     const observation = await observeCaptureAgainstBaseline(artifact, key, { store });
-    if (accepting(testInfo) && observation.verdict !== 'unchanged') {
+    if (run.accepting === true && observation.verdict !== 'unchanged') {
       await store.put(key, {
         ...candidate,
         components: hashComponents(snapshot),
@@ -416,7 +413,7 @@ export async function observeLocator(
     ...(source !== undefined ? { source } : {}),
   });
 
-  if (accepting(testInfo) && observation.verdict !== 'unchanged') {
+  if (run.accepting === true && observation.verdict !== 'unchanged') {
     await promote(store, renderer, document, key, snapshot, accessibility);
     return accepted(observation);
   }

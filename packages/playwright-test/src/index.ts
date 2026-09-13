@@ -1,4 +1,6 @@
 export { observe, createVariance } from './direct.js';
+export { runOf, asRun } from './run.js';
+export type { VarianceRun } from './run.js';
 export type {
   CreateVarianceOptions,
   DirectObservationOptions,

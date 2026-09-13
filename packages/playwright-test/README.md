@@ -192,7 +192,7 @@ accessibility field means the boundary was not observed.
 | `wiring` | The subtree is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 
-### `createVariance(page, testInfo, options)`
+### `createVariance(page, within, options)`
 
 Everything a session owns for its lifetime, as opposed to what one observation
 decides. A one-shot `observe` accepts `baselines` and `materialization` too, and
@@ -206,6 +206,33 @@ opens and closes the rest itself.
 | `bundle` | The suite deliberately builds its own page agent. | The package's bundled agent. A custom bundle must install itself both in the current document and on future navigations. |
 | `tests` | The next run should be able to skip specs whose code nothing touched. | `false`. Requires the application under test to be built with `testSelectionProbes()` from `@variance-authority/sense/journal`; without a collector in the page the session says so on stderr and records nothing. |
 | `materialization` | Pixels should come from the browser the suite already pinned. | `{ kind: 'deferred' }`. |
+
+### Driving Playwright from another runner
+
+`within` is Playwright's `TestInfo` or a plain run descriptor. Suites that drive
+a browser from vitest, `node:test` or a script have every fact this package
+reads from `TestInfo` and no `TestInfo` to hold them, so they state them:
+
+```ts
+const variance = await createVariance(page, {
+  id: 'checkout/empty-cart',
+  colorScheme: 'light',
+  deviceScaleFactor: 1,
+  baseURL: 'http://localhost:5001',
+  accepting: process.env.UPDATE_SNAPSHOTS === '1',
+});
+```
+
+| Field | Use it when | Default and boundary |
+| --- | --- | --- |
+| `id` | Observations do not each name a `subjectId`. | None. An observation with neither is refused rather than given an invented address. |
+| `colorScheme`, `deviceScaleFactor` | Ever. Both partition the baseline. | `light` and `1`. |
+| `baseURL` | Journeys and heads should know where the page is served. | Omitted; a head then sees the execution from the first observation rather than the first request. |
+| `owner` | The run records which spec covered which source. | Omitted; the run records no execution against a file. |
+| `accepting` | This run is the one promoting candidates to baselines. | `false`. Under `TestInfo` it is `--update-snapshots=all\|changed` and nothing else — `missing` is the flag's absence. |
+
+`runOf(testInfo)` is the same reading, exported for a suite that wants to take
+Playwright's answer and override one field.
 
 `materialization` selects how pixels are produced; its `kind` field picks the
 strategy. `kind: 'in-place'` requires `browser`, the declared launch of the

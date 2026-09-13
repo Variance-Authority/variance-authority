@@ -9,10 +9,10 @@ import { observeLocator } from './fixture.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
 import {
   createExecutionRecorder,
-  ownerOf,
   type ExecutionRecording,
 } from './execution.js';
 import { AGENT } from './page-agent.js';
+import { asRun, type VarianceRun } from './run.js';
 
 export interface CreateVarianceOptions {
   /** Defaults to `.variance/baselines`. */
@@ -66,18 +66,19 @@ export interface VarianceSession {
  */
 export async function createVariance(
   page: Page,
-  testInfo: TestInfo,
+  within: TestInfo | VarianceRun,
   options: CreateVarianceOptions = {},
 ): Promise<VarianceSession> {
+  const run = asRun(within);
   const recorder =
     options.tests === undefined || options.tests === false
       ? undefined
       : createExecutionRecorder(options.tests === true ? {} : options.tests);
-  const owner = recorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
+  const owner = recorder === undefined ? undefined : run.owner;
   // An additive helper is commonly called after the suite has navigated, so a
   // head sees this execution from here on rather than from the first request.
   // Callers who want the whole journey call `createVariance` before navigating.
-  if (owner !== undefined) await recorder!.join(page, owner, testInfo.project.use.baseURL);
+  if (owner !== undefined) await recorder!.join(page, owner, run.baseURL);
   const bundle = options.bundle ?? (await bundlePageAgent());
   const materialization = options.materialization ?? { kind: 'deferred' };
   const store = options.store ?? createDurableStore(options.baselines ?? '.variance/baselines');
@@ -111,7 +112,7 @@ export async function createVariance(
         return await observeLocator(
           {
             page,
-            testInfo,
+            run,
             store,
             materialization,
             declared,
@@ -144,10 +145,10 @@ export async function createVariance(
 export async function observe(
   page: Page,
   locator: Locator,
-  testInfo: TestInfo,
+  within: TestInfo | VarianceRun,
   options: DirectObservationOptions = {},
 ): Promise<Observation> {
-  const session = await createVariance(page, testInfo, {
+  const session = await createVariance(page, within, {
     ...(options.baselines === undefined ? {} : { baselines: options.baselines }),
     ...(options.materialization === undefined
       ? {}
