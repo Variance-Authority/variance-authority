@@ -77,3 +77,28 @@ export function digestValue(value: CanonicalValue): Digest {
 export function digestCombine(domain: string, parts: readonly Digest[]): Digest {
   return digestString(`${domain}\u0000${parts.join('\u0000')}`);
 }
+
+/**
+ * How much of an encoded id a filename may carry.
+ *
+ * A filename is capped at 255 bytes on every filesystem anybody runs a suite on,
+ * and a caller's own suffix -- an extension, a temporary marker with a pid and a
+ * UUID in it -- comes out of the same 255. What is left is the budget.
+ */
+const NAME_BUDGET = 140;
+
+/**
+ * A filesystem name for an id that was not written with filesystems in mind.
+ *
+ * An id long enough to overrun a filename is not an exotic case: a suite that
+ * names subjects after the test that produced them -- a file path and a full
+ * test name -- passes 255 bytes on ordinary tests, and the whole point of that
+ * convention is that the id says where the subject came from. Truncating alone
+ * would put two tests in one file, so a long id keeps a readable prefix and
+ * earns a digest of the whole id, which is what actually distinguishes it.
+ */
+export function fileNameFor(id: string): string {
+  const encoded = encodeURIComponent(id);
+  if (encoded.length <= NAME_BUDGET) return encoded;
+  return `${encoded.slice(0, NAME_BUDGET)}~${digestString(id).replace(':', '-')}`;
+}

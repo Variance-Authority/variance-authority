@@ -1,36 +1,19 @@
 import { link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CaptureArtifact } from '@variance-authority/core';
-import { digestString } from '@variance-authority/core/format';
+import { fileNameFor } from '@variance-authority/core/format';
 import { captureArtifactFrom } from './shape.js';
 
 export const CAPTURE_SUFFIX = '.va-capture.json';
 
 /**
- * How much of an encoded subject id a filename may carry.
- *
- * A filename is capped at 255 bytes on every filesystem anybody runs a test
- * suite on, and this one also carries {@link CAPTURE_SUFFIX} and, briefly, a
- * temporary marker with a pid and a UUID in it. What is left is the budget.
- */
-const NAME_BUDGET = 140;
-
-/**
  * The file one subject's capture is written to.
  *
  * The id goes in the name because a person looking in this directory is looking
- * for a subject, and an id long enough to overrun the filesystem is not an
- * exotic case: a suite that names subjects after the test that produced them --
- * a file path and a full test name -- passes 255 bytes on ordinary tests, and
- * the whole point of that convention is that the id says where the subject came
- * from. Truncating alone would merge two tests in one file. So a long id keeps
- * a readable prefix and earns a digest of the whole id, which is what actually
- * distinguishes it.
+ * for a subject.
  */
 export function captureFileName(id: string): string {
-  const encoded = encodeURIComponent(id);
-  if (encoded.length <= NAME_BUDGET) return `${encoded}${CAPTURE_SUFFIX}`;
-  return `${encoded.slice(0, NAME_BUDGET)}~${digestString(id).replace(':', '-')}${CAPTURE_SUFFIX}`;
+  return `${fileNameFor(id)}${CAPTURE_SUFFIX}`;
 }
 
 /**

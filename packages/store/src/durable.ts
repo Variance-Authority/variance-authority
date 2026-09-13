@@ -3,6 +3,7 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
+  fileNameFor,
   identityDigest,
   type Digest,
   type Raster,
@@ -211,7 +212,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
 const IDENTITY_DIRECTORY = /^v1:[0-9a-f]{32}$/;
 
 function pathFor(holder: string, identity: Digest, key: BaselineKey, layout: BaselineLayout): string {
-  return join(holder, identity, encodeURIComponent(fileName(key, layout)));
+  return join(holder, identity, fileNameFor(fileName(key, layout)));
 }
 
 /**

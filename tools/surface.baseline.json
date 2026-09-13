@@ -265,6 +265,7 @@
         "digestValue": "function",
         "documentDigest": "function",
         "environmentKey": "function",
+        "fileNameFor": "function",
         "forTier": "function",
         "heldDigest": "function",
         "hideCaret": "const",

@@ -90,6 +90,19 @@ describe('the durable mode', () => {
     expect(found?.raster.bytes).toBe('QUJD');
   });
 
+  it('round-trips a subject id longer than a filename', async () => {
+    // A suite that names subjects after the test that produced them passes 255
+    // bytes on ordinary tests. The store answering ENAMETOOLONG would make the
+    // longest-named subjects the ones nobody can baseline.
+    const store = createDurableStore(root);
+    const stem = `mui-material/src/Tabs/Tabs.test/${'keyboard-navigation-'.repeat(12)}`;
+    await store.put({ subject: `${stem}/first` }, rasterOf(MAC, 'v1:doc', 'QUJD'));
+    await store.put({ subject: `${stem}/second` }, rasterOf(MAC, 'v1:doc', 'REVG'));
+
+    expect((await store.find({ subject: `${stem}/first` }, MAC))?.raster.bytes).toBe('QUJD');
+    expect((await store.find({ subject: `${stem}/second` }, MAC))?.raster.bytes).toBe('REVG');
+  });
+
   it('round-trips browser accessibility evidence in both lookup tiers', async () => {
     const accessibility = accessibilitySnapshot(MAC.engine, ['- button "Save"']);
     const store = createDurableStore(root);
