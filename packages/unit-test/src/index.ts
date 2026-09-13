@@ -14,6 +14,8 @@ export {
   resetCaptures,
   writeCapture,
 } from './archive.js';
+export { retainStyles } from './styles.js';
+export type { RetainedStyles } from './styles.js';
 export { captureCollector } from './collector.js';
 export type { CaptureCollectorOptions } from './collector.js';
 export type {

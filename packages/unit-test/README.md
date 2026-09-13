@@ -101,6 +101,42 @@ by a digest of the whole id, so two long ids sharing a prefix stay two files.
 `captureFileName` is that rule, exported for a reader that wants to find one
 subject's file without listing the directory.
 
+## Keep the styling that the teardown removes
+
+```ts
+// setup file, alongside the capture hook
+import { retainStyles } from '@variance-authority/unit-test';
+
+let retention;
+beforeEach(() => {
+  retention = retainStyles(document);
+});
+afterEach(async () => {
+  const undo = retention.restore();
+  try {
+    await capture(document.body, { subject: idOf(expect.getState()), viewport: VIEWPORT });
+  } finally {
+    undo();
+    retention.stop();
+  }
+});
+```
+
+A capture taken from a setup file runs in the outermost `afterEach` there is:
+every hook the suite registered inside a `describe` has already finished, and
+`onTestFinished` runs later still. CSS-in-JS teardown lives in exactly those
+inner hooks — emotion's test renderer removes each `<style>` tag it inserted —
+so the page the capture reads is the page the test built with the styling taken
+back off it. The class names are all still in the markup, none of them match
+anything, and the baseline is a photograph of unstyled DOM that compares equal
+to itself forever.
+
+`retainStyles` records style elements as they are inserted and puts the removed
+ones back, in insertion order, for the length of one capture. It does not stop
+the teardown; the next test is entitled to a clean page. Read the count of
+matched rules in a capture once after wiring this up: a subject with none is the
+symptom, and it is invisible in every verdict the run can produce.
+
 ## Clear the directory once per run
 
 ```ts

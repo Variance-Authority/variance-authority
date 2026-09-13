@@ -2819,6 +2819,7 @@
         "Plan": "interface",
         "PlannedSubject": "interface",
         "ResolvedResource": "interface",
+        "RetainedStyles": "interface",
         "SnapshotValueOptions": "interface",
         "SubjectSource": "type",
         "UnitCaptureOptions": "interface",
@@ -2828,6 +2829,7 @@
         "captureFiles": "function",
         "readCapture": "function",
         "resetCaptures": "function",
+        "retainStyles": "function",
         "snapshotValue": "function",
         "writeCapture": "function"
       }
