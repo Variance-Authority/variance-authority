@@ -14,6 +14,7 @@ import {
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import { foldTestCoverage, mergeCoverage, type CoverageShard } from './merge.js';
+import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import {
   narrowByExecutionFromView,
   selectTestFilesFromView,
@@ -39,6 +40,17 @@ export {
 export type { BlockKind };
 export type { ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { journeyDivergences };
+export { bandRange, bandsOf, slice, tail, type Band } from './bands.js';
+export { distanceFromView, nearestFirst } from './distance.js';
+export type {
+  Bearing,
+  DistanceOptions,
+  Face,
+  Faces,
+  ReachThrough,
+  TestDistance,
+} from './distance.js';
+export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, mergeCoverage };
 export { cacheLayers, defaultCacheRoot, layeredFiles, type CacheLayers } from './cache-layers.js';
@@ -342,6 +354,24 @@ export async function narrowByExecution(
   options: ExecutionNarrowingOptions = {},
 ): Promise<ExecutionNarrowing> {
   return narrowByExecutionFromView(openTestCoverage(await readFile(file)), diff, options);
+}
+
+/**
+ * The same query, and how far the change had to travel to reach each test it
+ * selected.
+ *
+ * One read, because the two answers come off the same columns and a caller that
+ * asked twice would decode the snapshot twice to join a reading to the narrowing
+ * it was derived from.
+ */
+export async function distanceByExecution(
+  file: string,
+  diff: string,
+  options: ExecutionNarrowingOptions & DistanceOptions = {},
+): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances: readonly TestDistance[] }> {
+  const coverage = openTestCoverage(await readFile(file));
+  const narrowing = narrowByExecutionFromView(coverage, diff, options);
+  return { narrowing, distances: distanceFromView(coverage, narrowing, options) };
 }
 
 /**

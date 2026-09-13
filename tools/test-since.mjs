@@ -6,11 +6,17 @@ import { fileURLToPath } from 'node:url';
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import { openSourceIndex, scanRelations } from '@variance-authority/sense';
 import {
-  narrowByExecution,
+  bandRange,
+  bandsOf,
+  distanceByExecution,
+  indexFaces,
   readTestCoverage,
+  slice,
+  tail,
   testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
+import { bandLines, findingLines } from './since-report.mjs';
 
 /**
  * Run the tests a change reached, from the suite's own record of itself.
@@ -48,7 +54,37 @@ import { sourceStem } from './page-side.mjs';
  * yarn test:since            # since the commit the snapshot was recorded at
  * yarn test:since main       # since the merge base with main
  * yarn test:since --dry-run  # decide, explain, run nothing
+ * yarn test:since --band 1-3 # the three nearest rings only
+ * yarn test:since --band 4-  # the rest of them
  * ```
+ *
+ * ## Bands, and what a green one is worth
+ *
+ * A change to something everything imports selects nearly everything, and that
+ * answer is correct and no use: the same run with a paragraph attached. But the
+ * selection is not flat. The edited module's own test is one hop from it, its
+ * callers' tests are two, and a failure at one hop has one explanation where a
+ * failure at four has a chain of them. `--band` runs a slice of those rings, so
+ * a loop can spend six seconds finding out it was wrong before it spends eleven
+ * minutes finding out it was right.
+ *
+ * Each leg is a smaller claim than the last. A green suite is the gate; a green
+ * `test:since` is the tests a change reached; a green band is the ones it
+ * reached soonest, and the report says which files it did not run so the number
+ * is never mistaken for the other one.
+ *
+ * ## Two shapes it reports whether or not anything failed
+ *
+ * A **reach-through** is a hop that landed inside a directory rather than on the
+ * `index` module that directory publishes itself as. The change travelled past
+ * an interface somebody wrote, and the fix is at the importing line rather than
+ * anywhere near whatever broke.
+ *
+ * An **unplaced** test entered the changed module along no chain of imports it
+ * executed. Effect at a distance in the literal sense: a registry, a singleton,
+ * a patched prototype, a module-level assignment two files agree about and
+ * nothing declares. Both are defects with an address, and neither needs a red
+ * test to be worth reading.
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -99,7 +135,13 @@ async function importGraph(snapshotFile) {
     reuse: source.reuse,
   });
   await source.save();
-  return relationsOfFiles(records);
+
+  // The scan reads `packages`, `tools` and `cases`, so a workspace package
+  // imported through its manifest lands on a `dist` node nothing ever opened.
+  // The graph holds that node and knows nothing about it, and the reading next
+  // door has to be able to tell that apart from a module that imports nothing.
+  const read = new Set(records.filter((record) => record.unknown === undefined).map((record) => record.file));
+  return { relations: relationsOfFiles(records), enumerated: (file) => read.has(file) };
 }
 
 /** One line for why a test file is in the run. */
@@ -237,7 +279,11 @@ function suiteFiles() {
 async function main() {
   const argv = process.argv.slice(2);
   const dryRun = argv.includes('--dry-run');
-  const ref = argv.find((argument) => !argument.startsWith('-'));
+  const bandAt = argv.indexOf('--band');
+  // `--band` with nothing after it is a typo, not a request for every band, and
+  // answering it with the whole run would be answering a different question.
+  const band = bandAt < 0 ? undefined : (argv[bandAt + 1] ?? '');
+  const ref = argv.find((argument, at) => !argument.startsWith('-') && at !== bandAt + 1);
 
   const snapshotFile = testCoverageFile(ROOT);
   if (!existsSync(snapshotFile)) {
@@ -314,10 +360,17 @@ async function main() {
     git('diff', '--no-renames', base),
     ...product.filter((path) => untracked.has(path)).map(diffOfNew),
   ].join('\n');
-  const narrowing = await narrowByExecution(snapshotFile, inSnapshotCoordinates(diff, byStem), {
-    relations: await importGraph(snapshotFile),
-    knownAs: (file) => byStem.get(stemOf(file)) ?? [file],
-  });
+  const { relations, enumerated } = await importGraph(snapshotFile);
+  const { narrowing, distances } = await distanceByExecution(
+    snapshotFile,
+    inSnapshotCoordinates(diff, byStem),
+    {
+      relations,
+      enumerated,
+      knownAs: (file) => byStem.get(stemOf(file)) ?? [file],
+      faces: indexFaces(relations),
+    },
+  );
   const whole = new Set(narrowing.whole);
   const entered = new Set(narrowing.entered);
   const because = new Map(narrowing.because.map((cause) => [cause.test, cause]));
@@ -365,25 +418,70 @@ async function main() {
     if (touched.includes(file)) return 'changed';
     return 'no whole observation';
   };
-  const width = Math.max(...selected.slice(0, 25).map((file) => file.length), 0);
+
+  // A selected file the reading never placed is still selected, and the band it
+  // belongs to is the one nobody could measure — never the nearest. `distances`
+  // speaks only for what a change reached; the rest of `selected` is here
+  // because the snapshot could not speak for it at all, which is a different
+  // sentence and the same band.
+  const placed = new Map(distances.map((distance) => [distance.test, distance]));
+  const reading = selected.map((file) => placed.get(file) ?? { test: file });
+  const bands = bandsOf(reading);
+  const range = band === undefined ? { from: 1, to: bands.length } : bandRange(band);
+  if (range === undefined) {
+    say(
+      `test:since: \`--band ${band ?? ''}\` is not a range. Write \`1\`, \`1-3\`, or \`3-\`.`,
+      `  ${bands.length} band(s) were measured.`,
+    );
+    return 1;
+  }
+
+  const running = slice(bands, range.from, range.to);
+  const left = tail(bands, range.from, range.to);
+  const width = Math.max(...running.slice(0, 25).map((file) => file.length), 0);
+  const at = (file) => {
+    const position = bands.findIndex((ring) => ring.tests.includes(file));
+    const ring = bands[position];
+    return ring === undefined || ring.unplaced ? '  ·' : `${`${position + 1}`.padStart(3)}`;
+  };
 
   say(
-    `test:since: ${selected.length} of ${suite.length} files.`,
+    `test:since: ${selected.length} of ${suite.length} files, in ${bands.length} band(s).`,
     `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
     `  changed  ${changed.length} path(s): ${product.length} measured, ${touched.length} test file(s), ${changed.length - consequential.length} the suite cannot open`,
     `  skipped  ${suite.length - selected.length} file(s) the snapshot saw whole and which entered none of it`,
     '',
-    ...selected.slice(0, 25).map((file) => `  ${file.padEnd(width)}  ${why(file)}`),
-    ...(selected.length > 25 ? [`  … and ${selected.length - 25} more`] : []),
+    ...bandLines(bands),
     '',
+    ...(band === undefined
+      ? []
+      : [
+          `  band ${range.from}${range.to === range.from ? '' : `-${range.to === Number.MAX_SAFE_INTEGER ? '' : range.to}`}: running ${running.length}, leaving ${left.length} for a later leg.`,
+          '  A green band is not a green suite, and `yarn test` is still the gate.',
+          '',
+        ]),
+    ...running.slice(0, 25).map((file) => `  ${at(file)}  ${file.padEnd(width)}  ${why(file)}`),
+    ...(running.length > 25 ? [`  … and ${running.length - 25} more`] : []),
+    '',
+    ...findingLines(reading),
   );
 
   if (dryRun) return 0;
-  if (selected.length === 0) {
-    say('  Nothing entered what changed. `yarn test` is still the gate.');
+  if (running.length === 0) {
+    // An empty band is not an empty selection. A loop ending on `--band 4-` in a
+    // checkout with three bands has finished its legs, and saying that nothing
+    // entered the change would be a different and false sentence.
+    say(
+      band === undefined
+        ? '  Nothing entered what changed. `yarn test` is still the gate.'
+        : `  No band ${range.from} — the reading has ${bands.length}. Every leg is done; \`yarn test\` is still the gate.`,
+    );
     return 0;
   }
-  const result = spawnSync('yarn', ['vitest', 'run', ...selected], { cwd: ROOT, stdio: 'inherit' });
+  const result = spawnSync('yarn', ['vitest', 'run', ...running], { cwd: ROOT, stdio: 'inherit' });
+  if (left.length > 0) {
+    say('', `test:since: ${left.length} selected file(s) were not in this band:`, ...left.map((file) => `  ${file}`));
+  }
   return result.status ?? 1;
 }
 

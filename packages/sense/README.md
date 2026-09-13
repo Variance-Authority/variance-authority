@@ -217,6 +217,7 @@ and correct. Pass `knownAs` when the record holds a module under a built name.
 | `@variance-authority/sense/journal` | instrumenting an adopter's build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |
 | `@variance-authority/sense/journey` | carrying one execution across processes, so a service's crossings join the subject that caused them | a service running Node, its own instrumented build, and a driver that sets a cookie |
 | `@variance-authority/sense/test-selection` | mapping a unified diff to test files, reading, folding, and writing the recorded snapshot, and measuring test-file deviation | the coverage file a runner or journal seam wrote |
+| `@variance-authority/sense/test-selection` (same import) | placing a selection by how far the change travelled, and cutting it into bands a loop can run one leg at a time | the same coverage file, and an import graph to walk |
 | `@variance-authority/sense/test-selection` (same import) | querying named-test reach with `coveringTests` | an execution index from a collector; this package ships no producer for one |
 
 ## Keep repeated scans cheap
@@ -455,6 +456,118 @@ A run that loads only some of the modules the index holds carries the rest as
 they were. A carried module whose text on disk is no longer the text its rows
 were recorded over has rows no diff can be placed in, so every test that
 entered it is marked partial and runs at the next selection regardless.
+
+## Place a selection by how far the change travelled
+
+A selection answers *which* tests. It does not answer *how far*, and the two
+readings are worth different things. A change to a base component selects most
+of a suite, and that answer is correct and no use on its own: ninety per cent of
+the files is not a shorter run, it is the same run with a paragraph attached.
+But the ninety per cent is not flat. The edited module's own test is one hop
+from it, its callers' tests are two, and a failure at one hop has one
+explanation where a failure at four has a chain of them.
+
+`distanceByExecution` reads the snapshot once and returns both — the narrowing
+and, per selected test, the shortest path from the change to it **through the
+modules that test actually entered**:
+
+```ts
+import {
+  distanceByExecution,
+  indexFaces,
+  testCoverageFile,
+} from '@variance-authority/sense/test-selection';
+
+const { narrowing, distances } = await distanceByExecution(
+  testCoverageFile(process.cwd()),
+  diff,
+  { relations, faces: indexFaces(relations) },
+);
+```
+
+`relations` is the graph the path is walked in — what `relationsOfFiles` builds
+from a `scanRelations` pass — and without it nothing can be placed. `knownAs`
+gives every name one module is held under, the snapshot's and the graph's alike.
+`faces` says where a unit's public face is; nothing reads as *every file is its
+own face*.
+
+The restriction is the whole of it. `dependentsOf` over the graph alone gives a
+shortest path from any change to any file, and it is the wrong path: it runs
+through modules the test never loaded — a helper behind a branch nobody took is
+on the graph's path and was not on the run's. `distanceFromView` is the same
+reading over a snapshot already open, and `nearestFirst` is the comparison both
+sort by.
+
+Each `TestDistance` carries a `bearing`, and three of the six are not distances
+at all. `precondition` is *the change is this test's own source*, which is zero
+and is the only zero there is. `direct` and `transitive` are one hop and more,
+every hop of them landing on a module's public face. `reach-through` is a hop
+that landed **inside** a unit instead — the change travelled past an interface
+somebody wrote, and the fix is at the importing line rather than anywhere near
+the failure. `unexplained` is a test the change reached along no chain of
+imports it executed, with the rest of that run accounted for: effect at a
+distance in the literal sense — a registry, a singleton, a patched prototype, a
+module-level assignment two files agree about and nothing declares. Both are
+defects with an address, and neither needs a red test to be worth reading.
+
+`unmeasured` is the sixth and is the opposite of a finding. The graph could not
+answer: the test, the changed module, or something the test ran between them is
+outside it — a built artifact the scan does not read, a directory it was not
+pointed at, a file whose imports nothing could enumerate. It carries `because`,
+saying which. The distinction is load-bearing (ADR-0002): a walk that was never
+possible must not print as a walk that failed, or every unscanned directory
+becomes an accusation. Pass `enumerated` — whether the graph read what a file
+imports, which only whoever built the graph knows — and a dead end there is
+reported as the hole it is.
+
+A *unit* is a directory whose contents are meant to be reached through one file,
+which is a convention rather than a fact about the filesystem, so it is supplied
+rather than inferred. `indexFaces` reads the one this repository and most others
+keep — a directory with an `index` module — and `eitherFace` stacks a caller's
+own provider in front of it, which is where a manifest reader belongs: this
+package depends on what it needs (ADR-0013), and a manifest is not it.
+
+## Run the near end of a selection first
+
+`bandsOf` cuts a distance reading into rings, and `slice` takes a range of them
+one-based and inclusive, so a loop can spend six seconds finding out it was
+wrong before it spends eleven minutes finding out it was right:
+
+```ts
+import { bandRange, bandsOf, slice, tail } from '@variance-authority/sense/test-selection';
+
+const bands = bandsOf(distances);
+const { from, to } = bandRange('1-3') ?? { from: 1, to: bands.length };
+const running = slice(bands, from, to);
+const later = tail(bands, from, to);
+```
+
+Bands are the hop counts that **occur**, not a dense range: a reading with tests
+at one and four hops and none between has two bands, and asking for the first
+three gets both. Numbering the empty ring in the middle would make `1-3` mean a
+different amount of work in two checkouts of the same repository, which is the
+one thing a loop written once cannot have. For the same reason the numbers are
+band numbers rather than hop numbers — hop counts are a property of the change,
+and `1-3` after editing a leaf would otherwise mean something else after editing
+a barrel. `bandRange` reads `1`, `1-3`, and `3-` — *the third onwards*, which is
+what a last leg asks for and cannot spell in advance — and returns nothing for
+anything else, so a caller reports the typo rather than quietly running one
+band.
+
+A test nobody could place rides in the **last** band. It is not band zero: zero
+is `precondition` and says the opposite. Last, because the first band has one
+job — be the cheapest run that could disprove the edit — and a first band
+carrying everything unplaced is the whole suite wearing a smaller number. A loop
+written as `1-3` then `4-` runs every selected file exactly once and picks the
+unplaced up at the end.
+
+`tail` names what a slice left behind rather than counting it, because *26 files
+were not run* is a number and *these 26 files were not run* is the thing
+somebody hands to CI. It exists because every band is a smaller claim than the
+selection, which is already a smaller claim than the suite: a green band one
+says the nearest tests pass and says nothing at all about band four. Printing
+that sentence is the caller's job, and `yarn test:since --band 1-3` in this
+repository is the worked example.
 
 ## Select Jest files from a change
 
