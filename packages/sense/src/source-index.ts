@@ -8,15 +8,14 @@
  */
 
 import type { Digest } from '@variance-authority/core/format';
-import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, Parsed } from './cache.js';
-import type { RecordCache } from './reuse.js';
-import { readSourceIndex, writeSourceIndex } from './source-index-file.js';
+import { prune, type RecordCache, type TreeShape } from './reuse.js';
+import { readSourceIndex, writeSourceIndex, type IndexedRecord } from './source-index-file.js';
 
 export interface PersistentSourceIndex {
   /** Content-keyed facts passed to `scanRelations` as `cache`. */
   readonly cache: ParseCache;
-  /** Layout-keyed resolved records passed to `scanRelations` as `reuse`. */
+  /** Tree-keyed resolved records passed to `scanRelations` as `reuse`. */
   readonly reuse: RecordCache;
   /** Atomically publish the facts this scan used; I/O failure is absorbed. */
   save(): Promise<void>;
@@ -30,10 +29,13 @@ export interface PersistentSourceIndex {
  */
 export async function openSourceIndex(path: string): Promise<PersistentSourceIndex> {
   const stored = await readSourceIndex(path);
-  let availableRecords = stored.records;
+  const available = new Map(stored.records);
+  const held: TreeShape | undefined = stored.config === undefined
+    ? undefined
+    : { config: stored.config, directories: stored.directories };
   const parses = new Map<Digest, Parsed>();
-  const records = new Map<string, FileRecord>();
-  let adopted: Digest | undefined;
+  const records = new Map<string, IndexedRecord>();
+  let adopted: TreeShape | undefined;
 
   const cache: ParseCache = {
     get(digest) {
@@ -51,21 +53,22 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
   };
 
   const reuse: RecordCache = {
-    under(layout) {
-      adopted = layout;
-      if (stored.layout !== layout) {
-        availableRecords = new Map();
-        records.clear();
-      }
+    under(shape) {
+      adopted = shape;
+      prune(available, held, shape);
+      records.clear();
     },
     get(file, digest) {
       if (adopted === undefined) return undefined;
-      const record = matching(records.get(file) ?? availableRecords.get(file), digest);
-      if (record !== undefined) records.set(file, record);
-      return record;
+      const found = records.get(file) ?? available.get(file);
+      if (found?.record.digest !== digest) return undefined;
+      records.set(file, found);
+      return found.record;
     },
-    set(record) {
-      if (adopted !== undefined && record.digest !== undefined) records.set(record.file, record);
+    set(record, witnesses) {
+      if (adopted !== undefined && record.digest !== undefined) {
+        records.set(record.file, { record, witnesses });
+      }
     },
   };
 
@@ -75,15 +78,12 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     async save() {
       await writeSourceIndex(path, {
         parses,
-        ...(adopted === undefined
-          ? stored.layout === undefined ? {} : { layout: stored.layout }
-          : { layout: adopted }),
+        ...(adopted?.config === undefined
+          ? stored.config === undefined ? {} : { config: stored.config }
+          : { config: adopted.config }),
+        directories: adopted?.directories ?? stored.directories,
         records: adopted === undefined ? stored.records : records,
       });
     },
   };
-}
-
-function matching(record: FileRecord | undefined, digest: Digest): FileRecord | undefined {
-  return record?.digest === digest ? record : undefined;
 }

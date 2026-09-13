@@ -2134,9 +2134,9 @@
         "TaintSubject": "interface",
         "TaintTable": "type",
         "Tainted": "interface",
+        "TreeShape": "interface",
         "auditTaints": "function",
         "gitDigests": "function",
-        "layoutOf": "function",
         "memoryParseCache": "function",
         "memoryRecordCache": "function",
         "mockTaint": "function",
@@ -2146,7 +2146,8 @@
         "scanRelations": "function",
         "taintFile": "function",
         "taintRecords": "function",
-        "taintTable": "function"
+        "taintTable": "function",
+        "treeShapeOf": "function"
       },
       "./read": {
         "Binding": "interface",

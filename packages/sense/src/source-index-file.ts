@@ -1,12 +1,18 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { Digest } from '@variance-authority/core/format';
-import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import { emptyImmutableLog, openImmutableLog, type ImmutableLog } from './immutable-log.js';
 import { differenceLayer, orderedMap, type MapLayer } from './ordered-map.js';
-import { decodeSourceIndex, encodeSourceIndex, type StoredSourceIndex } from './source-index-format.js';
+import {
+  decodeSourceIndex,
+  encodeSourceIndex,
+  type IndexedRecord,
+  type StoredSourceIndex,
+} from './source-index-format.js';
 
-const EMPTY: StoredSourceIndex = { parses: new Map(), records: new Map() };
+export type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
+
+const EMPTY: StoredSourceIndex = { parses: new Map(), records: new Map(), directories: new Map() };
 
 /** A missing, foreign, incomplete, or corrupt chain is an empty cache. */
 export async function readSourceIndex(path: string): Promise<StoredSourceIndex> {
@@ -31,10 +37,15 @@ export async function writeSourceIndex(path: string, stored: StoredSourceIndex):
   try {
     const parses = differenceLayer(current.parses, stored.parses, isDeepStrictEqual);
     const records = differenceLayer(current.records, stored.records, isDeepStrictEqual);
-    if (log.committed && current.layout === stored.layout && empty(parses) && empty(records)) return;
+    const directories = differenceLayer(current.directories, stored.directories);
+    if (
+      log.committed &&
+      current.config === stored.config &&
+      empty(parses) && empty(records) && empty(directories)
+    ) return;
 
     await log.publish(
-      encodeSourceIndex(segment(stored.layout, parses, records)),
+      encodeSourceIndex(segment(stored.config, parses, records, directories)),
       () => encodeSourceIndex(stored),
     );
   } catch {
@@ -52,30 +63,38 @@ async function load(path: string): Promise<{
     puts: part.parses,
     deletes: part.deletedParses ?? new Set(),
   }));
-  const recordLayers: MapLayer<string, FileRecord>[] = decoded.map((part) => ({
+  const recordLayers: MapLayer<string, IndexedRecord>[] = decoded.map((part) => ({
     puts: part.records,
     deletes: part.deletedRecords ?? new Set(),
   }));
-  const layout = decoded.at(-1)?.layout;
+  const directoryLayers: MapLayer<string, Digest>[] = decoded.map((part) => ({
+    puts: part.directories,
+    deletes: part.deletedDirectories ?? new Set(),
+  }));
+  const config = decoded.at(-1)?.config;
   return {
     log,
     stored: {
       parses: orderedMap(parseLayers),
-      ...(layout === undefined ? {} : { layout }),
+      ...(config === undefined ? {} : { config }),
+      directories: orderedMap(directoryLayers),
       records: orderedMap(recordLayers),
     },
   };
 }
 
 function segment(
-  layout: Digest | undefined,
+  config: Digest | undefined,
   parses: MapLayer<Digest, Parsed>,
-  records: MapLayer<string, FileRecord>,
+  records: MapLayer<string, IndexedRecord>,
+  directories: MapLayer<string, Digest>,
 ): StoredSourceIndex {
   return {
     parses: parses.puts,
     ...(parses.deletes.size === 0 ? {} : { deletedParses: parses.deletes }),
-    ...(layout === undefined ? {} : { layout }),
+    ...(config === undefined ? {} : { config }),
+    directories: directories.puts,
+    ...(directories.deletes.size === 0 ? {} : { deletedDirectories: directories.deletes }),
     records: records.puts,
     ...(records.deletes.size === 0 ? {} : { deletedRecords: records.deletes }),
   };

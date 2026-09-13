@@ -103,7 +103,11 @@ describe('the cache on disk', () => {
 
   it('discards a file an older shape wrote rather than reading it as this one', async () => {
     const file = await path();
-    const stored = encodeSourceIndex({ parses: new Map([[a, BUTTON]]), records: new Map() });
+    const stored = encodeSourceIndex({
+      parses: new Map([[a, BUTTON]]),
+      directories: new Map(),
+      records: new Map(),
+    });
     const length = stored.readUInt32LE(0);
     const header = JSON.parse(stored.toString('utf8', 4, 4 + length).replace(/\0+$/, '')) as {
       version: number;

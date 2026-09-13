@@ -137,13 +137,13 @@ async function scan(label) {
     session.cache.set(digest, parsed);
   };
   const reuse = {
-    under: (layout) => session.reuse.under(layout),
+    under: (shape) => session.reuse.under(shape),
     get: (file, digest) => {
       const record = session.reuse.get(file, digest);
       counted[record === undefined ? 'rebuilt' : 'reused'] += 1;
       return record;
     },
-    set: (record) => session.reuse.set(record),
+    set: (record, witnesses) => session.reuse.set(record, witnesses),
   };
   const [scanning, records] = await took(() => scanRelations({ root: REPO, dirs: DIRS, cache, reuse }));
   const [saving] = await took(() => session.save());

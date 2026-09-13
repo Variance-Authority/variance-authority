@@ -30,14 +30,25 @@ import type { Export } from './read.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 1;
+const VERSION = 2;
 const WHAT = 'source index';
+
+/** A record, and the directories whose contents could still change its edges. */
+export interface IndexedRecord {
+  readonly record: FileRecord;
+  /** Repo-relative directories, sorted ([`witness.ts`](./witness.ts)). */
+  readonly witnesses: readonly string[];
+}
 
 export interface StoredSourceIndex {
   readonly parses: ReadonlyMap<Digest, Parsed>;
   readonly deletedParses?: ReadonlySet<Digest>;
-  readonly layout?: Digest;
-  readonly records: ReadonlyMap<string, FileRecord>;
+  /** How resolution was configured when these records were built. */
+  readonly config?: Digest;
+  /** Every directory the tree held, named by the entries it held. */
+  readonly directories: ReadonlyMap<string, Digest>;
+  readonly deletedDirectories?: ReadonlySet<string>;
+  readonly records: ReadonlyMap<string, IndexedRecord>;
   readonly deletedRecords?: ReadonlySet<string>;
 }
 
@@ -45,6 +56,7 @@ export interface StoredSourceIndex {
 export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const parses = [...stored.parses].sort(([left], [right]) => order(left, right));
   const records = [...stored.records].sort(([left], [right]) => order(left, right));
+  const directories = [...stored.directories].sort(([left], [right]) => order(left, right));
   const strings = dictionary(stored, parses, records);
   const ids = new Map(strings.map((value, index) => [value, index]));
   const id = (value: string): number => ids.get(value)!;
@@ -111,13 +123,18 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const recordUnresolved = new Uint32Array(records.length + 1);
   const recordUnresolvedPresent = new Uint8Array(records.length);
   const recordUnknown = new Uint32Array(records.length).fill(NONE);
+  const recordWitnesses = new Uint32Array(records.length + 1);
+  const witnessDirectory: number[] = [];
   const edgeTo: number[] = [];
   const edgeKind: number[] = [];
   const recordDeclareName: number[] = [];
   const unresolvedValue: number[] = [];
 
-  for (const [index, [file, record]] of records.entries()) {
+  for (const [index, [file, held]] of records.entries()) {
+    const record = held.record;
     recordFile[index] = id(file);
+    recordWitnesses[index] = witnessDirectory.length;
+    for (const directory of held.witnesses) witnessDirectory.push(id(directory));
     recordDigest[index] = optionalId(record.digest, id);
     recordEdges[index] = edgeTo.length;
     recordEdgePresent[index] = record.edges === undefined ? 0 : 1;
@@ -133,6 +150,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     for (const value of record.unresolved ?? []) unresolvedValue.push(id(value));
     recordUnknown[index] = optionalId(record.unknown, id);
   }
+  recordWitnesses[records.length] = witnessDirectory.length;
   recordEdges[records.length] = edgeTo.length;
   recordDeclares[records.length] = recordDeclareName.length;
   recordUnresolved[records.length] = unresolvedValue.length;
@@ -140,7 +158,11 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   return bytes(encodeSegment(FORMAT, VERSION, {
     'strings.blob': stringBlob,
     'strings.off': stringOff,
-    'index.layout': Uint32Array.of(optionalId(stored.layout, id)),
+    'index.config': Uint32Array.of(optionalId(stored.config, id)),
+    'directories.path': Uint32Array.from(directories, ([path]) => id(path)),
+    'directories.digest': Uint32Array.from(directories, ([, digest]) => id(digest)),
+    'directories.deleted': Uint32Array.from(
+      [...stored.deletedDirectories ?? []].sort(order), (path) => id(path)),
     'parses.digest': parseDigest,
     'parses.deleted': Uint32Array.from(
       [...stored.deletedParses ?? []].sort(order), (digest) => id(digest)),
@@ -173,6 +195,8 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'records.unresolved': recordUnresolved,
     'records.unresolved-present': recordUnresolvedPresent,
     'records.unknown': recordUnknown,
+    'records.witnesses': recordWitnesses,
+    'witnesses.directory': Uint32Array.from(witnessDirectory),
     'edges.to': Uint32Array.from(edgeTo),
     'edges.kind': Uint32Array.from(edgeKind),
     'record-declares.name': Uint32Array.from(recordDeclareName),
@@ -271,6 +295,8 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const recordUnresolved = opened.u32('records.unresolved');
   const recordUnresolvedPresent = opened.u8('records.unresolved-present');
   const recordUnknown = opened.u32('records.unknown');
+  const recordWitnesses = opened.u32('records.witnesses');
+  const witnessDirectory = opened.u32('witnesses.directory');
   const edgeTo = opened.u32('edges.to');
   const edgeKind = opened.u32('edges.kind');
   const recordDeclareName = opened.u32('record-declares.name');
@@ -278,11 +304,12 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   validateOffset(recordEdges, edgeTo.length, recordFile.length);
   validateOffset(recordDeclares, recordDeclareName.length, recordFile.length);
   validateOffset(recordUnresolved, unresolvedValue.length, recordFile.length);
+  validateOffset(recordWitnesses, witnessDirectory.length, recordFile.length);
   sameLength(recordFile.length, [recordDigest, recordEdgePresent, recordDeclarePresent,
     recordUnresolvedPresent, recordUnknown]);
   sameLength(edgeTo.length, [edgeKind]);
 
-  const records = new Map<string, FileRecord>();
+  const records = new Map<string, IndexedRecord>();
   for (let row = 0; row < recordFile.length; row += 1) {
     const file = text(recordFile[row]!);
     const digest = optional(recordDigest[row]!) as Digest | undefined;
@@ -293,14 +320,18 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     const declares = range(recordDeclares, row).map((entry) => text(recordDeclareName[entry]!));
     const unresolved = range(recordUnresolved, row).map((entry) => text(unresolvedValue[entry]!));
     const unknown = optional(recordUnknown[row]!);
+    const witnesses = range(recordWitnesses, row).map((entry) => text(witnessDirectory[entry]!));
     if (records.has(file)) throw invalid();
     records.set(file, {
-      file,
-      ...(digest === undefined ? {} : { digest }),
-      ...(flag(recordEdgePresent[row]) ? { edges } : {}),
-      ...(flag(recordDeclarePresent[row]) ? { declares } : {}),
-      ...(flag(recordUnresolvedPresent[row]) ? { unresolved } : {}),
-      ...(unknown === undefined ? {} : { unknown }),
+      record: {
+        file,
+        ...(digest === undefined ? {} : { digest }),
+        ...(flag(recordEdgePresent[row]) ? { edges } : {}),
+        ...(flag(recordDeclarePresent[row]) ? { declares } : {}),
+        ...(flag(recordUnresolvedPresent[row]) ? { unresolved } : {}),
+        ...(unknown === undefined ? {} : { unknown }),
+      },
+      witnesses,
     });
   }
   const deletedRecords = new Set<string>();
@@ -309,11 +340,29 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     if (records.has(file) || deletedRecords.has(file)) throw invalid();
     deletedRecords.add(file);
   }
-  const layout = optional(opened.u32('index.layout')[0]!);
+  const directoryPath = opened.u32('directories.path');
+  const directoryDigest = opened.u32('directories.digest');
+  sameLength(directoryPath.length, [directoryDigest]);
+  const directories = new Map<string, Digest>();
+  for (let row = 0; row < directoryPath.length; row += 1) {
+    const path = text(directoryPath[row]!);
+    if (directories.has(path)) throw invalid();
+    directories.set(path, text(directoryDigest[row]!) as Digest);
+  }
+  const deletedDirectories = new Set<string>();
+  for (const value of opened.maybeU32('directories.deleted')) {
+    const path = text(value);
+    if (directories.has(path) || deletedDirectories.has(path)) throw invalid();
+    deletedDirectories.add(path);
+  }
+
+  const config = optional(opened.u32('index.config')[0]!);
   return {
     parses,
     ...(deletedParses.size === 0 ? {} : { deletedParses }),
-    ...(layout === undefined ? {} : { layout: layout as Digest }),
+    ...(config === undefined ? {} : { config: config as Digest }),
+    directories,
+    ...(deletedDirectories.size === 0 ? {} : { deletedDirectories }),
     records,
     ...(deletedRecords.size === 0 ? {} : { deletedRecords }),
   };
@@ -322,12 +371,14 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
 function dictionary(
   stored: StoredSourceIndex,
   parses: readonly (readonly [Digest, Parsed])[],
-  records: readonly (readonly [string, FileRecord])[],
+  records: readonly (readonly [string, IndexedRecord])[],
 ): readonly string[] {
   const values = new Set<string>();
-  if (stored.layout !== undefined) values.add(stored.layout);
+  if (stored.config !== undefined) values.add(stored.config);
   for (const digest of stored.deletedParses ?? []) values.add(digest);
   for (const file of stored.deletedRecords ?? []) values.add(file);
+  for (const path of stored.deletedDirectories ?? []) values.add(path);
+  for (const [path, digest] of stored.directories) { values.add(path); values.add(digest); }
   for (const [digest, parsed] of parses) {
     values.add(digest);
     for (const request of parsed.requests) {
@@ -340,12 +391,14 @@ function dictionary(
     for (const value of parsed.declares ?? []) values.add(value);
     if (parsed.unknown !== undefined) values.add(parsed.unknown);
   }
-  for (const [file, record] of records) {
+  for (const [file, held] of records) {
+    const record = held.record;
     values.add(file);
     for (const value of [record.digest, record.unknown]) if (value !== undefined) values.add(value);
     for (const edge of record.edges ?? []) { values.add(edge.to); values.add(edge.kind); }
     for (const value of record.declares ?? []) values.add(value);
     for (const value of record.unresolved ?? []) values.add(value);
+    for (const value of held.witnesses) values.add(value);
   }
   return [...values].sort(order);
 }

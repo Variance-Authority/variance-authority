@@ -47,7 +47,8 @@ import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
 import { MODULE_EXTENSIONS, STYLE_EXTENSIONS, readModule, readStyle } from './read.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitDigests } from './tree.js';
-import { layoutOf, type RecordCache } from './reuse.js';
+import { treeShapeOf, type RecordCache } from './reuse.js';
+import { witnessesOf, type Aliases } from './witness.js';
 import {
   EXCLUDE_DIRS,
   isRelative,
@@ -123,7 +124,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
   // checked against the bytes on disk, so there is nothing to reuse it against.
   const reuse = digests === undefined ? undefined : options.reuse;
-  if (digests !== undefined) reuse?.under(layoutOf({ root, digests, options }));
+  const tree = digests === undefined ? undefined : await treeShapeOf({ root, digests, options });
+  if (tree !== undefined) reuse?.under(tree.shape);
 
   const queue = [...seedFiles(root, options.dirs)];
 
@@ -137,23 +139,27 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     const digest = digests?.get(file);
     const remembered = digest === undefined ? undefined : reuse?.get(file, digest);
 
-    const record =
-      remembered ??
-      (await recordFor({
-        absolute,
-        file,
-        root,
-        resolvers,
-        cache,
-        ...(digest === undefined ? {} : { digest }),
-      }));
+    const fresh =
+      remembered === undefined
+        ? await recordFor({
+          absolute,
+          file,
+          root,
+          resolvers,
+          cache,
+          aliases: tree?.aliases,
+          directories: tree?.shape.directories ?? new Map(),
+          ...(digest === undefined ? {} : { digest }),
+        })
+        : undefined;
+    const record = remembered ?? fresh!.record;
 
     built.set(file, record);
     // A reused record answered without opening the file, so the parse cache was
     // never asked and would prune the entry for every unchanged blob in the
     // repository — leaving the next run that has to rebuild records with nothing
     // to rebuild them from. The blob is live; say so.
-    if (remembered === undefined) reuse?.set(record);
+    if (remembered === undefined) reuse?.set(record, fresh!.witnesses);
     else if (digest !== undefined) cache.keep?.(digest);
 
     for (const edge of record.edges ?? []) {
@@ -174,11 +180,19 @@ interface Subject {
   readonly resolvers: Resolvers;
   readonly cache: ParseCache;
 
+  /** Where a bare specifier could land, when the tree bounds it. */
+  readonly aliases: Aliases | undefined;
+
+  /** Every directory the tree holds, which bounds where a lookup can land. */
+  readonly directories: ReadonlyMap<string, Digest>;
+
   /** This file's content digest, when it was known without opening the file. */
   readonly digest?: Digest;
 }
 
-async function recordFor(subject: Subject): Promise<FileRecord> {
+async function recordFor(
+  subject: Subject,
+): Promise<{ readonly record: FileRecord; readonly witnesses: readonly string[] }> {
   const { absolute, file, root, resolvers, cache } = subject;
   const style = STYLE_EXTENSIONS.includes(extname(file));
 
@@ -196,7 +210,10 @@ async function recordFor(subject: Subject): Promise<FileRecord> {
       // Not an empty record. A file that is in the graph because something
       // imports it and that cannot be read is the exact shape `unknown` exists
       // for: its edges are not none, they are unavailable.
-      return { file, unknown: `${file} could not be read: ${messageOf(error)}` };
+      return {
+        record: { file, unknown: `${file} could not be read: ${messageOf(error)}` },
+        witnesses: [],
+      };
     }
 
     digest ??= digestString(contents);
@@ -234,12 +251,21 @@ async function recordFor(subject: Subject): Promise<FileRecord> {
   ];
 
   return {
-    file,
-    ...(digest === undefined ? {} : { digest }),
-    ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
-    ...(read.declares === undefined ? {} : { declares: read.declares }),
-    ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
-    ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
+    record: {
+      file,
+      ...(digest === undefined ? {} : { digest }),
+      ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
+      ...(read.declares === undefined ? {} : { declares: read.declares }),
+      ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
+      ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
+    },
+    witnesses: witnessesOf({
+      file,
+      requests: read.requests.map((asked) => asked.value),
+      edges: edges.map((edge) => edge.to),
+      directories: subject.directories,
+      aliases: subject.aliases,
+    }),
   };
 }
 

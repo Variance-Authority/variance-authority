@@ -15,75 +15,90 @@
  * | --- | --- |
  * | the file's bytes | its content digest |
  * | where the file sits | its path, which is the key |
- * | which paths exist | the layout digest |
- * | how resolution is configured | the layout digest |
+ * | how resolution is configured | the config digest |
+ * | which paths could have answered it | its witnesses |
  *
- * The first two a scan already has. `layoutOf` names the other two in one digest,
- * and a record may be reused when both it and the file's own digest are unchanged.
+ * The first two a scan already has. The config digest names the manifests, lock
+ * files and `tsconfig` contents every resolution in the repository reads, so a
+ * change to one of them rebuilds everything and says so. The witnesses name the
+ * directories that particular file's specifiers looked in
+ * ([`witness.ts`](./witness.ts)), so a change to one of *them* rebuilds the
+ * records that were looking.
  *
- * ## The coarseness, and what it is worth
+ * ## What a path appearing costs
  *
- * Adding, deleting or renaming *any* file moves the layout and every record in
- * the repository is rebuilt. That is not a well-priced trade — a repository
- * taking pull requests all day moves its layout all day, so the branch that
- * would benefit most from reuse is the branch that never gets it.
+ * The directory it appeared in, and nothing else. Adding a component under
+ * `packages/panel/src` moves one directory, and the records rebuilt are the ones
+ * whose specifiers name that directory — its neighbours, and whoever imports
+ * into it. A repository taking a hundred pull requests an hour moves a hundred
+ * directories an hour and keeps the rest of its index, which is the property the
+ * previous rule did not have: it digested the whole path set, so one added file
+ * invalidated every record in the repository.
  *
- * What it costs is worth stating, because it is not what it looks like. A record
- * is rebuilt from the parse cache, which is keyed by content and survives a
- * layout move ([`cache.ts`](./cache.ts)), and resolution is answered from a memo
- * ([`resolve.ts`](./resolve.ts)). Rebuilding all twenty-seven thousand records
- * of a component library measured the same as reusing them. The cliff people hit
- * was the parse cache pruning itself on the runs that reused everything, and
- * that was a defect rather than this trade.
+ * ## Where it gives up
  *
- * So what remains is bounded and proportional to the repository rather than to
- * the diff — which is the property to remove, and removing it means invalidating
- * a resolution by the paths that could have answered it rather than by the tree
- * as a whole.
+ * A bare specifier is bounded by the `paths` a `tsconfig` declares, and a
+ * configuration that cannot be read is no bound at all. When
+ * [`aliasesIn`](./witness.ts) comes back empty-handed the whole path set goes
+ * into the config digest instead, which is the old rule, applied on purpose and
+ * only where nothing better is available.
  *
  * ## What this does not cover
  *
- * Files git cannot see. The layout is built from the digest map, which comes from
- * the object database, so a generated file appearing under a `.gitignore` does not
- * move it. Such a file can never appear in a diff and so can never carry a change
- * — but it can, in principle, shadow a resolution. That is the one gap, it is
- * bounded by `git add`, and `digests: false` turns the whole mechanism off.
+ * Files git cannot see. The tree is built from the digest map, which comes from
+ * the object database, so a generated file appearing under a `.gitignore` moves
+ * no directory. Such a file can never appear in a diff and so can never carry a
+ * change — but it can, in principle, shadow a resolution. That is the one gap, it
+ * is bounded by `git add`, and `digests: false` turns the whole mechanism off.
  */
 
 import { basename } from 'node:path';
 import { digestString, type Digest } from './digest.js';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
-import { readSourceIndex, writeSourceIndex } from './source-index-file.js';
+import { readSourceIndex, writeSourceIndex, type IndexedRecord } from './source-index-file.js';
+import { aliasesIn, directoriesOf, movedDirectories, type Aliases } from './witness.js';
+
+/** The tree as reuse sees it: one digest for the configuration, one per directory. */
+export interface TreeShape {
+  /** How resolution is configured, and — when aliases are unknown — every path. */
+  readonly config: Digest;
+  /** Every directory in the tree, named by the entries it holds. */
+  readonly directories: ReadonlyMap<string, Digest>;
+}
 
 export interface RecordCache {
   /**
-   * Adopt a tree shape, discarding everything remembered under another one.
+   * Adopt a tree, discarding what the move from the last one invalidated.
    *
-   * Called once per scan, before the first lookup. Every entry a cache holds was
-   * built under some layout, and reading one under a different layout is reading
-   * edges that were true of a repository this is not.
+   * Called once per scan, before the first lookup. A record built under another
+   * configuration is edges that were true of a repository this is not; a record
+   * whose witnesses moved is edges that may be.
    */
-  under(layout: Digest): void;
-  /** The record last built for this file from these bytes, under this layout. */
+  under(shape: TreeShape): void;
+  /** The record last built for this file from these bytes, still answerable. */
   get(file: string, digest: Digest): FileRecord | undefined;
-  /** Remember a record. One without a digest is not remembered — see `save`. */
-  set(record: FileRecord): void;
+  /**
+   * Remember a record and the directories that answered it.
+   *
+   * One without a digest is not remembered — see `save`.
+   */
+  set(record: FileRecord, witnesses: readonly string[]): void;
 }
 
 export interface PersistentRecordCache extends RecordCache {
   /**
-   * Write what this scan used back to disk, under the layout it adopted.
+   * Write what this scan used back to disk, under the tree it adopted.
    *
-   * Nothing is written when no layout was adopted, which is the case for a scan
+   * Nothing is written when no tree was adopted, which is the case for a scan
    * with no digests: it reused nothing and validated nothing, and letting it save
    * would replace a usable cache with an empty one.
    */
   save(): Promise<void>;
 }
 
-/** Bumped when `FileRecord` or the layout inputs change, so record keys move. */
-const VERSION = 1;
+/** Bumped when `FileRecord` or the config inputs change, so record keys move. */
+const VERSION = 2;
 
 /**
  * Files whose *contents* decide where other files resolve to.
@@ -104,37 +119,40 @@ const LAYOUT_FILES = [
 ];
 
 /**
- * One digest naming which paths exist and how resolution is configured.
+ * The tree as two questions: how resolution is configured, and what each
+ * directory holds.
  *
- * The path *set* rather than a sample of it, because resolution is decided by
- * absence as much as presence: `./button` finds `button.ts` only while no
- * `button.tsx` sits beside it, and a barrel that stops re-exporting a deleted file
- * is a barrel whose edges moved without its own bytes moving.
- *
- * The scanned directories are deliberately *not* in here. They decide which
- * records a scan produces, never what any one record contains, so a narrower run
- * can reuse a wider run's work and neither invalidates the other.
+ * The scanned directories are deliberately in neither. They decide which records
+ * a scan produces, never what any one record contains, so a narrower run can
+ * reuse a wider run's work and neither invalidates the other.
  */
-export function layoutOf(input: {
+export async function treeShapeOf(input: {
   readonly root: string;
   readonly digests: ReadonlyMap<string, Digest>;
   readonly options?: ResolveOptions;
-}): Digest {
+}): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
   const { root, digests, options } = input;
-
   const paths = [...digests.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const aliases = await aliasesIn(root, paths);
+
   const lines = [
     `version ${VERSION}`,
     `root ${root}`,
     `tsconfig ${options?.tsconfig ?? 'auto'}`,
     `conditions ${(options?.conditionNames ?? DEFAULT_CONDITIONS).join(',')}`,
-    ...paths.map((path) => (decidesLayout(path) ? `${path} ${digests.get(path)}` : path)),
+    ...paths.filter(decidesConfig).map((path) => `${path} ${digests.get(path)}`),
+    // No bound on where a bare specifier could land means no bound on what a new
+    // path could change, and the honest expression of that is the old rule.
+    ...(aliases === undefined ? ['aliases unknown', ...paths] : []),
   ];
 
-  return digestString(lines.join('\n'));
+  return {
+    shape: { config: digestString(lines.join('\n')), directories: directoriesOf(paths) },
+    aliases,
+  };
 }
 
-function decidesLayout(path: string): boolean {
+function decidesConfig(path: string): boolean {
   const name = basename(path);
 
   return (
@@ -144,17 +162,17 @@ function decidesLayout(path: string): boolean {
 
 /** A cache that keeps everything and remembers nothing between processes. */
 export function memoryRecordCache(): RecordCache {
-  let adopted: Digest | undefined;
-  const entries = new Map<string, FileRecord>();
+  let adopted: TreeShape | undefined;
+  const entries = new Map<string, IndexedRecord>();
 
   return {
-    under(layout) {
-      if (adopted !== layout) entries.clear();
-      adopted = layout;
+    under(shape) {
+      prune(entries, adopted, shape);
+      adopted = shape;
     },
     get: (file, digest) => matching(entries.get(file), digest),
-    set(record) {
-      if (record.digest !== undefined) entries.set(record.file, record);
+    set(record, witnesses) {
+      if (record.digest !== undefined) entries.set(record.file, { record, witnesses });
     },
   };
 }
@@ -168,40 +186,70 @@ export function memoryRecordCache(): RecordCache {
  */
 export async function openRecordCache(path: string): Promise<PersistentRecordCache> {
   const generation = await readSourceIndex(path);
-  const stored: Stored = { layout: generation.layout, entries: new Map(generation.records) };
-  let adopted: Digest | undefined;
-  const used = new Map<string, FileRecord>();
+  const entries = new Map(generation.records);
+  const held: TreeShape | undefined = generation.config === undefined
+    ? undefined
+    : { config: generation.config, directories: generation.directories };
+  let adopted: TreeShape | undefined;
+  const used = new Map<string, IndexedRecord>();
 
   return {
-    under(layout) {
-      adopted = layout;
-      if (stored.layout !== layout) stored.entries.clear();
+    under(shape) {
+      adopted = shape;
+      prune(entries, held, shape);
     },
     get(file, digest) {
-      const record = matching(used.get(file) ?? stored.entries.get(file), digest);
+      const held = used.get(file) ?? entries.get(file);
+      const found = matching(held, digest);
       // Reading counts as using, exactly as it does for a parse. An unchanged
       // repository hits every entry and rewrites none of them.
-      if (record !== undefined) used.set(file, record);
+      if (found !== undefined) used.set(file, held!);
 
-      return record;
+      return found;
     },
-    set(record) {
-      if (record.digest !== undefined) used.set(record.file, record);
+    set(record, witnesses) {
+      if (record.digest !== undefined) used.set(record.file, { record, witnesses });
     },
     async save() {
       if (adopted === undefined) return;
 
-      await writeSourceIndex(path, { parses: generation.parses, layout: adopted, records: used });
+      await writeSourceIndex(path, {
+        parses: generation.parses,
+        config: adopted.config,
+        directories: adopted.directories,
+        records: used,
+      });
     },
   };
 }
 
-/** A record only answers for the bytes it was built from. */
-function matching(record: FileRecord | undefined, digest: Digest): FileRecord | undefined {
-  return record?.digest === digest ? record : undefined;
+/**
+ * Drop what the move from one tree to another could have changed.
+ *
+ * A configuration move is everything. A directory move is the records that named
+ * it — which is why the witnesses are stored beside the record rather than
+ * recomputed here: the specifiers that produced them are in a parse the record
+ * was built from, and a run that reuses the record never opens it.
+ */
+export function prune(
+  entries: Map<string, IndexedRecord>,
+  before: TreeShape | undefined,
+  after: TreeShape,
+): void {
+  if (before === undefined || before.config !== after.config) {
+    entries.clear();
+    return;
+  }
+
+  const moved = movedDirectories(before.directories, after.directories);
+  if (moved.size === 0) return;
+
+  for (const [file, held] of entries) {
+    if (held.witnesses.some((directory) => moved.has(directory))) entries.delete(file);
+  }
 }
 
-interface Stored {
-  readonly layout: Digest | undefined;
-  readonly entries: Map<string, FileRecord>;
+/** A record only answers for the bytes it was built from. */
+function matching(held: IndexedRecord | undefined, digest: Digest): FileRecord | undefined {
+  return held?.record.digest === digest ? held.record : undefined;
 }

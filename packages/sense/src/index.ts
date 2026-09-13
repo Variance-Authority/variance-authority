@@ -32,11 +32,12 @@ export {
 } from './cache.js';
 
 export {
-  layoutOf,
+  treeShapeOf,
   memoryRecordCache,
   openRecordCache,
   type RecordCache,
   type PersistentRecordCache,
+  type TreeShape,
 } from './reuse.js';
 
 export { openSourceIndex, type PersistentSourceIndex } from './source-index.js';

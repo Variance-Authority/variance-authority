@@ -6,8 +6,9 @@ import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
-import { layoutOf, memoryRecordCache, openRecordCache } from './reuse.js';
+import { memoryRecordCache, openRecordCache, treeShapeOf, type TreeShape } from './reuse.js';
 import { scanRelations } from './scan.js';
+import { directoriesOf } from './witness.js';
 
 /**
  * Reusing an edge is the one saving here that can be *wrong*.
@@ -31,9 +32,25 @@ const RECORD: FileRecord = {
   edges: [{ to: 'src/button.css', kind: 'asset' }],
 };
 
+/** The directories `RECORD` could have been answered from. */
+const WITNESSES = ['src'];
+
 function tree(entries: readonly (readonly [string, Digest])[]): ReadonlyMap<string, Digest> {
   return new Map(entries);
 }
+
+/** A tree shape stated directly, so a test can move one half of it at a time. */
+function shape(paths: readonly string[], config: Digest = A): TreeShape {
+  return { config, directories: directoriesOf(paths) };
+}
+
+const HERE = shape(['package.json', 'src/Button.tsx', 'src/button.css']);
+
+const made: string[] = [];
+
+afterAll(async () => {
+  for (const dir of made) await rm(dir, { recursive: true, force: true });
+});
 
 describe('naming the shape of a tree', () => {
   const root = '/repo';
@@ -43,91 +60,133 @@ describe('naming the shape of a tree', () => {
     ['src/button.css', B],
   ]);
 
-  it('answers the same for the same tree, whatever order it arrived in', () => {
+  const shapeOf = async (
+    digests: ReadonlyMap<string, Digest>,
+    options?: Parameters<typeof treeShapeOf>[0]['options'],
+  ): Promise<TreeShape> =>
+    (await treeShapeOf({ root, digests, ...(options === undefined ? {} : { options }) })).shape;
+
+  it('answers the same for the same tree, whatever order it arrived in', async () => {
     const shuffled = tree([
       ['src/button.css', B],
       ['package.json', A],
       ['src/Button.tsx', A],
     ]);
 
-    expect(layoutOf({ root, digests: shuffled })).toBe(layoutOf({ root, digests: files }));
+    expect(await shapeOf(shuffled)).toEqual(await shapeOf(files));
   });
 
-  it('moves when a path appears, because absence is what resolution reads', () => {
+  it('moves one directory when a path appears, and leaves the configuration alone', async () => {
     const added = tree([...files, ['src/Button.module.css', A]]);
+    const after = await shapeOf(added);
+    const before = await shapeOf(files);
 
     // `./button` finds `button.css` only while nothing else beside it answers to
-    // that name, and a barrel's edges move when a file it re-exports is deleted —
-    // in both cases without one byte of the importing file changing.
-    expect(layoutOf({ root, digests: added })).not.toBe(layoutOf({ root, digests: files }));
+    // that name — without one byte of the importing file changing. What is new
+    // here is the bound: the question is asked of `src`, not of the repository,
+    // so a file appearing under `docs/` costs a record under `src/` nothing.
+    expect(after.config).toBe(before.config);
+    expect(after.directories.get('src')).not.toBe(before.directories.get('src'));
+    expect(after.directories.get('')).toBe(before.directories.get(''));
   });
 
-  it('moves when a file that decides resolution is edited', () => {
+  it('moves the configuration when a file that decides resolution is edited', async () => {
     const edited = tree([...files].map(([path, digest]) =>
       path === 'package.json' ? ([path, B] as const) : ([path, digest] as const),
     ));
 
     // One `paths` entry in a `tsconfig` redirects every `@/` specifier in the
-    // repository. Its own digest is the only thing that says so.
-    expect(layoutOf({ root, digests: edited })).not.toBe(layoutOf({ root, digests: files }));
+    // repository. Its own digest is the only thing that says so, and there is no
+    // narrower answer than everything.
+    expect((await shapeOf(edited)).config).not.toBe((await shapeOf(files)).config);
   });
 
-  it('holds still when a source file is edited', () => {
+  it('holds still entirely when a source file is edited', async () => {
     const edited = tree([...files].map(([path, digest]) =>
       path === 'src/Button.tsx' ? ([path, B] as const) : ([path, digest] as const),
     ));
 
     // The division of labour: this names the tree, the file's own digest names
-    // the file. Folding content into the layout would throw away every record in
+    // the file. Folding content into the shape would throw away every record in
     // the repository on every edit, which is the cost this exists to avoid.
-    expect(layoutOf({ root, digests: edited })).toBe(layoutOf({ root, digests: files }));
+    expect(await shapeOf(edited)).toEqual(await shapeOf(files));
   });
 
-  it('moves when resolution is configured differently', () => {
-    expect(layoutOf({ root, digests: files, options: { conditionNames: ['import'] } })).not.toBe(
-      layoutOf({ root, digests: files }),
-    );
-    expect(layoutOf({ root, digests: files, options: { tsconfig: 'tsconfig.build.json' } })).not.toBe(
-      layoutOf({ root, digests: files }),
-    );
+  it('moves when resolution is configured differently', async () => {
+    const before = await shapeOf(files);
+
+    expect((await shapeOf(files, { conditionNames: ['import'] })).config).not.toBe(before.config);
+    expect((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config).not.toBe(before.config);
+  });
+
+  it('falls back to the whole path set when no configuration bounds an alias', async () => {
+    const at = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
+    made.push(at);
+    await writeFile(join(at, 'tsconfig.json'), '{ this is not JSON', 'utf8');
+
+    const held = tree([['tsconfig.json', A], ['src/Button.tsx', A]]);
+    const added = tree([...held, ['docs/page.md', B]]);
+    const shapes = async (digests: ReadonlyMap<string, Digest>): Promise<TreeShape> =>
+      (await treeShapeOf({ root: at, digests })).shape;
+
+    // A `tsconfig` that cannot be read is no bound on where a bare specifier
+    // lands, so there is no bound on what a new path can change either. The old
+    // whole-tree rule is the honest answer here, and this is the only place it
+    // still applies.
+    expect((await shapes(added)).config).not.toBe((await shapes(held)).config);
   });
 });
 
 describe('the record cache in memory', () => {
   it('answers only for the bytes the record was built from', () => {
     const cache = memoryRecordCache();
-    cache.under(A);
-    cache.set(RECORD);
+    cache.under(HERE);
+    cache.set(RECORD, WITNESSES);
 
     expect(cache.get('src/Button.tsx', A)).toEqual(RECORD);
     expect(cache.get('src/Button.tsx', B)).toBeUndefined();
   });
 
-  it('forgets everything when the tree shape moves', () => {
+  it('forgets everything when the configuration moves', () => {
     const cache = memoryRecordCache();
-    cache.under(A);
-    cache.set(RECORD);
-    cache.under(B);
+    cache.under(HERE);
+    cache.set(RECORD, WITNESSES);
+    cache.under({ ...HERE, config: B });
 
     expect(cache.get('src/Button.tsx', A)).toBeUndefined();
   });
 
+  it('forgets a record whose witness moved', () => {
+    const cache = memoryRecordCache();
+    cache.under(HERE);
+    cache.set(RECORD, WITNESSES);
+    cache.under(shape(['package.json', 'src/Button.tsx', 'src/button.css', 'src/button.tsx']));
+
+    expect(cache.get('src/Button.tsx', A)).toBeUndefined();
+  });
+
+  it('keeps a record whose witnesses did not move', () => {
+    const cache = memoryRecordCache();
+    cache.under(HERE);
+    cache.set(RECORD, WITNESSES);
+    cache.under(shape(['package.json', 'src/Button.tsx', 'src/button.css', 'docs/page.md']));
+
+    // The demand this whole change answers. A hundred pull requests an hour land
+    // a hundred files somewhere, and a record that never asked a question about
+    // where they landed is still the record it was.
+    expect(cache.get('src/Button.tsx', A)).toEqual(RECORD);
+  });
+
   it('does not remember a record that names no bytes', () => {
     const cache = memoryRecordCache();
-    cache.under(A);
-    cache.set({ file: 'src/legacy.js', unknown: 'could not be read' });
+    cache.under(HERE);
+    cache.set({ file: 'src/legacy.js', unknown: 'could not be read' }, []);
 
     expect(cache.get('src/legacy.js', A)).toBeUndefined();
   });
 });
 
 describe('the record cache on disk', () => {
-  const made: string[] = [];
-
-  afterAll(async () => {
-    for (const dir of made) await rm(dir, { recursive: true, force: true });
-  });
-
   async function path(): Promise<string> {
     const dir = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
     made.push(dir);
@@ -138,32 +197,49 @@ describe('the record cache on disk', () => {
     const file = await path();
 
     const first = await openRecordCache(file);
-    first.under(A);
-    first.set(RECORD);
-    first.set({ file: 'src/Clock.tsx', digest: B });
+    first.under(HERE);
+    first.set(RECORD, WITNESSES);
+    first.set({ file: 'src/Clock.tsx', digest: B }, WITNESSES);
     await first.save();
 
     const second = await openRecordCache(file);
-    second.under(A);
+    second.under(HERE);
     expect(second.get('src/Button.tsx', A)).toEqual(RECORD);
     await second.save();
 
     const third = await openRecordCache(file);
-    third.under(A);
+    third.under(HERE);
     expect(third.get('src/Button.tsx', A)).toEqual(RECORD);
     expect(third.get('src/Clock.tsx', B)).toBeUndefined();
   });
 
-  it('discards a file written under another tree shape', async () => {
+  it('carries a record’s witnesses across the file, not just its edges', async () => {
     const file = await path();
 
     const first = await openRecordCache(file);
-    first.under(A);
-    first.set(RECORD);
+    first.under(HERE);
+    first.set(RECORD, WITNESSES);
+    await first.save();
+
+    // Witnesses are derived from the specifiers, which live in a parse the next
+    // run never opens. Losing them on the way to disk would make every reused
+    // record unprunable, which is worse than not reusing it.
+    const second = await openRecordCache(file);
+    second.under(shape(['package.json', 'src/Button.tsx', 'src/button.css', 'src/late.ts']));
+
+    expect(second.get('src/Button.tsx', A)).toBeUndefined();
+  });
+
+  it('discards a file written under another configuration', async () => {
+    const file = await path();
+
+    const first = await openRecordCache(file);
+    first.under(HERE);
+    first.set(RECORD, WITNESSES);
     await first.save();
 
     const second = await openRecordCache(file);
-    second.under(B);
+    second.under({ ...HERE, config: B });
 
     expect(second.get('src/Button.tsx', A)).toBeUndefined();
   });
@@ -172,8 +248,8 @@ describe('the record cache on disk', () => {
     const file = await path();
 
     const first = await openRecordCache(file);
-    first.under(A);
-    first.set(RECORD);
+    first.under(HERE);
+    first.set(RECORD, WITNESSES);
     await first.save();
 
     // A scan with no digests validates nothing and reuses nothing. Letting it
@@ -183,7 +259,7 @@ describe('the record cache on disk', () => {
     await unused.save();
 
     const third = await openRecordCache(file);
-    third.under(A);
+    third.under(HERE);
     expect(third.get('src/Button.tsx', A)).toEqual(RECORD);
   });
 
@@ -193,7 +269,7 @@ describe('the record cache on disk', () => {
     await writeFile(file, 'half an index', 'utf8');
 
     const cache = await openRecordCache(file);
-    cache.under(A);
+    cache.under(HERE);
 
     expect(cache.get('src/Button.tsx', A)).toBeUndefined();
   });
@@ -206,20 +282,14 @@ describe('the record cache on disk', () => {
     await writeFile(blocked, 'not a directory', 'utf8');
 
     const cache = await openRecordCache(join(blocked, 'records.bin'));
-    cache.under(A);
-    cache.set(RECORD);
+    cache.under(HERE);
+    cache.set(RECORD, WITNESSES);
 
     await expect(cache.save()).resolves.toBeUndefined();
   });
 });
 
 describe('a scan that remembers the last one', () => {
-  const made: string[] = [];
-
-  afterAll(async () => {
-    for (const dir of made) await rm(dir, { recursive: true, force: true });
-  });
-
   async function repository(): Promise<string> {
     const root = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
     made.push(root);
