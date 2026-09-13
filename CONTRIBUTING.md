@@ -30,6 +30,21 @@ row for — a file added since the recording, a fixture, a module that cannot
 carry a probe — runs everything and names the path that caused it. So a green
 `test:since` is a smaller claim than a green `verify`, and `verify` is the gate.
 
+Each selected test also carries its distance from the change: how many imports
+separate them, counted through the modules that test actually entered. The
+nearest tests fail first and for the simplest reason, so you can run them while
+the edit is still open and leave the rest for later:
+
+```bash
+yarn test:since --at-distance 0-2   # within two imports of the change
+yarn test:since --at-distance 3-    # the rest of the selection
+yarn test:since --help              # every flag
+```
+
+`0-2` means *no more than two imports away*. Zero is a test whose own source you
+edited. Tests whose distance could not be measured run with the leg that reaches
+the end, so those two commands together run every selected file exactly once.
+
 ## Reproduce the documented behavior
 
 The Storybook case records new stories, accepts them, proves the next run is

@@ -1337,11 +1337,13 @@
         "CreateVarianceOptions": "interface",
         "DirectObservationOptions": "interface",
         "EventDesk": "interface",
+        "Evidence": "interface",
         "ExecutionRecorder": "interface",
         "ExecutionRecording": "interface",
         "InPlaceCaptureOptions": "interface",
         "InstalledAgent": "interface",
         "MaterializationOptions": "type",
+        "Observed": "interface",
         "UnchangedOptions": "interface",
         "VarianceEventFixtures": "interface",
         "VarianceEventWorkerFixtures": "interface",
@@ -2111,7 +2113,8 @@
         "dist",
         "!dist/**/*.d.ts.map",
         "mark.svg",
-        "scripts/overhead.mjs"
+        "scripts/overhead.mjs",
+        "skill"
       ],
       "engines": {
         "node": ">=22.15"
@@ -2190,7 +2193,6 @@
         "instrumentationId": "function"
       },
       "./test-selection": {
-        "Band": "interface",
         "Bearing": "type",
         "BlockKind": "type",
         "CacheLayers": "interface",
@@ -2202,6 +2204,7 @@
         "CoverageTest": "interface",
         "CoveringTest": "interface",
         "DeviationOptions": "interface",
+        "DistanceGroup": "interface",
         "DistanceOptions": "interface",
         "ExecutionBlock": "interface",
         "ExecutionCrossing": "interface",
@@ -2225,8 +2228,7 @@
         "TestDeviation": "interface",
         "TestDistance": "interface",
         "VariationDeviation": "interface",
-        "bandRange": "function",
-        "bandsOf": "function",
+        "atDistance": "function",
         "cacheLayers": "function",
         "coveringTests": "function",
         "coveringTestsInFile": "function",
@@ -2234,8 +2236,10 @@
         "deviationOfTests": "function",
         "distanceByExecution": "function",
         "distanceFromView": "function",
+        "distanceRange": "function",
         "eitherFace": "function",
         "foldTestCoverage": "function",
+        "groupByDistance": "function",
         "indexFaces": "function",
         "journeyDivergences": "function",
         "journeysApart": "function",
@@ -2248,10 +2252,9 @@
         "readTestCoverage": "function",
         "readableTestCoverage": "function",
         "recordedCommit": "function",
+        "remaining": "function",
         "seedTestCoverage": "function",
         "selectTestFiles": "function",
-        "slice": "function",
-        "tail": "function",
         "testCoverageFile": "function",
         "writeCoverageBytes": "function",
         "writeTestCoverage": "function"

@@ -9,6 +9,10 @@ Read the product's retained evidence to answer what a visual run observed, what 
 test addressed, what React updated, and what source executed. Do not control the
 test runner or mutate the page from this skill.
 
+Choosing which tests to run after an edit, and which of them to run first, is a
+different question with its own skill: `variance-test-selection`, shipped at
+`packages/sense/skill/SKILL.md`.
+
 ## Ask the run, from the shell
 
 `variance ask` answers from the report the last run wrote. It needs the CLI and

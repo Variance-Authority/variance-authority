@@ -459,17 +459,17 @@ entered it is marked partial and runs at the next selection regardless.
 
 ## Place a selection by how far the change travelled
 
-A selection answers *which* tests. It does not answer *how far*, and the two
-readings are worth different things. A change to a base component selects most
-of a suite, and that answer is correct and no use on its own: ninety per cent of
-the files is not a shorter run, it is the same run with a paragraph attached.
-But the ninety per cent is not flat. The edited module's own test is one hop
-from it, its callers' tests are two, and a failure at one hop has one
-explanation where a failure at four has a chain of them.
+A selection tells you which tests to run. It does not tell you which to run
+first, and after a change to a shared module most of the suite is selected.
+Distance answers the second question: for each selected test, the shortest
+import path from the change to it, counted only through the modules that test
+actually entered.
 
-`distanceByExecution` reads the snapshot once and returns both — the narrowing
-and, per selected test, the shortest path from the change to it **through the
-modules that test actually entered**:
+The count is worth having because the selection is not flat. The edited module's
+own test is one hop away and its callers' tests are two, so a failure at one hop
+has one explanation where a failure at four has a chain of them.
+
+`distanceByExecution` reads the snapshot once and returns both readings:
 
 ```ts
 import {
@@ -487,87 +487,89 @@ const { narrowing, distances } = await distanceByExecution(
 
 `relations` is the graph the path is walked in — what `relationsOfFiles` builds
 from a `scanRelations` pass — and without it nothing can be placed. `knownAs`
-gives every name one module is held under, the snapshot's and the graph's alike.
-`faces` says where a unit's public face is; nothing reads as *every file is its
-own face*.
+gives every name one module is held under, so a built copy in the graph and a
+source file in the record count as the same module. `faces` says where a unit's
+public entry point is; without it, every file reads as its own entry point.
 
-The restriction is the whole of it. `dependentsOf` over the graph alone gives a
-shortest path from any change to any file, and it is the wrong path: it runs
-through modules the test never loaded — a helper behind a branch nobody took is
-on the graph's path and was not on the run's. `distanceFromView` is the same
-reading over a snapshot already open, and `nearestFirst` is the comparison both
-sort by.
+Restricting the walk to entered modules is what makes the number worth reading.
+`dependentsOf` over the graph alone finds a shortest path from any change to any
+file, and that path can run through a module the test never loaded — a helper
+behind a branch nobody took. `distanceFromView` is the same reading over a
+snapshot you already opened, and `nearestFirst` is the comparison both sort by.
 
 Each `TestDistance` carries a `bearing`. Four of the six carry a hop count and
-two carry none. `precondition` is *the change is this test's own source*, which is zero
-and is the only zero there is. `direct` and `transitive` are one hop and more,
-every hop of them landing on a module's public face. `reach-through` is a hop
-that landed **inside** a unit instead — the change travelled past an interface
-somebody wrote, and the fix is at the importing line rather than anywhere near
-the failure. `unexplained` is a test the change reached along no chain of
-imports it executed, with the rest of that run accounted for: effect at a
-distance in the literal sense — a registry, a singleton, a patched prototype, a
-module-level assignment two files agree about and nothing declares. Both are
-defects with an address, and neither needs a red test to be worth reading.
+two carry none:
 
-`unmeasured` is the sixth and is the opposite of a finding. The graph could not
-answer: the test, the changed module, or something the test ran between them is
-outside it — a built artifact the scan does not read, a directory it was not
-pointed at, a file whose imports nothing could enumerate. It carries `because`,
-saying which. The distinction is load-bearing (ADR-0002): a walk that was never
-possible must not print as a walk that failed, or every unscanned directory
-becomes an accusation. Pass `enumerated` — whether the graph read what a file
-imports, which only whoever built the graph knows — and a dead end there is
-reported as the hole it is.
+- `precondition` — the change is the test's own source. Zero hops, and the only
+  zero there is.
+- `direct` and `transitive` — one hop and more, every hop landing on a module's
+  public entry point.
+- `reach-through` — a hop that landed inside a unit instead. The change
+  travelled past an interface somebody wrote, and the fix is at the importing
+  line rather than near the failure.
+- `unexplained` — the change reached this test along no chain of imports it
+  executed, with the rest of that run accounted for. A registry, a singleton, a
+  patched prototype, a module-level assignment two files agree about and nothing
+  declares.
+- `unmeasured` — the graph could not answer. It carries `because`, naming the
+  gap: a built artifact the scan does not read, a directory it was not pointed
+  at, a file whose imports nothing could enumerate.
 
-A *unit* is a directory whose contents are meant to be reached through one file,
-which is a convention rather than a fact about the filesystem, so it is supplied
-rather than inferred. `indexFaces` reads the one this repository and most others
-keep — a directory with an `index` module — and `eitherFace` stacks a caller's
-own provider in front of it, which is where a manifest reader belongs: this
-package depends on what it needs (ADR-0013), and a manifest is not it.
+`reach-through` and `unexplained` are findings with an address, and neither
+needs a red test to be worth reading. `unmeasured` is the opposite of a finding,
+and the distinction is load-bearing (ADR-0002): a walk that was never possible
+must not print as a walk that failed, or every unscanned directory becomes an
+accusation. Pass `enumerated` — whether the graph read what a file imports,
+which only whoever built the graph knows — and a dead end there is reported as
+the hole it is.
+
+A *unit* is a directory whose contents are meant to be reached through one file.
+That is a convention rather than a fact about the filesystem, so you supply it.
+`indexFaces` reads the one this repository and most others keep — a directory
+with an `index` module — and `eitherFace` stacks your own provider in front of
+it, which is where a manifest reader belongs: this package depends on what it
+needs (ADR-0013), and a manifest is not it.
 
 ## Run the near end of a selection first
 
-`bandsOf` cuts a distance reading into rings, and `slice` takes a range of them
-one-based and inclusive, so a loop can spend six seconds finding out it was
-wrong before it spends eleven minutes finding out it was right:
+`atDistance` takes the tests a given number of imports from the change, so a
+loop can spend six seconds finding out it was wrong before it spends eleven
+minutes finding out it was right:
 
 ```ts
-import { bandRange, bandsOf, slice, tail } from '@variance-authority/sense/test-selection';
+import { atDistance, distanceRange, remaining } from '@variance-authority/sense/test-selection';
 
-const bands = bandsOf(distances);
-const { from, to } = bandRange('1-3') ?? { from: 1, to: bands.length };
-const running = slice(bands, from, to);
-const later = tail(bands, from, to);
+const { from, to } = distanceRange('0-2') ?? { from: 0, to: Number.MAX_SAFE_INTEGER };
+const running = atDistance(distances, from, to);
+const later = remaining(distances, from, to);
 ```
 
-Bands are the hop counts that **occur**, not a dense range: a reading with tests
-at one and four hops and none between has two bands, and asking for the first
-three gets both. Numbering the empty ring in the middle would make `1-3` mean a
-different amount of work in two checkouts of the same repository, which is the
-one thing a loop written once cannot have. For the same reason the numbers are
-band numbers rather than hop numbers — hop counts are a property of the change,
-and `1-3` after editing a leaf would otherwise mean something else after editing
-a barrel. `bandRange` reads `1`, `1-3`, and `3-` — *the third onwards*, which is
-what a last leg asks for and cannot spell in advance — and returns nothing for
-anything else, so a caller reports the typo rather than quietly running one
-band.
+The range is hop counts. `0-2` is every selected test no more than two imports
+from the change, and it asks the same question whatever the reading turned out
+to hold: if the nearest test is five hops away, `0-2` runs nothing — no test is
+that close — and `3-` runs all of them. `distanceRange` reads `2`, `0-2`, and
+`3-` (*three and beyond*, which is what a last leg asks for and cannot spell in
+advance), and returns nothing for anything else, so a caller reports the typo
+rather than quietly running one distance.
 
-A test nobody could place rides in the **last** band. It is not band zero: zero
-is `precondition` and says the opposite. Last, because the first band has one
-job — be the cheapest run that could disprove the edit — and a first band
-carrying everything unplaced is the whole suite wearing a smaller number. A loop
-written as `1-3` then `4-` runs every selected file exactly once and picks the
-unplaced up at the end.
+Start a near range at `0` rather than `1`. Zero is a distance and a common one
+in an edit loop: it is a test whose own source you just changed, and a range
+starting at one leaves it until last.
 
-`tail` names what a slice left behind rather than counting it, because *26 files
-were not run* is a number and *these 26 files were not run* is the thing
-somebody hands to CI. It exists because every band is a smaller claim than the
-selection, which is already a smaller claim than the suite: a green band one
-says the nearest tests pass and says nothing at all about band four. Printing
-that sentence is the caller's job, and `yarn test:since --band 1-3` in this
-repository is the worked example.
+A test nobody could place runs with the range that reaches the end — the one
+whose far edge is open, or is at least the furthest distance measured. It is not
+distance zero, which says the opposite. So `0-2` and then `3-` runs every
+selected file exactly once, and no near range is made expensive by everything
+nobody could place.
+
+`remaining` names what a range left behind rather than counting it, because *26
+files were not run* is a number and *these 26 files were not run* is the thing
+somebody hands to CI. Every range is a smaller claim than the selection, which
+is already a smaller claim than the suite: a green `0-2` says the nearest tests
+pass and says nothing at all about four hops. Printing that sentence is the
+caller's job. `groupByDistance` reports the whole reading as one group per hop
+count, which is the table to print beside the range you took out of it, and
+`yarn test:since --at-distance 0-2` in this repository is the worked example.
 
 ## Select Jest files from a change
 

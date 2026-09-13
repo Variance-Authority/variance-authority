@@ -196,9 +196,11 @@ loads, and a ratio cannot be timed through the thing timing it.
 `yarn test:since` reads that back and runs the files a change reached:
 
 ```bash
-yarn test:since            # since the commit the snapshot was recorded at
-yarn test:since main       # since the merge base with main
-yarn test:since --dry-run  # decide, explain, run nothing
+yarn test:since                    # since the commit the snapshot was recorded at
+yarn test:since main               # since the merge base with main
+yarn test:since --dry-run          # decide, explain, run nothing
+yarn test:since --at-distance 0-2  # only the tests within two imports of the change
+yarn test:since --help             # every flag, and the loop below
 ```
 
 It narrows only where it has a measurement. A changed path the snapshot holds no
@@ -206,6 +208,30 @@ row for — an untracked file, a fixture, a page-side module that cannot carry a
 probe — runs everything and names the path that caused it. So a green
 `test:since` is a smaller claim than a green `verify`: use it in the loop, and
 report against the gate.
+
+**Run the near end first.** Every selected test also carries its distance from
+the change — the number of imports between them, counted through the modules
+that test actually entered. The near ones fail first and for the simplest
+reason, so the loop is:
+
+```bash
+yarn test:since --at-distance 0-2   # while the edit is still open
+yarn test:since --at-distance 2-4   # before handing the change over
+yarn verify                         # the gate, and the only green that counts
+```
+
+`0-2` is *no more than two imports away*, not *the first two groups*: a change
+whose nearest test is five hops out answers it with nothing, which is the true
+answer. Start at `0` — that is a test whose own source you just edited. The
+overlap at two hops is deliberate: it reconnects the wider run to the boundary
+the edit loop already exercised. Tests with no measurable distance run with the
+leg that reaches the end, so `0-2` then `3-` runs every selected file exactly
+once, and every run prints the files a leg left behind.
+
+Two findings arrive whether or not anything failed: an import that reached past
+a directory's own entry point, and a test the change entered by no route it
+imported. Both have an address. [`docs/distance.md`](docs/distance.md) is the
+reference.
 
 **An out-of-date checkout reports defects, not errors, and that is what makes it
 expensive.** Nothing here imports another package by relative path, so a check

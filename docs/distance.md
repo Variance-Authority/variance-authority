@@ -17,45 +17,47 @@ The nearest tests usually give you the fastest useful answer. They exercise the
 changed file with fewer modules in between, so a failure arrives sooner and has
 fewer possible causes.
 
-Distance groups the selected tests into **bands**, nearest first. You can run a
-few bands while the edit is still fresh, then run the rest before treating the
+You run a range of distances rather than the whole selection. `0-2` is every
+selected test no more than two imports from the change; `3-` is the rest. Run a
+near range while the edit is still fresh, then the rest before treating the
 change as verified.
 
 ```ts
-import { bandRange, bandsOf, slice, tail } from '@variance-authority/sense/test-selection';
+import { atDistance, distanceRange, remaining } from '@variance-authority/sense/test-selection';
 
-const bands = bandsOf(distances);
-const { from, to } = bandRange('1-3') ?? { from: 1, to: bands.length };
-const running = slice(bands, from, to);
-const later = tail(bands, from, to);
+const { from, to } = distanceRange('0-2') ?? { from: 0, to: Number.MAX_SAFE_INTEGER };
+const running = atDistance(distances, from, to);
+const later = remaining(distances, from, to);
 ```
 
-`1-3` means the first three groups that actually contain tests. If the selected
-tests are one and four imports away from the change, those become bands 1 and 2;
-there are no empty bands between them. `3-` means the third band onwards.
+The range is hop counts, not positions in a list. If the nearest selected test
+is five imports away, `0-2` runs nothing — no test is that close — and `3-` runs
+all of them. Start at `0` rather than `1`: a test whose own source you edited is
+at no distance from the change, and a range starting at one would leave it until
+last.
 
-Tests whose distance cannot be measured go in the final band. Running `1-3`
-and then `4-` therefore runs every selected test exactly once. `tail` lists the
-tests that a partial run leaves for later.
+Tests whose distance cannot be measured run with the range that reaches the end,
+so `0-2` and then `3-` runs every selected test exactly once. `remaining` lists
+the tests a partial run leaves for later. `groupByDistance` reports the whole
+reading as one group per hop count, which is the table to print beside the range
+you took out of it.
 
-Passing an early band only tells you that those tests passed. The full suite is
+Passing a near range only tells you that those tests passed. The full suite is
 still the verification gate.
 
 ## How agents use the distance
 
-During the main edit loop, an agent can run the tests reported at one or two
-hops. That keeps feedback close to the code it is changing and makes a failure
-cheaper to explain.
+During the main edit loop, an agent runs `0-2`: the tests within two imports of
+the change, including any whose own source it just edited. That keeps feedback
+close to the code it is changing and makes a failure cheaper to explain.
 
-Before handing the change over, the agent expands verification to the tests
-reported at two through four hops. CI runs the remaining selected tests and the
-full project gate. The overlap at two hops is deliberate: it reconnects the
-broader verification run to the closest dependency boundary already exercised
-during the edit loop.
+Before handing the change over, the agent widens to `2-4`. CI runs the remaining
+selected tests and the full project gate. The overlap at two hops is deliberate:
+it reconnects the broader verification run to the closest dependency boundary
+already exercised during the edit loop.
 
-The CLI ranges select occupied bands rather than literal hop numbers, so the
-agent reads the report and chooses the bands carrying those hop counts. A
-missing hop count does not create an empty band.
+In this repository those two steps are `yarn test:since --at-distance 0-2` and
+`yarn test:since --at-distance 2-4`; `yarn test:since --help` prints the rest.
 
 ## Connections worth investigating
 

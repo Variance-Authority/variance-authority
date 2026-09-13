@@ -3,18 +3,25 @@
  *
  * Separated from the tool because it is the half with no side effects: given a
  * reading it returns lines, and `test-since.mjs` decides what to do about them.
- * Both halves are printed on every run, banded or not — the table so that a
- * slice is never seen without the thing it was cut from, and the findings
- * because neither of them needs a red test to be worth reading.
+ * Both halves are printed on every run, whether or not a leg was asked for — the
+ * table so a leg is never seen without the reading it came out of, and the
+ * findings because neither of them needs a red test to be worth reading.
  */
 
-/** One line per ring, so the table a caller slices is always on screen. */
-export function bandLines(bands) {
-  return bands.map((ring, at) => {
-    const name = ring.unplaced
+/**
+ * One line per distance, so the table a caller took a leg out of is always on
+ * screen beside it.
+ *
+ * The hop count is the whole left column, because it is also what `--at-distance`
+ * takes: a reader who sees `4 hops  12 file(s)` and wants those twelve knows the
+ * flag without being told the mapping.
+ */
+export function distanceLines(groups) {
+  return groups.map((group) => {
+    const name = group.unplaced
       ? '  ·  unplaced'
-      : `${`${at + 1}`.padStart(3)}  ${ring.hops} hop${ring.hops === 1 ? ' ' : 's'}`;
-    return `  ${name.padEnd(16)} ${`${ring.tests.length}`.padStart(4)} file(s)`;
+      : `${`${group.hops}`.padStart(3)}  hop${group.hops === 1 ? '' : 's'}`;
+    return `  ${name.padEnd(16)} ${`${group.tests.length}`.padStart(4)} file(s)`;
   });
 }
 
@@ -79,4 +86,47 @@ export function findingLines(reading) {
           '',
         ]),
   ];
+}
+
+/**
+ * What `test:since` offers, for a reader who did not open the tool.
+ *
+ * An agent reaching for a shorter run finds the flag here or does not find it at
+ * all, and a power nothing announces is a power nobody has. The distances are
+ * hop counts and so is the range: the table this prints and the flag it takes
+ * are the same numbers.
+ */
+export function helpLines() {
+  return [
+    'test:since — run the tests a change reached, nearest first.',
+    '',
+    'usage: yarn test:since [<ref>] [--at-distance <range>] [--dry-run]',
+    '',
+    '  <ref>                 measure from the merge base with this ref.',
+    '                        Defaults to the commit the snapshot was recorded at.',
+    '  --at-distance <range> run only the tests this many imports from the change.',
+    '                        `0-2`, `2`, or `3-`. Zero is a test whose own source',
+    '                        you edited. Tests with no measurable distance ride',
+    '                        with the leg that reaches the end.',
+    '  --dry-run             print the reading and run nothing.',
+    '  --help                this.',
+    '',
+    'The loop:',
+    '',
+    '  yarn test:since --at-distance 0-2   while the edit is still open',
+    '  yarn test:since --at-distance 2-4   before handing the change over',
+    '  yarn test                           the gate, and the only green that counts',
+    '',
+    'Every run prints the whole reading before the leg it took out of it, the',
+    'files a leg left for later, and two findings that need no red test: imports',
+    'that reached past a unit face, and tests the change entered by no route they',
+    'imported.',
+  ];
+}
+
+/** A range as the phrase the empty-leg sentence needs. */
+export function describeRange(range) {
+  if (range.to === Number.MAX_SAFE_INTEGER) return `${range.from} hop(s) or more`;
+  if (range.from === range.to) return `${range.from} hop(s)`;
+  return `${range.from}-${range.to} hops`;
 }

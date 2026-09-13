@@ -78,7 +78,8 @@
     "dist",
     "!dist/**/*.d.ts.map",
     "mark.svg",
-    "scripts/overhead.mjs"
+    "scripts/overhead.mjs",
+    "skill"
   ],
   "scripts": {
     "build": "tsc --build",

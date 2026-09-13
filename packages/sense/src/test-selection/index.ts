@@ -40,7 +40,13 @@ export {
 export type { BlockKind };
 export type { ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { journeyDivergences };
-export { bandRange, bandsOf, slice, tail, type Band } from './bands.js';
+export {
+  atDistance,
+  distanceRange,
+  groupByDistance,
+  remaining,
+  type DistanceGroup,
+} from './at-distance.js';
 export { distanceFromView, nearestFirst } from './distance.js';
 export type {
   Bearing,

@@ -20,9 +20,13 @@ import { ROOT } from './markdown.js';
  * someone deletes the first time it is wrong.
  */
 
+// Tracked *and* present: `git ls-files` reads the index, which still lists a
+// file deleted in the working tree until somebody commits the deletion, and a
+// rule that reads the tree has nothing to say about a file that is not in it.
 const TRACKED = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
   .trim()
-  .split('\n');
+  .split('\n')
+  .filter((file) => existsSync(join(ROOT, file)));
 
 /** A file whose job is to run the product, rather than to be the product. */
 function isExercise(file: string): boolean {

@@ -1,5 +1,5 @@
 import type { Locator, Page, TestInfo } from '@playwright/test';
-import type { Observation } from '@variance-authority/observe';
+import type { Observed } from './evidence.js';
 import { createDeclarationReader } from '@variance-authority/playwright';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { RasterStore, Renderer } from '@variance-authority/raster';
@@ -33,6 +33,15 @@ export interface CreateVarianceOptions {
    * the session says so on stderr and records nothing.
    */
   readonly tests?: boolean | ExecutionRecording;
+  /**
+   * Directory to write the compared images into, for every subject a person
+   * would stop on -- `changed`, `incomparable`, and `ignored`.
+   *
+   * Off by default, and off is a real choice: the images are the largest thing a
+   * run can produce, and a suite that reads the verdict in CI and never opens a
+   * picture should not pay for one. On, the observation says where they went.
+   */
+  readonly evidence?: string;
 }
 
 export interface DirectObservationOptions extends VarianceOptions {
@@ -48,10 +57,19 @@ export interface DirectObservationOptions extends VarianceOptions {
    * {@link createVariance} session instead and pay that once.
    */
   readonly tests?: boolean | ExecutionRecording;
+  /**
+   * Directory to write the compared images into, for every subject a person
+   * would stop on -- `changed`, `incomparable`, and `ignored`.
+   *
+   * Off by default, and off is a real choice: the images are the largest thing a
+   * run can produce, and a suite that reads the verdict in CI and never opens a
+   * picture should not pay for one. On, the observation says where they went.
+   */
+  readonly evidence?: string;
 }
 
 export interface VarianceSession {
-  readonly observe: (locator: Locator, options?: VarianceOptions) => Promise<Observation>;
+  readonly observe: (locator: Locator, options?: VarianceOptions) => Promise<Observed>;
   readonly close: () => Promise<void>;
 }
 
@@ -116,6 +134,7 @@ export async function createVariance(
             store,
             materialization,
             declared,
+            ...(options.evidence === undefined ? {} : { evidence: options.evidence }),
             ...(renderer === undefined ? {} : { renderer }),
           },
           locator,
@@ -147,13 +166,14 @@ export async function observe(
   locator: Locator,
   within: TestInfo | VarianceRun,
   options: DirectObservationOptions = {},
-): Promise<Observation> {
+): Promise<Observed> {
   const session = await createVariance(page, within, {
     ...(options.baselines === undefined ? {} : { baselines: options.baselines }),
     ...(options.materialization === undefined
       ? {}
       : { materialization: options.materialization }),
     ...(options.tests === undefined ? {} : { tests: options.tests }),
+    ...(options.evidence === undefined ? {} : { evidence: options.evidence }),
   });
   try {
     return await session.observe(locator, options);

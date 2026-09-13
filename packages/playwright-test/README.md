@@ -207,6 +207,35 @@ opens and closes the rest itself.
 | `bundle` | The suite deliberately builds its own page agent. | The package's bundled agent. A custom bundle must install itself both in the current document and on future navigations. |
 | `tests` | The next run should be able to skip specs whose code nothing touched. | `false`. Requires the application under test to be built with `testSelectionProbes()` from `@variance-authority/sense/journal`; without a collector in the page the session says so on stderr and records nothing. |
 | `materialization` | Pixels should come from the browser the suite already pinned. | `{ kind: 'deferred' }`. |
+| `evidence` | Somebody will want to look at a disagreement. | Off. Under `varianceFixtures` it is on and writes into the test's own output directory, where the runner reports it from. |
+
+### Seeing the disagreement
+
+A verdict names the components and counts the pixels; a reviewer still asks to
+see it. Point `evidence` at a directory and every subject a person stops on --
+`changed`, `incomparable`, and `ignored` -- leaves `<subject>.before.png`,
+`<subject>.after.png` and `<subject>.diff.png` behind, and the observation says
+where they went:
+
+```ts
+const observation = await variance.observe(subject, { subjectId: route });
+if (observation.evidence !== undefined) {
+  console.error(`  ${observation.evidence.diff}`);
+}
+```
+
+`unchanged` and `new` write nothing: there is nothing to look at in the first and
+nothing to compare against in the second. Neither does a subject whose baseline
+the run refused to compare against -- an `incomparable` verdict leaves the
+candidate alone rather than a diff against an image from another environment.
+Two images of different sizes leave the pair and no diff, because they have no
+common canvas and the sizes are the whole finding.
+
+Off by default on the direct path, and off is a real choice: the images are the
+largest thing a run can produce, and a suite that reads the verdict in CI and
+opens no pictures should not pay for them. Under `varianceFixtures` the runner
+already owns a per-test output directory it cleans and reports from, so there it
+is on and each image is attached to the test.
 
 ### Driving Playwright from another runner
 

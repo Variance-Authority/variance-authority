@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, type Browser, type Locator, type Page, type TestInfo } from '@playwright/test';
@@ -205,6 +205,69 @@ chromium_('the additive Playwright path', () => {
         await session.close();
       }
     } finally {
+      await own.close();
+    }
+  }, 60_000);
+
+  it('hands back the three images a reviewer asks to see', async () => {
+    // The verdict sentence names the components and counts the pixels, and a
+    // reviewer still asks to see it. Every incumbent answers with a picture; this
+    // path answered with the sentence, so the only way to look at a disagreement
+    // was to write a differ.
+    const own = await browser!.newPage({ viewport: { width: 400, height: 200 } });
+    const directory = await mkdtemp(join(tmpdir(), 'variance-evidence-'));
+    try {
+      const paint = async (colour: string) => {
+        await own.setContent(
+          `<main><section id="total" style="width:200px;height:60px;background:${colour}">` +
+            'Total 12.00</section></main>',
+        );
+      };
+      const look = async () => {
+        const session = await createVariance(own, info('all'), {
+          baselines,
+          evidence: directory,
+          materialization: {
+            kind: 'in-place',
+            browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+          },
+        });
+        try {
+          return await session.observe(own.locator('#total'), { subjectId: 'cart/evidence' });
+        } finally {
+          await session.close();
+        }
+      };
+
+      await paint('#eee');
+      const seeded = await look();
+      // Nothing to look at the first time: there was no baseline to subtract.
+      expect(seeded.evidence).toBeUndefined();
+
+      await paint('#e11');
+      const changed = await observe(own, own.locator('#total'), info('none'), {
+        subjectId: 'cart/evidence',
+        baselines,
+        evidence: directory,
+        materialization: {
+          kind: 'in-place',
+          browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+        },
+      });
+
+      expect(changed.verdict).toBe('changed');
+      expect(changed.evidence).toBeDefined();
+      for (const path of Object.values(changed.evidence!)) {
+        expect(existsSync(path)).toBe(true);
+      }
+      expect(changed.evidence!.diff).toBeDefined();
+      // Three different renders, not the same file written three times.
+      const bytes = await Promise.all(
+        Object.values(changed.evidence!).map(async (path) => (await readFile(path)).toString('base64')),
+      );
+      expect(new Set(bytes).size).toBe(3);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
       await own.close();
     }
   }, 60_000);

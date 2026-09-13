@@ -19,7 +19,6 @@ import type {
 import {
   observeAgainstBaseline,
   observeCaptureAgainstBaseline,
-  type Observation,
 } from '@variance-authority/observe';
 import { createDeclarationReader, type DeclarationReader } from '@variance-authority/playwright';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
@@ -32,6 +31,7 @@ import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
 import { runOf, type VarianceRun } from './run.js';
 import { settledCapture } from './in-place.js';
+import { withEvidence, type Observed } from './evidence.js';
 import {
   createExecutionRecorder,
   ownerOf,
@@ -79,7 +79,7 @@ import { AGENT, type AcquireRequest } from './page-agent.js';
 
 export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures {
   /** Observe one subtree against its stored baseline. */
-  readonly variance: (locator: Locator, options?: VarianceOptions) => Promise<Observation>;
+  readonly variance: (locator: Locator, options?: VarianceOptions) => Promise<Observed>;
 }
 
 export interface VarianceWorkerFixtures
@@ -115,6 +115,12 @@ export interface VarianceRuntime {
    * Laid over `options.source` for the artifact; absent when nobody opened one.
    */
   readonly declared?: DeclarationReader;
+  /**
+   * Directory to write the compared images into, for a subject a person will
+   * stop on. Absent means write nothing, which is what a suite that never looks
+   * at pixels should pay.
+   */
+  readonly evidence?: string;
 }
 
 /**
@@ -240,17 +246,26 @@ export const varianceFixtures: Fixtures<
     const declared = createDeclarationReader(page, { global: AGENT });
     await use(async (locator, options) => {
       try {
-        return await observeLocator(
+        // The runner already owns a per-test output directory it cleans and
+        // reports from, so on this path evidence is on by default and lands
+        // where a Playwright user looks for artifacts. The direct helper has no
+        // such directory and therefore no such default.
+        const observed = await observeLocator(
           {
             page,
             run: runOf(testInfo),
             renderer: varianceRenderer,
             store: varianceStore,
             declared,
+            evidence: testInfo.outputPath('variance'),
           },
           locator,
           options,
         );
+        for (const [name, path] of Object.entries(observed.evidence ?? {})) {
+          await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
+        }
+        return observed;
       } finally {
         // Drained on the way out of a refusal too. A subject that threw still
         // executed code, and counters left in the page would be handed to
@@ -277,7 +292,7 @@ export async function observeLocator(
   runtime: VarianceRuntime,
   locator: Locator,
   options: VarianceOptions = {},
-): Promise<Observation> {
+): Promise<Observed> {
   const { page, run, renderer, store } = runtime;
   const subject: SubjectRef = {
     id: options.subjectId ?? subjectFromRun(run),
@@ -349,7 +364,7 @@ export async function observeLocator(
       });
       return accepted(observation);
     }
-    return observation;
+    return await withEvidence(runtime, key, observation, async () => candidate);
   }
 
   if (renderer === undefined) throw new Error('deferred capture needs a renderer');
@@ -400,7 +415,9 @@ export async function observeLocator(
     return accepted(observation);
   }
 
-  return observation;
+  return await withEvidence(runtime, key, observation, () =>
+    store.renderCache.get(documentDigest(document), identity),
+  );
 }
 
 function engineOf(page: Page): string {
