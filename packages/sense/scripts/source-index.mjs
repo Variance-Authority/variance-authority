@@ -34,6 +34,7 @@ import { promisify } from 'node:util';
 import { parseSync, rawTransferSupported } from 'oxc-parser';
 import { scanRelations } from '../dist/scan.js';
 import { openSourceIndex } from '../dist/source-index.js';
+import { readSourceIndex } from '../dist/source-index-file.js';
 
 const run = promisify(execFile);
 const REPO = process.argv[2];
@@ -160,6 +161,34 @@ console.log('\none whole run: open the index, scan, publish');
 const records = await scan('cold, no index');
 console.log(`  ${'—'.repeat(5)}  ${records} records, ${(held() / 1e6).toFixed(1)} MB on disk`);
 await scan('nothing changed');
+
+/**
+ * What one added path costs, which is a property of the directory it lands in.
+ *
+ * A record is invalidated by the directories its own specifiers could have been
+ * answered from, so the blast radius of an appearance is the number of records
+ * witnessing that one directory. A single row of the table below is one
+ * repository's answer; the distribution is the claim. The tail is the part worth
+ * reading: a directory a barrel imports from is watched by everything that
+ * imports the barrel.
+ */
+const stored = await readSourceIndex(index);
+const watchers = new Map();
+let entries = 0;
+for (const [, held] of stored.records) {
+  for (const directory of held.witnesses) watchers.set(directory, (watchers.get(directory) ?? 0) + 1);
+  entries += held.witnesses.length;
+}
+const fan = [...watchers.values()].sort((left, right) => left - right);
+const quantile = (at) => fan[Math.min(fan.length - 1, Math.floor(fan.length * at))];
+const widest = [...watchers].sort((left, right) => right[1] - left[1])[0];
+console.log(
+  `\nwhat one added path costs: ${stored.directories.size} directories, ${watchers.size} of them witnessed` +
+    `, ${entries} witness entries (${(entries / stored.records.size).toFixed(1)} per record)\n` +
+    `  records rebuilt      median ${quantile(0.5)}   p90 ${quantile(0.9)}` +
+    `   p99 ${quantile(0.99)}   max ${widest[1]}\n` +
+    `  the widest directory  ${widest[0] || '<root>'}`,
+);
 
 /**
  * A working tree put into a stated shape, and put back.

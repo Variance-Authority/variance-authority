@@ -3,7 +3,7 @@
 The numbers on this page were taken on a repository this project did not write:
 [Material UI](https://github.com/mui/material-ui) at `62a348bf47`, 41,165 tracked
 paths, of which 24,519 are modules and 24.9 MB is source. Scanning it produces
-24,909 records and a 7.9 MB index. It was chosen because it is large enough to
+24,909 records and a 7.7 MB index. It was chosen because it is large enough to
 break things, public enough to check, and nobody here can tune for it.
 
 Every figure below comes from one script, which is in the repository and takes a
@@ -23,19 +23,19 @@ cache.
 
 | The tree is                          | Total    | Records rebuilt | Files opened |
 | ------------------------------------ | -------- | --------------- | ------------ |
-| new — no index at all                | 3,084 ms | 24,909          | 24,825       |
-| unchanged since last run             | 659 ms   | 0               | 0            |
-| four files edited                    | 697 ms   | 4               | 4            |
-| five hundred files edited            | 819 ms   | 500             | 478          |
-| one file added                       | 719 ms   | 104             | 1            |
-| a hundred in, a hundred out, five hundred edited | 935 ms | 1,064 | 479 |
+| new — no index at all                | 3,180 ms | 24,909          | 24,825       |
+| unchanged since last run             | 694 ms   | 0               | 0            |
+| four files edited                    | 668 ms   | 4               | 4            |
+| five hundred files edited            | 738 ms   | 500             | 478          |
+| one file added                       | 691 ms   | 104             | 1            |
+| a hundred in, a hundred out, five hundred edited | 794 ms | 1,064 | 479 |
 
 The first row is the one people ask about and the least interesting. It happens
 once per machine, and a machine that never has it happen is a machine that never
 got a cold checkout.
 
 **An edit is priced correctly and a fixed toll is charged on top of it.** Five
-hundred files edited cost 122 ms more than four did — about a quarter of a
+hundred files edited cost 70 ms more than four did — about a seventh of a
 millisecond each, which is a file read, parsed and resolved. The 650 ms
 underneath is charged whether anything changed or not. It is the walk: every path
 in the repository visited and checked against its digest in order to decide not
@@ -52,6 +52,27 @@ hundred removed and five hundred edited touch more directories and so rebuild
 that moved. The work tracks the diff, which is the property that makes an index
 worth keeping on a branch taking a hundred pull requests an hour.
 
+**That 104 is one directory's answer, and the distribution is the claim.** The
+cost of an appearance is the number of records watching the directory it
+appeared in, so the same script reports the whole shape rather than one row of
+it. Over this repository, 1,492 directories, 478 of them watched by anything,
+1.2 witnesses per record:
+
+| One path appears in a directory, and it rebuilds | Records |
+| ------------------------------------------------ | ------- |
+| the median directory                              | 7       |
+| the 90th percentile                               | 34      |
+| the 99th percentile                               | 271     |
+| the worst directory in the repository             | 21,500  |
+
+The tail is not a defect and is worth understanding before it surprises anyone.
+The worst directory here is `packages/mui-icons-material/lib/utils`, which holds
+the one module that 21,506 generated icons import. Every one of them genuinely
+depends on what that directory contains, so every one of them is rebuilt when its
+membership changes — which is to say a regeneration of the icons is a cold run,
+and nothing else in this repository is. A barrel concentrates dependence, and an
+index can only price what the code actually says.
+
 The exception is a repository whose `tsconfig` cannot be read. A bare specifier
 is bounded by the `paths` a configuration declares, so a configuration that
 cannot be parsed is no bound at all, and there every added path invalidates
@@ -61,19 +82,19 @@ carries the argument for why the bound is sound everywhere else.
 
 ## Where the half-second is
 
-Of a warm run's 659 ms, roughly 130 is decoding the index, 340 is the scan, and
-189 is publishing. Inside the scan, about 86 ms is git answering what the working
+Of a warm run's 694 ms, roughly 113 is decoding the index, 387 is the scan, and
+195 is publishing. Inside the scan, about 84 ms is git answering what the working
 tree looks like; the rest is walking 24,909 records and checking each against its
 digest.
 
 The publish is the part worth looking at, because of what it writes. A run that
 changed nothing writes **nothing at all** — the index is an append-only chain of
 immutable segments and an unchanged run has no segment to append. A run that
-edited four files appends about **14,000 bytes** to a 7.9 MB index. The whole of
+edited four files appends about **14,000 bytes** to a 7.7 MB index. The whole of
 it is re-encoded only when the chain has grown past eight segments, which is one
 publish in eight and costs about 150 ms more than an append.
 
-So the 189 ms is not writing. It is a chain decoded a second time in order to
+So the 195 ms is not writing. It is a chain decoded a second time in order to
 compare against it, and a deep comparison of 24,825 parses and 24,909 records to
 discover there is nothing to say. Both are ours and both are removable.
 
@@ -83,13 +104,13 @@ Read every module and parse it, with nothing else happening:
 
 | Doing only this                 | Costs  |
 | ------------------------------- | ------ |
-| read 24,519 files from disk     | 239 ms |
-| parse them with oxc             | 156 ms |
-| **what a scan cannot go below** | **395 ms** |
+| read 24,519 files from disk     | 254 ms |
+| parse them with oxc             | 171 ms |
+| **what a scan cannot go below** | **425 ms** |
 
-A cold scan is 2,943 ms against a floor of 395. The parser is not the problem —
-it is 5% of the run, it is already compiled code, and it reads 24.9 MB of
-TypeScript in 156 ms. The other 2,548 ms is resolution, specifier collection and
+A cold scan is 3,033 ms against a floor of 425. The parser is not the problem —
+it is 6% of the run, it is already compiled code, and it reads 24.9 MB of
+TypeScript in 171 ms. The other 2,608 ms is resolution, specifier collection and
 declaration indexing, all of it ours and all of it JavaScript.
 
 That measurement is why [where the native code is](native-code.md) reads the way
@@ -105,9 +126,9 @@ a person will believe when the answer is wrong. It also means git's cost is ours
 
 | Asking git              | Costs | Which is                                     |
 | ----------------------- | ----- | -------------------------------------------- |
-| `ls-tree`               | 23 ms | the commit — does not grow with the checkout |
-| `status`                | 86 ms | the working tree                             |
-| `status`, watched       | 46 ms | the same answer, from a file-system monitor  |
+| `ls-tree`               | 22 ms | the commit — does not grow with the checkout |
+| `status`                | 84 ms | the working tree                             |
+| `status`, watched       | 47 ms | the same answer, from a file-system monitor  |
 
 Git ships the monitor. One line, in the repository being scanned:
 
