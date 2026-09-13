@@ -16,7 +16,7 @@ import {
 } from './jest.js';
 import { readRecord } from './instrumented-modules.js';
 import journalFormat from './journal-format.cjs';
-import { EVALUATING } from '../instrument/index.js';
+import { EVALUATING, instrumentationId } from '../instrument/index.js';
 
 const { encodeJournal } = journalFormat;
 
@@ -163,6 +163,21 @@ describe('withTestSelection for Jest', () => {
     ]);
   });
 
+  it('hands the recipe to every transform and to the reporter', () => {
+    const configured = withTestSelection(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { coverageFile: 'coverage.bin', mode: 'entries' },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, { root: '/repo', transformer: '@swc/jest', mode: 'entries' }],
+    });
+    expect(configured.reporters).toEqual([
+      'default',
+      [SELECTION_REPORTER, { root: '/repo', coverageFile: '/repo/coverage.bin', preconditions: [], mode: 'entries' }],
+    ]);
+  });
+
   it('refuses a project named by path rather than instrumenting half the run', () => {
     expect(() => withTestSelection({ projects: ['<rootDir>/packages/node'] }, { coverageFile: 'coverage.bin' }))
       .toThrow(/named by path/);
@@ -217,6 +232,20 @@ describe('the Jest transformer', () => {
     );
     expect(record).toEqual(expect.objectContaining({ file: 'src/pick.js', instrumented: true }));
     expect(record!.blocks.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('places only module and function probes under the entries recipe, in a record of its own', async () => {
+    const root = await project();
+    const options = transformOptions(root);
+    const path = resolve(root, 'src/pick.js');
+    const transformer = await createTransformer({ root, mode: 'entries' });
+
+    transformer.process!(SOURCE.replace('__PLACEHOLDER__', '1'), path, options);
+
+    const store = jestStore(options.config.cacheDirectory, options.config.id);
+    expect(await readRecord(store, 'src/pick.js')).toBeUndefined();
+    const record = await readRecord(store, 'src/pick.js', instrumentationId('entries'));
+    expect(record!.blocks.map((block) => block.kind)).toEqual(['module', 'function']);
   });
 
   it('keys the cache by the wrapped transformer and its options, so a changed option is a new text and a new record', async () => {

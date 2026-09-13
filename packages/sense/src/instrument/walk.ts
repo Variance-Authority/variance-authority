@@ -19,6 +19,17 @@
  * by offset puts an inner `}` in front of an outer one. `if (a) if (b) x();` grows
  * two synthesized `else` clauses at the same offset and they nest correctly for
  * that reason alone.
+ *
+ * ## The entries walk
+ *
+ * The same descent with every decision declined: an `if`, a `switch`, a `try`,
+ * a loop and an `await` are stepped through as the plain statements around them
+ * are, and only a module and a function open a region. What remains is the set
+ * of places control can *arrive from outside* — a module evaluating, a function
+ * being called — which is the whole of what a run needs to say which functions
+ * ran and whether any of them ran before its first test did. Numbering, naming,
+ * ownership and digests are the ordinary walk's, computed over the regions that
+ * are left, so a function keeps the address it has under the full walk.
  */
 
 import type { Block, BlockKind, Edit, Node, Probes } from './blocks.js';
@@ -70,7 +81,11 @@ export class Walker {
   readonly blocks: UndigestedBlock[] = [];
   readonly edits: Edit[] = [];
 
-  constructor(private readonly probes: Probes) {}
+  /** `entries` declines every decision; see the header. */
+  constructor(
+    private readonly probes: Probes,
+    private readonly entries = false,
+  ) {}
 
   open(
     kind: BlockKind,
@@ -112,12 +127,16 @@ export class Walker {
   visit(node: Node, at: Scope, path: string, owner: number, hint?: string): string | undefined {
     switch (node.type) {
       case 'IfStatement':
+        if (this.entries) break;
         return this.branch(node, at, path, owner);
       case 'SwitchStatement':
+        if (this.entries) break;
         return this.switched(node, at, path, owner);
       case 'TryStatement':
+        if (this.entries) break;
         return this.guarded(node, at, path, owner);
       case 'AwaitExpression':
+        if (this.entries) break;
         this.resume(node, at, path, owner);
         return undefined;
       case 'LabeledStatement':
@@ -138,7 +157,7 @@ export class Walker {
         break;
     }
 
-    if (LOOPS.has(node.type)) return this.loop(node, at, path, owner);
+    if (LOOPS.has(node.type) && !this.entries) return this.loop(node, at, path, owner);
 
     if (FUNCTIONS.has(node.type)) {
       this.entered(node, at, owner, hint);

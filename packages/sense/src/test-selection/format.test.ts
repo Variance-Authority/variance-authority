@@ -33,6 +33,26 @@ describe('the persisted coverage format', () => {
     expect(encodeTestCoverage(shuffled)).toEqual(encodeTestCoverage(coverage));
   });
 
+  it('keeps which tests entered a region before their first test, and writes nothing for none', async () => {
+    const coverage = representativeCoverage();
+    const [module] = coverage.modules;
+    const [root, ...rest] = module!.blocks;
+    const early = [...root!.testFiles].slice(0, 3);
+    const marked: TestCoverage = {
+      ...coverage,
+      modules: [
+        { ...module!, blocks: [{ ...root!, loadedBy: early }, { ...rest[0]!, loadedBy: [] }, ...rest.slice(1)] },
+        ...coverage.modules.slice(1),
+      ],
+    };
+
+    const decoded = await decodeTestCoverage(await encodeTestCoverage(marked));
+
+    expect(decoded.modules[0]?.blocks[0]?.loadedBy).toEqual(early);
+    expect(decoded.modules[0]?.blocks[1]).not.toHaveProperty('loadedBy');
+    expect(decoded.modules[1]?.blocks[0]).not.toHaveProperty('loadedBy');
+  });
+
   it('represents instrumentation refusal instead of an empty module observation', () => {
     const coverage = representativeCoverage();
     const unavailable: TestCoverage = {

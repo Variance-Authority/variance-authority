@@ -27,7 +27,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
 import { digestString } from '../digest.js';
-import { INSTRUMENTATION_ID, instrument, type ModuleId } from '../instrument/index.js';
+import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { readModuleNames } from '../module-names.js';
 import {
   coverageBlock,
@@ -108,6 +108,8 @@ export async function createTransformer(
     ? undefined
     : await loadTransformer(root, config.transformer);
   const innerConfig = typeof config.transformer === 'string' ? undefined : config.transformer?.[1];
+  const mode = config.mode ?? 'presence';
+  const instrumentation = instrumentationId(mode);
   // Once per worker. The table is immutable for the life of this run — the fold
   // that grows it is the reporter, in the parent, after the last worker exits.
   const names = readModuleNames(moduleNamesFile(root));
@@ -121,7 +123,7 @@ export async function createTransformer(
   });
   const keyOf = (source: string, path: string, options: JestTransformRequest, innerKey: string | undefined): string =>
     createHash('sha1')
-      .update(INSTRUMENTATION_ID)
+      .update(instrumentation)
       .update('\0')
       .update(innerKey ?? defaultKey(source, path, options))
       .update('\0')
@@ -144,7 +146,7 @@ export async function createTransformer(
   let records: RecordWriter | undefined;
   const recordsOf = (config: JestProjectConfig): RecordWriter => {
     const store = jestStore(config.cacheDirectory, config.id);
-    if (records === undefined || records.store !== store) records = openRecords(store);
+    if (records === undefined || records.store !== store) records = openRecords(store, instrumentation);
     return records;
   };
 
@@ -158,7 +160,7 @@ export async function createTransformer(
       const transformed = innerProcessAsync === undefined
         ? { code: source }
         : await innerProcessAsync(source, path, forInner(options));
-      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed);
+      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed, mode);
     },
   };
   if (inner === undefined || inner.process !== undefined) {
@@ -166,7 +168,7 @@ export async function createTransformer(
       const transformed = inner?.process === undefined
         ? { code: source }
         : inner.process(source, path, forInner(options));
-      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed);
+      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed, mode);
     };
   }
   return transformer;
@@ -193,6 +195,7 @@ function place(
   options: JestTransformRequest,
   source: string,
   transformed: JestTransformedSource,
+  mode: InstrumentMode,
 ): JestTransformedSource {
   if (!defaultInclude(path) || isTestFile(path, options.config)) {
     return transformed;
@@ -203,7 +206,7 @@ function place(
 
   const lineOf = sourceLines(transformed.code, parsedMap(transformed), path);
   const file = projectPath(root, path);
-  const done = instrument(transformed.code, file, id);
+  const done = instrument(transformed.code, file, id, { mode });
   const captured: CapturedModule = done === undefined
     ? { file, id, sourceDigest, instrumented: false, blocks: [] }
     : {

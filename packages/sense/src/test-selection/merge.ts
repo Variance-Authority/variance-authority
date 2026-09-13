@@ -10,10 +10,18 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { instrument } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
-import { codeUnitOrder, coverageBlock } from './instrumented-modules.js';
+import { codeUnitOrder } from './instrumented-modules.js';
+import {
+  addressOf,
+  crossedBlock,
+  first,
+  lostCrossings,
+  recutRows,
+  reusableBlock,
+  withoutRetired,
+} from './merge-carry.js';
 
 /** One shard's snapshot and where it was read from, so a refusal can name both sides. */
 export interface CoverageShard {
@@ -78,7 +86,12 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
     }
   }
 
-  const modules = new Map<string, { module: CoverageModule; path: string; entered: Map<number, Set<string>> }>();
+  const modules = new Map<string, {
+    module: CoverageModule;
+    path: string;
+    entered: Map<number, Set<string>>;
+    loaded: Map<number, Set<string>>;
+  }>();
   for (const shard of shards) {
     for (const module of shard.coverage.modules) {
       const seen = modules.get(module.file);
@@ -87,6 +100,7 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
           module,
           path: shard.path,
           entered: new Map(module.blocks.map((block) => [block.ordinal, new Set(block.testFiles)])),
+          loaded: new Map(module.blocks.map((block) => [block.ordinal, new Set(block.loadedBy)])),
         });
         continue;
       }
@@ -100,6 +114,7 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
       if (!module.instrumented) {
         seen.module = module;
         seen.entered.clear();
+        seen.loaded.clear();
         continue;
       }
       if (!seen.module.instrumented) continue;
@@ -107,6 +122,9 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
         const crossings = seen.entered.get(block.ordinal) ?? new Set<string>();
         for (const test of block.testFiles) crossings.add(test);
         seen.entered.set(block.ordinal, crossings);
+        const early = seen.loaded.get(block.ordinal) ?? new Set<string>();
+        for (const test of block.loadedBy ?? []) early.add(test);
+        seen.loaded.set(block.ordinal, early);
       }
     }
   }
@@ -119,14 +137,13 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
       .map(({ test }) => test)
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
     modules: [...modules.values()]
-      .map(({ module, entered }): CoverageModule => ({
+      .map(({ module, entered, loaded }): CoverageModule => ({
         file: module.file,
         sourceDigest: module.sourceDigest,
         instrumented: module.instrumented,
-        blocks: module.blocks.map((block) => ({
-          ...block,
-          testFiles: [...(entered.get(block.ordinal) ?? [])].sort(codeUnitOrder),
-        })),
+        blocks: module.blocks.map((block) =>
+          crossedBlock(block, entered.get(block.ordinal) ?? [], loaded.get(block.ordinal) ?? []),
+        ),
       }))
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
   };
@@ -226,20 +243,22 @@ export function mergeCoverage(
       file: module.file,
       sourceDigest: module.sourceDigest,
       instrumented: module.instrumented,
-      blocks: module.blocks.map((block) => ({
-        ...block,
-        testFiles: [...new Set([
-          ...(surviving.get(block)?.testFiles ?? []).filter((test) => !retired.has(test)),
-          ...block.testFiles,
-        ])].sort(codeUnitOrder),
-      })),
+      blocks: module.blocks.map((block) => {
+        const before = surviving.get(block);
+        const kept = (test: string): boolean => !retired.has(test);
+        return crossedBlock(
+          block,
+          [...(before?.testFiles ?? []).filter(kept), ...block.testFiles],
+          [...(before?.loadedBy ?? []).filter(kept), ...(block.loadedBy ?? [])],
+        );
+      }),
     };
   });
   const carried: CoverageModule[] = [];
   for (const module of previous.modules) {
     if (currentFiles.has(module.file)) continue;
     const now = onDisk.get(module.file);
-    const recut = now === undefined ? undefined : recutRows(module, now);
+    const recut = now === undefined ? undefined : recutRows(module, now, current.instrumentation);
     const lost = recut === 'mislaid'
       ? [...new Set(module.blocks.flatMap((block) => block.testFiles))]
       : recut === undefined ? [] : lostCrossings(module, recut);
@@ -358,126 +377,4 @@ function samePreconditions(left: CoverageTest, right: CoverageTest): boolean {
   const leftKeys = keys(left);
   const rightKeys = keys(right);
   return leftKeys.size === rightKeys.size && [...leftKeys].every((key) => rightKeys.has(key));
-}
-
-/**
- * Whether a crossing recorded against the previous region carries to this one.
- *
- * The address carries it: the declaration name path and the structural path
- * inside it, which is where the region is in the module's tree rather than where
- * it is in the module's text. Both sides of this call already share that
- * address; the kind is the one thing left that can differ under it, and a region
- * that changed kind under one address is a different region.
- *
- * What deliberately does not enter: the region's own digest, and anything at all
- * about the regions above it. A digest that moved says the text changed, and the
- * reader that cares about changed text is selection, which charges the region
- * from the diff and runs every test recorded against it — the crossing is what
- * makes that possible, so discarding it here would remove the evidence the
- * change is about to be answered with. Reading the owners as well made any edit
- * to a module's top level — an added declaration, a renamed export, a changed
- * constant — move the root's digest and retire every crossing in the file, which
- * is the whole suite demoted for a function nobody calls yet.
- */
-function reusableBlock(current: CoverageBlock, previous: CoverageBlock): boolean {
-  return current.kind === previous.kind;
-}
-
-/**
- * A carried module with retired crossings dropped, and the module itself when
- * it holds none of them.
- *
- * Almost every module in an index is carried. A run re-records the files it
- * loaded and the rest stand exactly as they were, so rebuilding each of them to
- * remove a handful of tests that entered none of their regions rebuilds the
- * whole index to change nothing — at two hundred thousand modules that is the
- * merge's entire cost and the peak the process is sized by. What a run retires
- * is what it re-recorded, which is small and local, so the answer for nearly
- * every module is the object that came in.
- */
-function withoutRetired(module: CoverageModule, retired: ReadonlySet<string>): CoverageModule {
-  const holds = (block: CoverageBlock): boolean =>
-    block.testFiles.some((test) => retired.has(test));
-  if (retired.size === 0 || !module.blocks.some(holds)) return module;
-  return {
-    ...module,
-    blocks: module.blocks.map((block) =>
-      holds(block)
-        ? { ...block, testFiles: block.testFiles.filter((test) => !retired.has(test)) }
-        : block,
-    ),
-  };
-}
-
-/** Name path and structural path together: where a region is in the module's tree. */
-function addressOf(block: CoverageBlock): string {
-  return `${block.name}\0${block.path}`;
-}
-
-/** Rows by key, the first of a repeated key winning: `Array.prototype.find` as an index. */
-function first<T>(rows: readonly T[], keyOf: (row: T) => string): ReadonlyMap<string, T> {
-  const found = new Map<string, T>();
-  for (const row of rows) {
-    const key = keyOf(row);
-    if (!found.has(key)) found.set(key, row);
-  }
-  return found;
-}
-
-/**
- * A carried module's rows, re-cut from the text the module has now.
- *
- * The rows of a module this run did not load are lines of the text it had when
- * it was recorded, and the index is about to move to where this run stands. So
- * the regions are read out of the current text and every crossing is carried
- * onto the region with its address, which leaves the evidence about the parts
- * nobody edited in coordinates the next diff will be in.
- *
- * `undefined` when there is nothing to re-cut: the text is the text the rows
- * were recorded over, or the module was recorded as not instrumented. The second
- * is the one worth naming — that row says this build never measured this module,
- * a reader widens on it, and cutting regions out of the file here would answer
- * it with a table of regions no run ever entered, an unknown turned into a
- * narrowing.
- *
- * `mislaid` when the text moved and cannot be read as source. There is no table
- * to place the crossings in and the rows that are there are ranges in text
- * nobody has, so the module is carried as it was and every test that entered it
- * is demoted: the alternative is an index that answers a diff with regions it
- * has the wrong coordinates for.
- */
-function recutRows(module: CoverageModule, source: string): CoverageModule | 'mislaid' | undefined {
-  if (!module.instrumented) return undefined;
-  if (digestString(source) === module.sourceDigest) return undefined;
-  const fresh = instrument(source, module.file);
-  if (fresh === undefined) return 'mislaid';
-  const before = new Map(module.blocks.map((block) => [addressOf(block), block]));
-  return {
-    file: module.file,
-    sourceDigest: fresh.sourceDigest,
-    instrumented: true,
-    blocks: fresh.blocks.map((block) => {
-      const row = coverageBlock(source, block);
-      const previous = before.get(addressOf(row));
-      return previous !== undefined && reusableBlock(row, previous)
-        ? { ...row, testFiles: previous.testFiles }
-        : row;
-    }),
-  };
-}
-
-/**
- * The tests the re-cut rows have nowhere to put a crossing for.
- *
- * Losing one region is not losing a test. Arrival nests — a test that entered a
- * region entered every region around it, up to the module — so a test whose
- * function was deleted still has its crossing on whatever now spans the place
- * that function was, and a diff there still reaches it. A test is only mislaid
- * when the new text holds no region it is recorded against at all.
- */
-function lostCrossings(before: CoverageModule, after: CoverageModule): readonly string[] {
-  const kept = new Set(after.blocks.flatMap((block) => block.testFiles));
-  return [...new Set(before.blocks.flatMap((block) => block.testFiles))].filter(
-    (test) => !kept.has(test),
-  );
 }

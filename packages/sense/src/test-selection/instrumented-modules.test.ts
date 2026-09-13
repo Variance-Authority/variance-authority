@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  crossingsOf,
+  loadedOf,
   openRecords,
   readRecord,
   readRecords,
@@ -11,8 +13,9 @@ import {
   recordStore,
   writeRecord,
   type CapturedModule,
+  type ReadJournal,
 } from './instrumented-modules.js';
-import type { ModuleId } from '../instrument/index.js';
+import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { frameRecord, segmentHeader } from './record-format.js';
 
 const cacheRoot = join(tmpdir(), `variance-records-${process.pid}`);
@@ -121,6 +124,18 @@ describe('a store of module records', () => {
     expect(await readRecord(store, 'src/cart.js')).toBeUndefined();
   });
 
+  it('keeps the records of one recipe from a reader of the other', async () => {
+    // Ordinal 1 is a function under `entries` and may be an `else` under
+    // `presence`: a store is opened under one recipe and read under the same.
+    const store = storeOf();
+    const writer = openRecords(store, instrumentationId('entries'));
+    await writeRecord(writer, captured());
+
+    expect(await readRecord(store, 'src/cart.js')).toBeUndefined();
+    expect(await readRecord(store, 'src/cart.js', instrumentationId('entries')))
+      .toEqual(expect.objectContaining({ file: 'src/cart.js' }));
+  });
+
   it('ignores a file in the store that is not a segment at all', async () => {
     const store = storeOf();
     await mkdir(store, { recursive: true });
@@ -181,5 +196,34 @@ describe('a store of module records', () => {
     expect(recordStore('/repo', 'build', cacheRoot)).not.toBe(
       recordStore('/other', 'build', cacheRoot),
     );
+  });
+});
+
+describe('the fold of a run\'s journals', () => {
+  const journals: readonly ReadJournal[] = [
+    { testFile: 'test/alpha.case.ts', modules: [{ id: 7, hits: [0, 1, 2], shared: [0, 1], loaded: [0, 1] }] },
+    { testFile: 'test/beta.case.ts', modules: [{ id: 7, hits: [0, 3], shared: [0], loaded: [0] }] },
+    { testFile: 'test/gamma.case.ts', modules: [] },
+  ];
+  const rows = (fold: ReadonlyMap<ModuleId, ReadonlyMap<number, ReadonlySet<string>>>): unknown =>
+    [...fold.get(7)!].map(([ordinal, tests]) => [ordinal, [...tests].sort()]);
+
+  it('credits what a module did while evaluating to every file that consumed it', () => {
+    expect(rows(crossingsOf(journals))).toEqual([
+      [0, ['test/alpha.case.ts', 'test/beta.case.ts']],
+      [1, ['test/alpha.case.ts', 'test/beta.case.ts']],
+      [2, ['test/alpha.case.ts']],
+      [3, ['test/beta.case.ts']],
+    ]);
+  });
+
+  it('folds what ran before the first test under the same crediting', () => {
+    // Ordinal 1 ran while the module evaluated, and evaluation happened before
+    // the first test of every file that consumed it — beta included, whose own
+    // snapshot never saw it because alpha's window evaluated the module.
+    expect(rows(loadedOf(journals))).toEqual([
+      [0, ['test/alpha.case.ts', 'test/beta.case.ts']],
+      [1, ['test/alpha.case.ts', 'test/beta.case.ts']],
+    ]);
   });
 });

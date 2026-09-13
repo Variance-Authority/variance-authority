@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
-import { INSTRUMENTATION_ID, instrument, type ModuleId } from '../instrument/index.js';
+import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { nameModules, readModuleNames, type ModuleNames } from '../module-names.js';
 import journalFormat from './journal-format.cjs';
 import { priorMap, type TransformingContext } from './probes.js';
@@ -15,9 +15,11 @@ import {
   cleanId,
   codeUnitOrder,
   coverageBlock,
+  coverageModule,
   crossingsOf,
   defaultInclude,
   isMissing,
+  loadedOf,
   moduleNamesFile,
   projectPath,
   type CapturedModule,
@@ -42,6 +44,12 @@ export interface TestSelectionOptions {
   readonly include?: (file: string) => boolean;
   /** Additional files whose contents are preconditions of every test observation. */
   readonly preconditions?: readonly string[];
+  /**
+   * `presence` probes every arrival region; `entries` probes modules and
+   * functions only, and costs a fraction of it. Both record which functions
+   * ran before the file's first test.
+   */
+  readonly mode?: InstrumentMode;
 }
 
 interface VitePlugin {
@@ -81,7 +89,8 @@ export function withTestSelection(
   // Once per process, before any module is transformed: the table this run
   // reads is the one the last fold published, and this run's own fold grows it.
   const names = readModuleNames(moduleNamesFile(root));
-  const plugin = selectionPlugin(root, runDirectory, setupId, modules, include, names);
+  const mode = options.mode ?? 'presence';
+  const plugin = selectionPlugin(root, runDirectory, setupId, modules, include, names, mode);
   const setupFiles = array(config.test?.setupFiles);
   // A setup entry may be a package — `dotenv/config` — rather than a file of
   // the project's; a package is no precondition a diff can carry, and read as a
@@ -90,7 +99,7 @@ export function withTestSelection(
     ...setupFiles.filter((file): file is string => typeof file === 'string' && existsSync(resolve(root, file))),
     ...(options.preconditions ?? []),
   ].map((file) => resolve(root, file));
-  const reporter = selectionReporter(coverageFile, runDirectory, modules, root, preconditions);
+  const reporter = selectionReporter(coverageFile, runDirectory, modules, root, preconditions, mode);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
 
   return {
@@ -113,6 +122,7 @@ function selectionPlugin(
   modules: Map<ModuleId, CapturedModule>,
   include: (file: string) => boolean,
   names: ModuleNames,
+  mode: InstrumentMode,
 ): VitePlugin {
   return {
     name: 'variance-authority:test-selection',
@@ -142,7 +152,7 @@ function selectionPlugin(
       // them back a second later is ceremony, not durability.
       const name = projectPath(root, file);
       const moduleId = names.idOf(name) ?? name;
-      const done = instrument(code, name, moduleId);
+      const done = instrument(code, name, moduleId, { mode });
       if (done === undefined) {
         modules.set(moduleId, { file: name, id: moduleId, sourceDigest, instrumented: false, blocks: [] });
         return null;
@@ -166,16 +176,19 @@ function selectionReporter(
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   root: string,
   preconditionFiles: readonly string[],
+  mode: InstrumentMode,
 ): Reporter {
   return {
     async onFinished(files) {
       const journals = await readJournals(runDirectory);
       // A journal names modules by id, so nothing here re-keys paths; the id is
       // what the map is keyed by too.
-      const observed = crossingsOf(journals.map((journal) => ({
+      const rows = journals.map((journal) => ({
         testFile: projectPath(root, journal.testFile),
         modules: journal.modules,
-      })));
+      }));
+      const observed = crossingsOf(rows);
+      const early = loadedOf(rows);
 
       const tests = await Promise.all(
         files.flatMap((file) => file.filepath === undefined
@@ -185,19 +198,15 @@ function selectionReporter(
       const commit = await commitOf(root);
       const current: TestCoverage = {
         version: 3,
-        instrumentation: INSTRUMENTATION_ID,
+        instrumentation: instrumentationId(mode),
         ...(commit === undefined ? {} : { commit }),
         tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
         modules: [...modules]
-          .map(([id, module]): CoverageModule => ({
-            file: module.file,
-            sourceDigest: module.sourceDigest,
-            instrumented: module.instrumented,
-            blocks: module.blocks.map((block) => ({
-              ...block,
-              testFiles: [...(observed.get(id)?.get(block.ordinal) ?? [])].sort(codeUnitOrder),
-            })),
-          }))
+          .map(([id, module]): CoverageModule => coverageModule(
+            module,
+            (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])],
+            (block) => [...(early.get(id)?.get(block.ordinal) ?? [])],
+          ))
           .sort((left, right) => codeUnitOrder(left.file, right.file)),
       };
       const previous = await existingCoverage(coverageFile);
@@ -237,7 +246,7 @@ const HERE = import.meta.url;
  */
 function setupSource(runDirectory: string): string {
   return `
-import { afterAll, expect } from 'vitest';
+import { afterAll, beforeAll, expect } from 'vitest';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -253,13 +262,20 @@ globalThis.__VA__ = (id, count) => {
   }
   return counters;
 };
+// What had run before the file's first test. The file is collected — its
+// imports evaluated, its top level run — before any hook runs, so a function
+// counted here ran as a consequence of loading, not of a test.
+const loaded = new Map();
+beforeAll(() => {
+  for (const [id, counters] of modules) loaded.set(id, counters.slice());
+});
 afterAll(async () => {
   const testFile = expect.getState().testPath;
   if (!testFile) throw new Error('variance-authority could not identify the current Vitest file');
   await mkdir(${JSON.stringify(runDirectory)}, { recursive: true });
   await writeFile(
     ${JSON.stringify(`${runDirectory}/`)} + process.pid + '-' + randomUUID() + '.va',
-    journalFormat.encodeJournal(testFile, modules),
+    journalFormat.encodeJournal(testFile, modules, loaded),
   );
 });`;
 }

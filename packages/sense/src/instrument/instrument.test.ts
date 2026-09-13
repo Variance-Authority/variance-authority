@@ -2,7 +2,14 @@ import { createContext, runInContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import { parseSync } from 'oxc-parser';
 import { walkBlocks } from './blocks.js';
-import { EVALUATING, instrument, type ModuleId } from './index.js';
+import {
+  EVALUATING,
+  INSTRUMENTATION_ID,
+  instrument,
+  instrumentationId,
+  instrumentModeOf,
+  type ModuleId,
+} from './index.js';
 
 /**
  * Differential execution, in miniature.
@@ -374,6 +381,54 @@ import x from 'y';`,
     expect(digest(changedPrecondition, 'if#0/then')).toBe(digest(first, 'if#0/then'));
     expect(changedPrecondition.sourceDigest).not.toBe(first.sourceDigest);
     expect(changedPrecondition.instrumentation).toBe(first.instrumentation);
+  });
+});
+
+describe('the entries mode records where control arrives from outside', () => {
+  const entries = { mode: 'entries' } as const;
+
+  it.each(FIXTURES)('%s', async (_name, source) => {
+    const instrumented = instrument(source, 'fixture.js', 'fixture.js', entries);
+    expect(instrumented).toBeDefined();
+
+    expect(await trace(instrumented!.code, true)).toEqual(await trace(source));
+  });
+
+  it('opens a region for the module and each function, and for no decision', () => {
+    const source = `export async function f(items) {
+      for (const item of items) { if (item) out.push(item); else out.push('none'); }
+      try { await Promise.resolve(1); } catch { out.push('caught'); }
+      switch (items.length) { case 0: return; default: out.push('some'); }
+      return items.map((item) => item * 2);
+    }`;
+    const blocks = instrument(source, 'fixture.js', 'fixture.js', entries)!.blocks;
+
+    expect(blocks.map((block) => [block.kind, block.name, block.path])).toEqual([
+      ['module', '', 'module'],
+      ['function', 'f', 'entry'],
+      ['function', 'f/map.arg0', 'entry'],
+    ]);
+    expect(blocks.map((block) => block.owner)).toEqual([undefined, 0, 1]);
+  });
+
+  it('keeps every function at the address the presence walk gives it', () => {
+    const source = `function outer(n) { if (n) { return [1].map((x) => x); } return []; }
+      const later = (n) => n;`;
+    const address = (mode: 'presence' | 'entries'): readonly string[] =>
+      instrument(source, 'fixture.js', 'fixture.js', { mode })!.blocks
+        .filter((block) => block.kind === 'function')
+        .map((block) => `${block.name}\0${block.path}`);
+
+    expect(address('entries')).toEqual(address('presence'));
+  });
+
+  it('reports under an identity of its own, and names its mode by it', () => {
+    const presence = instrument(`out.push(1);`, 'fixture.js')!;
+    const fast = instrument(`out.push(1);`, 'fixture.js', 'fixture.js', entries)!;
+
+    expect([presence.instrumentation, fast.instrumentation]).toEqual([INSTRUMENTATION_ID, instrumentationId('entries')]);
+    expect([fast, presence].map((done) => instrumentModeOf(done.instrumentation))).toEqual(['entries', 'presence']);
+    expect(instrumentModeOf('sense:instrument/nothing')).toBeUndefined();
   });
 });
 

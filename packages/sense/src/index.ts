@@ -42,3 +42,16 @@ export {
 export { openSourceIndex, type PersistentSourceIndex } from './source-index.js';
 
 export { gitDigests } from './tree.js';
+
+export {
+  taintFile,
+  taintRecords,
+  taintTable,
+  type Addition,
+  type ImportDiff,
+  type Taint,
+  type TaintOptions,
+  type TaintSubject,
+  type TaintTable,
+} from './taint/index.js';
+export { mockTaint, type MockTaintOptions } from './taint/mocks.js';

@@ -21,7 +21,7 @@ export const MODEL = 3;
  * refuses a file it cannot decode, and a file whose columns are stored as runs
  * is not one a reader of the previous layout can map.
  */
-export const FORMAT = 4;
+export const FORMAT = 5;
 
 const ALIGNMENT = 8;
 export const NO_OWNER = 0xffff_ffff;
@@ -61,6 +61,8 @@ export const NAMES = [
   'blocks.source',
   'blocks.tests',
   'crossings.test',
+  'blocks.loaded',
+  'loaded.test',
 ] as const;
 
 export interface Section {

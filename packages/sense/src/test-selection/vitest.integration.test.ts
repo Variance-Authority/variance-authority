@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { scanRelations } from '../scan.js';
-import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import { INSTRUMENTATION_ID, instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
 import { deviationOfTests, selectTestFiles } from './index.js';
 import { withTestSelection } from './vitest.js';
@@ -15,6 +15,7 @@ const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/external-vitest');
+const entriesFixture = resolve(repository, 'packages/sense/test/fixtures/entries-vitest');
 const vitest = resolve(repository, 'node_modules/vitest/vitest.mjs');
 const temporary: string[] = [];
 
@@ -96,6 +97,28 @@ describe('the Vitest integration', () => {
       'test/gamma.case.ts',
     ]);
   });
+
+  it('records functions only under the entries recipe, and which of them ran before the first test', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    await execute(
+      process.execPath,
+      [vitest, 'run', '--config', resolve(entriesFixture, 'vitest.config.ts')],
+      { cwd: entriesFixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+    );
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.instrumentation).toBe(instrumentationId('entries'));
+    const eager = coverage.modules.find((module) => module.file === 'src/eager.ts');
+    // No branch of `cold` is a region: three rows for a module with two functions.
+    expect(eager?.blocks.map((block) => [block.kind, block.name, block.testFiles, block.loadedBy])).toEqual([
+      ['module', '', ['test/eager.case.ts'], ['test/eager.case.ts']],
+      ['function', 'warm', ['test/eager.case.ts'], ['test/eager.case.ts']],
+      ['function', 'cold', ['test/eager.case.ts'], undefined],
+    ]);
+  }, 20_000);
 
   it('records external tests and selects only the test file that covered a changed path', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));

@@ -19,7 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import journalFormat from './journal-format.cjs';
 import { commitOf } from './commit.js';
@@ -29,6 +29,7 @@ import {
   coverageModule,
   crossingsOf,
   isMissing,
+  loadedOf,
   moduleNamesFile,
   projectPath,
   readRecords,
@@ -81,16 +82,19 @@ class SelectionReporter {
     this.#runDirectory = undefined;
 
     const { root, coverageFile } = this.#config;
+    const instrumentation = instrumentationId(this.#config.mode);
     const journals = await readJournals(runDirectory);
     const stores = [...new Set(
       [...contexts].map((context) => jestStore(context.config.cacheDirectory, context.config.id)),
     )];
-    const modules = await records(journals, stores);
+    const modules = await records(journals, stores, instrumentation);
 
-    const observed = crossingsOf(journals.map((journal) => ({
+    const rows = journals.map((journal) => ({
       testFile: projectPath(root, journal.testFile),
       modules: journal.modules.filter((entered) => modules.has(entered.id)),
-    })));
+    }));
+    const observed = crossingsOf(rows);
+    const early = loadedOf(rows);
 
     const tests = await Promise.all(
       results.testResults.map((result) => coverageTest(result, this.#config, journals, modules)),
@@ -98,11 +102,15 @@ class SelectionReporter {
     const commit = await commitOf(root);
     const current: TestCoverage = {
       version: 3,
-      instrumentation: INSTRUMENTATION_ID,
+      instrumentation,
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
       modules: [...modules]
-        .map(([id, module]) => coverageModule(module, (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])]))
+        .map(([id, module]) => coverageModule(
+          module,
+          (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])],
+          (block) => [...(early.get(id)?.get(block.ordinal) ?? [])],
+        ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
     const previous = await existingCoverage(coverageFile);
@@ -130,10 +138,12 @@ class SelectionReporter {
 async function records(
   journals: readonly ReadJournal[],
   stores: readonly string[],
+  instrumentation: string,
 ): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
   return readRecords(
     stores,
     journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
+    instrumentation,
   );
 }
 

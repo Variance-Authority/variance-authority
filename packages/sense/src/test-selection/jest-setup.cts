@@ -23,12 +23,21 @@ import fs = require('node:fs');
 import crypto = require('node:crypto');
 import install = require('./jest-globals.cjs');
 import journals = require('./journal-format.cjs');
+import type { ModuleId } from '../instrument/index.js';
 
-const { afterAll, expect } = globals;
+const { afterAll, beforeAll, expect } = globals;
 
 // Installed by `setupFiles` already in a configuration `withTestSelection`
 // wrote; installed here for one that named this file alone.
 const { modules } = install();
+
+// What had run before the file's first test: Jest evaluates the file to
+// collect its tests, then runs the hooks, so every module the file imports has
+// been evaluated by now and whatever its top level called has been counted.
+const loaded = new Map<ModuleId, Uint32Array>();
+beforeAll(() => {
+  for (const [id, counters] of modules) loaded.set(id, counters.slice());
+});
 
 afterAll(() => {
   const runDirectory = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_RUN'];
@@ -43,6 +52,6 @@ afterAll(() => {
   fs.mkdirSync(runDirectory, { recursive: true });
   fs.writeFileSync(
     `${runDirectory}/${process.pid}-${crypto.randomUUID()}.va`,
-    journals.encodeJournal(testFile, modules),
+    journals.encodeJournal(testFile, modules, loaded),
   );
 });

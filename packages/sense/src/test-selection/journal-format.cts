@@ -30,7 +30,10 @@ import type { ModuleId } from '../instrument/index.js';
 import type { ReadJournal } from './instrumented-modules.js';
 
 /** `VAJRN` and a format version. A file that does not open with it is not one. */
-const MAGIC = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x01];
+const MAGIC = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x02];
+
+/** No snapshot: nothing was counted before the file's first test. */
+const NOTHING = new Uint32Array(0);
 
 /**
  * A counter at or above this was incremented while its module was evaluating.
@@ -48,13 +51,20 @@ const NAMED = 1;
  * The counters as a frame, read straight out of the arrays the probes increment.
  *
  * No row objects and no ordinal arrays are built on the way: a module's
- * crossings are two passes over its `Uint32Array`, and what lands in the buffer
- * is the gap to the previous ordinal. Ordinals rise within a module and the
- * gaps are small, so a region costs one byte.
+ * crossings are three passes over its `Uint32Array`, and what lands in the
+ * buffer is the gap to the previous ordinal. Ordinals rise within a module and
+ * the gaps are small, so a region costs one byte.
+ *
+ * `loaded` is the counters as they stood before the file's first test: a copy
+ * the setup module takes in `beforeAll`, one per module the file had evaluated
+ * by then. A module that arrived later has no copy and reports nothing there.
+ * A copy of another length is a module whose text changed under the file, and
+ * its ordinals name regions the live counters do not; it is read as nothing.
  */
 function encodeJournal(
   testFile: string,
   modules: ReadonlyMap<ModuleId, Uint32Array>,
+  loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map(),
 ): Buffer {
   const out = new Writer();
   for (const byte of MAGIC) out.byte(byte);
@@ -70,6 +80,8 @@ function encodeJournal(
     }
     entered(out, counters, 0);
     entered(out, counters, EVALUATING);
+    const before = loaded.get(id);
+    entered(out, before !== undefined && before.length === counters.length ? before : NOTHING, 0);
   }
   return out.done();
 }
@@ -94,12 +106,12 @@ function decodeJournal(raw: Uint8Array): ReadJournal {
   for (const byte of MAGIC) if (read.byte() !== byte) throw damaged();
   const testFile = read.text();
   const count = read.number();
-  const modules: Array<{ id: ModuleId; hits: number[]; shared: number[] }> = [];
+  const modules: Array<{ id: ModuleId; hits: number[]; shared: number[]; loaded: number[] }> = [];
   for (let index = 0; index < count; index += 1) {
     const tag = read.byte();
     if (tag !== NUMBERED && tag !== NAMED) throw damaged();
     const id = tag === NUMBERED ? read.number() : read.text();
-    modules.push({ id, hits: read.ordinals(), shared: read.ordinals() });
+    modules.push({ id, hits: read.ordinals(), shared: read.ordinals(), loaded: read.ordinals() });
   }
   if (!read.spent()) throw damaged();
   return { testFile, modules };

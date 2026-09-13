@@ -49,7 +49,9 @@ export function validateCoverageShape(rows: CoverageRows): void {
     rows['modules.instrumented'] !== modules ||
     rows['modules.blocks'] !== modules + 1 ||
     rows['blocks.tests'] !== blocks + 1 ||
-    rows['crossings.test'] === undefined
+    rows['crossings.test'] === undefined ||
+    rows['blocks.loaded'] !== blocks + 1 ||
+    rows['loaded.test'] === undefined
   ) fail();
   for (const name of BLOCK_COLUMNS) if (rows[name] !== blocks) fail();
 }

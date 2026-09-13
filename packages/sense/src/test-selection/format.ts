@@ -43,6 +43,10 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     (total, module) => total + module.blocks.reduce((sum, block) => sum + block.testFiles.length, 0),
     0,
   );
+  const loadedCount = normalized.modules.reduce(
+    (total, module) => total + module.blocks.reduce((sum, block) => sum + (block.loadedBy?.length ?? 0), 0),
+    0,
+  );
   const preconditionCount = normalized.tests.reduce(
     (total, test) => total + test.preconditions.length,
     0,
@@ -97,9 +101,17 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   const blockSource = new Uint8Array(blockCount);
   const blockTests = new Uint32Array(blockCount + 1);
   const crossingTest = new Uint32Array(crossingCount);
+  const blockLoaded = new Uint32Array(blockCount + 1);
+  const loadedTest = new Uint32Array(loadedCount);
+  const testId = (testFile: string): number => {
+    const test = testIds.get(testFile);
+    if (test === undefined) throw new Error(`coverage crossing names an unobserved test: ${testFile}`);
+    return test;
+  };
 
   let blockIndex = 0;
   let crossingIndex = 0;
+  let loadedIndex = 0;
   for (const [moduleIndex, module] of normalized.modules.entries()) {
     modulePaths[moduleIndex] = stringId(module.file);
     moduleSource[moduleIndex] = stringId(module.sourceDigest);
@@ -116,18 +128,15 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
       blockEnd[blockIndex] = block.endLine;
       blockSource[blockIndex] = block.source ? 1 : 0;
       blockTests[blockIndex] = crossingIndex;
-      for (const testFile of block.testFiles) {
-        const test = testIds.get(testFile);
-        if (test === undefined) {
-          throw new Error(`coverage crossing names an unobserved test: ${testFile}`);
-        }
-        crossingTest[crossingIndex++] = test;
-      }
+      for (const testFile of block.testFiles) crossingTest[crossingIndex++] = testId(testFile);
+      blockLoaded[blockIndex] = loadedIndex;
+      for (const testFile of block.loadedBy ?? []) loadedTest[loadedIndex++] = testId(testFile);
       blockIndex += 1;
     }
   }
   moduleBlocks[normalized.modules.length] = blockIndex;
   blockTests[blockCount] = crossingIndex;
+  blockLoaded[blockCount] = loadedIndex;
 
   return sections({
     'strings.blob': blob(stringBlob, stringOffsets),
@@ -154,6 +163,8 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     'blocks.source': column(blockSource),
     'blocks.tests': column(blockTests),
     'crossings.test': column(crossingTest),
+    'blocks.loaded': column(blockLoaded),
+    'loaded.test': column(loadedTest),
   });
 }
 
@@ -216,6 +227,8 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const blockSource = view.blockSource.all();
   const blockTests = view.blockTests.all();
   const crossingTest = view.crossingTest.all();
+  const blockLoaded = view.blockLoaded.all();
+  const loadedTest = view.loadedTest.all();
   const modules: CoverageModule[] = [];
   for (let module = 0; module < modulePath.length; module += 1) {
     const blocks: CoverageBlock[] = [];
@@ -223,6 +236,10 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
       const testFiles: string[] = [];
       for (let crossing = blockTests[block]!; crossing < blockTests[block + 1]!; crossing += 1) {
         testFiles.push(string(testPath[crossingTest[crossing]!]!));
+      }
+      const loadedBy: string[] = [];
+      for (let early = blockLoaded[block]!; early < blockLoaded[block + 1]!; early += 1) {
+        loadedBy.push(string(testPath[loadedTest[early]!]!));
       }
       blocks.push({
         ordinal: blockOrdinal[block]!,
@@ -235,6 +252,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
         endLine: blockEnd[block]!,
         source: blockSource[block] === 1,
         testFiles,
+        ...(loadedBy.length === 0 ? {} : { loadedBy }),
       });
     }
     modules.push({
@@ -272,6 +290,7 @@ function dictionary(coverage: TestCoverage): readonly string[] {
       values.add(block.path);
       values.add(block.digest);
       for (const testFile of block.testFiles) values.add(testFile);
+      for (const testFile of block.loadedBy ?? []) values.add(testFile);
     }
   }
   return [...values].sort(codeUnitOrder);
@@ -337,7 +356,10 @@ function byOrdinal(blocks: readonly CoverageBlock[]): readonly CoverageBlock[] {
 
 function settledBlock(block: CoverageBlock): CoverageBlock {
   const testFiles = distinct(block.testFiles);
-  return testFiles === block.testFiles ? block : { ...block, testFiles };
+  const loadedBy = block.loadedBy === undefined ? undefined : distinct(block.loadedBy);
+  return testFiles === block.testFiles && loadedBy === block.loadedBy
+    ? block
+    : { ...block, testFiles, ...(loadedBy === undefined ? {} : { loadedBy }) };
 }
 
 /**

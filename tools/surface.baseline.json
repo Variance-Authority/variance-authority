@@ -2059,6 +2059,10 @@
           "types": "./dist/read.d.ts",
           "default": "./dist/read.js"
         },
+        "./taint": {
+          "types": "./dist/taint/index.d.ts",
+          "default": "./dist/taint/index.js"
+        },
         "./instrument": {
           "types": "./dist/instrument/index.d.ts",
           "default": "./dist/instrument/index.js"
@@ -2106,6 +2110,9 @@
     },
     "names": {
       ".": {
+        "Addition": "interface",
+        "ImportDiff": "interface",
+        "MockTaintOptions": "interface",
         "ParseCache": "interface",
         "Parsed": "interface",
         "PersistentParseCache": "interface",
@@ -2113,14 +2120,22 @@
         "PersistentSourceIndex": "interface",
         "RecordCache": "interface",
         "ScanOptions": "interface",
+        "Taint": "interface",
+        "TaintOptions": "interface",
+        "TaintSubject": "interface",
+        "TaintTable": "type",
         "gitDigests": "function",
         "layoutOf": "function",
         "memoryParseCache": "function",
         "memoryRecordCache": "function",
+        "mockTaint": "function",
         "openParseCache": "function",
         "openRecordCache": "function",
         "openSourceIndex": "function",
-        "scanRelations": "function"
+        "scanRelations": "function",
+        "taintFile": "function",
+        "taintRecords": "function",
+        "taintTable": "function"
       },
       "./read": {
         "Binding": "interface",
@@ -2134,15 +2149,31 @@
         "readModule": "function",
         "readStyle": "function"
       },
+      "./taint": {
+        "Addition": "interface",
+        "ImportDiff": "interface",
+        "Node": "interface",
+        "Taint": "interface",
+        "TaintOptions": "interface",
+        "TaintSubject": "interface",
+        "TaintTable": "type",
+        "taintFile": "function",
+        "taintRecords": "function",
+        "taintTable": "function"
+      },
       "./instrument": {
         "Block": "interface",
         "BlockKind": "type",
         "EVALUATING": "const",
         "Edit": "interface",
         "INSTRUMENTATION_ID": "const",
+        "InstrumentMode": "type",
+        "InstrumentOptions": "interface",
         "Instrumented": "interface",
         "ModuleId": "type",
-        "instrument": "function"
+        "instrument": "function",
+        "instrumentModeOf": "function",
+        "instrumentationId": "function"
       },
       "./test-selection": {
         "BlockKind": "type",

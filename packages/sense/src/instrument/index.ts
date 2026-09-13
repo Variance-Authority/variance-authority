@@ -9,6 +9,15 @@
  * that *manufactures* an artifact, so it is the first thing to build and the
  * cheapest thing to refute.
  *
+ * ## Two modes, two identities
+ *
+ * `presence` probes every arrival region. `entries` probes modules and function
+ * bodies and nothing inside them: a run that only has to say which functions a
+ * test reached, or which ran before the test began, pays for a probe per
+ * function rather than one per decision. The two number regions differently and
+ * so report under different {@link instrumentationId} values, and nothing that
+ * reads one accepts the other.
+ *
  * ## Lines are preserved exactly
  *
  * Every insertion is single-line — no emitted text contains a newline — so a stack
@@ -31,9 +40,9 @@
 
 import { digestString } from '../digest.js';
 import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser';
-import { walkBlocks, type Block, type BlockKind, type Edit } from './blocks.js';
+import { walkBlocks, type Block, type BlockKind, type Edit, type InstrumentMode } from './blocks.js';
 
-export type { Block, BlockKind, Edit };
+export type { Block, BlockKind, Edit, InstrumentMode };
 
 /**
  * How the parsed tree crosses out of the parser.
@@ -55,6 +64,31 @@ const TRANSFER = { experimentalRawTransfer: rawTransferSupported() } as ParserOp
 
 /** Changes whenever two instrumented block universes must not share observations. */
 export const INSTRUMENTATION_ID = 'sense:instrument/presence-v4';
+
+/**
+ * The recipe each mode emits under. One identity per mode, because the two
+ * walks number regions differently: ordinal 3 under `entries` is a function,
+ * and under `presence` it may be the `else` of the module's first `if`. A
+ * record, journal or snapshot cut under one is not evidence about the other.
+ */
+const IDS: Readonly<Record<InstrumentMode, string>> = {
+  presence: INSTRUMENTATION_ID,
+  entries: 'sense:instrument/entries-v1',
+};
+
+export function instrumentationId(mode: InstrumentMode = 'presence'): string {
+  return IDS[mode];
+}
+
+/** The mode an identity names, or nothing for a recipe this build does not emit. */
+export function instrumentModeOf(instrumentation: string): InstrumentMode | undefined {
+  return (Object.keys(IDS) as InstrumentMode[]).find((mode) => IDS[mode] === instrumentation);
+}
+
+export interface InstrumentOptions {
+  /** `presence` records every arrival region; `entries` only modules and functions. */
+  readonly mode?: InstrumentMode;
+}
 
 /**
  * The bit a counter carries when its region was entered while the module was
@@ -114,7 +148,9 @@ export function instrument(
   source: string,
   file: string,
   id: ModuleId = file,
+  options: InstrumentOptions = {},
 ): Instrumented | undefined {
+  const mode = options.mode ?? 'presence';
   // The parser's name, never the id: oxc reads the extension to decide whether
   // it is looking at TypeScript, JSX, or neither. A module must parse the same
   // way whether or not the repository has a number for it yet.
@@ -124,7 +160,7 @@ export function instrument(
   // a file that no longer compiles. Refusing costs one uninstrumented module.
   if (parsed.errors.length > 0) return undefined;
 
-  const walked = walkBlocks(parsed.program, source, PROBES);
+  const walked = walkBlocks(parsed.program, source, PROBES, mode);
   const header = runtime(id, walked.blocks.length);
 
   // The window closes after the last top-level statement, never at the end of
@@ -146,7 +182,7 @@ export function instrument(
   return {
     code: splice(source, ordered),
     sourceDigest: digestString(source),
-    instrumentation: INSTRUMENTATION_ID,
+    instrumentation: IDS[mode],
     blocks: walked.blocks,
   };
 }

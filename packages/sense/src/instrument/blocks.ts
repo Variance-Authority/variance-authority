@@ -30,6 +30,19 @@
 import { digestString } from '../digest.js';
 import { Walker, scope } from './walk.js';
 
+/**
+ * How much of the rule is applied.
+ *
+ * `presence` is the rule as stated above: every region with its own arrival
+ * condition. `entries` keeps only the regions control arrives at from outside
+ * the text — the module and each function — and lets every decision inside a
+ * function belong to the function. Both walks number, name and digest the
+ * regions they keep the same way, so a function has the same address under
+ * either; what differs is how many regions there are and how much a probe set
+ * costs to carry.
+ */
+export type InstrumentMode = 'presence' | 'entries';
+
 /** What kind of region a probe stands in front of. */
 export type BlockKind =
   | 'module'
@@ -113,12 +126,17 @@ const HOISTED = new Set(['mock', 'doMock', 'unmock', 'hoisted']);
  * so this stays a pure function of the tree and can be exercised with a counter
  * array and nothing else.
  */
-export function walkBlocks(tree: unknown, source: string, probes: Probes): Walked {
+export function walkBlocks(
+  tree: unknown,
+  source: string,
+  probes: Probes,
+  mode: InstrumentMode = 'presence',
+): Walked {
   // One cast, at the boundary. `oxc`'s `Program` is a closed type per node kind and
   // this walk reads by name across every kind, so a union of two hundred interfaces
   // would be narrowed back to `unknown` at the first property access anyway.
   const program = tree as Node;
-  const walker = new Walker(probes);
+  const walker = new Walker(probes, mode === 'entries');
 
   /** The module's own initialization region. Ordinal 0, always, in every file. */
   const module = walker.open('module', scope(''), 'module', program.start, program.end);

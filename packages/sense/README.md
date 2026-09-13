@@ -93,12 +93,59 @@ edges are unknown, so the file stays in the selection instead of being dropped;
 `selection.opaque` lists exactly these files. A missing bare package is
 recorded without that widening, because it lies outside the repository's diff.
 
+## Say what a file really imports
+
+The scan writes down what a file's text says. A test that calls
+`vi.mock('./api')` imports `./api` by the letter and runs none of it; a Relay
+component that calls `jsresource('./panel')` names a module in a notation no
+parser reads and runs all of it. A **taint** is a second table of imports —
+per file, what is subtracted and what is added — joined onto the records after
+the scan. The records, the parse cache and the record cache are left as they
+were read, so the same scan can be viewed under several taints, or none.
+
+```ts
+import { scanRelations } from '@variance-authority/sense';
+import { mockTaint, taintFile } from '@variance-authority/sense/taint';
+
+const records = await scanRelations({
+  root: '.',
+  dirs: ['src'],
+  taints: [mockTaint(), await taintFile('variance.taint.json')],
+});
+```
+
+`mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls off test, spec,
+story and setup files and subtracts the mocked specifier; a mock whose factory
+reaches for the real module, or whose specifier is not a string literal, keeps
+the edge. Pass `callers` to name other mocking objects and `files` to widen
+which files are read. `taintFile` reads a JSON table you keep beside the
+repository, keyed by file path with `-` and `+` rows:
+
+```json
+{
+  "src/cart.test.ts": { "-": ["./api"] },
+  "src/panel.tsx": { "+": ["./panel.relay", { "value": "./panel.css", "kind": "style" }] }
+}
+```
+
+The `taints` option of `scanRelations` takes any number of them and applies
+them once the scan has read every file. `taintTable` builds the same taint from
+a table already in memory, and `taintRecords` performs the join on records you
+already hold. A file no taint
+has a row for is returned as the same object. Under more than one taint the
+subtractions are unioned and so are the additions, and an addition beats a
+subtraction: two taints that disagree describe a file one of them is wrong
+about, and the graph keeps the edge. A subtraction removes the file's own edge
+and nothing further — the module the test imports still reaches the mocked
+module through its own imports, which over-includes.
+
 ## Entrypoints
 
 | import | Use it for | Requires |
 |---|---|---|
 | `@variance-authority/sense` | `scanRelations`, the binary source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
+| `@variance-authority/sense/taint` | joining a second table of imports — mocks subtracted, framework notations added — onto scanned records | the records, and a table or a reader that produces the diff |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest 2 and product tests |
 | `@variance-authority/sense/jest` | adding instrumentation, collection, and persistence to Jest, around the transformer the project already uses | Jest 30 and product tests |
@@ -171,6 +218,16 @@ different facts, and only the caller can keep them apart. A function
 stringified into a browser, worker, or other realm loses the generated runtime
 declarations and throws at its first probe.
 
+The fourth argument picks the recipe. `{ mode: 'entries' }` places a probe at
+the module and at every function body and nothing inside them — no branch,
+loop, handler or `await` — so a run pays one probe per function rather than one
+per decision. A function has the same name and path under either mode; what
+changes is how many regions there are. The two recipes number regions
+differently, so each reports under its own `instrumentation` id:
+`instrumentationId(mode)` gives it and `instrumentModeOf(id)` reads it back,
+and nothing that reads one recipe's records, journals or snapshot accepts the
+other's.
+
 ## Select Vitest files from a change
 
 Wrap the existing configuration once. `withTestSelection` preserves configured
@@ -192,8 +249,8 @@ export default withTestSelection(
 );
 ```
 
-The optional second argument accepts `root`, `coverageFile`, `include`, and
-`preconditions`. `root` defaults to the configuration root, then the current
+The optional second argument accepts `root`, `coverageFile`, `include`,
+`preconditions`, and `mode`. `root` defaults to the configuration root, then the current
 directory. `coverageFile` overrides the cache path, including when CI needs a
 named artifact. `include` receives each absolute module path after Vitest
 transforms it; use it to restrict instrumentation to product source. By default, JavaScript and TypeScript modules are included while test,
@@ -209,6 +266,15 @@ evaluating is credited to those files and to no other. A file consumes a module
 by running something in it: a module of nothing but constants, evaluated once
 for an earlier file and only read by the next, is recorded for the file that
 evaluated it and not for the reader.
+
+`mode: 'entries'` records module and function entries only, under a recipe of
+its own, for a suite that needs to know which functions a test reached and not
+which branches. Under either mode, each file's setup takes a snapshot of every
+counter before its first test runs, and a region already entered by then is
+recorded as **loaded** by that file as well as crossed by it: a function that
+ran because the module was imported, not because a test called it. A function
+that runs at import time is a side effect every consumer pays for and a test
+order can change, and `loadedBy` on the block is where a reader finds it.
 
 Every run contributes coverage data. An observation is **complete** only when
 every leaf task in its file passes; a focused, skipped, or failed run is
@@ -352,8 +418,8 @@ export default withTestSelection({
 });
 ```
 
-The optional second argument accepts `root`, `coverageFile`, and
-`preconditions`, with the meanings the Vitest seam gives them; there is no
+The optional second argument accepts `root`, `coverageFile`, `preconditions`,
+and `mode`, with the meanings the Vitest seam gives them; there is no
 `include`, because product source is every JavaScript and TypeScript module the
 configuration's `testMatch` or `testRegex` does not name, less dependencies and
 built output, and a test file selects itself and is not a module. A setup
@@ -609,6 +675,9 @@ for (const module of coverage.modules) {
 
   for (const block of module.blocks) {
     console.log(module.file, block.kind, block.startLine, block.endLine, block.testFiles);
+    // Entered before these files' first test ran: a consequence of loading the
+    // module, not of a test. Absent when no file had.
+    if (block.loadedBy !== undefined) console.log('  loaded by', block.loadedBy);
   }
 }
 ```

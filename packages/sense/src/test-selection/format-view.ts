@@ -69,6 +69,8 @@ export interface TestCoverageView {
   readonly blockSource: ByteColumn;
   readonly blockTests: WordColumn;
   readonly crossingTest: WordColumn;
+  readonly blockLoaded: WordColumn;
+  readonly loadedTest: WordColumn;
   string(id: number): string;
 }
 
@@ -246,6 +248,8 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
     // about, and what a bound could corrupt is refused by the column it indexes.
     blockTests: words('blocks.tests'),
     crossingTest: words('crossings.test', (values) => ids(values, testCount)),
+    blockLoaded: words('blocks.loaded'),
+    loadedTest: words('loaded.test', (values) => ids(values, testCount)),
     string: stringAt,
   };
 }

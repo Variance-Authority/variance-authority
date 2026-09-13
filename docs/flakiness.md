@@ -421,6 +421,18 @@ fixed, so a leak that happens *every* time never changes the hash and reports as
 nothing. That deterministic kind is the one that becomes a false regression
 and not a flake.
 
+**A unit suite has the same leak, one level down.** A function that runs when
+its module is imported — a client built at the top level, a registry filled by
+a decorator, a clock read into a constant — did its work before the first test
+of every file that imported it, and whether that work was already done when a
+given test looked depends on which file loaded the module first. The Vitest
+and Jest seams take a snapshot of every counter before each file's first test,
+and a region already entered by then is recorded as **loaded** by that file:
+`loadedBy` on the block in the coverage snapshot names the files, and
+[`mode: 'entries'`](../packages/sense/README.md#instrument-one-module) records
+that and nothing finer, for a suite that wants the signal at the price of one
+probe per function.
+
 **A run identifies the affected component, not the writer of an order leak.** A
 probe sees stylesheets, custom properties, attributes and stray body nodes; the
 couplings that bite live in module scope — a singleton store, a cached client, a

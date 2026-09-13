@@ -5,6 +5,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { existingCoverage, foldTestCoverage, mergeCoverage } from './merge.js';
 import type { TestCoverage } from './index.js';
 
@@ -14,7 +15,7 @@ const LOCAL = '2222222222222222222222222222222222222222';
 function at(commit: string | undefined, test: string): TestCoverage {
   return {
     version: 3,
-    instrumentation: 'fixture-instrumentation',
+    instrumentation: INSTRUMENTATION_ID,
     ...(commit === undefined ? {} : { commit }),
     tests: [{ file: test, complete: true, preconditions: [{ name: test, digest: 'source:test' }] }],
     modules: [
@@ -63,6 +64,7 @@ function carrying(test: string): TestCoverage {
           endLine: 3,
           source: true,
           testFiles: [test],
+          loadedBy: [test],
         },
       ],
     }],
@@ -117,6 +119,26 @@ describe('mergeCoverage', () => {
     ]);
   });
 
+  it('carries and unions what ran before the first test the way it carries crossings', () => {
+    // Alpha's full run saw the module load before its first test. Beta then ran
+    // by hand and saw the same. A retired alpha takes its early crossing with it.
+    const early = (coverage: TestCoverage): TestCoverage => ({
+      ...coverage,
+      modules: coverage.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => ({ ...block, loadedBy: block.testFiles })),
+      })),
+    });
+    const merged = mergeCoverage(early(at(BASELINE, 'test/alpha.test.ts')), early(at(LOCAL, 'test/beta.test.ts')));
+    expect(merged.modules[0]?.blocks[0]?.loadedBy).toEqual(['test/alpha.test.ts', 'test/beta.test.ts']);
+
+    const rerun = mergeCoverage(merged, at(LOCAL, 'test/alpha.test.ts'));
+    expect(rerun.modules[0]?.blocks[0]?.loadedBy).toEqual(['test/beta.test.ts']);
+
+    const nobody = mergeCoverage(rerun, at(LOCAL, 'test/beta.test.ts'));
+    expect(nobody.modules[0]?.blocks[0]).not.toHaveProperty('loadedBy');
+  });
+
   it('demotes a carried test whose region is gone', () => {
     const current = at(LOCAL, 'test/beta.test.ts');
     const merged = mergeCoverage(at(BASELINE, 'test/alpha.test.ts'), {
@@ -144,6 +166,7 @@ describe('mergeCoverage', () => {
     expect(merged.tests.every((test) => test.complete)).toBe(true);
     expect(decide?.startLine).toBe(3);
     expect(decide?.testFiles).toEqual(['test/alpha.test.ts']);
+    expect(decide?.loadedBy).toEqual(['test/alpha.test.ts']);
   });
 
   it('keeps a carried test whole when the region it entered was deleted', () => {
@@ -160,6 +183,20 @@ describe('mergeCoverage', () => {
     expect(merged.tests.every((test) => test.complete)).toBe(true);
     expect(merged.modules[0]?.blocks.some((block) => block.name === 'decide')).toBe(false);
     expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual(['test/alpha.test.ts']);
+  });
+
+  it('demotes a carried test whose snapshot names a recipe this build cannot cut', () => {
+    // The rows were numbered by a walk this build does not have, so there is no
+    // table to carry the crossings into: the module is carried as it was, and
+    // alpha is demoted the way it is for text nobody can read.
+    const foreign = { ...carrying('test/alpha.test.ts'), instrumentation: 'sense:instrument/other' };
+    const merged = mergeCoverage(
+      foreign,
+      { ...at(LOCAL, 'test/beta.test.ts'), modules: [], instrumentation: foreign.instrumentation },
+      new Map([['src/decide.ts', `const scale = 2;\n\n${DECIDE}`]]),
+    );
+
+    expect(merged.tests.find((test) => test.file === 'test/alpha.test.ts')?.complete).toBe(false);
   });
 
   it('demotes a carried test whose module has text that cannot be read as source', () => {

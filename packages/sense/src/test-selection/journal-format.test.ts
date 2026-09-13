@@ -16,8 +16,8 @@ describe('a journal as bytes', () => {
     expect(decodeJournal(frame)).toEqual({
       testFile: 'src/a.test.ts',
       modules: [
-        { id: 7, hits: [1, 3], shared: [] },
-        { id: 'src/unnumbered.ts', hits: [0], shared: [] },
+        { id: 7, hits: [1, 3], shared: [], loaded: [] },
+        { id: 'src/unnumbered.ts', hits: [0], shared: [], loaded: [] },
       ],
     });
   });
@@ -27,13 +27,27 @@ describe('a journal as bytes', () => {
       [1, counters([EVALUATING + 2, 5, EVALUATING])],
     ]));
 
-    expect(decodeJournal(frame).modules).toEqual([{ id: 1, hits: [0, 1, 2], shared: [0, 2] }]);
+    expect(decodeJournal(frame).modules).toEqual([{ id: 1, hits: [0, 1, 2], shared: [0, 2], loaded: [] }]);
   });
 
   it('holds a module nothing entered, because the file still consumed it', () => {
     const frame = encodeJournal('src/a.test.ts', new Map([[4, counters([0, 0])]]));
 
-    expect(decodeJournal(frame).modules).toEqual([{ id: 4, hits: [], shared: [] }]);
+    expect(decodeJournal(frame).modules).toEqual([{ id: 4, hits: [], shared: [], loaded: [] }]);
+  });
+
+  it('carries what was already entered before the first test, from the snapshot taken then', () => {
+    const before = new Map([[7, counters([1, 1, 0, 0])]]);
+    const frame = encodeJournal('src/a.test.ts', new Map([[7, counters([1, 2, 0, 3])]]), before);
+
+    expect(decodeJournal(frame).modules).toEqual([{ id: 7, hits: [0, 1, 3], shared: [], loaded: [0, 1] }]);
+  });
+
+  it('reads a snapshot of another length as nothing entered early', () => {
+    const before = new Map([[7, counters([1, 1])]]);
+    const frame = encodeJournal('src/a.test.ts', new Map([[7, counters([1, 2, 0])]]), before);
+
+    expect(decodeJournal(frame).modules).toEqual([{ id: 7, hits: [0, 1], shared: [], loaded: [] }]);
   });
 
   it('is smaller than the same journal as text', () => {
@@ -67,6 +81,6 @@ describe('a journal as bytes', () => {
     wide[3999] = 1;
     const frame = encodeJournal('src/a.test.ts', new Map([[300_000, wide]]));
 
-    expect(decodeJournal(frame).modules).toEqual([{ id: 300_000, hits: [3999], shared: [] }]);
+    expect(decodeJournal(frame).modules).toEqual([{ id: 300_000, hits: [3999], shared: [], loaded: [] }]);
   });
 });

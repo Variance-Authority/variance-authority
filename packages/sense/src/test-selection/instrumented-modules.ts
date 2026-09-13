@@ -94,6 +94,8 @@ export function recordStore(
 /** One writer's segment of one store, from the first record it writes to exit. */
 export interface RecordWriter {
   readonly store: string;
+  /** The recipe every record in the segment was cut under. */
+  readonly instrumentation: string;
   segment: number | undefined;
 }
 
@@ -106,8 +108,8 @@ export interface RecordWriter {
  * file is opened by the first record and not before, so a build that instruments
  * nothing leaves nothing behind.
  */
-export function openRecords(store: string): RecordWriter {
-  return { store, segment: undefined };
+export function openRecords(store: string, instrumentation = INSTRUMENTATION_ID): RecordWriter {
+  return { store, instrumentation, segment: undefined };
 }
 
 /**
@@ -129,7 +131,7 @@ export function writeRecord(writer: RecordWriter, module: CapturedModule): void 
     mkdirSync(writer.store, { recursive: true });
     const name = `${process.pid.toString(16)}-${randomBytes(4).toString('hex')}.rec`;
     writer.segment = openSync(resolve(writer.store, name), 'a');
-    writeSync(writer.segment, segmentHeader(INSTRUMENTATION_ID));
+    writeSync(writer.segment, segmentHeader(writer.instrumentation));
   }
   writeSync(writer.segment, frameRecord(module));
 }
@@ -152,7 +154,7 @@ interface ReadSegment {
  * journals into rows, and a cache of segments that are megabytes each would be a
  * cache a long-lived driver never stops paying for.
  */
-async function readSegments(store: string): Promise<readonly ReadSegment[]> {
+async function readSegments(store: string, instrumentation: string): Promise<readonly ReadSegment[]> {
   let names: string[];
   try {
     names = (await readdir(store)).filter((name) => name.endsWith('.rec'));
@@ -165,7 +167,7 @@ async function readSegments(store: string): Promise<readonly ReadSegment[]> {
     const [status, raw] = await Promise.all([stat(file), readFile(file)]);
     const header = readSegmentHeader(raw);
     const segment: ReadSegment | undefined =
-      header?.instrumentation === INSTRUMENTATION_ID ? { raw, from: header.frames } : undefined;
+      header?.instrumentation === instrumentation ? { raw, from: header.frames } : undefined;
     return { file, mtimeMs: status.mtimeMs, segment };
   }));
   return read
@@ -191,9 +193,10 @@ interface Answer {
 async function readStore(
   store: string,
   wanted: ReadonlySet<ModuleId>,
+  instrumentation: string,
 ): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
   const answers = new Map<ModuleId, Answer>();
-  for (const segment of await readSegments(store)) {
+  for (const segment of await readSegments(store, instrumentation)) {
     for (const frame of frames(segment.raw, segment.from)) {
       const id = frame.id === UNNUMBERED ? framePath(segment.raw, frame) : frame.id;
       if (id === undefined || !wanted.has(id)) continue;
@@ -220,8 +223,9 @@ async function readStore(
 export async function readRecord(
   store: string,
   id: ModuleId,
+  instrumentation = INSTRUMENTATION_ID,
 ): Promise<CapturedModule | undefined> {
-  return (await readStore(store, new Set([id]))).get(id);
+  return (await readStore(store, new Set([id]), instrumentation)).get(id);
 }
 
 /**
@@ -237,9 +241,10 @@ export async function readRecord(
 export async function readRecords(
   stores: readonly string[],
   ids: Iterable<ModuleId>,
+  instrumentation = INSTRUMENTATION_ID,
 ): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
   const wanted = new Set(ids);
-  const held = await Promise.all(stores.map((store) => readStore(store, wanted)));
+  const held = await Promise.all(stores.map((store) => readStore(store, wanted, instrumentation)));
   const found = new Map<ModuleId, CapturedModule>();
   for (const id of wanted) {
     const answers = held
@@ -268,15 +273,20 @@ export async function readRecords(
 export function coverageModule(
   module: CapturedModule,
   testFilesFor: (block: CoverageBlock) => readonly string[],
+  loadedByFor: (block: CoverageBlock) => readonly string[] = () => [],
 ): CoverageModule {
   return {
     file: module.file,
     sourceDigest: module.sourceDigest,
     instrumented: module.instrumented,
-    blocks: module.blocks.map((block) => ({
-      ...block,
-      testFiles: [...testFilesFor(block)].sort(codeUnitOrder),
-    })),
+    blocks: module.blocks.map((block) => {
+      const loadedBy = [...loadedByFor(block)].sort(codeUnitOrder);
+      return {
+        ...block,
+        testFiles: [...testFilesFor(block)].sort(codeUnitOrder),
+        ...(loadedBy.length === 0 ? {} : { loadedBy }),
+      };
+    }),
   };
 }
 
@@ -343,8 +353,13 @@ export interface ReadJournal {
     readonly hits: readonly number[];
     /** Entered while the module was evaluating: every file that consumed the module owns it. */
     readonly shared: readonly number[];
+    /** Entered before the file's first test ran: a consequence of loading, not of a test. */
+    readonly loaded: readonly number[];
   }>;
 }
+
+/** The ordinals of one journal row a fold reads: what the file hit, or what it had hit before its first test. */
+export type JournalOrdinals = (module: ReadJournal['modules'][number]) => readonly number[];
 
 /**
  * Which test files crossed each ordinal of each module, folded from every
@@ -358,9 +373,15 @@ export interface ReadJournal {
  * did not consume it, and under isolation — where each file evaluates the
  * module itself and holds its own window — that is every other file in the
  * run. Crediting them would put a top-level edit in front of the whole suite.
+ *
+ * `ordinalsOf` picks which ordinals of a row are folded. The default is what
+ * the file entered; {@link loadedOf} folds what it had entered before its
+ * first test under the same crediting, because what a module did while
+ * evaluating happened before the first test of every file that consumed it.
  */
 export function crossingsOf(
   journals: readonly ReadJournal[],
+  ordinalsOf: JournalOrdinals = (module) => module.hits,
 ): ReadonlyMap<ModuleId, ReadonlyMap<number, ReadonlySet<string>>> {
   const consumers = new Map<ModuleId, Set<string>>();
   for (const journal of journals) {
@@ -375,7 +396,7 @@ export function crossingsOf(
     for (const module of journal.modules) {
       const byOrdinal = observed.get(module.id) ?? new Map<number, Set<string>>();
       const shared = new Set(module.shared);
-      for (const ordinal of module.hits) {
+      for (const ordinal of ordinalsOf(module)) {
         const tests = byOrdinal.get(ordinal) ?? new Set<string>();
         if (shared.has(ordinal)) for (const test of consumers.get(module.id)!) tests.add(test);
         else tests.add(journal.testFile);
@@ -385,6 +406,13 @@ export function crossingsOf(
     }
   }
   return observed;
+}
+
+/** Which test files each ordinal had been entered for before their first test ran. */
+export function loadedOf(
+  journals: readonly ReadJournal[],
+): ReadonlyMap<ModuleId, ReadonlyMap<number, ReadonlySet<string>>> {
+  return crossingsOf(journals, (module) => module.loaded);
 }
 
 export function codeUnitOrder(left: string, right: string): number {

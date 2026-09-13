@@ -35,10 +35,10 @@ page, and the last sections here give their shapes.
 
 ## Blocks
 
-`instrument` in `packages/sense/src/instrument/index.ts:95` parses one module
+`instrument` in `packages/sense/src/instrument/index.ts:147` parses one module
 with `oxc` and returns `Instrumented`: the transformed `code`, the
 `sourceDigest` of the exact input, the `instrumentation` id, and a `blocks`
-array in ordinal order. `Block` in `packages/sense/src/instrument/blocks.ts:55`
+array in ordinal order. `Block` in `packages/sense/src/instrument/blocks.ts:68`
 carries the ordinal, the kind, the owner ordinal, the digest, the name, the
 path, and the start and end offsets in the original source. A module the
 parser cannot read returns `undefined` rather than an empty list, because *not
@@ -280,6 +280,8 @@ rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | blocks | `blocks.source` | one byte, `1` when the block is a region of the file's text |
 | blocks | `blocks.tests` | range into the crossings |
 | crossings | `crossings.test` | the test row that executed the block |
+| blocks | `blocks.loaded` | range into the early crossings |
+| loaded | `loaded.test` | the test row that had executed the block before its first test ran |
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —
@@ -314,12 +316,12 @@ snapshot costs as objects, and two thirds of what is left is the string
 dictionary.
 
 The logical model a caller sees is `TestCoverage` in
-`packages/sense/src/test-selection/index.ts:100`: tests with their
+`packages/sense/src/test-selection/index.ts:109`: tests with their
 preconditions, modules with their blocks, and on each block the test files
 that crossed it. `decodeTestCoverage` in
-`packages/sense/src/test-selection/format.ts:162` rebuilds that model from the
+`packages/sense/src/test-selection/format.ts:173` rebuilds that model from the
 columns in O(bytes). `openTestCoverage` at
-`packages/sense/src/test-selection/format-view.ts:76` does not: it parses the
+`packages/sense/src/test-selection/format-view.ts:78` does not: it parses the
 section index, checks that the row counts agree, and returns a column for each
 section that decompresses when something in it is asked for. A column answers
 by the row or answers whole, and which of the two a caller picks is the
@@ -343,7 +345,7 @@ Decoding each use on its own costs twice the time and close to three times the
 heap, for a model that says exactly the same thing.
 
 **Location.** `testCoverageFile` in
-`packages/sense/src/test-selection/index.ts:150` places the file under
+`packages/sense/src/test-selection/index.ts:159` places the file under
 `<cache>/variance-authority/test-selection/<repository-digest>/coverage.bin`,
 with `<cache>` from `XDG_CACHE_HOME` or `~/.cache`. What a bundler instrumented
 is kept next to it as one record per module in the store
@@ -428,7 +430,7 @@ numbered when it was transformed reports its path instead, and a record filed
 under `UNNUMBERED` in
 `packages/sense/src/test-selection/record-format.ts:47` answers for that path
 until the fold numbers it. Both are one `ModuleId`, ordered by `idOrder` in
-`packages/sense/src/test-selection/instrumented-modules.ts:401` — numbers
+`packages/sense/src/test-selection/instrumented-modules.ts:429` — numbers
 first, then paths — so two folds of one run write one sequence.
 
 **Block, within a file.** `(module row, ordinal)`. Ordinals are unique within
@@ -436,7 +438,7 @@ a module and the first block is the module root.
 
 **Block, across files.** `name`, `path` and `kind`: the address, and what kind
 of region sits at it. `mergeCoverage` matches `name` and `path`, and
-`reusableBlock` in `packages/sense/src/test-selection/merge.ts:382` asks the
+`reusableBlock` in `packages/sense/src/test-selection/merge-carry.ts:178` asks the
 one remaining question. Nothing above the block enters it and neither does its
 digest, so a block keeps its crossings through every edit that leaves it where
 it is. A block with no match in the new table is gone, and what was recorded
@@ -542,7 +544,7 @@ as a location without the chain: the declaration and the structural position
 inside it. `start` and `end` place the block on the lines of the source at
 `modules.source`. When the file on disk no longer hashes to that digest the
 lines are the record's, not the disk's; `sourcesOnDisk` in
-`packages/sense/src/test-selection/merge.ts:285` is what notices, and the rows
+`packages/sense/src/test-selection/merge.ts:304` is what notices, and the rows
 are re-cut over the text that is there.
 
 ## Journals
@@ -553,25 +555,32 @@ writer. Three journal shapes exist, and each carries a list of
 shape here:
 
 ```json
-{ "id": 5104, "hits": [0, 1, 2, 3, 5, 6], "shared": [0] }
+{ "id": 5104, "hits": [0, 1, 2, 3, 5, 6], "shared": [0], "loaded": [0, 1] }
 ```
 
 `id` is the id the module was instrumented under — its number, or its path
 until it has one — `hits` the ordinals whose counter was above zero, ascending,
 and `shared` the subset of `hits` whose counter carried the `EVALUATING` bit.
-Presence only: the counts never leave the process.
+`loaded`, in the worker journal only, is the subset of `hits` whose counter was
+already above zero in the snapshot the setup file took before the file's first
+test: regions entered as a consequence of loading. Presence only: the counts
+never leave the process. The ordinals index the recipe the build instrumented
+under — `sense:instrument/presence-v4`, or `sense:instrument/entries-v1` when
+the seam was asked for `mode: 'entries'`, which numbers the module and each
+function and nothing between — and every reader refuses a journal, record or
+snapshot cut under the other.
 
 **Worker journal.** Written by the setup file of a Vitest or Jest worker in its
 `afterAll`, one per test file, as `<pid>-<uuid>.va` under the run directory
 `.run-<pid>-<uuid>` beside the coverage file. It is the one of the three that is
 never built as those objects: `encodeJournal` in
-`packages/sense/src/test-selection/journal-format.cts:55` walks the counter
+`packages/sense/src/test-selection/journal-format.cts:89` walks the counter
 arrays the probes increment and writes the ordinals out as the gaps between
 them, so a worker pays one pass over each array and the reporter reads bytes.
 
 ```
 journal  "VAJRN" | version | test file | modules | module | module | …
-module   0 | id   or   1 | path | hits | shared
+module   0 | id   or   1 | path | hits | shared | loaded
 hits     count | gap | gap | …
 ```
 
@@ -586,16 +595,18 @@ exactly on the end of the frame refuses for nothing.
 
 The reporter reads the record each id names, folds every journal through
 `crossingsOf` in
-`packages/sense/src/test-selection/instrumented-modules.ts:362`, merges into
-the coverage file, and removes the run directory. A shared ordinal is credited
-to every test file that consumed the module; under isolation each file
-consumed its own evaluation and the credit reaches nobody else.
+`packages/sense/src/test-selection/instrumented-modules.ts:382` — and the
+`loaded` ordinals through `loadedOf` at `:412`, the same fold over the other
+column — merges into the coverage file, and removes the run directory. A
+shared ordinal is credited to every test file that consumed the module; under
+isolation each file consumed its own evaluation and the credit reaches nobody
+else.
 
 **Module record.** One module as bytes, appended by whoever transformed it to a
 segment it alone holds open. `frameRecord` in
 `packages/sense/src/test-selection/record-format.ts:99` builds the frame and
 `writeRecord` in
-`packages/sense/src/test-selection/instrumented-modules.ts:127` appends it:
+`packages/sense/src/test-selection/instrumented-modules.ts:129` appends it:
 
 ```
 segment  "VAREC" | version | instrumentation id | frame | frame | …
@@ -703,8 +714,8 @@ silent, reported another instrumentation id, or lost an account.
 
 **Append from a worker run.** The Vitest and Jest reporters read every
 worker journal in the run directory through `readJournals` at
-`packages/sense/src/test-selection/vitest.ts:302` and
-`packages/sense/src/test-selection/jest-reporter.ts:180`, fold them through `crossingsOf`, merge into the
+`packages/sense/src/test-selection/vitest.ts:318` and
+`packages/sense/src/test-selection/jest-reporter.ts:190`, fold them through `crossingsOf` and `loadedOf`, merge into the
 coverage file and remove the run directory. O(sum of journal sizes).
 
 **Append from a driven run.** `recordExecution` in
@@ -723,7 +734,7 @@ O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
 **Merge with the previous record.** `mergeCoverage` at
-`packages/sense/src/test-selection/merge.ts:188` carries forward what the run
+`packages/sense/src/test-selection/merge.ts:205` carries forward what the run
 did not observe. When the instrumentation id differs the previous record is
 dropped whole. A test the run observed replaces its previous row. A test the
 run did not observe keeps its row, unless the new table holds no region it
@@ -731,14 +742,14 @@ crossed at all, in which case it is demoted to incomplete and re-runs on its
 next selection. A carried module whose text on disk moved has its rows re-cut
 over that text, one parse per such module, and only a module whose text cannot
 be parsed demotes every test that crossed it. Both sides are indexed before the
-walk — `first` at `packages/sense/src/test-selection/merge.ts:418` keys modules
+walk — `first` at `packages/sense/src/test-selection/merge-carry.ts:82` keys modules
 by path and blocks by `addressOf` at
-`packages/sense/src/test-selection/merge.ts:413`, name path and structural path
+`packages/sense/src/test-selection/merge-carry.ts:77`, name path and structural path
 together — so the cost is O(M_prev + M_cur) plus O(B_prev + B_cur) for each
 matched module, and the file is sorted on the way out.
 
 **Fold shards.** `foldTestCoverage` at
-`packages/sense/src/test-selection/merge.ts:58` unions the records of a
+`packages/sense/src/test-selection/merge.ts:66` unions the records of a
 sharded run, in any order, O(sum of shard sizes). It refuses shards with
 differing instrumentation or commit, a test in two shards, and a module with
 two source digests. An uninstrumented observation of a module wins over an
@@ -780,7 +791,7 @@ not execute. `blocks.tests` has no check of its own for that reason: selection
 reads two of its rows per region it asked about and never the column, and a
 bound either lands in the crossings or is refused by them.
 
-`existingCoverage` at `packages/sense/src/test-selection/merge.ts:347` turns any
+`existingCoverage` at `packages/sense/src/test-selection/merge.ts:366` turns any
 of those into an absent record, so a corrupt file costs one full run.
 
 ## Complexity summary
@@ -801,7 +812,7 @@ of those into an absent record, so a corrupt file costs one full run.
 | graph walk, when a graph is supplied | O(n + m) per changed file | `answerByImporters` |
 | blocks a test crossed | O(C) | the crossings column |
 | tests covering a line | O(M + B²) | `coveringTests` |
-| fold worker journals | O(journal bytes) | `readJournals`, `crossingsOf` |
+| fold worker journals | O(journal bytes) | `readJournals`, `crossingsOf`, `loadedOf` |
 | read the names table | one read of at most eight immutable files | `readModuleNames` |
 | a path's number | O(log M) per segment, then at most fifteen entries | `idOf` |
 | number what a run met | O(M log M), the compaction it publishes beside the delta | `nameModules` |

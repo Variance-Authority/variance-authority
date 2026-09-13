@@ -33,6 +33,10 @@
       "types": "./dist/read.d.ts",
       "default": "./dist/read.js"
     },
+    "./taint": {
+      "types": "./dist/taint/index.d.ts",
+      "default": "./dist/taint/index.js"
+    },
     "./instrument": {
       "types": "./dist/instrument/index.d.ts",
       "default": "./dist/instrument/index.js"

@@ -2,6 +2,7 @@ import { readFile, rm, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
 import { mergeCoverage, withTestSelection } from './vitest.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
@@ -28,6 +29,31 @@ describe('coverage generations', () => {
         instrumented: false,
         blocks: [],
       }]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('cuts and lands under the entries recipe when asked for it', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-instrumentation-entries-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      const configured = withTestSelection({}, { root, coverageFile, include: () => true, mode: 'entries' });
+      const plugin = (configured.plugins as unknown as Array<{
+        transform(code: string, id: string): { code: string } | null;
+      }>)[0]!;
+      const reporter = (configured.test!.reporters as unknown as Array<{
+        onFinished(files: readonly []): Promise<void>;
+      }>)[1]!;
+
+      const placed = plugin.transform('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
+      await reporter.onFinished([]);
+
+      // One probe for the module, one for the function, none for the branch.
+      expect(placed!.code.match(/__va\(\d+\)/g)).toEqual(['__va(0)', '__va(1)']);
+      const coverage = decodeTestCoverage(await readFile(coverageFile));
+      expect(coverage.instrumentation).toBe(instrumentationId('entries'));
+      expect(coverage.modules[0]?.blocks.map((block) => block.kind)).toEqual(['module', 'function']);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

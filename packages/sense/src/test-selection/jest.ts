@@ -24,6 +24,7 @@
 
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { InstrumentMode } from '../instrument/index.js';
 import { testCoverageFile } from './index.js';
 
 export interface JestTestSelectionOptions {
@@ -33,6 +34,12 @@ export interface JestTestSelectionOptions {
   readonly coverageFile?: string;
   /** Additional files whose contents are preconditions of every test observation. */
   readonly preconditions?: readonly string[];
+  /**
+   * `presence` probes every arrival region; `entries` probes modules and
+   * functions only, and costs a fraction of it. Both record which functions
+   * ran before the file's first test.
+   */
+  readonly mode?: InstrumentMode;
 }
 
 /** The subset of a Jest configuration this seam reads and rewrites. */
@@ -52,6 +59,8 @@ export interface SelectionTransformerConfig {
   readonly root: string;
   /** The transformer this one wraps, as the configuration spelled it; absent runs plain JavaScript. */
   readonly transformer?: string | readonly [string, Record<string, unknown>];
+  /** The probe recipe; `presence` when absent. */
+  readonly mode?: InstrumentMode;
 }
 
 /** What the reporter is handed. */
@@ -60,6 +69,8 @@ export interface SelectionReporterConfig {
   readonly coverageFile: string;
   /** Absolute paths of every configured setup file and declared precondition. */
   readonly preconditions: readonly string[];
+  /** The probe recipe the transforms placed; `presence` when absent. */
+  readonly mode?: InstrumentMode;
 }
 
 /** The variable the reporter sets before workers fork, and the setup file reads. */
@@ -120,16 +131,22 @@ export function withTestSelection(
     }
     return project;
   });
-  const projects = inline?.map((project) => instrumented(project, root, projectRoot(project, root)));
+  const mode = options.mode;
+  const projects = inline?.map((project) => instrumented(project, root, projectRoot(project, root), mode));
   const preconditions = [
     ...setupPaths(config, root),
     ...(inline ?? []).flatMap((project) => setupPaths(project, projectRoot(project, root))),
     ...(options.preconditions ?? []).map((file) => resolve(root, file)),
   ];
-  const reporter: SelectionReporterConfig = { root, coverageFile, preconditions: [...new Set(preconditions)] };
+  const reporter: SelectionReporterConfig = {
+    root,
+    coverageFile,
+    preconditions: [...new Set(preconditions)],
+    ...(mode === undefined ? {} : { mode }),
+  };
 
   return {
-    ...(projects === undefined ? instrumented(config, root, root) : config),
+    ...(projects === undefined ? instrumented(config, root, root, mode) : config),
     rootDir: config.rootDir ?? root,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
@@ -142,7 +159,12 @@ export function withTestSelection(
  * write the journal. Reporters are the run's, not a project's — Jest ignores
  * a project's — so they are added once, above.
  */
-function instrumented(config: JestConfig, root: string, rootDir: string): JestConfig {
+function instrumented(
+  config: JestConfig,
+  root: string,
+  rootDir: string,
+  mode: InstrumentMode | undefined,
+): JestConfig {
   const configured = config.transform === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
     : Object.keys(config.transform).length === 0
@@ -151,7 +173,10 @@ function instrumented(config: JestConfig, root: string, rootDir: string): JestCo
   const transform = Object.fromEntries(
     Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
       pattern,
-      [SELECTION_TRANSFORM, { root, ...(transformer === undefined ? {} : { transformer }) }],
+      [
+        SELECTION_TRANSFORM,
+        { root, ...(transformer === undefined ? {} : { transformer }), ...(mode === undefined ? {} : { mode }) },
+      ],
     ]),
   );
 

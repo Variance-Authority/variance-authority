@@ -58,6 +58,15 @@ export interface CoverageBlock {
   /** False for a synthesized control-flow region with no source of its own. */
   readonly source: boolean;
   readonly testFiles: readonly string[];
+  /**
+   * The test files this region had already been entered for before their first
+   * test ran: a consequence of loading the module, not of anything a test did.
+   * A function here is a side effect of import, and a suite whose order can
+   * change is a suite that will see it at different times. Absent when no file
+   * had: every producer records the fact, so an empty list and no list say the
+   * same thing.
+   */
+  readonly loadedBy?: readonly string[];
 }
 
 export interface CoverageModule {
