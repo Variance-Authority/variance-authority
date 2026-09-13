@@ -23,10 +23,9 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, openSync, writeSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { digestString } from '../digest.js';
 import { INSTRUMENTATION_ID, type Block, type ModuleId } from '../instrument/index.js';
+import { cacheLayers, defaultCacheRoot, seedFromBase } from './cache-layers.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import {
   UNNUMBERED,
@@ -54,12 +53,21 @@ export interface CapturedModule {
 }
 
 /** Where a repository keeps the numbers it calls its modules by. */
-export function moduleNamesFile(
-  root: string,
-  cacheRoot = process.env['XDG_CACHE_HOME'] ?? resolve(homedir(), '.cache'),
-): string {
-  const repository = digestString(resolve(root)).replace(/^[^:]+:/, '');
-  return resolve(cacheRoot, 'variance-authority', 'test-selection', repository, 'names.bin');
+export function moduleNamesFile(root: string, cacheRoot = defaultCacheRoot()): string {
+  return resolve(cacheLayers(root, cacheRoot).top, 'names.bin');
+}
+
+/**
+ * This checkout's table, with the repository's taken over first if it has none.
+ *
+ * The read path for the numbering: see {@link seedFromBase} for why a worktree
+ * must own the table rather than read across it.
+ */
+export function openModuleNames(root: string, cacheRoot = defaultCacheRoot()): string {
+  const layers = cacheLayers(root, cacheRoot);
+  seedFromBase(layers, ['names.bin', 'names.bin.segments']);
+
+  return resolve(layers.top, 'names.bin');
 }
 
 /**
@@ -82,13 +90,36 @@ export function moduleNamesFile(
  * repository's cache and a label, and Jest takes its own cache directory and its
  * project id, which is Jest's own word for the thing a label means here.
  */
-export function recordStore(
+export function recordStore(root: string, label = 'build', cacheRoot = defaultCacheRoot()): string {
+  return resolve(cacheLayers(root, cacheRoot).top, label);
+}
+
+/**
+ * The same store as every layer this checkout may read it from, farthest first.
+ *
+ * A worktree's build transforms what its branch changed and nothing else, so on
+ * its own its store answers for a handful of modules out of a repository's
+ * hundreds of thousands. Beneath it sits the primary checkout's store for the
+ * same label, which answers for the rest, and the two are one store read in
+ * order rather than two stores that have to be reconciled.
+ *
+ * Farthest first is the whole of the precedence rule, because the rule already
+ * exists: within a store *the later frame wins*, and a module the worktree
+ * re-transformed is later than the base's record of it by construction. Passing
+ * the base's segments ahead of this checkout's makes the branch's text win
+ * without a second rule to get wrong — and it is a different question from two
+ * *peer* stores disagreeing, which is not a matter of age and stays widened.
+ */
+export function recordStores(
   root: string,
   label = 'build',
-  cacheRoot = process.env['XDG_CACHE_HOME'] ?? resolve(homedir(), '.cache'),
-): string {
-  const repository = digestString(resolve(root)).replace(/^[^:]+:/, '');
-  return resolve(cacheRoot, 'variance-authority', 'test-selection', repository, label);
+  cacheRoot = defaultCacheRoot(),
+): readonly string[] {
+  const layers = cacheLayers(root, cacheRoot);
+
+  return layers.top === layers.base
+    ? [resolve(layers.base, label)]
+    : [resolve(layers.base, label), resolve(layers.top, label)];
 }
 
 /** One writer's segment of one store, from the first record it writes to exit. */
@@ -154,7 +185,21 @@ interface ReadSegment {
  * journals into rows, and a cache of segments that are megabytes each would be a
  * cache a long-lived driver never stops paying for.
  */
-async function readSegments(store: string, instrumentation: string): Promise<readonly ReadSegment[]> {
+async function readSegments(
+  store: readonly string[],
+  instrumentation: string,
+): Promise<readonly ReadSegment[]> {
+  const layers = await Promise.all(store.map((at) => readLayer(at, instrumentation)));
+
+  // Each layer sorted within itself, and the layers concatenated in the order
+  // they were given. Sorting the whole set by mtime would be wrong across
+  // layers: the primary checkout may have recorded after the worktree did, and
+  // a base frame is still the older claim about the text — older in lineage,
+  // which is the order *the later frame wins* is about.
+  return layers.flat();
+}
+
+async function readLayer(store: string, instrumentation: string): Promise<readonly ReadSegment[]> {
   let names: string[];
   try {
     names = (await readdir(store)).filter((name) => name.endsWith('.rec'));
@@ -191,7 +236,7 @@ interface Answer {
  * one that produced the text the running code was cut from.
  */
 async function readStore(
-  store: string,
+  store: readonly string[],
   wanted: ReadonlySet<ModuleId>,
   instrumentation: string,
 ): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
@@ -221,11 +266,16 @@ async function readStore(
  * spends that as a full run rather than as a partial index.
  */
 export async function readRecord(
-  store: string,
+  store: string | readonly string[],
   id: ModuleId,
   instrumentation = INSTRUMENTATION_ID,
 ): Promise<CapturedModule | undefined> {
-  return (await readStore(store, new Set([id]), instrumentation)).get(id);
+  return (await readStore(layersOf(store), new Set([id]), instrumentation)).get(id);
+}
+
+/** One store named as a path, or as the layers it is read from, farthest first. */
+function layersOf(store: string | readonly string[]): readonly string[] {
+  return typeof store === 'string' ? [store] : store;
 }
 
 /**
@@ -239,12 +289,14 @@ export async function readRecord(
  * and instrument it identically — and costs nothing.
  */
 export async function readRecords(
-  stores: readonly string[],
+  stores: readonly (string | readonly string[])[],
   ids: Iterable<ModuleId>,
   instrumentation = INSTRUMENTATION_ID,
 ): Promise<ReadonlyMap<ModuleId, CapturedModule>> {
   const wanted = new Set(ids);
-  const held = await Promise.all(stores.map((store) => readStore(store, wanted, instrumentation)));
+  const held = await Promise.all(
+    stores.map((store) => readStore(layersOf(store), wanted, instrumentation)),
+  );
   const found = new Map<ModuleId, CapturedModule>();
   for (const id of wanted) {
     const answers = held

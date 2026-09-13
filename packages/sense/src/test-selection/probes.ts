@@ -17,7 +17,7 @@ import {
   cleanId,
   coverageBlock,
   defaultInclude,
-  moduleNamesFile,
+  openModuleNames,
   projectPath,
   openRecords,
   recordStore,
@@ -165,7 +165,7 @@ export function testSelectionProbes(
   // Once, here, rather than per module: the table is immutable while this build
   // runs, and the fold that grows it runs after. A file it has never numbered is
   // instrumented under its path and numbered by the next fold.
-  const names = readModuleNames(moduleNamesFile(root, options.cacheRoot));
+  const names = readModuleNames(openModuleNames(root, options.cacheRoot));
 
   return {
     name: 'variance-authority:test-selection-probes',

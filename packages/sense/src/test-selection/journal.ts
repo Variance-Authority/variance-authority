@@ -57,9 +57,10 @@ import {
   moduleNamesFile,
   projectPath,
   readRecords,
-  recordStore,
+  recordStores,
 } from './instrumented-modules.js';
 import {
+  seedTestCoverage,
   testCoverageFile,
   type CoveragePrecondition,
   type CoverageTest,
@@ -213,11 +214,11 @@ export async function recordExecution(
     options.coverageFile === undefined
       ? testCoverageFile(root)
       : resolve(root, options.coverageFile);
-  const stores = [...new Set(
-    [options.label, ...(options.heads ?? [])].map((label) =>
-      recordStore(root, label, options.cacheRoot),
-    ),
-  )];
+  // One entry per label, each read across its layers: a worktree's own records
+  // after the primary checkout's for the same build. Labels are the peers.
+  const stores = [...new Set([options.label, ...(options.heads ?? [])])].map((label) =>
+    recordStores(root, label, options.cacheRoot),
+  );
 
   // Only the modules the journals name. A module nothing entered this run keeps
   // whatever the index already says about it, which is the merge's job and not
@@ -321,6 +322,9 @@ export async function recordExecution(
   // between processes or it is nothing: two unlocked workers would each merge
   // against the index they read at the start and the later rename would drop the
   // earlier worker's whole contribution — silently, and in the unsafe direction.
+  // A worktree layers onto the repository's months of recording rather than
+  // onto nothing. A no-op here and after the first run.
+  await seedTestCoverage(coverageFile, root, options.cacheRoot);
   await mkdir(dirname(coverageFile), { recursive: true });
   const lock = await takeIndexLock(coverageFile);
   if (lock === undefined) {

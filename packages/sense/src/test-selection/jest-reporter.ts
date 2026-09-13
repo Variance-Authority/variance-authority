@@ -38,6 +38,7 @@ import {
 } from './instrumented-modules.js';
 import { jestStore, RUN_DIRECTORY_VARIABLE, type SelectionReporterConfig } from './jest.js';
 import {
+  seedTestCoverage,
   writeCoverageBytes,
   type CoveragePrecondition,
   type CoverageTest,
@@ -113,6 +114,10 @@ class SelectionReporter {
         ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
+    // The repository's snapshot becomes this checkout's before the first run
+    // lands on it, so a worktree layers onto months of recording rather than
+    // onto nothing. A no-op in the primary checkout and after the first run.
+    await seedTestCoverage(coverageFile, root);
     await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
     // Everything this run saw, numbered for the next one. A file first met today
     // was instrumented under its path; from here on it has a number.

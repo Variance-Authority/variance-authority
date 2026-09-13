@@ -21,12 +21,14 @@ import {
   isMissing,
   loadedOf,
   moduleNamesFile,
+  openModuleNames,
   projectPath,
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
 import { sourceLines } from './source-lines.js';
 import {
+  seedTestCoverage,
   testCoverageFile,
   writeCoverageBytes,
   type CoverageModule,
@@ -88,7 +90,7 @@ export function withTestSelection(
   const include = options.include ?? defaultInclude;
   // Once per process, before any module is transformed: the table this run
   // reads is the one the last fold published, and this run's own fold grows it.
-  const names = readModuleNames(moduleNamesFile(root));
+  const names = readModuleNames(openModuleNames(root));
   const mode = options.mode ?? 'presence';
   const plugin = selectionPlugin(root, runDirectory, setupId, modules, include, names, mode);
   const setupFiles = array(config.test?.setupFiles);
@@ -209,6 +211,10 @@ function selectionReporter(
           ))
           .sort((left, right) => codeUnitOrder(left.file, right.file)),
       };
+      // The repository's snapshot becomes this checkout's before the first run
+      // lands on it, so a worktree layers onto months of recording rather than
+      // onto nothing. A no-op in the primary checkout and after the first run.
+      await seedTestCoverage(coverageFile, root);
       await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
       // Everything this run saw, numbered for the next one. A file first met
       // today was instrumented under its path; from here on it has a number.

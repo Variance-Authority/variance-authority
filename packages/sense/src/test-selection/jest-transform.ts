@@ -32,7 +32,7 @@ import { readModuleNames } from '../module-names.js';
 import {
   coverageBlock,
   defaultInclude,
-  moduleNamesFile,
+  openModuleNames,
   openRecords,
   projectPath,
   writeRecord,
@@ -112,7 +112,7 @@ export async function createTransformer(
   const instrumentation = instrumentationId(mode);
   // Once per worker. The table is immutable for the life of this run — the fold
   // that grows it is the reporter, in the parent, after the last worker exits.
-  const names = readModuleNames(moduleNamesFile(root));
+  const names = readModuleNames(openModuleNames(root));
   const idOf = (path: string): ModuleId => {
     const file = projectPath(root, path);
     return names.idOf(file) ?? file;
